@@ -9,7 +9,7 @@ Latest incremental recheck:
 `2764e83626efe55f64e04d153fc99a157327f3c2`.
 
 Latest implementation commit:
-`ec1f6fc8f83fa1a3d6812ab6b8eab8ac8c692940`.
+`ea0118067a2f9f2558db300c76c3fd74675725b9`.
 
 Primary references:
 
@@ -210,8 +210,9 @@ Statistician now applies that behavior through its existing provider-neutral
    in an isolated native Claude client-tool session.
 2. The model submits its Markdown review and compact judgment through one
    terminal tool.
-3. Runtime validates evidence pointers, immutable lineage, verdict consistency,
-   and document identity without changing the judgment.
+3. Runtime validates the complete review-input fingerprint, exact source and
+   theory identities, reviewer independence, immutable lineage, verdict/finding
+   consistency, and document identity without changing the judgment.
 4. An invalid submission returns the exact bounded validation observation to
    the same reviewer session as an error tool result.
 5. A valid resubmission closes that workspace; repeated invalid submission still
@@ -221,6 +222,15 @@ This is not a repair agent or full-packet regeneration callback. The same model
 owns both submissions, the reviewed source never changes, Architect is not
 invoked, and no empirical or proof authority is promoted. The one corrective
 turn is available only after a real rejected terminal submission.
+
+The later Hotelling draw showed that RFC 6901 evidence pointers were themselves
+an unnecessary model-facing mini-language. Its isolated simulation reviewer
+authored substantive findings, then failed twice because two deep paths were
+absent from a large review JSON object. The current v25 contract therefore keeps
+scientific locations and line descriptions in the exact Markdown report and
+removes evidence pointers from the compact verdict envelope. Runtime does not
+try to prove a scientific claim by checking that a JSON path exists; it binds
+the complete supplied review material and exact model-authored report instead.
 
 The upstream delta from the previously reviewed `d52478c5` pin to `7c6eb0e`
 contains one commit. It scopes stop-hook rejection for unattended memory
@@ -811,6 +821,30 @@ No formula, parser, repair agent, model escalation, scheduler, extra turn, or ta
 rule was added. Focused adjacent regressions pass `290/290`, the complete repository
 passes `904/904`, and production Python remains below its fixed budget at 149,998
 lines. This is future-task mechanism evidence and does not change any consumed score.
+
+## Reviewed-source workspace continuation
+
+The Hotelling trace also exposed one collaboration error. A simulation reviewer
+could say `REVISE` and explicitly state that the current source was sufficient,
+but runtime then generated a fresh simulation planning envelope before the source
+owner saw the finding. That discarded useful workspace continuity and spent a
+planning-model call on routine code revision.
+
+Commit `ea011806` keeps this inside the existing single AgentRuntime. For a
+hash-valid Simulation review with `current_source_edit_sufficient=true`, runtime
+restores the exact parent proposal and source, gives the model-authored finding
+to the same Simulation source-owner loop, requires changed source bytes before
+commit, and records that the current continuation used zero planning-model calls.
+Architect is not invoked. The runtime does not patch source, interpret the
+finding, add a task formula, or expose the blinded confirmatory outcome.
+
+The same commit removes generated-code-review evidence pointers from the live
+model contract. Substantive review remains Markdown; the compact envelope carries
+only disposition, findings, and source-sufficiency. Focused adjacent regressions
+passed `124/124`, and the complete repository passed `903/903` in 69.38 seconds.
+`research_agent_runtime.py` is 24,996 lines and top-level production Python is
+149,928 lines. This is future-task mechanism evidence only: the consumed
+Hotelling result remains `0/1`, and the aggregate remains `4/42`.
 
 ## Current upstream boundary recheck
 

@@ -102,7 +102,7 @@ def test_ladder_live_evaluation_policy_is_exact_haiku() -> None:
     assert model_policy["automatic_tier_escalation_allowed"] is False
 
 
-def test_hotelling_t2_l0_is_frozen_before_its_only_product_draw() -> None:
+def test_hotelling_t2_l0_preserves_its_only_consumed_product_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -115,24 +115,67 @@ def test_hotelling_t2_l0_is_frozen_before_its_only_product_draw() -> None:
     assert candidate["family"] == "multivariate_normal_mean_inference"
     assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_before_first_product_model_call"
+        "fresh_live_v1_full_task_gold_failed_algorithm_contract_and_runtime_review_transport"
     )
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["activation_commit"] == (
         "dc0d323eca5fe8eecb0f7a28476950e02a8275da"
     )
+    assert evidence["activation_identity_commit"] == (
+        "4a25311b1ed168f99a41bf9f38dd97975b801aeb"
+    )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_head"] == (
+        "570d78a58bfdb3d22f092ddf02a1808c001c2c25"
+    )
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
-    assert evidence["runtime_model_policy_status"] == "FROZEN_NOT_RUN"
+    assert evidence["runtime_model_tier"] == "haiku"
+    assert evidence["runtime_model_policy_status"] == "OK"
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "generated_code_semantic_review_packet_invalid"
+    )
+    assert evidence["runtime_outer_traces"] == 16
+    assert evidence["runtime_research_eval_complete"] is False
+    assert evidence["runtime_mode_conformant"] is True
     assert evidence["semantic_calibration_cases_correct"] == 14
     assert evidence["semantic_reference_claims"] == 9
     assert evidence["algorithm_reference_contract_checks"] == "10/10"
     assert evidence["algorithm_negative_variants_rejected"] == 4
     assert evidence["empirical_reference_checks"] == "9/9"
     assert evidence["empirical_reference_dgps_passed"] == 3
+    assert evidence["hidden_theory_mechanics_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_checks"] == "9/9"
+    assert evidence["hidden_theory_combined_passed"] is True
+    assert evidence["hidden_algorithm_checks"] == "8/9"
+    assert evidence["hidden_algorithm_estimator_invocations"] == 13
+    assert evidence["hidden_empirical_checks"] == "9/9"
+    assert evidence["hidden_empirical_estimator_invocations"] == 12000
+    assert evidence["hidden_empirical_status"] == (
+        "hidden_gold_passed_runtime_not_accepted"
+    )
+    assert evidence["runtime_manifest_sha256"] == (
+        "d53e4a5158a9eca7c99f601fc70616d6dc94ce703c36d05eb31344bf2baba54f"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "7100837bf25b8a680149e401425da482db24e6a4657fddbd7cf0cc42ea71b477"
+    )
+    assert evidence["hidden_gold_report_sha256"] == (
+        "0d2eca983fa15cb2f4edca1d67d91dbbabb251ee8db0ed025aed84d0dbfef520"
+    )
+    assert evidence["operator_audit_path"] == (
+        "docs/operator_audits/hotelling_t2_l0_v1.md"
+    )
+    assert evidence["post_run_shared_change_commit"] == (
+        "ea0118067a2f9f2558db300c76c3fd74675725b9"
+    )
+    assert evidence["post_run_score_changed"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["generated_algorithm_executed"] is True
+    assert evidence["generated_simulation_executed"] is True
     assert evidence["full_task_passed"] is False
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
@@ -1841,11 +1884,11 @@ def test_aitken_gls_l0_records_sole_consumed_draw_and_operator_caveats() -> None
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
+        "ea0118067a2f9f2558db300c76c3fd74675725b9"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2305,7 +2348,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
+        "ea0118067a2f9f2558db300c76c3fd74675725b9"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2368,7 +2411,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -2452,7 +2495,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     visible_path = Path(candidate["visible_questions_path"])
@@ -2592,11 +2635,11 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     }
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
+        "ea0118067a2f9f2558db300c76c3fd74675725b9"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2711,11 +2754,11 @@ def test_neyman_pearson_theory_l0_draw_is_consumed_and_failed_closed() -> None:
     }
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
+        "ea0118067a2f9f2558db300c76c3fd74675725b9"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2856,7 +2899,7 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
 
@@ -2972,7 +3015,7 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
@@ -3082,7 +3125,7 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
@@ -3196,7 +3239,7 @@ def test_inverse_variance_meta_analysis_r_l0_records_sole_consumed_draw() -> Non
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
@@ -3335,7 +3378,7 @@ def test_mcnemar_exact_l0_records_sole_consumed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
@@ -3500,11 +3543,11 @@ def test_hoeffding_u_statistic_l0_records_one_consumed_caveated_pass() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 42
-    assert readiness["consumed_scored_tasks"] == 41
+    assert readiness["consumed_scored_tasks"] == 42
     assert readiness["fully_gold_configured_tasks"] == 42
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
+        "ea0118067a2f9f2558db300c76c3fd74675725b9"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
