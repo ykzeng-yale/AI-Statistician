@@ -855,6 +855,127 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
+def test_reviewer_must_repair_its_failed_probe_before_accepting(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    estimator_source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': float(request['value'])}\n"
+    )
+    material = _algorithm_review_material(
+        language="python",
+        source=estimator_source,
+        dependencies=[],
+    )
+    failed_probe = {
+        "artifact_id": "candidate",
+        "dependencies": [],
+        "code": "def run_sandbox(seed, replicates): return {'ok': True}\n",
+        "seed": 17,
+        "replicates": 4,
+    }
+    corrected_probe = {
+        **failed_probe,
+        "code": (
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    result = estimators['candidate']({'value': 2.0})\n"
+            "    return {'estimate_is_two': result['estimate'] == 2.0}\n"
+        ),
+    }
+    submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe current estimator is aligned.",
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No current-source defect was found.",
+            "evidence_refs": [],
+        },
+    }
+
+    class FailedProbeThenRepairBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            sequence = (
+                ("run_exact_estimator_review_probe", failed_probe),
+                ("submit_generated_code_semantic_review", submission),
+                ("run_exact_estimator_review_probe", corrected_probe),
+                ("submit_generated_code_semantic_review", submission),
+            )
+            name, payload = sequence[len(self.requests) - 1]
+            call_id = f"review-call-{len(self.requests)}"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {"type": "tool_use", "id": call_id, "name": name, "input": payload},
+                ),
+                tool_calls=(
+                    ClientToolCall(call_id=call_id, name=name, input=payload),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    executions = []
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        executions.append(kwargs)
+        succeeded = len(executions) == 2
+        return SimpleNamespace(
+            status="EXECUTED" if succeeded else "FAILED",
+            metrics={"estimate_is_two": True} if succeeded else {},
+            errors=() if succeeded else ("run_sandbox signature mismatch",),
+            stdout_summary="",
+            stderr_summary="" if succeeded else "run_sandbox signature mismatch",
+            estimator_invocation_counts={"candidate": 1} if succeeded else {},
+            estimator_runtime_errors=(),
+            request_hash=f"request-hash-{len(executions)}",
+            result_hash=f"result-hash-{len(executions)}" if succeeded else "",
+            code_path=str(tmp_path / f"probe-source-{len(executions)}"),
+            result_path=str(tmp_path / f"probe-result-{len(executions)}"),
+        )
+
+    monkeypatch.setattr(
+        reviewer_module,
+        "execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    backend = FailedProbeThenRepairBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=_algorithm_lineage(),
+        probe_sandbox_dir=tmp_path,
+    )
+
+    assert len(backend.requests) == 4
+    assert "run_sandbox signature mismatch" in str(backend.requests[1].messages[-1])
+    assert "no probe executed successfully" in str(backend.requests[2].messages[-1])
+    assert packet["overall_verdict"] == "ACCEPT"
+    loop = packet["client_tool_loop"]
+    assert loop["validation_submissions"] == 2
+    assert loop["validation_feedback_observed"] is True
+    assert [row["status"] for row in loop["review_probe_executions"]] == [
+        "FAILED",
+        "EXECUTED",
+    ]
+
+
 @pytest.mark.parametrize("tamper_hash", [False, True])
 def test_reviewer_probe_tool_is_unavailable_outside_verified_algorithm_target(
     tmp_path,

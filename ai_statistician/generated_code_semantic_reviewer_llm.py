@@ -50,7 +50,7 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 26
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 27
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -59,7 +59,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "statistical acceptance or theorem proof evidence."
 )
 GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = (
-    "model_authored_markdown_review_with_optional_exact_probe_v4"
+    "model_authored_markdown_review_with_optional_exact_probe_v5"
 )
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
@@ -177,6 +177,24 @@ def _exact_estimator_probe_targets(
             ),
         }
     return targets
+
+
+def _review_probe_execution_succeeded(row: Mapping[str, Any]) -> bool:
+    """Return whether a reviewer probe ran and reached its bound estimator."""
+
+    invocation_counts = row.get("estimator_invocation_counts", {})
+    return bool(
+        row.get("status") == "EXECUTED"
+        and not row.get("errors")
+        and not row.get("estimator_runtime_errors")
+        and isinstance(invocation_counts, Mapping)
+        and sum(
+            count
+            for count in invocation_counts.values()
+            if type(count) is int and count > 0
+        )
+        > 0
+    )
 
 def generated_code_semantic_review_finding_id(
     *,
@@ -914,7 +932,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             + " to actively test an exact current estimator. When useful, "
                             "prefer one broad model-authored probe that covers multiple "
                             "load-bearing public boundary cases; choose the cases and "
-                            "interpretation yourself."
+                            "interpretation yourself. If you choose to probe, read every "
+                            "raw execution observation and correct an unsuccessful probe "
+                            "in this same session before submitting ACCEPT. An unsuccessful "
+                            "reviewer-authored probe is not evidence that the estimator "
+                            "passed or failed."
                             if probe_targets
                             else ""
                         )
@@ -1051,6 +1073,20 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
+            if (
+                packet.get("overall_verdict") == "ACCEPT"
+                and probe_executions
+                and not any(
+                    _review_probe_execution_succeeded(row)
+                    for row in probe_executions
+                )
+            ):
+                errors.append(
+                    "ACCEPT is inconsistent with the reviewer's own probe history: "
+                    "no probe executed successfully and invoked the exact estimator; "
+                    "repair and rerun the reviewer-authored probe or submit a "
+                    "non-accepting judgment"
+                )
             validation_history.append(
                 {
                     "attempt_index": len(validation_history),
@@ -1101,12 +1137,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 request=request,
                 execute_tool=execute_tool,
                 max_turns=(
-                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES
+                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES + 1
                     if probe_targets
                     else 1
                 ),
                 max_tool_calls=(
-                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES
+                    GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES + 1
                     if probe_targets
                     else 1
                 ),
