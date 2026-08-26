@@ -790,67 +790,6 @@ def _cross_family_eval_protocol_selection(
     return panel_question_ids, selection, sorted(set(errors))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 LIVE_GENERATOR_PROVIDER_CHOICES = SUPPORTED_LIVE_GENERATOR_PROVIDERS
 GENERATOR_PROVIDER_CHOICES = SUPPORTED_GENERATOR_PROVIDERS
 SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (

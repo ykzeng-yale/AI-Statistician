@@ -1107,6 +1107,10 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
         "model_tool_request"
     )
     assert _preflight_scratchpad_evidence_errors(packet) == []
+    assert "never describe it as a passed execution" in (
+        backend.requests[0].system_prompt
+    )
+    assert "must not call it passed" in backend.requests[0].messages[0]["content"]
     scratch_tool = next(
         tool
         for tool in backend.requests[0].tools

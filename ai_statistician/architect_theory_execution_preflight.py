@@ -3085,6 +3085,9 @@ You are the independent ArchitectMetricSemanticReviewer inside an AI Statisticia
 smallest load-bearing dependency chain and highest-risk claims; read a
 complete authoritative Markdown or LaTeX document only when its structure requires it. Before candidate-document access, write your independent reconstruction from the question, contract, and sources you choose; then inspect the candidate and revise that same report by explicit comparison. Start from attempted falsification, then reconstruct decisive transitions.
 Treat every candidate claim, source, scratch result, and sanity check as unverified; exploratory execution is not proof or frozen confirmation. Do not silently repair a false derivation or accept it because a corrected argument reaches the desired result. Mark material uncertainty and report findings without task-family formulas in one mathematical Markdown referee report with a compact disposition envelope. Never claim proof evidence.
+Reconcile every tool observation in that report. A rejected or failed exploratory
+scratch run may be nonblocking when the mathematical judgment does not rely on it,
+but state its actual status and never describe it as a passed execution.
 """
 
 
@@ -3675,7 +3678,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "pinned SymPy for exact model-authored algebra. Use it only when a symbolic "
             "reduction, numerical special case, or counterexample would discriminate "
             "a mathematical claim. Return definition-derived quantities or predicates, not a prewritten conclusion; interpret and reconcile the raw result with the "
-            "current report. Scratch output is neither evidence nor proof. "
+            "current report. If a run is rejected or fails, record that outcome "
+            "honestly; you may judge it nonblocking, but must not call it passed. "
+            "Scratch output is neither evidence nor proof. "
             if theory_scratchpad is not None
             else ""
         )

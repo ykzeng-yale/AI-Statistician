@@ -195,6 +195,10 @@ def build_critic_evaluator_prompt(
         "Reconstruct at least one decisive assumption, equation, or normalization rather than "
         "grading terminology. Treat theory scratch calculations as exploratory unless an exact "
         "separately frozen confirmatory execution binding is present. "
+        "The independent_preflight scratch summary is runtime-authored from raw tool "
+        "observations. Never describe a rejected or failed run as passed. Such a run may "
+        "remain nonblocking when your independent reconstruction does not rely on it, but "
+        "disclose the review-evidence limitation. "
         "Before describing a correction as evidence of a defect, compare it with the "
         "observed expression: algebraically or logically equivalent forms are not a "
         "correction and must be reported as unsupported. "
@@ -705,6 +709,33 @@ def build_critic_canonical_evidence_view(
     candidate_preflight = artifacts.get(preflight_packet_id, {})
     if isinstance(candidate_preflight, Mapping):
         preflight_packet = candidate_preflight
+    scratch_observations = [
+        {
+            key: deepcopy(row.get(key))
+            for key in (
+                "scratch_run",
+                "status",
+                "execution_attempted",
+                "returncode",
+                "request_hash",
+                "result_hash",
+                "errors",
+            )
+        }
+        for row in preflight_packet.get("preflight_scratch_execution_refs", []) or []
+        if isinstance(row, Mapping)
+    ]
+    scratch_status_counts: dict[str, int] = {}
+    for row in scratch_observations:
+        errors = row.get("errors") or []
+        errors = errors if isinstance(errors, list) else [errors]
+        row["errors"] = [str(value)[:1200] for value in errors[:3]]
+        status = str(row.get("status", "") or "UNKNOWN")
+        scratch_status_counts[status] = scratch_status_counts.get(status, 0) + 1
+    successful_scratch_runs = sum(
+        row.get("status") == "EXECUTED" and row.get("returncode") == 0
+        for row in scratch_observations
+    )
 
     document_manifest = theory_packet.get("theory_workspace_manifest", {})
     document_rows = (
@@ -833,6 +864,20 @@ def build_critic_canonical_evidence_view(
             "active_unresolved_finding_ids": list(
                 preflight_packet.get("active_unresolved_finding_ids", []) or []
             ),
+            "scratch_observation_summary": {
+                "run_count": len(scratch_observations),
+                "successful_execution_count": successful_scratch_runs,
+                "non_success_count": (
+                    len(scratch_observations) - successful_scratch_runs
+                ),
+                "status_counts": dict(sorted(scratch_status_counts.items())),
+                "boundary": (
+                    "Runtime-projected raw execution status; exploratory scratch is "
+                    "not theory or proof evidence and a failure is not automatically "
+                    "a mathematical blocker."
+                ),
+            },
+            "scratch_observations": scratch_observations,
         },
     }
     algorithm_view = {

@@ -218,6 +218,82 @@ def test_canonical_evidence_view_excludes_legacy_simulation_flags() -> None:
     }
 
 
+def test_canonical_evidence_view_exposes_preflight_scratch_failures() -> None:
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory:1",
+        "serious_theory_mode": True,
+    }
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": "preflight:1",
+        "overall_verdict": "ACCEPT",
+        "findings": [],
+        "preflight_scratch_execution_refs": [
+            {
+                "scratch_run": 1,
+                "status": "REJECTED_CONTRACT",
+                "execution_attempted": False,
+                "returncode": -1,
+                "request_hash": "request-hash",
+                "result_hash": "",
+                "errors": ["generated source must define run_sandbox"],
+            }
+        ],
+    }
+    acceptance = {
+        "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+        "acceptance_id": "acceptance:1",
+        "source_theory_packet_id": "theory:1",
+        "preflight_packet_id": "preflight:1",
+    }
+    view = build_critic_canonical_evidence_view(
+        question_id="generic",
+        theory_packet=theory,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts={
+            "theory:1": theory,
+            "preflight:1": preflight,
+            "acceptance:1": acceptance,
+        },
+        formal_verification_policy="optional",
+    )
+
+    independent = view["theory"]["independent_preflight"]
+    assert independent["scratch_observation_summary"] == {
+        "run_count": 1,
+        "successful_execution_count": 0,
+        "non_success_count": 1,
+        "status_counts": {"REJECTED_CONTRACT": 1},
+        "boundary": (
+            "Runtime-projected raw execution status; exploratory scratch is "
+            "not theory or proof evidence and a failure is not automatically "
+            "a mathematical blocker."
+        ),
+    }
+    assert independent["scratch_observations"][0]["errors"] == [
+        "generated source must define run_sandbox"
+    ]
+
+    prompt = build_critic_evaluator_prompt(
+        question=OpenResearchQuestion(
+            id="generic",
+            title="Generic theory audit",
+            description="Audit a mathematical derivation.",
+        ),
+        retrieval_manifest={},
+        theory_packet=theory,
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view=view,
+    )
+    assert "Never describe a rejected or failed run as passed" in prompt
+    assert "REJECTED_CONTRACT" in prompt
+
+
 def test_canonical_evidence_view_hydrates_authoritative_theory_documents(
     tmp_path,
 ) -> None:
