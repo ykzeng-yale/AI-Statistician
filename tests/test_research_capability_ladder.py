@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "3d40ac2f57a560e733cebfbbeff270f9d3116cb4"
+LATEST_SHARED_MECHANISM_HEAD = "173cabdb4f0ccce5e494dc760d5936f305db910e"
 
 
 def _load_ladder() -> dict:
@@ -174,11 +174,6 @@ def test_neyman_allocation_l0_records_one_operator_invalidated_draw() -> None:
     assert evidence["ladder_score_after_consumption"] == "4/45"
     assert Path(evidence["operator_audit_path"]).is_file()
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -269,11 +264,6 @@ def test_gaussian_kde_l0_records_one_consumed_theory_block() -> None:
     assert evidence["ladder_score_after_consumption"] == "4/44"
     assert Path(evidence["operator_audit_path"]).is_file()
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -387,12 +377,6 @@ def test_kendall_tau_l0_records_one_consumed_draw_and_operator_override() -> Non
     assert evidence["generated_simulation_executed"] is True
     assert evidence["full_task_passed"] is False
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -2205,12 +2189,6 @@ def test_aitken_gls_l0_records_sole_consumed_draw_and_operator_caveats() -> None
     assert evidence["generated_simulation_executed"] is False
     assert evidence["full_task_passed"] is True
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -2815,11 +2793,6 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
         evidence["visible_questions_sha256"]
@@ -2955,12 +2928,6 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
         "novelty": "not_applicable",
         "unresolved_gaps": "required",
     }
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3072,12 +3039,6 @@ def test_neyman_pearson_theory_l0_draw_is_consumed_and_failed_closed() -> None:
         "novelty": "not_applicable",
         "unresolved_gaps": "required",
     }
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3215,11 +3176,6 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -3331,11 +3287,6 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3441,11 +3392,6 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3555,11 +3501,6 @@ def test_inverse_variance_meta_analysis_r_l0_records_sole_consumed_draw() -> Non
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3694,11 +3635,6 @@ def test_mcnemar_exact_l0_records_sole_consumed_draw() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3859,12 +3795,6 @@ def test_hoeffding_u_statistic_l0_records_one_consumed_caveated_pass() -> None:
     assert evidence["post_run_score_changed"] is False
     assert evidence["full_task_passed"] is True
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -4012,12 +3942,6 @@ def test_normal_normal_conjugate_l0_records_one_consumed_invalidated_draw() -> N
     assert evidence["full_task_passed"] is False
     assert evidence["ladder_score_after_consumption"] == "4/46"
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -4142,11 +4066,6 @@ def test_srswor_l0_records_one_consumed_hidden_code_failure() -> None:
     assert evidence["ladder_score_after_consumption"] == "4/47"
     assert Path(evidence["operator_audit_path"]).is_file()
 
-    readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 48
-    assert readiness["consumed_scored_tasks"] == 48
-    assert readiness["fully_gold_configured_tasks"] == 48
-    assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -4263,5 +4182,89 @@ def test_normal_variance_ratio_l0_consumed_draw_is_operator_invalid_and_immutabl
         "semantic_rubric.json",
         "semantic_calibration_cases.json",
         "reference_estimator.py",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_one_way_anova_l0_is_frozen_before_its_only_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "one_way_normal_anova_f_test_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "one_way_normal_anova"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_gold_validated_before_first_product_model_call"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "b6871aae214cff9ec364d9022c580ca3cdab2b8aab7806c1324473ef0ca14569"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "df12d2accdeb8abc017404323166fcbb37a36dc537cc0aaaa9d09f189f04ec76"
+    )
+    assert evidence["activation_schema_version"] == 3
+    assert evidence["activation_reference_tasks_passed"] == 1
+    assert evidence["activation_negative_controls_rejected"] == 2
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["semantic_calibration_attempts"] == 2
+    assert evidence["semantic_calibration_total_model_calls"] == 4
+    assert evidence["semantic_calibration_initial_cases_correct"] == 11
+    assert evidence["semantic_calibration_final_cases_correct"] == 12
+    assert evidence["semantic_reference_claims"] == 9
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["algorithm_reference_checks"] == "8/8"
+    assert evidence["algorithm_reference_estimator_invocations"] == 17
+    assert evidence["algorithm_negative_variants_rejected"] == 1
+    assert evidence["empirical_reference_checks"] == "8/8"
+    assert evidence["empirical_reference_estimator_invocations"] == 12000
+    assert evidence["empirical_negative_variants_rejected"] == 1
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 49
+    assert readiness["consumed_scored_tasks"] == 48
+    assert readiness["fully_gold_configured_tasks"] == 49
+    assert readiness["fully_gold_passed_tasks"] == 4
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_one_way_anova"
+    assert {row["name"] for row in contract["request_fields"]} == {"groups"}
+    assert len(contract["response_fields"]) == 8
+    assert len(contract["empirical_claims"]) == 5
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_algorithm_harness.py",
+        "hidden_empirical_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+        "reference_estimator.py",
+        "negative_open_request_contract.py",
+        "negative_scaled_f.py",
     ):
         assert hidden_name not in runtime_visible
