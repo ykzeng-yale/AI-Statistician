@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "weighted_partial_regression_identity_known_result",
+      "title": "Weighted partitioned-regression coefficient identity",
+      "description": "Focused L0 known-result evaluation grounded in Frisch and Waugh (1933), Lovell (1963), and the declared weighted-least-squares convention. For fixed n and p with n>p+1, let A be an n by p finite control matrix, z a finite target regressor, y a finite outcome, and W=diag(w_1,...,w_n) with every w_i strictly positive. Assume A and [A z] have full column rank. Develop one authoritative Markdown/LaTeX derivation showing that the coefficient on z in the full weighted regression of y on [A z] equals the coefficient from weighted regression of the A-residualized outcome on the A-residualized target. Define the weighted projection and residual maker explicitly, establish the algebraic properties actually used, derive the profiled objective or Schur complement equation step by step, and distinguish weighted self-adjointness from ordinary symmetry. Under y=A alpha+z beta+epsilon with independent Gaussian errors having Var(epsilon_i)=sigma^2/w_i, derive the exact conditional mean, variance, and standardized normal law of the target coefficient. The required model-authored artifact is est_weighted_partial_regression and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may challenge matrix identities and special cases. A separately frozen confirmatory assessment varies well-conditioned designs, weights, nuisance coefficients, beta, and sigma, checking full-versus-partial equality and the standardized Gaussian consequence with Monte Carlo uncertainty. Simulation is implementation and distributional evidence rather than proof. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "weighted_least_squares",
+        "partitioned_regression",
+        "projection_matrix",
+        "finite_sample_normal_theory",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Partial Time Regressions as Compared with Individual Trends",
+          "authors": [
+            "Ragnar Frisch",
+            "Frederick V. Waugh"
+          ],
+          "journal": "Econometrica",
+          "year": 1933,
+          "doi": "10.2307/1907330",
+          "url": "https://www.jstor.org/stable/1907330"
+        },
+        "extension_paper": {
+          "title": "Seasonal Adjustment of Economic Time Series and Multiple Regression Analysis",
+          "authors": [
+            "Michael C. Lovell"
+          ],
+          "journal": "Journal of the American Statistical Association",
+          "year": 1963,
+          "doi": "10.1080/01621459.1963.10480682"
+        },
+        "implementation_convention": {
+          "title": "statsmodels Weighted Least Squares documentation",
+          "url": "https://www.statsmodels.org/stable/generated/statsmodels.regression.linear_model.WLS.html",
+          "meaning": "The supplied weights multiply squared residuals and are proportional to inverse observation variances."
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_weighted_partial_regression",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.outcome",
+            "name": "outcome",
+            "meaning": "The observed outcome vector y in fixed row order.",
+            "json_type": "array[number]",
+            "shape": "one array of length n at least three",
+            "units": "outcome units",
+            "indexing": "entry i corresponds to row i of controls, target, and weights",
+            "edge_cases": "Reject nonarrays, booleans, strings, nonfinite entries, inconsistent lengths, and any request outside the declared full-rank finite-output domain; do not coerce or silently drop entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.controls",
+            "name": "controls",
+            "meaning": "The explicit control design matrix A; no intercept is added automatically.",
+            "json_type": "array[array[number]]",
+            "shape": "n rows and a common positive column count p with n>p+1; A has full column rank",
+            "units": "declared control units",
+            "indexing": "outer index is row i and inner index is control column j",
+            "edge_cases": "Reject ragged, empty-column, boolean, string, nonfinite, length-inconsistent, or rank-deficient matrices.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.target",
+            "name": "target",
+            "meaning": "The single target regressor z whose coefficient is requested.",
+            "json_type": "array[number]",
+            "shape": "one array of length n such that [A z] has full column rank",
+            "units": "target-regressor units",
+            "indexing": "entry i corresponds to row i",
+            "edge_cases": "Reject nonarrays, booleans, strings, nonfinite entries, inconsistent lengths, or a target in the span of controls.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.weights",
+            "name": "weights",
+            "meaning": "Strictly positive diagonal WLS weights w_i multiplying squared residuals.",
+            "json_type": "array[number]",
+            "shape": "one array of n finite strictly positive scalars",
+            "units": "inverse variance up to one common positive scale",
+            "indexing": "entry i weights row i",
+            "edge_cases": "Reject nonarrays, booleans, strings, zero, negative, nonfinite, or length-inconsistent values; do not invert the supplied convention.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.observation_count",
+            "name": "observation_count",
+            "meaning": "The validated row count n.",
+            "json_type": "integer",
+            "shape": "one integer at least three",
+            "units": "observations",
+            "indexing": "current request",
+            "edge_cases": "Must equal all four validated request lengths exactly and must not be a boolean.",
+            "normalization": "len(outcome)"
+          },
+          {
+            "clause_id": "response.control_count",
+            "name": "control_count",
+            "meaning": "The validated number p of explicit control columns.",
+            "json_type": "integer",
+            "shape": "one positive integer with observation_count>control_count+1",
+            "units": "control columns",
+            "indexing": "current controls matrix",
+            "edge_cases": "Must equal len(controls[0]) exactly and must not be a boolean.",
+            "normalization": "number of columns of controls"
+          },
+          {
+            "clause_id": "response.target_coefficient_full",
+            "name": "target_coefficient_full",
+            "meaning": "The coefficient on z in the full WLS regression of y on [A z].",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units per target unit",
+            "indexing": "last coefficient of the explicit full design",
+            "edge_cases": "No intercept or pseudoinverse convention may be silently introduced.",
+            "normalization": "last coordinate of solve(([A z])'W[A z],([A z])'Wy)"
+          },
+          {
+            "clause_id": "response.target_coefficient_partial",
+            "name": "target_coefficient_partial",
+            "meaning": "The weighted coefficient from the A-residualized outcome and A-residualized target.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units per target unit",
+            "indexing": "current request",
+            "edge_cases": "Both y and z use the same declared weighted residual maker.",
+            "normalization": "(z' W M_A y)/(z' W M_A z), where M_A=I-A(A'WA)^{-1}A'W"
+          },
+          {
+            "clause_id": "response.target_information",
+            "name": "target_information",
+            "meaning": "The positive weighted residualized target sum of squares.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "weight times squared target units",
+            "indexing": "current request",
+            "edge_cases": "A nonpositive or nonfinite value is outside the frozen full-rank domain.",
+            "normalization": "z' W M_A z"
+          },
+          {
+            "clause_id": "response.target_score",
+            "name": "target_score",
+            "meaning": "The weighted residualized target-outcome cross product.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "weight times target units times outcome units",
+            "indexing": "current request",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "z' W M_A y"
+          },
+          {
+            "clause_id": "response.weighted_residual_sum_squares",
+            "name": "weighted_residual_sum_squares",
+            "meaning": "The minimized full-model weighted residual sum of squares.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "weight times squared outcome units",
+            "indexing": "current request",
+            "edge_cases": "Roundoff may be clipped only when it is a negligible negative representation of zero.",
+            "normalization": "sum_i w_i (y_i-A_i alpha_hat-z_i beta_hat)^2"
+          },
+          {
+            "clause_id": "response.equivalence_gap",
+            "name": "equivalence_gap",
+            "meaning": "The absolute numerical difference between the full and partial target coefficients.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "outcome units per target unit",
+            "indexing": "current request",
+            "edge_cases": "This reports floating-point agreement and is not itself proof of the identity.",
+            "normalization": "abs(target_coefficient_full-target_coefficient_partial)"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the four declared fields and the response exactly the eight declared fields. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.row_permutation",
+            "meaning": "Applying one common row permutation to outcome, controls, target, and weights leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.weight_scale",
+            "meaning": "Multiplying all weights by one finite positive constant leaves both target coefficients and equivalence_gap unchanged and multiplies target_information, target_score, and weighted_residual_sum_squares by that constant."
+          },
+          {
+            "clause_id": "invariant.control_basis",
+            "meaning": "Replacing controls A by A R for any finite nonsingular p by p matrix R leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.outcome_control_shift",
+            "meaning": "Replacing outcome y by y+A gamma for any finite p-vector gamma leaves the target coefficients, target_information, target_score, weighted_residual_sum_squares, and equivalence_gap unchanged."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen scenario, fix A, z, weights, alpha, beta, sigma, seed, replicate count, and thresholds before outcomes, then invoke the accepted estimator on every realized request."
+          },
+          {
+            "clause_id": "claim.empirical.full_partial_identity",
+            "meaning": "Across every frozen admissible realization, the returned full and partial target coefficients agree to floating-point tolerance and returned target_information matches the fixed design quantity."
+          },
+          {
+            "clause_id": "claim.empirical.gaussian_standardization",
+            "meaning": "Under independent epsilon_i distributed as N(0,sigma^2/w_i), Z=(target_coefficient_full-beta)*sqrt(target_information)/sigma is standard normal conditional on the fixed design."
+          },
+          {
+            "clause_id": "claim.empirical.nuisance_parameters",
+            "meaning": "Frozen scenarios vary control dimension, row count, control basis, nonconstant positive weights, nuisance alpha, beta, sigma, and target residual geometry without changing the declared identity or standardization."
+          },
+          {
+            "clause_id": "claim.empirical.evidence_boundary",
+            "meaning": "The confirmatory assessment checks implementation and the stated finite-sample Gaussian consequence only; it does not prove the projection algebra or establish validity for misspecified weights, rank deficiency, dependence, or non-Gaussian errors."
+          }
+        ]
+      }
+    }
+  ]
+}
