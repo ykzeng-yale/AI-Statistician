@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`f74bcd281196a752521717757f39d6c7b26affae`.
+`daa3eaf10fda93ad8949b926c059dd8cc399f76a`.
 
 Latest selective-adoption implementation commits:
 
@@ -19,6 +19,9 @@ Latest selective-adoption implementation commits:
   the same model-owned session.
 - `54e5ca52eca6192885a8a11775f7728997610ac7`: preserve content-addressed
   accepted files and canonical workspace lineage across deferred continuations.
+- `3f0ee0131d2b298bbb668e53afc132cae0ff562a`: give Python/R source owners
+  the same model-authored exact-edit and immediate-execution loop as Theory and
+  Lean while consolidating duplicate edit machinery.
 
 Primary references:
 
@@ -37,9 +40,10 @@ Primary references:
 - [multi-agent input lineage](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/input_queue.rs)
 - [standalone sandbox implementation](https://github.com/openai/codex/tree/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/sandboxing)
 - [credential-safe Git metadata](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/protocol/src/sanitized_git_url.rs)
-- [bounded reserved-tool schemas](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/tools/src/json_schema.rs)
+- [tool-schema sanitization](https://github.com/openai/codex/blob/daa3eaf10fda93ad8949b926c059dd8cc399f76a/codex-rs/tools/src/json_schema.rs)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [OpenAI's App Server harness explanation](https://openai.com/index/unlocking-the-codex-harness/)
+- [OpenAI's harness-engineering principles](https://openai.com/index/harness-engineering/)
 
 ## Decision
 
@@ -1574,3 +1578,54 @@ model-policy, and secret checks pass. `research_agent_runtime.py` is 24,986 line
 and top-level production Python is 149,999 lines under unchanged limits. The
 consumed task remains immutable `0/1`; these changes are future-task mechanism
 evidence only.
+
+## Unified model-authored source editing
+
+The official checkout was incrementally rechecked from
+[`f74bcd2`](https://github.com/openai/codex/commit/f74bcd281196a752521717757f39d6c7b26affae)
+through
+[`daa3eaf`](https://github.com/openai/codex/commit/daa3eaf10fda93ad8949b926c059dd8cc399f76a).
+Only two commits are new. `ac644ed` stops preserving `minimum`, `maximum`, and
+`maxLength` in Codex's reserved-tool schema representation; runtime validation,
+not a model-visible schema hint, remains the enforcement authority. AI Statistician
+therefore retains bounds where its direct provider supports them, but never treats
+those declarations as evidence that a call was valid. `daa3eaf` concerns Guardian
+scoring for required computer-use models and does not apply to the scientific
+workspace topology.
+
+The reusable Codex mechanism remains smaller than the Codex product runtime:
+
+```text
+same source-owning model -> model-selected source action
+                         -> exact environment execution
+                         -> raw observation in the same session
+                         -> model-selected revision or commit
+```
+
+Commit `3f0ee0131d2b298bbb668e53afc132cae0ff562a` closes the one local mismatch.
+Scientific Python/R sessions can now choose a complete submission or one exact
+unique text edit. Either action immediately executes the complete resulting source,
+and ambiguous, stale, byte-identical, or invalid actions return as ordinary tool
+observations to that same model. Runtime chooses no patch and contains no Python,
+R, statistical, Lean, or benchmark-specific repair rule.
+
+The exact-edit materializer is shared by Theory documents, metric-protocol text,
+scientific source, and Lean source. Each caller retains its own authority boundary:
+Theory and metric batches remain atomic, Python/R must pass its sandbox and explicit
+commit gate, and Lean still requires semantic review, axiom audit, and kernel
+promotion. The scientific prompt no longer prescribes a separate failure-routing
+sequence; the stable tool surface exposes complete submission, exact edit, unchanged
+rerun when authorized, dependency handoff when authorized, and commit.
+
+Codex core, App Server, Responses transport, thread storage, Guardian, code-mode
+host, worktree manager, provider, and subagent scheduler remain unembedded. The sole
+outer scheduler is still `AgentRuntime`; TheoryDeveloper, AlgorithmEngineer,
+SimulationEngineer, and Formalizer collaborate through hash-bound artifacts and
+sparse typed handoffs rather than nested Codex threads.
+
+Focused cross-workspace tests pass `113/113`; the complete repository passes
+`940/940` in 80.49 seconds. Architecture and model-policy tests pass `39/39`,
+compile-all and diff hygiene pass, and top-level production Python decreases from
+149,999 to 149,990 lines. No model call, consumed-task rerun, hidden reevaluation,
+rescore, new agent, retry, scheduler, Sonnet call, or Opus call occurred. This is
+future-task harness evidence and grants no scientific or proof capability credit.

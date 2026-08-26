@@ -1,13 +1,13 @@
 {
-  "schema_version": 193,
+  "schema_version": 194,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "54e5ca52eca6192885a8a11775f7728997610ac7",
+  "validated_code_head": "3f0ee0131d2b298bbb668e53afc132cae0ff562a",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all fifty-two consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/52. Clopper-Pearson Task 52 is closed at 0/1: theory and scientific code failed, while hidden empirical evaluation passed 8/8 as component evidence. Future accepted Theory manifests now point to content-addressed files, canonical accepted lineage survives stale deferred inputs, reviewer backedges reach the same source owner first, and estimator-bound simulation returns JSON-native results. Long-horizon theory and referee correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all fifty-two consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/52 and exact development Lean closure remains 0/2. The canonical harness keeps one AgentRuntime and one model-owned tool loop per Theory, Python/R, Simulation, and Lean workspace. All four text/source workspaces now share model-authored exact editing with immediate environment feedback; no Codex product runtime, second scheduler, RepairAgent, or task-specific rule was added. Long-horizon theory and referee correctness, source replication breadth, and exact theorem closure remain incomplete.",
   "latest_weighted_partial_regression_l0_evaluation": {
     "task_id": "weighted_partial_regression_identity_known_result",
     "family": "weighted_partitioned_regression",
@@ -746,12 +746,12 @@
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "f74bcd281196a752521717757f39d6c7b26affae",
-    "latest_incremental_finding": "The eight-commit Codex delta adds stable IDs for Responses-Lite prefix items, resumable app-server misalignment details, persistent-turn clock tools, streaming rate-limit classification, macOS scratch-policy tightening, layered plugin configuration, UI motions, and Guardian V2 prompts. Stable prefix identity and resumable exact state reinforce AI Statistician's existing content-addressed artifacts and explicit checkpoint continuations; app-server, Responses transport, Guardian, plugin, UI, and provider changes do not justify importing Codex core or another scheduler.",
-    "latest_incremental_adoption": "Commit 54e5ca52 applies the reusable boundary after the sole Task 52 draw: accepted Theory files are content-addressed, canonical accepted lineage survives stale deferred fields, a valid reviewer backedge reaches the same source owner before outer topology, and complete estimator-bound results are JSON-native before transport. Mathematics and source remain model-owned; Codex core and its scheduler remain unembedded.",
+    "latest_rechecked_upstream_commit": "daa3eaf10fda93ad8949b926c059dd8cc399f76a",
+    "latest_incremental_finding": "The two-commit delta after f74bcd2 removes minimum, maximum, and maxLength preservation from Codex's reserved-tool schema representation and adjusts Guardian scoring for required computer-use models. The first change reinforces that model-visible schema bounds are hints while runtime validation is authority; the Guardian change is outside the scientific workspace topology. Neither justifies importing Codex core, app-server, Responses transport, Guardian, provider, thread storage, or another scheduler.",
+    "latest_incremental_adoption": "Commit 3f0ee013 gives Python/R source owners the same model-authored exact-edit and immediate-environment-feedback loop already used by Theory and Lean. One generic text materializer replaces duplicate validators across Theory, metric protocol, scientific source, and Lean; each caller retains its own sandbox, review, commit, and kernel authority. The scientific prompt no longer prescribes a deterministic failure route.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "54e5ca52eca6192885a8a11775f7728997610ac7",
+    "implementation_commit": "3f0ee0131d2b298bbb668e53afc132cae0ff562a",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -786,10 +786,11 @@
       "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
     "6f588ff13cb2adf4ab01d1ec61eaecdd8842c594",
     "de531ad8d4173cc406593edb76606cb10be158b7",
-    "54e5ca52eca6192885a8a11775f7728997610ac7"
+    "54e5ca52eca6192885a8a11775f7728997610ac7",
+    "3f0ee0131d2b298bbb668e53afc132cae0ff562a"
     ],
     "upstream_core_source_hashes": {
-      "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
+      "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
       "codex-rs/core/src/tools/router.rs": "bdd1767bda52be77d3fe21768ffb80260c3abfe311b87f6f2124ba1ef3e64ab2",
       "codex-rs/core/src/tools/orchestrator.rs": "a04d9472351f20596ef57779b176204ca59d13dc6344f3c420e364ca58efc10d",
       "codex-rs/core/src/session/turn_context.rs": "ee9a1e0b7f233ef851882e46c1e132720a703ac715aaa9d290260d0106755cb6",
@@ -798,7 +799,8 @@
       "codex-rs/core/src/session/step_settings.rs": "625342d02177e00e71a924109305daa4a772be7589878a31b0bb36b7c2f888cf",
       "codex-rs/core/src/session/input_queue.rs": "d19d78116ba6924c4be17e9b40e3fbff08bb677a3983af84861c880b6aac057f",
       "codex-rs/app-server-protocol/src/protocol/v2/thread.rs": "f093b0fc2fb3aeed3b4ee6e9b712893f0ad9153a5d1b26551355cfb173551c0a",
-      "codex-rs/tools/src/json_schema.rs": "1ef5b2a76a01d3bbeceefa7b07d1d0ba74d98918c9fe17d923ce445f1cab335b",
+      "codex-rs/tools/src/json_schema.rs": "ccfc96787883f2c1c3d51a61c36db34ec2d371fc1e029bef4c42683d5069748d",
+      "codex-rs/ext/guardian-v2/src/async_scorer/extension.rs": "ab3f0a8cf50a517949c8beb27864ad4ce7295278f9f048de4050c2291a857b05",
       "codex-rs/protocol/src/sanitized_git_url.rs": "b21985cdf7fa0657e122de022e935f53ea600ce5c8768552328f6dea96695dba",
       "codex-rs/worktree/src/metadata.rs": "74408ded6844439ae5c22468ef509846850d65c5919bda47449bf39111d2dd55",
       "codex-rs/core/src/tools/parallel.rs": "48380e25abaf9c52e7a5de9cecf82cc4ddb84197683f73a11719de3b78c90e5a",
@@ -846,7 +848,8 @@
       "Commit 6658c762 reuses canonical document-authority derivation in hidden hydration and makes compact claim indexes navigation rather than the limit of independent mathematical review.",
     "Future source-replication criticism now loads the exact hash-bound Markdown report, immutable execution observation, and every exact source range read by the source owner into one terminal Critic call. Runtime persists only a compact identity audit, and required source replication cannot pass without model support. The unused token-overlap holdout runner and deterministic adversarial-intake side audit were removed.",
     "Question-supplied frozen estimator ID, request and response field names and order, and request bindings are now compared at initial, revised, reused, and final Theory checkpoints. Meanings, formulas, documents, and source remain model-owned. Generated-code review reserves one same-reviewer correction only after runtime rejects a terminal verdict.",
-    "Accepted Theory document manifests resolve to content-addressed checkpoint files, canonical accepted context takes precedence over stale deferred top-level IDs, valid reviewer backedges return before outer evidence topology, and estimator-bound Python results use the existing recursive JSON-native transport normalization."
+    "Accepted Theory document manifests resolve to content-addressed checkpoint files, canonical accepted context takes precedence over stale deferred top-level IDs, valid reviewer backedges return before outer evidence topology, and estimator-bound Python results use the existing recursive JSON-native transport normalization.",
+    "Commit 3f0ee013 gives the existing scientific Python/R source owner a model-authored exact-edit action beside complete submission. Both execute the resulting complete bytes immediately and return raw sandbox observations to the same session. Theory documents, metric protocol, scientific source, and Lean source now share one content-agnostic exact-edit materializer; runtime chooses no edit and adds no language grammar, statistical rule, RepairAgent, retry, scheduler, or model call."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -856,7 +859,7 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-  "verification": "The official Codex checkout is rechecked through f74bcd2. Clopper-Pearson Task 52 remains immutable 0/1; its shared future-task corrections pass affected tests 157/157 and the complete repository 939/939 without importing Codex transport, provider, thread storage, Guardian, or scheduling.",
+  "verification": "The official Codex checkout is rechecked through daa3eaf. The exact-edit cross-workspace panel passes 113/113, architecture and model-policy checks pass 39/39, and the complete repository passes 940/940 in 80.49 seconds. Compile-all and diff hygiene pass; production Python is 149,990 lines. No consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted capability credit, and no Codex transport, provider, thread storage, Guardian, or scheduler was imported.",
   "live_validation_runs": 19,
   "fresh_live_client_tool_model_turns": 918,
     "capability_credit": true,
