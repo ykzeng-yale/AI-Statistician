@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "173cabdb4f0ccce5e494dc760d5936f305db910e"
+LATEST_SHARED_MECHANISM_HEAD = "6658c7626664b0287eaa1afc3d6cb14252225599"
 
 
 def _load_ladder() -> dict:
@@ -2711,7 +2711,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 48
+    assert readiness["consumed_scored_tasks"] == 49
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -4186,7 +4186,7 @@ def test_normal_variance_ratio_l0_consumed_draw_is_operator_invalid_and_immutabl
         assert hidden_name not in runtime_visible
 
 
-def test_one_way_anova_l0_is_frozen_before_its_only_product_draw() -> None:
+def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -4197,9 +4197,9 @@ def test_one_way_anova_l0_is_frozen_before_its_only_product_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "one_way_normal_anova"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_gold_validated_before_first_product_model_call"
+        "fresh_live_v1_runtime_accepted_hidden_theory_failed_operator_false_acceptance"
     )
     assert candidate["gold_manifest_sha256"] == (
         "b6871aae214cff9ec364d9022c580ca3cdab2b8aab7806c1324473ef0ca14569"
@@ -4217,8 +4217,11 @@ def test_one_way_anova_l0_is_frozen_before_its_only_product_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["activation_identity_commit"] == (
+        "9685cce1f187db754f521b677b08b428d1c4f707"
+    )
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["semantic_calibration_attempts"] == 2
     assert evidence["semantic_calibration_total_model_calls"] == 4
     assert evidence["semantic_calibration_initial_cases_correct"] == 11
@@ -4234,12 +4237,42 @@ def test_one_way_anova_l0_is_frozen_before_its_only_product_draw() -> None:
     assert evidence["empirical_reference_checks"] == "8/8"
     assert evidence["empirical_reference_estimator_invocations"] == 12000
     assert evidence["empirical_negative_variants_rejected"] == 1
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_status"] == "ACCEPTED_RUNTIME_OPERATOR_FAILED_THEORY"
+    assert evidence["runtime_research_evaluation"] == (
+        "1/1 complete and mode-conformant"
+    )
+    assert evidence["runtime_outer_traces"] == 10
+    assert evidence["runtime_architect_traces"] == 3
+    assert evidence["runtime_client_tool_model_turns"] == 51
+    assert evidence["theory_authoritative_document_lines"] == 502
+    assert evidence["independent_theory_referee_verdict"].startswith("FALSE_ACCEPT")
+    assert "omits N(Y_bar_all-mu)^2" in evidence["operator_theory_defect"]
+    assert evidence["hidden_theory_mechanical_checks"].startswith("6/7")
+    assert evidence["hidden_theory_semantic_claims"].startswith("9/9 SATISFIED")
+    assert evidence["hidden_algorithm_checks"] == (
+        "8/8 over 17 exact estimator invocations"
+    )
+    assert evidence["hidden_empirical_checks"] == (
+        "8/8 over four frozen Gaussian-null designs and 12,000 exact estimator invocations"
+    )
+    assert evidence["runtime_metric_contracts"] == "8/8 passed"
+    assert evidence["hidden_gold_evaluation"] == (
+        "0/1; required theory failed; code and empirical components passed"
+    )
+    assert evidence["operator_audit_disposition"] == "OPERATOR_FAILED_THEORY"
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 49
-    assert readiness["consumed_scored_tasks"] == 48
+    assert readiness["consumed_scored_tasks"] == 49
     assert readiness["fully_gold_configured_tasks"] == 49
     assert readiness["fully_gold_passed_tasks"] == 4
 

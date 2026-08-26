@@ -1329,3 +1329,44 @@ complete repository passed `923/923` in 79.03 seconds. Compile-all, diff hygiene
 architecture-budget, and secret checks passed. Top-level production Python is
 149,997 lines. No product-model call, consumed-task rerun, hidden reevaluation,
 source repair, new scheduler, Sonnet call, or Opus call occurred.
+
+## Authority projection and document-wide review
+
+The upstream audit remains current through
+[`10d5a603`](https://github.com/openai/codex/commit/10d5a603aecbd73a38f3a6576cce69a78f8d6f1d).
+The first frozen task using the external-context change supplies live evidence for
+the selective adoption decision. In one persistent exact-Haiku session,
+TheoryDeveloper recovered from three ordinary document-tool errors using the raw
+observations, AlgorithmEngineer produced source that passed the hidden algorithm
+harness `8/8`, and Simulation produced source that passed hidden empirical checks
+`8/8` over 12,000 exact estimator invocations. None of those corrections passed
+through Architect or a content-repair agent.
+
+The same draw also exposed the limit of a compact envelope. The authoritative
+Markdown contained a named active intermediate claim that was absent from its
+structured claim index. The independent referee treated the index as its effective
+component map and falsely accepted a two-component Cochran decomposition that
+omitted the grand-mean rank-one term. A valid compact handoff therefore cannot be
+treated as a complete inventory of the mathematics in external authoritative
+files.
+
+The hidden evaluator independently exposed authority drift: downstream runtime
+consumers canonically derived `document_authoritative=true` from the document
+authority and structured-handoff role, while evaluator hydration copied the same
+documents without projecting that derived fact. This mechanical false negative did
+not change the task result because the operator-found mathematical defect already
+failed the required theory dimension.
+
+Commit `6658c7626664b0287eaa1afc3d6cb14252225599` applies the shared correction only
+to future tasks. Hidden theory hydration now reuses the canonical authority helper;
+TheoryDeveloper indexes every active named intermediate inference; the isolated
+referee treats that index as navigation rather than the limit of review; and Critic
+cannot use an upstream `ACCEPT` or index membership as mathematical evidence. The
+scientific judgment remains model-owned and document-native. Runtime still parses
+no equations, inserts no statistical formula, repairs no source, and adds no agent,
+scheduler, retry, or model escalation.
+
+The focused and architecture panel passes `184/184`, and the complete repository
+passes `924/924` in 78.70 seconds. Top-level production Python is 149,999 lines
+under the unchanged 150,000-line budget. The consumed ANOVA draw remains immutable
+at `0/1`; these regression results are future-task mechanism evidence only.
