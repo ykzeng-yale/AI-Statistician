@@ -1245,3 +1245,47 @@ scratch-capability binding. Compile-all and diff checks passed. Top-level produc
 Python fell from 149,999 to 149,845 lines under the unchanged 150,000-line budget.
 No live model call, Opus use, new agent, scheduler, formula rule, result patch,
 consumed-task rerun, hidden reevaluation, or score change occurred.
+
+## Exact tool-origin and source-owner continuation
+
+The official upstream head inspected on 2026-08-26 was
+[`f5420174`](https://github.com/openai/codex/commit/f5420174dafba153913a3e697f89002c338dfd7e),
+which carries an originating Responses item ID through direct and nested MCP tool
+calls. Together with the read-only Guardian surface in
+[`039eb58a`](https://github.com/openai/codex/commit/039eb58a0ba6647fb8f29fdd35341f3f1b153728),
+this sharpens two local rules:
+
+1. Every environment observation must preserve which exact model tool action
+   produced it and whether the target artifact was actually invoked.
+2. A source revision belongs to the source-owning model workspace and receives
+   exact parent source plus raw observations. It does not restart from a planning
+   envelope or travel through a content-repair agent.
+
+The variance-ratio frozen draw supplied direct evidence for both rules. Reviewer
+probe source failed before invoking the exact estimator, but the failure looked
+like target-code evidence. Two later AlgorithmEngineer visits were labeled source
+revision while starting with no scientific source and no reviewer observation.
+
+Commit `f6eb861a2484393f550cc29aaa3823f346f17eef` adopts the principles at the
+existing boundary. Probe records now carry `originating_tool_call_id`, direct
+callable identity, target invocation state, and failure origin. Algorithm review
+backedges restore hash-bound source and raw findings in the same scientific-code
+workspace and skip a new planning call. Runtime still owns only provenance,
+execution, permissions, budget, and terminal evidence boundaries; the model owns
+all source edits and scientific judgment.
+
+This is intentionally not a Codex-core integration. Embedding Codex app-server,
+Responses transport, thread management, or its scheduler would create a second
+conversation owner. TheoryDeveloper continues to use persistent Markdown/LaTeX
+plus scratch tools; Algorithm and Simulation use scientific source plus raw
+execution; Formalizer uses Lean source, goals, diagnostics, and retrieval. Their
+collaboration remains the single typed outer research graph with sparse
+cross-workspace handoffs.
+
+The final implementation reuses the existing scientific-source lineage validator
+instead of adding a parallel continuation layer. The two affected files pass
+`108/108`; the complete repository passes `917/917` in 70.91 seconds. Compile-all,
+JSON, architecture-budget, and diff checks pass. `research_agent_runtime.py` is
+24,962 lines and top-level production Python is 149,982 lines. No live model call,
+task formula, source patch, extra agent, scheduler, Sonnet call, or Opus call was
+introduced.
