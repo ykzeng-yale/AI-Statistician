@@ -1184,6 +1184,12 @@ def test_hidden_theory_evaluator_receives_hash_verified_documents(
                 "content": "# C1\n\nThe candidate-owned derivation.\n",
             }
         ]
+        assert candidate["document_authoritative"] is True
+        assert (
+            candidate["theory_content_authority"]
+            == THEORY_WORKSPACE_CONTENT_AUTHORITY
+        )
+        assert candidate["structured_handoff_role"] == THEORY_WORKSPACE_HANDOFF_ROLE
         assert candidate["evaluator_document_hydration"][
             "runtime_feedback_generated"
         ] is False

@@ -2377,6 +2377,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "structured handoff is only an index",
         "model-directed search and exact range reads",
         "load-bearing definitions",
+        "claim index is navigation, not scope",
+        "inference-bearing statement",
         "correct final statement does not cancel",
         "Try to falsify each load-bearing conclusion",
         "order-of-magnitude check",

@@ -68,7 +68,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 25
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 34
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 35
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -118,8 +118,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "headline formula. Independently reconstruct the decisive transitions in each "
         "such component. Read an entire document when its structure genuinely requires "
         "that context, but do not paraphrase every line as a substitute for mathematical "
-        "scrutiny. A correct final statement does not cancel a false, circular, or "
-        "unsupported intermediate step. First challenge unresolved risks and claims "
+        "scrutiny. The claim index is navigation, not scope: audit active named or "
+        "inference-bearing statements omitted from it. A correct final statement does not "
+        "cancel false or unsupported intermediate steps. First challenge unresolved risks and claims "
         "that change scope, evidence authority, or the mathematical-to-executable "
         "interface."
     ),

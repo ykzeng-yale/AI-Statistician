@@ -307,6 +307,8 @@ def test_canonical_evidence_view_exposes_preflight_report_and_scratch_failures(
         canonical_evidence_view=view,
     )
     assert "Never call a rejected, failed, unavailable, or hash-mismatched" in prompt
+    assert "never use preflight ACCEPT" in prompt
+    assert "outside the claim index" in prompt
     assert "All symbolic checks passed" in prompt
     assert "REJECTED_CONTRACT" in prompt
 

@@ -24,8 +24,9 @@ from .scientific_sandbox import (
     ScientificInputArtifactBinding,
     execute_scientific_sandbox,
 )
-from .theory_workspace import load_theory_workspace_document_rows
+from .theory_derivation_trace import document_authoritative_theory_context
 from .theory_semantic_gold_judge import run_theory_semantic_gold_judge
+from .theory_workspace import load_theory_workspace_document_rows
 
 
 GOLD_EVALUATION_BOUNDARY = (
@@ -1174,8 +1175,9 @@ def _hidden_theory_candidate_artifact(
     """Hydrate accepted theory documents only inside evaluator authority."""
 
     candidate = deepcopy(dict(theory_packet))
-    rows = load_theory_workspace_document_rows(theory_packet)
-    candidate["authoritative_theory_documents"] = rows
+    authority_context = document_authoritative_theory_context(theory_packet)
+    candidate.update({key: authority_context[key] for key in ("document_authoritative", "authoritative_theory_documents")})
+    rows = candidate["authoritative_theory_documents"]
     candidate["evaluator_document_hydration"] = {
         "document_count": len(rows),
         "document_set_hash": stable_hash(
