@@ -5,7 +5,7 @@
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
 - Baseline audited commit: `343074d4207d572809bd8cea15f4be1d09d98e0b`
-- Latest incremental recheck: `21c58c90f2298587c6519e077d0692ce4c563d37`
+- Latest incremental recheck: `a26f1806a4f4b8cfec2ea1be129963815a61e58c`
 - License: Apache-2.0
 - Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`

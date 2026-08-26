@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`21c58c90f2298587c6519e077d0692ce4c563d37`.
+`a26f1806a4f4b8cfec2ea1be129963815a61e58c`.
 
 Latest implementation commit:
 `36f90f4c1f1bb7851dba9fce5bd3a6438683eb52`.
@@ -967,3 +967,34 @@ history, tracing, Bridge-compatible history tools, and sandbox cleanup. Those
 changes reinforce lifecycle identity and observability but do not alter this
 selective-adoption decision. The complete AI-Statistician suite passed `907/907`;
 no new tool, agent, scheduler, retry, model call, or scientific rule was added.
+
+## Issuing-step settings recheck
+
+The sole upstream change from `21c58c90` to `a26f1806` makes delayed approval
+decisions use the settings of the step that issued the action. A command, patch,
+permission request, sandbox retry, or network action can outlive its originating
+step, so consulting a newer turn's approval policy or reviewer would violate
+that action's authority boundary.
+
+The reusable invariant is narrower than importing Codex: a long-lived action
+must retain the exact intent, permissions, and policy snapshot under which it was
+issued. AI Statistician's current specialist loops are synchronous, and their
+session-contract fingerprint already binds the exact model, system prompt, tool
+descriptions and schemas, strict and terminal semantics, transcript, workspace,
+and hashes. Task intent is present in the bound source-owner context, and callers
+do not mutate policy while a tool batch is executing.
+
+No product change is therefore justified. If background Python/R execution,
+asynchronous Lean search, or delayed public-source acquisition is added later,
+its immutable action reference must also bind the issuing task-intent and safety
+settings. This is a future design constraint, not a reason to add Codex's
+approval subsystem, app-server, thread manager, provider transport, or scheduler.
+
+The new Neyman-allocation draw supplies the complementary boundary. Its
+persistent Theory file loop, separate referee report, exact reads, scratch
+execution, sparse handoff, and task-intent lane selection all worked. The source
+owner, referee, terminal Critic, and calibrated hidden judge nevertheless
+false-accepted required mathematical errors. More Codex lifecycle machinery
+would not repair that reasoning failure; the correct response is honest
+operator invalidation and stronger future model/evaluator evidence, without a
+formula rule, retry, extra vote, or repair layer.
