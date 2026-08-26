@@ -9,7 +9,7 @@ Latest incremental recheck:
 `f5420174dafba153913a3e697f89002c338dfd7e`.
 
 Latest implementation commit:
-`3b28df58d3ac03af48d7f855ba912725d3324aa3`.
+`1fef5179113566b0b0a64818930771d546c22987`.
 
 Primary references:
 
@@ -1199,3 +1199,49 @@ Focused generated-code review and architecture tests passed `36/36`; the complet
 repository passed `914/914` in 71.31 seconds. Compile-all, JSON parsing, and diff
 checks passed, and the top-level production package remains at 149,999 lines under
 its unchanged architecture budget. These are future-task mechanism facts only.
+
+## Metric review scratch and one canonical transport
+
+Commit `1fef5179` implements the next evidence-backed adoption without encoding the
+SRSWOR answer. The consumed SRSWOR draw remains immutable `0/1`; its incorrect
+constants, vacuous metric, and reviewer false acceptance were not repaired, rerun,
+hidden-evaluated, or rescored.
+
+For future tasks, ArchitectMetricSemanticReviewer now uses the existing native
+client-tool loop. The isolated reviewer sees the frozen pre-execution material and
+may choose the shared Python/R/SymPy scientific scratch tool to reconstruct a
+constant, unit conversion, uncertainty calculation, or counterexample. Raw sandbox
+output returns to that exact reviewer transcript. The model then submits one compact
+terminal judgment; a mechanically invalid submission returns bounded validator
+observations to the same session for one corrected disposition. Runtime records
+scratch request/result hashes and the transcript fingerprint, but neither scratch nor
+review becomes empirical or proof authority.
+
+The harness does not decide when scratch is scientifically necessary, supply a
+formula, interpret its output, patch a metric, prescribe a finding, add a vote, or
+route the failure through Architect. The reviewer owns the calculation and judgment;
+runtime owns execution isolation, immutable input identity, bounded tool lifecycle,
+lineage, and terminal-envelope validation.
+
+Two obsolete alternate transports were removed at the same time:
+
+- GeneratedCodeSemanticReviewer no longer falls back to detached one-shot packet
+  generation when native client-tool turns are absent.
+- TheoryDeveloper no longer has a JSON-only core-theory generation path or its
+  bounded derivation schema. Initial and revised mathematical authority must be the
+  existing model-owned Markdown/LaTeX workspace. Small executable ABI envelopes
+  remain structured data; they are not the mathematical workspace.
+
+This is the useful boundary from `openai/codex`: one model-owned session, a stable
+least-authority tool surface, exact tool observations, and external authoritative
+artifacts. Codex core, app-server, Responses transport, Guardian, thread manager, and
+multi-agent scheduler remain deliberately unembedded because they would create a
+second conversation owner rather than improve statistical reasoning.
+
+The complete repository passed `915/915` in 72.99 seconds, including real local
+scientific-sandbox recomputation, rejected-terminal same-session correction, native
+review transport, Markdown-only TheoryDeveloper fail-closed behavior, and runtime
+scratch-capability binding. Compile-all and diff checks passed. Top-level production
+Python fell from 149,999 to 149,845 lines under the unchanged 150,000-line budget.
+No live model call, Opus use, new agent, scheduler, formula rule, result patch,
+consumed-task rerun, hidden reevaluation, or score change occurred.

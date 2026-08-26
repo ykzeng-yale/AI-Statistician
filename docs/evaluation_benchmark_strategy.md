@@ -807,6 +807,17 @@ hash-bound estimator. Probe failures and terminal-validation feedback return to
 the same reviewer session for model-owned correction. No SRSWOR rule, contract
 case, source patch, repair agent, retry scheduler, or model escalation was added.
 
+Commit `1fef5179113566b0b0a64818930771d546c22987` applies the same general loop to
+future pre-execution metric review. The isolated reviewer may choose the shared
+Python/R/SymPy scratch tool, receives raw output in the same session, and then owns
+its terminal scientific judgment. Runtime validates only the frozen input identity,
+tool lifecycle, lineage, and compact envelope. It does not supply or interpret a
+finite-population formula, derive a threshold, or patch the protocol. Detached
+one-shot generated-code review and JSON-only TheoryDeveloper core generation were
+retired; authoritative mathematics must remain in the model-owned Markdown/LaTeX
+workspace. Regression evidence is `915/915`, not capability credit, and the SRSWOR
+draw remains unchanged.
+
 This draw adds a useful benchmark-design rule: hidden empirical scenarios should
 include nondegenerate cases capable of distinguishing plausible wrong
 implementations, while model-authored public metrics remain an audited research

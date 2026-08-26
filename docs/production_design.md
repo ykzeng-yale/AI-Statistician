@@ -119,8 +119,7 @@ and compact handoff writes in the same source-owner session.
 
 TheoryDeveloper maintains an artifact-backed research workspace, not a JSON answer.
 It owns exact definitions, assumptions and use sites, equation/lemma dependencies,
-executable procedure semantics, counterexamples, gaps, and revision lineage.
-
+executable procedure semantics, counterexamples, gaps, and revision lineage. There is no JSON-only core-theory fallback: a provider without native client-tool turns fails closed before mathematical authoring.
 Compact packets are handoff indexes. Serious theory has no per-field caps; the
 validator checks only typed handoff structure, while formal artifacts depend on intent.
 
@@ -231,6 +230,7 @@ metric owner reads the scaffold and applies exact hash-bound literal edits
 ```
 
 Metric row limits are execution/review budgets, not statistical rules. The reviewer supplies a theory-consistent positive control that the frozen evaluator executes. Runtime reports that observation; models still own protocol semantics and revisions. There is no whole-packet repair worker or runtime-authored statistical transformation.
+The isolated metric reviewer may choose the shared Python/R/SymPy scratch tool before its terminal judgment. Raw calculations return to that same session; runtime records their lineage but neither interprets them nor promotes them to empirical or proof authority. Metric and generated-code review have no detached one-shot fallback.
 
 The authoritative `metric_protocol.json` is external workspace state, not a structured-output response packet. Its stable tools are exact read, exact unique-literal replacement against the current parent SHA-256, and hash-only commit. The terminal tool never carries the document body. Runtime initializes only the structural schema scaffold, stores model edits unchanged, returns validation observations, never edits scientific content, and seals terminal state without automatic replay.
 

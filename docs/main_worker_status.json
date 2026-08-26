@@ -1,13 +1,26 @@
 {
-  "schema_version": 180,
+  "schema_version": 181,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "8885332df25d0ffffa36d568cbe582902a995c53",
+  "validated_code_head": "1fef5179113566b0b0a64818930771d546c22987",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-seven consumed draws and their immutable artifacts. Trustworthy capability accounting remains 4/47. The sole SRSWOR draw completed the visible research loop and passed hidden theory plus 96,000-call empirical authority, but its model-authored estimator violated a public no-coercion clause and operator review found derivation, boundary, metric-arithmetic, and non-vacuity errors accepted by model reviewers. Commit 3b28df58 applies only the Codex-shaped same-session observation principle: a future code reviewer that chooses a probe must successfully invoke the exact estimator before ACCEPT, while raw probe errors return to that same model for correction. It adds no statistical rule, source patch, repair agent, retry scheduler, Opus use, or mandatory Lean lane. Long-horizon theory correctness, source replication, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all forty-seven consumed draws and their immutable artifacts. Trustworthy capability accounting remains 4/47. Commit 1fef5179 applies the Codex-shaped model/tool loop to future pre-execution metric review: the isolated reviewer may choose shared scientific scratch, receives raw results in the same exact session, and owns its compact judgment; terminal validation feedback returns to that session without Architect or a repair agent. Detached one-shot generated-code review and JSON-only TheoryDeveloper generation were removed, so mathematical authority is now Markdown/LaTeX workspace only and production Python shrank. This is future-task mechanism evidence, not a repair or rescore of SRSWOR. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "latest_codex_metric_semantic_review_harness_change": {
+    "implementation_commit": "1fef5179113566b0b0a64818930771d546c22987",
+    "upstream_codex_reference_head": "f5420174dafba153913a3e697f89002c338dfd7e",
+    "change": "Future ArchitectMetricSemanticReviewer sessions use the existing native client-tool loop and may choose the shared Python/R/SymPy scratch tool before one terminal judgment. Raw scratch and validator observations return to the same isolated model session. Runtime records execution hashes and transcript identity but does not interpret scientific output.",
+    "retired_paths": [
+      "GeneratedCodeSemanticReviewer detached one-shot full-packet fallback",
+      "TheoryDeveloper JSON-only core-theory generation fallback and bounded derivation schema"
+    ],
+    "authority_boundary": "Scratch is exploratory reviewer evidence only. It is not confirmatory empirical acceptance, theorem proof, source repair, or hidden-gold authority. Markdown/LaTeX files remain TheoryDeveloper mathematical authority; small executable ABI envelopes remain structured data.",
+    "model_policy": "No live model call occurred. Deterministic fixtures use exact Haiku identities; no Sonnet or Opus execution was introduced.",
+    "regression_evidence": "Complete repository 915/915 in 72.99 seconds; compileall and diff checks passed; top-level production Python 149845 lines under the unchanged 150000-line budget.",
+    "consumed_task_boundary": "No consumed draw was rerun, resumed, repaired, hidden-evaluated, rescored, or resampled. Trustworthy ladder remains 4/47."
+  },
   "latest_srswor_finite_population_mean_l0_evaluation": {
     "task_id": "srswor_finite_population_mean_known_result",
     "family": "finite_population_design_based_sampling",
@@ -50,6 +63,9 @@
     "post_run_shared_change_commit": "3b28df58d3ac03af48d7f855ba912725d3324aa3",
     "post_run_shared_change": "Future generated-code reviewers that elect to probe must observe a successful exact-estimator invocation before ACCEPT. Probe and terminal-validation errors return to the same reviewer session for model-owned correction or a non-accepting judgment.",
     "post_run_shared_change_evidence": "Future-task regression only: generated-code semantic-review tests passed 29/29; the complete repository passed 914/914 in 71.31 seconds; compileall, JSON, and diff checks passed; production Python remains 149,999 lines. No rerun, resume, repair, hidden reevaluation, rescore, resampling, task rule, source patch, repair agent, scheduler, model escalation, or Opus execution occurred.",
+    "post_run_metric_review_harness_commit": "1fef5179113566b0b0a64818930771d546c22987",
+    "post_run_metric_review_harness_change": "Future pre-execution metric reviewers use one native client-tool session with optional model-chosen scientific scratch and same-session terminal validation feedback. No SRSWOR constant, formula, metric patch, or verdict was encoded.",
+    "post_run_metric_review_harness_evidence": "Future-task regression only: complete repository 915/915 in 72.99 seconds; production Python fell to 149845 lines after retiring generated-code one-shot review and TheoryDeveloper JSON-only core generation. No live call, rerun, hidden reevaluation, or score change occurred.",
     "boundary": "The sole product draw and sole hidden evaluation are consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample this task."
   },
   "latest_normal_normal_conjugate_l0_evaluation": {
