@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "kendall_tau_a_independence_known_result",
+      "title": "Kendall tau-a under continuous independence",
+      "description": "Focused L0 known-result evaluation grounded in M. G. Kendall, A New Measure of Rank Correlation, Biometrika 30(1-2) (1938), 81-93, DOI 10.1093/biomet/30.1-2.81. For n>=3 paired observations (X_i,Y_i) with no ties in either coordinate, define the pair score h_ij=sign((X_i-X_j)(Y_i-Y_j)), the concordance score S=sum_{i<j} h_ij=C-D, and tau_a=2S/[n(n-1)]. Develop one authoritative Markdown/LaTeX derivation. Under independent continuous marginals, derive E(tau_a)=0 and Var(tau_a)=2(2n+5)/[9n(n-1)] by accounting for identical, overlapping, and disjoint index pairs, and justify the standardized asymptotic normal test without presenting the approximation as an exact finite-sample law. Establish pair-count identities, exchange symmetry, observation-order invariance, invariance under strictly increasing coordinate transformations, sign reversal under a strictly decreasing transformation of exactly one coordinate, and the perfect agreement/disagreement boundaries. State precisely why ties, dependence, small-sample discreteness, and one-sided alternatives fall outside the frozen claim. Keep active and rejected derivations visibly distinct and disclose unresolved gaps. The required model-authored artifact is est_kendall_tau_a and must implement run_estimator(request) exactly for the frozen public contract. Exploratory Python or R may enumerate permutations and test identities. A separately frozen confirmatory experiment draws independent continuous pairs from several marginal families and checks the exact null mean and variance plus large-sample normal calibration using predeclared Monte Carlo uncertainty. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "rank_correlation",
+        "Kendall_tau_a",
+        "U_statistic",
+        "permutation_null",
+        "asymptotic_normality",
+        "L0"
+      ],
+      "source": {
+        "title": "A New Measure of Rank Correlation",
+        "author": "M. G. Kendall",
+        "journal": "Biometrika",
+        "year": 1938,
+        "volume": 30,
+        "issue": "1-2",
+        "pages": "81-93",
+        "doi": "10.1093/biomet/30.1-2.81",
+        "url": "https://doi.org/10.1093/biomet/30.1-2.81"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_kendall_tau_a",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "The first coordinate of n paired observations.",
+            "json_type": "array",
+            "shape": "one-dimensional array of n>=3 distinct finite JSON numbers",
+            "units": "arbitrary ordinally meaningful units",
+            "indexing": "x[i] is paired with y[i]",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, repeated values, non-arrays, and lengths below three.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "The second coordinate of the same n paired observations.",
+            "json_type": "array",
+            "shape": "one-dimensional array of exactly n distinct finite JSON numbers",
+            "units": "arbitrary ordinally meaningful units",
+            "indexing": "y[i] is paired with x[i]",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, repeated values, non-arrays, and every length unequal to x.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "The admitted number of paired observations.",
+            "json_type": "integer",
+            "shape": "scalar integer n>=3",
+            "units": "paired observations",
+            "indexing": "one sample size",
+            "edge_cases": "Exactly the common input length.",
+            "normalization": "No rescaling."
+          },
+          {
+            "clause_id": "response.total_pairs",
+            "name": "total_pairs",
+            "meaning": "The number of unordered observation pairs.",
+            "json_type": "integer",
+            "shape": "positive scalar integer",
+            "units": "pairs",
+            "indexing": "one pair count",
+            "edge_cases": "Equals three when n=3.",
+            "normalization": "Exactly n(n-1)/2."
+          },
+          {
+            "clause_id": "response.concordant_pairs",
+            "name": "concordant_pairs",
+            "meaning": "The number C of pairs whose coordinate differences have the same sign.",
+            "json_type": "integer",
+            "shape": "nonnegative scalar integer",
+            "units": "pairs",
+            "indexing": "one concordance count",
+            "edge_cases": "Equals total_pairs under perfect increasing agreement.",
+            "normalization": "Each unordered pair is counted once."
+          },
+          {
+            "clause_id": "response.discordant_pairs",
+            "name": "discordant_pairs",
+            "meaning": "The number D of pairs whose coordinate differences have opposite signs.",
+            "json_type": "integer",
+            "shape": "nonnegative scalar integer",
+            "units": "pairs",
+            "indexing": "one discordance count",
+            "edge_cases": "Equals total_pairs under perfect decreasing agreement.",
+            "normalization": "Each unordered pair is counted once."
+          },
+          {
+            "clause_id": "response.score",
+            "name": "score",
+            "meaning": "The signed concordance score S=C-D.",
+            "json_type": "integer",
+            "shape": "scalar integer between minus total_pairs and total_pairs",
+            "units": "signed pairs",
+            "indexing": "one score",
+            "edge_cases": "Has the same parity as total_pairs.",
+            "normalization": "No rescaling beyond C-D."
+          },
+          {
+            "clause_id": "response.tau",
+            "name": "tau",
+            "meaning": "Kendall's no-ties tau-a coefficient.",
+            "json_type": "number",
+            "shape": "finite scalar in [-1,1]",
+            "units": "dimensionless rank association",
+            "indexing": "one coefficient",
+            "edge_cases": "Equals 1 for perfect agreement and -1 for perfect disagreement.",
+            "normalization": "Exactly score/total_pairs = 2 score/[n(n-1)]."
+          },
+          {
+            "clause_id": "response.null_variance",
+            "name": "null_variance",
+            "meaning": "The exact finite-n variance of tau under independent continuous marginals.",
+            "json_type": "number",
+            "shape": "positive finite scalar",
+            "units": "squared tau scale",
+            "indexing": "one null variance",
+            "edge_cases": "This no-ties independence variance is not a tie-corrected variance.",
+            "normalization": "Exactly 2(2n+5)/[9n(n-1)]."
+          },
+          {
+            "clause_id": "response.z_statistic",
+            "name": "z_statistic",
+            "meaning": "The standardized tau statistic for the frozen large-sample test.",
+            "json_type": "number",
+            "shape": "finite scalar",
+            "units": "null standard deviations",
+            "indexing": "one standardized statistic",
+            "edge_cases": "Its finite-sample distribution is discrete and not asserted to be exactly normal.",
+            "normalization": "Exactly tau/sqrt(null_variance), with no continuity correction."
+          },
+          {
+            "clause_id": "response.p_value",
+            "name": "p_value",
+            "meaning": "The frozen two-sided asymptotic normal p-value for absence of association.",
+            "json_type": "number",
+            "shape": "finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "one p-value",
+            "edge_cases": "It is not an exact permutation p-value and is not one-sided.",
+            "normalization": "Exactly 2 times the standard-normal upper tail at abs(z_statistic)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request is a JSON object with exactly x and y; the response contains exactly the nine declared fields; implicit boolean or string coercion is forbidden."
+          },
+          {
+            "clause_id": "invariant.pair_partition",
+            "meaning": "With no ties, concordant_pairs+discordant_pairs=total_pairs, score=concordant_pairs-discordant_pairs, and tau=score/total_pairs."
+          },
+          {
+            "clause_id": "invariant.paired_permutation",
+            "meaning": "Applying the same permutation to x and y leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.coordinate_exchange",
+            "meaning": "Exchanging x and y leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.monotone_transform",
+            "meaning": "Applying arbitrary strictly increasing transformations separately to x and y leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.single_coordinate_reversal",
+            "meaning": "Applying a strictly decreasing transformation to exactly one coordinate swaps concordant and discordant counts, negates score, tau, and z_statistic, and leaves n, total_pairs, null_variance, and the two-sided p_value unchanged."
+          },
+          {
+            "clause_id": "invariant.perfect_order_boundaries",
+            "meaning": "Common strict ordering gives tau=1; reversing exactly one ordering gives tau=-1."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.null_mean",
+            "meaning": "Across each frozen independent continuous DGP, the Monte Carlo mean of tau is compatible with zero under the predeclared uncertainty rule."
+          },
+          {
+            "clause_id": "claim.empirical.null_variance",
+            "meaning": "Across each frozen independent continuous DGP, the Monte Carlo variance of tau is compatible with 2(2n+5)/[9n(n-1)] under the predeclared uncertainty rule."
+          },
+          {
+            "clause_id": "claim.empirical.asymptotic_calibration",
+            "meaning": "For the frozen moderate and large n settings, standardized tau and its two-sided normal p-value are compatible with the declared large-sample normal diagnostics; no exact finite-sample normality is claimed."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory replicate uses the frozen n, independent continuous marginal generators, estimator identity, no-ties admission rule, seed, and two-sided no-continuity-correction normalization fixed before outcomes."
+          }
+        ]
+      }
+    }
+  ]
+}
