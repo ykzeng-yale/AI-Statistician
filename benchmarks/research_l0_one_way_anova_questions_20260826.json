@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "one_way_normal_anova_f_test_known_result",
+      "title": "Exact one-way normal ANOVA F test",
+      "description": "Focused L0 known-result evaluation grounded in the NIST/SEMATECH e-Handbook of Statistical Methods. For fixed k>=2 and group sizes n_i>=2, let Y_ij be independent with Y_ij distributed as N(mu_i,sigma^2), where sigma^2 is finite and strictly positive. Develop one authoritative Markdown/LaTeX derivation of the weighted grand mean, between-group and within-group sums of squares, their deterministic decomposition, and the null distribution of F=(SS_between/(k-1))/(SS_within/(N-k)) under H0: mu_1=...=mu_k. The derivation must make the orthogonal Gaussian projection or Cochran-theorem argument explicit enough to justify both chi-square degrees of freedom and independence; merely naming the F distribution is insufficient. State exactly which conclusions require normality, common variance, independent observations, fixed group sizes, and the null hypothesis. The required model-authored artifact is est_one_way_anova and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may compare algebra and distributional behavior. A separately frozen confirmatory assessment samples several predeclared independent equal-variance normal null designs and checks F probability-integral-transform and type-I behavior with Monte Carlo uncertainty. Simulation is implementation and distributional evidence rather than proof. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "normal_theory",
+        "one_way_anova",
+        "cochran_theorem",
+        "f_distribution",
+        "L0"
+      ],
+      "source": {
+        "title": "NIST/SEMATECH e-Handbook of Statistical Methods: One-Way ANOVA",
+        "authors": [
+          "NIST/SEMATECH"
+        ],
+        "publisher": "National Institute of Standards and Technology",
+        "url": "https://www.itl.nist.gov/div898/handbook/ppc/section2/ppc231.htm",
+        "anova_table_url": "https://www.itl.nist.gov/div898/handbook/prc/section4/prc423.htm"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_one_way_anova",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.groups",
+            "name": "groups",
+            "meaning": "Observed values from k independent groups in fixed group order.",
+            "json_type": "array[array[number]]",
+            "shape": "an outer array of length k at least two; every inner array has length n_i at least two; all declared derived quantities are finite and the total within-group sum of squares is strictly positive",
+            "units": "one common outcome unit for every group",
+            "indexing": "outer index identifies a group and inner index identifies an observation",
+            "edge_cases": "Reject nonarrays, fewer than two groups, groups shorter than two, booleans, strings, nonfinite entries, extra request fields, data whose required centered sums or ratio are nonfinite, and data whose total within-group sum of squares is zero; do not coerce or silently drop entries.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.group_count",
+            "name": "group_count",
+            "meaning": "The validated number of groups k.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "groups",
+            "indexing": "current groups request",
+            "edge_cases": "Must equal len(groups) exactly and must not be a boolean.",
+            "normalization": "len(groups)"
+          },
+          {
+            "clause_id": "response.total_size",
+            "name": "total_size",
+            "meaning": "The validated total observation count N.",
+            "json_type": "integer",
+            "shape": "one integer at least four",
+            "units": "observations",
+            "indexing": "current groups request",
+            "edge_cases": "Must equal the sum of all group lengths exactly and must not be a boolean.",
+            "normalization": "sum(len(group) for group in groups)"
+          },
+          {
+            "clause_id": "response.df_between",
+            "name": "df_between",
+            "meaning": "The between-group degrees of freedom k-1.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "degrees of freedom",
+            "indexing": "current groups request",
+            "edge_cases": "Must equal group_count-1 exactly.",
+            "normalization": "group_count-1"
+          },
+          {
+            "clause_id": "response.df_within",
+            "name": "df_within",
+            "meaning": "The within-group degrees of freedom N-k.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "degrees of freedom",
+            "indexing": "current groups request",
+            "edge_cases": "Must equal total_size-group_count exactly.",
+            "normalization": "total_size-group_count"
+          },
+          {
+            "clause_id": "response.sum_squares_between",
+            "name": "sum_squares_between",
+            "meaning": "The weighted between-group sum of squares around the grand mean.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "current groups request",
+            "edge_cases": "May equal zero when all group means coincide.",
+            "normalization": "sum(n_i*(group_mean_i-grand_mean)^2 for i in 1..k), with grand_mean=sum(n_i*group_mean_i)/N"
+          },
+          {
+            "clause_id": "response.sum_squares_within",
+            "name": "sum_squares_within",
+            "meaning": "The total within-group centered sum of squares.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared outcome units",
+            "indexing": "current groups request",
+            "edge_cases": "A zero value makes the request invalid under the frozen domain.",
+            "normalization": "sum((value-group_mean_i)^2 for every value in group i and every group i)"
+          },
+          {
+            "clause_id": "response.f_statistic",
+            "name": "f_statistic",
+            "meaning": "The classical equal-variance one-way ANOVA F statistic.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "dimensionless",
+            "indexing": "current groups request",
+            "edge_cases": "Equals zero when sum_squares_between is zero; the strictly positive within sum of squares keeps the denominator defined.",
+            "normalization": "(sum_squares_between/df_between)/(sum_squares_within/df_within)"
+          },
+          {
+            "clause_id": "response.p_value",
+            "name": "p_value",
+            "meaning": "The upper-tail probability of f_statistic under F_{df_between,df_within}.",
+            "json_type": "number",
+            "shape": "one finite scalar in the closed interval from zero to one",
+            "units": "probability",
+            "indexing": "current groups request and returned degrees of freedom",
+            "edge_cases": "Use a numerically stable F survival function; f_statistic equal to zero gives p_value equal to one, while underflow at an extreme positive statistic may give zero.",
+            "normalization": "scipy.stats.f.sf(f_statistic,df_between,df_within)"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the one declared field and the response contains exactly the eight declared fields. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting groups and independently permuting observations within any group leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.common_translation",
+            "meaning": "Adding the same finite constant to every observation leaves every response field unchanged whenever the transformed request remains in the frozen finite-output domain."
+          },
+          {
+            "clause_id": "invariant.common_scale",
+            "meaning": "Multiplying every observation by the same finite nonzero constant multiplies both returned sums of squares by the square of that constant and leaves counts, degrees of freedom, f_statistic, and p_value unchanged whenever the transformed request remains in the frozen finite-output domain."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen null design, fix k, all group sizes, common mean, positive common variance, seed, replicate count, and assessment thresholds before outcomes, then invoke the accepted estimator on every realized groups request."
+          },
+          {
+            "clause_id": "claim.empirical.null_f_distribution",
+            "meaning": "Under independent equal-variance normal sampling with all group means equal, returned f_statistic follows F_{k-1,N-k}; its F CDF probability-integral transform is uniform within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.type_one_error",
+            "meaning": "For each frozen alpha used only by the evaluator, the fraction of returned p_value values at most alpha agrees with alpha within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.nuisance_parameters",
+            "meaning": "Frozen null scenarios vary common means, positive common variances, balanced and unbalanced group sizes, and group counts without changing the null F law after the declared normalization."
+          },
+          {
+            "clause_id": "claim.empirical.evidence_boundary",
+            "meaning": "The confirmatory assessment checks implementation and finite-sample null distributional behavior only; it does not prove the projection argument and makes no robustness claim outside independent equal-variance normal sampling."
+          }
+        ]
+      }
+    }
+  ]
+}
