@@ -363,7 +363,7 @@ model judges discrepancies, contradictions, unsupported success claims, and
 unresolved gaps. Report and source text are transient prompt context and are not
 copied into the persistent audit.
 
-This adds no repair agent, content patcher, source-specific rule, retry loop,
+Commit `936bd137` adds no repair agent, content patcher, source-specific rule, retry loop,
 reviewer, scheduler, or model escalation. It imports no Codex core component;
 the official checkout remains an audited design reference at `bde9db13`. Two
 unused legacy side-audit modules were removed instead: the token-overlap holdout

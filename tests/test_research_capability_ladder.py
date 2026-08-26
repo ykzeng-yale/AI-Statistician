@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "7669de368038b9a7dc3534c1551cfe71b464ebcc"
+LATEST_SHARED_MECHANISM_HEAD = "936bd137ed6ebfa01b0751f24a7f963afd645c7a"
 
 
 def _load_ladder() -> dict:
@@ -4395,6 +4395,9 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert "n_neighbors" in evidence["hidden_semantic_failure"]
     assert evidence["operator_audit_disposition"] == (
         "OPERATOR_CONFIRMED_HIDDEN_SOURCE_REPORT_FAILURE"
+    )
+    assert evidence["post_run_shared_mechanism_fix_commit"] == (
+        "936bd137ed6ebfa01b0751f24a7f963afd645c7a"
     )
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"

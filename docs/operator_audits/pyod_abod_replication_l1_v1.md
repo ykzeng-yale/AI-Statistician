@@ -19,6 +19,8 @@ Date: 2026-08-26
 - Runtime result: `ACCEPTED` after three outer traces
 - Hidden full-task result: `0/1`
 - Operator disposition: `OPERATOR_CONFIRMED_HIDDEN_SOURCE_REPORT_FAILURE`
+- Future-task shared mechanism commit:
+  `936bd137ed6ebfa01b0751f24a7f963afd645c7a`
 
 The task received exactly one product draw and one post-runtime hidden
 evaluation. Both are closed and immutable. It must not be resumed, rerun,
@@ -114,7 +116,7 @@ local accepted checkpoint as sufficient rather than independently checking the
 report. This was a generic authority omission, not a need for a phrase detector,
 ABOD rule, repair worker, another reviewer, or another scheduler.
 
-For future tasks, the existing Critic now receives transient hash-verified
+For future tasks, commit `936bd137` makes the existing Critic receive transient hash-verified
 content for the report and the exact author-read source ranges, plus the bounded
 raw execution observation. Required source replication cannot be accepted unless
 the Critic marks that dimension supported. The persisted runtime record contains
