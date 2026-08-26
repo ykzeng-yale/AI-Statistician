@@ -238,10 +238,10 @@
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "dc08ace7821614a702b1214c9d08ae0db2634d82",
+    "latest_rechecked_upstream_commit": "2764e83626efe55f64e04d153fc99a157327f3c2",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
+    "implementation_commit": "ec1f6fc8f83fa1a3d6812ab6b8eab8ac8c692940",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -262,7 +262,8 @@
       "1a1f11d993654cef8760d1296701155f9b3c68fd",
       "4ebef6c57ea2a279faf59bca2bd29e219be120ba",
       "75f05e46a6ff39adda0c694054bdd087cbbd7779",
-      "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
+      "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
+      "ec1f6fc8f83fa1a3d6812ab6b8eab8ac8c692940"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
@@ -276,7 +277,14 @@
       "codex-rs/app-server-protocol/src/protocol/v2/thread.rs": "f093b0fc2fb3aeed3b4ee6e9b712893f0ad9153a5d1b26551355cfb173551c0a",
       "codex-rs/tools/src/json_schema.rs": "1ef5b2a76a01d3bbeceefa7b07d1d0ba74d98918c9fe17d923ce445f1cab335b",
       "codex-rs/protocol/src/sanitized_git_url.rs": "b21985cdf7fa0657e122de022e935f53ea600ce5c8768552328f6dea96695dba",
-      "codex-rs/worktree/src/metadata.rs": "74408ded6844439ae5c22468ef509846850d65c5919bda47449bf39111d2dd55"
+      "codex-rs/worktree/src/metadata.rs": "74408ded6844439ae5c22468ef509846850d65c5919bda47449bf39111d2dd55",
+      "codex-rs/core/src/tools/parallel.rs": "48380e25abaf9c52e7a5de9cecf82cc4ddb84197683f73a11719de3b78c90e5a",
+      "codex-rs/core/src/session/multi_agents.rs": "2ea650cdededf56c2a94425be7a3c5323f200f675acc543cd281a3d1d0ea0c80",
+      "codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs": "21f9806b48c38f6bf32093bd2fe3f0a6b9ae03d154df42e200f499c92ccbb235",
+      "codex-rs/app-server/README.md": "ec2136496df57af1fb72dfece7cf62e11de47ea5fc96548cb4579ca3e640c0b8",
+      "codex-rs/model-provider-info/src/lib.rs": "2168b93576dff1d336f0c3d390b6ff8c38376340fc8ed2eea8da9857ddb1eeb7",
+      "sdk/python/docs/api-reference.md": "cd9948e7d014c52ba826e86517bb502b8f97044d2e677bf7aec197252e7ab495",
+      "codex-rs/exec-server/README.md": "fdaeead379463e87a10d989c82d04558973cc8d4fcc9a8b3a7b783824977605b"
     },
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable bounded tool surface, external artifact state, credential-safe persisted metadata, terminal-error pending-input preservation, sparse ownership, owner-scoped tool permissions, paginated-history principle, and telemetry boundaries. Do not embed codex exec, app-server, thread store, worktree manager, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime. Treat standalone Codex sandboxing as a future pinned native execution provider only after cross-platform isolation calibration.",
     "implemented_changes": [
@@ -302,7 +310,8 @@
       "TheoryDeveloper now reserves the shared client-tool loop's one rejected-terminal-disposition recovery. A rejected commit returns its exact validator observation to the same retained model, which may choose another terminal disposition including an honest gap or resumable progress checkpoint. Ordinary research actions remain fixed, and runtime adds no packet patch, repair agent, scheduler, or mathematical rule.",
       "Independent-referee scratch observations now reach the terminal Critic through a compact runtime-projected evidence view containing status, execution attempt, return code, hashes, and bounded errors. Failed or rejected scratch can remain nonblocking when the mathematics is independently supported, but no downstream model may describe it as a successful check.",
       "Document-backed TheoryDeveloper packets now keep substantive mathematics only in hash-bound Markdown/LaTeX. Structured derivation transport contains claim/check indexes and optional formalization ABI; legacy downstream projections discard stale duplicate narrative while retaining exact source-packet identity.",
-      "Successful independent-referee scratch executions now reach the same terminal Critic as exact hash-verified model-authored source and raw metrics. Missing or changed files expose no content, and runtime leaves relevance and mathematical interpretation to the Critic rather than treating execution success as validation."
+      "Successful independent-referee scratch executions now reach the same terminal Critic as exact hash-verified model-authored source and raw metrics. Missing or changed files expose no content, and runtime leaves relevance and mathematical interpretation to the Critic rather than treating execution success as validation.",
+      "TheoryDeveloper can now atomically apply an ordered batch of model-authored exact replacements to one SHA-bound Markdown/LaTeX document. Runtime validates the complete batch against progressive bytes before mutation; it supplies no mathematical edit, parser, repair agent, or fallback."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -312,12 +321,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The official Codex checkout was rechecked through dc08ace7; its central turn loop, router, orchestrator, parallel gate, collaboration lineage, and compaction policy remain unchanged. The frozen Hoeffding run exposed stale duplicate JSON narrative and a successful but nondiscriminating referee probe. Commit 75f05e46 makes future document-backed handoffs index-only; commit ba9e553f gives the existing Critic exact hash-verified probe source and raw metrics. The complete repository passed 902/902 in 69.54 seconds, and production Python is 149,991 lines. Deterministic artifact inspection resolved the immutable probe without a model call; the consumed run was not rerun, resumed, repaired, hidden-evaluated again, or rescored.",
+    "verification": "The official Codex checkout was rechecked through 2764e836; the inspected core turn, router, parallel, multi-agent, app-server, Python SDK, model-provider, and exec-server paths did not change after dc08ace. Commit ec1f6fc8 adopts atomic model-authored Theory document edit batches without importing another runtime. Focused adjacent regressions passed 290/290, the complete repository passed 904/904 in 70.44 seconds, and production Python is 149,998 lines. No product model call, consumed-task rerun, resume, output repair, hidden evaluation, or rescore occurred.",
     "live_validation_runs": 11,
     "fresh_live_client_tool_model_turns": 310,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics are each immutable 1/1 under their frozen automated protocols and retain their recorded operator caveats. All failed draws retain 0/1, and the aggregate ladder is 4/41. Commits 75f05e46 and ba9e553f supply future-task mechanism evidence only; exact Lean closure remains 0/2 and separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics are each immutable 1/1 under their frozen automated protocols and retain their recorded operator caveats. All failed draws retain 0/1, and the aggregate ladder is 4/41. Commits 75f05e46, ba9e553f, and ec1f6fc8 supply future-task mechanism evidence only; exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",

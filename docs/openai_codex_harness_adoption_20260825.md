@@ -6,10 +6,10 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`dc08ace7821614a702b1214c9d08ae0db2634d82`.
+`2764e83626efe55f64e04d153fc99a157327f3c2`.
 
 Latest implementation commit:
-`ba9e553ff9b85a4cdd7367c21abdab2be531b6c7`.
+`ec1f6fc8f83fa1a3d6812ab6b8eab8ac8c692940`.
 
 Primary references:
 
@@ -786,6 +786,49 @@ the exact 3,538-character source and nine raw metrics. This was artifact reading
 not a model call, task rerun, hidden reevaluation, or rescore. The complete
 repository passes `902/902` in 69.54 seconds, and production Python is 149,991
 lines under the unchanged 150,000-line budget. The aggregate remains `4/41`.
+
+## Atomic theory-document edits
+
+The latest source review also compared Codex's external-state editing model with
+the remaining TheoryDeveloper tool surface. Theory mathematics already lives in
+Markdown/LaTeX and the same source-owning Claude session already receives exact
+read, search, scratch, validation, and checkpoint observations. One avoidable
+difference remained: `edit_theory_document` could change only one unique literal
+per call. A mathematical revision spanning several local passages therefore spent
+extra model turns or rewrote a complete long document.
+
+Commit `ec1f6fc8` replaces that one-edit shape with one ordered model-authored batch
+bound to the current document SHA-256. Runtime evaluates each unique replacement
+against progressively revised bytes and mutates the document only after the whole
+batch validates. A failed later replacement leaves every earlier replacement
+uncommitted, and the exact rejection returns to the same model session. The old
+single-edit input is removed rather than retained as a fallback.
+
+This adopts the useful principle behind Codex `apply_patch` without importing its
+runtime or patch parser. The model still chooses every span and every byte of
+mathematics; the harness owns only atomicity, file identity, and observation return.
+No formula, parser, repair agent, model escalation, scheduler, extra turn, or task
+rule was added. Focused adjacent regressions pass `290/290`, the complete repository
+passes `904/904`, and production Python remains below its fixed budget at 149,998
+lines. This is future-task mechanism evidence and does not change any consumed score.
+
+## Current upstream boundary recheck
+
+The official checkout was fast-forwarded to
+`2764e83626efe55f64e04d153fc99a157327f3c2`. Codex's core turn loop, tool router,
+parallel-safety gate, multi-agent session/mailbox implementation, app-server API,
+Python SDK contract, model-provider wire API, and experimental exec-server were
+read directly. None of those inspected paths changed after the prior `dc08ace`
+recheck.
+
+The boundary remains architectural rather than ideological. Codex's Python SDK is
+an app-server client and the current model-provider implementation uses the OpenAI
+Responses wire API. Embedding either in the canonical Claude Haiku/Sonnet research
+path would add another conversation owner and scheduler or require an
+Anthropic-to-Responses gateway. Codex's standalone exec-server is model-neutral but
+experimental and does not supply AI Statistician's secret-free Python/R dependency,
+blinded evaluator, resource, and artifact-hash policy. Selective source-level reuse
+therefore remains the stronger integration.
 
 ## Standalone sandbox boundary
 
