@@ -57,7 +57,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = (
 )
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
-GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES = 3
+GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES = 6
 GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
     "in_scope": [
         "implemented statistical object and metric meaning",
@@ -860,7 +860,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             "prefer one broad model-authored probe that covers multiple "
                             "load-bearing public boundary cases; choose the cases and "
                             "interpretation yourself. Correct a failed probe in this session "
-                            "before ACCEPT; it is not evidence about the estimator."
+                            "before ACCEPT; it is not evidence about the estimator. Re-read every "
+                            "public request field, response field, invariant, and stated edge case. "
+                            "A broad numerical probe does not cover an omitted input boundary; a probe "
+                            "that failed before exact target invocation covers nothing. Probe unresolved "
+                            "behavior or return a non-accepting judgment; do not infer coverage from test count alone."
                             if probe_targets
                             else ""
                         )

@@ -1001,6 +1001,15 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert "one broad model-authored probe" in str(
         backend.requests[0].messages[0]["content"]
     )
+    assert "Re-read every public request field" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "does not cover an omitted input boundary" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "do not infer coverage from test count alone" in str(
+        backend.requests[0].messages[0]["content"]
+    )
     assert "accepted_numeric_string" in str(backend.requests[1].messages[-1])
     assert packet["overall_verdict"] == "REVISE"
     probe_record = packet["client_tool_loop"]["review_probe_executions"][0]

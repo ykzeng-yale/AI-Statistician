@@ -731,6 +731,67 @@ def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> Non
     ] == 1
 
 
+def test_rejected_terminal_disposition_can_edit_before_reserved_commit() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit-initial", "edit", {"value": 1})),
+            _response(ClientToolCall("call-submit-invalid", "submit", {})),
+            _response(ClientToolCall("call-edit-recovery", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit-valid", "submit", {})),
+        ]
+    )
+    submissions = 0
+    executed_tools: list[str] = []
+
+    def execute(call, _context):
+        nonlocal submissions
+        executed_tools.append(call.name)
+        if call.name == "edit":
+            return ClientToolExecutionResult(
+                content={"ok": True, "value": call.input["value"]},
+                state_changed=True,
+                observation_key=f"edit:{call.input['value']}",
+            )
+        submissions += 1
+        if submissions == 1:
+            raise ClientToolInputError("parser rejected the current file")
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"submitted": True},
+            observation_key="submitted",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=2,
+        max_tool_calls=2,
+        max_no_progress_turns=1,
+        max_terminal_recovery_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 4
+    assert executed_tools == ["edit", "submit", "edit", "submit"]
+    assert backend.requests[2].metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
+    assert backend.requests[2].metadata[
+        "client_tool_loop_terminal_recovery_action_allowed"
+    ] is True
+    assert backend.requests[3].metadata[
+        "client_tool_loop_terminal_recovery_action_allowed"
+    ] is False
+    recovery_call = result.history[2]["tool_calls"][0]
+    assert recovery_call["executed_by_runtime"] is True
+    assert recovery_call["state_changed"] is True
+    assert "parser rejected the current file" in str(
+        backend.requests[2].messages[-1]["content"]
+    )
+
+
 def test_bounded_client_tool_loop_requests_terminal_decision_at_standard_budget() -> None:
     backend = ScriptedToolTurnBackend(
         [
