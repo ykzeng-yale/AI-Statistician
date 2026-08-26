@@ -57,7 +57,7 @@ their full orchestration stacks:
 
 ## Visible executable contract
 
-Every newly activated schema-v2 task with a hidden algorithm or empirical
+Every newly activated schema-v3 task with a hidden algorithm or empirical
 evaluator freezes one model-visible estimator contract before the first model
 call. The contract names the `run_estimator` identity and defines every request
 and response field by meaning, JSON type, shape, units, indexing, edge cases,
@@ -71,10 +71,22 @@ more public clause IDs, and every empirical check must cite a public empirical
 claim. Its estimator identity must match the public contract. Expected values,
 hidden cases, seeds, tolerance values, and harness source remain evaluator-only.
 Clause references establish inspectable provenance; they do not mechanically
-prove semantic entailment or become runtime guardrails. Before task activation,
-the operator still audits that every hidden assertion follows from the visible
-clauses and calibrates the hidden harness against independent valid and invalid
-implementations.
+prove semantic entailment or become runtime guardrails.
+
+Schema v3 adds one executable activation gate before any product-model call. A
+hash-frozen reference candidate and one or more hash-frozen negative candidates
+run through the exact hidden sandbox, harness, estimator binding, and acceptance
+checks later used for model candidates. The reference must pass, every configured
+algorithm or empirical evaluator must reject at least one invoked negative, and
+the enabled evaluators' checks must collectively cite every applicable public ABI
+clause. Historical activation summaries are not certificates for this gate.
+
+This executable calibration catches stale references, vacuous validators, missing
+evaluator dimensions, and clause-coverage omissions. It cannot prove a claim over
+an infinite input domain or prove that a check's prose citation is truthful. Before
+task activation, the operator still audits semantic entailment and uses independent
+boundary/property probes appropriate to the declared domain. Those probes live in
+evaluator artifacts, not product runtime rules or model prompts.
 
 That audit is performed at the granularity of one hidden behavior, not one
 aggregate boolean. Every hidden test vector must be entailed by at least one
@@ -89,9 +101,10 @@ not a product prompt, runtime validator, or source-repair rule.
 The full public contract is supplied to the source-owning Theory, Python/R,
 Simulation, review, and Critic model contexts. Agent result artifacts do not
 recursively copy it; the frozen question and content-derived contract identity
-remain authoritative. Schema v1 stays read-compatible for immutable historical
-runs, while new executable benchmarks use schema v2. This adds no agent, route,
-repair layer, retry, research budget, statistical formula, or model escalation.
+remain authoritative. Schemas v1 and v2 stay read-compatible for immutable
+historical evaluation, while canonical live activation requires schema v3. This
+adds no agent, route, repair layer, retry, research budget, statistical formula,
+or model escalation.
 
 ## Progressive research graph
 

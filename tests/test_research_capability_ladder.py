@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
+LATEST_SHARED_MECHANISM_HEAD = "3d40ac2f57a560e733cebfbbeff270f9d3116cb4"
 
 
 def _load_ladder() -> dict:
@@ -391,9 +392,7 @@ def test_kendall_tau_l0_records_one_consumed_draw_and_operator_override() -> Non
     assert readiness["consumed_scored_tasks"] == 48
     assert readiness["fully_gold_configured_tasks"] == 48
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == (
-        "f6eb861a2484393f550cc29aaa3823f346f17eef"
-    )
+    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -2211,9 +2210,7 @@ def test_aitken_gls_l0_records_sole_consumed_draw_and_operator_caveats() -> None
     assert readiness["consumed_scored_tasks"] == 48
     assert readiness["fully_gold_configured_tasks"] == 48
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == (
-        "f6eb861a2484393f550cc29aaa3823f346f17eef"
-    )
+    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -2671,8 +2668,9 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         row["activation_evidence"].get("full_task_passed") is True
         for row in scored
     )
-    assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "f6eb861a2484393f550cc29aaa3823f346f17eef"
+    assert (
+        ladder["current_readiness"]["latest_shared_mechanism_head"]
+        == LATEST_SHARED_MECHANISM_HEAD
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2962,9 +2960,7 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     assert readiness["consumed_scored_tasks"] == 48
     assert readiness["fully_gold_configured_tasks"] == 48
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == (
-        "f6eb861a2484393f550cc29aaa3823f346f17eef"
-    )
+    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3081,9 +3077,7 @@ def test_neyman_pearson_theory_l0_draw_is_consumed_and_failed_closed() -> None:
     assert readiness["consumed_scored_tasks"] == 48
     assert readiness["fully_gold_configured_tasks"] == 48
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == (
-        "f6eb861a2484393f550cc29aaa3823f346f17eef"
-    )
+    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
     }
@@ -3870,9 +3864,7 @@ def test_hoeffding_u_statistic_l0_records_one_consumed_caveated_pass() -> None:
     assert readiness["consumed_scored_tasks"] == 48
     assert readiness["fully_gold_configured_tasks"] == 48
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == (
-        "f6eb861a2484393f550cc29aaa3823f346f17eef"
-    )
+    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -4025,9 +4017,7 @@ def test_normal_normal_conjugate_l0_records_one_consumed_invalidated_draw() -> N
     assert readiness["consumed_scored_tasks"] == 48
     assert readiness["fully_gold_configured_tasks"] == 48
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["latest_shared_mechanism_head"] == (
-        "f6eb861a2484393f550cc29aaa3823f346f17eef"
-    )
+    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (

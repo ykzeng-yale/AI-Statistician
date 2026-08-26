@@ -1,13 +1,23 @@
 {
-  "schema_version": 183,
+  "schema_version": 184,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "f6eb861a2484393f550cc29aaa3823f346f17eef",
+  "validated_code_head": "3d40ac2f57a560e733cebfbbeff270f9d3116cb4",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-eight consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw is excluded from capability attribution because its public ABI and hidden evaluator are operator-invalid. Commit f6eb861a applies only two cross-task Codex-shaped harness corrections: reviewer tool failures carry exact origin ownership, and Algorithm semantic revisions restore exact parent source plus raw observations in the same source-owner workspace without replanning. The next evaluation must be disjoint and must first pass an independent full-domain public-contract versus hidden-validator audit. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all forty-eight consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw is excluded from capability attribution because its public ABI and hidden evaluator are operator-invalid. Commit 3d40ac2f requires every future executable live-gold task to use schema v3: frozen references and behavioral negatives execute through the exact hidden candidate validators before any product-model call, while schemas v1/v2 remain historical-only. The next evaluation must be disjoint and must also pass independent mathematical and domain-boundary audit; executable calibration does not prove infinite-domain correctness. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "latest_gold_activation_contract": {
+    "implementation_commit": "3d40ac2f57a560e733cebfbbeff270f9d3116cb4",
+    "change": "Canonical live evaluation now requires schema v3. A hash-frozen reference candidate and behavioral negative candidates execute through the same hidden sandbox, harness, estimator binding, and acceptance checks later used for generated candidates. Every configured algorithm or empirical evaluator must reject an invoked negative, and enabled checks must cover every applicable public ABI clause.",
+    "authority_boundary": "The gate validates executable evaluator calibration and provenance only. It does not encode a statistical formula, infer mathematical boundary cases, prove infinite-domain correctness, repair model source, or replace independent semantic and operator audit.",
+    "historical_compatibility": "Schemas v1 and v2 remain readable by post-runtime historical evaluation but cannot launch a new canonical live draw.",
+    "retired_surface": "Removed the unused 211-line research_next_iteration_audit module and its legacy CLI command instead of adding another scheduler or queue abstraction.",
+    "model_policy": "No Claude or other model call occurred; no Sonnet, Opus, retry, or escalation was introduced.",
+    "regression_evidence": "Focused gold/core panel 48/48; complete repository 922/922 in 82.50 seconds; compileall, JSON, diff hygiene, architecture budget, and secret scan passed. research_agent_runtime.py remains 24,962 lines; top-level production Python is 149,990 lines across 141 modules.",
+    "consumed_task_boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated, rescored, or resampled. Trusted capability remains 4/48 consumed, with one operator-invalid task excluded from valid-task attribution."
+  },
   "latest_codex_metric_semantic_review_harness_change": {
     "implementation_commit": "1fef5179113566b0b0a64818930771d546c22987",
     "upstream_codex_reference_head": "f5420174dafba153913a3e697f89002c338dfd7e",
@@ -73,7 +83,7 @@
     "post_run_shared_change_evidence": "Future-task regression only: both affected test files passed 108/108 and the complete repository passed 917/917 in 70.91 seconds; compileall, JSON, architecture-budget, and diff checks passed. research_agent_runtime.py is 24,962 lines and top-level production Python is 149,982 lines. No task formula, output repair, new agent, scheduler, model escalation, Sonnet call, or Opus call was added.",
     "post_run_score_changed": false,
     "boundary": "The sole product draw and evaluator report are consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample this task. Because the benchmark is operator-invalid, neither its runtime failure nor its automated hidden result is valid full-task capability evidence.",
-    "next_step": "Push the shared mechanism and immutable audit, then activate only a disjoint task whose public ABI, reference implementation, negatives, and hidden candidate validator have been independently checked over the complete declared input domain."
+    "next_step": "Activate only a disjoint schema-v3 task whose frozen reference passes and whose invoked behavioral negatives fail through the exact candidate validators before the first product-model call. Independently audit mathematical semantics and boundary/property coverage because executable calibration alone cannot prove the full declared domain."
   },
   "latest_srswor_finite_population_mean_l0_evaluation": {
     "task_id": "srswor_finite_population_mean_known_result",
@@ -2090,23 +2100,24 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24854,
+    "research_agent_runtime_lines": 24962,
     "scientific_code_workspace_lines": 2393,
     "theory_workspace_lines": 3689,
-    "research_architect_lines": 5361,
+    "research_architect_lines": 5114,
     "architect_theory_execution_preflight_lines": 5115,
-    "architect_metric_contract_authoring_lines": 2920,
-    "architect_coordinator_llm_lines": 3066,
+    "architect_metric_contract_authoring_lines": 2926,
+    "architect_coordinator_llm_lines": 3068,
     "formalizer_llm_lines": 2387,
     "lean_candidate_revision_tool_loop_lines": 1790,
     "client_tool_loop_lines": 1209,
     "agent_runtime_lines": 1159,
-    "cli_lines": 7087,
-    "top_level_python_modules": 142,
-    "top_level_package_lines": 149999,
+    "cli_lines": 7052,
+    "top_level_python_modules": 141,
+    "top_level_package_lines": 149990,
     "latest_runtime_manifest_bytes": 54908
   },
   "next_gates": [
+    "Require schema v3 for every future canonical live-gold draw. Before the first product-model call, execute one frozen reference and behavioral negatives through the exact hidden candidate validators, cover every applicable public ABI clause, and retain an independent semantic plus domain-boundary audit. Do not mistake executable calibration for a proof over an infinite domain or encode boundary mathematics in runtime.",
     "Preserve SRSWOR finite-population mean L0 v1 as immutable 0/1. Hidden theory and empirical component authority passed, but the exact estimator violated a public no-coercion clause and operator audit found required mathematical and metric-protocol errors. Validate commit 3b28df58 only on a future unrelated frozen task: a code reviewer that elects to probe must repair its own failed probe before ACCEPT. Do not rerun SRSWOR, add an input-type case, patch generated source, add a repair worker, or count regression tests as scientific capability.",
     "Preserve Neyman allocation L0 v1 as one consumed automatic 1/1 with operator-invalidated capability credit. Its all-positive theorem is correct, but the required zero-variance feasibility treatment and active unequal-cost and finite-population claims are wrong, and every Haiku review gate false-accepted them. Never rerun, resume, repair, hidden-evaluate again, rescore, add a formula rule, or add another vote.",
     "Preserve Gaussian KDE AMISE L0 v1 at immutable 0/1. Treat the contradictory model-authored bandwidth derivation and mathematically incorrect terminal gap as model-capability evidence. Treat commit 36f90f4c only as future-task evidence that the same TheoryDeveloper can read the exact current referee Markdown by a hash-bound reference; never rerun, resume, repair, hidden-evaluate again, rescore, or add a KDE formula rule.",
