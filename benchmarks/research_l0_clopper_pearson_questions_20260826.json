@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "clopper_pearson_binomial_interval_known_result",
+      "title": "Clopper-Pearson exact binomial confidence interval",
+      "description": "Focused L0 known-result evaluation grounded in Clopper and Pearson (1934). Let X be Binomial(n,p), observe X=x, and write alpha=1-confidence_level for a two-sided equal-tailed interval. In one authoritative Markdown/LaTeX theory workspace, derive the lower endpoint by inverting the upper binomial tail and the upper endpoint by inverting the lower binomial tail. Establish the equivalent beta-quantile formulas, including lower=0 when x=0 and upper=1 when x=n. Prove that the resulting random interval has coverage at least 1-alpha for every p in [0,1], and explain why discreteness generally makes coverage conservative rather than exactly nominal. Establish interval ordering, containment in [0,1], complement symmetry under x -> n-x, and nesting as confidence_level increases. Distinguish the construction from Wilson, Wald, mid-p, and Bayesian equal-tailed intervals, and do not use simulation as proof. The required model-authored artifact is est_clopper_pearson_interval and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may diagnose endpoint identities and boundary cases. A separately frozen confirmatory assessment uses predeclared n, p, and confidence settings, independently enumerates exact coverage over all binomial counts, and compares repeated-sampling coverage with that exact value using Monte Carlo uncertainty. This is implementation and calibration evidence, not proof of the universal coverage statement. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "binomial_inference",
+        "confidence_interval",
+        "exact_inference",
+        "test_inversion",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "The Use of Confidence or Fiducial Limits Illustrated in the Case of the Binomial",
+          "authors": [
+            "C. J. Clopper",
+            "E. S. Pearson"
+          ],
+          "journal": "Biometrika",
+          "year": 1934,
+          "volume": 26,
+          "issue": 4,
+          "pages": "404-413",
+          "doi": "10.1093/biomet/26.4.404",
+          "url": "https://academic.oup.com/biomet/article/26/4/404/291538"
+        },
+        "implementation_convention": {
+          "title": "SciPy BinomTestResult.proportion_ci exact method",
+          "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats._result_classes.BinomTestResult.proportion_ci.html",
+          "meaning": "The exact method denotes the two-sided Clopper-Pearson interval; the task contract below is the executable authority."
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_clopper_pearson_interval",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.successes",
+            "name": "successes",
+            "meaning": "The observed exact integer success count x.",
+            "json_type": "integer",
+            "shape": "one integer satisfying 0<=successes<=trials",
+            "units": "successes",
+            "indexing": "the observed binomial count for this request",
+            "edge_cases": "Reject booleans, floats, strings, negative values, and values exceeding trials; do not coerce.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.trials",
+            "name": "trials",
+            "meaning": "The exact positive integer binomial trial count n.",
+            "json_type": "integer",
+            "shape": "one integer at least one",
+            "units": "trials",
+            "indexing": "the binomial sample size for this request",
+            "edge_cases": "Reject booleans, floats, strings, zero, and negative values; do not coerce.",
+            "binding": "other_explicit"
+          },
+          {
+            "clause_id": "request.confidence_level",
+            "name": "confidence_level",
+            "meaning": "The predeclared two-sided confidence level 1-alpha.",
+            "json_type": "number",
+            "shape": "one finite scalar strictly between zero and one",
+            "units": "probability",
+            "indexing": "one confidence level for the request",
+            "edge_cases": "Reject booleans, strings, nonfinite values, zero, one, and values outside (0,1); do not coerce.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.estimate",
+            "name": "estimate",
+            "meaning": "The observed success proportion x/n.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "the current request",
+            "edge_cases": "Equals zero at successes=0 and one at successes=trials.",
+            "normalization": "successes divided by trials"
+          },
+          {
+            "clause_id": "response.lower",
+            "name": "lower",
+            "meaning": "The lower equal-tailed Clopper-Pearson endpoint.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "the current request",
+            "edge_cases": "Exactly zero when successes is zero; otherwise the alpha/2 quantile of Beta(successes,trials-successes+1).",
+            "normalization": "zero at x=0, otherwise BetaQuantile(alpha/2;x,n-x+1)"
+          },
+          {
+            "clause_id": "response.upper",
+            "name": "upper",
+            "meaning": "The upper equal-tailed Clopper-Pearson endpoint.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "the current request",
+            "edge_cases": "Exactly one when successes equals trials; otherwise the 1-alpha/2 quantile of Beta(successes+1,trials-successes).",
+            "normalization": "one at x=n, otherwise BetaQuantile(1-alpha/2;x+1,n-x)"
+          },
+          {
+            "clause_id": "response.width",
+            "name": "width",
+            "meaning": "The interval width under the declared endpoint convention.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar at most one",
+            "units": "probability",
+            "indexing": "the current request",
+            "edge_cases": "Must equal upper-lower without clipping or alternate interval substitution.",
+            "normalization": "upper minus lower"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly successes, trials, and confidence_level, and the response contains exactly estimate, lower, upper, and width. Missing, extra, malformed, nonfinite, or coercible-only values are rejected."
+          },
+          {
+            "clause_id": "invariant.interval_order_and_boundaries",
+            "meaning": "For every admitted request, 0<=lower<=estimate<=upper<=1 and width=upper-lower; lower is exactly zero at x=0 and upper exactly one at x=n."
+          },
+          {
+            "clause_id": "invariant.complement_symmetry",
+            "meaning": "For the same trials and confidence level, replacing successes x by n-x maps [lower,upper] to [1-upper,1-lower], maps estimate to 1-estimate, and preserves width."
+          },
+          {
+            "clause_id": "invariant.confidence_nesting",
+            "meaning": "For fixed successes and trials, increasing confidence_level cannot increase lower or decrease upper, so interval width cannot decrease."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every frozen scenario fixes trials, true p, confidence_level, seed, replicate count, and thresholds before outcomes and invokes the accepted estimator through the exact public request."
+          },
+          {
+            "clause_id": "claim.empirical.endpoint_identity",
+            "meaning": "For every possible count in each frozen scenario, returned endpoints match an independent beta-quantile implementation and satisfy the declared complement, nesting, ordering, and boundary identities."
+          },
+          {
+            "clause_id": "claim.empirical.exact_enumerated_coverage",
+            "meaning": "Summing Binomial(trials,p) probabilities over exactly those counts whose returned interval contains p gives frozen-scenario coverage at least confidence_level."
+          },
+          {
+            "clause_id": "claim.empirical.monte_carlo_calibration",
+            "meaning": "Repeated Binomial(trials,p) sampling produces coverage compatible with the independently enumerated candidate coverage under a predeclared Monte Carlo standard-error rule; this does not prove universal coverage."
+          }
+        ]
+      }
+    }
+  ]
+}
