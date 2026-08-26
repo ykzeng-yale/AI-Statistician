@@ -2,11 +2,14 @@
 
 Date: 2026-08-25
 
-Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
+Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
+Latest incremental recheck:
+`dc08ace7821614a702b1214c9d08ae0db2634d82`.
+
 Latest implementation commit:
-`4ebef6c57ea2a279faf59bca2bd29e219be120ba`.
+`192a96d1561fbc960f419c1165d7a0ea8ba7f4f8`.
 
 Primary references:
 
@@ -685,6 +688,50 @@ scheduler, output patch, or imported Codex component. Focused regressions passed
 The consumed Aitken score remains immutable `1/1` with explicit operator
 semantic and referee-evidence caveats; the aggregate is `3/40`, while exact
 development Lean closure remains `0/2`.
+
+## Latest upstream recheck
+
+The five-commit upstream delta from `4213b38f` to `dc08ace` leaves Codex's core
+turn loop, tool router, tool orchestrator, parallel-safety gate, multi-agent
+mailbox, input lineage, and compaction policy byte-identical. Two new mechanisms
+were examined rather than inferred from release notes.
+
+First, Guardian now prepares a fresh internal reviewer session with custom base
+instructions, no inherited developer instructions, memories, skills, apps,
+collaboration, child-agent tools, or MCP servers, and an intersection with the
+parent's read-only permission profile. This validates AI Statistician's existing
+artifact-only referee boundary: the referee starts from one fresh client-tool
+request, receives no TheoryDeveloper transcript or hidden reasoning, has a
+role-specific fixed tool surface, and writes into a separate review workspace.
+Scientific referees retain isolated scratch and report tools because those are
+part of mathematical review, but they receive no source-author write authority
+and cannot promote evidence. Importing Guardian itself would add an OpenAI/Codex
+session owner without strengthening that boundary.
+
+Second, Codex now preserves unstructured MCP output as native content items
+instead of serializing an entire mixed result array into one JSON string. AI
+Statistician's current Claude tools return bounded textual or JSON observations;
+large mathematics and source are already read by exact file ranges, and media is
+not an active scientific tool modality. Changing the provider-neutral transport
+now would add a second observation representation without a measured loss. The
+content-item form remains the correct adoption point if a future scientific tool
+returns mixed text and media or exact typed attachments.
+
+The inspected upstream identities are:
+
+- isolated Guardian reviewer configuration:
+  `23acf475f63165fed2837af3fc7a9f182d6bd33d492387b69ae67c3f17580097`;
+- Guardian policy template:
+  `f47fbb2bdba5e7528bfae7f5e2844a7d45a3a922fa74b718f22b22917376cfcf`;
+- typed tool-output protocol model:
+  `d884f03dad7e9c57f622f0a3d576ebe292b0beb68c3b6a71d04bd69a415936f6`.
+
+No product code change follows from this delta. Recent live traces do contain
+multi-call document reads and formal searches, but document and source reads take
+milliseconds; only formal-environment search averages roughly 0.6 seconds. A new
+thread pool, read/write gate, and cancellation protocol would therefore save less
+time than one model turn while increasing shared-state risk. Parallel execution
+remains gated on a future measured tool-latency bottleneck.
 
 ## Standalone sandbox boundary
 
