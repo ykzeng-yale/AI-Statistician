@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "6658c7626664b0287eaa1afc3d6cb14252225599"
+LATEST_SHARED_MECHANISM_HEAD = "7669de368038b9a7dc3534c1551cfe71b464ebcc"
 
 
 def _load_ladder() -> dict:
@@ -4262,7 +4262,7 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     )
     assert evidence["operator_audit_disposition"] == "OPERATOR_FAILED_THEORY"
     assert evidence["post_run_shared_mechanism_fix_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        "6658c7626664b0287eaa1afc3d6cb14252225599"
     )
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
@@ -4351,8 +4351,10 @@ def test_pyod_abod_l1_is_frozen_before_its_first_product_draw() -> None:
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["activation_commit"] == "pending_activation_commit"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_commit"] == (
+        "7669de368038b9a7dc3534c1551cfe71b464ebcc"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
     assert evidence["first_runtime_model_call_occurred"] is False
