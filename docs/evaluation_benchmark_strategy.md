@@ -163,9 +163,10 @@ cannot stand in for mathematical validity.
 
 Independent mathematical review follows the same rule: the referee's substantive
 argument is one model-authored Markdown/LaTeX report, while the structured submission
-contains only ordered claim and dimension statuses, evidence references, and compact
-blocking findings. Runtime may bind identities, hash and persist the report, and derive
-routing; it may not duplicate, summarize, repair, or choose the referee's mathematics.
+contains only ordered task-derived component statuses, exact report-line spans, evidence
+references, and compact blocking findings. Several components may share one span.
+Runtime may bind identities, hash and persist the report, and derive routing; it may not
+duplicate, summarize, repair, parse, or choose the referee's mathematics.
 The referee chooses exact ranges and source reads around the highest-risk load-bearing
 claims and begins from attempted falsification; evaluation must not require exhaustive
 paraphrase as a proxy for scrutiny. A hidden theory-semantic judge receives the same

@@ -141,9 +141,9 @@ workspace; required review and genuine conflicts retain their authority paths.
 When prior work is permitted, the same TheoryDeveloper session can inspect a frozen
 snapshot or model-selected public paper/repository text without a LiteratureAgent.
 An independent referee gets a separate opaque-handle session and chooses its own
-queries; search metadata is not citable, while exact reads become hash-bound refs.
-Runtime persists identities, not source bodies. Sources are provenance, not proof or
-referee acceptance, and evaluator gold remains excluded from all live discovery.
+queries and writes one authoritative Markdown report. Compact component verdicts point
+to exact hash-bound report spans, which may be shared; Runtime checks identity and
+traceability, not mathematics. Spans are not proof or referee correctness; evaluator gold remains excluded from all live discovery.
 
 ## Scientific coding workspace
 

@@ -1,13 +1,13 @@
 {
-  "schema_version": 178,
+  "schema_version": 179,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "39d42c18b09c34221f6b09dc6f5f49991b9540f6",
+  "validated_code_head": "ea2b8bad4b735ba963904a299837d560ed016442",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-six consumed tasks and their immutable artifacts. The Normal-normal task completed the visible research loop and passed hidden algorithm plus empirical authority, but hidden full-task authority returned 0/1 and operator review found swapped simplified posterior weights that every runtime reviewer missed. Trustworthy capability accounting remains 4/46. Commit 39d42c18 gives future coding workspaces recent exact same-owner tool history and gives referees task-derived claim accountability without adding a summary model, repair layer, retry, formula rule, second scheduler, Opus use, or mandatory Lean lane. Source replication and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all forty-six consumed tasks and their immutable artifacts. Trustworthy capability accounting remains 4/46. Commit ea2b8bad keeps mathematical review in the existing model-owned Markdown workspace while binding each task-derived component verdict to exact report lines and hashes; invalid references return directly to the same referee. This improves auditability, not mathematical authority, and adds no reviewer, model call, formula parser, repair layer, retry, scheduler, Opus use, or mandatory Lean lane. Long-horizon theory correctness, source replication, and exact development Lean closure 0/2 remain incomplete.",
   "latest_normal_normal_conjugate_l0_evaluation": {
     "task_id": "normal_normal_conjugate_predictive_known_result",
     "family": "bayesian_normal_conjugacy",
@@ -54,6 +54,9 @@
     "post_run_shared_change_commit": "39d42c18b09c34221f6b09dc6f5f49991b9540f6",
     "post_run_shared_change": "Future Theory workspaces index every independently falsifiable requested conclusion; referee status rows are derived from task/claim identities and bound to one Markdown report. Theory, scientific Python/R, and Lean checkpoint windows may replay eight recent exact complete same-owner tool rounds after transcript validation, and Algorithm/Simulation ordinary capacity is 24 turns.",
     "post_run_shared_change_evidence": "Future-task regression only: complete suite 911/911 in 74.02 seconds; compileall and diff checks passed; production Python 149994 lines; runtime 24876 lines. No live call, rerun, hidden reevaluation, rescore, formula, parser, RepairAgent, retry, scheduler, output patch, model escalation, or Opus execution occurred.",
+    "post_run_shared_review_trace_commit": "ea2b8bad4b735ba963904a299837d560ed016442",
+    "post_run_shared_review_trace_change": "Future independent referees still own one Markdown report and one compact terminal disposition. Every task-derived component status now points to an exact inclusive report span whose bytes are hash-bound; spans may be shared, and invalid references return to the same referee session. Runtime does not parse or judge the cited mathematics.",
+    "post_run_shared_review_trace_evidence": "Future-task regression only: focused referee tests passed 65/65 and the complete repository passed 912/912 in 70.15 seconds; compileall and diff checks passed; production Python is 149999 lines and runtime is 24854 lines. No live call, consumed-task rerun, hidden reevaluation, rescore, mathematical rule, parser, reviewer, RepairAgent, retry, scheduler, model escalation, or Opus execution occurred.",
     "boundary": "The sole product draw and sole hidden evaluation are consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample this task. Future shared changes cannot alter its immutable runtime 1/1, hidden 0/1, or operator invalidation."
   },
   "latest_neyman_allocation_l0_evaluation": {
@@ -1968,11 +1971,11 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24876,
+    "research_agent_runtime_lines": 24854,
     "scientific_code_workspace_lines": 2393,
     "theory_workspace_lines": 3689,
     "research_architect_lines": 5361,
-    "architect_theory_execution_preflight_lines": 5078,
+    "architect_theory_execution_preflight_lines": 5115,
     "architect_metric_contract_authoring_lines": 2920,
     "architect_coordinator_llm_lines": 3066,
     "formalizer_llm_lines": 2387,
@@ -1981,11 +1984,11 @@
     "agent_runtime_lines": 1159,
     "cli_lines": 7087,
     "top_level_python_modules": 142,
-    "top_level_package_lines": 149994,
+    "top_level_package_lines": 149999,
     "latest_runtime_manifest_bytes": 55404
   },
   "next_gates": [
-    "Validate commit 70f5d658 only on a future unrelated task frozen before its first model call: the independent theory referee must resume from the exact immutable session reference, inspect every explicitly requested claim component that can fail independently, and issue one model-owned verdict within optional capacity. Do not rerun Neyman, force extra turns, add a mathematical checklist, or count regression evidence as theory capability.",
+    "Validate commit ea2b8bad only on a future unrelated task frozen before its first model call: the independent theory referee must use its exact immutable session, inspect model-selected load-bearing mathematics, and bind every task-derived component verdict to the supporting Markdown report span. Treat the span as traceability rather than correctness. Do not rerun a consumed task, force extra turns, add a mathematical checklist, or count regression evidence as theory capability.",
     "Preserve Neyman allocation L0 v1 as one consumed automatic 1/1 with operator-invalidated capability credit. Its all-positive theorem is correct, but the required zero-variance feasibility treatment and active unequal-cost and finite-population claims are wrong, and every Haiku review gate false-accepted them. Never rerun, resume, repair, hidden-evaluate again, rescore, add a formula rule, or add another vote.",
     "Preserve Gaussian KDE AMISE L0 v1 at immutable 0/1. Treat the contradictory model-authored bandwidth derivation and mathematically incorrect terminal gap as model-capability evidence. Treat commit 36f90f4c only as future-task evidence that the same TheoryDeveloper can read the exact current referee Markdown by a hash-bound reference; never rerun, resume, repair, hidden-evaluate again, rescore, or add a KDE formula rule.",
     "Preserve Kendall tau-a L0 v1 at immutable 0/1. Automated hidden theory semantics 9/9 is an operator-recorded false positive because the derivation combines a false 1/3 shared-index kernel expectation with one-third of the required overlap count. Never rerun, resume, patch, hidden-evaluate again, rescore, or feed this diagnosis to its source owners.",

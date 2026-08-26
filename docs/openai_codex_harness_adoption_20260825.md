@@ -1093,3 +1093,30 @@ No live model call, consumed-task rerun, hidden reevaluation, score change,
 second scheduler, RepairAgent, Opus execution, task formula, or mandatory formal
 lane was added. This is selective Codex harness reuse, not embedding Codex as a
 second research runtime.
+
+## Component verdicts reference the model-owned report
+
+The Normal-normal, Neyman, Fisher-z, and Kendall audits share a narrower failure:
+an isolated reviewer can reconstruct useful mathematics and still return an
+unlocalizable `PASS` for a contradictory candidate step. More reviewer prose,
+another vote, or a runtime algebra parser would move scientific judgment into the
+harness. Commit `ea2b8bad4b735ba963904a299837d560ed016442` instead applies the
+same Codex-shaped artifact principle already used for source and tool output:
+
+1. The existing isolated referee remains the sole author of one Markdown report.
+2. Its task-derived ordered component rows now contain only `PASS`, `FAIL`, or
+   `UNCERTAIN` plus an inclusive line span in that report. One span may support
+   several components, so mathematical prose is not copied into JSON.
+3. Runtime binds each dynamic component identity to the report document, line
+   range, and SHA-256 of the selected bytes. Out-of-range or stale references are
+   returned as a raw tool observation to the same referee session.
+4. Runtime still cannot determine whether the selected mathematics is correct.
+   A hash-bound `PASS` is review traceability, not theorem, empirical, hidden-gold,
+   or kernel evidence.
+
+No model call, agent, scheduler, retry, formula rule, equation parser, scratch
+requirement, or fixed review checklist was added. Five unreferenced helpers were
+removed, leaving 142 production modules, 149,999 package lines, and 24,854 lines
+in `research_agent_runtime.py`. The focused referee suite passed `65/65`; the
+complete repository passed `912/912` in 70.15 seconds. These are regression facts
+for future tasks and do not repair or rescore any of the forty-six consumed draws.
