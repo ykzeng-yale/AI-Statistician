@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "gaussian_kde_amise_known_result",
+      "title": "Gaussian kernel density estimation and AMISE",
+      "description": "Focused L0 known-result evaluation grounded in Emanuel Parzen, On Estimation of a Probability Density Function and Mode, The Annals of Mathematical Statistics 33(3) (1962), 1065-1076, DOI 10.1214/aoms/1177704472. For iid real observations X_1,...,X_n with density f, define the Gaussian-kernel estimator f_hat_h(x)=(nh)^{-1} sum_i phi((x-X_i)/h), where h>0 and phi is the standard-normal density. Develop one authoritative Markdown/LaTeX derivation under explicit interior smoothness and integrability assumptions. Establish nonnegativity and unit integral, write the expectation as a convolution, derive the second-order pointwise bias h^2 f''(x)/2+o(h^2), derive the leading pointwise variance f(x)R(phi)/(nh)+o((nh)^{-1}) with R(phi)=1/(2 sqrt(pi)), and integrate these terms to obtain AMISE(h)=h^4 R(f'')/4+R(phi)/(nh). Minimize this expression and specialize it to a N(mu,sigma^2) density, including the normal-reference bandwidth (4/3)^{1/5} sigma n^{-1/5}. Keep finite-sample identities, leading asymptotic equalities, and rejected derivations visibly distinct; do not present AMISE, the normal-reference bandwidth, or Monte Carlo behavior as an exact theorem for arbitrary densities, boundary points, fixed h, or nonsmooth f. The required model-authored artifact is est_gaussian_kde and must implement run_estimator(request) exactly for the frozen public contract. Exploratory Python or R may check Gaussian integrals, equivariances, and finite-sample behavior. A separately frozen confirmatory experiment uses smooth normal DGPs, the declared normal-reference bandwidth, and predeclared Monte Carlo uncertainty to compare mean integrated squared error with its exact finite-sample Gaussian expectation and its cross-n decrease. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "kernel_density_estimation",
+        "AMISE",
+        "bandwidth",
+        "nonparametric_density",
+        "L0"
+      ],
+      "source": {
+        "title": "On Estimation of a Probability Density Function and Mode",
+        "author": "Emanuel Parzen",
+        "journal": "The Annals of Mathematical Statistics",
+        "year": 1962,
+        "volume": 33,
+        "issue": 3,
+        "pages": "1065-1076",
+        "doi": "10.1214/aoms/1177704472",
+        "url": "https://doi.org/10.1214/aoms/1177704472"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_gaussian_kde",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "The observed iid real sample used to construct one Gaussian kernel density estimate.",
+            "json_type": "array[number]",
+            "shape": "one-dimensional array of n>=2 finite JSON numbers; repeated observations are allowed",
+            "units": "one common real measurement scale",
+            "indexing": "sample[i] is observation i",
+            "edge_cases": "Reject booleans, strings, nonnumeric or nonfinite entries, non-arrays, and lengths below two.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.points",
+            "name": "points",
+            "meaning": "The real query locations at which the fitted density is evaluated.",
+            "json_type": "array[number]",
+            "shape": "nonempty one-dimensional array of finite JSON numbers; order and repetitions are preserved",
+            "units": "the same scale as sample",
+            "indexing": "points[j] determines densities[j]",
+            "edge_cases": "Reject booleans, strings, nonnumeric or nonfinite entries, non-arrays, and empty arrays.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.bandwidth",
+            "name": "bandwidth",
+            "meaning": "The strictly positive Gaussian kernel bandwidth h used without data-dependent modification.",
+            "json_type": "number",
+            "shape": "one positive finite scalar JSON number",
+            "units": "the same measurement units as sample and points",
+            "indexing": "one bandwidth for every query point",
+            "edge_cases": "Reject booleans, strings, zero, negative values, infinities, NaN, and requests whose required density values cannot be represented as finite JSON numbers.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "The admitted sample size.",
+            "json_type": "integer",
+            "shape": "scalar integer n>=2",
+            "units": "observations",
+            "indexing": "one sample size",
+            "edge_cases": "Exactly the length of the admitted sample.",
+            "normalization": "No rescaling."
+          },
+          {
+            "clause_id": "response.bandwidth",
+            "name": "bandwidth",
+            "meaning": "The bandwidth actually used by the estimator.",
+            "json_type": "number",
+            "shape": "one positive finite scalar",
+            "units": "the same measurement units as the request",
+            "indexing": "one bandwidth",
+            "edge_cases": "Must equal the admitted request bandwidth exactly up to ordinary floating-point representation.",
+            "normalization": "No optimization, clipping, or rescaling is applied."
+          },
+          {
+            "clause_id": "response.densities",
+            "name": "densities",
+            "meaning": "The Gaussian kernel density estimate evaluated at every requested point in order.",
+            "json_type": "array[number]",
+            "shape": "one-dimensional array with exactly len(points) nonnegative finite entries",
+            "units": "inverse measurement units",
+            "indexing": "densities[j] corresponds exactly to points[j]",
+            "edge_cases": "Repeated points produce repeated values; extreme finite points may underflow to zero, while a request whose density would overflow finite JSON representation is rejected.",
+            "normalization": "densities[j] equals sum_i exp(-0.5*((points[j]-sample[i])/h)^2)/(n*h*sqrt(2*pi))."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly sample, points, and bandwidth; the response contains exactly n, bandwidth, and densities; implicit boolean or string coercion is forbidden."
+          },
+          {
+            "clause_id": "invariant.sample_permutation",
+            "meaning": "Permuting sample order leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.query_order",
+            "meaning": "Permuting or repeating query points applies the same permutation or repetition to densities without changing n or bandwidth."
+          },
+          {
+            "clause_id": "invariant.translation",
+            "meaning": "Adding the same finite constant to all sample and query values leaves density values unchanged."
+          },
+          {
+            "clause_id": "invariant.reflection",
+            "meaning": "Negating every sample and query value leaves density values unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_scale",
+            "meaning": "Multiplying sample, query points, and bandwidth by a positive finite factor a divides every density value by a."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.normal_mise",
+            "meaning": "Across each frozen normal DGP and sample size, the Monte Carlo mean integrated squared error at h=(4/3)^{1/5} sigma n^{-1/5} is compatible with the exact finite-sample Gaussian expectation under the predeclared Monte Carlo standard-error rule, and the larger-n setting has lower expected and observed MISE."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory replicate uses the frozen sample size, normal location and scale, normal-reference bandwidth, query grid, estimator identity, seed, and integration convention fixed before outcomes."
+          }
+        ]
+      }
+    }
+  ]
+}
