@@ -3371,6 +3371,11 @@ def test_hoeffding_u_statistic_l0_is_frozen_before_first_product_draw() -> None:
     assert evidence["semantic_calibration_cases_correct"] == 14
     assert evidence["semantic_reference_claims"] == 8
     assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["activation_commit"] == (
+        "e35c3d65fee7cf1d869dd5f5bde2de706a1584ff"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
