@@ -1283,6 +1283,8 @@ class ArchitectCoordinatorRuntimeSubsystem:
         self.runtime_config = runtime_config
         self.proof_search_tool_available = bool(proof_search_tool_available)
         self.preflight_scratchpad = preflight_scratchpad
+        if hasattr(coordinator, "metric_review_scratchpad"):
+            coordinator.metric_review_scratchpad = preflight_scratchpad
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])

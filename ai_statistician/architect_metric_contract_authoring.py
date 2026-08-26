@@ -1578,6 +1578,7 @@ def author_reviewed_architect_metric_requirements(
     accepted_theory_preflight_context: Mapping[str, Any] | None = None,
     accepted_implementation_interface_context: Mapping[str, Any] | None = None,
     metric_protocol_workspace_root: Path | None = None,
+    theory_scratchpad: Any = None,
 ) -> dict[str, Any]:
     if (
         runtime_contract.get("research_evaluation_requires_typed_metric_contracts")
@@ -2705,6 +2706,11 @@ def author_reviewed_architect_metric_requirements(
                     question=question,
                     review_material=review_material,
                     trusted_lineage=trusted_review_lineage,
+                    **(
+                        {"theory_scratchpad": theory_scratchpad}
+                        if theory_scratchpad is not None
+                        else {}
+                    ),
                 )
             except PacketValidationError as exc:
                 raise ArchitectMetricSemanticReviewPacketValidationError(

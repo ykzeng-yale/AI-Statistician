@@ -54,7 +54,6 @@ from ai_statistician.research_architect import (
     LLMTheoryDeveloperAgent,
     ResearchArchitectAgent,
     ResearchArchitectConfig,
-    StaticArchitectLLMProvider,
     THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
     THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT,
     THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY,
@@ -116,6 +115,13 @@ class SequentialGeneratorBackend:
                 "provider_stop_reason": "end_turn",
             },
         )
+
+
+class WorkspaceStubGeneratorBackend(SequentialGeneratorBackend):
+    provider_name = "anthropic"
+
+    def generate_client_tool_turn(self, request: ClientToolTurnRequest):
+        raise AssertionError("the test workspace stub should own the core theory turn")
 
 
 def test_research_source_snapshot_is_an_explicit_theory_workspace_input() -> None:
@@ -792,6 +798,51 @@ def _sample_response() -> dict[str, object]:
     }
 
 
+def _normalized_theory_packet(
+    question: OpenResearchQuestion,
+    payload: dict[str, object] | None = None,
+    *,
+    model: str = DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+    model_tier: str = "haiku",
+    provider_name: str = "anthropic",
+) -> dict[str, object]:
+    source = deepcopy(payload or _sample_response())
+    packet = research_architect_module._normalize_theory_packet(
+        source,
+        question=question,
+        model=model,
+        model_tier=model_tier,
+        provider_name=provider_name,
+        raw_response=json.dumps(source),
+    )
+    packet["validation_errors"] = validate_theory_packet(packet)
+    packet["ok"] = not packet["validation_errors"]
+    return packet
+
+
+def _stub_initial_theory_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: dict[str, object],
+    captured: dict[str, object] | None = None,
+) -> None:
+    def generate_packet(**kwargs):
+        if captured is not None:
+            captured.update(kwargs)
+        return _normalized_theory_packet(
+            kwargs["question"],
+            payload,
+            model=kwargs["request_model"],
+            model_tier=kwargs["model_tier"],
+            provider_name=kwargs["provider_name"],
+        )
+
+    monkeypatch.setattr(
+        research_architect_module,
+        "_generate_initial_theory_artifact_workspace",
+        generate_packet,
+    )
+
+
 def _serious_sample_response() -> dict[str, object]:
     response = json.loads(json.dumps(_sample_response()))
     derivation = dict(response["theory_derivation_packet"])
@@ -1046,11 +1097,7 @@ def test_research_architect_records_packet_in_document_workspace() -> None:
         description="Derive an estimator and theorem for an observational ATE.",
         tags=("causal",),
     )
-    compatibility_developer = LLMTheoryDeveloperAgent(
-        provider=StaticArchitectLLMProvider(_sample_response()),
-        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
-    )
-    packet = compatibility_developer.derive(question)
+    packet = _normalized_theory_packet(question)
     captured: dict[str, object] = {}
 
     class RecordingDeveloper:
@@ -1501,7 +1548,7 @@ def test_capability_theory_mode_rejects_legacy_json_only_transport(
 
     with pytest.raises(
         PacketValidationError,
-        match="legacy JSON-only theory transport is not a valid fallback",
+        match="JSON-only theory generation is not a valid fallback",
     ):
         developer.derive(
             OpenResearchQuestion(
@@ -1533,7 +1580,7 @@ def test_agent_runtime_theory_rejects_legacy_json_only_transport(
 
     with pytest.raises(
         PacketValidationError,
-        match="legacy JSON-only theory transport is not a valid fallback",
+        match="JSON-only theory generation is not a valid fallback",
     ):
         developer.derive(
             OpenResearchQuestion(
@@ -1545,49 +1592,6 @@ def test_agent_runtime_theory_rejects_legacy_json_only_transport(
         )
 
     assert provider.requests == []
-
-
-def test_theory_developer_anthropic_request_uses_structured_output() -> None:
-    class AnthropicReplayBackend(SequentialGeneratorBackend):
-        provider_name = "anthropic"
-
-    provider = AnthropicReplayBackend([_sample_response()])
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
-        config=ResearchArchitectConfig(
-            provider_name="anthropic",
-            model="claude-haiku-4-5-20251001",
-            model_tier="haiku",
-            max_validation_retries=0,
-        ),
-    )
-
-    packet = developer.derive(
-        OpenResearchQuestion(
-            id="structured_output",
-            title="Structured output",
-            description="Exercise the provider-native theory packet contract.",
-        )
-    )
-
-    assert packet["ok"] is True
-    estimator = packet["estimator_specs"][0]
-    assert estimator["estimator_interface_contract_id"] == (
-        estimator_interface_contract_id(
-            estimator["estimator_interface_contract"]
-        )
-    )
-    assert provider.requests[0].metadata["provider_structured_output"] is True
-    assert provider.requests[0].schema is not None
-    estimator_schema = provider.requests[0].schema["properties"][
-        "estimator_specs"
-    ]["items"]
-    assert "estimator_interface_contract" not in estimator_schema["properties"]
-    assert "estimator_interface_contract" not in estimator_schema["required"]
-    assert provider.requests[0].metadata["theory_developer_phase"] == (
-        "core_theory_workspace"
-    )
-    assert len(provider.requests) == 1
 
 
 def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
@@ -2133,10 +2137,9 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     assert "mark the claim unresolved" in prompt
 
 
-def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> None:
-    class AnthropicReplayBackend(SequentialGeneratorBackend):
-        provider_name = "anthropic"
-
+def test_theory_developer_authors_interfaces_after_freezing_core_theory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     core_response = _sample_response()
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
     expected_contract = project_executable_estimator_interface_contract(
@@ -2147,7 +2150,8 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
     interface_response = {
         "interfaces": {"crossfit_aipw": expected_contract}
     }
-    provider = AnthropicReplayBackend([core_response, interface_response])
+    _stub_initial_theory_workspace(monkeypatch, core_response)
+    provider = WorkspaceStubGeneratorBackend([interface_response])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
@@ -2168,25 +2172,13 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
 
     assert packet["ok"] is True
     assert validate_theory_packet(packet) == []
-    assert len(provider.requests) == 2
-    assert [request.model for request in provider.requests] == [
-        "claude-haiku-4-5-20251001",
-        "claude-haiku-4-5-20251001",
-    ]
+    assert len(provider.requests) == 1
+    assert provider.requests[0].model == "claude-haiku-4-5-20251001"
     assert [
         request.metadata["theory_developer_phase"]
         for request in provider.requests
-    ] == ["core_theory_workspace", "estimator_interface_authoring"]
-    core_estimator_schema = provider.requests[0].schema["properties"][
-        "estimator_specs"
-    ]["items"]
-    assert {
-        "inputs",
-        "outputs",
-        "normalization",
-    }.issubset(set(core_estimator_schema["required"]))
-    assert "sample_size_order" not in core_estimator_schema["properties"]
-    interface_schema = provider.requests[1].schema["properties"]["interfaces"]
+    ] == ["estimator_interface_authoring"]
+    interface_schema = provider.requests[0].schema["properties"]["interfaces"]
     assert interface_schema["type"] == "object"
     assert interface_schema["additionalProperties"] is False
     assert interface_schema["required"] == ["crossfit_aipw"]
@@ -2220,18 +2212,18 @@ def test_theory_developer_authors_interfaces_after_freezing_core_theory() -> Non
     ]
 
 
-def test_theory_interface_authoring_rejects_math_metadata_in_abi() -> None:
+def test_theory_interface_authoring_rejects_math_metadata_in_abi(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     core_response = _sample_response()
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
     interface = core_estimators[0].pop("estimator_interface_contract")
     core_response["estimator_specs"] = core_estimators
     legacy_interface = deepcopy(interface)
     legacy_interface["response_fields"][0]["sample_size_order"] = "O_p(1)"
-    provider = SequentialGeneratorBackend(
-        [
-            core_response,
-            {"interfaces": {"crossfit_aipw": legacy_interface}},
-        ]
+    _stub_initial_theory_workspace(monkeypatch, core_response)
+    provider = WorkspaceStubGeneratorBackend(
+        [{"interfaces": {"crossfit_aipw": legacy_interface}}]
     )
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -2258,7 +2250,9 @@ def test_theory_interface_authoring_rejects_math_metadata_in_abi() -> None:
     )
 
 
-def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows() -> None:
+def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     core_response = _sample_response()
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
     contract = core_estimators[0].pop("estimator_interface_contract")
@@ -2267,11 +2261,9 @@ def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows() ->
         "estimated standard error",
     ]
     core_response["estimator_specs"] = core_estimators
-    provider = SequentialGeneratorBackend(
-        [
-            core_response,
-            {"interfaces": {"crossfit_aipw": contract}},
-        ]
+    _stub_initial_theory_workspace(monkeypatch, core_response)
+    provider = WorkspaceStubGeneratorBackend(
+        [{"interfaces": {"crossfit_aipw": contract}}]
     )
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
@@ -3090,45 +3082,6 @@ def test_theory_revision_rejects_lineage_mismatch_before_provider_call() -> None
     assert provider.requests == []
 
 
-def test_theory_developer_uses_shared_full_packet_regeneration(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, object] = {}
-
-    def capture_validated_packet(**kwargs: object) -> dict[str, object]:
-        captured.update(kwargs)
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        "ai_statistician.research_architect.generate_validated_json_packet",
-        capture_validated_packet,
-    )
-    developer = LLMTheoryDeveloperAgent(
-        provider=SequentialGeneratorBackend([]),
-        config=ResearchArchitectConfig(
-            provider_name="sequential_test",
-            model="claude-haiku-4-5-20251001",
-            model_tier="haiku",
-            max_validation_retries=2,
-        ),
-    )
-
-    packet = developer.derive(
-        OpenResearchQuestion(
-            id="strict_progress_patch",
-            title="Full packet regeneration",
-            description="Exercise the shared TheoryDeveloper retry policy.",
-        )
-    )
-
-    assert packet == {"ok": True}
-    assert "semantic_patch_repair" not in captured
-    assert "allow_progress_repair_extension" not in captured
-    assert "repair_context_builder" not in captured
-    assert "retry_prompt_builder" not in captured
-    assert captured["max_validation_retries"] == 2
-
-
 def test_serious_theory_truncation_recovery_does_not_resample_json() -> None:
     provider = SequentialGeneratorBackend(
         [
@@ -3158,7 +3111,7 @@ def test_serious_theory_truncation_recovery_does_not_resample_json() -> None:
 
     with pytest.raises(
         PacketValidationError,
-        match="legacy JSON-only theory transport is not a valid fallback",
+        match="JSON-only theory generation is not a valid fallback",
     ):
         developer.derive(
             OpenResearchQuestion(
@@ -3170,92 +3123,6 @@ def test_serious_theory_truncation_recovery_does_not_resample_json() -> None:
         )
 
     assert provider.requests == []
-
-
-def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> None:
-    oversized_bad_response = {"problem_card": {"observed_data": "x" * 4000}}
-    provider = SequentialGeneratorBackend(
-        [
-            oversized_bad_response,
-            _sample_response(),
-        ]
-    )
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
-        config=ResearchArchitectConfig(
-            provider_name="sequential_test",
-            model="repair-test-model",
-            max_validation_retries=1,
-        ),
-    )
-
-    packet = developer.derive(
-        OpenResearchQuestion(
-            id="repair",
-            title="Repair packet",
-            description="Force a malformed first LLM packet, then repair it.",
-            tags=("repair",),
-        )
-    )
-
-    assert packet["ok"] is True
-    assert packet["structured_output_retry_attempts"] == 1
-    assert len(packet["structured_output_retry_history"]) == 2
-    assert packet["structured_output_retry_history"][0]["ok"] is False
-    assert "missing or empty field" in " ".join(packet["structured_output_retry_history"][0]["errors"])
-    assert packet["structured_output_retry_history"][1]["ok"] is True
-    assert len(provider.requests) == 2
-    assert provider.requests[1].metadata["structured_output_retry_attempt"] == 1
-    assert "Your previous response failed AI Statistician local validation" in provider.requests[1].user_prompt
-    assert "required_output_contract" in provider.requests[1].user_prompt
-    assert "Rewrite the full JSON object from scratch" in provider.requests[1].user_prompt
-    assert provider.requests[1].user_prompt.count("x") >= 4000
-
-
-def test_llm_theory_developer_default_repair_budget_allows_two_repairs() -> None:
-    provider = SequentialGeneratorBackend(
-        [
-            '{"problem_card": {"observed_data": "broken"',
-            {"problem_card": {"observed_data": "still missing required fields"}},
-            _sample_response(),
-        ]
-    )
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
-        config=ResearchArchitectConfig(
-            provider_name="sequential_test",
-            model="repair-test-model",
-        ),
-    )
-
-    packet = developer.derive(
-        OpenResearchQuestion(
-            id="repair_budget",
-            title="Repair budget",
-            description="Allow two compact repairs before failing.",
-            tags=("repair",),
-        )
-    )
-
-    assert packet["ok"] is True
-    assert packet["structured_output_retry_attempts"] == 2
-    assert len(packet["structured_output_retry_history"]) == 3
-    assert [row["ok"] for row in packet["structured_output_retry_history"]] == [
-        False,
-        False,
-        True,
-    ]
-    assert len(provider.requests) == 3
-    assert provider.requests[1].metadata["structured_output_retry_max_attempts"] == 2
-    assert provider.requests[2].metadata["structured_output_retry_attempt"] == 2
-    assert all(
-        row["response_text_chars"] > 0
-        for row in packet["structured_output_retry_history"]
-    )
-    assert all(
-        row["response_metadata"]["provider_stop_reason"] == "end_turn"
-        for row in packet["structured_output_retry_history"]
-    )
 
 
 def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
@@ -3307,19 +3174,14 @@ def test_llm_theory_developer_canonicalizes_common_schema_variants() -> None:
     interface["response_fields"] = response_fields
     estimator["estimator_interface_contract"] = interface
     response["estimator_specs"] = [estimator]
-    provider = SequentialGeneratorBackend([response])
-    developer = LLMTheoryDeveloperAgent(
-        provider=provider,
-        config=ResearchArchitectConfig(provider_name="sequential_test"),
-    )
-
-    packet = developer.derive(
+    packet = _normalized_theory_packet(
         OpenResearchQuestion(
             id="canonicalize",
             title="Canonicalize packet",
             description="Accept common field variants without dropping boundaries.",
             tags=("runtime",),
-        )
+        ),
+        response,
     )
 
     theory = packet["theory_derivation_packet"]
@@ -3348,7 +3210,9 @@ def test_llm_theory_developer_resolves_model_tier_at_request_time(
         "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
         "claude-sonnet-policy-test",
     )
-    provider = SequentialGeneratorBackend([_sample_response()])
+    captured: dict[str, object] = {}
+    _stub_initial_theory_workspace(monkeypatch, _sample_response(), captured)
+    provider = WorkspaceStubGeneratorBackend([])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(provider_name="anthropic"),
@@ -3363,11 +3227,10 @@ def test_llm_theory_developer_resolves_model_tier_at_request_time(
         )
     )
 
-    request = provider.requests[0]
-    assert request.model == "claude-sonnet-policy-test"
-    assert request.metadata["provider_name"] == "anthropic"
-    assert request.metadata["model_tier"] == "sonnet"
-    assert request.metadata["resolved_model"] == "claude-sonnet-policy-test"
+    assert provider.requests == []
+    assert captured["request_model"] == "claude-sonnet-policy-test"
+    assert captured["provider_name"] == "anthropic"
+    assert captured["model_tier"] == "sonnet"
     assert packet["provider"] == "anthropic"
     assert packet["model"] == "claude-sonnet-policy-test"
     assert packet["model_tier"] == "sonnet"
@@ -3841,19 +3704,19 @@ def test_llm_theory_developer_rejects_kernel_verified_claims() -> None:
             "kernel_status": "KERNEL_VERIFIED",
         }
     ]
-    developer = LLMTheoryDeveloperAgent(
-        provider=StaticArchitectLLMProvider(bad),
-        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
+    packet = _normalized_theory_packet(
+        OpenResearchQuestion(
+            id="bad",
+            title="Bad proof claim",
+            description="Should reject proof overclaiming.",
+        ),
+        bad,
     )
 
-    with pytest.raises(ValueError, match="forbidden proof status"):
-        developer.derive(
-            OpenResearchQuestion(
-                id="bad",
-                title="Bad proof claim",
-                description="Should reject proof overclaiming.",
-            )
-        )
+    assert any(
+        "forbidden proof status" in error
+        for error in validate_theory_core_packet(packet)
+    )
 
 
 def _research_report(

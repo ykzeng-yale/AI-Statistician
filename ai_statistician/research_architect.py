@@ -457,82 +457,15 @@ class LLMTheoryDeveloperAgent:
                 progress_checkpoint_state=progress_checkpoint_state,
             )
         else:
-            if document_workspace_required:
-                raise PacketValidationError(
-                    validation_label="LLM TheoryDeveloper document workspace",
-                    attempts=0,
-                    errors=[
-                        "AgentRuntime and serious theory authoring require native "
-                        "client-tool turns with model-authored Markdown/LaTeX; "
-                        "the legacy JSON-only theory transport is not a valid fallback"
-                    ],
-                    history=[],
-                )
-            user_prompt = build_theory_developer_prompt(
-                question,
-                architect_context=context,
-            )
-            request = GeneratorRequest(
-                system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
-                user_prompt=user_prompt,
-                model=request_model,
-                max_tokens=effective_max_tokens,
-                temperature=self.config.temperature,
-                schema=_theory_developer_core_json_schema(
-                    theory_prompt_mode=theory_prompt_mode,
-                    transport_recovery=transport_recovery,
-                    formalization_authoring_required=(
-                        formalization_authoring_required
-                    ),
-                ),
-                metadata={
-                    "subsystem": "TheoryDeveloper",
-                    "agent": "LLMTheoryDeveloperAgent",
-                    "theory_developer_phase": "core_theory_workspace",
-                    "provider_name": self.config.provider_name,
-                    "model_tier": effective_model_tier,
-                    "base_model_tier": self.config.model_tier,
-                    "configured_serious_model": self.config.serious_model,
-                    "serious_model_tier": self.config.serious_model_tier,
-                    "theory_prompt_mode": theory_prompt_mode,
-                    "serious_theory_mode": serious_theory_mode,
-                    "transport_recovery": transport_recovery,
-                    "effective_max_validation_retries": effective_max_validation_retries,
-                    "resolved_model": request_model,
-                    **(
-                        {"provider_structured_output": True}
-                        if use_provider_structured_output
-                        else {}
-                    ),
-                },
-            )
-
-            def build_packet(
-                raw_payload: Mapping[str, Any],
-                response: Any,
-                raw_text: str,
-            ) -> dict[str, Any]:
-                return _normalize_theory_packet(
-                    raw_payload,
-                    question=question,
-                    model=response.model or request_model,
-                    model_tier=effective_model_tier,
-                    provider_name=self.config.provider_name or response.provider,
-                    raw_response=raw_text,
-                    theory_prompt_mode=theory_prompt_mode,
-                    formalization_authoring_required=(
-                        formalization_authoring_required
-                    ),
-                )
-
-            core_packet = generate_validated_json_packet(
-                provider=self.provider,
-                request=request,
-                extract_payload=_extract_json_object,
-                build_packet=build_packet,
-                validate_packet=validate_theory_core_packet,
-                validation_label="LLM TheoryDeveloper core packet",
-                max_validation_retries=effective_max_validation_retries,
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper document workspace",
+                attempts=0,
+                errors=[
+                    "TheoryDeveloper requires native client-tool turns with a "
+                    "model-authored Markdown/LaTeX workspace; JSON-only theory "
+                    "generation is not a valid fallback"
+                ],
+                history=[],
             )
         if (
             core_packet.get("artifact_kind")
@@ -1909,174 +1842,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
 }
 
 
-def _json_schema_from_output_contract(value: Any) -> dict[str, Any]:
-    if isinstance(value, Mapping):
-        properties = {
-            str(key): _json_schema_from_output_contract(item)
-            for key, item in value.items()
-        }
-        return {
-            "type": "object",
-            "additionalProperties": False,
-            "required": list(properties),
-            "properties": properties,
-        }
-    if isinstance(value, list):
-        item_contract = value[0] if value else "string"
-        return {
-            "type": "array",
-            "items": _json_schema_from_output_contract(item_contract),
-        }
-    return {"type": "string"}
-
-
-THEORY_DEVELOPER_JSON_SCHEMA: dict[str, Any] = {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    **_json_schema_from_output_contract(THEORY_DEVELOPER_OUTPUT_CONTRACT),
-}
-THEORY_DEVELOPER_JSON_SCHEMA["properties"]["estimator_specs"]["items"][
-    "properties"
-]["estimator_interface_contract"] = estimator_interface_contract_json_schema()
-
-
-def _theory_developer_json_schema(
-    *,
-    theory_prompt_mode: str,
-    transport_recovery: bool = False,
-    formalization_authoring_required: bool = True,
-) -> dict[str, Any]:
-    """Return the output contract with the prompt's size budget made explicit."""
-
-    serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
-    if serious_theory_mode:
-        max_string_chars = 320 if transport_recovery else None
-    else:
-        max_string_chars = 180
-    schema = _bounded_theory_schema_value(
-        THEORY_DEVELOPER_JSON_SCHEMA,
-        max_string_chars=max_string_chars,
-        default_max_items=(
-            12 if not serious_theory_mode or transport_recovery else None
-        ),
-    )
-    properties = schema["properties"]
-    derivation_schema = properties["theory_derivation_packet"]
-    derivation = derivation_schema["properties"]
-
-    unbounded_serious = serious_theory_mode and not transport_recovery
-    if serious_theory_mode:
-        derivation_step_bounds = (
-            1,
-            None if unbounded_serious else 5,
-        )
-        equation_chain_bounds = (
-            1,
-            None if unbounded_serious else 4,
-        )
-        sanity_check_bounds = (
-            1,
-            None if unbounded_serious else 3,
-        )
-        if unbounded_serious:
-            top_level_maxima = dict.fromkeys(
-                (
-                    "estimator_specs",
-                    "theorem_cards",
-                    "lemma_cards",
-                    "formalization_requests",
-                    "critic_findings",
-                    "next_actions",
-                )
-            )
-        else:
-            top_level_maxima = {
-                "estimator_specs": 1,
-                "theorem_cards": 1,
-                "lemma_cards": 2,
-                "formalization_requests": 1,
-                "critic_findings": 2,
-                "next_actions": 1,
-            }
-    else:
-        derivation_step_bounds = (1, 5)
-        equation_chain_bounds = (1, 5)
-        sanity_check_bounds = (1, 3)
-        top_level_maxima = {
-            "estimator_specs": 1,
-            "theorem_cards": 1,
-            "lemma_cards": 1,
-            "formalization_requests": 1,
-            "critic_findings": 1,
-            "next_actions": 1,
-        }
-
-    _set_theory_schema_array_bounds(
-        derivation["derivation_steps"], *derivation_step_bounds
-    )
-    _set_theory_schema_array_bounds(
-        derivation["equation_chain"], *equation_chain_bounds
-    )
-    _set_theory_schema_array_bounds(
-        derivation["assumption_ledger"], 1, None if unbounded_serious else 10
-    )
-    _set_theory_schema_array_bounds(
-        derivation["sanity_checks"], *sanity_check_bounds
-    )
-    _set_theory_schema_array_bounds(
-        derivation["self_critique"], 1, None if unbounded_serious else 4
-    )
-    _set_theory_schema_array_bounds(
-        derivation["rejected_alternatives"],
-        0,
-        None if unbounded_serious else 3,
-    )
-    optional_list_fields = {"lemma_cards", "critic_findings", "next_actions"}
-    for field, maximum in top_level_maxima.items():
-        _set_theory_schema_array_bounds(
-            properties[field],
-            (
-                0
-                if field in optional_list_fields
-                or (
-                    field == "formalization_requests"
-                    and not formalization_authoring_required
-                )
-                else 1
-            ),
-            maximum,
-        )
-    if not formalization_authoring_required:
-        derivation_schema["required"] = [
-            field
-            for field in derivation_schema.get("required", [])
-            if field != "formalization_handoff"
-        ]
-    return schema
-
-
-def _theory_developer_core_json_schema(
-    *,
-    theory_prompt_mode: str,
-    transport_recovery: bool = False,
-    formalization_authoring_required: bool = True,
-) -> dict[str, Any]:
-    """Return the bounded core-theory schema without executable interfaces."""
-
-    schema = _theory_developer_json_schema(
-        theory_prompt_mode=theory_prompt_mode,
-        transport_recovery=transport_recovery,
-        formalization_authoring_required=formalization_authoring_required,
-    )
-    estimator_item = schema["properties"]["estimator_specs"]["items"]
-    estimator_item["properties"].pop("estimator_interface_contract", None)
-    estimator_item["required"] = [
-        field
-        for field in estimator_item.get("required", [])
-        if field != "estimator_interface_contract"
-    ]
-    return schema
-
-
 def _bounded_theory_schema_value(
     value: Any,
     *,
@@ -2110,18 +1875,6 @@ def _bounded_theory_schema_value(
             for child in value
         ]
     return deepcopy(value)
-
-
-def _set_theory_schema_array_bounds(
-    schema: dict[str, Any],
-    minimum: int,
-    maximum: int | None,
-) -> None:
-    schema["minItems"] = max(0, int(minimum))
-    if maximum is None:
-        schema.pop("maxItems", None)
-    else:
-        schema["maxItems"] = max(schema["minItems"], int(maximum))
 
 
 def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:

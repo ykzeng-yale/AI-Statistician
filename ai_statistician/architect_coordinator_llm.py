@@ -259,6 +259,7 @@ class LLMArchitectCoordinatorAgent:
         self.provider = provider
         self.config = config
         self.metric_protocol_workspace_root = metric_protocol_workspace_root
+        self.metric_review_scratchpad = None
         self.metric_semantic_reviewer = metric_semantic_reviewer
         if (
             self.metric_semantic_reviewer is None
@@ -406,6 +407,7 @@ class LLMArchitectCoordinatorAgent:
                 metric_protocol_workspace_root=(
                     self.metric_protocol_workspace_root
                 ),
+                theory_scratchpad=self.metric_review_scratchpad,
             )
         effective_architect_context = (
             _architect_context_with_metric_requirement_authoring(

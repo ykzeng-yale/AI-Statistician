@@ -9,6 +9,13 @@ from typing import Any, Mapping, Sequence
 from .architect_theory_execution_preflight import (
     review_architect_theory_execution_preflight,
 )
+from .client_tool_loop import (
+    ClientToolExecutionContext,
+    ClientToolExecutionResult,
+    ClientToolInputError,
+    ClientToolLoopError,
+    run_bounded_client_tool_loop,
+)
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
     evaluate_generated_metric_semantic_control,
@@ -21,20 +28,24 @@ from .metric_protocol_finding_ledger import (
     normalize_metric_protocol_findings,
 )
 from .model_backend import (
+    ClientToolCall,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
     GeneratorBackend,
-    GeneratorRequest,
     resolve_generator_model,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
-from .structured_output_retry import (
-    extract_json_object,
-    generate_validated_json_packet,
+from .structured_output_retry import PacketValidationError
+from .theory_workspace import (
+    THEORY_SCRATCHPAD_TOOL,
+    TheoryScratchpadConfig,
+    execute_theory_scratchpad_tool,
+    theory_scratchpad_client_tool,
 )
-from .theory_workspace import TheoryScratchpadConfig
 
 
 ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 20
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 19
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 20
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -54,56 +65,29 @@ ARCHITECT_METRIC_RUNTIME_CONTRACT_RETRACTION_EVIDENCE_IDS = (
 ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
     (
         "Review only the supplied pre-execution artifacts. Do not use observed "
-        "results, write code, invent thresholds, select a repair owner, or claim proof."
+        "results, invent thresholds, select a repair owner, write implementation "
+        "code, or claim proof."
     ),
     (
-        "Judge each frozen requirement as one semantic unit: estimand and regime, "
-        "measurement identity, normalization, finite-sample attainability, operator, "
-        "aggregation, and source authority. Put any decisive recomputation directly "
-        "in that requirement's rationale instead of expanding a second audit schema. "
-        "For every stochastic row, independently quantify or bound finite-run "
-        "uncertainty from its model-authored replicate count. Check that every row uses "
-        "the same pre-execution count and that the count is justified by the desired "
-        "Monte Carlo precision and the joint decision. The runtime maximum and timeout "
-        "are safety constraints, not a statistical default or justification. An "
-        "unsupported assertion that "
-        "a threshold is attainable is not a calculation and must be UNCERTAIN or FAIL. "
-        "Recompute every numerical precision claim on the metric's actual comparison "
-        "scale. Distinguish absolute error, relative error, standard error or Monte "
-        "Carlo standard error, and standardized error; verify units and arithmetic after "
-        "every declared transformation. A relative threshold compared directly with an "
-        "absolute standard error, a dimensionless O(1/sqrt(n)) rate presented as a "
-        "dimensioned standard error, or an inconsistent claimed number of standard "
-        "errors is a semantic finding. Prefer a studentized or MCSE-calibrated returned "
-        "quantity when the supplied statistic and uncertainty make that possible, but "
-        "do not invent unavailable distributional assumptions. "
-        "Do not turn an expectation, consistency, or asymptotic theorem into a tight "
-        "finite-run gate without a justified sampling distribution or error bound."
+        "Reconstruct each frozen requirement from its cited scientific target. Check "
+        "the estimand and regime, measurement identity, normalization, units, finite-"
+        "sample attainability, operator, aggregation, and authority. Independently "
+        "recompute every load-bearing constant and finite-run uncertainty claim on the "
+        "actual comparison scale, using the optional scratch tool when useful. Put the "
+        "decisive calculation in the rationale. Unsupported arithmetic, distributional "
+        "claims, or asymptotic-to-finite-sample leaps must be UNCERTAIN or FAIL. Runtime "
+        "resource limits are not scientific justification."
     ),
     (
-        "For every numeric row, literally substitute the declared returned raw metric "
-        "into its operator, aggregation, and active gate fields. Runtime performs no "
-        "implicit target subtraction, centering, absolute value, or normalization. "
-        "Reject a row when its bounds are offsets around a target but its measurement "
-        "returns the untransformed level, or when any other declared transformation "
-        "and gate use different numeric coordinates. For each requirement, author one "
-        "semantic_positive_control containing a single comparison-scale value that the "
-        "cited scientific semantics expect to pass after the declared aggregation. Do "
-        "not choose the value merely because it fits the numeric gate. Runtime will "
-        "apply the frozen operator and gate to that value after your response."
+        "For every numeric row, substitute the declared raw metric through its exact "
+        "aggregation and gate; runtime applies no hidden centering, absolute value, or "
+        "normalization. Supply one scientifically justified comparison-scale "
+        "semantic_positive_control, which runtime will evaluate after the review."
     ),
     (
-        "Judge the portfolio once for cross-requirement consistency, redundancy, "
-        "multiplicity, dependence, and non-vacuity. Repeated scenarios should normally "
-        "be represented by one vector-valued measurement and explicit aggregation. "
-        "Reject unnecessary required rows that turn one declared empirical claim into "
-        "extra acceptance obligations; optional robustness or stress checks belong in "
-        "exploratory evidence unless upstream declares them as distinct confirmatory "
-        "claims. "
-        "Check that each statistic is mathematically well-defined at its stated "
-        "dimension and that the joint portfolio has a defensible probability of "
-        "accepting a valid pipeline. A confirmatory outcome gate evaluates the whole "
-        "pipeline; it does not by itself localize a defect to one upstream component."
+        "Judge the portfolio for consistency, redundancy, dependence, multiplicity, "
+        "and non-vacuity. Required rows must correspond to distinct upstream claims, "
+        "and the joint gate must have a defensible chance to accept a valid pipeline."
     ),
     (
         "Cite exact requirement:... or supplied authority anchor IDs. Mark an actual "
@@ -115,6 +99,10 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "and the portfolio pass, no prior finding remains unresolved, and no blocking "
         "finding exists."
     ),
+)
+
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL = (
+    "submit_architect_metric_semantic_review"
 )
 
 _REVIEW_STATUSES = ("PASS", "FAIL", "UNCERTAIN")
@@ -1606,7 +1594,13 @@ class LLMArchitectMetricSemanticReviewerAgent:
         question: OpenResearchQuestion,
         review_material: Mapping[str, Any],
         trusted_lineage: Mapping[str, Any],
+        theory_scratchpad: TheoryScratchpadConfig | None = None,
     ) -> dict[str, Any]:
+        if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
+            raise ValueError(
+                "metric semantic review requires native client-tool turns; "
+                "one-shot full-packet generation is not a canonical fallback"
+            )
         review_material = (
             architect_metric_review_material_with_runtime_evaluator_certificate(
                 review_material
@@ -1622,25 +1616,64 @@ class LLMArchitectMetricSemanticReviewerAgent:
             review_material=review_material,
         )
         schema = architect_metric_semantic_review_json_schema(review_material)
-        request = GeneratorRequest(
-            system_prompt=(
-                "You are the independent ArchitectMetricSemanticReviewer inside "
-                "an AI Statistician AgentRuntime. Review the frozen empirical "
-                "protocol rigorously and return one compact judgment. Do not write "
-                "code, use results, prescribe a repair, or claim proof."
+        schema.pop("$schema", None)
+        scratch_refs: list[dict[str, Any]] = []
+        validation_history: list[dict[str, Any]] = []
+        last_invalid_packet: dict[str, Any] | None = None
+        system_prompt = (
+            "You are the independent ArchitectMetricSemanticReviewer inside an "
+            "AI Statistician AgentRuntime. Reconstruct and review the frozen "
+            "empirical protocol rigorously. You may run exploratory scratch "
+            "calculations, but do not inspect outcomes, edit authoritative artifacts, "
+            "prescribe a repair, or claim proof."
+        )
+        tools = (
+            *((theory_scratchpad_client_tool(),) if theory_scratchpad else ()),
+            ClientToolDefinition(
+                name=ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL,
+                description=(
+                    "Submit the complete independent pre-execution metric judgment. "
+                    "Runtime validation errors return to this same reviewer session."
+                ),
+                input_schema=schema,
+                terminal=True,
+                strict=False,
             ),
-            user_prompt=prompt,
+        )
+        request = ClientToolTurnRequest(
+            system_prompt=(
+                system_prompt
+            ),
+            messages=(
+                {
+                    "role": "user",
+                    "content": (
+                        prompt
+                        + "\n\nChoose any scratch calculations needed to check the "
+                        "scientific arithmetic, then call "
+                        + ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL
+                        + ". Scratch observations are diagnostic only. Prose alone "
+                        "cannot submit a review."
+                    ),
+                },
+            ),
+            tools=tools,
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=schema,
+            tool_choice=(
+                "any"
+                if theory_scratchpad
+                else ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL
+            ),
+            disable_parallel_tool_use=True,
+            enable_prompt_caching=True,
             metadata={
                 "subsystem": "ArchitectMetricSemanticReviewer",
                 "agent": "LLMArchitectMetricSemanticReviewerAgent",
                 "provider_name": self.config.provider_name,
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
-                "provider_structured_output": True,
                 "review_input_fingerprint": stable_hash(review_material),
                 "review_protocol_version": (
                     ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION
@@ -1652,32 +1685,140 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 "review_requirement_count": len(
                     _requirement_ids(review_material)
                 ),
+                "client_tool_transport": True,
+                "same_session_validation_feedback": True,
+                "scientific_scratch_available": theory_scratchpad is not None,
                 "full_packet_regeneration_disabled": True,
             },
         )
 
-        def build_packet(
-            payload: Mapping[str, Any],
-            response: Any,
-            raw_text: str,
+        def normalize_submission(
+            payload: Mapping[str, Any], *, model: str, provider_name: str
         ) -> dict[str, Any]:
             return _normalize_architect_metric_semantic_review_packet(
                 payload,
                 question=question,
                 trusted_lineage=trusted_lineage,
                 review_material=review_material,
-                model=response.model or request_model,
+                model=model or request_model,
                 model_tier=self.config.model_tier,
-                provider_name=self.config.provider_name or response.provider,
-                raw_response=raw_text,
+                provider_name=self.config.provider_name or provider_name,
+                raw_response=json.dumps(payload, sort_keys=True, default=str),
             )
 
-        return generate_validated_json_packet(
-            provider=self.provider,
-            request=request,
-            extract_payload=extract_json_object,
-            build_packet=build_packet,
-            validate_packet=validate_architect_metric_semantic_review_packet,
-            validation_label="Architect compact metric semantic review packet",
-            max_validation_retries=0,
+        def execute_tool(
+            call: ClientToolCall, context: ClientToolExecutionContext
+        ) -> ClientToolExecutionResult:
+            nonlocal last_invalid_packet
+            if call.name == THEORY_SCRATCHPAD_TOOL and theory_scratchpad:
+                if len(scratch_refs) >= theory_scratchpad.max_runs:
+                    raise ClientToolInputError("metric review scratch budget exhausted")
+                result, execution_ref = execute_theory_scratchpad_tool(
+                    tool_input=call.input,
+                    scratchpad=theory_scratchpad,
+                    sandbox_binding=(
+                        "architect_metric_semantic_review",
+                        question.id,
+                        stable_hash(review_material),
+                    ),
+                    artifact_id=(
+                        "metric-review-scratch:"
+                        + stable_hash([question.id, context.total_calls_before])[:20]
+                    ),
+                    run_index=len(scratch_refs) + 1,
+                    owner_label="ArchitectMetricSemanticReviewer",
+                )
+                scratch_refs.append(execution_ref)
+                return result
+            if call.name != ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL:
+                raise ClientToolInputError("unsupported metric review tool")
+            payload = dict(call.input)
+            packet = normalize_submission(
+                payload,
+                model=request_model,
+                provider_name=str(getattr(self.provider, "provider_name", "") or ""),
+            )
+            errors = validate_architect_metric_semantic_review_packet(packet)
+            validation_history.append(
+                {
+                    "attempt_index": len(validation_history),
+                    "ok": not errors,
+                    "errors": list(errors),
+                    "submission_fingerprint": stable_hash(payload),
+                }
+            )
+            if errors:
+                last_invalid_packet = deepcopy(packet)
+                rejection = {
+                    "ok": False,
+                    "error": "architect_metric_semantic_review_submission_rejected",
+                    "validation_errors": list(errors[:12]),
+                    "instruction": (
+                        "Re-submit the complete judgment using these validation "
+                        "observations; reviewed artifacts remain immutable."
+                    ),
+                }
+                return ClientToolExecutionResult(
+                    content=rejection,
+                    is_error=True,
+                    observation_key="metric-review-rejected:" + stable_hash(rejection),
+                )
+            return ClientToolExecutionResult(
+                content={"ok": True, "submitted": True},
+                terminal=True,
+                terminal_payload={"review_payload": payload},
+                observation_key="metric-review-submitted:" + stable_hash(packet),
+            )
+
+        try:
+            loop = run_bounded_client_tool_loop(
+                backend=self.provider,
+                request=request,
+                execute_tool=execute_tool,
+                max_turns=(theory_scratchpad.max_runs if theory_scratchpad else 0) + 1,
+                max_tool_calls=(
+                    (theory_scratchpad.max_runs if theory_scratchpad else 0) + 1
+                ),
+                max_no_progress_turns=1,
+                max_terminal_recovery_turns=1,
+            )
+        except ClientToolLoopError as exc:
+            raise PacketValidationError(
+                validation_label="Architect metric semantic review packet",
+                attempts=len(validation_history),
+                errors=(
+                    list(validation_history[-1]["errors"])
+                    if validation_history
+                    else [exc.reason]
+                ),
+                history=list(validation_history),
+                last_invalid_packet=last_invalid_packet,
+            ) from exc
+        payload = loop.terminal_payload.get("review_payload", {})
+        if not isinstance(payload, Mapping):
+            raise PacketValidationError(
+                validation_label="Architect metric semantic review packet",
+                attempts=len(validation_history),
+                errors=["accepted client-tool submission payload is malformed"],
+                history=list(validation_history),
+            )
+        packet = normalize_submission(
+            payload, model=loop.model, provider_name=loop.provider
         )
+        packet["validation_errors"] = []
+        packet["ok"] = True
+        packet["client_tool_loop"] = {
+            "transport": "native_same_reviewer_session_v1",
+            "turns": loop.turns,
+            "tool_calls": loop.tool_calls,
+            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+            "transcript_fingerprint": loop.transcript_fingerprint,
+            "provider_usage": dict(loop.provider_usage),
+            "validation_submissions": len(validation_history),
+            "validation_feedback_observed": any(
+                not row["ok"] for row in validation_history
+            ),
+            "scratch_execution_refs": scratch_refs,
+            "full_packet_regeneration_used": False,
+        }
+        return packet

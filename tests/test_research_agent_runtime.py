@@ -28,9 +28,10 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     LLMGeneratedCodeSemanticReviewerAgent,
 )
 from ai_statistician.model_backend import (
+    ClientToolCall,
+    ClientToolTurnResponse,
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-    StaticJSONGeneratorBackend,
 )
 from ai_statistician.research_agent_runtime import (
     CriticEvaluatorRuntimeSubsystem,
@@ -57,6 +58,35 @@ from ai_statistician.theory_revision_lineage import (
 from ai_statistician.theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
 
 
+class StaticReviewClientToolBackend:
+    provider_name = "static"
+
+    def __init__(self, response: dict[str, object]) -> None:
+        self.response = response
+
+    def generate_client_tool_turn(self, request):
+        call = ClientToolCall(
+            call_id="static-runtime-review",
+            name="submit_generated_code_semantic_review",
+            input=self.response,
+        )
+        return ClientToolTurnResponse(
+            content_blocks=(
+                {
+                    "type": "tool_use",
+                    "id": call.call_id,
+                    "name": call.name,
+                    "input": self.response,
+                },
+            ),
+            tool_calls=(call,),
+            text="",
+            provider="static",
+            model=request.model,
+            metadata={"provider_stop_reason": "tool_use"},
+        )
+
+
 def test_formalization_has_one_model_owned_runtime_role() -> None:
     workspace = object()
 
@@ -64,6 +94,19 @@ def test_formalization_has_one_model_owned_runtime_role() -> None:
 
     assert set(bindings) == {"FormalizationEvaluator"}
     assert bindings["FormalizationEvaluator"] is workspace
+
+
+def test_architect_runtime_binds_shared_metric_review_scratchpad() -> None:
+    scratchpad = object()
+    coordinator = SimpleNamespace(metric_review_scratchpad=None)
+
+    runtime_module.ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=coordinator,  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(),
+        preflight_scratchpad=scratchpad,  # type: ignore[arg-type]
+    )
+
+    assert coordinator.metric_review_scratchpad is scratchpad
 
 
 def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
@@ -4861,7 +4904,7 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
         },
     }
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(response),
+            provider=StaticReviewClientToolBackend(response),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
@@ -5457,7 +5500,7 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
         },
     }
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(response),
+            provider=StaticReviewClientToolBackend(response),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model="static-reviewer",

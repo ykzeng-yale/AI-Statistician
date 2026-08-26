@@ -34,8 +34,6 @@ from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.model_backend import (
     ClientToolCall,
     ClientToolTurnResponse,
-    GeneratorResponse,
-    StaticJSONGeneratorBackend,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 
@@ -271,8 +269,33 @@ def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
 
 
 def _agent(response: dict[str, object]) -> LLMGeneratedCodeSemanticReviewerAgent:
+    class StaticReviewClientToolBackend:
+        provider_name = "static"
+
+        def generate_client_tool_turn(self, request):
+            call = ClientToolCall(
+                call_id="static-review",
+                name="submit_generated_code_semantic_review",
+                input=response,
+            )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": response,
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider="static",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
     return LLMGeneratedCodeSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(response),
+        provider=StaticReviewClientToolBackend(),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model="static-haiku",
@@ -473,7 +496,7 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
     assert "even when that source is itself called a simulation" in prompt
 
 
-def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
+def test_anthropic_reviewer_uses_native_client_tool_submission() -> None:
     response = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
@@ -491,16 +514,27 @@ def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
         def __init__(self) -> None:
             self.requests = []
 
-        def generate(self, request):
+        def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            return GeneratorResponse(
-                text=json.dumps(response),
+            call = ClientToolCall(
+                call_id="anthropic-review",
+                name="submit_generated_code_semantic_review",
+                input=response,
+            )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": response,
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
                 provider="anthropic",
                 model=request.model,
-                metadata={
-                    "provider_structured_output_requested": True,
-                    "provider_structured_output_applied": True,
-                },
+                metadata={"provider_stop_reason": "tool_use"},
             )
 
     backend = AnthropicBackend()
@@ -524,8 +558,29 @@ def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
     assert packet["review_document_ref"]["format"] == "markdown"
     assert packet["_review_document_artifact"]["content"].startswith("# Review")
     assert backend.requests[0].model == "claude-haiku-4-5-20251001"
-    assert backend.requests[0].metadata["provider_structured_output"] is True
+    assert backend.requests[0].metadata["client_tool_transport"] is True
     assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
+
+
+def test_generated_code_reviewer_rejects_one_shot_transport() -> None:
+    class GeneratorOnlyBackend:
+        provider_name = "anthropic"
+
+    agent = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=GeneratorOnlyBackend(),
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        agent.review(
+            question=_question(),
+            review_material=_review_material(),
+            trusted_lineage=_trusted_lineage(),
+        )
 
 
 def test_native_reviewer_returns_validation_error_to_same_model_session() -> None:

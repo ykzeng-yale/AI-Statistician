@@ -21,9 +21,13 @@ from ai_statistician.generated_metric_contract import (
     generated_metric_evaluation_semantics_contract,
     generated_metric_requirement_set_id,
 )
-from ai_statistician.model_backend import GeneratorResponse
+from ai_statistician.model_backend import ClientToolCall, ClientToolTurnResponse
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.theory_workspace import (
+    THEORY_SCRATCHPAD_TOOL,
+    TheoryScratchpadConfig,
+)
 
 
 TEST_HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -207,25 +211,37 @@ class _Backend:
         self.payload = payload
         self.requests = []
 
-    def generate(self, request):
+    def generate_client_tool_turn(self, request):
         self.requests.append(request)
         payload = self.payload(request) if callable(self.payload) else self.payload
-        return GeneratorResponse(
-            text=json.dumps(payload),
+        call = ClientToolCall(
+            call_id=f"metric-review-{len(self.requests)}",
+            name="submit_architect_metric_semantic_review",
+            input=payload,
+        )
+        return ClientToolTurnResponse(
+            content_blocks=(
+                {
+                    "type": "tool_use",
+                    "id": call.call_id,
+                    "name": call.name,
+                    "input": payload,
+                },
+            ),
+            tool_calls=(call,),
+            text="",
             provider="anthropic",
             model=request.model,
-            metadata={
-                "provider_structured_output_requested": True,
-                "provider_structured_output_applied": True,
-            },
+            metadata={"provider_stop_reason": "tool_use"},
         )
 
 
 def _review(
-    payload: dict[str, object],
+    payload: object,
     *,
     material: dict[str, object] | None = None,
     source_agent: str = "ArchitectMetricContractPlanner",
+    theory_scratchpad: TheoryScratchpadConfig | None = None,
 ) -> tuple[dict[str, object], _Backend, dict[str, object]]:
     material = material or _material()
     backend = _Backend(payload)
@@ -264,6 +280,7 @@ def _review(
                 material["acceptance_authority_catalog"]
             ),
         },
+        theory_scratchpad=theory_scratchpad,
     )
     return packet, backend, material
 
@@ -287,6 +304,163 @@ def test_compact_reviewer_accepts_exact_frozen_requirements_in_one_call() -> Non
     assert "claim_checks" not in packet
     assert "response_identity_checks" not in packet
     assert "dimension_reviews" not in packet
+
+
+def test_metric_reviewer_rejects_one_shot_transport() -> None:
+    class GeneratorOnlyBackend:
+        provider_name = "anthropic"
+
+    reviewer = LLMArchitectMetricSemanticReviewerAgent(
+        provider=GeneratorOnlyBackend(),
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        reviewer.review(
+            question=OpenResearchQuestion(
+                id="q_metric_review",
+                title="Review transport",
+                description="Require one persistent reviewer session.",
+            ),
+            review_material={},
+            trusted_lineage={},
+        )
+
+
+def test_metric_reviewer_recomputes_in_same_session_scratch(
+    tmp_path,
+) -> None:
+    material = _material()
+    requirements = material["empirical_metric_requirements"]
+    submission = _payload(
+        requirements,
+        status="FAIL",
+        findings=[_finding()],
+    )
+    submission["requirement_reviews"]["generic_gate"]["rationale"] = (
+        "Scratch recomputation gives the finite-population sample variance "
+        "82.5 / 9 = 9.166666666666666, contradicting the cited constant."
+    )
+
+    class ScratchThenSubmitBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.observed_scratch = ""
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                name = THEORY_SCRATCHPAD_TOOL
+                payload = {
+                    "language": "python",
+                    "execution_profile": "scientific_wasm",
+                    "dependencies": [],
+                    "entrypoint": "run_sandbox",
+                    "code": (
+                        "def run_sandbox(seed, replicates):\n"
+                        "    xs = list(range(10))\n"
+                        "    mean = sum(xs) / len(xs)\n"
+                        "    value = sum((x - mean) ** 2 for x in xs) / (len(xs) - 1)\n"
+                        "    return {'sample_variance': value}\n"
+                    ),
+                }
+            else:
+                self.observed_scratch = json.dumps(
+                    request.messages, sort_keys=True, default=str
+                )
+                name = "submit_architect_metric_semantic_review"
+                payload = submission
+            call = ClientToolCall(
+                call_id=f"metric-review-{len(self.requests)}",
+                name=name,
+                input=payload,
+            )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": name,
+                        "input": payload,
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = ScratchThenSubmitBackend()
+    theory = material["theory_developer_protocol_material"]
+    packet = LLMArchitectMetricSemanticReviewerAgent(
+        provider=backend,
+        config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=TEST_HAIKU_MODEL,
+            model_tier="haiku",
+        ),
+    ).review(
+        question=OpenResearchQuestion(
+            id="q_metric_review",
+            title="Review a generic statistical protocol",
+            description="Assess a frozen empirical procedure.",
+        ),
+        review_material=material,
+        trusted_lineage={
+            "authoring_packet_id": "metric-authoring:1",
+            "authoring_packet_hash": stable_hash({"candidate": 1}),
+            "empirical_metric_requirement_set_id": (
+                generated_metric_requirement_set_id(requirements)
+            ),
+            "source_agent": "ArchitectMetricContractPlanner",
+            "source_model": TEST_HAIKU_MODEL,
+            "source_model_tier": "haiku",
+            "source_theory_packet_id": theory["source_theory_packet_id"],
+            "source_theory_packet_hash": theory["source_theory_packet_hash"],
+            "acceptance_authority_catalog_id": material[
+                "acceptance_authority_catalog_id"
+            ],
+            "acceptance_authority_catalog_fingerprint": stable_hash(
+                material["acceptance_authority_catalog"]
+            ),
+        },
+        theory_scratchpad=TheoryScratchpadConfig(
+            sandbox_dir=tmp_path,
+            seed=17,
+            replicates=20,
+            max_runs=2,
+        ),
+    )
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert "9.166666666666666" in backend.observed_scratch
+    refs = packet["client_tool_loop"]["scratch_execution_refs"]
+    assert len(refs) == 1
+    assert refs[0]["status"] == "EXECUTED"
+    assert packet["client_tool_loop"]["runtime_executed_tool_calls"] == 2
+
+
+def test_metric_reviewer_receives_submission_validation_in_same_session() -> None:
+    requirements = [_requirement("gate_one"), _requirement("gate_two")]
+    material = _material(requirements=requirements)
+    responses = iter([_payload(requirements[:1]), _payload(requirements)])
+
+    packet, backend, _ = _review(lambda request: next(responses), material=material)
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert len(backend.requests) == 2
+    assert "exact ordered frozen requirement IDs" in json.dumps(
+        backend.requests[1].messages, default=str
+    )
+    assert packet["client_tool_loop"]["validation_submissions"] == 2
+    assert packet["client_tool_loop"]["validation_feedback_observed"] is True
 
 
 def test_compact_reviewer_derives_revise_from_model_judgments() -> None:
@@ -497,18 +671,12 @@ def test_prompt_projects_semantic_inputs_without_long_derivation_replay() -> Non
     assert "OMIT_LONG_DERIVATION" not in prompt
     assert "OMIT_LONG_EQUATION" not in prompt
     assert "metric_claim_check_contract" not in prompt
-    assert "literally substitute the declared returned raw metric" in prompt
-    assert "independently quantify or bound finite-run uncertainty" in prompt
-    assert "safety constraints, not a statistical default" in prompt
-    assert "unsupported assertion that a threshold is attainable" in prompt
+    assert "substitute the declared raw metric" in prompt
+    assert "Independently recompute every load-bearing constant" in prompt
+    assert "Runtime resource limits are not scientific justification" in prompt
     assert "actual comparison scale" in prompt
-    assert "Distinguish absolute error, relative error" in prompt
-    assert "dimensionless O(1/sqrt(n)) rate" in prompt
-    assert "Prefer a studentized or MCSE-calibrated returned quantity" in prompt
-    assert "does not by itself localize a defect" in prompt
-    assert "one declared empirical claim" in prompt
-    assert "distinct confirmatory claims" in prompt
-    assert "Runtime performs no implicit target subtraction" in prompt
+    assert "Required rows must correspond to distinct upstream claims" in prompt
+    assert "runtime applies no hidden centering" in prompt
     assert "semantic_positive_control" in prompt
     assert "implicit_transformations_applied" in prompt
     assert payload["review_material"]["model_authored_runtime_replicates"] == 20

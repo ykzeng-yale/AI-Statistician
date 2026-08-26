@@ -18,11 +18,7 @@ from .client_tool_loop import (
 )
 from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .fingerprint import stable_hash
-from .structured_output_retry import (
-    PacketValidationError,
-    extract_json_object,
-    generate_validated_json_packet,
-)
+from .structured_output_retry import PacketValidationError
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_ARTIFACT,
@@ -32,12 +28,10 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .model_backend import (
-    PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
     ClientToolCall,
     ClientToolDefinition,
     ClientToolTurnRequest,
     GeneratorBackend,
-    GeneratorRequest,
     resolve_generator_model,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
@@ -756,72 +750,20 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             or self.config.provider_name
         ).lower()
 
-        if callable(getattr(self.provider, "generate_client_tool_turn", None)):
-            return self._review_with_client_tool_submission(
-                question=question,
-                review_material=review_material,
-                trusted_lineage=trusted_lineage,
-                prompt=prompt,
-                request_model=request_model,
-                provider_name=provider_name,
-                probe_sandbox_dir=probe_sandbox_dir,
-                probe_timeout_s=probe_timeout_s,
+        if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
+            raise ValueError(
+                "generated-code semantic review requires native client-tool turns; "
+                "one-shot full-packet generation is not a canonical fallback"
             )
-
-        request = GeneratorRequest(
-            system_prompt=GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT,
-            user_prompt=prompt,
-            model=request_model,
-            max_tokens=self.config.max_tokens,
-            temperature=self.config.temperature,
-            schema=generated_code_semantic_review_json_schema(
-                review_material,
-                question=question,
-            ),
-            metadata={
-                "subsystem": "GeneratedCodeSemanticReviewer",
-                "agent": "LLMGeneratedCodeSemanticReviewerAgent",
-                "provider_name": self.config.provider_name,
-                "model_tier": self.config.model_tier,
-                "resolved_model": request_model,
-                "review_input_fingerprint": stable_hash(review_material),
-                "observation_only_reviewer": True,
-                "architect_owns_routing": True,
-                "review_transport": GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT,
-                "full_packet_regeneration_disabled": True,
-                **(
-                    {PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY: True}
-                    if provider_name == "anthropic"
-                    else {}
-                ),
-            },
-        )
-
-        def build_packet(
-            payload: Mapping[str, Any], response: Any, raw_text: str
-        ) -> dict[str, Any]:
-            return _normalize_generated_code_semantic_review_packet(
-                payload,
-                question=question,
-                trusted_lineage=trusted_lineage,
-                review_material=review_material,
-                model=response.model or request_model,
-                model_tier=self.config.model_tier,
-                provider_name=self.config.provider_name or response.provider,
-                raw_response=raw_text,
-            )
-
-        return generate_validated_json_packet(
-            provider=self.provider,
-            request=request,
-            extract_payload=extract_json_object,
-            build_packet=build_packet,
-            validate_packet=lambda packet: validate_generated_code_semantic_review_packet(
-                packet,
-                review_material=review_material,
-            ),
-            validation_label="generated-code semantic review packet",
-            max_validation_retries=0,
+        return self._review_with_client_tool_submission(
+            question=question,
+            review_material=review_material,
+            trusted_lineage=trusted_lineage,
+            prompt=prompt,
+            request_model=request_model,
+            provider_name=provider_name,
+            probe_sandbox_dir=probe_sandbox_dir,
+            probe_timeout_s=probe_timeout_s,
         )
 
     def _review_with_client_tool_submission(
