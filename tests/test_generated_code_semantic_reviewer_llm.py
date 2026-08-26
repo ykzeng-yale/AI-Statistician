@@ -464,9 +464,13 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
         "properties"
     ]
     assert "evidence_refs" not in assessment_schema["properties"]
-    assert "RFC 6901" not in build_generated_code_semantic_review_prompt(
+    prompt = build_generated_code_semantic_review_prompt(
         question=_question(), review_material=_review_material()
     )
+    assert "RFC 6901" not in prompt
+    assert "CURRENT_SOURCE_REWRITE_SUFFICIENT" in prompt
+    assert "CROSS_ARTIFACT_RESOLUTION_REQUIRED" in prompt
+    assert "even when that source is itself called a simulation" in prompt
 
 
 def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
@@ -476,7 +480,7 @@ def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
         "review_document": "# Review\n\nThe executed source is aligned.",
         "findings": [],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": "No active finding requires a parent change.",
         },
     }
@@ -539,7 +543,7 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": "No active finding requires a parent change.",
         },
     }
@@ -635,7 +639,7 @@ def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": "No active finding requires a parent change.",
         },
     }
@@ -754,7 +758,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": "The current estimator source owns this behavior.",
             "evidence_refs": [
                 "/review_material/exact_executed_artifacts/0/exact_source_code"
@@ -871,7 +875,7 @@ def test_reviewer_probe_tool_is_unavailable_outside_verified_algorithm_target(
         "review_document": "# Review\n\nThe supplied current artifact is aligned.",
         "findings": [],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": "No current-source defect was found.",
             "evidence_refs": [],
         },
@@ -976,7 +980,7 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": (
                 "A complete rewrite of the current source can close this finding "
                 "while every supplied parent artifact remains fixed."
@@ -1002,7 +1006,7 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
         "current_source_edit_sufficient"
     ] is True
     assert packet["source_revision_assessment"]["resolution_scope"] == (
-        "NO_PARENT_ARTIFACT_CHANGE_REQUIRED"
+        "CURRENT_SOURCE_REWRITE_SUFFICIENT"
     )
     assert validate_generated_code_semantic_review_packet(
         packet,
@@ -1028,7 +1032,7 @@ def test_review_document_owns_locations_without_pointer_abi() -> None:
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": "The current source can be rewritten against fixed parents.",
         },
     }
@@ -1067,7 +1071,7 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CROSS_ARTIFACT_RESOLUTION_REQUIRED",
             "rationale": (
                 "Changing source alone cannot satisfy two contradictory immutable "
                 "artifact meanings."
@@ -1084,7 +1088,7 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
     assessment = packet["source_revision_assessment"]
     assert packet["overall_verdict"] == "REVISE"
     assert assessment["resolution_scope"] == (
-        "PARENT_ARTIFACT_CHANGE_REQUIRED"
+        "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
     )
     assert assessment["current_source_edit_sufficient"] is False
     assert assessment["evidence_refs"] == []

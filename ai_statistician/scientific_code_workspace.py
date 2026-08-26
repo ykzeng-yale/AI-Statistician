@@ -646,6 +646,8 @@ def scientific_source_candidate_accepted(
 ) -> bool:
     """Apply the scientific source gate without interpreting its content."""
 
+    if prototype.get("scientific_code_workspace_failure"):
+        return False
     if confirmatory_result_blind:
         return bool(
             prototype.get("execution_smoke_passed") is True
@@ -723,13 +725,14 @@ def run_source_owner_scientific_workspace(
     def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
         return scientific_source_candidate_accepted(
             prototype,
-            confirmatory_result_blind=workspace_result_blind,
+            confirmatory_result_blind=confirmatory_result_blind,
         )
 
     def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
         return scientific_workspace_prototype_observation(
             prototype,
             include_empirical_outcomes=not workspace_result_blind,
+            include_acceptance_outcomes=not confirmatory_result_blind,
         )
 
     def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -904,6 +907,9 @@ def run_source_owner_scientific_workspace(
                 last_checked_prototype.get("script_hash", "") or ""),
             "authoring_diagnostic_result_hash": str(
                 last_checked_prototype.get("result_hash", "") or ""),
+            "authoring_diagnostic_runtime_replicates": (
+                last_checked_prototype.get("runtime_replicates")
+            ),
             "confirmatory_execution_after_model_commit": True,
             "confirmatory_outcomes_returned_to_source_model": False,
             "evidence_boundary": (
@@ -935,9 +941,16 @@ def scientific_workspace_prototype_observation(
     prototype: Mapping[str, Any],
     *,
     include_empirical_outcomes: bool = True,
+    include_acceptance_outcomes: bool | None = None,
 ) -> dict[str, Any]:
     """Project one persisted sandbox result into bounded model feedback."""
 
+    if include_acceptance_outcomes is None:
+        include_acceptance_outcomes = include_empirical_outcomes
+    if include_acceptance_outcomes and not include_empirical_outcomes:
+        raise ValueError(
+            "acceptance outcomes require empirical outcomes in workspace feedback"
+        )
     contracts = {
         str(row.get("contract_id", "") or ""): row
         for row in prototype.get("metric_contracts", []) or []
@@ -1005,13 +1018,18 @@ def scientific_workspace_prototype_observation(
     if include_empirical_outcomes:
         direct_field_names.extend(
             (
-                "prototype_status",
-                "smoke_passed",
                 "runtime_seed",
                 "runtime_replicates",
                 "stdout_summary",
-                "metric_gate_errors",
                 "result_hash",
+            )
+        )
+    if include_acceptance_outcomes:
+        direct_field_names.extend(
+            (
+                "prototype_status",
+                "smoke_passed",
+                "metric_gate_errors",
             )
         )
     if (
@@ -1054,9 +1072,30 @@ def scientific_workspace_prototype_observation(
         },
         **(
             {
-                "failed_metric_contracts": failed_contracts,
+                **(
+                    {"failed_metric_contracts": failed_contracts}
+                    if include_acceptance_outcomes and failed_contracts
+                    else {}
+                ),
                 "metrics_preview": _bounded_observation_value(
                     prototype.get("metrics", {})
+                ),
+                **(
+                    {}
+                    if include_acceptance_outcomes
+                    else {
+                        "acceptance_outcomes_withheld": True,
+                        "acceptance_outcome_authority": "EmpiricalEvaluator",
+                        **(
+                            {
+                                "measurement_interface_failures": (
+                                    measurement_interface_failures
+                                )
+                            }
+                            if measurement_interface_failures
+                            else {}
+                        ),
+                    }
                 ),
             }
             if include_empirical_outcomes

@@ -367,6 +367,7 @@ class ResearchAgentRuntimeConfig:
 RUNTIME_RESEARCH_EVALUATION_MODES = frozenset(
     {"research_eval", "capability_eval"}
 )
+SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS = 128
 
 
 def _is_runtime_research_evaluation_mode(evaluation_mode: Any) -> bool:
@@ -10248,6 +10249,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             authoring_diagnostic_kwargs["validation_context"][
                 "source_authoring_diagnostic"
             ] = True
+            authoring_diagnostic_kwargs["n_runs"] = min(n_runs, SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS)
             authoring_diagnostic_kwargs["seed"] = (
                 seed + 1 + int(stable_hash([question.id, task.task_id, simulation_id])[:8], 16)
                 % 2_147_483_646

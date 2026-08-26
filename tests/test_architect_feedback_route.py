@@ -713,7 +713,7 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
         "observation_artifact_ref": {
             "source_revision_assessment": {
                 "current_source_edit_sufficient": True,
-                "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+                "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             }
         },
     }

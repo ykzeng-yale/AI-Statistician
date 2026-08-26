@@ -4019,7 +4019,10 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     source_observation = source_checks[0]["prototype"]
     assert "empirical_outcomes_withheld" not in source_observation
     assert source_observation["metrics_preview"] == {"generic_metric": 0.95}
-    assert source_observation["runtime_replicates"] == 7_300
+    assert source_observation["acceptance_outcomes_withheld"] is True
+    assert source_observation["runtime_replicates"] == (
+        runtime_module.SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS
+    )
     assert source_observation["runtime_seed"] != 11
     assert "0.2" not in str(source_observation)
     assert "metric_gate_errors" not in source_observation
@@ -4076,7 +4079,9 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     assert len(source_initial_observations) == 1
     assert len(sandbox_calls) == 2
     diagnostic_call, confirmatory_call = sandbox_calls
-    assert diagnostic_call["n_runs"] == 7_300
+    assert diagnostic_call["n_runs"] == (
+        runtime_module.SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS
+    )
     assert confirmatory_call["n_runs"] == 7_300
     assert diagnostic_call["seed"] != confirmatory_call["seed"] == 11
     assert diagnostic_call["validation_context"][
@@ -4430,6 +4435,15 @@ def test_confirmatory_source_validity_reuses_workspace_interface_gate() -> None:
         resolved_threshold_failure,
         confirmatory_result_blind=True,
     ) is True
+    assert runtime_module._scientific_source_candidate_accepted(
+        {
+            **resolved_threshold_failure,
+            "scientific_code_workspace_failure": {
+                "validation_errors": ["terminal source was not committed"]
+            },
+        },
+        confirmatory_result_blind=True,
+    ) is False
 
 
 def test_exhausted_consumer_loop_does_not_continue_unrelated_outer_lane() -> None:
@@ -4839,7 +4853,7 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
         ),
         "findings": [],
         "source_revision_assessment": {
-            "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             "rationale": "No parent artifact change is required.",
             "evidence_refs": [
                 "/exact_executed_artifacts/0/exact_source_code"
@@ -5312,7 +5326,7 @@ def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion(
             ),
             "semantic_review_packet_id": "review:cross-artifact",
             "source_revision_assessment": {
-                "resolution_scope": "PARENT_ARTIFACT_CHANGE_REQUIRED",
+                "resolution_scope": "CROSS_ARTIFACT_RESOLUTION_REQUIRED",
                 "rationale": "The immutable theory and protocol conflict.",
                 "evidence_refs": [
                     "/review_material/theory_packet",
@@ -5434,7 +5448,7 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "PARENT_ARTIFACT_CHANGE_REQUIRED",
+            "resolution_scope": "CROSS_ARTIFACT_RESOLUTION_REQUIRED",
             "rationale": "Editing this source cannot reconcile immutable parents.",
             "evidence_refs": [
                 "/theory_packet",

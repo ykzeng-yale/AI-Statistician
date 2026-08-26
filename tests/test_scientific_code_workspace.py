@@ -22,6 +22,7 @@ from ai_statistician.scientific_code_workspace import (
     load_scientific_code_workspace_checkpoint,
     run_scientific_code_workspace,
     run_source_owner_scientific_workspace,
+    scientific_source_candidate_accepted,
     scientific_workspace_prototype_observation,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
@@ -357,12 +358,79 @@ def test_blind_confirmatory_executes_once_after_model_owned_diagnostic_loop() ->
     workspace = prototype["scientific_code_workspace"]
     assert workspace["authoring_execution_phase"] == "exploratory_diagnostic"
     assert workspace["authoring_diagnostic_accepted"] is True
+    assert workspace["authoring_diagnostic_runtime_replicates"] == 200
     assert workspace["confirmatory_execution_after_model_commit"] is True
     assert workspace["confirmatory_outcomes_returned_to_source_model"] is False
     transcript = str([request.messages for request in backend.requests])
-    assert "diagnostic score below 0.9" in transcript
+    assert "diagnostic score below 0.9" not in transcript
     assert '"score":0.95' in transcript
+    assert "acceptance_outcomes_withheld" in transcript
     assert "confirmatory-secret" not in transcript
+    assert '"accepted":true' in str(backend.requests[0].messages)
+
+
+def test_uncommitted_workspace_failure_cannot_promote_last_executed_source() -> None:
+    candidate = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'score': 1.0}\n",
+    }
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source owner controls this workspace")
+
+    class SourceAgent:
+        provider = Provider()
+
+        @staticmethod
+        def iterate_code_with_tools(**kwargs):
+            check = kwargs["check_candidate"](candidate)
+            assert check["accepted"] is True
+            raise PacketValidationError(
+                validation_label="scientific source workspace",
+                attempts=1,
+                errors=["terminal source was not explicitly committed"],
+                history=[],
+            )
+
+    def execute(candidate_draft):
+        source = str(candidate_draft["code"])
+        return (
+            {
+                "script_hash": stable_hash(source),
+                "execution_attempted": True,
+                "execution_smoke_passed": True,
+                "smoke_passed": True,
+                "metric_contract_evaluation": {"evaluations": []},
+            },
+            "sandbox",
+        )
+
+    prototype, tool_calls = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(),
+        question=object(),
+        artifact_id="question:uncommitted-source",
+        code_draft={},
+        source_deferred=True,
+        workspace_context={},
+        execute_candidate=execute,
+        failure_identity={"simulation_id": "uncommitted-source"},
+        confirmatory_result_blind=True,
+    )
+
+    assert tool_calls == ["sandbox"]
+    assert prototype["execution_smoke_passed"] is True
+    assert prototype["scientific_code_workspace_failure"][
+        "validation_errors"
+    ] == ["terminal source was not explicitly committed"]
+    assert scientific_source_candidate_accepted(
+        prototype,
+        confirmatory_result_blind=True,
+    ) is False
 
 
 def test_same_model_can_revise_after_technically_successful_execution() -> None:
