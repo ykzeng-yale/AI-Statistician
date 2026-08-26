@@ -6,10 +6,10 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`f5420174dafba153913a3e697f89002c338dfd7e`.
+`10d5a603aecbd73a38f3a6576cce69a78f8d6f1d`.
 
 Latest implementation commit:
-`1fef5179113566b0b0a64818930771d546c22987`.
+`173cabdb4f0ccce5e494dc760d5936f305db910e`.
 
 Primary references:
 
@@ -1289,3 +1289,43 @@ JSON, architecture-budget, and diff checks pass. `research_agent_runtime.py` is
 24,962 lines and top-level production Python is 149,982 lines. No live model call,
 task formula, source patch, extra agent, scheduler, Sonnet call, or Opus call was
 introduced.
+
+## External authoritative context instead of prompt copies
+
+The upstream audit was refreshed through
+[`10d5a603`](https://github.com/openai/codex/commit/10d5a603aecbd73a38f3a6576cce69a78f8d6f1d).
+Its newest change persists Guardian risk evidence without restoring that score as
+active model state. This is another instance of the relevant boundary: durable
+evidence may be retained and inspected without recursively injecting all persisted
+state into every subsequent model turn.
+
+An offline replay found the same remaining violation in AI Statistician. Algorithm
+and Simulation opening prompts copied complete authoritative Theory Markdown into a
+nested JSON context even though the Theory workspace already owned immutable paths,
+hashes, and exact text. That cost 30,577 characters in one Algorithm context and
+29,321 in one Simulation context before source work began.
+
+Commit `173cabdb4f0ccce5e494dc760d5936f305db910e` now projects those documents to a
+compact manifest containing path, SHA-256, and line count. The exact verified text
+stays external and is available to the same source-owning session through the
+existing read-only `search_theory_documents` and `read_theory_document` tools. No
+summarizer, context agent, retrieval scheduler, repair layer, or new artifact format
+was added.
+
+Measured against the immutable replay artifacts, the Algorithm opening context fell
+from 30,577 to 6,421 characters, a 79.0% reduction across three documents. The
+Simulation opening context fell from 29,321 to 13,282 characters, a 54.7% reduction
+across two documents. These measurements are transport facts, not evidence that a
+scientific task succeeded.
+
+The generic client-tool loop also stopped appending a private budget table to every
+raw tool observation, and workspace prompts no longer advertise exact turn caps.
+Internal model-turn, tool-call, no-progress, permission, terminal-disposition, and
+evidence bounds are unchanged. This keeps harness policy deterministic while leaving
+the model-facing scientific context focused on artifacts and environment feedback.
+
+The focused panel passed `75/75`, the broader runtime panel passed `177/177`, and the
+complete repository passed `923/923` in 79.03 seconds. Compile-all, diff hygiene,
+architecture-budget, and secret checks passed. Top-level production Python is
+149,997 lines. No product-model call, consumed-task rerun, hidden reevaluation,
+source repair, new scheduler, Sonnet call, or Opus call occurred.

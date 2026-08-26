@@ -1,13 +1,24 @@
 {
-  "schema_version": 184,
+  "schema_version": 185,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "3d40ac2f57a560e733cebfbbeff270f9d3116cb4",
+  "validated_code_head": "173cabdb4f0ccce5e494dc760d5936f305db910e",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-eight consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw is excluded from capability attribution because its public ABI and hidden evaluator are operator-invalid. Commit 3d40ac2f requires every future executable live-gold task to use schema v3: frozen references and behavioral negatives execute through the exact hidden candidate validators before any product-model call, while schemas v1/v2 remain historical-only. The next evaluation must be disjoint and must also pass independent mathematical and domain-boundary audit; executable calibration does not prove infinite-domain correctness. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all forty-eight consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw is excluded from capability attribution because its public ABI and hidden evaluator are operator-invalid. Commit 173cabdb adopts the useful Codex external-state principle for future Algorithm and Simulation workspaces: exact Theory documents remain hash-bound read-only artifacts and are fetched on demand by the same source-owning model instead of being copied into every opening prompt. The next evaluation must be disjoint, schema-v3 calibrated, and independently audited for mathematical and domain-boundary correctness. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "latest_codex_external_state_harness_change": {
+    "implementation_commit": "173cabdb4f0ccce5e494dc760d5936f305db910e",
+    "upstream_codex_reference_head": "10d5a603aecbd73a38f3a6576cce69a78f8d6f1d",
+    "change": "Future AlgorithmEngineer and SimulationEvaluator source-owner sessions receive a compact manifest of authoritative Theory document paths, hashes, and line counts. The same session can search and read exact line ranges through the existing read-only Theory document tools. Full mathematical documents are no longer recursively copied into each opening prompt.",
+    "adoption_decision": "Reuse Codex's one-session tool loop, external authoritative state, raw observation return, and persisted-evidence boundaries. Do not embed Codex core, app-server, Responses transport, thread manager, or multi-agent scheduler as a second conversation owner.",
+    "measured_context_reduction": "Offline replay of immutable existing artifacts reduced an Algorithm opening context from 30,577 to 6,421 characters (79.0%) across three Theory documents and a Simulation opening context from 29,321 to 13,282 characters (54.7%) across two documents.",
+    "authority_boundary": "Document paths, SHA-256 identities, and exact text are verified before projection. Search/read observations are read-only and return to the same source-owning model. Runtime does not summarize, reinterpret, repair, or choose mathematical content. Internal turn, tool, no-progress, permission, and terminal bounds remain enforced even though repetitive budget counters and exact turn caps are no longer injected into model-facing observations and prompts.",
+    "model_policy": "No product-model call occurred. No Sonnet, Opus, retry, model escalation, or alternate provider was introduced.",
+    "regression_evidence": "Focused panel 75/75; broader runtime panel 177/177; complete repository 923/923 in 79.03 seconds. Compileall, diff hygiene, architecture budget, and secret scan passed. Top-level production Python is 149,997 lines under the unchanged 150,000-line budget.",
+    "consumed_task_boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated, rescored, or resampled. This is future-task shared harness evidence only."
+  },
   "latest_gold_activation_contract": {
     "implementation_commit": "3d40ac2f57a560e733cebfbbeff270f9d3116cb4",
     "change": "Canonical live evaluation now requires schema v3. A hash-frozen reference candidate and behavioral negative candidates execute through the same hidden sandbox, harness, estimator binding, and acceptance checks later used for generated candidates. Every configured algorithm or empirical evaluator must reject an invoked negative, and enabled checks must cover every applicable public ABI clause.",
