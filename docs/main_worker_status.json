@@ -1,13 +1,23 @@
 {
-  "schema_version": 189,
+  "schema_version": 190,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "936bd137ed6ebfa01b0751f24a7f963afd645c7a",
+  "validated_code_head": "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all fifty consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw remains excluded because its benchmark is operator-invalid. PyOD ABOD v1 completed the Codex-shaped external-source loop and passed 12/12 mechanical checks, but its required report semantics failed at 5/6 claims, so the frozen task is 0/1. The future-task Critic now independently sees the hash-loaded report, immutable execution, and exact author-read source ranges; two unused legacy side-audit modules were removed. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all fifty consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw remains excluded because its benchmark is operator-invalid. The current shared harness change separates explicit same-owner Theory, Python/R, referee, and Lean workspace continuations from outer research-graph iteration accounting, without adding a scheduler, provider, retry, or content rule. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "latest_codex_workspace_budget_change": {
+    "implementation_commit": "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
+    "upstream_codex_reference_head": "7625bd56657da7ce6d96b6d27e983e568757cdbc",
+    "upstream_audit": "Official Codex distinguishes a persistent thread and user turn from the many model-tool sampling steps inside that turn; request-scoped StepContext freezes tools and environment, tool outputs return to the same model history, and sparse child-thread messages carry collaboration. Its new Python SDK remains an app-server client over Codex core and an OpenAI Responses-compatible provider boundary.",
+    "adoption_decision": "Keep the existing provider-neutral native Claude client-tool loop and sole AgentRuntime. Do not add openai_codex, Codex core, app-server, Responses transport, thread storage, provider fallback, or a second scheduler. Treat the SDK as an optional future backend only if it can satisfy the frozen provider and evidence contracts without owning a second scientific graph.",
+    "change": "Runtime-issued exact-parent markers identify only explicit same-owner TheoryDeveloper, scientific Python/R, independent theory-referee, and Formalizer progress checkpoints. AgentRuntime accounts those continuations separately from outer research-graph work; both use the existing max_iterations ceiling, and owner-changing, unmarked, stale, or malformed routes remain outer work.",
+    "telemetry": "Every trace records iteration_budget_scope. Per-question results and the top-level research manifest expose runtime steps, outer graph iterations, and same-owner workspace continuations. These are lifecycle facts, never scientific or proof authority.",
+    "regression_evidence": "Focused cross-workspace panel 173/173; complete repository 930/930 in 78.07 seconds; compile-all, JSON, diff, architecture-budget, model-policy, and secret checks passed. research_agent_runtime.py is 24988 lines and top-level production Python is 149976 lines across 139 modules.",
+    "capability_boundary": "No product or evaluator model call, consumed-task rerun, hidden reevaluation, rescore, score change, Sonnet call, or Opus call occurred. Trusted capability remains 4/50 and exact development Lean closure remains 0/2."
+  },
   "latest_pyod_abod_l1_activation": {
     "task_id": "pyod_abod_example_public_replication",
     "family": "anomaly_detection_source_replication",
@@ -1697,7 +1707,7 @@
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
       "persisted_tool_call_projection": "immutable scalar replay reduced the largest tool record from 3,370,158 to 18,379 bytes and the complete ten-row trace from 3,440,322 to 89,326 bytes, preserving summary hash, output hash, and output paths; large observations without external authoritative output remain exact inline",
       "visible_estimator_contract": "schema-v2 executable tasks fail closed unless every public ABI field has explicit semantics, hidden checks cite valid public clauses under one estimator identity, and each hidden empirical check also cites a compact public empirical claim; the exact contract reaches scientific model contexts without being copied into agent result packets",
-      "openai_codex_harness_audit": "Official openai/codex main was incrementally rechecked through bde9db1375667c50dcc0c2b52532a4e2672571c2 under Apache-2.0. AI-Statistician selectively adopts the persistent model-tool-observation loop, stable tool boundary, external authoritative artifact state, atomic committed-step identity, terminal-error pending-input preservation, sparse hash-bound collaboration, owner-scoped permissions, and lifecycle telemetry. It does not import Codex core, app-server, Responses transport, provider, SDK, Guardian, thread store, subagents, worktree manager, or scheduler.",
+      "openai_codex_harness_audit": "Official openai/codex main was incrementally rechecked through 7625bd56657da7ce6d96b6d27e983e568757cdbc under Apache-2.0, including run_turn, request-scoped StepContext, typed tool dispatch, sparse multi-agent communication, and the published Python SDK. AI-Statistician selectively adopts the persistent model-tool-observation loop, stable tool boundary, external authoritative artifact state, separate workspace-versus-graph accounting, sparse hash-bound collaboration, owner-scoped permissions, and lifecycle telemetry. It does not import Codex core, app-server, Responses transport, provider, SDK, Guardian, thread store, subagents, worktree manager, or scheduler.",
       "external_metric_workspace_regression": "Commit 27f3893a passed malformed-second-edit atomicity, unchanged-parent same-session recovery, hash-only commit, independent-review continuation, provider-truncated input preservation, hash lineage, schema validation, compact prompt projection, runtime, model-policy, and architecture regressions. The tool has one canonical batch input shape and no arbitrary edit-count cap; full repository 889/889.",
       "independent_public_source_referee": "author and referee sessions share provider policy but not opaque handles; reviewer search metadata is non-citable, exact reads become hash-bound S#H# observations, source bodies are redacted from final evidence history, and frozen cross-family evaluation keeps live discovery disabled",
       "neutral_exact_haiku_transport_probe": "Anthropic accepted five client tools with a 5,201-character sixteen-claim submit schema under claude-haiku-4-5-20251001, returned tool_use, and reported zero strict tools; no research content or frozen task was executed",
@@ -1719,7 +1729,7 @@
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
       "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
       "compiled_post_theory_transition": "Optional Theory plus required scientific code now routes the exact newly produced theory identity, original Architect plan, n_runs, and seed directly to AlgorithmEngineer with no second Architect model operation. Required-theory preflight and dependency rebuild routes remain unchanged.",
-      "runtime_core_growth": "research_agent_runtime.py is 24,970 lines and remains below the unchanged strict-under-25,000-line regression budget. AgentRuntime is 1,159 lines and the complete top-level Python package is 149,859 lines across 139 modules under its strict-under-150,000-line budget. The latest mechanism removes two unused modules and adds no outer interface, agent, call, turn, fallback, or scheduler.",
+      "runtime_core_growth": "research_agent_runtime.py is 24,988 lines and remains below the unchanged strict-under-25,000-line regression budget. AgentRuntime is 1,248 lines and the complete top-level Python package is 149,976 lines across 139 modules under its strict-under-150,000-line budget. Same-owner workspace continuation accounting uses the existing AgentRuntime and max_iterations configuration; it adds no agent, provider, retry, fallback, or scheduler.",
       "source_replication_critic_authority": "For future tasks only, terminal Critic receives the exact hash-loaded source report, immutable execution observation, and exact author-read source ranges. Required source replication cannot pass without model support; compact persisted audit contains no report or source text."
     },
     "evidence_boundary": "All fifty scored tasks are consumed. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit with their recorded caveats. The variance-ratio benchmark is operator-invalid; all automatic 0/1 outcomes and scoped component evidence remain unchanged. The trusted aggregate is 4/50, no new draw is authorized, and exact development theorem closure remains 0/2."
@@ -2229,8 +2239,8 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24970,
-    "scientific_code_workspace_lines": 2441,
+    "research_agent_runtime_lines": 24988,
+    "scientific_code_workspace_lines": 2446,
     "theory_workspace_lines": 3689,
     "research_architect_lines": 5113,
     "architect_theory_execution_preflight_lines": 5116,
@@ -2239,10 +2249,10 @@
     "formalizer_llm_lines": 2385,
     "lean_candidate_revision_tool_loop_lines": 1790,
     "client_tool_loop_lines": 1160,
-    "agent_runtime_lines": 1159,
+    "agent_runtime_lines": 1248,
     "cli_lines": 7052,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149859,
+    "top_level_package_lines": 149976,
     "latest_runtime_manifest_bytes": 53938
   },
   "next_gates": [

@@ -6,10 +6,10 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`bde9db1375667c50dcc0c2b52532a4e2672571c2`.
+`7625bd56657da7ce6d96b6d27e983e568757cdbc`.
 
 Latest implementation commit:
-`173cabdb4f0ccce5e494dc760d5936f305db910e`.
+`5fd585b8e9b6f00435a7ca796aaad651b2f5378f`.
 
 Primary references:
 
@@ -1432,3 +1432,39 @@ The focused and architecture panel passes `184/184`, and the complete repository
 passes `924/924` in 78.70 seconds. Top-level production Python is 149,999 lines
 under the unchanged 150,000-line budget. The consumed ANOVA draw remains immutable
 at `0/1`; these regression results are future-task mechanism evidence only.
+
+## Workspace turns are not research-graph transitions
+
+The official checkout was refreshed through
+[`7625bd56`](https://github.com/openai/codex/commit/7625bd56657da7ce6d96b6d27e983e568757cdbc).
+Codex `run_turn` distinguishes one user turn from the many model inference and
+tool-result cycles inside it. `StepContext` freezes the exact settings, environment,
+and tool router for each sampling request, while tool failures become outputs in the
+same model history. Its multi-agent layer uses persistent child threads and compact
+message, follow-up, status, and completion events rather than sending every tool
+action through a parent planner.
+
+The now-published `openai_codex` Python SDK exposes that same Codex core through
+app-server thread and turn lifecycle calls. It is a useful optional backend boundary,
+but not a production dependency for AI Statistician: it would introduce Codex core,
+app-server, thread persistence, an OpenAI Responses-compatible provider, and a second
+conversation owner beside the required native Claude path and existing AgentRuntime.
+
+Commit `5fd585b8e9b6f00435a7ca796aaad651b2f5378f` instead fixes the measured local
+mismatch at the existing boundary. Explicit TheoryDeveloper, Python/R, independent
+theory-referee, and Lean progress checkpoints receive an exact parent-bound
+same-owner marker. AgentRuntime now accounts for those workspace continuations
+separately from outer research-graph work. Both remain bounded by the existing
+`max_iterations` value; there is no new configuration, scheduler, retry, agent, or
+content rule. Unmarked, stale, malformed, or owner-changing routes still consume the
+outer budget and cannot claim workspace status.
+
+Each trace records its budget scope, and per-question plus top-level manifests expose
+the two counts. This telemetry is control-plane evidence only. It does not validate
+mathematics, code, simulations, review judgments, Lean statements, or proofs.
+
+The focused cross-workspace panel passed `173/173`; the complete repository passed
+`930/930` in 78.07 seconds. Compile-all, JSON, diff, architecture-budget, model-policy,
+and secret checks passed. `research_agent_runtime.py` is 24,988 lines and top-level
+production Python is 149,976 lines under the unchanged ceilings. No model call,
+consumed-task rerun, hidden reevaluation, rescore, Sonnet call, or Opus call occurred.

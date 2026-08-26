@@ -4978,7 +4978,7 @@
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
     "operator_invalid_tasks": 1,
-    "latest_shared_mechanism_head": "936bd137ed6ebfa01b0751f24a7f963afd645c7a",
+    "latest_shared_mechanism_head": "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
     "canonical_live_gold_activation_schema": 3,
     "executable_activation_gate": "Frozen reference and invoked behavioral negatives must run through the exact hidden candidate validators before any product-model call; configured executable evaluators must reject negatives and their checks must cover every applicable public ABI clause.",
     "latest_diagnostic": "Four of fifty consumed tasks receive trustworthy full-task capability credit. PyOD ABOD v1 passed 12/12 exact source mechanics but failed the required source-report semantic dimension at 5/6 claims because it missed a material model-visible default-parameter discrepancy. The task remains immutable 0/1; the variance-ratio task remains operator-invalid and contributes neither credit nor blame.",

@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "936bd137ed6ebfa01b0751f24a7f963afd645c7a"
+LATEST_SHARED_MECHANISM_HEAD = "5fd585b8e9b6f00435a7ca796aaad651b2f5378f"
 
 
 def _load_ladder() -> dict:
