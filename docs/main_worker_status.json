@@ -1,13 +1,13 @@
 {
-  "schema_version": 192,
+  "schema_version": 193,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "de531ad8d4173cc406593edb76606cb10be158b7",
+  "validated_code_head": "54e5ca52eca6192885a8a11775f7728997610ac7",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all fifty-one consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/51. The weighted partial-regression draw is closed at 0/1 after hidden theory failed and no algorithm handoff was independently accepted. Future Theory checkpoints now bind any question-supplied frozen executable identity without authoring mathematics, and a rejected generated-code reviewer verdict returns once to the same reviewer session. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all fifty-two consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/52. Clopper-Pearson Task 52 is closed at 0/1: theory and scientific code failed, while hidden empirical evaluation passed 8/8 as component evidence. Future accepted Theory manifests now point to content-addressed files, canonical accepted lineage survives stale deferred inputs, reviewer backedges reach the same source owner first, and estimator-bound simulation returns JSON-native results. Long-horizon theory and referee correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
   "latest_weighted_partial_regression_l0_evaluation": {
     "task_id": "weighted_partial_regression_identity_known_result",
     "family": "weighted_partitioned_regression",
@@ -22,6 +22,24 @@
     "codex_adoption_boundary": "Reuse one stable model-tool-observation loop and external environment authority; do not embed Codex core, app-server, Responses transport, thread storage, or a second scheduler.",
     "regression_evidence": "Focused architecture, ABI, reviewer, and CLI panel 111/111; complete repository 936/936 in 79.75 seconds; compile-all, diff, architecture-budget, model-policy, and secret checks passed; production Python 149996 lines.",
     "boundary": "The sole draw and hidden evaluation remain immutable 0/1. No rerun, resume, repair, hidden reevaluation, rescore, resampling, model call, or capability-credit change occurred."
+  },
+  "latest_clopper_pearson_l0_evaluation": {
+    "task_id": "clopper_pearson_binomial_interval_known_result",
+    "family": "exact_binomial_confidence_intervals",
+    "status": "fresh_live_v1_consumed_runtime_blocked_theory_and_scientific_code_failed_empirical_passed",
+    "run_path": "runs/main_worker_research_l0_clopper_pearson_20260826_v1_codex_harness_exact_haiku",
+    "runtime_head": "254a7aef345bc780bbe3d9fa71dbf32c6c49480d",
+    "runtime_model_policy": "All seven enabled roles used exact claude-haiku-4-5-20251001; two formal roles were disabled with empty models; no Sonnet, Opus, or automatic escalation",
+    "runtime_status": "BLOCKED after 33 steps, 32 outer-graph iterations, and one same-owner continuation; terminal classification theory_developer_reported_gap",
+    "hidden_gold_result": "0/1; theory and scientific code failed, hidden empirical evaluation passed 8/8 over 16,213 estimator invocations, and formalization was not applicable",
+    "theory_finding": "Accepted Theory document paths were mutable and later failed hash hydration. Operator inspection independently found reversed beta-binomial CDF identities, an invalid coverage sketch, and contradictory nesting directions; the referee false-accepted them.",
+    "scientific_code_finding": "Hidden algorithm execution hit a shared nested NumPy-bool JSON transport failure. The final candidate nevertheless still violated the public closed-request ABI by accepting extra keys, so no scientific-code credit is awarded.",
+    "post_run_shared_harness_commit": "54e5ca52eca6192885a8a11775f7728997610ac7",
+    "shared_change": "Future Theory manifests resolve to content-addressed document files; canonical accepted context is not overwritten by stale deferred IDs; valid reviewer backedges precede outer lane continuation; estimator-bound Python results receive recursive JSON-native normalization.",
+    "codex_adoption_boundary": "Reuse Codex's stable same-owner model-tool-observation loop, content identity, and resumable state semantics. Do not embed Codex core, app-server, Responses transport, provider, Guardian, thread storage, subagent scheduler, or a second conversation owner.",
+    "regression_evidence": "Affected files 157/157; complete repository 939/939 in 83.06 seconds; Python compile, Node syntax, diff, architecture-budget, model-policy, and secret checks passed; runtime 24,986 lines and top-level production Python 149,999 lines.",
+    "operator_audit": "docs/operator_audits/clopper_pearson_l0_v1.md",
+    "boundary": "The sole draw and sole evaluator-only hidden assessment remain immutable 0/1. No rerun, resume, repair, hidden reevaluation, rescore, resampling, or capability-credit change is authorized."
   },
   "latest_codex_workspace_budget_change": {
     "implementation_commit": "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
@@ -728,12 +746,12 @@
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "7625bd56657da7ce6d96b6d27e983e568757cdbc",
-    "latest_incremental_finding": "Codex distinguishes a persistent user turn from model-tool sampling steps inside it, returns tool observations to the same source-owning context, and uses compact sparse messages for collaboration. Its Python SDK remains an app-server client over Codex core and an OpenAI Responses-compatible provider boundary, so importing it would add a second conversation owner rather than simplify the native Claude runtime.",
-    "latest_incremental_adoption": "Commit de531ad8 binds question-supplied frozen executable identity at Theory checkpoints and reserves one same-reviewer correction after an actually rejected terminal verdict. The model still owns mathematics, source, probes, and judgment; Codex core and its scheduler remain unembedded.",
+    "latest_rechecked_upstream_commit": "f74bcd281196a752521717757f39d6c7b26affae",
+    "latest_incremental_finding": "The eight-commit Codex delta adds stable IDs for Responses-Lite prefix items, resumable app-server misalignment details, persistent-turn clock tools, streaming rate-limit classification, macOS scratch-policy tightening, layered plugin configuration, UI motions, and Guardian V2 prompts. Stable prefix identity and resumable exact state reinforce AI Statistician's existing content-addressed artifacts and explicit checkpoint continuations; app-server, Responses transport, Guardian, plugin, UI, and provider changes do not justify importing Codex core or another scheduler.",
+    "latest_incremental_adoption": "Commit 54e5ca52 applies the reusable boundary after the sole Task 52 draw: accepted Theory files are content-addressed, canonical accepted lineage survives stale deferred fields, a valid reviewer backedge reaches the same source owner before outer topology, and complete estimator-bound results are JSON-native before transport. Mathematics and source remain model-owned; Codex core and its scheduler remain unembedded.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "de531ad8d4173cc406593edb76606cb10be158b7",
+    "implementation_commit": "54e5ca52eca6192885a8a11775f7728997610ac7",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -767,7 +785,8 @@
       "6658c7626664b0287eaa1afc3d6cb14252225599",
       "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
     "6f588ff13cb2adf4ab01d1ec61eaecdd8842c594",
-    "de531ad8d4173cc406593edb76606cb10be158b7"
+    "de531ad8d4173cc406593edb76606cb10be158b7",
+    "54e5ca52eca6192885a8a11775f7728997610ac7"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
@@ -826,7 +845,8 @@
       "Commit 173cabdb projects authoritative Theory documents to path, SHA-256, and line-count manifests for Algorithm and Simulation while exact text remains available through existing scoped read tools.",
       "Commit 6658c762 reuses canonical document-authority derivation in hidden hydration and makes compact claim indexes navigation rather than the limit of independent mathematical review.",
     "Future source-replication criticism now loads the exact hash-bound Markdown report, immutable execution observation, and every exact source range read by the source owner into one terminal Critic call. Runtime persists only a compact identity audit, and required source replication cannot pass without model support. The unused token-overlap holdout runner and deterministic adversarial-intake side audit were removed.",
-    "Question-supplied frozen estimator ID, request and response field names and order, and request bindings are now compared at initial, revised, reused, and final Theory checkpoints. Meanings, formulas, documents, and source remain model-owned. Generated-code review reserves one same-reviewer correction only after runtime rejects a terminal verdict."
+    "Question-supplied frozen estimator ID, request and response field names and order, and request bindings are now compared at initial, revised, reused, and final Theory checkpoints. Meanings, formulas, documents, and source remain model-owned. Generated-code review reserves one same-reviewer correction only after runtime rejects a terminal verdict.",
+    "Accepted Theory document manifests resolve to content-addressed checkpoint files, canonical accepted context takes precedence over stale deferred top-level IDs, valid reviewer backedges return before outer evidence topology, and estimator-bound Python results use the existing recursive JSON-native transport normalization."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -836,12 +856,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-  "verification": "The official Codex checkout is rechecked through 7625bd56. The weighted partial-regression draw remains immutable 0/1; its two shared future-task harness corrections pass focused tests 111/111 and the complete repository 936/936 without importing Codex transport, thread storage, or scheduling.",
-  "live_validation_runs": 18,
-  "fresh_live_client_tool_model_turns": 719,
+  "verification": "The official Codex checkout is rechecked through f74bcd2. Clopper-Pearson Task 52 remains immutable 0/1; its shared future-task corrections pass affected tests 157/157 and the complete repository 939/939 without importing Codex transport, provider, thread storage, Guardian, or scheduling.",
+  "live_validation_runs": 19,
+  "fresh_live_client_tool_model_turns": 918,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-  "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen automated protocols and recorded caveats. The variance-ratio benchmark remains operator-invalid; weighted partial regression and all other failed valid draws retain 0/1. The trusted aggregate is 4/51, and exact Lean closure remains 0/2 and separate."
+  "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen automated protocols and recorded caveats. The variance-ratio benchmark remains operator-invalid; Clopper-Pearson and all other failed valid draws retain 0/1. The trusted aggregate is 4/52, and exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -1367,8 +1387,11 @@
     ]
   },
   "validated_change": {
-    "commit": "6658c7626664b0287eaa1afc3d6cb14252225599",
+    "commit": "54e5ca52eca6192885a8a11775f7728997610ac7",
     "changes": [
+      "The sole frozen Clopper-Pearson draw is consumed and immutable 0/1. Required theory and scientific code failed; hidden empirical evaluation passed 8/8 over 16,213 invocations as component evidence only. All seven enabled roles used exact Haiku, and formalization was not applicable.",
+      "Commit 54e5ca52 points future accepted Theory manifests at content-addressed files, preserves canonical accepted lineage over stale deferred IDs, returns valid reviewer backedges to the same source owner before outer topology, and normalizes complete estimator-bound Python results to JSON-native values. It adds no formula, content repair, task branch, retry, agent, scheduler, Sonnet, or Opus.",
+      "Affected tests passed 157/157 and the complete repository passed 939/939 in 83.06 seconds. Python compile, Node syntax, diff, architecture-budget, model-policy, and secret checks passed. Runtime is 24,986 lines and top-level production Python is 149,999 lines; the consumed task was not rerun, resumed, repaired, reevaluated, rescored, or resampled.",
       "The sole frozen one-way normal ANOVA draw reached runtime ACCEPTED but remains immutable hidden and operator 0/1. Hidden algorithm 8/8 and empirical 8/8 provide component evidence; required theory fails because an active Cochran decomposition omitted the grand-mean rank-one term and the independent referee and Critic false-accepted it.",
       "Commit 6658c762 aligns hidden document-authority projection with canonical downstream consumers and makes compact claim indexes navigation rather than the boundary of independent review. TheoryDeveloper, referee, and Critic remain responsible for model-authored mathematical judgment across exact Markdown/LaTeX; runtime adds no formula, equation parser, source patch, extra reviewer, retry, agent, or scheduler.",
       "The focused and architecture panel passed 184/184 and the complete repository passed 924/924 in 78.70 seconds. Production Python is 149,999 lines. The consumed draw was not rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled.",

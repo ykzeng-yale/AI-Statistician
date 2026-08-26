@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`7625bd56657da7ce6d96b6d27e983e568757cdbc`.
+`f74bcd281196a752521717757f39d6c7b26affae`.
 
 Latest selective-adoption implementation commits:
 
@@ -17,6 +17,8 @@ Latest selective-adoption implementation commits:
 - `de531ad8d4173cc406593edb76606cb10be158b7`: bind frozen executable
   identity at Theory checkpoints and keep rejected reviewer verdict feedback in
   the same model-owned session.
+- `54e5ca52eca6192885a8a11775f7728997610ac7`: preserve content-addressed
+  accepted files and canonical workspace lineage across deferred continuations.
 
 Primary references:
 
@@ -1527,3 +1529,48 @@ tests passed `111/111`; the complete repository passed `936/936` in 79.75 second
 Production Python remains within its fixed budget at 149,996 lines. The consumed
 draw remains immutable `0/1`; no model call, rerun, hidden reevaluation, rescore,
 Sonnet call, or Opus call occurred.
+
+## Stable prefix identity and accepted workspace lineage
+
+The official checkout advanced by eight commits from
+[`7625bd56`](https://github.com/openai/codex/commit/7625bd56657da7ce6d96b6d27e983e568757cdbc)
+to
+[`f74bcd2`](https://github.com/openai/codex/commit/f74bcd281196a752521717757f39d6c7b26affae).
+The relevant changes give Responses-Lite prefix items stable IDs, expose exact
+resumable misalignment details through app-server, add persistent-turn clock
+tools, and classify streaming rate limits. Other commits concern Guardian V2,
+macOS scratch policy, layered plugin configuration, and Vim UI motions.
+
+Stable prefix identity and resumable exact state reinforce mechanisms already
+native to AI Statistician: content hashes identify external artifacts, and an
+explicit continuation preserves pending work. The delta does not justify
+importing Codex provider transport, app-server, Guardian, plugin management,
+thread storage, or another scheduler.
+
+The sole Clopper-Pearson Task 52 draw then exposed four local ownership failures:
+an accepted Theory manifest pointed at mutable files, an old deferred top-level
+manifest ID could overwrite the accepted child identity in canonical context, a
+reviewer backedge could be bypassed by outer lane coverage, and estimator-bound
+simulation did not normalize the complete result before JSON transport.
+
+Commit `54e5ca52eca6192885a8a11775f7728997610ac7` applies the Codex-style boundary
+without importing Codex itself:
+
+- accepted Theory manifests resolve to content-addressed checkpoint files;
+- canonical accepted context takes precedence over stale deferred fields;
+- a valid reviewer `REVISE` backedge reaches its exact source owner before outer
+  evidence topology continues;
+- estimator-bound Python uses the existing recursive JSON-native conversion for
+  the complete result.
+
+This is state and transport correction, not scientific repair. The same model
+still owns theory, Python/R/Lean source, tool order, and revisions from raw
+observations. There is no Clopper-Pearson formula, task-family branch,
+RepairAgent, new retry, extra model call, second scheduler, Sonnet, or Opus.
+
+Affected tests pass `157/157`; the complete repository passes `939/939` in
+83.06 seconds. Python compile, Node syntax, diff, architecture-budget,
+model-policy, and secret checks pass. `research_agent_runtime.py` is 24,986 lines
+and top-level production Python is 149,999 lines under unchanged limits. The
+consumed task remains immutable `0/1`; these changes are future-task mechanism
+evidence only.
