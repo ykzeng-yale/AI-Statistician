@@ -2411,8 +2411,8 @@ def test_local_theory_document_edit_rejects_stale_or_ambiguous_source(
         backend.requests[3].messages[-1]["content"][0]["content"]
     )
     assert "changed since it was read" in stale["detail"]
-    assert "must occur exactly once" in ambiguous["detail"]
-    assert "found 2" in ambiguous["detail"]
+    assert "observed 2 matches" in ambiguous["detail"]
+    assert "edit index 0" in ambiguous["detail"]
 
 
 def test_local_theory_document_edit_batch_is_atomic_and_ordered(tmp_path) -> None:
@@ -2493,7 +2493,7 @@ def test_local_theory_document_edit_batch_is_atomic_and_ordered(tmp_path) -> Non
     rejection = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
-    assert "edit index 1 found 0" in rejection["detail"]
+    assert "observed 0 matches at edit index 1" in rejection["detail"]
     assert (tmp_path / "theory" / "workspace.md").read_text() == revised
     assert load_theory_workspace_documents(result.core_packet) == {
         "workspace.md": revised

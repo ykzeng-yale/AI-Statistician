@@ -112,6 +112,57 @@ class ClientToolInputError(ValueError):
     """A caller-reviewed tool error whose bounded detail is safe for the model."""
 
 
+def apply_model_exact_text_edits(
+    text: str,
+    *,
+    edits: Any,
+    replacement_key: str,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Apply an ordered exact-edit batch atomically in caller-owned state."""
+
+    if not isinstance(edits, list) or not edits:
+        raise ClientToolInputError("exact edits must be a nonempty array")
+    revised, records = text, []
+    for index, edit in enumerate(edits):
+        if not isinstance(edit, Mapping) or set(edit) != {
+            "old_text", replacement_key
+        }:
+            raise ClientToolInputError(
+                f"exact edit index {index} requires old_text and {replacement_key}"
+            )
+        old_text, replacement = edit["old_text"], edit[replacement_key]
+        if not isinstance(old_text, str) or not old_text:
+            raise ClientToolInputError(f"exact edit index {index} old_text is empty")
+        if not isinstance(replacement, str):
+            raise ClientToolInputError(f"exact edit index {index} replacement is not text")
+        positions = [
+            i for i in range(len(revised)) if revised.startswith(old_text, i)
+        ]
+        if len(positions) != 1:
+            raise ClientToolInputError(
+                "old_text must match the exact current artifact once; observed "
+                f"{len(positions)} matches at edit index {index}"
+            )
+        position = positions[0]
+        updated = (
+            revised[:position]
+            + replacement
+            + revised[position + len(old_text) :]
+        )
+        if updated == revised:
+            raise ClientToolInputError(f"exact edit index {index} makes no byte change")
+        revised = updated
+        records.append(
+            {
+                "old_text_hash": stable_hash(old_text),
+                "replacement_hash": stable_hash(replacement),
+                "old_text_chars": len(old_text),
+                "replacement_chars": len(replacement),
+            }
+        )
+    return revised, records
+
+
 class ClientToolRuntimeError(ClientToolLoopError):
     """A non-model-actionable tool failure with secret-free diagnostics."""
 

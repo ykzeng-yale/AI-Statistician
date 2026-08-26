@@ -12,6 +12,7 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    apply_model_exact_text_edits,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
@@ -76,37 +77,16 @@ def _apply_exact_source_edit(
             "edit_current_lean_source requires an existing current source; use "
             "submit_lean_source for initial authoring"
         )
-    if not isinstance(old_text, str) or not old_text:
-        raise ClientToolInputError("old_text must be a nonempty exact source substring")
-    if not isinstance(replacement, str):
-        raise ClientToolInputError("replacement must be text")
-    match_positions: list[int] = []
-    search_from = 0
-    while True:
-        position = source.find(old_text, search_from)
-        if position < 0:
-            break
-        match_positions.append(position)
-        search_from = position + 1
-    if len(match_positions) != 1:
-        raise ClientToolInputError(
-            "old_text must match the exact current source exactly once; "
-            f"observed {len(match_positions)} matches"
-        )
-    position = match_positions[0]
-    updated = source[:position] + replacement + source[position + len(old_text) :]
-    if updated == source:
-        raise ClientToolInputError("the requested source edit makes no byte change")
-    if len(updated) > 20000:
+    updated, metadata = apply_model_exact_text_edits(
+        source,
+        edits=[{"old_text": old_text, "replacement": replacement}],
+        replacement_key="replacement",
+    )
+    if len(updated) > 20_000:
         raise ClientToolInputError(
             "edited Lean source exceeds the runtime artifact-size boundary"
         )
-    return updated, {
-        "old_text_hash": stable_hash(old_text),
-        "replacement_hash": stable_hash(replacement),
-        "old_text_chars": len(old_text),
-        "replacement_chars": len(replacement),
-    }
+    return updated, metadata[0]
 
 
 def seal_lean_candidate_workspace_checkpoint(

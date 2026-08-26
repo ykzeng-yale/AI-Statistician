@@ -14,6 +14,7 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    apply_model_exact_text_edits,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
@@ -3182,35 +3183,18 @@ def _edit_theory_workspace_document(
     raw_edits = edit["edits"]
     if not isinstance(raw_edits, list) or not raw_edits:
         raise ClientToolInputError("edit_theory_document edits must be a nonempty array")
-    revised = current
-    edit_records: list[dict[str, str]] = []
-    for edit_index, raw_replacement in enumerate(raw_edits):
-        if not isinstance(raw_replacement, Mapping) or set(raw_replacement) != {
-            "old_text", "new_text"
-        }:
-            raise ClientToolInputError(
-                "edit_theory_document edits must contain exactly old_text and "
-                f"new_text; invalid edit index {edit_index}"
-            )
-        old_text = raw_replacement.get("old_text")
-        new_text = raw_replacement.get("new_text")
-        if not (isinstance(old_text, str) and old_text
-                and isinstance(new_text, str) and old_text != new_text):
-            raise ClientToolInputError(
-                "edit_theory_document edits require distinct nonempty old_text "
-                f"and textual new_text; invalid edit index {edit_index}"
-            )
-        occurrence_count = revised.count(old_text)
-        if occurrence_count != 1:
-            raise ClientToolInputError(
-                f"edit_theory_document old_text must occur exactly once in {path!r}; "
-                f"edit index {edit_index} found {occurrence_count}"
-            )
-        revised = revised.replace(old_text, new_text, 1)
-        edit_records.append({"old_text_sha256": _text_sha256(old_text),
-                             "new_text_sha256": _text_sha256(new_text)})
+    revised, _ = apply_model_exact_text_edits(
+        current,
+        edits=raw_edits,
+        replacement_key="new_text",
+    )
     if not revised.strip():
         raise ClientToolInputError("edit_theory_document cannot leave a document empty")
+    edit_records = [
+        {"old_text_sha256": _text_sha256(row["old_text"]),
+         "new_text_sha256": _text_sha256(row["new_text"])}
+        for row in raw_edits
+    ]
     candidate = dict(current_documents)
     candidate[path] = revised
     return candidate, {

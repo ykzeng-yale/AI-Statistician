@@ -22,6 +22,7 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    apply_model_exact_text_edits,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
@@ -48,6 +49,7 @@ ScientificCandidateExecutor = Callable[[Mapping[str, Any]], tuple[dict[str, Any]
 SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
 SCIENTIFIC_SOURCE_SUBMISSION_TOOL = "submit_scientific_source"
+SCIENTIFIC_SOURCE_EDIT_TOOL = "edit_current_scientific_source"
 SCIENTIFIC_SOURCE_COMMIT_TOOL = "commit_scientific_source"
 SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
 SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL = "report_bound_dependency_failure"
@@ -1796,6 +1798,37 @@ def run_scientific_code_workspace(
             ),
         )
 
+    def execute_model_source(
+        draft: Mapping[str, Any],
+        *,
+        turn_index: int,
+        source_action: str,
+        edit_metadata: Mapping[str, Any] | None = None,
+    ) -> ClientToolExecutionResult:
+        draft = _complete_code_draft(draft)
+        draft_hash = stable_hash(draft)
+        if draft_hash in observed_draft_hashes:
+            raise ClientToolInputError(
+                "byte-identical scientific source was previously executed"
+            )
+        changed = draft_hash != state["code_draft_hash"]
+        state["code_draft"], state["code_draft_hash"] = draft, draft_hash
+        state["source_updates"] += 1
+        observed_draft_hashes.add(draft_hash)
+        result = execute_checked_draft(
+            draft,
+            source_changed=changed,
+            current_source_reexecuted=False,
+            turn_index=turn_index,
+        )
+        if not edit_metadata:
+            return result
+        return replace(result, content={
+            **dict(result.content),
+            "source_action": source_action,
+            "edit_metadata": dict(edit_metadata),
+        })
+
     def execute_tool(call, context):
         tool_input = dict(call.input)
         if call.name == theory_documents.THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
@@ -1809,39 +1842,40 @@ def run_scientific_code_workspace(
             )
             return ClientToolExecutionResult(content=observation)
         if call.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL:
-            required_fields = {
-                "language",
-                "execution_profile",
-                "dependencies",
-                "entrypoint",
-                "code",
-            }
-            if (
-                not required_fields.issubset(tool_input)
-                or set(tool_input) - required_fields
-            ):
+            if set(tool_input) != {
+                "language", "execution_profile", "dependencies", "entrypoint", "code"
+            }:
                 raise ClientToolInputError(
-                    "submit_scientific_source requires the complete language, "
-                    "execution_profile, dependencies, entrypoint, and code candidate"
+                    "submit_scientific_source requires one complete candidate"
                 )
-            draft = _complete_code_draft(tool_input)
-            draft_hash = stable_hash(draft)
-            changed = draft_hash != state["code_draft_hash"]
-            if draft_hash in observed_draft_hashes:
-                raise ClientToolInputError(
-                    "replacement is byte-identical to a previously executed "
-                    "scientific source; its deterministic observation is already "
-                    "recorded, so submit a new complete candidate"
-                )
-            state["code_draft"] = draft
-            state["code_draft_hash"] = draft_hash
-            state["source_updates"] += 1
-            observed_draft_hashes.add(draft_hash)
-            return execute_checked_draft(
-                state["code_draft"],
-                source_changed=changed,
-                current_source_reexecuted=False,
+            return execute_model_source(
+                tool_input,
                 turn_index=context.turn_index,
+                source_action="complete_source_submission",
+            )
+
+        if call.name == SCIENTIFIC_SOURCE_EDIT_TOOL:
+            if set(tool_input) != {"old_text", "replacement"}:
+                raise ClientToolInputError(
+                    "edit_current_scientific_source requires exactly old_text and "
+                    "replacement"
+                )
+            current = deepcopy(dict(state["code_draft"]))
+            if not current:
+                raise ClientToolInputError(
+                    "edit_current_scientific_source requires existing source; use "
+                    "submit_scientific_source for initial authoring"
+                )
+            current["code"], edit_metadata = apply_model_exact_text_edits(
+                str(current["code"]),
+                edits=[tool_input],
+                replacement_key="replacement",
+            )
+            return execute_model_source(
+                current,
+                turn_index=context.turn_index,
+                source_action="exact_text_edit",
+                edit_metadata=edit_metadata[0],
             )
 
         if call.name == SCIENTIFIC_SOURCE_COMMIT_TOOL:
@@ -2012,8 +2046,7 @@ def run_scientific_code_workspace(
                 + (
                     "\n\nNo scientific source exists yet. Author the complete "
                     "candidate with submit_scientific_source. Each submission is "
-                    "executed immediately without runtime source edits. Inspect the "
-                    "returned observation before committing it."
+                    "executed immediately; later exact edits remain model-authored."
                     if not parent_draft
                     else "\n\nCurrent complete code candidate:\n"
                     + _compact_json(parent_draft)
@@ -2026,27 +2059,6 @@ def run_scientific_code_workspace(
                     + ". Continue from the exact current source and observation; "
                     "do not regenerate the planning envelope."
                     if resumed_checkpoint_id
-                    else ""
-                )
-                + (
-                    "\n\nThe current candidate has a failed consumer observation. "
-                    "Diagnose that exact observation. If this source owns the defect, "
-                    "submit a changed complete candidate; if another bound dependency "
-                    "owns it, call run_current_scientific_source to execute the exact "
-                    "current bytes in the newly changed dependency environment. Every "
-                    "submission executes immediately; identical bytes are not a new "
-                    "submission. Commit only after inspecting an accepted execution "
-                    "observation."
-                    if initial_check_result.get("accepted") is not True
-                    and parent_draft
-                    and allow_current_source_run
-                    else "\n\nThe current candidate has a failed observation. Diagnose "
-                    "that exact observation and submit a changed complete candidate. "
-                    "Every submission executes immediately; identical bytes are not "
-                    "a new submission. Commit only after inspecting an accepted "
-                    "execution observation."
-                    if initial_check_result.get("accepted") is not True
-                    and parent_draft
                     else ""
                 )
             },
@@ -2305,16 +2317,12 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             description=(
-                "Submit one complete Python or R candidate. The runtime stores and "
-                "immediately executes the exact source, then returns the raw sandbox "
-                "observation to this same model. This does not commit the candidate; "
-                "inspect the observation, revise when needed, then explicitly commit "
-                "the accepted current source. Match dependencies to language: "
-                "Python allows "
+                "Submit and immediately execute one complete Python/R candidate. "
+                "Raw sandbox output returns here; commit is separate. Python allows "
                 + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
                 + "; R allows "
                 + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
-                + ". Never mix Python and R dependency names."
+                + "."
             ),
             input_schema={
                 "type": "object",
@@ -2360,6 +2368,24 @@ def _scientific_code_tools(
             terminal=False,
         ),
         ClientToolDefinition(
+            name=SCIENTIFIC_SOURCE_EDIT_TOOL,
+            description=(
+                "Apply one model-authored exact-text edit to current Python/R source "
+                "and immediately execute the complete result. old_text must match "
+                "once; runtime does not interpret or repair source."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["old_text", "replacement"],
+                "properties": {
+                    "old_text": {"type": "string", "minLength": 1},
+                    "replacement": {"type": "string"},
+                },
+            },
+            terminal=False,
+        ),
+        ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_COMMIT_TOOL,
             description=(
                 "Commit the exact current scientific source only after a prior model "
@@ -2376,30 +2402,21 @@ def _scientific_code_tools(
     ]
     if context_documents_available:
         tools[0:0] = theory_documents.theory_document_client_tools()
+    reason_schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["reason"],
+        "properties": {"reason": {"type": "string"}},
+    }
     if allow_current_source_run:
         tools.append(
             ClientToolDefinition(
                 name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
                 description=(
-                    "Execute the exact current source without editing it when a bound "
-                    "dependency environment has changed since its prior observation. "
-                    "The runtime returns the new raw observation and does not infer "
-                    "whether this source or another dependency owns any defect."
+                    "Execute unchanged current source after a bound dependency changed; "
+                    "raw output returns here without runtime ownership inference."
                 ),
-                input_schema={
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["reason"],
-                    "properties": {
-                        "reason": {
-                            "type": "string",
-                            "description": (
-                                "Why executing the current bytes in the changed bound "
-                                "environment is the next useful diagnostic action."
-                            ),
-                        }
-                    },
-                },
+                input_schema=reason_schema,
                 terminal=False,
             )
         )
@@ -2408,28 +2425,10 @@ def _scientific_code_tools(
             ClientToolDefinition(
                 name=SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
                 description=(
-                    "After a raw sandbox observation shows an exact bound estimator "
-                    "binding or runtime failure, use this only when you judge the "
-                    "current consumer call valid under the supplied interface and the "
-                    "bound dependency source owns the defect. The runtime transfers "
-                    "the hash-bound observation unchanged and does not edit either "
-                    "source. Otherwise revise the current source instead."
+                    "Report that a raw bound-consumer failure belongs to its exact "
+                    "dependency. Runtime transfers the observation without editing."
                 ),
-                input_schema={
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["reason"],
-                    "properties": {
-                        "reason": {
-                            "type": "string",
-                            "description": (
-                                "Why the observed valid consumer call demonstrates a "
-                                "defect in the exact bound dependency rather than in "
-                                "the current source."
-                            ),
-                        }
-                    },
-                },
+                input_schema=reason_schema,
                 terminal=True,
             )
         )

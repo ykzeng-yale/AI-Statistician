@@ -531,7 +531,7 @@ def test_lean_candidate_tool_loop_returns_ambiguous_edit_error_to_same_model() -
         sort_keys=True,
     )
     assert "observed 2 matches" in second_request_context
-    assert "old_text must match the exact current source exactly once" in (
+    assert "old_text must match the exact current artifact once" in (
         second_request_context
     )
 

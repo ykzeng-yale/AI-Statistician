@@ -4562,7 +4562,7 @@ def test_metric_protocol_atomic_batch_rejects_partial_then_commits(
 
     first_edit = result.loop.history[0]["tool_calls"][0]
     assert first_edit["is_error"] is True
-    assert "edit index 1 found 0" in first_edit["result_excerpt"]
+    assert "observed 0 matches at edit index 1" in first_edit["result_excerpt"]
     second_edit = result.loop.history[1]["tool_calls"][0]["result_excerpt"]
     assert '"edit_count":2' in second_edit
     assert result.loop.runtime_executed_tool_calls == 3

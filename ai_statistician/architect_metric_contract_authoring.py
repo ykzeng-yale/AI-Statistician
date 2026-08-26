@@ -16,6 +16,7 @@ from .client_tool_loop import (
     ClientToolInputError,
     ClientToolLoopError,
     ClientToolLoopResult,
+    apply_model_exact_text_edits,
     persist_client_tool_session,
     run_bounded_client_tool_loop,
 )
@@ -703,35 +704,11 @@ def _run_metric_protocol_workspace(
                 raise ClientToolInputError(
                     "edit_metric_protocol edits must be a nonempty array"
                 )
-            revised = document
-            for edit_index, raw_edit in enumerate(raw_edits):
-                if not isinstance(raw_edit, Mapping) or set(raw_edit) != {
-                    "old_text", "new_text"
-                }:
-                    raise ClientToolInputError(
-                        "edit_metric_protocol edits must contain exactly old_text and "
-                        f"new_text; invalid edit index {edit_index}"
-                    )
-                old_text = raw_edit.get("old_text")
-                new_text = raw_edit.get("new_text")
-                if not (
-                    isinstance(old_text, str)
-                    and old_text
-                    and isinstance(new_text, str)
-                    and old_text != new_text
-                ):
-                    raise ClientToolInputError(
-                        "edit_metric_protocol edits require distinct nonempty old_text "
-                        "and textual new_text; "
-                        f"invalid edit index {edit_index}"
-                    )
-                occurrence_count = revised.count(old_text)
-                if occurrence_count != 1:
-                    raise ClientToolInputError(
-                        "edit_metric_protocol old_text must occur exactly once; "
-                        f"edit index {edit_index} found {occurrence_count}"
-                    )
-                revised = revised.replace(old_text, new_text, 1)
+            revised, _ = apply_model_exact_text_edits(
+                document,
+                edits=raw_edits,
+                replacement_key="new_text",
+            )
             if not revised.strip():
                 raise ClientToolInputError(
                     "edit_metric_protocol cannot leave the document empty"

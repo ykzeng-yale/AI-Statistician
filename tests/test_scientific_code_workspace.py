@@ -18,6 +18,7 @@ from ai_statistician.model_backend import (
 )
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_COMMIT_TOOL,
+    SCIENTIFIC_SOURCE_EDIT_TOOL,
     SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
     SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
@@ -147,6 +148,7 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
     read_observation = json.loads(
@@ -231,6 +233,7 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert all(request.disable_parallel_tool_use for request in backend.requests)
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
     assert SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL not in str(
@@ -258,6 +261,88 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     )
     assert "language=r" in dependency_description
     assert "base, stats, utils, methods" in dependency_description
+
+
+def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None:
+    initial = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": (
+            "def run_sandbox(seed, replicates):\n"
+            "    value = missing_name\n"
+            "    return value + missing_name\n"
+        ),
+    }
+    revised = {
+        **initial,
+        "code": (
+            "def run_sandbox(seed, replicates):\n"
+            "    value = 1\n"
+            "    return value\n"
+        ),
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "ambiguous-edit",
+                    SCIENTIFIC_SOURCE_EDIT_TOOL,
+                    {"old_text": "missing_name", "replacement": "1"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "exact-edit",
+                    SCIENTIFIC_SOURCE_EDIT_TOOL,
+                    {
+                        "old_text": (
+                            "    value = missing_name\n"
+                            "    return value + missing_name"
+                        ),
+                        "replacement": "    value = 1\n    return value",
+                    },
+                )
+            ),
+            _commit_response(),
+        ]
+    )
+    checked: list[dict] = []
+
+    def check(candidate):
+        checked.append(dict(candidate))
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": dict(candidate) == revised,
+            "stderr": "" if dict(candidate) == revised else "NameError",
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Fix the exact source from the traceback.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_no_progress_turns=3,
+        artifact_id="question:exact-scientific-edit",
+        initial_code_draft=initial,
+        initial_check_result={
+            "code_draft_hash": stable_hash(initial),
+            "accepted": False,
+            "stderr": "NameError: missing_name",
+        },
+        check_candidate=check,
+    )
+
+    assert dict(result.code_draft) == revised
+    assert checked == [revised]
+    assert result.evidence["source_updates"] == 1
+    assert result.evidence["runtime_edited_source"] is False
+    assert "observed 2 matches" in str(backend.requests[1].messages)
 
 
 def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
@@ -319,6 +404,7 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert result.evidence["sandbox_checks"] == 1
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
     assert len(backend.requests) == 2
@@ -738,6 +824,7 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     assert len(backend.requests) == 2
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
         SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
     ]
@@ -872,6 +959,7 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
     assert result.evidence["accepted"] is True
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     ]
@@ -1112,7 +1200,11 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     assert "attempt': 3" in str(backend.requests[-1].messages)
     assert all(
         [tool.name for tool in request.tools]
-        == [SCIENTIFIC_SOURCE_SUBMISSION_TOOL, SCIENTIFIC_SOURCE_COMMIT_TOOL]
+        == [
+            SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+            SCIENTIFIC_SOURCE_EDIT_TOOL,
+            SCIENTIFIC_SOURCE_COMMIT_TOOL,
+        ]
         for request in backend.requests
     )
 
