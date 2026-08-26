@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "pyod_abod_example_public_replication",
+      "title": "Exact replication and audit of the PyOD v1.1.3 ABOD example",
+      "description": "Conduct an L1 exact published-source replication of the angle-based outlier detection example maintained by the authors of Zhao, Nasrullah, and Li, Journal of Machine Learning Research 20(96), 2019. Use only the operator-supplied hash-bound source snapshot and operator-pinned execution. Inspect the JMLR paper text, v1.1.3 README and package metadata, unchanged examples/abod_example.py entrypoint, relevant ABOD/base/data/evaluation source, published requirements, license, independent environment lock, and disclosed headless Matplotlib configuration. Run the pinned source without editing, wrapping, replacing, or supplying model-authored arguments. In one durable Markdown report, identify the paper, repository tag and commit, snapshot, entrypoint, no-argument command, interpreter and package environment; record the synthetic train/test design, contamination, random seed, ABOD mode and effective neighbor default; report every printed train/test ROC and precision-at-rank-n value and the raw display warning. Compare the later v1.1.3 example faithfully with JMLR Code Snippet 1, including differences in version, call, seeding, and printed values; do not claim that the later example reproduces the paper's numeric snippet or figure. Audit source or documentation discrepancies that materially affect interpretation. Interpret the fixed synthetic run only to the extent justified by one generated train/test split. Distinguish this exact author-example rerun from validation of ABOD, comparison with other detectors, replication of the paper's algorithm inventory or benchmarks, a Monte Carlo performance study, confirmatory empirical evidence, a statistical theorem, or formal proof. No model-authored detector, replacement simulation, novelty claim, or Lean formalization is required. Disclose all remaining source, environment, version, visualization, evaluation, and scientific-scope gaps honestly.",
+      "tags": [
+        "outlier detection",
+        "anomaly detection",
+        "ABOD",
+        "PyOD",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "PyOD: A Python Toolbox for Scalable Outlier Detection",
+        "authors": [
+          "Yue Zhao",
+          "Zain Nasrullah",
+          "Zheng Li"
+        ],
+        "journal": "Journal of Machine Learning Research",
+        "year": 2019,
+        "volume": 20,
+        "issue": 96,
+        "pages": "1-7",
+        "paper_url": "https://www.jmlr.org/papers/v20/19-011.html",
+        "repository": "https://github.com/yzhao062/pyod",
+        "repository_tag": "v1.1.3",
+        "repository_commit": "690a0f25987fab0664b014bbc7121d999c92f5f6",
+        "research_source_snapshot_id": "pyod-jmlr-2019-abod-v1.1.3-public-replication-v1",
+        "research_source_snapshot_hash": "aa5219ef58f5b24ae3bd8477668d7cb65163fed4e74f6e0d33bc66f324e2c82d",
+        "research_source_manifest_sha256": "51df0eb6dc57bd6009f202f22e65de7db2bad6dd1704d611a5ba137c46956f17"
+      }
+    }
+  ]
+}

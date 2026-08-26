@@ -1358,7 +1358,7 @@ def _execute_pinned_process(
         environment_root=environment_root,
         runtime_read_roots=runtime_read_roots,
         runtime_executables=runtime_executables,
-        source_paths=source_paths,
+        source_paths=source_paths, cwd=cwd,
         output_dir=output_dir,
     )
     sandbox_command = [sandbox_executable, "-p", profile, *command]
@@ -1446,7 +1446,7 @@ def _source_execution_sandbox_profile(
     environment_root: Path,
     runtime_read_roots: Sequence[Path],
     runtime_executables: Sequence[tuple[Path, str]],
-    source_paths: Sequence[Path],
+    source_paths: Sequence[Path], cwd: Path,
     output_dir: Path,
 ) -> str:
     read_subpaths = {
@@ -1465,7 +1465,7 @@ def _source_execution_sandbox_profile(
         "/dev/random",
         "/dev/urandom",
         "/etc/localtime",
-        _seatbelt_path(executable),
+        _seatbelt_path(executable), _seatbelt_path(cwd),
         *(_seatbelt_path(path) for path in source_paths),
     }
     process_literals = {

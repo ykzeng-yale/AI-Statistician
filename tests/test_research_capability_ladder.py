@@ -4271,9 +4271,9 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 49
+    assert readiness["active_scored_tasks"] == 50
     assert readiness["consumed_scored_tasks"] == 49
-    assert readiness["fully_gold_configured_tasks"] == 49
+    assert readiness["fully_gold_configured_tasks"] == 50
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4303,5 +4303,90 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
         "reference_estimator.py",
         "negative_open_request_contract.py",
         "negative_scaled_f.py",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_pyod_abod_l1_is_frozen_before_its_first_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "pyod_abod_example_public_replication"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L1"
+    assert candidate["family"] == "anomaly_detection_source_replication"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_exact_source_replication_before_first_live_product_model_run"
+    )
+    assert candidate["source_snapshot_hash"] == (
+        "aa5219ef58f5b24ae3bd8477668d7cb65163fed4e74f6e0d33bc66f324e2c82d"
+    )
+    assert candidate["source_repository_commit"] == (
+        "690a0f25987fab0664b014bbc7121d999c92f5f6"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "01502bf0c6e40745f35c2d6fcce68c212e6e31d9d0f93b5a0973de6f23a71ee6"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "2e0c3bb81dfe3ef3747912513f8afd62bee7e95ad879190ca945edfe24b9bdce"
+    )
+    assert evidence["activation_schema_version"] == 3
+    assert evidence["activation_reference_tasks_passed"] == 0
+    assert evidence["activation_negative_controls_rejected"] == 0
+    assert evidence["source_harness_reference_passed"] is True
+    assert evidence["source_harness_negative_controls_rejected"] == 8
+    assert evidence["source_harness_calibration_cases"] == "9/9"
+    assert evidence["independent_source_reruns"].startswith("3/3")
+    assert evidence["semantic_calibration_attempts"] == 1
+    assert evidence["semantic_calibration_total_model_calls"] == 2
+    assert evidence["semantic_calibration_cases_correct"] == "6/6"
+    assert evidence["semantic_reference_claims"] == 6
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == "pending_activation_commit"
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["preactivation_evaluator_model_calls"] == 2
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 50
+    assert readiness["consumed_scored_tasks"] == 49
+    assert readiness["fully_gold_configured_tasks"] == 50
+    assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["runtime_source_replication_components_ready"] == 4
+    assert readiness["source_replication_full_tasks_passed"] == 1
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert "v1.1.3" in question["description"]
+    assert "v0.7.0" not in question["description"]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_source_replication_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
     ):
         assert hidden_name not in runtime_visible

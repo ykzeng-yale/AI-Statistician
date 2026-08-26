@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`10d5a603aecbd73a38f3a6576cce69a78f8d6f1d`.
+`bde9db1375667c50dcc0c2b52532a4e2672571c2`.
 
 Latest implementation commit:
 `173cabdb4f0ccce5e494dc760d5936f305db910e`.
@@ -309,6 +309,37 @@ canonical research graph does not own Git worktrees or user approval UI. The
 general lifecycle lesson remains useful: closed specialist sessions are not
 valid routing targets, while durable artifacts remain available to a fresh
 explicitly authorized session.
+
+## Exact external-source workspace boundary
+
+The fiftieth frozen task applies the same Codex harness principle to published
+source replication. The model sees a compact hash-bound manifest and uses the
+existing source tools; the substantive paper, repository files, environment
+lock, raw execution streams, and durable Markdown report remain external state.
+Neither the task payload nor each model turn recursively embeds those files.
+
+Calibration of the unchanged PyOD v1.1.3 ABOD example exposed one generic
+sandbox mismatch: Python may ask the operating system for its current working
+directory before opening an inventoried file. The source runner already bound
+that directory, but the read profile did not permit the metadata lookup. The
+shared correction adds the exact working-directory path as one read literal.
+It does not grant a directory subpath, let the model choose a command, edit the
+author source, inherit secrets, or access the network. Three exact no-argument
+runs then produced identical stdout and stderr hashes, and the focused source
+library panel passed `13/13`.
+
+This is deliberately smaller than importing Codex core. AI Statistician reuses
+the proven shape: one owner selects tools, raw observations return to that same
+session, large state stays in files, and the harness enforces authority and
+permissions. AgentRuntime still owns the outer scientific graph, while hidden
+post-termination evaluators remain unable to revise the product run.
+
+The latest upstream delta from `10d5a603` to `bde9db13` contains three commits
+for Guardian endpoint separation, reviewed-action security-risk recording, and
+Responses endpoint tracing. Those are useful product security and telemetry
+changes but do not alter this adopted model/tool/workspace lifecycle. Importing
+them would couple AI Statistician to Codex transport without improving theory,
+source replication, simulation, or Lean feedback.
 
 ## Complete-randomization live validation
 

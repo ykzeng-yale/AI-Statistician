@@ -735,7 +735,7 @@ def test_source_sandbox_reads_only_inventory_and_executes_only_allowlist(
         environment_root=environment_root,
         runtime_read_roots=(runtime_root,),
         runtime_executables=((runtime_executable, "a" * 64),),
-        source_paths=(listed_source,),
+        source_paths=(listed_source,), cwd=source_root,
         output_dir=output_dir,
     )
     process_clause = profile.split("(allow process-exec ", 1)[1].split(
@@ -743,6 +743,7 @@ def test_source_sandbox_reads_only_inventory_and_executes_only_allowlist(
     )[0]
 
     assert f'(literal "{listed_source.resolve()}")' in profile
+    assert f'(literal "{source_root.resolve()}")' in profile
     assert f'(subpath "{source_root.resolve()}")' not in profile
     assert f'(literal "{runtime_executable.resolve()}")' in process_clause
     assert "(subpath " not in process_clause
