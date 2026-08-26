@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "neyman_stratified_allocation_known_result",
+      "title": "Neyman allocation for a stratified mean",
+      "description": "Focused L0 known-result evaluation grounded in Jerzy Neyman, On the Two Different Aspects of the Representative Method: The Method of Stratified Sampling and the Method of Purposive Selection, Journal of the Royal Statistical Society 97(4) (1934), 558-606, DOI 10.1111/j.2397-2335.1934.tb04184.x. Consider H fixed strata with weights W_h>0 summing to one and within-stratum variances S_h^2>=0. Independent within-stratum sample means based on positive allocations n_h estimate the population mean by sum_h W_h bar(Y)_h. For the continuous fixed-total allocation problem sum_h n_h=n, develop one authoritative Markdown/LaTeX derivation of Var(hat(mu)_st)=sum_h W_h^2 S_h^2/n_h under independent with-replacement sampling, and prove that the minimum over positive real allocations is (sum_h W_h S_h)^2/n, attained at n_h=n W_h S_h/sum_j W_j S_j when every S_h>0. Give a complete Cauchy-Schwarz or Lagrange-multiplier argument including its equality condition. Treat zero-variance strata separately as a limiting or constrained-design case rather than dividing by zero, and distinguish the continuous relaxation from integer sample-size, lower-bound, upper-bound, finite-population-correction, and unequal-cost designs. Do not claim that simple rounding always gives the exact integer optimum or that allocation proportional to W_h S_h^2 is the Neyman rule. Code, simulation, source replication, novelty, and Lean formalization are not applicable; the required result is a reviewable derivation with honest unresolved gaps.",
+      "tags": [
+        "stratified_sampling",
+        "optimal_allocation",
+        "survey_sampling",
+        "variance_minimization",
+        "L0"
+      ],
+      "source": {
+        "title": "On the Two Different Aspects of the Representative Method: The Method of Stratified Sampling and the Method of Purposive Selection",
+        "author": "Jerzy Neyman",
+        "journal": "Journal of the Royal Statistical Society",
+        "year": 1934,
+        "volume": 97,
+        "issue": 4,
+        "pages": "558-606",
+        "doi": "10.1111/j.2397-2335.1934.tb04184.x",
+        "url": "https://rss.onlinelibrary.wiley.com/doi/10.1111/j.2397-2335.1934.tb04184.x"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
+    }
+  ]
+}
