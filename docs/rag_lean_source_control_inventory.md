@@ -19,8 +19,8 @@ including:
 - `proof_search.py`, `proof_search_audit.py`,
   `proof_search_retrieval_ablation.py`, `proof_search_kernel_rerun_queue.py`,
   `proof_search_training_export.py`, and `proof_search_value_model.py`
-- coverage and reuse diagnostics such as `frontier_coverage_audit.py`,
-  `primitive_source_coverage_audit.py`, and `rag_collaboration_export.py`
+- coverage and reuse diagnostics such as `frontier_coverage_audit.py` and
+  `rag_collaboration_export.py`
 
 These are source-control artifacts. Generated indexes and local run evidence
 remain rebuildable outputs.

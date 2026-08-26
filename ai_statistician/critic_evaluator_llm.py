@@ -7,14 +7,36 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from .client_tool_loop import read_hash_bound_utf8_file
+from .client_tool_loop import (
+    ClientToolExecutionContext,
+    ClientToolExecutionResult,
+    ClientToolInputError,
+    ClientToolLoopError,
+    read_hash_bound_utf8_file,
+    run_bounded_client_tool_loop,
+)
 from .fingerprint import stable_hash
-from .structured_output_retry import extract_json_object, generate_validated_json_packet
-from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
+from .structured_output_retry import (
+    PacketValidationError,
+)
+from .model_backend import (
+    ClientToolCall,
+    ClientToolDefinition,
+    ClientToolTurnRequest,
+    GeneratorBackend,
+    resolve_generator_model,
+)
 from .research_schema import OpenResearchQuestion, research_question_payload
 from .research_source_library import ResearchSourceSnapshot
 from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
-from .theory_workspace import load_theory_workspace_document_rows
+from .theory_workspace import (
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    load_theory_workspace_document_rows,
+    read_theory_document_lines,
+    search_theory_document_lines,
+    theory_document_client_tools,
+)
 
 
 CRITIC_EVALUATOR_SCHEMA_VERSION = 3
@@ -42,6 +64,11 @@ CRITIC_RESEARCH_DISPOSITIONS = frozenset(
 CRITIC_DIMENSION_REQUIREMENTS = frozenset(
     {"required", "optional", "not_applicable"}
 )
+CRITIC_EVIDENCE_READ_TOOL = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
+CRITIC_EVIDENCE_SEARCH_TOOL = THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL
+CRITIC_EVALUATION_SUBMIT_TOOL = "submit_critic_evaluation"
+CRITIC_EVIDENCE_EXTERNALIZE_MIN_CHARS = 1200
+CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS = 24
 
 
 @dataclass(frozen=True)
@@ -78,7 +105,19 @@ class LLMCriticEvaluatorAgent:
         canonical_evidence_view: Mapping[str, Any],
         environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        user_prompt = build_critic_evaluator_prompt(
+        request_model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
+        if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
+            raise ValueError(
+                "CriticEvaluator requires native client-tool turns; static replay "
+                "must supply the same reviewer tool contract"
+            )
+        return _run_critic_client_tool_review(
+            provider=self.provider,
+            config=self.config,
             question=question,
             retrieval_manifest=retrieval_manifest,
             theory_packet=theory_packet,
@@ -87,54 +126,271 @@ class LLMCriticEvaluatorAgent:
             formalization_manifest=formalization_manifest,
             canonical_evidence_view=canonical_evidence_view,
             environment_feedback=environment_feedback or {},
-        )
-        request_model = resolve_generator_model(
-            provider_name=self.config.provider_name,
-            requested_model=self.config.model,
-            model_tier=self.config.model_tier,
-        )
-        request = GeneratorRequest(
-            system_prompt=CRITIC_EVALUATOR_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            model=request_model,
-            max_tokens=self.config.max_tokens,
-            temperature=self.config.temperature,
-            schema=CRITIC_EVALUATOR_JSON_SCHEMA,
-            metadata={
-                "subsystem": "CriticEvaluator",
-                "agent": "LLMCriticEvaluatorAgent",
-                "provider_name": self.config.provider_name,
-                "model_tier": self.config.model_tier,
-                "resolved_model": request_model,
-            },
+            request_model=request_model,
         )
 
-        def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
-            return _normalize_critic_packet(
-                payload,
-                question=question,
-                model=response.model or request_model,
-                model_tier=self.config.model_tier,
-                provider_name=self.config.provider_name or response.provider,
-                raw_response=raw_text,
-                canonical_evidence_view_hash=str(
-                    canonical_evidence_view.get("view_hash", "") or ""
-                )
-                or stable_hash(dict(canonical_evidence_view)),
-                dimension_requirements=canonical_evidence_view.get(
-                    "dimension_requirements", {}
-                ),
+
+def _externalize_critic_evidence_documents(
+    value: Any,
+) -> tuple[Any, dict[str, str], list[dict[str, Any]]]:
+    """Replace long exact text with references available through read/search tools."""
+
+    documents: dict[str, str] = {}
+    catalog: list[dict[str, Any]] = []
+
+    def externalize(current: Any, path: str) -> Any:
+        if isinstance(current, str) and len(current) >= CRITIC_EVIDENCE_EXTERNALIZE_MIN_CHARS:
+            document_path = (
+                "evidence/" + stable_hash([path, stable_hash(current)])[:20] + ".md"
             )
+            documents[document_path] = current
+            row = {
+                "path": document_path,
+                "json_path": path,
+                "content_hash": stable_hash(current),
+                "character_count": len(current),
+                "line_count": max(1, len(current.splitlines())),
+            }
+            catalog.append(row)
+            return {
+                "critic_evidence_document_ref": document_path,
+                **row,
+                "content_externalized_without_loss": True,
+            }
+        if isinstance(current, Mapping):
+            return {
+                str(key): externalize(child, f"{path}/{key}")
+                for key, child in current.items()
+            }
+        if isinstance(current, (list, tuple)):
+            return [
+                externalize(child, f"{path}/{index}")
+                for index, child in enumerate(current)
+            ]
+        return deepcopy(current)
 
-        return generate_validated_json_packet(
-            provider=self.provider,
-            request=request,
-            extract_payload=_extract_json_object,
-            build_packet=build_packet,
-            validate_packet=validate_critic_evaluator_packet,
-            validation_label="LLM CriticEvaluator packet",
-            max_validation_retries=self.config.max_validation_retries,
+    return externalize(value, "$"), documents, catalog
+
+
+def _run_critic_client_tool_review(
+    *,
+    provider: GeneratorBackend,
+    config: CriticEvaluatorConfig,
+    question: OpenResearchQuestion,
+    retrieval_manifest: Mapping[str, Any],
+    theory_packet: Mapping[str, Any],
+    simulation_manifest: Mapping[str, Any],
+    algorithm_manifest: Mapping[str, Any],
+    formalization_manifest: Mapping[str, Any],
+    canonical_evidence_view: Mapping[str, Any],
+    environment_feedback: Mapping[str, Any],
+    request_model: str,
+) -> dict[str, Any]:
+    compact_material, documents, catalog = _externalize_critic_evidence_documents(
+        {
+            "canonical_evidence_view": deepcopy(dict(canonical_evidence_view)),
+            "environment_feedback": deepcopy(dict(environment_feedback)),
+        }
+    )
+    compact_view = dict(compact_material["canonical_evidence_view"])
+    compact_feedback = dict(compact_material["environment_feedback"])
+    prompt = build_critic_evaluator_prompt(
+        question=question,
+        retrieval_manifest=retrieval_manifest,
+        theory_packet=theory_packet,
+        simulation_manifest=simulation_manifest,
+        algorithm_manifest=algorithm_manifest,
+        formalization_manifest=formalization_manifest,
+        canonical_evidence_view=compact_view,
+        environment_feedback=compact_feedback,
+        client_tool_submission=True,
+    )
+    prompt += (
+        "\n\nExact evidence document catalog (content remains available without "
+        "truncation):\n"
+        + json.dumps(catalog, separators=(",", ":"), ensure_ascii=False)
+    )
+    tools = (
+        *theory_document_client_tools(),
+        ClientToolDefinition(
+            name=CRITIC_EVALUATION_SUBMIT_TOOL,
+            description=(
+                "Submit the complete independent Critic judgment. Runtime validates "
+                "only schema, evidence requirements, and authority boundaries; a "
+                "rejection returns exact observations to this same reviewer session."
+            ),
+            input_schema=CRITIC_EVALUATOR_JSON_SCHEMA,
+            terminal=True,
+            strict=False,
+        ),
+    )
+    request = ClientToolTurnRequest(
+        system_prompt=CRITIC_EVALUATOR_SYSTEM_PROMPT,
+        messages=({"role": "user", "content": prompt},),
+        tools=tools,
+        model=request_model,
+        max_tokens=config.max_tokens,
+        temperature=config.temperature,
+        tool_choice="any",
+        disable_parallel_tool_use=True,
+        enable_prompt_caching=True,
+        metadata={
+            "subsystem": "CriticEvaluator",
+            "agent": "LLMCriticEvaluatorAgent",
+            "provider_name": config.provider_name,
+            "model_tier": config.model_tier,
+            "resolved_model": request_model,
+            "client_tool_transport": True,
+            "evidence_document_count": len(documents),
+            "evidence_document_catalog_hash": stable_hash(catalog),
+            "full_packet_regeneration_disabled": True,
+        },
+    )
+    document_accesses: list[dict[str, Any]] = []
+    canonical_view_hash = str(
+        canonical_evidence_view.get("view_hash", "") or ""
+    ) or stable_hash(dict(canonical_evidence_view))
+    dimension_requirements = canonical_evidence_view.get(
+        "dimension_requirements", {}
+    )
+
+    def normalize_submission(
+        payload: Mapping[str, Any], *, model: str, provider_name: str
+    ) -> dict[str, Any]:
+        return _normalize_critic_packet(
+            payload,
+            question=question,
+            model=model or request_model,
+            model_tier=config.model_tier,
+            provider_name=config.provider_name or provider_name,
+            raw_response=json.dumps(payload, sort_keys=True, default=str),
+            canonical_evidence_view_hash=canonical_view_hash,
+            dimension_requirements=dimension_requirements,
         )
+
+    def execute_tool(
+        call: ClientToolCall, _context: ClientToolExecutionContext
+    ) -> ClientToolExecutionResult:
+        if call.name == CRITIC_EVIDENCE_READ_TOOL:
+            if set(call.input) != {"path", "line_start", "line_end"}:
+                raise ClientToolInputError(
+                    "critic evidence read requires path, line_start, and line_end"
+                )
+            observation, inspection = read_theory_document_lines(
+                documents,
+                path=call.input["path"],
+                line_start=call.input["line_start"],
+                line_end=call.input["line_end"],
+            )
+            document_accesses.append(inspection)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="critic-evidence-read:" + stable_hash(inspection),
+            )
+        if call.name == CRITIC_EVIDENCE_SEARCH_TOOL:
+            if not set(call.input) <= {"query", "document_paths", "max_results"}:
+                raise ClientToolInputError(
+                    "critic evidence search accepts query, document_paths, and max_results"
+                )
+            observation, inspection = search_theory_document_lines(
+                documents,
+                query=call.input.get("query"),
+                document_paths=call.input.get("document_paths", ()),
+                max_results=call.input.get("max_results", 20),
+            )
+            document_accesses.append(inspection)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="critic-evidence-search:" + stable_hash(inspection),
+            )
+        if call.name != CRITIC_EVALUATION_SUBMIT_TOOL:
+            raise ClientToolInputError("unsupported CriticEvaluator tool")
+        payload = dict(call.input)
+        packet = normalize_submission(
+            payload,
+            model=request_model,
+            provider_name=str(getattr(provider, "provider_name", "") or ""),
+        )
+        errors = validate_critic_evaluator_packet(packet)
+        if documents and not document_accesses:
+            errors.append(
+                "Critic must inspect at least one exact evidence document before submission"
+            )
+        if errors:
+            raise ClientToolInputError(
+                "critic submission rejected: " + "; ".join(sorted(set(errors))[:12])
+            )
+        return ClientToolExecutionResult(
+            content={"ok": True, "submitted": True},
+            terminal=True,
+            terminal_payload={"review_payload": payload},
+            observation_key="critic-evaluation-submitted:" + stable_hash(packet),
+        )
+
+    try:
+        loop = run_bounded_client_tool_loop(
+            backend=provider,
+            request=request,
+            execute_tool=execute_tool,
+            max_turns=CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS,
+            max_tool_calls=CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS,
+            max_no_progress_turns=2,
+            max_terminal_recovery_turns=max(0, config.max_validation_retries),
+        )
+    except ClientToolLoopError as exc:
+        raise PacketValidationError(
+            validation_label="LLM CriticEvaluator packet",
+            attempts=1,
+            errors=[exc.reason],
+            history=list(exc.history),
+        ) from exc
+    payload = loop.terminal_payload.get("review_payload", {})
+    if not isinstance(payload, Mapping):
+        raise PacketValidationError(
+            validation_label="LLM CriticEvaluator packet",
+            attempts=1,
+            errors=["accepted client-tool submission payload is malformed"],
+        )
+    transport = {
+        "transport": "native_same_reviewer_evidence_workspace_v1",
+        "turns": loop.turns,
+        "tool_calls": loop.tool_calls,
+        "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+        "transcript_fingerprint": loop.transcript_fingerprint,
+        "provider_usage": dict(loop.provider_usage),
+        "evidence_document_count": len(documents),
+        "evidence_document_catalog_hash": stable_hash(catalog),
+        "document_access_count": len(document_accesses),
+        "inspected_document_paths": sorted(
+            {
+                str(path)
+                for row in document_accesses
+                for path in (
+                    [row.get("path", "")]
+                    if row.get("path")
+                    else list((row.get("document_hashes", {}) or {}).keys())
+                )
+                if str(path)
+            }
+        ),
+        "document_access_fingerprint": stable_hash(document_accesses),
+        "full_packet_regeneration_used": False,
+    }
+    final_payload = {**dict(payload), "client_tool_loop": transport}
+    packet = normalize_submission(
+        final_payload,
+        model=loop.model,
+        provider_name=loop.provider,
+    )
+    final_errors = validate_critic_evaluator_packet(packet)
+    if final_errors:
+        raise PacketValidationError(
+            validation_label="LLM CriticEvaluator packet",
+            attempts=1,
+            errors=final_errors,
+            last_invalid_packet=packet,
+        )
+    return packet
 
 
 def build_critic_evaluator_prompt(
@@ -147,6 +403,7 @@ def build_critic_evaluator_prompt(
     formalization_manifest: Mapping[str, Any],
     canonical_evidence_view: Mapping[str, Any] | None = None,
     environment_feedback: Mapping[str, Any] | None = None,
+    client_tool_submission: bool = False,
 ) -> str:
     evidence_view = deepcopy(dict(canonical_evidence_view or {}))
     payload = {
@@ -171,10 +428,20 @@ def build_critic_evaluator_prompt(
         "required_output_contract": CRITIC_EVALUATOR_OUTPUT_CONTRACT,
         "boundary": CRITIC_EVALUATOR_BOUNDARY,
     }
+    submission_instruction = (
+        "Use the supplied read/search tools to inspect exact externalized evidence, then "
+        f"call {CRITIC_EVALUATION_SUBMIT_TOOL} with the complete required_output_contract. "
+        "The model owns the review sequence; prose alone cannot submit a judgment."
+        if client_tool_submission
+        else (
+            "Return ONLY JSON matching required_output_contract, with no optional prose."
+        )
+    )
     return (
-        "Review this AI Statistician trace as CriticEvaluator. Return ONLY JSON matching "
-        "required_output_contract, with no optional prose and at most 3 causal hypotheses and "
-        "5 audit or finding rows. canonical_evidence_view is authoritative; omitted legacy "
+        "Review this AI Statistician trace as CriticEvaluator. "
+        + submission_instruction
+        + " Use at most 3 causal hypotheses and 5 audit or finding rows. "
+        "canonical_evidence_view is authoritative; omitted legacy "
         "fields are not missing evidence. Ground every claim in that view or the current "
         "observation. Do not invent a failure: when none is supported, use "
         "NO_BLOCKING_FAILURE, an empty observed_failure, and no critic_findings. Assess every "
@@ -1584,10 +1851,6 @@ def _critic_prototype_summary(
             }
         )
     return summary
-
-
-def _extract_json_object(text: str) -> dict[str, Any]:
-    return extract_json_object(text, label="LLM CriticEvaluator")
 
 
 def _contains_forbidden_proof_claim(value: Any) -> str:

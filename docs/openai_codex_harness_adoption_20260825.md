@@ -1653,3 +1653,50 @@ content rule, statistical formula, Lean grammar rule, model escalation, or Codex
 runtime dependency. Specialist collaboration remains one persistent model-owned
 session per workspace plus sparse hash-bound handoffs through the sole outer
 `AgentRuntime`.
+
+## Critic evidence is now a model-owned document session
+
+The sole rdrobust Senate Task 54 draw exposed a different failure from source
+execution. The immutable entrypoint ran correctly, the source owner used one
+persistent exact-Haiku tool session, and both runtime Critic and the calibrated
+hidden semantic judge accepted its 749-line report. Operator inspection found an
+incorrect robust point estimate, internal caveat contradictions, an ATE/local-RD
+mislabel, and unsupported claims about covariate balance, causal validity, random
+seeds, plotting, precision, clustering, and warning semantics. The runtime Critic
+had received the report, raw output, and nine exact source ranges, but all of that
+material arrived in one roughly 36k-token generation request.
+
+Adding another reviewer, phrase detector, RD rule, report repair path, or packet
+taxonomy would repeat the architecture error this project is removing. The Codex
+harness lesson is narrower: large work lives behind a stable file/tool surface;
+the model selects reads and searches, exact observations return to the same
+transcript, and a terminal action commits the result.
+
+The existing Critic now follows that pattern:
+
+```text
+compact canonical evidence identities + exact document catalog
+  -> same Critic model chooses read_theory_document/search_theory_documents
+  -> exact hash-bound line observations return to that session
+  -> same model calls submit_critic_evaluation
+  -> runtime validates schema, task-intent requirements, identity, and authority
+```
+
+Long strings are externalized from only the opening model context, never truncated
+or discarded. Their path, original JSON location, hash, character count, and line
+count remain visible, while the existing generic Theory document tools expose the
+complete text. A reviewer with externalized evidence must inspect at least one exact
+document before submitting, but the model owns which documents, queries, ranges,
+order, and scientific judgment. Invalid terminal packets return as ordinary tool
+observations in the same reviewer session. There is no live one-shot fallback, full
+packet repair agent, second scheduler, or model escalation.
+
+This change reuses `run_bounded_client_tool_loop` and the existing document tools;
+`AgentRuntime` remains the only outer scheduler. It also removes the 394-line
+`primitive_source_coverage_audit.py`, a June side audit with no import, test, CLI
+entry, or canonical runtime consumer. Retrieval hits continue to be exposed through
+the live Formalizer/RAG tools and remain non-proof evidence until active-project
+Lean verification.
+
+The mechanism applies only to future tasks. Task 54 is consumed and immutable: no
+report edit, rerun, resume, hidden reevaluation, rescore, or model call is authorized.

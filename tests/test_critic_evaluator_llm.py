@@ -3,14 +3,24 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
+import re
 
 from ai_statistician.critic_evaluator_llm import (
+    CRITIC_EVALUATION_SUBMIT_TOOL,
+    CRITIC_EVIDENCE_READ_TOOL,
+    CRITIC_EVIDENCE_SEARCH_TOOL,
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
+    CriticEvaluatorConfig,
+    LLMCriticEvaluatorAgent,
     build_critic_canonical_evidence_view,
     build_critic_evaluator_prompt,
     validate_critic_evaluator_packet,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.model_backend import (
+    ClientToolCall,
+    ClientToolTurnResponse,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.research_source_library import load_research_source_snapshot
 from ai_statistician.theory_revision_lineage import (
@@ -1132,3 +1142,124 @@ def test_critic_prompt_references_large_workspace_artifacts_without_copying_them
     assert '"artifact_id":"algorithm:large"' in prompt
     assert '"content_hash"' in prompt
     assert '"raw_stderr":"exact current diagnostic"' in prompt
+
+
+def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> None:
+    report = (
+        "The first section makes one unsupported global claim.\n"
+        + "ordinary evidence line\n" * 110
+        + "A later caveat does not erase the earlier claim.\n"
+    )
+
+    class ScriptedCriticBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.document_id = ""
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                match = re.search(r'"path":"(evidence/[^"]+\.md)"', request.messages[0]["content"])
+                assert match is not None
+                self.document_id = match.group(1)
+                call = ClientToolCall(
+                    call_id="read-report",
+                    name=CRITIC_EVIDENCE_READ_TOOL,
+                    input={
+                        "path": self.document_id,
+                        "line_start": 1,
+                        "line_end": 40,
+                    },
+                )
+            elif turn == 2:
+                assert "The first section makes one unsupported global claim." in str(request.messages)
+                call = ClientToolCall(
+                    call_id="search-report",
+                    name=CRITIC_EVIDENCE_SEARCH_TOOL,
+                    input={
+                        "query": "caveat",
+                        "document_paths": [self.document_id],
+                    },
+                )
+            else:
+                assert "A later caveat does not erase the earlier claim." in str(request.messages)
+                call = ClientToolCall(
+                    call_id="submit-critic",
+                    name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                    input=_critic_packet(),
+                )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": dict(call.input),
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider=self.provider_name,
+                model="claude-haiku-4-5-20251001",
+                metadata={
+                    "provider_stop_reason": "tool_use",
+                    "provider_usage": {"input_tokens": 10, "output_tokens": 5},
+                },
+            )
+
+    provider = ScriptedCriticBackend()
+    agent = LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    )
+    canonical_view = {
+        "artifact_kind": "CriticCanonicalEvidenceView",
+        "view_hash": "canonical-view-hash",
+        "dimension_requirements": {
+            "source_replication": "not_applicable",
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+        "theory": {
+            "artifact_id": "theory:long-report",
+            "authoritative_documents": [
+                {"relative_path": "workspace.md", "content": report}
+            ],
+        },
+    }
+
+    packet = agent.propose(
+        question=OpenResearchQuestion(
+            id="critic-document-tools",
+            title="Review long evidence",
+            description="Inspect exact evidence through generic document tools.",
+        ),
+        retrieval_manifest={},
+        theory_packet={"packet_id": "theory:long-report"},
+        simulation_manifest={"manifest_id": "simulation:review"},
+        algorithm_manifest={"manifest_id": "algorithm:review"},
+        formalization_manifest={},
+        canonical_evidence_view=canonical_view,
+    )
+
+    assert len(provider.requests) == 3
+    first_prompt = provider.requests[0].messages[0]["content"]
+    assert "ordinary evidence line" not in first_prompt
+    assert "content_externalized_without_loss" in first_prompt
+    assert packet["canonical_evidence_view_hash"] == "canonical-view-hash"
+    loop = packet["client_tool_loop"]
+    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v1"
+    assert loop["document_access_count"] == 2
+    assert loop["inspected_document_paths"] == [provider.document_id]
+    assert loop["provider_usage"] == {"input_tokens": 30, "output_tokens": 15}
+    assert loop["full_packet_regeneration_used"] is False
+    assert validate_critic_evaluator_packet(packet) == []
