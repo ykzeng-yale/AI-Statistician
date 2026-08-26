@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "hoeffding_degree_two_u_statistic_known_result",
+      "title": "Hoeffding decomposition and the nondegenerate CLT for a degree-two U-statistic",
+      "description": "Focused known-result theory evaluation grounded in Wassily Hoeffding, A Class of Statistics with Asymptotically Normal Distribution, Annals of Mathematical Statistics 19(3) (1948), pages 293-325, DOI 10.1214/aoms/1177730196. In one authoritative Markdown/LaTeX theory workspace, let X_1,...,X_n be iid from P, let n>=2, and let h be a symmetric measurable degree-two kernel with E[h(X_1,X_2)^2]<infinity. Define theta=E[h(X_1,X_2)] and U_n=binom(n,2)^{-1} sum_{i<j} h(X_i,X_j). Define the first projection h_1 and canonical remainder h_2 explicitly. Derive their mean-zero and conditional-degeneracy properties rather than naming the Hoeffding decomposition as a black box. Prove the exact finite-sample identity U_n-theta=(2/n) sum_i h_1(X_i)+binom(n,2)^{-1} sum_{i<j} h_2(X_i,X_j), including the combinatorial coefficient. Establish the required orthogonality and covariance cancellations, carefully distinguishing uncorrelated overlapping pair terms from independent terms. With zeta_1=E[h_1(X_1)^2] and zeta_2=E[h_2(X_1,X_2)^2], derive the exact variance 4 zeta_1/n+2 zeta_2/[n(n-1)]. Under zeta_1>0, derive the sqrt(n) central limit theorem with limiting variance 4 zeta_1 by proving the degenerate remainder is negligible at that scale. Treat the boundary zeta_1=0 honestly: state what the sqrt(n) limit becomes and why a nontrivial n-scale limit is not established by the requested argument. Do not confuse the U-statistic with a V-statistic or introduce diagonal kernel terms. Keep active and rejected calculations visibly distinct, identify every assumption used, and disclose unresolved algebraic or scope gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Hoeffding decomposition",
+        "U-statistic",
+        "projection",
+        "degenerate kernel",
+        "central limit theorem",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "A Class of Statistics with Asymptotically Normal Distribution",
+        "author": "Wassily Hoeffding",
+        "journal": "Annals of Mathematical Statistics",
+        "year": 1948,
+        "volume": 19,
+        "issue": 3,
+        "pages": "293-325",
+        "doi": "10.1214/aoms/1177730196",
+        "url": "https://doi.org/10.1214/aoms/1177730196"
+      }
+    }
+  ]
+}
