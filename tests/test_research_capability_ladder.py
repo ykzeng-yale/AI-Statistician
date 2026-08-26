@@ -1774,7 +1774,7 @@ def test_aitken_gls_l0_records_sole_consumed_draw_and_operator_caveats() -> None
     assert readiness["fully_gold_configured_tasks"] == 41
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "75f05e46a6ff39adda0c694054bdd087cbbd7779"
+        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2234,7 +2234,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
         for row in scored
     )
     assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "75f05e46a6ff39adda0c694054bdd087cbbd7779"
+        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
     )
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -2525,7 +2525,7 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
     assert readiness["fully_gold_configured_tasks"] == 41
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "75f05e46a6ff39adda0c694054bdd087cbbd7779"
+        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -2644,7 +2644,7 @@ def test_neyman_pearson_theory_l0_draw_is_consumed_and_failed_closed() -> None:
     assert readiness["fully_gold_configured_tasks"] == 41
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "75f05e46a6ff39adda0c694054bdd087cbbd7779"
+        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
     )
     assert candidate["id"] not in {
         row["id"] for row in ladder["evidence_dimensions"]
@@ -3433,7 +3433,7 @@ def test_hoeffding_u_statistic_l0_records_one_consumed_caveated_pass() -> None:
     assert readiness["fully_gold_configured_tasks"] == 41
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
-        "75f05e46a6ff39adda0c694054bdd087cbbd7779"
+        "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
     )
 
     visible_path = Path(candidate["visible_questions_path"])

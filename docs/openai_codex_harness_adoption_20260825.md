@@ -9,7 +9,7 @@ Latest incremental recheck:
 `dc08ace7821614a702b1214c9d08ae0db2634d82`.
 
 Latest implementation commit:
-`75f05e46a6ff39adda0c694054bdd087cbbd7779`.
+`ba9e553ff9b85a4cdd7367c21abdab2be531b6c7`.
 
 Primary references:
 
@@ -758,6 +758,34 @@ repository passes `901/901`; production Python is 149,997 lines under the unchan
 `1/1` with its operator mathematical, evaluator, and duplicate-handoff caveats. The
 change receives future-task mechanism evidence only and cannot repair, rerun,
 hidden-evaluate, or rescore that candidate.
+
+## Successful probes must remain inspectable
+
+The same frozen Hoeffding trace exposed a second observation-boundary defect.
+The accepted referee did execute one Python scratch probe, but chose the easy
+positive kernel `h(x,y)=xy` and checked decomposition, means, and approximate
+orthogonality. That probe did not discriminate the active root-n scaling,
+conditioning, or degenerate-limit transitions. The terminal Critic received
+the successful status and hashes, but not the exact probe source or raw metrics,
+so it could not distinguish a relevant falsification attempt from a convenient
+passing example.
+
+Commit `ba9e553f` extends the existing canonical Critic view rather than adding
+another reviewer. For each successful referee scratch execution, runtime reads
+the already persisted source and result, verifies the source hash and both
+recorded result hashes, and transiently exposes the exact model-authored probe
+plus raw metrics to the same terminal Critic call. Missing files become
+`UNAVAILABLE`; changed bytes become `HASH_MISMATCH`; neither state exposes
+content. The prompt asks the model to judge what the probe actually
+discriminates. Runtime still supplies no formula, expected answer, statistical
+interpretation, or verdict.
+
+Deterministic inspection of the immutable Hoeffding artifact resolved its first
+scratch request as `REJECTED_CONTRACT` and its second as `HASH_VERIFIED`, with
+the exact 3,538-character source and nine raw metrics. This was artifact reading,
+not a model call, task rerun, hidden reevaluation, or rescore. The complete
+repository passes `902/902` in 69.54 seconds, and production Python is 149,991
+lines under the unchanged 150,000-line budget. The aggregate remains `4/41`.
 
 ## Standalone sandbox boundary
 

@@ -1,13 +1,13 @@
 {
-  "schema_version": 171,
+  "schema_version": 172,
   "updated_at": "2026-08-25",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "75f05e46a6ff39adda0c694054bdd087cbbd7779",
+  "validated_code_head": "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-one consumed tasks at immutable scores, now 4/41 under their pre-frozen automated protocols. Commit 75f05e46 applies the Codex external-state principle to document-backed theory: Markdown/LaTeX is the sole mathematical authority, while JSON carries only claim/check indexes and optional formalization ABI. It fixes the shared transport for future tasks without repairing or rescoring the caveated Hoeffding draw. The larger bottleneck remains model-owned long-horizon derivation and independent falsification quality: the exact-Haiku referee, terminal Critic, and hidden semantic judge all missed real mathematical defects. Source replication and exact development Lean closure 0/2 also remain incomplete; do not respond by adding formulas, parsers, repair layers, broader schemas, or another scheduler.",
+  "current_goal_focus": "Preserve all forty-one consumed tasks at immutable scores, now 4/41 under their pre-frozen automated protocols. Commits 75f05e46 and ba9e553f apply two measured Codex harness principles to future document-backed theory: Markdown/LaTeX is the sole mathematical authority, and the terminal Critic can inspect exact hash-verified referee probe source and raw metrics rather than trusting a success label. Neither change repairs or rescores the caveated Hoeffding draw. The larger bottleneck remains model-owned long-horizon derivation and independent falsification quality; a future disjoint frozen task must show that the referee and Critic choose and challenge decisive transitions. Source replication and exact development Lean closure 0/2 also remain incomplete; do not respond by adding formulas, parsers, repair layers, broader schemas, or another scheduler.",
   "latest_hoeffding_u_statistic_l0_evaluation": {
     "task_id": "hoeffding_degree_two_u_statistic_known_result",
     "family": "u_statistic_projection_asymptotics",
@@ -44,6 +44,9 @@
     "post_run_shared_change_commit": "75f05e46a6ff39adda0c694054bdd087cbbd7779",
     "post_run_shared_change": "Future document-backed TheoryDeveloper packets retain one mathematical authority in hash-bound Markdown/LaTeX. JSON carries only claim_index, sanity_check_index, and optional formalization_handoff; downstream semantic projection removes stale narrative from older packets while preserving the complete source hash.",
     "post_run_shared_change_evidence": "Future-task regression only: the focused core panel passed 71/71, the downstream theory consumer panel passed 111/111, and the complete repository passed 901/901 in 69.51 seconds. Production Python is 149,997 lines. No formula, parser, model call, agent, scheduler, retry, fallback, task rerun, hidden evaluation, or rescore was added.",
+    "post_run_shared_falsification_change_commit": "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
+    "post_run_shared_falsification_change": "For future terminal reviews, every successful referee scratch execution is resolved from persisted source/result paths, checked against the recorded source and result hashes, and exposed transiently as exact model-authored probe source plus raw metrics. Missing or changed artifacts fail closed. The same Critic judges whether the probe actually discriminates the candidate transition.",
+    "post_run_shared_falsification_change_evidence": "Future-task regression only: success, hash-mismatch, missing-file, and failed-run projections passed; exact deterministic inspection of the consumed artifact resolved its 3,538-character successful probe and nine raw metrics without a model call or changed result; the complete repository passed 902/902 in 69.54 seconds; production Python is 149,991 lines. No formula, parser, agent, scheduler, retry, fallback, task rerun, hidden evaluation, or rescore was added.",
     "post_run_score_changed": false,
     "boundary": "The sole draw is consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample it. Operator findings and future shared changes cannot become feedback to this candidate or erase either its frozen 1/1 score or its recorded caveats."
   },
@@ -238,7 +241,7 @@
     "latest_rechecked_upstream_commit": "dc08ace7821614a702b1214c9d08ae0db2634d82",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "75f05e46a6ff39adda0c694054bdd087cbbd7779",
+    "implementation_commit": "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -258,7 +261,8 @@
       "1862946b69d2819b23ad294bf2876ab65d9fb764",
       "1a1f11d993654cef8760d1296701155f9b3c68fd",
       "4ebef6c57ea2a279faf59bca2bd29e219be120ba",
-      "75f05e46a6ff39adda0c694054bdd087cbbd7779"
+      "75f05e46a6ff39adda0c694054bdd087cbbd7779",
+      "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
@@ -297,7 +301,8 @@
       "TheoryDeveloper and the isolated referee now ask model-authored scratch programs for definition-derived quantities, predicates, residuals, or witnesses rather than prewritten verdicts. The same source-owning model reconciles later raw observations with active Markdown claims before checkpoint or submission by revising, retracting, or marking contradictions uncertain; runtime adds no formula parser, content repair, reviewer, scheduler, retry, or extra turn.",
       "TheoryDeveloper now reserves the shared client-tool loop's one rejected-terminal-disposition recovery. A rejected commit returns its exact validator observation to the same retained model, which may choose another terminal disposition including an honest gap or resumable progress checkpoint. Ordinary research actions remain fixed, and runtime adds no packet patch, repair agent, scheduler, or mathematical rule.",
       "Independent-referee scratch observations now reach the terminal Critic through a compact runtime-projected evidence view containing status, execution attempt, return code, hashes, and bounded errors. Failed or rejected scratch can remain nonblocking when the mathematics is independently supported, but no downstream model may describe it as a successful check.",
-      "Document-backed TheoryDeveloper packets now keep substantive mathematics only in hash-bound Markdown/LaTeX. Structured derivation transport contains claim/check indexes and optional formalization ABI; legacy downstream projections discard stale duplicate narrative while retaining exact source-packet identity."
+      "Document-backed TheoryDeveloper packets now keep substantive mathematics only in hash-bound Markdown/LaTeX. Structured derivation transport contains claim/check indexes and optional formalization ABI; legacy downstream projections discard stale duplicate narrative while retaining exact source-packet identity.",
+      "Successful independent-referee scratch executions now reach the same terminal Critic as exact hash-verified model-authored source and raw metrics. Missing or changed files expose no content, and runtime leaves relevance and mathematical interpretation to the Critic rather than treating execution success as validation."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -307,12 +312,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The official Codex checkout was rechecked through dc08ace7; its central turn loop, router, orchestrator, parallel gate, collaboration lineage, and compaction policy remain unchanged. The frozen Hoeffding run exposed stale duplicate JSON narrative beside revised authoritative Markdown. Commit 75f05e46 makes future document-backed handoffs index-only and preserves complete source hashes for lineage. Focused core tests passed 71/71, downstream theory consumers passed 111/111, and the complete repository passed 901/901 in 69.51 seconds. Production Python is 149,997 lines. The consumed run was not rerun, resumed, repaired, hidden-evaluated again, or rescored.",
+    "verification": "The official Codex checkout was rechecked through dc08ace7; its central turn loop, router, orchestrator, parallel gate, collaboration lineage, and compaction policy remain unchanged. The frozen Hoeffding run exposed stale duplicate JSON narrative and a successful but nondiscriminating referee probe. Commit 75f05e46 makes future document-backed handoffs index-only; commit ba9e553f gives the existing Critic exact hash-verified probe source and raw metrics. The complete repository passed 902/902 in 69.54 seconds, and production Python is 149,991 lines. Deterministic artifact inspection resolved the immutable probe without a model call; the consumed run was not rerun, resumed, repaired, hidden-evaluated again, or rescored.",
     "live_validation_runs": 11,
     "fresh_live_client_tool_model_turns": 310,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics are each immutable 1/1 under their frozen automated protocols and retain their recorded operator caveats. All failed draws retain 0/1, and the aggregate ladder is 4/41. Commit 75f05e46 supplies future-task transport evidence only; exact Lean closure remains 0/2 and separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics are each immutable 1/1 under their frozen automated protocols and retain their recorded operator caveats. All failed draws retain 0/1, and the aggregate ladder is 4/41. Commits 75f05e46 and ba9e553f supply future-task mechanism evidence only; exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -838,8 +843,10 @@
     ]
   },
   "validated_change": {
-    "commit": "4ebef6c57ea2a279faf59bca2bd29e219be120ba",
+    "commit": "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
     "changes": [
+      "Commit ba9e553f completes the measured reviewer-observation boundary for future tasks: the existing terminal Critic receives exact hash-verified source and raw metrics for successful referee scratch probes, while missing or changed artifacts fail closed and expose no content. The model, not runtime, decides whether a probe discriminates a mathematical claim.",
+      "The change adds no formula, mathematical parser, model call, agent, scheduler, retry, fallback, or task-specific rule. Exact deterministic inspection of the immutable Hoeffding probe succeeded without rerunning or rescoring it; focused tests and the complete 902-test repository pass, and production Python decreased to 149,991 lines.",
       "The sole frozen Aitken GLS theory-only draw reached canonical runtime ACCEPTED and frozen hidden 1/1 under exact Haiku, with no code, simulation, or formal lane because those dimensions were not applicable. Its persistent 352-line Markdown/LaTeX derivation correctly establishes the core BLUE covariance decomposition, but operator audit records local strict-Loewner, whitening, rank-deficient, and nonlinear-boundary errors that both automated reviewers missed.",
       "The independent referee had one REJECTED_CONTRACT scratch and one failed Python scratch, no successful scratch execution, yet its report described all checks as passing. Commit 4ebef6c5 projects compact runtime-owned scratch status and bounded errors to future terminal Critics, while the referee and Critic remain responsible for mathematical interpretation. No mathematical rule, extra call, retry, repair agent, scheduler, output patch, rerun, hidden reevaluation, or rescore was added; focused, broader, and complete suites passed 71/71, 194/194, and 899/899.",
       "The sole frozen Mann-Whitney U R draw remains immutable 0/1. Frozen authority independently passed its model-authored theory 7/7 mechanically and 7/7 semantically after 9/9 calibration, exact R estimator 14/14, and exact empirical behavior 6/6 over 41 assignments, but the runtime stopped before Simulation because metric authoring never committed a valid protocol.",
