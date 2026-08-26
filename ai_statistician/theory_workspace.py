@@ -543,9 +543,14 @@ def run_theory_artifact_workspace(
         )
 
     def document_manifest(documents: Mapping[str, str]) -> dict[str, Any]:
+        snapshot_dir = resolved_workspace_dir
+        if snapshot_dir is not None:
+            snapshot_hash = stable_hash(dict(documents))
+            snapshot_dir = snapshot_dir / ".immutable_checkpoints" / snapshot_hash
+            _persist_theory_documents(documents, workspace_dir=snapshot_dir)
         return theory_workspace_document_manifest(
             documents,
-            workspace_dir=resolved_workspace_dir,
+            workspace_dir=snapshot_dir,
         )
 
     def source_discovery_evidence() -> dict[str, Any]:

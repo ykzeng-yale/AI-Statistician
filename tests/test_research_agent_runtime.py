@@ -17,6 +17,8 @@ from ai_statistician.agent_runtime import (
     RUNTIME_CONTINUATION_BUDGET_MARKER_KEY,
     TaskHandoffRecord,
     ToolCallRecord,
+    agent_task_reference,
+    materialize_agent_task_continuation,
     restore_agent_task_continuation,
     resolve_runtime_artifact_references,
     runtime_artifact_reference,
@@ -2385,6 +2387,209 @@ def test_initial_lane_coverage_does_not_interrupt_bound_source_owner_loop() -> N
 
     assert continued is result
     assert continued.next_task is source_owner_task
+
+
+def test_semantic_review_revision_precedes_unvisited_lane_coverage() -> None:
+    question = OpenResearchQuestion(
+        id="generic-reviewed-source-backedge",
+        title="Generic reviewed source backedge",
+        description="Return exact review observations to the source owner first.",
+    )
+    context = _full_evidence_context(question.id)
+    context["architect_runtime_plan"]["evidence_contract"][
+        "recommended_research_path"
+    ] = "dual_track"
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_subsystem": "AlgorithmEngineer",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
+    source_task = AgentTask(
+        task_id="algorithm:generic-reviewed-source-backedge",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Author the exact implementation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": context,
+        },
+    )
+    continuation_id, continuation, continuation_artifacts = (
+        materialize_agent_task_continuation(source_task)
+    )
+    work_order = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewWorkOrder",
+        "source_subsystem": "AlgorithmEngineer",
+        "source_task_id": source_task.task_id,
+        "source_task_ref": agent_task_reference(source_task),
+        "source_task_continuation_id": continuation_id,
+        "source_task_continuation_hash": runtime_module.stable_hash(continuation),
+        "review_revision_count": 0,
+    }
+    work_order_id = "semantic-review-work-order:generic"
+    reviewer_task = AgentTask(
+        task_id="semantic-review:generic-reviewed-source-backedge",
+        owner_subsystem=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        objective="Review the exact source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "work_order_id": work_order_id,
+            "work_order_hash": runtime_module.stable_hash(work_order),
+        },
+    )
+    source_revision_task = replace(
+        source_task,
+        task_id="semantic-review-producer-regenerate:generic",
+        inputs={
+            **source_task.inputs,
+            "environment_feedback": {
+                "feedback_type": "generated_code_semantic_review_feedback",
+                "source_subsystem": "AlgorithmEngineer",
+                "semantic_review_execution_id": "review-execution:generic",
+                "semantic_review_packet_id": "review-packet:generic",
+                "semantic_review_packet_hash": "a" * 64,
+            },
+            "generated_code_semantic_review_revision_count": 1,
+        },
+    )
+    result = AgentStepResult(
+        status="REVISE",
+        rationale="Independent review returned exact source observations.",
+        next_task=source_revision_task,
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={
+            "theory:generic": {"packet_id": "theory:generic"},
+            **continuation_artifacts,
+            work_order_id: work_order,
+        },
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=9,
+        task=reviewer_task,
+        subsystem_name=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        result=result,
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="required",
+        ),
+    )
+
+    assert continued is result
+    assert continued.next_task is source_revision_task
+    assert continued.next_task.owner_subsystem == "AlgorithmEngineer"
+
+
+def test_canonical_context_preserves_accepted_lane_identity() -> None:
+    question = OpenResearchQuestion(
+        id="generic-durable-lane-completion",
+        title="Generic durable lane completion",
+        description="Promote reviewed primary artifacts without regenerating them.",
+    )
+    context = _full_evidence_context(question.id)
+    context["architect_runtime_plan"]["subsystem_execution_plan"] = [
+        {"subsystem": "AlgorithmEngineer"},
+        {"subsystem": "SimulationEvaluator"},
+        {"subsystem": "CriticEvaluator"},
+    ]
+    context.update(
+        {
+            "algorithm_sandbox_manifest_id": "algorithm:accepted",
+            "simulation_manifest_id": "simulation:accepted",
+            "accepted_generated_code_semantic_reviews": [
+                {
+                    "source_subsystem": "AlgorithmEngineer",
+                    "source_manifest_id": "algorithm:accepted",
+                    "overall_verdict": "ACCEPT",
+                    "parent_artifact_ids": {
+                        "theory_packet_id": "theory:generic"
+                    },
+                },
+                {
+                    "source_subsystem": "SimulationEvaluator",
+                    "source_manifest_id": "simulation:accepted",
+                    "overall_verdict": "ACCEPT",
+                    "parent_artifact_ids": {
+                        "theory_packet_id": "theory:generic",
+                        "algorithm_sandbox_manifest_id": "algorithm:accepted",
+                    },
+                },
+            ],
+            "upstream_algorithm_handoff": {
+                "theory_packet_id": "theory:generic",
+                "algorithm_sandbox_manifest_id": "algorithm:accepted",
+                "semantic_review_packet_id": "algorithm-review:accepted",
+                "semantic_review_packet_hash": "b" * 64,
+            },
+        }
+    )
+    critic_task = AgentTask(
+        task_id="critic:generic-durable-lane-completion",
+        owner_subsystem="CriticEvaluator",
+        objective="Review the completed primary evidence lanes.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "algorithm_sandbox_manifest_id": "algorithm:stale-parent",
+            "simulation_manifest_id": "simulation:accepted",
+            "architect_context": context,
+        },
+    )
+    review_packet = {
+        "artifact_kind": "GeneratedCodeSemanticReviewPacket",
+        "packet_id": "simulation-review:accepted",
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation:accepted",
+        "source_manifest_hash": "c" * 64,
+        "overall_verdict": "ACCEPT",
+    }
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Independent review accepted the exact simulation artifact.",
+        produced_artifacts={review_packet["packet_id"]: review_packet},
+        next_task=critic_task,
+    )
+
+    continued = _runtime_transition_policy(
+        iteration=11,
+        task=AgentTask(
+            task_id="semantic-review:generic-durable-lane-completion",
+            owner_subsystem=(
+                runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+            ),
+            objective="Review the exact simulation source.",
+        ),
+        subsystem_name=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        result=result,
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts={"theory:generic": {"packet_id": "theory:generic"}},
+        ),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="capability_eval",
+            formal_verification_policy="advisory",
+        ),
+    )
+
+    assert continued.next_task is not None
+    assert continued.next_task.owner_subsystem == "CriticEvaluator"
+    coverage = continued.observations[-1]
+    assert coverage.observation_type == "runtime_required_evidence_lane_continuation"
+    assert coverage.payload["executed_subsystems"] == [
+        "AlgorithmEngineer",
+        "SimulationEvaluator",
+    ]
+    assert coverage.payload["remaining_primary_subsystems"] == []
 
 
 def test_lane_coverage_rejects_outcome_driven_confirmatory_source_revision() -> None:

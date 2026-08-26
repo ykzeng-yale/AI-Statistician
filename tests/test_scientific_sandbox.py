@@ -1666,7 +1666,8 @@ def test_live_estimator_bound_python_normalizes_numpy_callback_values(
         "def run_sandbox(seed, replicates, estimators):\n"
         "    values = np.asarray([seed, replicates], dtype=float)\n"
         "    fitted = estimators['candidate']({'values': values})\n"
-        "    return {'estimate': fitted['estimate'], 'n': replicates}\n"
+        "    return {'estimate': fitted['estimate'], 'n': replicates, "
+        "'checks': {'finite': np.bool_(np.isfinite(fitted['estimate']))}}\n"
     )
 
     result = execute_scientific_sandbox(
@@ -1690,7 +1691,11 @@ def test_live_estimator_bound_python_normalizes_numpy_callback_values(
     )
 
     assert result.status == "EXECUTED"
-    assert result.metrics == {"estimate": 6, "n": 5}
+    assert result.metrics == {
+        "estimate": 6,
+        "n": 5,
+        "checks": {"finite": True},
+    }
     assert result.estimator_invocation_counts == {"candidate": 1}
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -1214,6 +1215,10 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     assert checkpoint["changed_document_paths"] == [
         "derivations/progress.md"
     ]
+    checkpoint_manifest = checkpoint["theory_workspace_manifest"]
+    assert ".immutable_checkpoints" in Path(
+        checkpoint_manifest["workspace_root"]
+    ).parts
     session_ref = checkpoint["client_tool_session_ref"]
     assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
     artifacts, documents = load_theory_progress_checkpoint_state(
@@ -1306,6 +1311,15 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
 
     document_path = tmp_path / "theory" / "derivations" / "progress.md"
     document_path.write_text(markdown + "tampered\n", encoding="utf-8")
+    _, checkpoint_documents = load_theory_progress_checkpoint_state(
+        checkpoint,
+        question_id="q1",
+    )
+    assert checkpoint_documents == {"derivations/progress.md": markdown}
+    snapshot_path = Path(
+        checkpoint["theory_workspace_manifest"]["documents"][0]["path"]
+    )
+    snapshot_path.write_text(markdown + "tampered\n", encoding="utf-8")
     with pytest.raises(ValueError, match="document hash mismatch"):
         load_theory_progress_checkpoint_state(
             checkpoint,
@@ -1926,6 +1940,15 @@ def test_document_authority_persists_exact_math_and_small_handoff(
     assert document_tool.strict is True
     assert document_tool.input_schema["required"] == ["path", "content"]
     assert theory_workspace_manifest_errors(result.core_packet, required=True) == []
+    manifest = result.core_packet["theory_workspace_manifest"]
+    assert ".immutable_checkpoints" in Path(manifest["workspace_root"]).parts
+    assert load_theory_workspace_documents(result.core_packet) == {
+        "derivations/C1.md": markdown
+    }
+    (tmp_path / "theory" / "derivations" / "C1.md").write_text(
+        markdown + "mutable revision\n",
+        encoding="utf-8",
+    )
     assert load_theory_workspace_documents(result.core_packet) == {
         "derivations/C1.md": markdown
     }

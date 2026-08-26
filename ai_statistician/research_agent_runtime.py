@@ -4325,7 +4325,7 @@ def _runtime_outer_graph_context(
     ):
         value = str(inputs.get(field, "") or "").strip()
         if value:
-            context[field] = value
+            context.setdefault(field, value)
     context_field_by_kind = {
         "TheoryDerivationPacket": "theory_packet_id",
         "RuntimeTheoryDerivationPacket": "theory_packet_id",
@@ -4781,24 +4781,6 @@ def _runtime_transition_policy(
         )
         if continuation is not None:
             return continuation
-    next_context = next_task.inputs.get("architect_context", {})
-    completed_next_lane = bool(
-        isinstance(next_context, Mapping)
-        and next_task.owner_subsystem
-        in _runtime_executed_subsystems(architect_context=next_context)
-    )
-    if completed_next_lane and subsystem_name != "CriticEvaluator":
-        continuation = _runtime_outer_graph_continuation(
-            iteration=iteration,
-            task=task,
-            subsystem_name=subsystem_name,
-            result=result,
-            blackboard=blackboard,
-            runtime_config=runtime_config,
-            proposed_next_task=next_task,
-        )
-        if continuation is not None:
-            return continuation
     reviewer_source_revision = (
         subsystem_name == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
         and result.status == "REVISE"
@@ -4833,9 +4815,7 @@ def _runtime_transition_policy(
                     payload={
                         "review_task_id": task.task_id,
                         "proposed_source_task_id": next_task.task_id,
-                        "proposed_source_subsystem": (
-                            next_task.owner_subsystem
-                        ),
+                        "proposed_source_subsystem": next_task.owner_subsystem,
                         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     },
                 ),
@@ -4846,6 +4826,24 @@ def _runtime_transition_policy(
                 "generated_code_semantic_review_source_lineage_invalid"
             ),
         )
+    next_context = next_task.inputs.get("architect_context", {})
+    completed_next_lane = bool(
+        isinstance(next_context, Mapping)
+        and next_task.owner_subsystem
+        in _runtime_executed_subsystems(architect_context=next_context)
+    )
+    if completed_next_lane and subsystem_name != "CriticEvaluator":
+        continuation = _runtime_outer_graph_continuation(
+            iteration=iteration,
+            task=task,
+            subsystem_name=subsystem_name,
+            result=result,
+            blackboard=blackboard,
+            runtime_config=runtime_config,
+            proposed_next_task=next_task,
+        )
+        if continuation is not None:
+            return continuation
     return result
 
 

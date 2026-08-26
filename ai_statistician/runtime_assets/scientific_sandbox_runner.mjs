@@ -167,8 +167,8 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `    raise RuntimeError("generated simulation did not define callable run_sandbox")\n` +
       `try:\n` +
       (hasInputArtifacts
-        ? `    _ai_stat_result = _ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators, artifacts=_ai_stat_input_artifacts)\n`
-        : `    _ai_stat_result = _ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators)\n`) +
+        ? `    _ai_stat_result = _ai_stat_json_native(_ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators, artifacts=_ai_stat_input_artifacts))\n`
+        : `    _ai_stat_result = _ai_stat_json_native(_ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators))\n`) +
       `except Exception as _ai_stat_error:\n` +
       `    if _ai_stat_runtime_failure["exception"] is _ai_stat_error:\n` +
       `        raise RuntimeError(_ai_stat_runtime_failure["error_message"]) from _ai_stat_error\n` +
