@@ -17,7 +17,7 @@ from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
 from .theory_workspace import load_theory_workspace_document_rows
 
 
-CRITIC_EVALUATOR_SCHEMA_VERSION = 2
+CRITIC_EVALUATOR_SCHEMA_VERSION = 3
 CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE = "LLM_CRITIC_EVALUATOR_PROPOSAL_NOT_PROOF_EVIDENCE"
 CRITIC_EVALUATOR_BOUNDARY = (
     "LLM CriticEvaluator packets are observation and causal-assessment artifacts "
@@ -27,6 +27,7 @@ CRITIC_EVALUATOR_BOUNDARY = (
     "AXLE/local Lean/kernel verification records."
 )
 CRITIC_RESEARCH_DIMENSIONS = (
+    "source_replication",
     "theory",
     "scientific_code",
     "empirical",
@@ -179,6 +180,14 @@ def build_critic_evaluator_prompt(
         "NO_BLOCKING_FAILURE, an empty observed_failure, and no critic_findings. Assess every "
         "required dimension and obey dimension_requirements: ACCEPT requires required="
         "SUPPORTED; optional gaps must be disclosed; not_applicable means NOT_REQUESTED. "
+        "For source_replication, audit the hash-loaded model-authored Markdown report "
+        "against the immutable execution observation and every exact author-read source "
+        "range exposed in that dimension. A zero return code establishes execution only; "
+        "it does not establish report fidelity, algorithm validity, expected output, or "
+        "performance. Challenge internal contradictions, unsupported success claims, "
+        "source/version/configuration discrepancies, and incomplete unresolved-gap "
+        "disclosure. If required source, report, or execution identity is unavailable or "
+        "hash-mismatched, use INCONCLUSIVE rather than trusting a local ACCEPT status. "
         "For theory, audit authoritative Markdown/LaTeX; never use preflight ACCEPT or the "
         "claim index as correctness evidence. Falsify decisive transitions, including active "
         "inference-bearing statements outside the claim index. Sources and referee reports are claims. "
@@ -257,7 +266,7 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
     ],
     "dimension_assessments": [
         {
-            "dimension": "theory | scientific_code | empirical | formal",
+            "dimension": "source_replication | theory | scientific_code | empirical | formal",
             "status": "SUPPORTED | INCONCLUSIVE | CONTRADICTED | NOT_REQUESTED",
             "evidence_refs": ["canonical evidence path or artifact id"],
             "rationale": "short evidence-grounded rationale",
@@ -273,7 +282,7 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
     "research_disposition": {
         "status": "ACCEPT | INCONCLUSIVE | REJECT",
         "blocking_dimensions": [
-            "theory | scientific_code | empirical | formal, or empty"
+            "source_replication | theory | scientific_code | empirical | formal, or empty"
         ],
         "rationale": "short evidence-grounded rationale",
     },
@@ -297,7 +306,7 @@ CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
         "coordination_assessment": {"type": "object"},
         "evidence_boundary_audit": {"type": "array", "minItems": 1},
         "critic_findings": {"type": "array"},
-        "dimension_assessments": {"type": "array", "minItems": 4},
+        "dimension_assessments": {"type": "array", "minItems": 5},
         "gap_disclosure": {"type": "object"},
         "research_disposition": {"type": "object"},
     },
@@ -705,6 +714,267 @@ def _critic_scratch_observation(raw: Mapping[str, Any]) -> dict[str, Any]:
     return observation
 
 
+def _critic_source_replication_view(
+    *,
+    question_id: str,
+    artifacts: Mapping[str, Any],
+    research_sources: ResearchSourceSnapshot | None,
+) -> dict[str, Any]:
+    """Load the latest runtime-bound source report and observations for review."""
+
+    audit = {
+        "checkpoint_present": False,
+        "lineage_verified": False,
+        "report_content_loaded": False,
+        "source_execution_status": "",
+        "author_read_ref_count": 0,
+        "resolved_exact_source_count": 0,
+        "unresolved_source_ref_count": 0,
+        "unresolved_gap_count": 0,
+        "report_text_persisted": False,
+        "source_text_persisted": False,
+    }
+    checkpoint: dict[str, Any] = {}
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        if (
+            isinstance(artifact, Mapping)
+            and artifact.get("artifact_kind") == "SourceReplicationCheckpoint"
+            and artifact.get("checkpoint_id") == artifact_id
+            and artifact.get("question_id") == question_id
+        ):
+            checkpoint = deepcopy(dict(artifact))
+            break
+    if not checkpoint:
+        return {
+            "present": False,
+            "lineage_verified": False,
+            "report_document": {
+                "content_loaded": False,
+                "content": "",
+                "load_error": "source_replication_checkpoint_missing",
+            },
+            "source_execution": {"present": False},
+            "author_source_observations": {
+                "author_read_ref_count": 0,
+                "selected_ref_count": 0,
+                "resolved_exact_source_count": 0,
+                "unresolved_selected_ref_count": 0,
+                "observations": [],
+                "transient_model_context": True,
+            },
+            "unresolved_gaps": [],
+            "runtime_audit": audit,
+            "boundary": (
+                "No runtime-validated source checkpoint was available. Missing "
+                "source evidence cannot be inferred from a local task status."
+            ),
+        }
+
+    errors: list[str] = []
+    checkpoint_id = str(checkpoint.get("checkpoint_id", "") or "")
+    workspace_evidence_id = str(
+        checkpoint.get("workspace_evidence_id", "") or ""
+    )
+    workspace_evidence_hash = str(
+        checkpoint.get("workspace_evidence_hash", "") or ""
+    )
+    if not (
+        checkpoint.get("model_authored_report") is True
+        and checkpoint.get("runtime_edited_report") is False
+        and checkpoint.get("runtime_edited_source") is False
+        and checkpoint.get("kernel_verified") is False
+    ):
+        errors.append("checkpoint_evidence_boundary_mismatch")
+
+    source_ref = checkpoint.get("source_replication_manifest_ref", {})
+    source_ref = dict(source_ref) if isinstance(source_ref, Mapping) else {}
+    source_artifact_id = str(source_ref.get("artifact_id", "") or "")
+    raw_source_manifest = artifacts.get(source_artifact_id, {})
+    source_manifest = (
+        deepcopy(dict(raw_source_manifest))
+        if isinstance(raw_source_manifest, Mapping)
+        else {}
+    )
+    declared_source_hash = str(source_manifest.get("manifest_hash", "") or "")
+    unsigned_source_manifest = deepcopy(source_manifest)
+    unsigned_source_manifest.pop("manifest_hash", None)
+    source_lineage_verified = bool(
+        source_artifact_id
+        and source_manifest.get("artifact_kind") == "SourceReplicationManifest"
+        and source_manifest.get("artifact_id") == source_artifact_id
+        and source_manifest.get("question_id") == question_id
+        and source_manifest.get("runtime_generated") is True
+        and source_manifest.get("model_authored") is False
+        and source_manifest.get("command_owned_by_model") is False
+        and source_manifest.get("runtime_edited_source") is False
+        and declared_source_hash
+        and stable_hash(unsigned_source_manifest) == declared_source_hash
+        and source_ref.get("manifest_hash") == declared_source_hash
+        and source_ref.get("execution_status")
+        == source_manifest.get("execution_status")
+        and source_ref.get("stdout_sha256")
+        == source_manifest.get("stdout_sha256")
+    )
+    if not source_lineage_verified:
+        errors.append("source_execution_lineage_mismatch")
+    if research_sources is not None and (
+        source_manifest.get("source_snapshot_hash")
+        != research_sources.snapshot_hash
+    ):
+        errors.append("source_snapshot_binding_mismatch")
+
+    raw_workspace = artifacts.get(workspace_evidence_id, {})
+    workspace = (
+        deepcopy(dict(raw_workspace))
+        if isinstance(raw_workspace, Mapping)
+        else {}
+    )
+    workspace_source_refs = workspace.get("source_replication_refs", [])
+    workspace_lineage_verified = bool(
+        workspace_evidence_id
+        and workspace_evidence_hash
+        and stable_hash(workspace) == workspace_evidence_hash
+        and workspace.get("artifact_kind") == "TheoryDeveloperWorkspaceEvidence"
+        and workspace.get("artifact_id") == workspace_evidence_id
+        and workspace.get("question_id") == question_id
+        and workspace.get("disposition")
+        == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED"
+        and workspace.get("checkpoint_committed") is True
+        and workspace.get("model_owned_source_report") is True
+        and workspace.get("model_owned_theory") is False
+        and workspace.get("runtime_edited_source") is False
+        and workspace.get("runtime_edited_theory") is False
+        and isinstance(workspace_source_refs, list)
+        and any(
+            isinstance(row, Mapping)
+            and all(
+                row.get(key) == source_ref.get(key)
+                for key in (
+                    "artifact_id",
+                    "manifest_hash",
+                    "execution_status",
+                    "stdout_sha256",
+                )
+            )
+            for row in workspace_source_refs
+        )
+    )
+    if not workspace_lineage_verified:
+        errors.append("source_workspace_lineage_mismatch")
+
+    report = checkpoint.get("report_document", {})
+    report = deepcopy(dict(report)) if isinstance(report, Mapping) else {}
+    report_documents = workspace.get("theory_workspace_manifest", {})
+    report_documents = (
+        report_documents.get("documents", [])
+        if isinstance(report_documents, Mapping)
+        else []
+    )
+    report_bound = bool(
+        report
+        and report in report_documents
+        and report.get("relative_path")
+        in (workspace.get("changed_document_paths", []) or [])
+    )
+    report_content, report_errors = read_hash_bound_utf8_file(report)
+    if not report_bound:
+        report_errors = (*report_errors, "report_workspace_binding_mismatch")
+    if report_errors:
+        report_content = ""
+        errors.extend(report_errors)
+    report_load_error = ",".join(report_errors)
+
+    raw_source_read_refs = workspace.get("source_read_refs", [])
+    source_read_refs = (
+        list(raw_source_read_refs)
+        if isinstance(raw_source_read_refs, list)
+        else []
+    )
+    source_observations = _critic_resolved_source_observations(
+        source_read_refs=source_read_refs,
+        research_sources=research_sources,
+    )
+    if int(source_observations.get("unresolved_selected_ref_count", 0) or 0):
+        errors.append("source_observation_identity_mismatch")
+    unresolved_gaps = checkpoint.get("unresolved_gaps", [])
+    unresolved_gaps = (
+        [str(value) for value in unresolved_gaps if str(value).strip()]
+        if isinstance(unresolved_gaps, list)
+        else []
+    )
+    if not isinstance(checkpoint.get("unresolved_gaps"), list):
+        errors.append("unresolved_gaps_not_an_array")
+
+    lineage_verified = not errors
+    execution_keys = (
+        "execution_status", "returncode", "source_snapshot_id",
+        "source_snapshot_hash", "source_commit", "executed_entrypoint_sha256",
+        "environment_lock_sha256", "python_version", "package_versions",
+        "raw_stdout", "raw_stderr", "stdout_sha256", "stderr_sha256", "errors",
+        "source_mutated", "staged_source_inputs_mutated",
+        "unexpected_workspace_artifacts", "proof_evidence_status",
+    )
+    execution_projection = {
+        "present": bool(source_manifest),
+        "artifact_id": source_artifact_id,
+        "manifest_hash": declared_source_hash,
+        "lineage_verified": source_lineage_verified,
+        **{key: deepcopy(source_manifest.get(key)) for key in execution_keys},
+    }
+    audit.update(
+        {
+            "checkpoint_present": True,
+            "lineage_verified": lineage_verified,
+            "report_content_loaded": bool(report_content),
+            "source_execution_status": str(
+                source_manifest.get("execution_status", "") or ""
+            ),
+            "author_read_ref_count": source_observations[
+                "author_read_ref_count"
+            ],
+            "resolved_exact_source_count": source_observations[
+                "resolved_exact_source_count"
+            ],
+            "unresolved_source_ref_count": source_observations[
+                "unresolved_selected_ref_count"
+            ],
+            "unresolved_gap_count": len(unresolved_gaps),
+        }
+    )
+    return {
+        "present": True,
+        "checkpoint_id": checkpoint_id,
+        "checkpoint_content_hash": stable_hash(checkpoint),
+        "lineage_verified": lineage_verified,
+        "lineage_errors": errors,
+        "runtime_completion_status": str(
+            checkpoint.get("runtime_completion_status", "") or ""
+        ),
+        "report_document": {
+            "document_id": str(report.get("document_id", "") or ""),
+            "relative_path": str(report.get("relative_path", "") or ""),
+            "sha256": str(report.get("sha256", "") or ""),
+            "byte_size": int(report.get("byte_size", 0) or 0),
+            "content_loaded": bool(report_content),
+            "content": report_content,
+            "load_error": report_load_error,
+        },
+        "source_execution": execution_projection,
+        "author_source_observations": source_observations,
+        "unresolved_gaps": unresolved_gaps,
+        "readiness_rationale": str(
+            checkpoint.get("readiness_rationale", "") or ""
+        ),
+        "runtime_audit": audit,
+        "boundary": (
+            "The report, immutable execution, and exact author-read source ranges "
+            "are transient Critic context. Execution success does not validate the "
+            "report's semantic claims, algorithm, outputs, or disclosed gaps; none "
+            "of these artifacts is theorem proof evidence."
+        ),
+    }
+
+
 def build_critic_canonical_evidence_view(
     *,
     question_id: str,
@@ -977,12 +1247,22 @@ def build_critic_canonical_evidence_view(
             formalization_manifest.get("proof_evidence_status", "") or ""
         ),
     }
+    source_replication_view = _critic_source_replication_view(
+        question_id=question_id,
+        artifacts=artifacts,
+        research_sources=research_sources,
+    )
     contract = dict(evidence_contract or {})
     research_evaluation = str(contract.get("evaluation_mode", "") or "") in {
         "research_eval",
         "capability_eval",
     }
     dimension_requirements = {
+        "source_replication": (
+            str(contract.get("source_replication_requirement", "optional") or "optional")
+            .strip()
+            .lower()
+        ),
         "theory": "required" if research_evaluation else "optional",
         "scientific_code": (
             "required"
@@ -1018,6 +1298,7 @@ def build_critic_canonical_evidence_view(
         "artifact_kind": "CriticCanonicalEvidenceView",
         "question_id": question_id,
         "dimension_requirements": dimension_requirements,
+        "source_replication": source_replication_view,
         "theory": theory_view,
         "scientific_code": algorithm_view,
         "empirical": simulation_view,
@@ -1028,29 +1309,30 @@ def build_critic_canonical_evidence_view(
             "registered_procedures",
         ],
         "boundary": (
-            "This view projects exact current artifact identities, independent review "
-            "bindings, generated execution outcomes, and formal authority. Omitted "
-            "legacy lane fields are not evidence of missing work."
+            "This view projects exact current artifact identities, source-replication "
+            "state, independent review bindings, generated execution outcomes, and "
+            "formal authority. Omitted legacy lane fields are not evidence of missing "
+            "work."
         ),
     }
     body["view_hash"] = stable_hash(body)
     return body
 
 
-def _critic_cited_source_observations(
+def _critic_resolved_source_observations(
     *,
-    authoritative_documents: list[Mapping[str, Any]],
     source_read_refs: list[Any],
     research_sources: ResearchSourceSnapshot | None,
+    selected_citation_refs: set[str] | None = None,
 ) -> dict[str, Any]:
-    document_text = "\n".join(
-        str(row.get("content", "") or "")
-        for row in authoritative_documents
-        if isinstance(row, Mapping)
-    )
+    """Resolve exact model-observed source ranges without persisting their text."""
+
     observations: list[dict[str, Any]] = []
     seen_refs: set[str] = set()
-    cited_ref_count = 0
+    selected_ref_count = 0
+    snapshot_identity_errors = (
+        research_sources.identity_errors() if research_sources is not None else []
+    )
     for raw_ref in source_read_refs:
         if not isinstance(raw_ref, Mapping):
             continue
@@ -1058,11 +1340,14 @@ def _critic_cited_source_observations(
         if (
             not citation_ref
             or citation_ref in seen_refs
-            or citation_ref not in document_text
+            or (
+                selected_citation_refs is not None
+                and citation_ref not in selected_citation_refs
+            )
         ):
             continue
         seen_refs.add(citation_ref)
-        cited_ref_count += 1
+        selected_ref_count += 1
         binding = {
             "citation_ref": citation_ref,
             "snapshot_id": str(raw_ref.get("snapshot_id", "") or ""),
@@ -1080,6 +1365,16 @@ def _critic_cited_source_observations(
                 {
                     **binding,
                     "status": "SNAPSHOT_UNAVAILABLE",
+                    "content": "",
+                }
+            )
+            continue
+        if snapshot_identity_errors:
+            observations.append(
+                {
+                    **binding,
+                    "status": "SNAPSHOT_STORAGE_IDENTITY_MISMATCH",
+                    "identity_errors": snapshot_identity_errors,
                     "content": "",
                 }
             )
@@ -1140,16 +1435,53 @@ def _critic_cited_source_observations(
         "author_read_ref_count": sum(
             1 for row in source_read_refs if isinstance(row, Mapping)
         ),
-        "cited_ref_count": cited_ref_count,
+        "selected_ref_count": selected_ref_count,
         "resolved_exact_source_count": sum(
             row.get("status") == "RESOLVED_EXACT_SOURCE"
             for row in observations
         ),
-        "unresolved_cited_ref_count": sum(
+        "unresolved_selected_ref_count": sum(
             row.get("status") != "RESOLVED_EXACT_SOURCE"
             for row in observations
         ),
         "observations": observations,
+        "transient_model_context": True,
+    }
+
+
+def _critic_cited_source_observations(
+    *,
+    authoritative_documents: list[Mapping[str, Any]],
+    source_read_refs: list[Any],
+    research_sources: ResearchSourceSnapshot | None,
+) -> dict[str, Any]:
+    document_text = "\n".join(
+        str(row.get("content", "") or "")
+        for row in authoritative_documents
+        if isinstance(row, Mapping)
+    )
+    selected_refs = {
+        str(row.get("citation_ref", "") or "").strip()
+        for row in source_read_refs
+        if isinstance(row, Mapping)
+        and str(row.get("citation_ref", "") or "").strip()
+        and str(row.get("citation_ref", "") or "").strip() in document_text
+    }
+    resolved = _critic_resolved_source_observations(
+        source_read_refs=source_read_refs,
+        research_sources=research_sources,
+        selected_citation_refs=selected_refs,
+    )
+    return {
+        "author_read_ref_count": resolved["author_read_ref_count"],
+        "cited_ref_count": resolved["selected_ref_count"],
+        "resolved_exact_source_count": resolved[
+            "resolved_exact_source_count"
+        ],
+        "unresolved_cited_ref_count": resolved[
+            "unresolved_selected_ref_count"
+        ],
+        "observations": resolved["observations"],
         "transient_model_context": True,
     }
 

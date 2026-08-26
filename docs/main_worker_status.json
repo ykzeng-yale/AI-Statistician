@@ -1,5 +1,5 @@
 {
-  "schema_version": 188,
+  "schema_version": 189,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,11 +7,11 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-nine consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw remains excluded because its benchmark is operator-invalid. A disjoint fiftieth L1 task now freezes exact replication of the unchanged PyOD v1.1.3 ABOD author example before any product call. Three exact sandbox reruns, nine mechanical cases, and six exact-Haiku semantic cases are calibrated; this activation contributes no capability credit until exactly one fresh product draw and one post-runtime hidden evaluation are consumed. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all fifty consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw remains excluded because its benchmark is operator-invalid. PyOD ABOD v1 completed the Codex-shaped external-source loop and passed 12/12 mechanical checks, but its required report semantics failed at 5/6 claims, so the frozen task is 0/1. The future-task Critic now independently sees the hash-loaded report, immutable execution, and exact author-read source ranges; two unused legacy side-audit modules were removed. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
   "latest_pyod_abod_l1_activation": {
     "task_id": "pyod_abod_example_public_replication",
     "family": "anomaly_detection_source_replication",
-    "status": "frozen_ready_exact_source_replication_before_first_live_product_model_run",
+    "status": "fresh_live_v1_runtime_accepted_hidden_source_report_semantic_failed",
     "public_authority": "Zhao, Nasrullah, and Li, JMLR 20(96), 2019; later author-maintained PyOD v1.1.3 example",
     "source_repository_commit": "690a0f25987fab0664b014bbc7121d999c92f5f6",
     "source_snapshot_hash": "aa5219ef58f5b24ae3bd8477668d7cb65163fed4e74f6e0d33bc66f324e2c82d",
@@ -27,10 +27,38 @@
     "preactivation_evaluator_model_calls": 2,
     "activation_commit": "7669de368038b9a7dc3534c1551cfe71b464ebcc",
     "activation_push_confirmed_on_work_branch_and_main": true,
-    "fresh_live_runs": 0,
+    "activation_identity_commit": "45a2271677b7428512f996fb5497451055c13581",
+    "first_runtime_model_call_occurred": true,
+    "fresh_live_runs": 1,
+    "runtime_head": "45a2271677b7428512f996fb5497451055c13581",
+    "run_path": "runs/main_worker_research_l1_pyod_abod_replication_20260826_v1_codex_external_state_exact_haiku",
+    "runtime_model_policy": "claude-haiku-4-5-20251001 for all seven enabled roles; no Sonnet, Opus, or automatic escalation",
+    "runtime_status": "ACCEPTED",
+    "runtime_research_evaluation": "1/1 complete and mode-conformant",
+    "runtime_topology": "Three outer traces: one Architect, one source workspace, and one Critic; two handoffs, five observations, and zero outer tool calls.",
+    "runtime_product_model_calls": 29,
+    "source_workspace": "One persistent source owner used 26 model turns and 31 model-selected tools; all tools executed. It ran the unchanged entrypoint once and wrote one 504-line Markdown report.",
+    "source_replication_checkpoint_id": "source_replication_checkpoint:842653347b820d07a10c",
+    "source_replication_manifest_id": "source_replication:4c952aaeaeb57155da60",
+    "source_replication_manifest_hash": "996ac281eeb4eb53f20412cab1a0eb6f8b8875536033f84a751b7c1acd93d116",
+    "source_replication_workspace_id": "source_replication_workspace:3f31abf81eede044b0e5",
+    "source_replication_workspace_hash": "35e01aad1841ca55b8ef5d5d57115c52d799955e774da57f324a567f4a01dc73",
+    "source_report_sha256": "2e78ef9ba61465a31616db28c5abea16d98ffd682d9ff1019449b6592e2276d3",
+    "hidden_mechanical_evaluation": "12/12 exact source checks passed",
+    "hidden_semantic_evaluation": "5/6 claims SATISFIED; claim 5 VIOLATED; candidate FAIL",
+    "hidden_semantic_failure": "The report said no source discrepancy was identified but missed the model-visible n_neighbors documentation default 10 versus executable constructor default 5.",
+    "operator_semantic_findings": "The report also reversed the ABOD outlier direction, overclaimed high accuracy and expected outputs, called the paper's explicit v0.7.0 version unspecified, and called a model-visible matplotlibrc absent.",
+    "critic_false_acceptance": "Runtime Critic did not receive the authoritative report, execution, or author-read source ranges and therefore accepted an all-not-applicable four-dimension view.",
+    "future_task_shared_mechanism": "Critic now audits source replication as a fifth generic dimension using transient hash-verified external state. Required source replication cannot be accepted without model support; persisted records retain compact identity audit only. No source rule, repair agent, content patch, retry, reviewer, scheduler, or model escalation was added.",
+    "operator_audit": "docs/operator_audits/pyod_abod_replication_l1_v1.md",
+    "runtime_manifest_sha256": "583d5e5a0678ddd90c548264c49e7bd4e3f258a8535bbbfeee074a21b5023f10",
+    "runtime_result_sha256": "395eea0717d6e2b4a61f703f1ec2e6560db8f1050a0a99857f72ebd9e1186d1f",
+    "hidden_gold_report_sha256": "6679783af62bdac1b7699b4a007307149aa96ea782b10e346cfe13dd57e87658",
+    "hidden_gold_evaluation": "0/1; required source-report semantics failed despite 12/12 mechanical source checks",
+    "model_draw_resampling_blocked": true,
     "formalization_requirement": "not_applicable",
     "formalizer_executed": false,
-    "ladder_state": "50 fully gold configured; 49 consumed; 4 trusted full-task passes; PyOD active and unconsumed"
+    "ladder_state": "50 fully gold configured and consumed; 4 trusted full-task passes; PyOD immutable 0/1"
   },
   "latest_one_way_anova_l0_activation": {
     "task_id": "one_way_normal_anova_f_test_known_result",
@@ -759,7 +787,8 @@
       "Commit 70f5d658 gives the independent theory referee the existing immutable ClientToolWorkspaceSessionRef, validates exact transcript and model/prompt/tool identity before checkpoint continuation, replaces per-tool redaction branches with compact lifecycle metadata, and expands nonmandatory workspace capacity to 24 turns and 48 calls. The model is asked to cover independently failing explicitly requested claim components; runtime still chooses no mathematics.",
       "Commit 3b28df58 requires a generated-code reviewer that voluntarily uses the exact-estimator probe to complete at least one successful execution that invokes the bound estimator before ACCEPT. Raw probe and terminal-validation failures return to the same reviewer session. Runtime supplies no contract case, scientific interpretation, source edit, repair agent, retry scheduler, or second conversation owner.",
       "Commit 173cabdb projects authoritative Theory documents to path, SHA-256, and line-count manifests for Algorithm and Simulation while exact text remains available through existing scoped read tools.",
-      "Commit 6658c762 reuses canonical document-authority derivation in hidden hydration and makes compact claim indexes navigation rather than the limit of independent mathematical review."
+      "Commit 6658c762 reuses canonical document-authority derivation in hidden hydration and makes compact claim indexes navigation rather than the limit of independent mathematical review.",
+      "Future source-replication criticism now loads the exact hash-bound Markdown report, immutable execution observation, and every exact source range read by the source owner into one terminal Critic call. Runtime persists only a compact identity audit, and required source replication cannot pass without model support. The unused token-overlap holdout runner and deterministic adversarial-intake side audit were removed."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -769,12 +798,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The official Codex checkout is rechecked through bde9db13. The frozen PyOD activation applies external hash-bound source state and same-session raw source-tool feedback without importing Codex transport, Guardian, thread storage, or scheduling. The current focused activation panel passes 102/102 and the complete repository passes 925/925.",
-    "live_validation_runs": 16,
-    "fresh_live_client_tool_model_turns": 567,
+    "verification": "The official Codex checkout is rechecked through bde9db13. PyOD exercised external hash-bound source state and same-session raw source-tool feedback without importing Codex transport, Guardian, thread storage, or scheduling. The frozen result is 0/1; the future-task source-Critic mechanism and side-audit removals pass the complete repository at 927/927.",
+    "live_validation_runs": 17,
+    "fresh_live_client_tool_model_turns": 593,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen automated protocols and recorded caveats. The variance-ratio benchmark remains operator-invalid; ANOVA and all other failed valid draws retain 0/1. The trusted aggregate is 4/49, and exact Lean closure remains 0/2 and separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen automated protocols and recorded caveats. The variance-ratio benchmark remains operator-invalid; PyOD, ANOVA, and all other failed valid draws retain 0/1. The trusted aggregate is 4/50, and exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -1659,9 +1688,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact McNemar, sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "924 passed in 78.70s",
-      "next_frozen_activation": "none currently authorized; all forty-nine scored draws are permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
-      "affected_subsystem_pytest": "The latest focused and architecture panel passed 184/184; the complete repository passed 924/924 in 78.70 seconds.",
+      "full_pytest": "927 passed in 78.00s",
+      "next_frozen_activation": "none currently authorized; all fifty scored draws are permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
+      "affected_subsystem_pytest": "The source-Critic and runtime panels passed; the complete repository passed 927/927 in 78.00 seconds.",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
@@ -1676,8 +1705,8 @@
       "hidden_source_harness_calibration": "6/6: gold accepted and five source, environment, execution, stdout, or sign variants rejected",
       "git_diff_check": "passed",
       "model_policy_audit": "production tiers remain Haiku or Sonnet with Opus rejected; tests and live evaluations remain pinned to claude-haiku-4-5-20251001",
-      "fresh_live_research_draws": 48,
-      "fresh_live_result": "Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit. The variance-ratio benchmark is operator-invalid and receives neither credit nor blame. ANOVA and all other failed valid draws retain immutable 0/1; ANOVA separately retains hidden code and empirical component passes. The trusted aggregate is 4/49.",
+      "fresh_live_research_draws": 49,
+      "fresh_live_result": "Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit. The variance-ratio benchmark is operator-invalid and receives neither credit nor blame. PyOD, ANOVA, and all other failed valid draws retain immutable 0/1; PyOD separately retains 12/12 exact mechanical source checks. The trusted aggregate is 4/50.",
       "latest_formal_draw": "BLOCKED and hidden 0/1 after two same-owner workspace segments, 24 model-authored source updates, 24 local Lean checks, 10 formal-RAG calls, one sorryAx elaboration, zero kernel-verified subclaims, zero full-theorem proofs, and one formal gap",
       "post_formal_draw_regression": "Commit fe7c7055 passed 124/124 focused checks and 854/854 overall in 68.22 seconds; explicit formal intent now reaches the actual evidence contract, axiom audit annotates proof-state feedback, and active-project indexed declaration source is available to the same Formalizer session without an LSP dependency. This cannot rescore the consumed draw.",
       "post_run_semantic_diagnostic": "Runtime preflight acceptance is not hidden theory authority: deterministic checks passed but the calibrated 12/12 semantic judge returned INCONCLUSIVE. Hidden empirical checks passed over 9,000 invocations, while hidden algorithm acceptance did not fully pass and runtime generated no simulation. Commit dd3cb36c fixes only the shared projection mechanism for future tasks.",
@@ -1689,9 +1718,10 @@
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
       "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
       "compiled_post_theory_transition": "Optional Theory plus required scientific code now routes the exact newly produced theory identity, original Architect plan, n_runs, and seed directly to AlgorithmEngineer with no second Architect model operation. Required-theory preflight and dependency rebuild routes remain unchanged.",
-      "runtime_core_growth": "research_agent_runtime.py is 24,962 lines and remains below the unchanged strict-under-25,000-line regression budget. AgentRuntime is 1,159 lines and the complete top-level Python package is 149,999 lines under its strict-under-150,000-line budget. The latest mechanism adds no module, outer interface, agent, call, turn, fallback, or scheduler."
+      "runtime_core_growth": "research_agent_runtime.py is 24,970 lines and remains below the unchanged strict-under-25,000-line regression budget. AgentRuntime is 1,159 lines and the complete top-level Python package is 149,859 lines across 139 modules under its strict-under-150,000-line budget. The latest mechanism removes two unused modules and adds no outer interface, agent, call, turn, fallback, or scheduler.",
+      "source_replication_critic_authority": "For future tasks only, terminal Critic receives the exact hash-loaded source report, immutable execution observation, and exact author-read source ranges. Required source replication cannot pass without model support; compact persisted audit contains no report or source text."
     },
-    "evidence_boundary": "All forty-nine scored tasks are consumed. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit with their recorded caveats. The variance-ratio benchmark is operator-invalid; all automatic 0/1 outcomes and scoped component evidence remain unchanged. The trusted aggregate is 4/49, no new draw is authorized, and exact development theorem closure remains 0/2."
+    "evidence_boundary": "All fifty scored tasks are consumed. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit with their recorded caveats. The variance-ratio benchmark is operator-invalid; all automatic 0/1 outcomes and scoped component evidence remain unchanged. The trusted aggregate is 4/50, no new draw is authorized, and exact development theorem closure remains 0/2."
   },
   "latest_component_evidence": {
     "id": "research_l0_scalar_control_variate_v1_codex_harness_exact_haiku_20260821",
@@ -2193,12 +2223,12 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/49 consumed tasks receive trustworthy capability credit. Beta-Binomial completed hidden theory, algorithm, and empirical authority. PyMLE completed exact source replication but has an operator-recorded semantic-judge false positive. Aitken GLS and Hoeffding U-statistics retain automated passes with explicit caveats. The variance-ratio benchmark is excluded as operator-invalid. One-way ANOVA is a valid 0/1 with hidden code and empirical component passes but failed required theory. Every failed draw retains its scoped evidence and immutable automatic outcome.",
+    "fully_gold_covered_research_tasks": "4/50 consumed tasks receive trustworthy capability credit. Beta-Binomial completed hidden theory, algorithm, and empirical authority. PyMLE completed exact source replication but has an operator-recorded semantic-judge false positive. Aitken GLS and Hoeffding U-statistics retain automated passes with explicit caveats. The variance-ratio benchmark is excluded as operator-invalid. PyOD ABOD is a valid 0/1 with 12/12 mechanical source checks but failed required report semantics; one-way ANOVA is a valid 0/1 with hidden code and empirical component passes but failed required theory. Every failed draw retains its scoped evidence and immutable automatic outcome.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24962,
+    "research_agent_runtime_lines": 24970,
     "scientific_code_workspace_lines": 2441,
     "theory_workspace_lines": 3689,
     "research_architect_lines": 5113,
@@ -2210,9 +2240,9 @@
     "client_tool_loop_lines": 1160,
     "agent_runtime_lines": 1159,
     "cli_lines": 7052,
-    "top_level_python_modules": 141,
-    "top_level_package_lines": 149999,
-    "latest_runtime_manifest_bytes": 54669
+    "top_level_python_modules": 139,
+    "top_level_package_lines": 149859,
+    "latest_runtime_manifest_bytes": 53938
   },
   "next_gates": [
     "Require schema v3 for every future canonical live-gold draw. Before the first product-model call, execute one frozen reference and behavioral negatives through the exact hidden candidate validators, cover every applicable public ABI clause, and retain an independent semantic plus domain-boundary audit. Do not mistake executable calibration for a proof over an infinite domain or encode boundary mathematics in runtime.",
@@ -2230,7 +2260,8 @@
     "Make trustworthy theory development the next scientific priority. Future known-result gold must include plausible wrong intermediate derivations and require the isolated referee to reconstruct load-bearing equation transitions from exact Markdown/LaTeX; do not force extra calls or encode task formulas merely to make a reviewer fail.",
     "Keep retry ownership singular. A provider adapter may retry only the identical unanswered request; a terminal provider or internal-tool error must preserve exact pending workspace state and stop. Any later continuation must be explicit, hash-bound, and visible in AgentRuntime. Do not restore whole-subsystem automatic replay or a Formalizer provider-retry task.",
     "Treat standalone Codex sandboxing as a candidate native Python/R execution backend, not as an adopted runtime dependency. Pin an audited Codex version and calibrate filesystem, network, process, resource, timeout, output, and artifact-hash behavior on macOS and Linux before it can sit beside Pyodide/WebR and Seatbelt.",
-    "Preserve Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics as the four tasks with trusted capability credit, preserve every operator-invalidated outcome without capability attribution, preserve all automatic 0/1 outcomes, and keep the trusted aggregate at 4/49. For future disjoint tasks, audit every hidden behavior atomically against an explicit visible clause before activation. Never rerun, resume, repair, hidden-evaluate, or rescore a consumed task.",
+    "Preserve PyOD ABOD source replication L1 v1 at immutable 0/1. Its exact source mechanics passed 12/12, but the Markdown missed a model-visible default-parameter discrepancy and contained further unsupported scientific claims. Treat the future source-Critic authority correction only as mechanism evidence; never rerun, resume, repair, hidden-evaluate again, rescore, or add an ABOD rule.",
+    "Preserve Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics as the four tasks with trusted capability credit, preserve every operator-invalidated outcome without capability attribution, preserve all automatic 0/1 outcomes, and keep the trusted aggregate at 4/50. For future disjoint tasks, audit every hidden behavior atomically against an explicit visible clause before activation. Never rerun, resume, repair, hidden-evaluate, or rescore a consumed task.",
     "Preserve Huber location L0 v1 at immutable 0/1. Treat commits 82083807, f5822f58, and a73be809 plus the one generic Haiku transport calibration as future-task harness evidence only; never rerun, resume, repair, or rescore Huber.",
     "Keep generated-code review model-owned in one isolated same-session tool loop: exact source plus raw execution enter the reviewer, substantive analysis lives in hashed Markdown, and runtime validates identity, evidence references, independence, and promotion. Return model-actionable terminal validation to that reviewer, but do not restore ordered dimensions, full-packet regeneration, a RepairAgent, Architect rerouting, or another scheduler.",
     "Preserve Uniform endpoint L0 v1 at immutable 0/1. Do not rerun, resume, repair, rescore, or feed hidden findings back to its source owners. Keep hidden empirical 8/8 as component evidence only; use commits b49a8f5a and 778b2aac solely as future-task regression evidence for full visible-ABI probing, executable-interface review, risk-directed theory review, canonical artifact parity, and auditable evaluator references.",

@@ -19294,6 +19294,9 @@ class CriticEvaluatorRuntimeSubsystem:
                 "runtime_audit"
             ]
         )
+        critic_source_replication_audit = dict(
+            canonical_evidence_view["source_replication"]["runtime_audit"]
+        )
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         proposal_validation_failure_id = ""
@@ -19488,6 +19491,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 canonical_evidence_view.get("view_hash", "") or ""
             ),
             "research_source_audit": critic_source_audit,
+            "source_replication_audit": critic_source_replication_audit,
             "research_disposition": dict(research_disposition),
             "coordination_assessment": dict(coordination_assessment),
             "critic_revision_round": critic_round,
@@ -19561,6 +19565,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 "architect_acceptance_gate": critic_control.get("acceptance_gate", ""),
                 "evidence_contract_decision": evidence_contract_decision,
                 "research_source_audit": critic_source_audit,
+                "source_replication_audit": critic_source_replication_audit,
             },
         )
         observations.append(
@@ -19598,6 +19603,9 @@ class CriticEvaluatorRuntimeSubsystem:
                         "final_acceptance_status"
                     ],
                     "research_source_audit": critic_source_audit,
+                    "source_replication_audit": (
+                        critic_source_replication_audit
+                    ),
                 },
             )
         )

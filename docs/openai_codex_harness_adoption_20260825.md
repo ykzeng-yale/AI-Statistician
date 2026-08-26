@@ -341,6 +341,37 @@ changes but do not alter this adopted model/tool/workspace lifecycle. Importing
 them would couple AI Statistician to Codex transport without improving theory,
 source replication, simulation, or Lean feedback.
 
+## Source-report authority in terminal criticism
+
+The first frozen PyOD draw validated the external-source loop and exposed the
+next missing authority edge. One persistent exact-Haiku source owner used 26
+model turns and 31 model-selected tools, executed the unchanged entrypoint once,
+and wrote a 504-line Markdown report. The runtime loop completed in three outer
+traces with no outer tool call. The hidden mechanical harness passed `12/12`, but
+the report failed calibrated semantic review at `5/6`: it declared that no
+source discrepancy existed while the model-visible ABOD docstring and
+constructor disagree on the default `n_neighbors` value. The immutable task is
+therefore `0/1`, not a harness success disguised as scientific success.
+
+The terminal Critic had accepted because the canonical evidence view did not
+include source replication. The future-task correction follows Codex's external-
+state principle directly. Critic now receives the exact hash-loaded Markdown
+report, bounded immutable execution observation, and every exact hash-bound
+source range read by the source owner. A zero return code is explicitly only
+execution evidence. Runtime verifies lineage and storage identity, while the
+model judges discrepancies, contradictions, unsupported success claims, and
+unresolved gaps. Report and source text are transient prompt context and are not
+copied into the persistent audit.
+
+This adds no repair agent, content patcher, source-specific rule, retry loop,
+reviewer, scheduler, or model escalation. It imports no Codex core component;
+the official checkout remains an audited design reference at `bde9db13`. Two
+unused legacy side-audit modules were removed instead: the token-overlap holdout
+runner and a deterministic adversarial-intake side path. The production package
+is now 149,859 lines across 139 modules, with the central runtime at 24,970 lines.
+The complete repository passes `927/927`. No model call, rerun, hidden
+reevaluation, or rescore occurred after the frozen PyOD result.
+
 ## Complete-randomization live validation
 
 The third disjoint post-adoption run exercised the lifecycle more sharply. In

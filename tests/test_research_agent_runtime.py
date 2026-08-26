@@ -1706,6 +1706,18 @@ def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() 
         "unresolved_cited_ref_count": 0,
         "source_text_persisted": False,
     }
+    assert critic_manifest["source_replication_audit"] == {
+        "checkpoint_present": False,
+        "lineage_verified": False,
+        "report_content_loaded": False,
+        "source_execution_status": "",
+        "author_read_ref_count": 0,
+        "resolved_exact_source_count": 0,
+        "unresolved_source_ref_count": 0,
+        "unresolved_gap_count": 0,
+        "report_text_persisted": False,
+        "source_text_persisted": False,
+    }
 
 
 def test_summary_flags_and_subclaims_do_not_satisfy_exact_theorem_gate() -> None:

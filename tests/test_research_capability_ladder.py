@@ -2711,7 +2711,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 49
+    assert readiness["consumed_scored_tasks"] == 50
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -4272,7 +4272,7 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 50
-    assert readiness["consumed_scored_tasks"] == 49
+    assert readiness["consumed_scored_tasks"] == 50
     assert readiness["fully_gold_configured_tasks"] == 50
     assert readiness["fully_gold_passed_tasks"] == 4
 
@@ -4307,7 +4307,7 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_pyod_abod_l1_is_frozen_before_its_first_product_draw() -> None:
+def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -4318,9 +4318,9 @@ def test_pyod_abod_l1_is_frozen_before_its_first_product_draw() -> None:
 
     assert candidate["level"] == "L1"
     assert candidate["family"] == "anomaly_detection_source_replication"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_source_replication_before_first_live_product_model_run"
+        "fresh_live_v1_runtime_accepted_hidden_source_report_semantic_failed"
     )
     assert candidate["source_snapshot_hash"] == (
         "aa5219ef58f5b24ae3bd8477668d7cb65163fed4e74f6e0d33bc66f324e2c82d"
@@ -4357,18 +4357,58 @@ def test_pyod_abod_l1_is_frozen_before_its_first_product_draw() -> None:
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["activation_identity_commit"] == (
+        "45a2271677b7428512f996fb5497451055c13581"
+    )
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_research_evaluation"] == (
+        "1/1 complete and mode-conformant"
+    )
+    assert evidence["runtime_outer_traces"] == 3
+    assert evidence["runtime_architect_traces"] == 1
+    assert evidence["runtime_handoffs"] == 2
+    assert evidence["runtime_observations"] == 5
+    assert evidence["runtime_outer_tool_calls"] == 0
+    assert evidence["runtime_product_model_calls"] == 29
+    assert evidence["source_replication_runs"] == 1
+    assert evidence["source_replication_checkpoint_id"] == (
+        "source_replication_checkpoint:842653347b820d07a10c"
+    )
+    assert evidence["source_replication_manifest_hash"] == (
+        "996ac281eeb4eb53f20412cab1a0eb6f8b8875536033f84a751b7c1acd93d116"
+    )
+    assert evidence["source_report_sha256"] == (
+        "2e78ef9ba61465a31616db28c5abea16d98ffd682d9ff1019449b6592e2276d3"
+    )
+    assert evidence["hidden_source_replication_checks"] == "12/12"
+    assert evidence["hidden_source_report_semantic_calibration"] == "6/6"
+    assert evidence["hidden_source_report_semantic_claims"] == (
+        "5/6 SATISFIED; claim 5 VIOLATED; candidate FAIL"
+    )
+    assert evidence["hidden_gold_evaluation"] == (
+        "0/1; exact source mechanics passed but required source-report semantics failed"
+    )
+    assert "n_neighbors" in evidence["hidden_semantic_failure"]
+    assert evidence["operator_audit_disposition"] == (
+        "OPERATOR_CONFIRMED_HIDDEN_SOURCE_REPORT_FAILURE"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 50
-    assert readiness["consumed_scored_tasks"] == 49
+    assert readiness["consumed_scored_tasks"] == 50
     assert readiness["fully_gold_configured_tasks"] == 50
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 4
+    assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
 
     visible_path = Path(candidate["visible_questions_path"])

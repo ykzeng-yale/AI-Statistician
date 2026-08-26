@@ -56,6 +56,13 @@ def _critic_packet() -> dict[str, object]:
         ],
         "dimension_assessments": [
             {
+                "dimension": "source_replication",
+                "status": "NOT_REQUESTED",
+                "evidence_refs": [],
+                "rationale": "Source replication was not requested.",
+                "gaps": [],
+            },
+            {
                 "dimension": "theory",
                 "status": "CONTRADICTED",
                 "evidence_refs": ["artifact:a", "artifact:b"],
@@ -152,7 +159,11 @@ def test_critic_can_accept_without_inventing_a_finding() -> None:
 
     assert validate_critic_evaluator_packet(packet) == []
 
-    packet["dimension_assessments"][0]["status"] = "INCONCLUSIVE"
+    next(
+        row
+        for row in packet["dimension_assessments"]
+        if row["dimension"] == "theory"
+    )["status"] = "INCONCLUSIVE"
     assert (
         "ACCEPT requires supported required dimensions, correctly marked "
         "not-applicable dimensions, no contradicted dimension, complete gap "
@@ -207,6 +218,7 @@ def test_canonical_evidence_view_excludes_legacy_simulation_flags() -> None:
     serialized = str(view)
     assert "legacy-only" not in serialized
     assert view["dimension_requirements"] == {
+        "source_replication": "optional",
         "theory": "optional",
         "scientific_code": "optional",
         "empirical": "optional",
@@ -754,11 +766,316 @@ def test_canonical_evidence_view_uses_task_intent_for_required_dimensions() -> N
     )
 
     assert view["dimension_requirements"] == {
+        "source_replication": "optional",
         "theory": "required",
         "scientific_code": "required",
         "empirical": "required",
         "formal": "not_applicable",
     }
+
+
+def test_source_replication_critic_loads_report_execution_and_author_reads(
+    tmp_path,
+) -> None:
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    source_text = (
+        "# Public API\n"
+        "The parameter documentation says the default is 10.\n"
+        "def estimator(parameter=5):\n"
+        "    return parameter\n"
+    )
+    source_path = source_root / "implementation.py"
+    source_path.write_text(source_text, encoding="utf-8")
+    source_manifest_path = tmp_path / "source-manifest.json"
+    source_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "snapshot_id": "source-replication-snapshot",
+                "source_horizon": "2026-01-01",
+                "source_root": "sources",
+                "documents": [
+                    {
+                        "document_id": "implementation",
+                        "title": "Implementation",
+                        "source_kind": "source_code",
+                        "relative_path": "implementation.py",
+                        "sha256": hashlib.sha256(
+                            source_text.encode("utf-8")
+                        ).hexdigest(),
+                        "model_visible": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    research_sources = load_research_source_snapshot(source_manifest_path)
+    exact_source = research_sources.read(
+        "implementation", line_start=1, line_end=4
+    )
+
+    report_content = (
+        "# Replication report\n\n"
+        "The source executed successfully. No source discrepancies were found.\n"
+    )
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    report_path = workspace_dir / "report.md"
+    report_path.write_text(report_content, encoding="utf-8")
+    report_manifest = theory_workspace_document_manifest(
+        {"report.md": report_content},
+        workspace_dir=workspace_dir,
+    )
+    report_document = deepcopy(report_manifest["documents"][0])
+
+    source_unsigned = {
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:test",
+        "question_id": "source-replication-test",
+        "runtime_generated": True,
+        "model_authored": False,
+        "command_owned_by_model": False,
+        "runtime_edited_source": False,
+        "execution_status": "EXECUTED",
+        "returncode": 0,
+        "source_snapshot_id": research_sources.snapshot_id,
+        "source_snapshot_hash": research_sources.snapshot_hash,
+        "source_commit": "public-commit",
+        "executed_entrypoint_sha256": exact_source["sha256"],
+        "environment_lock_sha256": "e" * 64,
+        "python_version": "3.12.0",
+        "package_versions": {"example": "1.0"},
+        "raw_stdout": "metric=0.75\n",
+        "raw_stderr": "",
+        "stdout_sha256": hashlib.sha256(b"metric=0.75\n").hexdigest(),
+        "stderr_sha256": hashlib.sha256(b"").hexdigest(),
+        "errors": [],
+        "source_mutated": False,
+        "staged_source_inputs_mutated": False,
+        "unexpected_workspace_artifacts": [],
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    source_manifest_hash = stable_hash(source_unsigned)
+    source_manifest = {
+        **source_unsigned,
+        "manifest_hash": source_manifest_hash,
+    }
+    source_ref = {
+        "artifact_id": source_manifest["artifact_id"],
+        "manifest_hash": source_manifest_hash,
+        "execution_status": "EXECUTED",
+        "stdout_sha256": source_manifest["stdout_sha256"],
+    }
+    task_intent = {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    checkpoint_body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationCheckpoint",
+        "question_id": "source-replication-test",
+        "workspace_id": "source-workspace:test",
+        "task_intent": task_intent,
+        "source_replication_manifest_ref": source_ref,
+        "report_document": report_document,
+        "readiness_rationale": "Ready for independent source review.",
+        "unresolved_gaps": ["Only one execution was observed."],
+        "model_authored_report": True,
+        "runtime_edited_report": False,
+        "runtime_edited_source": False,
+        "kernel_verified": False,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    checkpoint_id = (
+        "source_replication_checkpoint:" + stable_hash(checkpoint_body)[:20]
+    )
+    checkpoint_core = {
+        **checkpoint_body,
+        "checkpoint_id": checkpoint_id,
+    }
+    workspace = {
+        "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+        "artifact_id": "source_replication_workspace:test",
+        "question_id": "source-replication-test",
+        "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
+        "checkpoint_committed": True,
+        "submitted_core_packet_hash": stable_hash(checkpoint_core),
+        "model_owned_source_report": True,
+        "model_owned_theory": False,
+        "runtime_edited_source": False,
+        "runtime_edited_theory": False,
+        "changed_document_paths": ["report.md"],
+        "theory_workspace_manifest": report_manifest,
+        "source_replication_refs": [source_ref],
+        "source_read_refs": [
+            {
+                "snapshot_id": research_sources.snapshot_id,
+                "snapshot_hash": research_sources.snapshot_hash,
+                "document_id": "implementation",
+                "document_sha256": exact_source["sha256"],
+                "line_start": 1,
+                "line_end": 4,
+                "content_sha256": exact_source["content_sha256"],
+                "citation_ref": exact_source["citation_ref"],
+            }
+        ],
+    }
+    checkpoint = {
+        **checkpoint_core,
+        "workspace_evidence_id": workspace["artifact_id"],
+        "workspace_evidence_hash": stable_hash(workspace),
+        "runtime_completion_status": (
+            "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+        ),
+        "boundary": "Source replication evidence only.",
+    }
+    artifacts = {
+        source_manifest["artifact_id"]: source_manifest,
+        workspace["artifact_id"]: workspace,
+        checkpoint_id: checkpoint,
+    }
+    evidence_contract = {
+        "source_replication_requirement": "required",
+        "dimension_requirements": {
+            "theory": "not_applicable",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    }
+
+    view = build_critic_canonical_evidence_view(
+        question_id="source-replication-test",
+        theory_packet={},
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts=artifacts,
+        formal_verification_policy="optional",
+        evidence_contract=evidence_contract,
+        research_sources=research_sources,
+    )
+
+    source_view = view["source_replication"]
+    assert view["dimension_requirements"] == {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    assert source_view["lineage_verified"] is True
+    assert source_view["report_document"]["content"] == report_content
+    assert source_view["source_execution"]["raw_stdout"] == "metric=0.75\n"
+    exact_observations = source_view["author_source_observations"]
+    assert exact_observations["resolved_exact_source_count"] == 1
+    assert exact_observations["observations"][0]["content"] == source_text.rstrip()
+    assert source_view["runtime_audit"] == {
+        "checkpoint_present": True,
+        "lineage_verified": True,
+        "report_content_loaded": True,
+        "source_execution_status": "EXECUTED",
+        "author_read_ref_count": 1,
+        "resolved_exact_source_count": 1,
+        "unresolved_source_ref_count": 0,
+        "unresolved_gap_count": 1,
+        "report_text_persisted": False,
+        "source_text_persisted": False,
+    }
+    assert report_content not in str(source_view["runtime_audit"])
+
+    prompt = build_critic_evaluator_prompt(
+        question=OpenResearchQuestion(
+            id="source-replication-test",
+            title="Source replication test",
+            description="Audit one immutable source execution and report.",
+        ),
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view=view,
+    )
+    assert "No source discrepancies were found" in prompt
+    assert "The parameter documentation says the default is 10" in prompt
+    assert "A zero return code establishes execution only" in prompt
+
+    report_path.write_text("tampered", encoding="utf-8")
+    tampered_view = build_critic_canonical_evidence_view(
+        question_id="source-replication-test",
+        theory_packet={},
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts=artifacts,
+        formal_verification_policy="optional",
+        evidence_contract=evidence_contract,
+        research_sources=research_sources,
+    )["source_replication"]
+    assert tampered_view["lineage_verified"] is False
+    assert tampered_view["report_document"]["content_loaded"] is False
+    assert tampered_view["report_document"]["content"] == ""
+
+    report_path.write_text(report_content, encoding="utf-8")
+    source_path.write_text("tampered source\n", encoding="utf-8")
+    tampered_source_view = build_critic_canonical_evidence_view(
+        question_id="source-replication-test",
+        theory_packet={},
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts=artifacts,
+        formal_verification_policy="optional",
+        evidence_contract=evidence_contract,
+        research_sources=research_sources,
+    )["source_replication"]
+    assert tampered_source_view["lineage_verified"] is False
+    assert tampered_source_view["author_source_observations"]["observations"][0][
+        "status"
+    ] == "SNAPSHOT_STORAGE_IDENTITY_MISMATCH"
+    assert tampered_source_view["author_source_observations"]["observations"][0][
+        "content"
+    ] == ""
+
+
+def test_required_source_replication_blocks_unsupported_critic_acceptance() -> None:
+    packet = _critic_packet()
+    packet["dimension_requirements"] = {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    for row in packet["dimension_assessments"]:
+        row["status"] = (
+            "INCONCLUSIVE"
+            if row["dimension"] == "source_replication"
+            else "NOT_REQUESTED"
+        )
+        row["gaps"] = []
+    packet["research_disposition"] = {
+        "status": "ACCEPT",
+        "blocking_dimensions": [],
+        "rationale": "Accept the source report.",
+    }
+
+    errors = validate_critic_evaluator_packet(packet)
+    assert any(error.startswith("ACCEPT requires supported required") for error in errors)
+
+    packet["dimension_assessments"][0]["status"] = "SUPPORTED"
+    assert validate_critic_evaluator_packet(packet) == []
 
 
 def test_critic_prompt_references_large_workspace_artifacts_without_copying_them() -> None:

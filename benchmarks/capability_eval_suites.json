@@ -217,7 +217,8 @@
       "capability": "generalization to papers not used in templates, retrieval cards, or tuning",
       "primary_artifacts": [
         "benchmarks/fresh_holdout_frontier_benchmark.md",
-        "runs/<audit>/fresh_holdout_frontier_audit/fresh_holdout_frontier_manifest.json"
+        "benchmarks/research_capability_ladder_20260814.json",
+        "docs/evaluation_benchmark_strategy.md"
       ],
       "recommended_sources": [
         "JASA",
