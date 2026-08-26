@@ -3612,6 +3612,251 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
     )
 
 
+def test_semantic_review_resumes_exact_algorithm_source_without_planning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-reviewed-algorithm-resume",
+        title="Revise one reviewed estimator source",
+        description="Return an external semantic finding to its source workspace.",
+    )
+    theory_packet_id = "theory:generic-reviewed-algorithm-resume"
+    estimator_spec = {
+        "id": "generic-estimator",
+        "formula": "theta_hat = request value",
+        "inputs": ["value"],
+        "outputs": ["estimate"],
+    }
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [estimator_spec],
+        "theorem_cards": [],
+    }
+    proposal_id = "algorithm-proposal:generic-reviewed-source"
+    proposal = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": proposal_id,
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "implementation_targets": [{"estimator_id": "generic-estimator"}],
+        "sandbox_code_drafts": [],
+        "metric_contracts": [],
+    }
+    exact_source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': 0.0}\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'estimate': run_estimator({})['estimate']}\n"
+    )
+    revised_source = exact_source.replace("0.0", "1.0")
+    parent_manifest_id = "algorithm:generic-reviewed-source-parent"
+    parent_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": parent_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+        "llm_algorithm_engineer_proposal_id": proposal_id,
+        "prototypes": [
+            {
+                "estimator_id": "generic-estimator",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_python_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "source_code": exact_source,
+                "script_hash": runtime_module.stable_hash(exact_source),
+                "spec": estimator_spec,
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+            }
+        ],
+    }
+    feedback = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewFeedback",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "question_id": question.id,
+        "source_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": parent_manifest_id,
+        "source_lineage": {
+            "source_manifest_hash": runtime_module.stable_hash(parent_manifest),
+        },
+        "overall_verdict": "REVISE",
+        "findings": [
+            {
+                "summary": "The estimator emits the wrong declared value.",
+                "observed_behavior": "The exact source emits zero.",
+                "expected_behavior": "The exact source should emit one.",
+            }
+        ],
+        "source_revision_assessment": {
+            "current_source_edit_sufficient": True,
+        },
+        "reviewed_source_artifacts": [
+            {
+                "artifact_id": "generic-estimator",
+                "exact_source_hash": runtime_module.stable_hash(exact_source),
+                "exact_source_code": exact_source,
+            }
+        ],
+    }
+    context = _full_evidence_context(question.id)
+    context["theory_packet_id"] = theory_packet_id
+    context["empirical_evaluation_phase"] = (
+        runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    context["architect_metric_protocol_gate"] = {
+        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+        "algorithm_execution_authorized": True,
+        "confirmatory_simulation_authorized": False,
+        "execution_authorized": False,
+        "preflight_acceptance_id": "preflight:accepted",
+    }
+    deferred_task = AgentTask(
+        task_id="architect-metric-after-reviewed-source",
+        owner_subsystem="ArchitectCoordinator",
+        objective="Continue metric authoring after implementation review.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+            "runtime_architect_operation": (
+                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            ),
+        },
+    )
+    source_inputs: list[dict[str, object]] = []
+    source_observations: list[dict[str, object]] = []
+    executed_sources: list[str] = []
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source workspace owns model turns")
+
+    class AlgorithmAgent:
+        provider = Provider()
+        propose_calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.propose_calls += 1
+            raise AssertionError("semantic source continuation must bypass planning")
+
+        @staticmethod
+        def iterate_code_with_tools(**kwargs):
+            source_inputs.append(dict(kwargs["code_draft"]))
+            source_observations.append(dict(kwargs["initial_observation"]))
+            candidate = {
+                "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": revised_source,
+            }
+            check = dict(kwargs["check_candidate"](candidate))
+            return ScientificCodeWorkspaceResult(
+                code_draft=candidate,
+                check_result=check,
+                evidence={
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "accepted": check["accepted"],
+                },
+            )
+
+    def run_generated_code_sandbox(**kwargs):
+        source = str(kwargs["code_draft"]["code"])
+        executed_sources.append(source)
+        return (
+            {
+                "estimator_id": str(kwargs["estimator_id"]),
+                "prototype_status": "EXECUTED",
+                "executor": "generated_python_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "spec": dict(kwargs["spec"]),
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "script_path": str(tmp_path / "estimator.py"),
+                "result_path": str(tmp_path / "result.json"),
+                "result_hash": "result-hash",
+            },
+            ToolCallRecord(tool_name="python.generated_algorithm_sandbox"),
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_code_sandbox",
+        run_generated_code_sandbox,
+    )
+    result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "algorithm",
+        n_runs=2,
+        seed=7,
+        proposal_agent=AlgorithmAgent(),
+        semantic_reviewer_available=True,
+        semantic_review_max_revisions=2,
+    ).run(
+        AgentTask(
+            task_id="semantic-algorithm-source-resume:generic",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Continue the exact reviewed source workspace.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": context,
+                "environment_feedback": feedback,
+                "implementation_gaps": [
+                    {"estimator_id": "generic-estimator"}
+                ],
+                "implementation_before_metric_freeze": True,
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "deferred_metric_protocol_task": asdict(deferred_task),
+                "n_runs": 2,
+                "seed": 7,
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={
+                theory_packet_id: theory_packet,
+                proposal_id: proposal,
+                parent_manifest_id: parent_manifest,
+            },
+        ),
+    )
+
+    assert AlgorithmAgent.propose_calls == 0
+    assert source_inputs[0]["code"] == exact_source
+    assert source_observations[0]["findings"] == feedback["findings"]
+    assert source_observations[0]["parent_source"]["script_hash"] == (
+        runtime_module.stable_hash(exact_source)
+    )
+    assert executed_sources == [revised_source]
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    )
+    assert manifest["planning_model_call_used"] is False
+    assert manifest["generated_code_semantic_review_source_revision"] is True
+    assert manifest["consumer_parent_algorithm_manifest_id"] == parent_manifest_id
+    assert manifest["consumer_parent_algorithm_manifest_hash"] == (
+        runtime_module.stable_hash(parent_manifest)
+    )
 def test_semantic_review_resumes_exact_simulation_source_without_planning(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

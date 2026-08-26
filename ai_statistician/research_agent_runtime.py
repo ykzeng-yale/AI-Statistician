@@ -11898,6 +11898,19 @@ class AlgorithmEngineerRuntimeSubsystem:
         implementation_gaps = [
             row for row in task.inputs.get("implementation_gaps", []) or [] if isinstance(row, Mapping)
         ]
+        raw_revision_assessment = environment_feedback.get(
+            "source_revision_assessment", {}
+        )
+        semantic_source_revision = bool(
+            str(environment_feedback.get("feedback_type", "") or "")
+            == "generated_code_semantic_review_feedback"
+            and str(environment_feedback.get("source_subsystem", "") or "")
+            == "AlgorithmEngineer"
+            and str(environment_feedback.get("overall_verdict", "") or "")
+            == "REVISE"
+            and isinstance(raw_revision_assessment, Mapping)
+            and raw_revision_assessment.get("current_source_edit_sufficient") is True
+        )
         source_revision_artifact_ids = [
             str(value or "").strip()
             for value in task.inputs.get("source_revision_artifact_ids", []) or []
@@ -11932,6 +11945,26 @@ class AlgorithmEngineerRuntimeSubsystem:
             for row in implementation_gaps
             if str(row.get("estimator_id", "") or "").strip()
         ]
+        semantic_parent_id = str(environment_feedback.get("source_manifest_id", "") or "").strip()
+        source_lineage = environment_feedback.get("source_lineage", {})
+        if not isinstance(source_lineage, Mapping):
+            source_lineage = {}
+        semantic_parent_hash = str(environment_feedback.get(
+            "source_manifest_hash", ""
+        ) or source_lineage.get("source_manifest_hash", "") or "").strip()
+        semantic_source_hashes = {
+            str(row.get("artifact_id", "") or "").strip(): str(
+                row.get("exact_source_hash", "") or ""
+            ).strip()
+            for row in environment_feedback.get("reviewed_source_artifacts", [])
+            or []
+            if isinstance(row, Mapping)
+            and str(row.get("artifact_id", "") or "").strip()
+        }
+        source_provider = getattr(self.proposal_agent, "provider", None)
+        source_workspace_available = callable(getattr(
+            self.proposal_agent, "iterate_code_with_tools", None
+        )) and callable(getattr(source_provider, "generate_client_tool_turn", None))
         scientific_progress, scientific_progress_errors = (
             runtime_scientific_workspace_resume_plan(
                 task,
@@ -11957,6 +11990,7 @@ class AlgorithmEngineerRuntimeSubsystem:
             enabled=bool(
                 not scientific_progress_mode
                 and not consumer_revision_mode
+                and not semantic_source_revision
                 and not theory_revision_source_seeds
                 and requires_generated_algorithm_code
             ),
@@ -11977,6 +12011,10 @@ class AlgorithmEngineerRuntimeSubsystem:
         if scientific_progress_mode and consumer_revision_mode:
             scientific_progress_errors.append(
                 "scientific progress cannot overlap a consumer dependency revision"
+            )
+        if semantic_source_revision and consumer_revision_mode:
+            scientific_progress_errors.append(
+                "semantic source revision cannot overlap a consumer dependency revision"
             )
         if scientific_progress_errors:
             return scientific_workspace_progress_rejected_result(
@@ -12004,25 +12042,62 @@ class AlgorithmEngineerRuntimeSubsystem:
                     checkpoints=progress_checkpoints,
                 )
             )
+        elif semantic_source_revision:
+            parent = blackboard.artifacts.get(semantic_parent_id, {})
+            reviewed_ids = sorted(semantic_source_hashes)
+            source_owner = {
+                "source_owner_subsystem": "AlgorithmEngineer",
+                "dependency_artifact_ids": reviewed_ids,
+                "dependency_artifact_hashes": semantic_source_hashes,
+                "source_manifest_id": semantic_parent_id,
+                "source_manifest_hash": semantic_parent_hash,
+            }
+            consumer_source_rows_by_id, continuation_errors = scientific_consumer_revision_sources(
+                parent if isinstance(parent, Mapping) else {},
+                dependency_context=source_owner,
+                revision_artifact_ids=reviewed_ids,
+                implementation_artifact_ids=expected_estimator_ids,
+                theory_packet_id=packet_id,
+            )
+            question_row = parent.get("question", {}) if isinstance(parent, Mapping) else {}
+            proposal_id = str(parent.get(
+                "llm_algorithm_engineer_proposal_id", ""
+            ) if isinstance(parent, Mapping) else "").strip()
+            prior_proposal = blackboard.artifacts.get(proposal_id, {})
+            if reviewed_ids != sorted(expected_estimator_ids):
+                continuation_errors.append("reviewed source set does not match target")
+            if not isinstance(question_row, Mapping) or str(question_row.get(
+                "id", ""
+            ) or "") != question.id:
+                continuation_errors.append("reviewed source question is stale")
+            if not isinstance(prior_proposal, Mapping) or str(
+                prior_proposal.get("packet_id", "") or ""
+            ) != proposal_id:
+                continuation_errors.append("reviewed source proposal is stale")
+            if not self.semantic_reviewer_available or not source_workspace_available:
+                continuation_errors.append("reviewed source workspace is unavailable")
+            if continuation_errors:
+                return scientific_workspace_progress_rejected_result(
+                    task=task,
+                    validation_errors=sorted(set(continuation_errors)),
+                )
+            proposal_packet = dict(prior_proposal)
+            theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
+                proposal_packet
+            )
+            algorithm_theory_trace_contract = (
+                theory_trace_contracts[0] if theory_trace_contracts else {}
+            )
+            algorithm_theory_trace_alignment_contract = dict(
+                proposal_packet.get("theory_trace_alignment_contract", {}) or {}
+            )
         elif consumer_revision_mode:
             consumer_errors: list[str] = []
             if not self.semantic_reviewer_available:
                 consumer_errors.append(
                     "revised dependency source requires independent semantic review"
                 )
-            if not (
-                self.proposal_agent is not None
-                and callable(
-                    getattr(self.proposal_agent, "iterate_code_with_tools", None)
-                )
-                and callable(
-                    getattr(
-                        getattr(self.proposal_agent, "provider", None),
-                        "generate_client_tool_turn",
-                        None,
-                    )
-                )
-            ):
+            if not source_workspace_available:
                 consumer_errors.append(
                     "AlgorithmEngineer source workspace is unavailable"
                 )
@@ -12345,7 +12420,34 @@ class AlgorithmEngineerRuntimeSubsystem:
             spec = _estimator_spec(packet, estimator_id)
             proposal_target = _algorithm_proposal_for_estimator(proposal_packet, estimator_id)
             external_initial_observation: dict[str, Any] | None = None
-            if consumer_revision_mode:
+            if scientific_progress_mode:
+                code_draft = deepcopy(
+                    dict(
+                        progress_checkpoints[estimator_id][
+                            "current_code_draft"
+                        ]
+                    )
+                )
+                external_initial_observation = deepcopy(
+                    dict(progress_checkpoints[estimator_id]["last_check"])
+                )
+            elif semantic_source_revision:
+                parent_source_row = consumer_source_rows_by_id.get(estimator_id, {})
+                code_draft, parent_source_errors = (
+                    complete_scientific_source_draft(parent_source_row)
+                )
+                if parent_source_errors:
+                    code_draft = {}
+                external_initial_observation = {
+                    **coding_agent_observations_only(dict(environment_feedback)),
+                    "parent_source": {
+                        "manifest_id": semantic_parent_id,
+                        "manifest_hash": semantic_parent_hash,
+                        "estimator_id": estimator_id,
+                        "script_hash": semantic_source_hashes.get(estimator_id, ""),
+                    },
+                }
+            elif consumer_revision_mode:
                 parent_source_row = consumer_source_rows_by_id.get(
                     estimator_id,
                     {},
@@ -12376,30 +12478,18 @@ class AlgorithmEngineerRuntimeSubsystem:
                     ),
                 }
             else:
-                if scientific_progress_mode:
-                    code_draft = deepcopy(
-                        dict(
-                            progress_checkpoints[estimator_id][
-                                "current_code_draft"
-                            ]
+                code_draft = deepcopy(
+                    theory_revision_source_seeds.get(estimator_id, {})
+                )
+                if not code_draft:
+                    code_draft = (
+                        {"estimator_id": estimator_id}
+                        if source_workspace_owns_planning
+                        else _algorithm_code_draft_for_estimator(
+                            proposal_packet,
+                            estimator_id,
                         )
                     )
-                    external_initial_observation = deepcopy(
-                        dict(progress_checkpoints[estimator_id]["last_check"])
-                    )
-                else:
-                    code_draft = deepcopy(
-                        theory_revision_source_seeds.get(estimator_id, {})
-                    )
-                    if not code_draft:
-                        code_draft = (
-                            {"estimator_id": estimator_id}
-                            if source_workspace_owns_planning
-                            else _algorithm_code_draft_for_estimator(
-                                proposal_packet,
-                                estimator_id,
-                            )
-                        )
             if code_draft:
                 source_seed_replayed = bool(
                     not scientific_progress_mode
@@ -12511,9 +12601,11 @@ class AlgorithmEngineerRuntimeSubsystem:
                         artifact_id=f"{question.id}:{estimator_id}",
                         code_draft=code_draft,
                         source_deferred=(
-                            source_workspace_owns_planning
+                            not semantic_source_revision
+                            and source_workspace_owns_planning
                             or (
-                                not scientific_progress_mode
+                                not semantic_source_revision
+                                and not scientific_progress_mode
                                 and not consumer_revision_mode
                                 and not source_seed_replayed
                                 and _proposal_defers_scientific_source(
@@ -12574,6 +12666,12 @@ class AlgorithmEngineerRuntimeSubsystem:
                         ),
                         confirmatory_result_blind=consumer_revision_mode,
                         allow_current_source_run=dependency_environment_changed,
+                        disallowed_unchanged_source_hashes=(
+                            (semantic_source_hashes[estimator_id],)
+                            if semantic_source_revision
+                            and semantic_source_hashes.get(estimator_id)
+                            else ()
+                        ),
                         recovery_checkpoint=(
                             progress_checkpoints.get(estimator_id)
                             if scientific_progress_mode
@@ -12682,7 +12780,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     )
                     for row in prototype_rows
                 ]
-        if consumer_revision_mode:
+        if consumer_revision_mode or semantic_source_revision:
             estimator_order = {
                 str(row.get("estimator_id", "") or ""): index
                 for index, row in enumerate(implementation_gaps)
@@ -12822,6 +12920,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 not source_workspace_owns_planning
                 and not scientific_progress_mode
                 and not consumer_revision_mode
+                and not semantic_source_revision
                 and proposal_packet
             ),
             "llm_algorithm_engineer_proposal_id": (
@@ -12834,11 +12933,18 @@ class AlgorithmEngineerRuntimeSubsystem:
                 algorithm_theory_trace_alignment_contract
             ),
             "consumer_source_revision": consumer_revision_mode,
+            "generated_code_semantic_review_source_revision": (
+                semantic_source_revision
+            ),
             "consumer_parent_algorithm_manifest_id": str(
-                consumer_source_manifest.get("manifest_id", "") or ""
+                semantic_parent_id
+                if semantic_source_revision
+                else consumer_source_manifest.get("manifest_id", "") or ""
             ),
             "consumer_parent_algorithm_manifest_hash": (
-                stable_hash(consumer_source_manifest)
+                semantic_parent_hash
+                if semantic_source_revision
+                else stable_hash(consumer_source_manifest)
                 if consumer_source_manifest
                 else ""
             ),

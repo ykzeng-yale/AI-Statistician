@@ -899,6 +899,12 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
         "run_exact_estimator_review_probe",
         "submit_generated_code_semantic_review",
     ]
+    assert "call the target run_estimator directly" in (
+        backend.requests[0].tools[0].description
+    )
+    assert "not the target's" in (
+        backend.requests[0].tools[0].description
+    )
     assert "one broad model-authored probe" in str(
         backend.requests[0].messages[0]["content"]
     )
@@ -907,6 +913,10 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     probe_record = packet["client_tool_loop"]["review_probe_executions"][0]
     assert probe_record["target_source_hash"] == stable_hash(estimator_source)
     assert probe_record["metrics"] == {"accepted_numeric_string": True}
+    assert probe_record["originating_tool_call_id"] == "review-call-1"
+    assert probe_record["failure_origin"] == "PROBE_COMPLETED"
+    assert probe_record["target_source_invoked"] is True
+    assert probe_record["failed_probe_is_target_source_evidence"] is False
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
@@ -1033,6 +1043,12 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
         row["successful_exact_invocation"]
         for row in loop["review_probe_executions"]
     ] == [False, True]
+    failed_record = loop["review_probe_executions"][0]
+    assert failed_record["originating_tool_call_id"] == "review-call-1"
+    assert failed_record["failure_origin"] == (
+        "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION"
+    )
+    assert failed_record["failed_probe_is_target_source_evidence"] is False
 
 
 @pytest.mark.parametrize("tamper_hash", [False, True])

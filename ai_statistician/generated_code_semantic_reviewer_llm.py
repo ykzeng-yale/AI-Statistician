@@ -44,7 +44,7 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 27
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 28
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -794,10 +794,13 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             description=(
                 "Run reviewer-authored Python or R diagnostic source against one "
                 "exact immutable estimator. Define run_sandbox(seed, replicates, "
-                "estimators), call estimators[artifact_id] in Python or "
-                "estimators[[artifact_id]] in R, and return a diagnostic object. "
-                "This can falsify source claims but cannot edit source, inspect "
-                "confirmatory outcomes, or confer empirical acceptance."
+                "estimators), then call the target run_estimator directly with "
+                "estimators[artifact_id](request) in Python or "
+                "estimators[[artifact_id]](request) in R, never a run_estimator "
+                "attribute. This executes the reviewer's run_sandbox, not the "
+                "target's. Failure before target invocation is reviewer error. It can "
+                "falsify source claims but cannot edit source, inspect confirmatory "
+                "outcomes, or confer empirical acceptance."
             ),
             input_schema={
                 "type": "object",
@@ -955,22 +958,50 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     timeout_s=max(1, int(probe_timeout_s)),
                     estimator_bindings=(ScientificEstimatorBinding(**target),),
                 )
+                estimator_binding_errors = list(getattr(
+                    execution, "estimator_binding_errors", ()
+                ) or ())
+                estimator_runtime_failure_ids = list(getattr(
+                    execution, "estimator_runtime_failure_ids", ()
+                ) or ())
+                estimator_runtime_errors = list(execution.estimator_runtime_errors)
+                estimator_invocation_counts = dict(execution.estimator_invocation_counts)
+                target_invoked = any(estimator_invocation_counts.values())
+                target_failed = bool(
+                    estimator_binding_errors
+                    or estimator_runtime_failure_ids
+                    or estimator_runtime_errors
+                )
+                if estimator_binding_errors:
+                    failure_origin = "TARGET_ESTIMATOR_BINDING"
+                elif estimator_runtime_failure_ids or estimator_runtime_errors:
+                    failure_origin = "TARGET_ESTIMATOR_RUNTIME"
+                elif execution.status == "EXECUTED" and target_invoked:
+                    failure_origin = "PROBE_COMPLETED"
+                elif target_invoked:
+                    failure_origin = "REVIEWER_PROBE_SOURCE_AFTER_TARGET_INVOCATION"
+                else:
+                    failure_origin = "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION"
                 record = {
                     "probe_index": len(probe_executions),
+                    "originating_tool_call_id": call.call_id,
                     "target_artifact_id": target["artifact_id"],
                     "target_source_hash": target["code_hash"],
                     "probe_source_hash": stable_hash(probe_code),
+                    "failure_origin": failure_origin,
+                    "target_source_invoked": target_invoked,
+                    "failed_probe_is_target_source_evidence": target_failed,
                     "status": execution.status,
                     "metrics": _prompt_projection_value(execution.metrics),
                     "metrics_hash": stable_hash(execution.metrics),
                     "errors": list(execution.errors),
                     "stdout_summary": execution.stdout_summary,
                     "stderr_summary": execution.stderr_summary,
-                    "estimator_invocation_counts": dict(
-                        execution.estimator_invocation_counts
+                    "estimator_invocation_counts": estimator_invocation_counts,
+                    "estimator_runtime_errors": estimator_runtime_errors,
+                    "successful_exact_invocation": (
+                        execution.status == "EXECUTED" and target_invoked
                     ),
-                    "estimator_runtime_errors": list(execution.estimator_runtime_errors),
-                    "successful_exact_invocation": execution.status == "EXECUTED" and any(execution.estimator_invocation_counts.values()),
                     "request_hash": execution.request_hash,
                     "result_hash": execution.result_hash,
                     "code_path": execution.code_path,
