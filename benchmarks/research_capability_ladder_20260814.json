@@ -223,6 +223,8 @@
         "hidden_behavior_entailment_audit": "Every hidden algorithm behavior cites an explicit public request, response, or invariant clause. Every empirical check cites one atomic public F-calibration, upper-tail-size, p-value-uniformity, or protocol-identity claim. Hidden samples, transformations, seeds, quantiles, and thresholds remain evaluator-only; no hidden behavior introduces regularization, source replication, formal proof, or novelty.",
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
+        "activation_commit": "dc0d323eca5fe8eecb0f7a28476950e02a8275da",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_product_model_calls": 0,
         "first_runtime_model_call_occurred": false,
         "fresh_live_runs": 0,

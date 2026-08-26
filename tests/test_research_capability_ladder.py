@@ -118,6 +118,10 @@ def test_hotelling_t2_l0_is_frozen_before_its_only_product_draw() -> None:
         "frozen_ready_before_first_product_model_call"
     )
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == (
+        "dc0d323eca5fe8eecb0f7a28476950e02a8275da"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
