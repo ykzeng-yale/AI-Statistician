@@ -6,10 +6,10 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`2764e83626efe55f64e04d153fc99a157327f3c2`.
+`21c58c90f2298587c6519e077d0692ce4c563d37`.
 
 Latest implementation commit:
-`ea0118067a2f9f2558db300c76c3fd74675725b9`.
+`36f90f4c1f1bb7851dba9fce5bd3a6438683eb52`.
 
 Primary references:
 
@@ -950,3 +950,20 @@ primitive is justified only when at least two workspaces exhibit the same live
 failure. Candidate mechanisms must preserve exact artifact state and finding
 lineage, avoid a second scheduler, and be evaluated on disjoint frozen tasks
 before receiving capability credit.
+
+## Referee document continuity
+
+The Gaussian-KDE draw met that two-consumer threshold. Terminal Critic already
+loaded persisted referee reports by exact path, SHA-256, and byte size, while a
+later TheoryDeveloper revision received only compact ledger rows and could not
+read the referee's current Markdown explanation. Commit `36f90f4c` extracts one
+shared hash-bound UTF-8 loader and uses the existing Theory read-only artifact
+tool for the report. The model sees `review_document_markdown` and a path-free
+reference; runtime does not summarize the mathematics or prescribe an edit.
+
+The official Codex delta from `2764e83` through `21c58c9` adds turn/step-bound
+environment metadata, persistent reasoning settings, paginated background-task
+history, tracing, Bridge-compatible history tools, and sandbox cleanup. Those
+changes reinforce lifecycle identity and observability but do not alter this
+selective-adoption decision. The complete AI-Statistician suite passed `907/907`;
+no new tool, agent, scheduler, retry, model call, or scientific rule was added.

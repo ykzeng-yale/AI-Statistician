@@ -4,13 +4,23 @@
 
 - Repository: `https://github.com/openai/codex`
 - Audited branch: `main`
-- Audited commit: `343074d4207d572809bd8cea15f4be1d09d98e0b`
+- Baseline audited commit: `343074d4207d572809bd8cea15f4be1d09d98e0b`
+- Latest incremental recheck: `21c58c90f2298587c6519e077d0692ce4c563d37`
 - License: Apache-2.0
 - Read-only checkout: `/Users/yukangzengcmac/.codex/external/openai-codex`
 - License SHA-256: `d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc`
 
-The audit is commit-bound. A later Codex release is a different mechanism
-snapshot and must not silently replace this identity.
+The baseline and every incremental recheck are commit-bound. A later Codex
+release is a different mechanism snapshot and must not silently replace them.
+
+The latest recheck from `2764e83` to `21c58c9` covers eight upstream commits.
+They harden Windows sandbox cleanup, bind sandbox execution and MCP request
+metadata to current turn/step settings, add persistent reasoning-effort state,
+respect paginated history while stopping background work, make history/notes
+tools Bridge-compatible, and add code-mode tracing. These are useful lifecycle,
+policy-snapshot, and observability refinements. They do not add a reusable
+scientific planner, Theory method, Simulation protocol, Lean policy, or reason
+to embed Codex app-server around AI-Statistician's existing AgentRuntime.
 
 The immediately prior audit was pinned at
 `45a3edc02a59d845eba30794796c44e5f2377408`. The 14-commit incremental
@@ -1270,3 +1280,30 @@ parser, statistical formula, or extra model call was added. The focused panel pa
 98/98, the complete repository passed 865/865 in 68.48 seconds, compile-all and diff
 checks passed, and production Python remains 149,999 lines. The consumed Uniform
 draw stays 0/1 and the capability ladder stays 0/27.
+
+### Hash-bound referee collaboration after the forty-fourth draw
+
+The Gaussian-KDE draw exposed a narrow cross-session information loss. The
+isolated referee's current 265-line Markdown report correctly retracted one old
+finding and localized the remaining factor-of-four error, while the compact
+finding ledger intentionally retained the old finding semantics under its stable
+identity. TheoryDeveloper could inspect the compact rows but not the report, then
+reported a different and mathematically incorrect unresolved gap. The consumed
+task remains `0/1`.
+
+Commit `36f90f4c1f1bb7851dba9fce5bd3a6438683eb52` adopts Codex's file-first
+collaboration principle without adding another interface. The existing reroute
+now carries the persisted referee report by path, SHA-256, and byte size. A shared
+UTF-8 artifact loader verifies exact bytes; TheoryDeveloper sees a path-free
+`review_document_markdown` through its existing read-only workspace tool, while
+terminal Critic reuses the same loader. JSON remains a small identity/navigation
+envelope and the model still decides what the mathematics means and how to revise
+it.
+
+This change removes duplicated file-verification code and adds no agent, repair
+taxonomy, scheduler, task formula, retry, hidden feedback, or model call. A
+deterministic replay of the consumed report produced a valid future-task reroute
+with the exact `fc0e1da5...` document and no absolute model-visible path; it did
+not rerun or rescore the task. The focused panel passed `284/284`, the complete
+repository passed `907/907`, and the unchanged architecture budgets passed at
+24,998 runtime lines and 149,992 top-level production Python lines.
