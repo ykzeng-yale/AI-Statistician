@@ -1,13 +1,13 @@
 {
-  "schema_version": 181,
+  "schema_version": 182,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "1fef5179113566b0b0a64818930771d546c22987",
+  "validated_code_head": "ef93a91da4f90422790a41f886ad3f5b207c6191",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-seven consumed draws and their immutable artifacts. Trustworthy capability accounting remains 4/47. Commit 1fef5179 applies the Codex-shaped model/tool loop to future pre-execution metric review: the isolated reviewer may choose shared scientific scratch, receives raw results in the same exact session, and owns its compact judgment; terminal validation feedback returns to that session without Architect or a repair agent. Detached one-shot generated-code review and JSON-only TheoryDeveloper generation were removed, so mathematical authority is now Markdown/LaTeX workspace only and production Python shrank. This is future-task mechanism evidence, not a repair or rescore of SRSWOR. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all forty-seven consumed draws and their immutable artifacts. Trustworthy capability accounting remains 4/47. A disjoint forty-eighth L0 known-result task for the exact two-sample normal variance-ratio interval is frozen and pushed before any product call. Its evaluator-only authority checks Markdown/LaTeX theory, the strict executable ABI, exact-coverage behavior, and the F-pivot probability-integral transform; reference and negative baselines plus 13/13 exact-Haiku semantic calibration cases pass. The next action is exactly one fresh exact-Haiku product run and one hidden evaluation, followed by independent operator audit. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
   "latest_codex_metric_semantic_review_harness_change": {
     "implementation_commit": "1fef5179113566b0b0a64818930771d546c22987",
     "upstream_codex_reference_head": "f5420174dafba153913a3e697f89002c338dfd7e",
@@ -20,6 +20,22 @@
     "model_policy": "No live model call occurred. Deterministic fixtures use exact Haiku identities; no Sonnet or Opus execution was introduced.",
     "regression_evidence": "Complete repository 915/915 in 72.99 seconds; compileall and diff checks passed; top-level production Python 149845 lines under the unchanged 150000-line budget.",
     "consumed_task_boundary": "No consumed draw was rerun, resumed, repaired, hidden-evaluated, rescored, or resampled. Trustworthy ladder remains 4/47."
+  },
+  "latest_normal_variance_ratio_l0_activation": {
+    "task_id": "two_sample_normal_variance_ratio_f_interval_known_result",
+    "family": "two_sample_normal_variance_inference",
+    "status": "frozen_ready_gold_validated_before_first_product_model_call",
+    "activation_commit": "ef93a91da4f90422790a41f886ad3f5b207c6191",
+    "activation_push_confirmed_on_work_branch_and_main": true,
+    "preactivation_product_model_calls": 0,
+    "fresh_live_runs": 0,
+    "model_policy": "claude-haiku-4-5-20251001 only; no Sonnet, Opus, or automatic escalation",
+    "visible_questions_sha256": "1aadf2ba7e55dacf2be4651b540e0d523d400c3586aead80eb8a25af22389c54",
+    "gold_manifest_sha256": "c57df47a5e98be8f1703d0b88f34410baf813de0fe2ee0cc517011c1aa029df9",
+    "reference_calibration": "Algorithm contract 12/12; four algorithm negatives rejected; four normal DGPs over 48,000 estimator invocations pass coverage and PIT authority; three empirical negatives rejected; semantic calibration 13/13 in two exact-Haiku calls.",
+    "evidence_boundary": "Gold files remain evaluator-only outside the repository and cannot enter runtime RAG, model workspaces, feedback, or proof evidence. Formalization is not applicable and cannot block this task.",
+    "regression_evidence": "Complete repository 915/915 in 75.21 seconds; compileall, JSON, and diff checks passed before activation commit.",
+    "next_step": "Start one fresh exact-Haiku run from the pushed activation-identity head, evaluate hidden gold once after AgentRuntime termination, and perform an independent mathematical and artifact-lineage audit."
   },
   "latest_srswor_finite_population_mean_l0_evaluation": {
     "task_id": "srswor_finite_population_mean_known_result",
