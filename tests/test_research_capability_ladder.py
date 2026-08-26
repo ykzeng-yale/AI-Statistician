@@ -4212,6 +4212,10 @@ def test_one_way_anova_l0_is_frozen_before_its_only_product_draw() -> None:
     assert evidence["activation_negative_controls_rejected"] == 2
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == (
+        "12582911c5aff9705e675da9095545871b459527"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
