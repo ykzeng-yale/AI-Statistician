@@ -1067,7 +1067,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert llm_subsystem_expected_model_tier("FormalizerProofEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("SimulationEngineer") == "sonnet"
     assert llm_subsystem_expected_model_tier("AlgorithmEngineer") == "sonnet"
-    assert llm_subsystem_expected_model_tier("CriticEvaluator") == "haiku"
+    assert llm_subsystem_expected_model_tier("CriticEvaluator") == "sonnet"
     assert llm_subsystem_expected_model_tier("unknown") == ""
     assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-08-02"
     assert (

@@ -74,7 +74,7 @@ CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS = 24
 @dataclass(frozen=True)
 class CriticEvaluatorConfig:
     model: str = ""
-    model_tier: str = "haiku"
+    model_tier: str = "sonnet"
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"

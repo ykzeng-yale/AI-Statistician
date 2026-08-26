@@ -1065,7 +1065,7 @@ def _build_critic_evaluator_agent_from_args(args: argparse.Namespace, *, default
         static_response_file=static_file,
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
-    model_tier = _runtime_effective_model_tier(args, "haiku")
+    model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
         explicit_model=getattr(args, "critic_llm_model", ""),
@@ -6762,7 +6762,11 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--critic-llm-model",
         default="",
-        help="model name for CriticEvaluator proposals; Anthropic defaults to Claude Haiku 4.5",
+        help=(
+            "model name for CriticEvaluator proposals; production Anthropic "
+            "defaults to Claude Sonnet, while live evaluation modes pin every "
+            "agent to the current Haiku snapshot"
+        ),
     )
     research_agent_runtime.add_argument("--critic-max-tokens", type=int, default=5000)
     research_agent_runtime.add_argument("--critic-temperature", type=float, default=0.1)

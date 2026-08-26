@@ -3495,13 +3495,12 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     )
     assert simulation_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert simulation_engineer.config.max_validation_retries == 0
-    assert (
-        _build_critic_evaluator_agent_from_args(
-            runtime_args,
-            default_model=runtime_default_model,
-        ).config.model
-        == "claude-haiku-4-5-20251001"
+    critic = _build_critic_evaluator_agent_from_args(
+        runtime_args,
+        default_model=runtime_default_model,
     )
+    assert critic.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert critic.config.model_tier == "sonnet"
     runtime_args.generated_code_semantic_reviewer_provider = "same"
     semantic_reviewer = _build_generated_code_semantic_reviewer_agent_from_args(
         runtime_args,

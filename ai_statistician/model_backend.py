@@ -58,7 +58,7 @@ AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
     "ArchitectMetricSemanticReviewer": "sonnet",
     "GeneratedCodeSemanticReviewer": "sonnet",
     "FormalTargetSemanticReviewer": "sonnet",
-    "CriticEvaluator": "haiku",
+    "CriticEvaluator": "sonnet",
     "bounded_route_triage": "haiku",
 }
 AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY = {
@@ -181,10 +181,10 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
             "SimulationEngineer",
             "AlgorithmEngineer",
             "FormalizerProofEngineer",
+            "CriticEvaluator",
         ],
         "haiku": [
             "theory_intake",
-            "CriticEvaluator",
             "bounded_route_triage",
         ],
     },
