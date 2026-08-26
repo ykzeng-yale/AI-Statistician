@@ -3456,7 +3456,9 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
     }
     context = _full_evidence_context(question.id)
     context["theory_packet_id"] = theory_packet_id
-    context["empirical_evaluation_phase"] = "exploratory"
+    context["empirical_evaluation_phase"] = (
+        runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
     observed_sources: list[str] = []
 
     class Provider:
@@ -3564,6 +3566,204 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         observation.observation_type
         == "scientific_consumer_continuation_restored"
         for observation in result.observations
+    )
+
+
+def test_semantic_review_resumes_exact_simulation_source_without_planning(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-reviewed-source-resume",
+        title="Revise one reviewed simulation source",
+        description="Return an external semantic finding to its source workspace.",
+    )
+    theory_packet_id = "theory:generic-reviewed-source-resume"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    proposal_id = "simulation-proposal:generic-reviewed-source"
+    proposal = {
+        "artifact_kind": "SimulationEngineerProposalPacket",
+        "packet_id": proposal_id,
+        "source_agent": "LLMSimulationEngineerAgent",
+        "model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "simulation_code_drafts": [],
+        "metric_contracts": [],
+    }
+    exact_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'generic_metric': 0.0}\n"
+    )
+    revised_source = exact_source.replace("0.0", "1.0")
+    parent_manifest_id = "simulation:generic-reviewed-source-parent"
+    parent_manifest = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": parent_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+        "llm_simulation_engineer_proposal_id": proposal_id,
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "generic-reviewed-source",
+                "prototype_status": "EXECUTED",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": exact_source,
+                "script_hash": runtime_module.stable_hash(exact_source),
+            }
+        ],
+    }
+    feedback = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewFeedback",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "question_id": question.id,
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": parent_manifest_id,
+        "source_lineage": {
+            "source_manifest_hash": runtime_module.stable_hash(parent_manifest),
+        },
+        "overall_verdict": "REVISE",
+        "findings": [
+            {
+                "summary": "The emitted metric has the wrong declared meaning.",
+                "observed_behavior": "The source emits the unrelated scalar zero.",
+                "expected_behavior": "The source should emit the target scalar.",
+            }
+        ],
+        "source_revision_assessment": {
+            "current_source_edit_sufficient": True,
+        },
+    }
+    context = _full_evidence_context(question.id)
+    context["theory_packet_id"] = theory_packet_id
+    context["empirical_evaluation_phase"] = (
+        runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+    )
+    source_inputs: list[dict[str, object]] = []
+    source_observations: list[dict[str, object]] = []
+    executed_sources: list[str] = []
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source workspace owns model turns")
+
+    class SimulationAgent:
+        provider = Provider()
+        propose_calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.propose_calls += 1
+            raise AssertionError("semantic source continuation must bypass planning")
+
+        @staticmethod
+        def iterate_code_with_tools(**kwargs):
+            source_inputs.append(dict(kwargs["code_draft"]))
+            source_observations.append(dict(kwargs["initial_observation"]))
+            candidate = {
+                "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": revised_source,
+            }
+            check = dict(kwargs["check_candidate"](candidate))
+            return ScientificCodeWorkspaceResult(
+                code_draft=candidate,
+                check_result=check,
+                evidence={
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "accepted": check["accepted"],
+                },
+            )
+
+    def run_generated_simulation_sandbox(**kwargs):
+        source = str(kwargs["code_draft"]["code"])
+        executed_sources.append(source)
+        return (
+            {
+                "simulation_id": str(kwargs["simulation_id"]),
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "metrics": {"generic_metric": 1.0},
+                "metric_contracts": [],
+                "metric_contract_evaluation": {},
+            },
+            ToolCallRecord(tool_name="python.generated_simulation_sandbox"),
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_simulation_sandbox",
+        run_generated_simulation_sandbox,
+    )
+    result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=False,
+    ).run(
+        AgentTask(
+            task_id="semantic-source-resume:generic",
+            owner_subsystem="SimulationEvaluator",
+            objective="Continue the exact reviewed source workspace.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "n_runs": 8,
+                "seed": 11,
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "architect_context": context,
+                "environment_feedback": feedback,
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={
+                theory_packet_id: theory_packet,
+                proposal_id: proposal,
+                parent_manifest_id: parent_manifest,
+            },
+        ),
+    )
+
+    assert SimulationAgent.propose_calls == 0
+    assert source_inputs[0]["code"] == exact_source
+    assert source_observations[0]["findings"] == feedback["findings"]
+    assert executed_sources == [revised_source]
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    )
+    assert manifest["source_revision_parent_manifest_id"] == parent_manifest_id
+    assert manifest["planning_model_call_used"] is False
+    assert any(
+        row.observation_type == "simulation_source_revision_restored"
+        for row in result.observations
     )
 
 

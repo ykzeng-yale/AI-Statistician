@@ -215,7 +215,7 @@ def build_generated_code_semantic_review_producer_revision_task(
         },
         "routing_authority": "immutable_source_producer_lineage",
         "runtime_selected_owner": False,
-        "complete_candidate_regeneration_required": True,
+        "exact_source_workspace_continuation_required": True,
         "proof_evidence_status": (
             "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_NOT_PROOF_EVIDENCE"
         ),
@@ -245,7 +245,7 @@ def build_generated_code_semantic_review_producer_revision_task(
         task_id=task_id,
         owner_subsystem=source_subsystem,
         objective=(
-            "Regenerate one complete candidate from the exact rejected candidate, "
+            "Continue the exact source-owner workspace from its reviewed candidate, "
             "execution result, and independent semantic-review observations."
         ),
         inputs=revision_inputs,
@@ -253,7 +253,7 @@ def build_generated_code_semantic_review_producer_revision_task(
         budget=deepcopy(source_task.budget),
         expected_artifacts=source_task.expected_artifacts,
         acceptance_gate=(
-            "a fresh complete model-generated candidate executes and passes a new "
+            "a changed complete model-generated candidate executes and passes a new "
             "independent semantic review"
         ),
         stop_condition=(

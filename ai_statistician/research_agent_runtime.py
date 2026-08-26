@@ -9543,6 +9543,26 @@ class SimulationEvaluatorRuntimeSubsystem:
         confirmatory_source_revision_observation: dict[str, Any] = {}
         confirmatory_source_parent_hashes: dict[str, str] = {}
         confirmatory_source_parent_manifest_id = ""
+        feedback_type = str(environment_feedback.get("feedback_type", "") or "")
+        raw_revision_assessment = environment_feedback.get(
+            "source_revision_assessment", {}
+        )
+        semantic_source_revision = bool(
+            feedback_type == "generated_code_semantic_review_feedback"
+            and str(environment_feedback.get("source_subsystem", "") or "")
+            == "SimulationEvaluator"
+            and str(environment_feedback.get("overall_verdict", "") or "")
+            == "REVISE"
+            and isinstance(raw_revision_assessment, Mapping)
+            and raw_revision_assessment.get("current_source_edit_sufficient") is True
+        )
+        outcome_source_revision = bool(
+            feedback_type == "confirmatory_simulation_outcome"
+            and str(environment_feedback.get("source_subsystem", "") or "")
+            == "SimulationEvaluator"
+            and environment_feedback.get("unchanged_source_retry_authorized")
+            is False
+        )
         observations: list[EnvironmentObservation] = [
             EnvironmentObservation(
                 observation_type="research_problem_authority",
@@ -9586,8 +9606,8 @@ class SimulationEvaluatorRuntimeSubsystem:
         progress_checkpoints: dict[str, dict[str, Any]] = {}
         if scientific_progress_mode and (
             raw_consumer_resume_manifest
-            or str(environment_feedback.get("feedback_type", "") or "")
-            == "confirmatory_simulation_outcome"
+            or semantic_source_revision
+            or outcome_source_revision
         ):
             scientific_progress_errors.append(
                 "scientific progress cannot overlap another simulation source "
@@ -9713,17 +9733,19 @@ class SimulationEvaluatorRuntimeSubsystem:
                     },
                 )
             )
-        elif (
-            str(environment_feedback.get("feedback_type", "") or "")
-            == "confirmatory_simulation_outcome"
-            and str(environment_feedback.get("source_subsystem", "") or "")
-            == "SimulationEvaluator"
-            and environment_feedback.get("unchanged_source_retry_authorized")
-            is False
-        ):
+        elif semantic_source_revision or outcome_source_revision:
             confirmatory_source_parent_manifest_id = str(
                 environment_feedback.get("source_manifest_id", "") or ""
             ).strip()
+            raw_source_lineage = environment_feedback.get("source_lineage", {})
+            source_lineage = (
+                dict(raw_source_lineage) if isinstance(raw_source_lineage, Mapping) else {}
+            )
+            expected_parent_manifest_hash = str(
+                environment_feedback.get("source_manifest_hash", "")
+                or source_lineage.get("source_manifest_hash", "")
+                or ""
+            )
             parent_manifest = blackboard.artifacts.get(
                 confirmatory_source_parent_manifest_id,
                 {},
@@ -9734,9 +9756,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 or parent_manifest.get("artifact_kind")
                 != "RuntimeSimulationManifest"
                 or stable_hash(dict(parent_manifest))
-                != str(
-                    environment_feedback.get("source_manifest_hash", "") or ""
-                )
+                != expected_parent_manifest_hash
             ):
                 revision_errors.append(
                     "confirmatory simulation source manifest is missing or stale"
@@ -9769,15 +9789,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                 return AgentStepResult(
                     status="BLOCKED",
                     rationale=(
-                        "SimulationEvaluator rejected an incomplete post-outcome "
+                        "SimulationEvaluator rejected an incomplete source-review "
                         "source lineage before any model or sandbox call."
                     ),
                     observations=tuple(observations)
                     + (
                         EnvironmentObservation(
-                            observation_type=(
-                                "confirmatory_simulation_source_revision_rejected"
-                            ),
+                            observation_type="simulation_source_revision_rejected",
                             summary="; ".join(sorted(set(revision_errors)))[:500],
                             payload={
                                 "source_manifest_id": (
@@ -9791,7 +9809,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                     ),
                     failure_classification=(
-                        "confirmatory_simulation_source_lineage_invalid"
+                        "simulation_source_revision_lineage_invalid"
                     ),
                 )
             proposal_packet = dict(prior_proposal)
@@ -9801,9 +9819,10 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
                 for row in confirmatory_source_revision_code_drafts
             }
-            confirmatory_source_revision_observation = (
-                coding_agent_observations_only(
-                    {
+            confirmatory_source_revision_observation = coding_agent_observations_only(
+                dict(environment_feedback)
+                if semantic_source_revision
+                else {
                         key: deepcopy(environment_feedback[key])
                         for key in (
                             "artifact_kind",
@@ -9824,7 +9843,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                         )
                         if key in environment_feedback
                     }
-                )
             )
             theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
                 proposal_packet
@@ -9842,18 +9860,17 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             observations.append(
                 EnvironmentObservation(
-                    observation_type=(
-                        "confirmatory_simulation_source_revision_restored"
-                    ),
+                    observation_type="simulation_source_revision_restored",
                     summary=(
-                        "The exact prior simulation source and released outcome are "
-                        "bound to the same source-owner workspace; only a changed "
-                        "source may execute on the fresh blinded cohort."
+                        "The exact prior simulation source and external observation "
+                        "are bound to the same source-owner workspace without a new "
+                        "planning call; only changed source may execute."
                     ),
                     payload={
                         "source_manifest_id": (
                             confirmatory_source_parent_manifest_id
                         ),
+                        "source_feedback_type": feedback_type,
                         "simulation_artifact_ids": sorted(
                             confirmatory_source_parent_hashes
                         ),
@@ -10528,7 +10545,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             "consumer_resume_exact_source_replayed": bool(
                 consumer_resume_manifest_id
             ),
-            "confirmatory_source_revision_parent_manifest_id": (
+            "source_revision_parent_manifest_id": (
                 confirmatory_source_parent_manifest_id
             ),
             "empirical_evaluation_phase": empirical_evaluation_phase,
@@ -10568,7 +10585,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                 (proposal_packet or {}).get("source_workspace_intent_id", "") or ""
             ),
             "planning_model_call_used": bool(
-                proposal_packet and proposal_packet.get("planning_model_call_used") is not False
+                proposal_packet
+                and not (
+                    scientific_progress_mode
+                    or consumer_resume_manifest_id
+                    or confirmatory_source_parent_manifest_id
+                )
+                and proposal_packet.get("planning_model_call_used") is not False
             ),
             "llm_simulation_engineer_theory_trace_consumption_contract": (
                 simulation_theory_trace_contract

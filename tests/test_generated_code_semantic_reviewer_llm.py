@@ -460,9 +460,13 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
         "properties"
     ]
     assert len(json.dumps(schema, separators=(",", ":"))) < 2_500
-    assert "enum" not in schema["properties"]["findings"]["items"][
+    assert "evidence_refs" not in schema["properties"]["findings"]["items"][
         "properties"
-    ]["evidence_refs"]["items"]
+    ]
+    assert "evidence_refs" not in assessment_schema["properties"]
+    assert "RFC 6901" not in build_generated_code_semantic_review_prompt(
+        question=_question(), review_material=_review_material()
+    )
 
 
 def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
@@ -474,7 +478,6 @@ def test_anthropic_reviewer_uses_provider_native_structured_output() -> None:
         "source_revision_assessment": {
             "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
             "rationale": "No active finding requires a parent change.",
-            "evidence_refs": [],
         },
     }
 
@@ -525,18 +528,25 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
     invalid_response = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
-        "review_document": "# Review\n\nThe executed source is aligned.",
-        "findings": [],
+        "review_document": "# Review\n\nThe executed source has one defect.",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "interface",
+                "summary": "The source violates its declared interface.",
+                "observed_behavior": "The source returns a constant.",
+                "expected_behavior": "The source should implement the declared object.",
+            }
+        ],
         "source_revision_assessment": {
             "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
             "rationale": "No active finding requires a parent change.",
-            "evidence_refs": [
-                "Interface compliance: all response fields are present"
-            ],
         },
     }
     valid_response = deepcopy(invalid_response)
-    valid_response["source_revision_assessment"]["evidence_refs"] = []
+    valid_response["overall_verdict"] = "ACCEPT"
+    valid_response["review_document"] = "# Review\n\nThe executed source is aligned."
+    valid_response["findings"] = []
 
     class ClientToolBackend:
         provider_name = "anthropic"
@@ -604,9 +614,7 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
     feedback = backend.requests[1].messages[-1]["content"][0]
     assert feedback["type"] == "tool_result"
     assert feedback["is_error"] is True
-    assert "source_revision_assessment cites missing evidence ref" in feedback[
-        "content"
-    ]
+    assert "model verdict must agree with active findings" in feedback["content"]
     assert backend.requests[1].metadata[
         "full_packet_regeneration_disabled"
     ] is True
@@ -616,12 +624,19 @@ def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
     invalid_response = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
-        "review_document": "# Review\n\nThe executed source is aligned.",
-        "findings": [],
+        "review_document": "# Review\n\nThe executed source has one defect.",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "interface",
+                "summary": "The source violates its declared interface.",
+                "observed_behavior": "The source returns a constant.",
+                "expected_behavior": "The source should implement the declared object.",
+            }
+        ],
         "source_revision_assessment": {
             "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
             "rationale": "No active finding requires a parent change.",
-            "evidence_refs": ["not a JSON pointer"],
         },
     }
 
@@ -676,9 +691,7 @@ def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
 
     assert exc_info.value.attempts == 2
     assert len(backend.requests) == 2
-    assert "source_revision_assessment cites missing evidence ref" in str(
-        exc_info.value
-    )
+    assert "model verdict must agree with active findings" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -997,11 +1010,14 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
     ) == []
 
 
-def test_reviewer_canonicalizes_unambiguous_bracket_array_refs() -> None:
+def test_review_document_owns_locations_without_pointer_abi() -> None:
     response = {
         "prior_finding_reviews": [],
         "overall_verdict": "REVISE",
-        "review_document": "# Review\n\nThe source ignores its runtime arguments.",
+        "review_document": (
+            "# Review\n\nThe current artifact's source lines 1-2 ignore the "
+            "supplied runtime arguments."
+        ),
         "findings": [
             {
                 "severity": "high",
@@ -1009,17 +1025,11 @@ def test_reviewer_canonicalizes_unambiguous_bracket_array_refs() -> None:
                 "summary": "Runtime arguments are ignored.",
                 "observed_behavior": "The source returns a constant.",
                 "expected_behavior": "The source should use supplied arguments.",
-                "evidence_refs": [
-                    "/review_material/exact_executed_artifacts[0]/exact_source_code"
-                ],
             }
         ],
         "source_revision_assessment": {
             "resolution_scope": "NO_PARENT_ARTIFACT_CHANGE_REQUIRED",
             "rationale": "The current source can be rewritten against fixed parents.",
-            "evidence_refs": [
-                "/review_material/exact_executed_artifacts[0]/actual_runtime_arguments"
-            ],
         },
     }
 
@@ -1029,9 +1039,9 @@ def test_reviewer_canonicalizes_unambiguous_bracket_array_refs() -> None:
         trusted_lineage=_trusted_lineage(),
     )
 
-    assert packet["findings"][0]["evidence_refs"] == [
-        "/review_material/exact_executed_artifacts/0/exact_source_code"
-    ]
+    assert packet["findings"][0]["evidence_refs"] == []
+    assert "source lines 1-2" in packet["_review_document_artifact"]["content"]
+    assert packet["review_evidence_document_fingerprint"]
     assert validate_generated_code_semantic_review_packet(
         packet, review_material=_review_material()
     ) == []
@@ -1054,10 +1064,6 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
                 "expected_behavior": (
                     "The theory and frozen meaning must identify one statistic."
                 ),
-                "evidence_refs": [
-                    "/theory_packet",
-                    "/architect_frozen_evidence_contract",
-                ],
             }
         ],
         "source_revision_assessment": {
@@ -1066,10 +1072,6 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
                 "Changing source alone cannot satisfy two contradictory immutable "
                 "artifact meanings."
             ),
-            "evidence_refs": [
-                "/theory_packet",
-                "/architect_frozen_evidence_contract",
-            ],
         },
     }
 
@@ -1085,10 +1087,7 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
         "PARENT_ARTIFACT_CHANGE_REQUIRED"
     )
     assert assessment["current_source_edit_sufficient"] is False
-    assert assessment["evidence_refs"] == [
-        "/review_material/theory_packet",
-        "/review_material/architect_frozen_evidence_contract",
-    ]
+    assert assessment["evidence_refs"] == []
     assert not _contains_key(packet, {"repair_owner", "repair_plan"})
     assert validate_generated_code_semantic_review_packet(
         packet,
@@ -1158,7 +1157,7 @@ def test_legacy_repair_fields_are_reduced_to_descriptive_observations() -> None:
     assert "repair_scope" not in finding
 
 
-def test_missing_evidence_pointer_fails_closed() -> None:
+def test_legacy_pointer_metadata_is_not_a_review_acceptance_gate() -> None:
     response = {
         "prior_finding_reviews": [],
         "dimension_reviews": _dimension_rows(failed="metric_semantics_alignment"),
@@ -1174,50 +1173,14 @@ def test_missing_evidence_pointer_fails_closed() -> None:
         ],
     }
 
-    with pytest.raises(PacketValidationError) as exc_info:
-        _agent(response).review(
-            question=_question(),
-            review_material=_review_material(),
-            trusted_lineage=_trusted_lineage(),
-        )
-
-    assert "cites missing evidence ref" in str(exc_info.value)
-
-
-@pytest.mark.parametrize(
-    "evidence_ref",
-    (
-        "#/exact_executed_artifacts/0/exact_source_code",
-        "/review_material/exact_executed_artifacts/0/exact_source_code",
-    ),
-)
-def test_equivalent_evidence_pointer_namespaces_are_canonicalized(
-    evidence_ref: str,
-) -> None:
-    response = {
-        "prior_finding_reviews": [],
-        "overall_verdict": "REVISE",
-        "findings": [
-            {
-                "severity": "high",
-                "category": "interface",
-                "summary": "The source violates its interface.",
-                "observed_behavior": "The current source returns a constant.",
-                "expected_behavior": "The source should implement the declared object.",
-                "evidence_refs": [evidence_ref],
-            }
-        ],
-    }
-
     packet = _agent(response).review(
         question=_question(),
         review_material=_review_material(),
         trusted_lineage=_trusted_lineage(),
     )
 
-    assert packet["findings"][0]["evidence_refs"] == [
-        "/review_material/exact_executed_artifacts/0/exact_source_code"
-    ]
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["findings"][0]["evidence_refs"] == []
     assert validate_generated_code_semantic_review_packet(
         packet,
         review_material=_review_material(),
@@ -1501,6 +1464,9 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
     assert "repair_plan" not in replan
     assert replan["routing_authority"] == "immutable_source_producer_lineage"
     assert replan["runtime_selected_owner"] is False
+    assert replan["exact_source_workspace_continuation_required"] is True
+    assert "complete_candidate_regeneration_required" not in replan
+    assert "Continue the exact source-owner workspace" in task.objective
 
 
 def test_confirmatory_revision_returns_source_and_findings_without_result_values() -> None:

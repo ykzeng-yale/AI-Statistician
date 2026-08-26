@@ -3,13 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-from urllib.parse import unquote
 
 from .client_tool_loop import (
     ClientToolExecutionContext,
@@ -52,7 +50,7 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 24
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 25
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -61,7 +59,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "statistical acceptance or theorem proof evidence."
 )
 GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = (
-    "model_authored_markdown_review_with_optional_exact_probe_v3"
+    "model_authored_markdown_review_with_optional_exact_probe_v4"
 )
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
@@ -286,33 +284,10 @@ def _string_list(value: Any) -> list[str]:
     )
 
 
-def _canonical_evidence_ref(value: Any) -> str:
-    """Normalize equivalent RFC 6901 references without changing their target."""
-
-    pointer = str(value or "").strip()
-    if pointer.startswith("#"):
-        pointer = unquote(pointer[1:])
-    pointer = re.sub(r"\[(0|[1-9]\d*)\]", r"/\1", pointer)
-    evidence_roots = ("/question", "/reviewer_scope_contract", "/review_material")
-    has_evidence_root = any(
-        pointer == root or pointer.startswith(root + "/")
-        for root in evidence_roots
-    )
-    if pointer.startswith("/") and not has_evidence_root:
-        pointer = "/review_material" + pointer
-    return pointer
-
-
 def _evidence_ref_list(value: Any) -> list[str]:
-    if not isinstance(value, (list, tuple)):
-        return []
-    return list(
-        dict.fromkeys(
-            pointer
-            for item in value
-            if (pointer := _canonical_evidence_ref(item))
-        )
-    )
+    """Discard pre-v25 pointer metadata; review Markdown owns exact locations."""
+
+    return []
 
 
 def _numeric_summary(values: Sequence[Any]) -> dict[str, Any]:
@@ -579,17 +554,13 @@ def _prior_finding_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["status", "rationale", "evidence_refs"],
+        "required": ["status", "rationale"],
         "properties": {
             "status": {
                 "type": "string",
                 "enum": list(GENERATED_CODE_SEMANTIC_REVIEW_PRIOR_FINDING_STATUSES),
             },
             "rationale": {"type": "string", "minLength": 1},
-            "evidence_refs": {
-                "type": "array",
-                "items": {"type": "string", "minLength": 1},
-            },
         },
     }
 
@@ -604,7 +575,6 @@ def _finding_schema() -> dict[str, Any]:
             "summary",
             "observed_behavior",
             "expected_behavior",
-            "evidence_refs",
         ],
         "properties": {
             "severity": {
@@ -615,11 +585,6 @@ def _finding_schema() -> dict[str, Any]:
             "summary": {"type": "string", "minLength": 1},
             "observed_behavior": {"type": "string", "minLength": 1},
             "expected_behavior": {"type": "string", "minLength": 1},
-            "evidence_refs": {
-                "type": "array",
-                "minItems": 1,
-                "items": {"type": "string", "minLength": 1},
-            },
         },
     }
 
@@ -631,7 +596,6 @@ def _source_revision_assessment_schema() -> dict[str, Any]:
         "required": [
             "resolution_scope",
             "rationale",
-            "evidence_refs",
         ],
         "properties": {
             "resolution_scope": {
@@ -639,10 +603,6 @@ def _source_revision_assessment_schema() -> dict[str, Any]:
                 "enum": list(SOURCE_REVISION_SCOPES),
             },
             "rationale": {"type": "string", "minLength": 1},
-            "evidence_refs": {
-                "type": "array",
-                "items": {"type": "string", "minLength": 1},
-            },
         },
     }
 
@@ -723,9 +683,9 @@ def build_generated_code_semantic_review_prompt(
         "Return a compact JSON envelope matching the response schema. Put the actual scientific "
         "analysis in review_document as Markdown. Set overall_verdict to ACCEPT only when the "
         "exact artifact is semantically fit for downstream use; otherwise use REVISE and report "
-        "each active defect once. Findings must state observed and expected behavior and cite "
-        "RFC 6901 JSON pointers rooted at /question, /reviewer_scope_contract, or /review_material. "
-        "Runtime validates those pointers. Review every listed prior finding once, without "
+        "each active defect once. Findings must state observed and expected behavior. Ground "
+        "the exact artifact locations and source lines in review_document; the compact envelope "
+        "does not carry a second citation language. Review every listed prior finding once, without "
         "restating an unresolved prior as a new finding.\n\n"
         "source_revision_assessment asks only whether some rewrite of the current source could "
         "close all findings while immutable parents stay fixed. It is not a repair plan or "
@@ -1101,11 +1061,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     "ok": False,
                     "error": "generated_code_semantic_review_submission_rejected",
                     "validation_errors": list(errors[:12]),
-                    "allowed_evidence_roots": [
-                        "/question",
-                        "/reviewer_scope_contract",
-                        "/review_material",
-                    ],
                     "instruction": (
                         "Re-submit the complete judgment using every validation "
                         "observation; immutable reviewed artifacts cannot change."
@@ -1416,29 +1371,6 @@ def _normalize_generated_code_semantic_review_packet(
     }
 
 
-def _json_pointer_exists(value: Any, pointer: str) -> bool:
-    if not pointer.startswith("/"):
-        return False
-    current = value
-    for raw_part in pointer.split("/")[1:]:
-        part = raw_part.replace("~1", "/").replace("~0", "~")
-        if isinstance(current, Mapping):
-            if part not in current:
-                return False
-            current = current[part]
-        elif isinstance(current, list):
-            try:
-                index = int(part)
-            except ValueError:
-                return False
-            if index < 0 or index >= len(current):
-                return False
-            current = current[index]
-        else:
-            return False
-    return True
-
-
 def validate_generated_code_semantic_review_packet(
     packet: Mapping[str, Any],
     *,
@@ -1491,12 +1423,6 @@ def validate_generated_code_semantic_review_packet(
         ):
             if not str(row.get(field, "") or "").strip():
                 errors.append(f"{label} missing {field}")
-        refs = _string_list(row.get("evidence_refs", []))
-        if not refs:
-            errors.append(f"{label} requires evidence_refs")
-        for ref in refs:
-            if not _json_pointer_exists(evidence_document, ref):
-                errors.append(f"{label} cites missing evidence ref: {ref}")
         forbidden = {
             "repair_scope",
             "repair_owner",
@@ -1521,11 +1447,6 @@ def validate_generated_code_semantic_review_packet(
             errors.append(f"prior_finding_reviews[{index}] has invalid status")
         if not str(row.get("rationale", "") or "").strip():
             errors.append(f"prior_finding_reviews[{index}] is missing rationale")
-        for ref in _string_list(row.get("evidence_refs", [])):
-            if not _json_pointer_exists(evidence_document, ref):
-                errors.append(
-                    f"prior_finding_reviews[{index}] cites missing evidence ref: {ref}"
-                )
     requested_verdict = str(
         packet.get("model_requested_overall_verdict", "") or ""
     ).strip().upper()
@@ -1604,20 +1525,6 @@ def validate_generated_code_semantic_review_packet(
             )
         if not str(assessment.get("rationale", "") or "").strip():
             errors.append("source_revision_assessment is missing rationale")
-        assessment_refs = _string_list(assessment.get("evidence_refs", []))
-        for ref in assessment_refs:
-            if not _json_pointer_exists(evidence_document, ref):
-                errors.append(
-                    "source_revision_assessment cites missing evidence ref: " + ref
-                )
-        if (
-            requested_verdict == "REVISE"
-            and assessment.get("current_source_edit_sufficient") is False
-            and not assessment_refs
-        ):
-            errors.append(
-                "cross-artifact source revision assessment requires evidence refs"
-            )
         if (
             requested_verdict == "ACCEPT"
             and assessment.get("current_source_edit_sufficient") is not True
