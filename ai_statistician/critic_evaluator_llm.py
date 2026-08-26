@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from .client_tool_loop import read_hash_bound_utf8_file
 from .fingerprint import stable_hash
 from .structured_output_retry import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
@@ -583,27 +583,11 @@ def _critic_review_report(report: Mapping[str, Any]) -> dict[str, Any]:
             "content": "",
             "load_error": "report_not_persisted",
         }
-    try:
-        encoded = Path(path).expanduser().resolve().read_bytes()
-        content = encoded.decode("utf-8")
-    except (OSError, UnicodeError) as exc:
-        return {
-            **identity,
-            "content_loaded": False,
-            "content": "",
-            "load_error": type(exc).__name__,
-        }
-    errors = []
-    if hashlib.sha256(encoded).hexdigest() != str(
-        report.get("sha256", "") or ""
-    ):
-        errors.append("sha256_mismatch")
-    if len(encoded) != int(report.get("byte_size", -1) or -1):
-        errors.append("byte_size_mismatch")
+    content, errors = read_hash_bound_utf8_file(report)
     return {
         **identity,
         "content_loaded": not errors,
-        "content": "" if errors else content,
+        "content": content,
         "load_error": ",".join(errors),
     }
 

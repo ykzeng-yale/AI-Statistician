@@ -5009,6 +5009,7 @@ def test_preflight_progress_can_continue_after_many_revision_rounds() -> None:
             "source_theory_packet_id": "theory_derivation:round-eight",
             "source_theory_packet_hash": "round-eight-hash",
             "semantic_review_packet_id": rejected_packet["packet_id"],
+            "review_report": rejected_packet["review_report"],
             "overall_verdict": "REVISE",
             "prior_finding_reviews": [
                 {
@@ -5068,6 +5069,7 @@ def test_preflight_progress_can_continue_after_many_revision_rounds() -> None:
     assert feedback["continuation_budget_authority"] == (
         "AgentRuntime.max_iterations"
     )
+    assert feedback["review_document_ref"] == rejected_packet["review_report"]
     progress = result.next_task.inputs["architect_context"][
         "runtime_theory_revision_progress"
     ]

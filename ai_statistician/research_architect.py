@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
+from .client_tool_loop import read_hash_bound_utf8_file
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
@@ -3090,6 +3091,16 @@ def _theory_workspace_read_only_observations(
         else {}
     )
     reviewer_observations = deepcopy(dict(reviewer_observations))
+    report_ref = reviewer_observations.get("review_document_ref", {})
+    report_content = ""
+    if isinstance(report_ref, Mapping) and report_ref:
+        report_content, errors = read_hash_bound_utf8_file(report_ref)
+        if report_ref.get("persisted") is not True or errors:
+            raise ValueError("stale theory review document reference: " + ",".join(errors))
+        model_ref = deepcopy(dict(report_ref))
+        model_ref.pop("path", None)
+        model_ref["workspace_artifact"] = "review_document_markdown"
+        reviewer_observations["review_document_ref"] = model_ref
     embedded_preflight = reviewer_observations.pop(
         "theory_execution_preflight_packet",
         {},
@@ -3104,6 +3115,8 @@ def _theory_workspace_read_only_observations(
     observations: dict[str, Any] = {
         "reviewer_observations": reviewer_observations,
     }
+    if report_content:
+        observations["review_document_markdown"] = report_content
     transport_feedback = revision_inputs.get("transport_feedback", {})
     if isinstance(transport_feedback, Mapping) and transport_feedback:
         observations["transport_observations"] = deepcopy(
@@ -3423,10 +3436,10 @@ def _theory_workspace_revision_prompt(
             ),
             (
                 "Reviewer observations remain available as the independent source of "
-                "the revision request; inspect them when the continued next step "
-                "depends on the original finding."
+                "the revision request; when they reference review_document_markdown, "
+                "read that exact referee report before revising the failed claim."
                 if continuing_from_progress
-                else "Keep the inspected reviewer finding bound to this revision."
+                else "Read any referenced review_document_markdown before revising."
             ),
             (
                 "Use your own statistical judgment. Reviewer observations identify "

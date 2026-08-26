@@ -55,6 +55,24 @@ class ClientToolLoopResult:
     final_response_metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
+def read_hash_bound_utf8_file(
+    reference: Mapping[str, Any],
+) -> tuple[str, tuple[str, ...]]:
+    """Read exact referenced text while keeping identity failures caller-owned."""
+
+    try:
+        encoded = Path(str(reference.get("path", "") or "")).expanduser().resolve().read_bytes()
+        content = encoded.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        return "", (type(exc).__name__,)
+    errors = []
+    if hashlib.sha256(encoded).hexdigest() != str(reference.get("sha256", "") or ""):
+        errors.append("sha256_mismatch")
+    if len(encoded) != reference.get("byte_size"):
+        errors.append("byte_size_mismatch")
+    return (content if not errors else ""), tuple(errors)
+
+
 class ClientToolLoopError(RuntimeError):
     def __init__(
         self,

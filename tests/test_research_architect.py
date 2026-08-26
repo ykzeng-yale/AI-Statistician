@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import shutil
 from copy import deepcopy
@@ -2326,6 +2327,34 @@ def test_serious_theory_revision_requires_native_client_tool_backend() -> None:
         developer.derive(question, architect_context=context)
 
     assert provider.requests == []
+
+
+def test_theory_revision_reads_hash_bound_referee_markdown(tmp_path: Path) -> None:
+    content = "# Referee report\n\nThe current scaling contradicts Claim 8.3.1.\n"
+    path = tmp_path / "review.md"
+    path.write_text(content, encoding="utf-8")
+    feedback = {
+        "review_document_ref": {
+            "path": str(path),
+            "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "byte_size": len(content.encode("utf-8")),
+            "persisted": True,
+        }
+    }
+
+    observed = research_architect_module._theory_workspace_read_only_observations(
+        {"feedback": feedback}
+    )
+
+    assert observed["review_document_markdown"] == content
+    model_ref = observed["reviewer_observations"]["review_document_ref"]
+    assert model_ref["workspace_artifact"] == "review_document_markdown"
+    assert "path" not in model_ref
+    path.write_text("tampered", encoding="utf-8")
+    with pytest.raises(ValueError, match="stale theory review document reference"):
+        research_architect_module._theory_workspace_read_only_observations(
+            {"feedback": feedback}
+        )
 
 
 def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> None:

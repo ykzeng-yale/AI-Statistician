@@ -823,6 +823,7 @@ def architect_preexecution_metric_protocol_rejection_result(
     source_theory_packet_hash = str(
         final_review.get("source_theory_packet_hash", "") or ""
     )
+    review_document_ref = deepcopy(dict(final_review.get("review_report", {}) or {}))
     manifest = {
         "schema_version": EVALUATION_PROTOCOL_REVISION_SCHEMA_VERSION,
         "artifact_kind": "RuntimeArchitectMetricProtocolPreExecutionRejection",
@@ -991,6 +992,7 @@ def architect_preexecution_metric_protocol_rejection_result(
                 next_revision_count,
                 observed_findings,
                 current_unresolved_finding_reviews,
+                review_document_ref,
             ]
         )[:20]
         feedback = {
@@ -1022,6 +1024,7 @@ def architect_preexecution_metric_protocol_rejection_result(
                 final_review.get("portfolio_review", {}) or {}
             ),
             "findings": observed_findings,
+            "review_document_ref": review_document_ref,
             "current_unresolved_finding_reviews": (
                 current_unresolved_finding_reviews
             ),
