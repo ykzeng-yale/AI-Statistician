@@ -12,6 +12,7 @@ from .client_tool_loop import read_hash_bound_utf8_file
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
+    frozen_estimator_execution_contract_alignment_errors,
     estimator_interface_contract_errors,
     estimator_interface_contract_id,
     estimator_interface_contract_json_schema,
@@ -1884,6 +1885,21 @@ def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     )
 
 
+def _validate_theory_packet_for_question(
+    packet: Mapping[str, Any],
+    *,
+    question: OpenResearchQuestion,
+) -> list[str]:
+    errors = validate_theory_packet(packet)
+    errors.extend(
+        frozen_estimator_execution_contract_alignment_errors(
+            packet,
+            question.estimator_execution_contract,
+        )
+    )
+    return list(dict.fromkeys(errors))
+
+
 def validate_theory_core_packet(packet: Mapping[str, Any]) -> list[str]:
     """Validate mathematical content before executable interface authoring."""
 
@@ -3067,7 +3083,10 @@ def _initial_theory_workspace_prompt(
         "paths as exact references. When estimator_specs is required, author its exact "
         "executable estimator_interface_contract in this same workspace session; the "
         "runtime validates its shape and claim references but does not translate or "
-        "rewrite it. The required compact handoffs are: "
+        "rewrite it. If the question supplies a frozen estimator execution contract, "
+        "preserve its estimator_id, request and response field names and order, and "
+        "request bindings exactly; those are external ABI identity, while the "
+        "mathematical content remains yours. The required compact handoffs are: "
         + required_handoffs
         + ". Handoffs not required by this task intent may remain empty: "
         + optional_handoffs
@@ -3231,7 +3250,10 @@ def _theory_workspace_revision_prompt(
             "same workspace. When estimator semantics or outputs change, inspect and "
             "revise that executable ABI yourself; when they do not change, preserve "
             "the parent value exactly. Runtime validates shape and claim references "
-            "but never authors the interface."
+            "but never authors the interface. When the question supplies a frozen "
+            "estimator execution contract, its estimator_id, request and response "
+            "field names and order, and request bindings remain exact external ABI "
+            "identity."
         )
     if "transport_observations" in read_only_observations:
         payload["transport_observations"] = {
@@ -3368,9 +3390,10 @@ def _validate_theory_workspace_revision_packet(
     *,
     revision_inputs: Mapping[str, Any],
     workspace_id: str,
+    question: OpenResearchQuestion,
     require_workspace_edit_evidence: bool = False,
 ) -> list[str]:
-    errors = validate_theory_packet(packet)
+    errors = _validate_theory_packet_for_question(packet, question=question)
     transport = packet.get("theory_revision_transport", {})
     if not isinstance(transport, Mapping):
         return [*errors, "theory workspace revision transport must be an object"]
@@ -3630,7 +3653,10 @@ def _generate_initial_theory_artifact_workspace(
         initial_documents=initial_documents,
         read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
-        validate_candidate=validate_theory_packet,
+        validate_candidate=lambda packet: _validate_theory_packet_for_question(
+            packet,
+            question=question,
+        ),
         scratchpad=theory_scratchpad,
         research_sources=research_sources,
         research_source_discovery=research_source_discovery,
@@ -3681,7 +3707,7 @@ def _generate_initial_theory_artifact_workspace(
         packet,
         question=question,
     )
-    errors = validate_theory_packet(packet)
+    errors = _validate_theory_packet_for_question(packet, question=question)
     changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
     required_authored_artifacts = {
         field
@@ -3936,6 +3962,7 @@ def _generate_theory_workspace_revision(
                 packet,
                 revision_inputs=revision_inputs,
                 workspace_id=workspace_id,
+                question=question,
             )
         ),
         scratchpad=theory_scratchpad,
@@ -4011,6 +4038,7 @@ def _generate_theory_workspace_revision(
         packet,
         revision_inputs=revision_inputs,
         workspace_id=workspace_id,
+        question=question,
         require_workspace_edit_evidence=True,
     )
     if errors:
@@ -4319,7 +4347,7 @@ def _complete_theory_estimator_interfaces(
             },
         ]
         _refresh_theory_packet_id(merged, question=question)
-        errors = validate_theory_packet(merged)
+        errors = _validate_theory_packet_for_question(merged, question=question)
         if errors:
             raise PacketValidationError(
                 validation_label="reused TheoryDeveloper estimator interfaces",
@@ -4498,7 +4526,7 @@ def _complete_theory_estimator_interfaces(
         },
     ]
     _refresh_theory_packet_id(merged, question=question)
-    errors = validate_theory_packet(merged)
+    errors = _validate_theory_packet_for_question(merged, question=question)
     if errors:
         raise PacketValidationError(
             validation_label="merged LLM TheoryDeveloper packet",

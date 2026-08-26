@@ -712,7 +712,7 @@ class GeneratedCodeSemanticReviewerConfig:
     max_tokens: int = 5000
     temperature: float = 0.0
     provider_name: str = "anthropic"
-    max_validation_retries: int = 0
+    max_validation_retries: int = 1
 
 
 class LLMGeneratedCodeSemanticReviewerAgent:

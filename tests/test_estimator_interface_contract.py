@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from ai_statistician.estimator_interface_contract import (
+    frozen_estimator_execution_contract_alignment_errors,
     frozen_estimator_execution_contract_clause_ids,
     frozen_estimator_execution_contract_empirical_claim_ids,
     frozen_estimator_execution_contract_errors,
@@ -119,6 +120,96 @@ def test_frozen_estimator_execution_contract_rejects_invalid_empirical_claim() -
     )
 
     assert "contract empirical_claims[0] missing meaning" in errors
+
+
+def _model_theory_handoff_for_frozen_contract(contract: dict) -> dict:
+    return {
+        "estimator_specs": [
+            {
+                "id": contract["estimator_id"],
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": row["name"],
+                            "meaning": "Chosen by TheoryDeveloper.",
+                            "binding": row["binding"],
+                        }
+                        for row in contract["request_fields"]
+                    ],
+                    "response_fields": [
+                        {
+                            "name": row["name"],
+                            "meaning": "Chosen by TheoryDeveloper.",
+                            "normalization": "Chosen by TheoryDeveloper.",
+                            "derivation_ref": "C1",
+                        }
+                        for row in contract["response_fields"]
+                    ],
+                },
+            }
+        ]
+    }
+
+
+def test_frozen_estimator_alignment_binds_identity_and_layout_only() -> None:
+    frozen = _frozen_contract()
+    packet = _model_theory_handoff_for_frozen_contract(frozen)
+
+    assert frozen_estimator_execution_contract_alignment_errors(
+        packet,
+        frozen,
+    ) == []
+
+    packet["estimator_specs"][0]["estimator_interface_contract"][
+        "response_fields"
+    ][0]["meaning"] = "A different model-authored statistical meaning."
+    assert frozen_estimator_execution_contract_alignment_errors(
+        packet,
+        frozen,
+    ) == []
+
+
+def test_frozen_estimator_alignment_rejects_model_renamed_identity() -> None:
+    frozen = _frozen_contract()
+    packet = _model_theory_handoff_for_frozen_contract(frozen)
+    packet["estimator_specs"][0]["id"] = "est.renamed"
+
+    errors = frozen_estimator_execution_contract_alignment_errors(packet, frozen)
+
+    assert errors == [
+        "theory packet estimator_specs must contain exact frozen estimator id "
+        "'est_example'; observed: est.renamed"
+    ]
+
+
+def test_frozen_estimator_alignment_rejects_field_or_binding_drift() -> None:
+    frozen = _frozen_contract()
+    frozen["request_fields"].append(
+        {
+            **frozen["request_fields"][0],
+            "clause_id": "request.scale",
+            "name": "scale",
+            "binding": "fixed_before_all_replicates",
+        }
+    )
+    packet = _model_theory_handoff_for_frozen_contract(frozen)
+    request_fields = packet["estimator_specs"][0][
+        "estimator_interface_contract"
+    ]["request_fields"]
+    request_fields.reverse()
+    request_fields[0]["binding"] = "runtime_control"
+
+    errors = frozen_estimator_execution_contract_alignment_errors(packet, frozen)
+
+    assert len(errors) == 2
+    assert "request_fields names and order" in errors[0]
+    assert "request field bindings and order" in errors[1]
+
+
+def test_absent_frozen_estimator_contract_adds_no_legacy_constraint() -> None:
+    packet = {"estimator_specs": [{"id": "model_owned"}]}
+
+    assert frozen_estimator_execution_contract_alignment_errors(packet, {}) == []
 
 
 def test_question_loader_preserves_frozen_estimator_execution_contract(

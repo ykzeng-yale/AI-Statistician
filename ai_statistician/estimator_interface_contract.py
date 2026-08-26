@@ -161,6 +161,78 @@ def frozen_estimator_execution_contract_errors(
     return errors
 
 
+def frozen_estimator_execution_contract_alignment_errors(
+    theory_packet: Mapping[str, Any],
+    frozen_contract: Any,
+    *,
+    label: str = "theory packet",
+) -> list[str]:
+    """Bind external ABI identity without interpreting model-authored statistics."""
+    if frozen_contract in (None, "", [], {}):
+        return []
+    frozen_errors = frozen_estimator_execution_contract_errors(
+        frozen_contract,
+        label=f"{label} frozen estimator execution contract",
+        required=True,
+    )
+    if frozen_errors:
+        return frozen_errors
+    assert isinstance(frozen_contract, Mapping)
+    expected_id = str(frozen_contract.get("estimator_id", "") or "").strip()
+    specs = theory_packet.get("estimator_specs", [])
+    if not isinstance(specs, list) or not specs:
+        return []
+    model_spec = next((
+        row
+        for row in specs
+        if isinstance(row, Mapping)
+        and str(row.get("id", "") or "").strip() == expected_id
+    ), None)
+    if model_spec is None:
+        observed_ids = sorted({
+            str(row.get("id", "") or "").strip()
+            for row in specs
+            if isinstance(row, Mapping)
+            and str(row.get("id", "") or "").strip()
+        })
+        observed = ", ".join(observed_ids) or "<none>"
+        return [
+            f"{label} estimator_specs must contain exact frozen estimator id "
+            f"{expected_id!r}; observed: {observed}"
+        ]
+    model_contract = model_spec.get("estimator_interface_contract", {})
+    if not isinstance(model_contract, Mapping):
+        return [
+            f"{label} frozen estimator {expected_id!r} is missing its "
+            "model-authored estimator_interface_contract"
+        ]
+    def field_values(source: Mapping[str, Any], collection: str, field: str) -> tuple[str, ...]:
+        rows = source.get(collection, [])
+        if not isinstance(rows, list):
+            return ()
+        return tuple(
+            str(row.get(field, "") or "").strip() for row in rows
+            if isinstance(row, Mapping)
+        )
+    errors: list[str] = []
+    for collection in ("request_fields", "response_fields"):
+        if field_values(model_contract, collection, "name") != field_values(
+            frozen_contract, collection, "name"
+        ):
+            errors.append(
+                f"{label} frozen estimator {expected_id!r} {collection} "
+                "names and order must match the frozen executable ABI exactly"
+            )
+    if field_values(model_contract, "request_fields", "binding") != field_values(
+        frozen_contract, "request_fields", "binding"
+    ):
+        errors.append(
+            f"{label} frozen estimator {expected_id!r} request field bindings "
+            "and order must match the frozen executable ABI exactly"
+        )
+    return errors
+
+
 def estimator_interface_contract_json_schema() -> dict[str, Any]:
     response_required = [
         "name",

@@ -1139,7 +1139,7 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
                 0.0,
             ),
             provider_name=provider_name,
-            max_validation_retries=0,
+            max_validation_retries=1,
         ),
     )
 

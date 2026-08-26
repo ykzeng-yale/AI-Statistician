@@ -679,6 +679,99 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
     ] is True
 
 
+def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() -> None:
+    invalid = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe exact source has a blocking defect.",
+        "findings": [
+            {
+                "severity": "high",
+                "category": "interface",
+                "summary": "The exact source violates the public interface.",
+                "observed_behavior": "The exact source returns a constant.",
+                "expected_behavior": "The exact source must implement the stated object.",
+            }
+        ],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The immutable parents can remain fixed.",
+        },
+    }
+    corrected = {**invalid, "overall_verdict": "REVISE"}
+
+    class TerminalRecoveryBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return ClientToolTurnResponse(
+                    content_blocks=(),
+                    tool_calls=(),
+                    text="I will inspect the artifact first.",
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={"provider_stop_reason": "end_turn"},
+                )
+            payload = invalid if turn == 2 else corrected
+            call_id = f"terminal-review-{turn}"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call_id,
+                        "name": "submit_generated_code_semantic_review",
+                        "input": payload,
+                    },
+                ),
+                tool_calls=(
+                    ClientToolCall(
+                        call_id=call_id,
+                        name="submit_generated_code_semantic_review",
+                        input=payload,
+                    ),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = TerminalRecoveryBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["client_tool_loop"]["turns"] == 3
+    assert packet["client_tool_loop"]["validation_submissions"] == 2
+    assert packet["client_tool_loop"]["validation_feedback_observed"] is True
+    assert len(backend.requests) == 3
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
+    assert backend.requests[2].metadata[
+        "client_tool_loop_terminal_decision_turn"
+    ] is True
+    assert "model verdict must agree with active findings" in str(
+        backend.requests[2].messages[-1]
+    )
+
+
 def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
     invalid_response = {
         "prior_finding_reviews": [],
