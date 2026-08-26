@@ -947,7 +947,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_model_directed_document_and_source_inspection_v17"
+        "client_tool_model_directed_document_and_source_inspection_v18"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
@@ -2395,6 +2395,13 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ):
         assert phrase in protocol
     assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL) == 7
+    assert "Choose the tool order that best supports that judgment" in (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+        + str(backend.requests[0].messages[0]["content"])
+    )
+    assert "Before candidate-document access" not in str(
+        backend.requests[0].messages[0]["content"]
+    )
     for retired_corner_case in (
         "missing or extra sample-size factor",
         "fixed-candidate result does not automatically survive",
@@ -2691,58 +2698,26 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
             if turn == 1:
                 return _tool_response(
                     ClientToolCall(
-                        "search-before-independent-reconstruction",
-                        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-                        {"query": "late_document_claim_marker"},
-                    )
-                )
-            if turn == 2:
-                return _tool_response(
-                    ClientToolCall(
-                        "write-independent-reconstruction",
-                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
-                        {
-                            "content": (
-                                "# Independent reconstruction\n\nThe question alone "
-                                "does not establish the candidate's asymptotic "
-                                "transition; it must be checked after inspection.\n"
-                            )
-                        },
-                    )
-                )
-            if turn == 3:
-                return _tool_response(
-                    ClientToolCall(
                         "search-authoritative-document",
                         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
                         {"query": "late_document_claim_marker"},
                     )
                 )
-            if turn == 4:
+            if turn == 2:
                 search_result = json.loads(
                     request.messages[-1]["content"][0]["content"]
                 )
                 self.marker_line = search_result["hits"][0]["line_number"]
                 return _tool_response(
-                    *[
-                        ClientToolCall(
-                            f"read-authoritative-document-{index}",
-                            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-                            {
-                                "path": relative_path,
-                                "line_start": line_start,
-                                "line_end": line_end,
-                            },
-                        )
-                        for index, (line_start, line_end) in enumerate(
-                            (
-                                (1, 500),
-                                (501, 1000),
-                                (1001, len(content.splitlines())),
-                            ),
-                            start=1,
-                        )
-                    ]
+                    ClientToolCall(
+                        "read-authoritative-document",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {
+                            "path": relative_path,
+                            "line_start": self.marker_line,
+                            "line_end": self.marker_line + 1,
+                        },
+                    )
                 )
             return _tool_response(
                 ClientToolCall(
@@ -2788,22 +2763,14 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
     assert derivation_anchor["content_access"] == (
         "authoritative_document_tools_or_model_directed_compact_search"
     )
-    first_rejection = _last_tool_result(backend.requests[1])
-    assert first_rejection["error"] == "client_tool_input_rejected"
-    assert first_rejection["detail"] == (
-        "write an independent referee reconstruction before inspecting candidate "
-        "theory documents"
-    )
-    search_observation = _last_tool_result(backend.requests[3])
+    search_observation = _last_tool_result(backend.requests[1])
     assert search_observation["hits"][0]["line"] == marker
     assert packet["theory_document_inspection_required"] is True
-    assert packet["theory_document_inspection_count"] == 4
+    assert packet["theory_document_inspection_count"] == 2
     assert [
         row["tool"] for row in packet["theory_document_inspection_refs"]
     ] == [
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     ]
     assert marker not in json.dumps(packet)
@@ -3249,10 +3216,6 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         }
     ]
     theory_material["source_theory_packet_hash"] = stable_hash(semantic)
-    initial_report = (
-        "# Independent reconstruction\n\nThe question requires a finite total "
-        "procedure, but the candidate identity has not yet been inspected.\n"
-    )
     report = (
         "# Independent theory preflight\n\n"
         "I reconstructed the finite identity from the declared definition and "
@@ -3269,14 +3232,6 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
             if len(self.requests) == 1:
-                return _tool_response(
-                    ClientToolCall(
-                        "write-independent-reconstruction",
-                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
-                        {"content": initial_report},
-                    )
-                )
-            if len(self.requests) == 2:
                 return _tool_response(
                     ClientToolCall(
                         "read-candidate",
@@ -3328,18 +3283,8 @@ def test_client_tool_preflight_persists_markdown_referee_report(
     review_path = Path(review_document["path"])
     assert review_path.read_text(encoding="utf-8") == report
     assert review_path.is_relative_to(tmp_path / "run" / "theory_reviews")
-    chronology = packet["theory_independent_reconstruction_chronology"]
-    initial_sha256 = hashlib.sha256(initial_report.encode("utf-8")).hexdigest()
-    assert chronology == {
-        "required": True,
-        "initial_report_sha256": initial_sha256,
-        "candidate_document_inspected": True,
-        "revised_report_sha256": review_document["sha256"],
-        "comparison_completed": True,
-        "runtime_selected_mathematics": False,
-    }
-    reconstruction_path = review_path.parent / f"review-draft-{initial_sha256}.md"
-    assert reconstruction_path.read_text(encoding="utf-8") == initial_report
+    assert "theory_independent_reconstruction_chronology" not in packet
+    assert len(backend.requests) == 2
     assert [
         row["component_id"].removeprefix("claim:")
         for row in packet["component_reviews"]
@@ -3375,17 +3320,6 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         "path escapes its workspace" in error
         for error in validate_architect_theory_execution_preflight_packet(
             escaped_packet,
-            material=material,
-        )
-    )
-    chronology_tamper = deepcopy(packet)
-    chronology_tamper["theory_independent_reconstruction_chronology"][
-        "revised_report_sha256"
-    ] = initial_sha256
-    assert any(
-        "reconstruction chronology is incomplete" in error
-        for error in validate_architect_theory_execution_preflight_packet(
-            chronology_tamper,
             material=material,
         )
     )

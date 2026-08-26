@@ -67,8 +67,8 @@ from .theory_workspace import (
     theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 25
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 35
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 26
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 36
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -79,10 +79,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_model_directed_document_and_source_inspection_v17"
+    "client_tool_model_directed_document_and_source_inspection_v18"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
-    "model_owned_markdown_referee_workspace_with_compact_disposition_v6"
+    "model_owned_markdown_referee_workspace_with_compact_disposition_v7"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = "model_authored_markdown_referee_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL = "write_theory_preflight_report"
@@ -2010,35 +2010,6 @@ def _preflight_theory_document_inspection_errors(
         ref.get("tool") == THEORY_WORKSPACE_READ_DOCUMENT_TOOL for ref in refs
     ):
         errors.append("authoritative theory document read evidence is required")
-    chronology = packet.get("theory_independent_reconstruction_chronology", {})
-    chronology = dict(chronology) if isinstance(chronology, Mapping) else {}
-    if bool(chronology.get("required")) != expected_required:
-        errors.append("independent theory reconstruction requirement mismatch")
-    if expected_required:
-        initial_sha = str(chronology.get("initial_report_sha256", "") or "")
-        revised_sha = str(chronology.get("revised_report_sha256", "") or "")
-        if (
-            not re.fullmatch(r"[0-9a-f]{64}", initial_sha)
-            or not re.fullmatch(r"[0-9a-f]{64}", revised_sha)
-            or initial_sha == revised_sha
-            or chronology.get("candidate_document_inspected") is not True
-            or chronology.get("comparison_completed") is not True
-            or chronology.get("runtime_selected_mathematics") is not False
-        ):
-            errors.append("independent theory reconstruction chronology is incomplete")
-        report = packet.get("review_report", {})
-        if not isinstance(report, Mapping) or report.get("sha256") != revised_sha:
-            errors.append("candidate-comparison report hash mismatch")
-        snapshot = Path(str(material.get("review_workspace_root", "") or "")) / (
-            f"review-draft-{initial_sha}.md"
-        )
-        try:
-            snapshot_content = snapshot.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            snapshot_content = ""
-        if not snapshot_content or _preflight_text_sha256(snapshot_content) != initial_sha:
-            errors.append("independent theory reconstruction snapshot is unavailable")
-
     source_theory_packet_hash = str(
         material.get("source_theory_packet_hash", "") or ""
     )
@@ -3258,7 +3229,7 @@ def validate_architect_theory_execution_preflight_packet(
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent ArchitectMetricSemanticReviewer inside an AI Statistician AgentRuntime. Use model-directed search and exact range reads to inspect the
 smallest load-bearing dependency chain and highest-risk claims; read a
-complete authoritative Markdown or LaTeX document only when its structure requires it. Before candidate-document access, write your independent reconstruction from the question, contract, and sources you choose; then inspect the candidate and revise that same report by explicit comparison. Start from attempted falsification, then reconstruct decisive transitions.
+complete authoritative Markdown or LaTeX document only when its structure requires it. Independently reconstruct decisive transitions from definitions and compare them with the candidate rather than inheriting its narrative. Start from attempted falsification.
 Treat every candidate claim, source, scratch result, and sanity check as unverified; exploratory execution is not proof or frozen confirmation. Do not silently repair a false derivation or accept it because a corrected argument reaches the desired result. Mark material uncertainty and report findings without task-family formulas in one mathematical Markdown referee report; bind compact component statuses to exact supporting report lines. Never claim proof evidence.
 Reconcile every tool observation in that report. A rejected or failed exploratory
 scratch run may be nonblocking when the mathematical judgment does not rely on it,
@@ -3827,9 +3798,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
         "source_evidence_refs accepts only S...H... source handles. "
         "Develop the mathematical judgment in the isolated Markdown review workspace. "
-        "Before candidate-document access, independently reconstruct from the question, "
-        "contract, and sources or scratch work you chose, stating uncertainty where "
-        "needed. Then inspect the candidate and revise that report by comparison. Call "
+        "Independently reconstruct decisive transitions from definitions, sources, or "
+        "scratch work you choose, compare them explicitly with the candidate, and state "
+        "uncertainty where needed. Choose the tool order that best supports that judgment. Call "
         "submit_theory_preflight_review with the returned review_report_sha256 plus "
         "only the compact disposition, ordered component report spans, and finding envelope. A span must point to report lines containing the independent check and candidate comparison for that component; reuse one span when one argument supports several components. A report write and terminal submission "
         "may be issued in the same turn when the terminal call is last. Do not regenerate "
@@ -3963,42 +3934,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             {**body, "observation_fingerprint": fingerprint}
         )
 
-    def reconstruction_chronology() -> dict[str, Any]:
-        initial_sha256 = ""
-        revised_sha256 = ""
-        candidate_inspected = False
-        for row in state["workspace_observations"]:
-            if not isinstance(row, Mapping) or row.get("is_error") is True:
-                continue
-            tool = str(row.get("tool", "") or "")
-            content = row.get("content", {})
-            content = content if isinstance(content, Mapping) else {}
-            if tool in (
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
-            ):
-                report_sha256 = str(content.get("sha256", "") or "")
-                if not candidate_inspected:
-                    initial_sha256 = report_sha256
-                elif initial_sha256 and report_sha256 != initial_sha256:
-                    revised_sha256 = report_sha256
-            elif tool in (
-                THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-                THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-            ):
-                candidate_inspected = True
-        required = bool(authoritative_documents)
-        return {
-            "required": required,
-            "initial_report_sha256": initial_sha256,
-            "candidate_document_inspected": candidate_inspected,
-            "revised_report_sha256": revised_sha256,
-            "comparison_completed": bool(
-                not required or initial_sha256 and candidate_inspected and revised_sha256
-            ),
-            "runtime_selected_mathematics": False,
-        }
-
     def source_grounding_payload(**loop_metadata: Any) -> dict[str, Any]:
         observations = deepcopy(list(state["observations"]))
         public_search_count = sum(
@@ -4053,7 +3988,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "theory_document_inspection_count": len(
                 state["document_inspection_refs"]
             ),
-            "theory_independent_reconstruction_chronology": reconstruction_chronology(),
             "runtime_selected_review_semantics": False,
             "workspace_resumed_from_checkpoint_id": str(
                 resume_metadata["resumed_from_checkpoint_id"]
@@ -4099,14 +4033,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         _context: ClientToolExecutionContext,
     ) -> ClientToolExecutionResult:
         tool_input = dict(call.input)
-        if call.name in {
-            THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-        } and authoritative_documents and not state["review_report_draft"]:
-            raise ClientToolInputError(
-                "write an independent referee reconstruction before inspecting "
-                "candidate theory documents"
-            )
         if call.name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
             if set(tool_input) - {"query", "document_paths", "max_results"}:
                 raise ClientToolInputError(
@@ -4717,12 +4643,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     content=rejection,
                     is_error=True,
                     observation_key="authoritative-theory-document-read-required",
-                )
-            chronology = reconstruction_chronology()
-            if authoritative_documents and not chronology["comparison_completed"]:
-                raise ClientToolInputError(
-                    "submit_theory_preflight_review requires a changed referee report "
-                    "after candidate-document inspection"
                 )
             draft = state["review_report_draft"]
             if not isinstance(draft, Mapping) or not draft:
