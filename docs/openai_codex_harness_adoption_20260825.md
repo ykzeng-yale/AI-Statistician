@@ -14,6 +14,9 @@ Latest selective-adoption implementation commits:
   workspace continuations from outer research-graph iterations;
 - `6f588ff13cb2adf4ab01d1ec61eaecdd8842c594`: remove the mandatory
   blind-write/read/rewrite sequence from independent theory review.
+- `de531ad8d4173cc406593edb76606cb10be158b7`: bind frozen executable
+  identity at Theory checkpoints and keep rejected reviewer verdict feedback in
+  the same model-owned session.
 
 Primary references:
 
@@ -1496,3 +1499,31 @@ escalation, equation parser, task formula, or consumed-task rescore. The focused
 referee suite passed `65/65`, the final focused panel passed `120/120`, and the
 complete repository passed `930/930` in 78.67 seconds. Production Python decreased
 by 80 lines to 149,896 lines; this remains future-task mechanism evidence only.
+
+## Frozen environment identity and rejected verdicts
+
+The weighted partial-regression draw exposed two remaining mismatches with the
+adopted Codex boundary. TheoryDeveloper received an operator-frozen executable
+contract but renamed its estimator in the compact handoff. Later, a generated-code
+reviewer exhausted ordinary probe work, submitted an invalid terminal `ACCEPT`, and
+had no reserved turn after that terminal verdict was rejected. Neither defect calls
+for a repair agent or a task-specific content rule.
+
+Commit `de531ad8d4173cc406593edb76606cb10be158b7` keeps authority at the
+existing boundaries:
+
+- harness-owned frozen estimator identity and request/response layout are compared
+  at initial, revised, reused, and final Theory checkpoints;
+- formulas, statistical meanings, Markdown/LaTeX, Python/R source, and reviewer
+  judgments remain model-owned;
+- absent frozen contracts add no constraint;
+- one correction turn is reserved only after runtime rejects a terminal reviewer
+  verdict, and its exact observation returns to the same reviewer transcript.
+
+This selectively reuses Codex's stable tool loop and environment-authority split.
+It does not import Codex core, app-server, Responses transport, thread management,
+or multi-agent scheduling, and it does not add a second conversation owner. Focused
+tests passed `111/111`; the complete repository passed `936/936` in 79.75 seconds.
+Production Python remains within its fixed budget at 149,996 lines. The consumed
+draw remains immutable `0/1`; no model call, rerun, hidden reevaluation, rescore,
+Sonnet call, or Opus call occurred.

@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "6f588ff13cb2adf4ab01d1ec61eaecdd8842c594"
+LATEST_SHARED_MECHANISM_HEAD = "de531ad8d4173cc406593edb76606cb10be158b7"
 
 
 def _load_ladder() -> dict:
@@ -4496,6 +4496,13 @@ def test_weighted_partial_regression_l0_records_its_only_consumed_failed_draw() 
     assert evidence["hidden_algorithm_execution_attempted"] is False
     assert evidence["hidden_empirical_execution_attempted"] is False
     assert evidence["hidden_gold_evaluation"].startswith("0/1")
+    assert evidence["post_run_shared_harness_commit"] == (
+        "de531ad8d4173cc406593edb76606cb10be158b7"
+    )
+    assert "future-task" in evidence[
+        "post_run_shared_harness_evidence"
+    ].lower()
+    assert evidence["post_run_score_changed"] is False
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False

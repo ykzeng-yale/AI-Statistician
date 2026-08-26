@@ -127,3 +127,26 @@ tasks retain trustworthy full-task capability credit. The task retains scoped
 evidence that document-backed theory, Python execution, model-selected probes,
 and optional-formal routing operated, but receives no theory, scientific-code,
 empirical, or full-task credit.
+
+## Future-task harness correction
+
+Commit `de531ad8d4173cc406593edb76606cb10be158b7` corrects the two
+shared lifecycle defects without editing a model artifact. When a future
+question supplies a frozen estimator execution contract, Theory workspace
+checkpoint validation compares its exact estimator ID, request and response
+field names and order, and request bindings with the model-authored compact
+handoff. Statistical meanings, formulas, normalizations, Markdown/LaTeX, and
+Python/R source remain model-owned; absent frozen contracts retain legacy
+behavior.
+
+Generated-code review now reserves one same-reviewer terminal correction after
+an actually rejected verdict. The raw validator observation returns to the same
+transcript, which may submit a corrected complete judgment. It is not a new
+scientific candidate, source rewrite, repair agent, Architect route, or model
+escalation.
+
+Focused architecture, ABI, reviewer, and CLI tests passed `111/111`; the full
+repository passed `936/936` in 79.75 seconds. Compile-all, diff hygiene,
+architecture-budget, model-policy, and secret checks passed with 149,996
+top-level production Python lines. There was no model call, Task 51 rerun,
+resume, hidden reevaluation, rescore, or capability-credit change.
