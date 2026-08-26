@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "srswor_finite_population_mean_known_result",
+      "title": "SRSWOR finite-population mean and variance",
+      "description": "Focused L0 known-result evaluation grounded in William G. Cochran, Sampling Techniques, third edition, Wiley, 1977, Chapter 2, ISBN 9780471162407. Fix a labeled finite population y_1,...,y_N with N>=2 and draw one of the choose(N,n) subsets of size 1<=n<=N uniformly without replacement. Treat the population values as fixed and the sample membership indicators as the only randomness. Develop one authoritative Markdown/LaTeX derivation of the first- and second-order inclusion probabilities, the unbiasedness of the sample mean for the finite-population mean, and Var_d(sample_mean)=(1-n/N)S^2/n when S^2=sum_i(y_i-population_mean)^2/(N-1). For n>=2, derive design-unbiasedness of s^2=sum_{i in sample}(y_i-sample_mean)^2/(n-1) for S^2 and of (1-n/N)s^2/n for the design variance of the sample mean. Make the negative indicator covariance, N-1 and n-1 normalizations, singleton sample, census, constant population, permutation, translation, scale, and with-replacement distinctions auditable. The required model-authored artifact is est_srswor_population_mean and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may check subset identities. A separately frozen confirmatory design-based assessment repeatedly draws uniform subsets from multiple predeclared fixed populations and checks sample-mean bias, the exact design variance, the average returned variance estimate when defined, singleton semantics, and census collapse with Monte Carlo uncertainty. Simulation is implementation evidence rather than proof. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "survey_sampling",
+        "finite_population",
+        "sampling_without_replacement",
+        "design_based_inference",
+        "L0"
+      ],
+      "source": {
+        "title": "Sampling Techniques",
+        "authors": [
+          "William G. Cochran"
+        ],
+        "edition": 3,
+        "publisher": "Wiley",
+        "year": 1977,
+        "chapter": 2,
+        "isbn": "9780471162407",
+        "url": "https://discover.library.unt.edu/catalog/b5019954"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_srswor_population_mean",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.population_size",
+            "name": "population_size",
+            "meaning": "The known number N of labeled units in the fixed finite population.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "population units",
+            "indexing": "one fixed finite-population size per estimator invocation",
+            "edge_cases": "Reject booleans, strings, nonintegers, and integers below two; do not coerce.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.sample_values",
+            "name": "sample_values",
+            "meaning": "Observed values from one simple random sample drawn without replacement from the fixed population.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric vector of length n satisfying 1<=n<=population_size",
+            "units": "outcome units",
+            "indexing": "one realized unordered sample; order carries no information",
+            "edge_cases": "Reject nonarrays, empty arrays, arrays longer than population_size, booleans, strings, and nonfinite entries; do not silently drop or coerce entries.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.population_size",
+            "name": "population_size",
+            "meaning": "The validated finite-population size N.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "population units",
+            "indexing": "current request",
+            "edge_cases": "Must equal the request value exactly and must not be a boolean.",
+            "normalization": "population_size"
+          },
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The observed sample size n.",
+            "json_type": "integer",
+            "shape": "one integer satisfying 1<=n<=population_size",
+            "units": "sampled units",
+            "indexing": "current sample vector",
+            "edge_cases": "Must equal len(sample_values) exactly and must not be a boolean.",
+            "normalization": "length of sample_values"
+          },
+          {
+            "clause_id": "response.sampling_fraction",
+            "name": "sampling_fraction",
+            "meaning": "The fraction f=n/N of population units sampled.",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1]",
+            "units": "dimensionless",
+            "indexing": "current N and n",
+            "edge_cases": "Equals one for a census.",
+            "normalization": "sample_size/population_size"
+          },
+          {
+            "clause_id": "response.finite_population_correction",
+            "name": "finite_population_correction",
+            "meaning": "The without-replacement variance factor 1-f.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1)",
+            "units": "dimensionless",
+            "indexing": "current N and n",
+            "edge_cases": "Equals zero for a census and is not omitted as in with-replacement sampling.",
+            "normalization": "1-sampling_fraction"
+          },
+          {
+            "clause_id": "response.sample_mean",
+            "name": "sample_mean",
+            "meaning": "The arithmetic mean of the observed sample values.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "current sample vector",
+            "edge_cases": "Defined for every accepted request, including n=1 and n=N.",
+            "normalization": "sum(sample_values)/sample_size"
+          },
+          {
+            "clause_id": "response.sample_variance",
+            "name": "sample_variance",
+            "meaning": "The Bessel-corrected sample variance s^2 used to estimate finite-population S^2.",
+            "json_type": "number|null",
+            "shape": "one finite nonnegative scalar for n>=2 and null for n=1",
+            "units": "squared outcome units",
+            "indexing": "current sample vector",
+            "edge_cases": "For n=1 return null, not zero; for n>=2 divide the centered sum of squares by n-1.",
+            "normalization": "sum((sample_value-sample_mean)^2)/(sample_size-1) when n>=2"
+          },
+          {
+            "clause_id": "response.estimated_mean_variance",
+            "name": "estimated_mean_variance",
+            "meaning": "The design-unbiased plug-in estimate of the SRSWOR variance of the sample mean.",
+            "json_type": "number|null",
+            "shape": "one finite nonnegative scalar for n>=2 and null for n=1",
+            "units": "squared outcome units",
+            "indexing": "current N and sample",
+            "edge_cases": "For n=1 return null; for a census with n=N>=2 return exactly zero.",
+            "normalization": "finite_population_correction*sample_variance/sample_size when n>=2"
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The nonnegative square root of estimated_mean_variance.",
+            "json_type": "number|null",
+            "shape": "one finite nonnegative scalar for n>=2 and null for n=1",
+            "units": "outcome units",
+            "indexing": "current N and sample",
+            "edge_cases": "For n=1 return null; for a census with n=N>=2 return exactly zero.",
+            "normalization": "sqrt(estimated_mean_variance) when n>=2"
+          },
+          {
+            "clause_id": "response.variance_status",
+            "name": "variance_status",
+            "meaning": "Whether sample-based variance estimation is defined for the current sample size.",
+            "json_type": "string",
+            "shape": "one exact enum value",
+            "units": "not applicable",
+            "indexing": "current sample size",
+            "edge_cases": "Return undefined_singleton_sample exactly when n=1 and available exactly when n>=2.",
+            "normalization": "undefined_singleton_sample if n=1 else available"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the two declared fields and the response contains exactly the nine declared fields. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting sample_values leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.translation_equivariance",
+            "meaning": "Adding finite c to every sample value adds c to sample_mean and leaves all other response fields unchanged."
+          },
+          {
+            "clause_id": "invariant.scale_equivariance",
+            "meaning": "For finite nonzero c, multiplying every sample value by c multiplies sample_mean by c, sample_variance and estimated_mean_variance by c^2, standard_error by abs(c), and leaves sizes, fractions, and variance_status unchanged."
+          },
+          {
+            "clause_id": "invariant.singleton_semantics",
+            "meaning": "When n=1, sample_mean, sampling_fraction, and finite_population_correction remain defined, while sample_variance, estimated_mean_variance, and standard_error are null and variance_status is undefined_singleton_sample."
+          },
+          {
+            "clause_id": "invariant.census_collapse",
+            "meaning": "When n=N>=2, finite_population_correction, estimated_mean_variance, and standard_error are exactly zero while sample_variance remains the Bessel-corrected variance of the observed census."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen fixed finite population and sample size, independently draw each sample uniformly from all subsets of the declared size without replacement using a seed and replicate count fixed before outcomes, then invoke the accepted estimator on the realized values."
+          },
+          {
+            "clause_id": "claim.empirical.mean_unbiasedness",
+            "meaning": "Across repeated SRSWOR samples, the average returned sample_mean agrees with the fixed finite-population mean within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.design_variance",
+            "meaning": "Across repeated SRSWOR samples, the empirical variance of returned sample_mean agrees with (1-n/N)S^2/n, using S^2 with denominator N-1, within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.variance_estimator",
+            "meaning": "For n>=2, the average returned estimated_mean_variance agrees with the exact SRSWOR design variance within reported Monte Carlo uncertainty; singleton nulls and census zeros are checked separately."
+          },
+          {
+            "clause_id": "claim.empirical.evidence_boundary",
+            "meaning": "The confirmatory repeated-sampling assessment checks the implementation under frozen finite populations; it does not replace the inclusion-indicator derivation or prove correctness outside SRSWOR."
+          }
+        ]
+      }
+    }
+  ]
+}
