@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "hotelling_one_sample_t2_known_result",
+      "title": "One-sample Hotelling T-squared and its exact F calibration",
+      "description": "Focused L0 known-result evaluation grounded in Harold Hotelling, The Generalization of Student's Ratio, The Annals of Mathematical Statistics 2(3) (1931), 360-378, DOI 10.1214/aoms/1177732979. Let X_1,...,X_n be iid N_p(mu,Sigma), where Sigma is positive definite, p>=1, and n>p. For a fixed null vector mu_0, define the sample mean and the unbiased sample covariance S with divisor n-1. Develop one authoritative Markdown/LaTeX derivation of T^2=n(bar X-mu_0)^T S^{-1}(bar X-mu_0). Under H_0:mu=mu_0, derive the exact finite-sample calibration F=(n-p)T^2/[p(n-1)] ~ F_{p,n-p}, including the Gaussian mean-residual independence, Wishart degrees of freedom, and quadratic-form transition needed for the scaling. Establish the p=1 reduction to the squared one-sample Student t statistic, invariance under a common nonsingular affine transformation of observations and null mean, the upper-tail p-value, and the limits of the exact claim outside multivariate normal sampling or when covariance is singular. Keep active and rejected derivations visibly distinct and disclose unresolved gaps. The required model-authored artifact is est_hotelling_one_sample and must implement run_estimator(request) exactly for the frozen public contract. Exploratory Python or R may test identities. A separately frozen confirmatory experiment draws normal samples under several covariance geometries and checks the transformed statistic, upper-tail size, and p-value calibration against their exact F implications using predeclared Monte Carlo uncertainty. Source-code replication and novelty are not applicable. Lean formalization is not applicable to this focused nonformal capability task.",
+      "tags": [
+        "multivariate_normal",
+        "Hotelling_T2",
+        "Wishart",
+        "exact_F_test",
+        "affine_invariance",
+        "L0"
+      ],
+      "source": {
+        "title": "The Generalization of Student's Ratio",
+        "author": "Harold Hotelling",
+        "journal": "The Annals of Mathematical Statistics",
+        "year": 1931,
+        "volume": 2,
+        "issue": 3,
+        "pages": "360-378",
+        "doi": "10.1214/aoms/1177732979",
+        "url": "https://doi.org/10.1214/aoms/1177732979"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_hotelling_one_sample",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "The observed n by p data matrix whose rows are the multivariate observations.",
+            "json_type": "array",
+            "shape": "rectangular array of n rows and p columns with integers n>p>=1",
+            "units": "the declared measurement coordinates",
+            "indexing": "sample[row][coordinate], with zero-based JSON array order",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries, ragged or empty rows, n<=p, and samples whose unbiased covariance is singular.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.null_mean",
+            "name": "null_mean",
+            "meaning": "The fixed p-vector mu_0 tested against the sample mean.",
+            "json_type": "array",
+            "shape": "one-dimensional array of exactly p finite numeric entries",
+            "units": "the same coordinate-wise units as sample",
+            "indexing": "null_mean[coordinate], matching the sample columns",
+            "edge_cases": "Reject booleans, nonnumeric or nonfinite entries and every length other than p.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "The admitted number of sample rows.",
+            "json_type": "integer",
+            "shape": "scalar integer n>p",
+            "units": "observations",
+            "indexing": "one sample size",
+            "edge_cases": "Exactly the row count of the admitted sample.",
+            "normalization": "No rescaling."
+          },
+          {
+            "clause_id": "response.dimension",
+            "name": "dimension",
+            "meaning": "The admitted coordinate dimension p.",
+            "json_type": "integer",
+            "shape": "scalar integer 1<=p<n",
+            "units": "coordinates",
+            "indexing": "one dimension",
+            "edge_cases": "Exactly the common row length and null_mean length.",
+            "normalization": "No rescaling."
+          },
+          {
+            "clause_id": "response.sample_mean",
+            "name": "sample_mean",
+            "meaning": "The coordinate-wise arithmetic sample mean bar X.",
+            "json_type": "array",
+            "shape": "one-dimensional array of p finite numbers",
+            "units": "the corresponding sample-coordinate units",
+            "indexing": "sample_mean[coordinate]",
+            "edge_cases": "For p=1 this is a one-entry array, not a scalar.",
+            "normalization": "Each coordinate sum is divided by n."
+          },
+          {
+            "clause_id": "response.sample_covariance",
+            "name": "sample_covariance",
+            "meaning": "The symmetric unbiased sample covariance matrix S.",
+            "json_type": "array",
+            "shape": "p by p nested array of finite numbers",
+            "units": "pairwise products of coordinate units",
+            "indexing": "sample_covariance[row_coordinate][column_coordinate]",
+            "edge_cases": "It must be positive definite for an admitted request.",
+            "normalization": "Centered cross-products are divided by n-1, never n."
+          },
+          {
+            "clause_id": "response.t_squared",
+            "name": "t_squared",
+            "meaning": "The exact observed Hotelling statistic n(bar X-mu_0)^T S^{-1}(bar X-mu_0).",
+            "json_type": "number",
+            "shape": "nonnegative finite scalar",
+            "units": "dimensionless squared standardized distance",
+            "indexing": "one test statistic",
+            "edge_cases": "It is zero exactly when the sample mean equals null_mean.",
+            "normalization": "Uses the unbiased S and includes the leading factor n."
+          },
+          {
+            "clause_id": "response.f_statistic",
+            "name": "f_statistic",
+            "meaning": "The transformed statistic compared with F_{p,n-p} under the multivariate-normal null.",
+            "json_type": "number",
+            "shape": "nonnegative finite scalar",
+            "units": "dimensionless F scale",
+            "indexing": "one transformed statistic",
+            "edge_cases": "For p=1 it equals t_squared.",
+            "normalization": "Exactly (n-p)*t_squared/[p*(n-1)]."
+          },
+          {
+            "clause_id": "response.df_numerator",
+            "name": "df_numerator",
+            "meaning": "The numerator degrees of freedom p for the exact null F law.",
+            "json_type": "integer",
+            "shape": "positive scalar integer",
+            "units": "degrees of freedom",
+            "indexing": "one numerator parameter",
+            "edge_cases": "Equals one in the univariate reduction.",
+            "normalization": "Exactly p."
+          },
+          {
+            "clause_id": "response.df_denominator",
+            "name": "df_denominator",
+            "meaning": "The denominator degrees of freedom n-p for the exact null F law.",
+            "json_type": "integer",
+            "shape": "positive scalar integer",
+            "units": "degrees of freedom",
+            "indexing": "one denominator parameter",
+            "edge_cases": "Positive because admitted requests require n>p.",
+            "normalization": "Exactly n-p."
+          },
+          {
+            "clause_id": "response.p_value",
+            "name": "p_value",
+            "meaning": "The upper-tail exact-null probability P(F_{p,n-p}>=f_statistic).",
+            "json_type": "number",
+            "shape": "finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "one upper-tail p-value",
+            "edge_cases": "Equals one when t_squared and f_statistic are zero.",
+            "normalization": "Use the survival function of the central F law, not a lower-tail or doubled probability."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request must be a JSON object with exactly sample and null_mean, and the response must contain exactly the nine declared fields without implicit coercion."
+          },
+          {
+            "clause_id": "invariant.covariance_normalization",
+            "meaning": "sample_covariance uses centered cross-products divided by n-1, and every statistic is computed from that same matrix."
+          },
+          {
+            "clause_id": "invariant.exact_f_scaling",
+            "meaning": "f_statistic equals (n-p)*t_squared/[p*(n-1)], with df_numerator=p and df_denominator=n-p, and p_value uses precisely that F law."
+          },
+          {
+            "clause_id": "invariant.row_permutation",
+            "meaning": "Permuting the observation rows leaves sample_mean, sample_covariance, t_squared, f_statistic, degrees of freedom, and p_value unchanged."
+          },
+          {
+            "clause_id": "invariant.affine_invariance",
+            "meaning": "For any nonsingular p by p matrix A and vector b, replacing every row x by A*x+b and null_mean by A*null_mean+b leaves t_squared, f_statistic, degrees of freedom, and p_value unchanged while transforming mean and covariance equivariantly."
+          },
+          {
+            "clause_id": "invariant.univariate_reduction",
+            "meaning": "When p=1, t_squared is the square of the ordinary one-sample Student t statistic based on the unbiased sample variance, f_statistic=t_squared, and the upper-tail F_{1,n-1} p-value equals the ordinary two-sided t-test p-value."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.null_f_calibration",
+            "meaning": "For every frozen multivariate-normal null DGP, empirical means and selected CDF probabilities of f_statistic are compatible with F_{p,n-p} under the predeclared Monte Carlo uncertainty rule."
+          },
+          {
+            "clause_id": "claim.empirical.upper_tail_size",
+            "meaning": "At the frozen upper-tail level, the rejection rate based on p_value or the matching F critical value is compatible with its nominal level under the predeclared Monte Carlo uncertainty rule."
+          },
+          {
+            "clause_id": "claim.empirical.p_value_uniformity",
+            "meaning": "Under each frozen continuous normal null, returned exact-null p_values are compatible with Uniform(0,1) through predeclared mean and CDF diagnostics."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Every confirmatory replicate uses the frozen n, p, mu_0, positive-definite Sigma, exact estimator identity, unbiased covariance convention, F scaling, and independently fixed random seed before outcomes are inspected."
+          }
+        ]
+      }
+    }
+  ]
+}
