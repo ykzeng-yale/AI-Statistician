@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 import pytest
 
 from ai_statistician.client_tool_loop import (
@@ -19,6 +22,7 @@ from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+    externalize_scientific_workspace_documents,
     load_scientific_code_workspace_checkpoint,
     run_scientific_code_workspace,
     run_source_owner_scientific_workspace,
@@ -26,6 +30,10 @@ from ai_statistician.scientific_code_workspace import (
     scientific_workspace_prototype_observation,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+)
 
 
 class ScriptedScientificBackend:
@@ -70,6 +78,82 @@ def _commit_response(call_id: str = "commit") -> ClientToolTurnResponse:
             input={},
         )
     )
+
+
+def test_scientific_session_reads_externalized_theory_on_demand() -> None:
+    content = "# Claim\n\nFor every admitted sample, $T_n \\to T$.\n"
+    sha256 = hashlib.sha256(content.encode()).hexdigest()
+    prompt_context, documents = externalize_scientific_workspace_documents(
+        {
+            "theory_context": {
+                "document_authoritative": True,
+                "authoritative_theory_documents": [
+                    {"path": "derivation.md", "sha256": sha256, "content": content}
+                ],
+            }
+        }
+    )
+    authored = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return {'ok': True}\n",
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-theory",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={"path": "derivation.md", "line_start": 1, "line_end": 3},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="submit",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=authored,
+                )
+            ),
+            _commit_response(),
+        ]
+    )
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Read theory, then implement.",
+        user_prompt=str(prompt_context),
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_no_progress_turns=2,
+        artifact_id="question:external-theory",
+        initial_code_draft=None,
+        initial_check_result={"accepted": False},
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": True,
+        },
+        workspace_operation="initial_authoring",
+        context_documents=documents,
+    )
+
+    first_request = backend.requests[0]
+    assert content not in str(first_request.messages)
+    assert first_request.messages[0]["content"].count(sha256) == 1
+    assert [tool.name for tool in first_request.tools] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+        SCIENTIFIC_SOURCE_COMMIT_TOOL,
+    ]
+    read_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert read_observation["content"].strip() == content.strip()
+    assert dict(result.code_draft) == authored
 
 
 def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> None:
@@ -1021,7 +1105,9 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         9,
         11,
     ]
-    assert "at most 5 total model/tool turns" in str(backend.requests[0].messages)
+    first_prompt = str(backend.requests[0].messages)
+    assert "at most 5 total model/tool turns" not in first_prompt
+    assert "Retain observed source hashes and sandbox results" in first_prompt
     assert "attempt': 0" in str(backend.requests[-1].messages)
     assert "attempt': 3" in str(backend.requests[-1].messages)
     assert all(

@@ -38,6 +38,7 @@ from .scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
     ScientificCodeWorkspaceResult,
+    externalize_scientific_workspace_documents,
     run_scientific_code_workspace,
 )
 from .theory_derivation_trace import (
@@ -320,6 +321,9 @@ class LLMSimulationEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        prompt_context, context_documents = (
+            externalize_scientific_workspace_documents(workspace_context)
+        )
         return run_scientific_code_workspace(
             provider=self.provider,
             system_prompt=SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
@@ -329,7 +333,7 @@ class LLMSimulationEngineerAgent:
                 + json.dumps(
                     {
                         "question": research_question_payload(question),
-                        "workspace_context": dict(workspace_context),
+                        "workspace_context": prompt_context,
                     },
                     separators=(",", ":"),
                     default=str,
@@ -352,6 +356,7 @@ class LLMSimulationEngineerAgent:
             allow_dependency_handoff=True,
             recovery_checkpoint=recovery_checkpoint,
             session_dir=session_dir,
+            context_documents=context_documents,
             request_metadata={
                 "subsystem": "SimulationEvaluator",
                 "agent": "LLMSimulationEngineerAgent",
@@ -653,8 +658,8 @@ unchanged and never supplies a correction rule. Do not answer with prose, delega
 an edit, weaken the frozen metric contract, or claim theorem-proof evidence. When
 source_workspace_planning_owned is true, also choose the exploratory DGP and diagnostics.
 When workspace_context.theory_context.document_authoritative is true, read its exact
-authoritative_theory_documents as the mathematical authority; structured theory
-fields carry only claim identity and executable ABI. When
+authoritative_theory_documents through the supplied read-only document tools;
+structured theory fields carry only claim identity and executable ABI. When
 metric_path contracts are supplied, treat every path segment as a literal,
 punctuation-sensitive JSON key. Before each submission, compare the nested keys
 returned by run_sandbox with every frozen path segment; do not normalize names or

@@ -425,12 +425,7 @@ def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:
     first_observation = json.loads(
         second_messages[-1]["content"][0]["content"]
     )
-    assert first_observation["_client_tool_budget"] == {
-        "standard_turns_remaining_after_current_turn": 2,
-        "model_tool_calls_remaining_after_current_call": 4,
-        "terminal_disposition_calls_remaining_after_current_call": 1,
-        "final_disposition_required": False,
-    }
+    assert first_observation == {"ok": True, "value": 2}
     assert result.history[0]["tool_calls"][0]["name"] == "edit"
     assert '"value":2' in result.history[0]["tool_calls"][0][
         "result_excerpt"
@@ -672,12 +667,7 @@ def test_bounded_client_tool_loop_reserves_terminal_call_after_action_budget() -
     final_action_observation = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
-    assert final_action_observation["_client_tool_budget"] == {
-        "standard_turns_remaining_after_current_turn": 2,
-        "model_tool_calls_remaining_after_current_call": 0,
-        "terminal_disposition_calls_remaining_after_current_call": 1,
-        "final_disposition_required": True,
-    }
+    assert final_action_observation == {"ok": True}
     assert backend.requests[1].metadata[
         "client_tool_loop_terminal_decision_turn"
     ] is True

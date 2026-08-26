@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -37,6 +38,7 @@ from .scientific_sandbox import (
     normalized_scientific_dependencies,
 )
 from .structured_output_retry import PacketValidationError
+from . import theory_workspace as theory_documents
 
 
 ScientificCodeCheck = Callable[[Mapping[str, Any]], Mapping[str, Any]]
@@ -67,6 +69,40 @@ class ScientificCodeWorkspaceResult:
     code_draft: Mapping[str, Any]
     check_result: Mapping[str, Any]
     evidence: Mapping[str, Any]
+
+
+def externalize_scientific_workspace_documents(
+    workspace_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Move exact Theory text out of the opening prompt and into read tools."""
+
+    projected = deepcopy(dict(workspace_context))
+    theory = projected.get("theory_context", {})
+    if not isinstance(theory, Mapping):
+        return projected, {}
+    theory = deepcopy(dict(theory))
+    rows = theory.get("authoritative_theory_documents", [])
+    if rows and (not isinstance(rows, Sequence) or isinstance(rows, (str, bytes))):
+        raise ValueError("scientific workspace theory documents are malformed")
+    documents: dict[str, str] = {}
+    manifest = []
+    iterable = rows if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) else ()
+    for row in iterable:
+        if not isinstance(row, Mapping):
+            raise ValueError("scientific workspace theory document row is malformed")
+        path, content = str(row.get("path", "") or ""), row.get("content")
+        sha256 = str(row.get("sha256", "") or "")
+        if not path or path in documents or not isinstance(content, str) or (
+            hashlib.sha256(content.encode()).hexdigest() != sha256
+        ):
+            raise ValueError("scientific workspace theory document identity mismatch")
+        documents[path] = content
+        manifest.append({"path": path, "sha256": sha256, "line_count": len(content.splitlines())})
+    if documents:
+        theory["authoritative_theory_documents"] = manifest
+        theory["document_content_transport"] = "hash_bound_read_only_client_tools"
+        projected["theory_context"] = theory
+    return projected, documents
 
 
 def load_scientific_code_workspace_checkpoint(
@@ -1583,6 +1619,7 @@ def run_scientific_code_workspace(
     request_metadata: Mapping[str, Any] | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
     session_dir: Path | None = None,
+    context_documents: Mapping[str, str] | None = None,
 ) -> ScientificCodeWorkspaceResult:
     """Let one model own complete scientific source across raw sandbox feedback."""
 
@@ -1663,6 +1700,7 @@ def run_scientific_code_workspace(
             bool(parent_draft) and allow_current_source_run
         ),
         allow_dependency_handoff=allow_dependency_handoff,
+        context_documents_available=bool(context_documents),
     )
 
     def execute_checked_draft(
@@ -1755,6 +1793,16 @@ def run_scientific_code_workspace(
 
     def execute_tool(call, context):
         tool_input = dict(call.input)
+        if call.name == theory_documents.THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+            observation, _ = theory_documents.read_theory_document_lines(
+                context_documents or {}, **tool_input
+            )
+            return ClientToolExecutionResult(content=observation)
+        if call.name == theory_documents.THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
+            observation, _ = theory_documents.search_theory_document_lines(
+                context_documents or {}, **tool_input
+            )
+            return ClientToolExecutionResult(content=observation)
         if call.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL:
             required_fields = {
                 "language",
@@ -1953,10 +2001,7 @@ def run_scientific_code_workspace(
                 "role": "user",
                 "content": (
                     user_prompt
-                    + "\n\nThis workspace has at most "
-                + str(max_turns)
-                + " total model/tool turns. Retain the observed source hashes, "
-                    "sandbox results, and attempted changes across those turns. Do "
+                    + "\n\nRetain observed source hashes and sandbox results. Do "
                     "not resubmit a previously observed byte-identical candidate."
                 )
                 + (
@@ -2249,6 +2294,7 @@ def _scientific_code_tools(
     *,
     allow_current_source_run: bool,
     allow_dependency_handoff: bool,
+    context_documents_available: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
         ClientToolDefinition(
@@ -2323,6 +2369,8 @@ def _scientific_code_tools(
             terminal=True,
         ),
     ]
+    if context_documents_available:
+        tools[0:0] = theory_documents.theory_document_client_tools()
     if allow_current_source_run:
         tools.append(
             ClientToolDefinition(

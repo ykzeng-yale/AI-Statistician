@@ -464,7 +464,7 @@ def test_public_discovery_failure_returns_to_same_theory_model_without_retry_lay
     assert failure["error"] == "public_research_source_discovery_failed"
     assert failure["detail"] == "public research API returned HTTP 503"
     assert failure["model_may_continue_without_this_source"] is True
-    assert failure["_client_tool_budget"]["final_disposition_required"] is False
+    assert "_client_tool_budget" not in failure
     assert result.core_packet["artifacts"]["problem_card"]["claim"] == (
         "revised claim"
     )
@@ -1981,12 +1981,7 @@ def test_theory_workspace_reserves_terminal_call_after_last_valid_write() -> Non
     )
     assert valid_write_feedback["workspace_valid"] is True
     assert valid_write_feedback["checkpoint_commit_ready"] is True
-    assert valid_write_feedback["_client_tool_budget"] == {
-        "standard_turns_remaining_after_current_turn": 1,
-        "model_tool_calls_remaining_after_current_call": 0,
-        "terminal_disposition_calls_remaining_after_current_call": 2,
-        "final_disposition_required": True,
-    }
+    assert "_client_tool_budget" not in valid_write_feedback
     assert result.evidence["checkpoint_committed"] is True
     assert result.evidence["turns"] == 3
     assert result.evidence["tool_calls"] == 4

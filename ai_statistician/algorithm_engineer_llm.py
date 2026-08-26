@@ -38,6 +38,7 @@ from .scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
     ScientificCodeWorkspaceResult,
+    externalize_scientific_workspace_documents,
     run_scientific_code_workspace,
 )
 from .theory_derivation_trace import (
@@ -234,6 +235,9 @@ class LLMAlgorithmEngineerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        prompt_context, context_documents = (
+            externalize_scientific_workspace_documents(workspace_context)
+        )
         return run_scientific_code_workspace(
             provider=self.provider,
             system_prompt=ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
@@ -243,7 +247,7 @@ class LLMAlgorithmEngineerAgent:
                 + json.dumps(
                     {
                         "question": research_question_payload(question),
-                        "workspace_context": dict(workspace_context),
+                        "workspace_context": prompt_context,
                     },
                     separators=(",", ":"),
                     default=str,
@@ -265,6 +269,7 @@ class LLMAlgorithmEngineerAgent:
             allow_current_source_run=allow_current_source_run,
             recovery_checkpoint=recovery_checkpoint,
             session_dir=session_dir,
+            context_documents=context_documents,
             request_metadata={
                 "subsystem": "AlgorithmEngineer",
                 "agent": "LLMAlgorithmEngineerAgent",
@@ -450,8 +455,8 @@ an edit, weaken the task contract, or claim theorem-proof evidence.
 Before commit_scientific_source, use submit_scientific_source to test the complete
 immutable public ABI: valid and rejected requests, response schema, and transformations.
 When workspace_context.theory_context.document_authoritative is true, read its
-exact authoritative_theory_documents as the mathematical authority; structured
-theory fields carry only claim identity and executable ABI.
+exact authoritative_theory_documents through the supplied read-only document
+tools; structured theory fields carry only claim identity and executable ABI.
 """
 
 

@@ -976,23 +976,7 @@ def run_bounded_client_tool_loop(
             turn_state_changed = (
                 turn_state_changed or execution.state_changed
             )
-            model_result_content = _client_tool_result_with_budget(
-                execution.content,
-                turn_index=turn_index,
-                max_turns=max_turns,
-                standard_tool_calls=standard_tool_calls,
-                max_tool_calls=max_tool_calls,
-                terminal_decision_tool_calls=terminal_decision_tool_calls,
-                terminal_decision_budget=terminal_decision_budget,
-                final_disposition_required=(
-                    terminal_decision_turn
-                    or bool(
-                        terminal_tools
-                        and standard_tool_calls >= max_tool_calls
-                    )
-                ),
-            )
-            result_text = _client_tool_result_text(model_result_content)
+            result_text = _client_tool_result_text(execution.content)
             tool_result_blocks.append(
                 {
                     "type": "tool_result",
@@ -1115,39 +1099,6 @@ def _client_tool_result_text(value: Any, *, max_chars: int = 60000) -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + "\n[tool result truncated by runtime]"
-
-
-def _client_tool_result_with_budget(
-    value: Any,
-    *,
-    turn_index: int,
-    max_turns: int,
-    standard_tool_calls: int,
-    max_tool_calls: int,
-    terminal_decision_tool_calls: int,
-    terminal_decision_budget: int,
-    final_disposition_required: bool,
-) -> Any:
-    """Expose only generic remaining workspace budget in the next observation."""
-
-    if not isinstance(value, Mapping):
-        return value
-    return {
-        **deepcopy(dict(value)),
-        "_client_tool_budget": {
-            "standard_turns_remaining_after_current_turn": max(
-                0, max_turns - turn_index - 1
-            ),
-            "model_tool_calls_remaining_after_current_call": max(
-                0, max_tool_calls - standard_tool_calls
-            ),
-            "terminal_disposition_calls_remaining_after_current_call": max(
-                0,
-                terminal_decision_budget - terminal_decision_tool_calls,
-            ),
-            "final_disposition_required": bool(final_disposition_required),
-        },
-    }
 
 
 def _compact_tool_response_metadata(

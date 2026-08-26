@@ -3821,7 +3821,8 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         for row in result.produced_artifacts.values()
     )
     assert len(backend.requests) == 4
-    assert "at most 4 model-tool turns" in backend.requests[0].system_prompt
+    assert "at most 4 model-tool turns" not in backend.requests[0].system_prompt
+    assert "The same tools remain available" in backend.requests[0].system_prompt
     assert proof_state_provider.calls == [
         {
             "artifact_path": str(project_source),
