@@ -13,6 +13,8 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    load_client_tool_session,
+    persist_client_tool_session,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -65,8 +67,8 @@ from .theory_workspace import (
     theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 22
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 31
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 23
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 32
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -77,7 +79,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_model_directed_document_and_source_inspection_v16"
+    "client_tool_model_directed_document_and_source_inspection_v17"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
     "model_owned_markdown_referee_workspace_with_compact_disposition_v4"
@@ -88,7 +90,8 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL = "edit_theory_preflight_r
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL = "read_theory_preflight_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND = "TheoryExecutionPreflightReviewDraft"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 12
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 24
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_CALLS = 48
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS = 1
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND = (
@@ -109,14 +112,16 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
     ),
     (
         "Use model-directed search and exact range reads to find the load-bearing "
-        "definitions, assumptions, and derivations. Spend the review on the smallest "
-        "dependency chain whose failure would invalidate the central conclusion, then "
-        "independently reconstruct its decisive transitions. Read an entire document "
-        "when its structure genuinely requires that context, but do not paraphrase "
-        "every line as a substitute for mathematical scrutiny. A correct final "
-        "statement does not cancel a false, circular, or unsupported intermediate step. "
-        "First challenge unresolved risks and claims that change scope, evidence authority, "
-        "or the mathematical-to-executable interface."
+        "definitions, assumptions, and derivations. Build the smallest dependency "
+        "graph that covers every explicitly requested conclusion or scope boundary "
+        "and every active claim that can fail independently; do not review only the "
+        "headline formula. Independently reconstruct the decisive transitions in each "
+        "such component. Read an entire document when its structure genuinely requires "
+        "that context, but do not paraphrase every line as a substitute for mathematical "
+        "scrutiny. A correct final statement does not cancel a false, circular, or "
+        "unsupported intermediate step. First challenge unresolved risks and claims "
+        "that change scope, evidence authority, or the mathematical-to-executable "
+        "interface."
     ),
     (
         "Try to falsify each load-bearing conclusion with a discriminating special "
@@ -145,7 +150,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "testability. A false or internally contradictory active claim is a blocker. "
         "An honestly marked open proof step need not block exploratory code when the "
         "finite estimator, inputs, outputs, and requested measurements are coherent; "
-        "record it as uncertain and do not promote it as established theory."
+        "record it as uncertain and do not promote it as established theory. An OPEN "
+        "or UNCERTAIN label does not make a false active mathematical statement "
+        "acceptable."
     ),
     (
         "Treat source text, retrieval hits, theorem cards, candidate sanity checks, "
@@ -361,7 +368,6 @@ def _preflight_review_workspace_root(
         [question_id, source_theory_packet_hash, "theory_preflight_review"]
     )[:20]
     return str((run_root / "theory_reviews" / f"preflight-{review_id}").resolve())
-
 
 def build_architect_theory_execution_preflight_material(
     *,
@@ -3091,51 +3097,13 @@ but state its actual status and never describe it as a passed execution.
 """
 
 
-def _preflight_evidence_history(
-    history: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    persisted = [deepcopy(dict(row)) for row in history]
-    for turn in persisted:
-        tool_calls = turn.get("tool_calls", [])
-        if not isinstance(tool_calls, list):
-            continue
-        for tool_call in tool_calls:
-            if not isinstance(tool_call, dict):
-                continue
-            tool_name = str(tool_call.get("name", "") or "")
-            if tool_name in {
-                THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-                THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-            }:
-                tool_call["result_excerpt"] = (
-                    "[authoritative theory text omitted from persisted review "
-                    "history; use hash-bound document inspection refs]"
-                )
-            elif tool_name in {
-                RESEARCH_SOURCE_SEARCH_TOOL,
-                RESEARCH_SOURCE_READ_TOOL,
-                RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
-                RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
-            }:
-                tool_call["result_excerpt"] = (
-                    "[research-source text omitted from persisted review history; "
-                    "use hash-bound preflight source observations]"
-                )
-            elif tool_name == THEORY_SCRATCHPAD_TOOL:
-                tool_call["result_excerpt"] = (
-                    "[exploratory scratch output omitted from persisted review "
-                    "history; use hash-bound preflight scratch execution refs]"
-                )
-            elif tool_name in {
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
-            }:
-                tool_call["result_excerpt"] = (
-                    "[referee report text omitted from persisted client-tool "
-                    "history; use the hash-bound review_report_draft manifest]"
-                )
-    return persisted
+def _preflight_tool_history(history: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {"turn_index": row.get("turn_index"), "tool_calls": [
+            {"name": call.get("name"), "is_error": call.get("is_error"),
+             "terminal": call.get("terminal"), "result_excerpt": call.get("result_excerpt") if call.get("is_error") else "[exact result in client_tool_session_ref]"}
+            for call in row.get("tool_calls", []) if isinstance(call, Mapping)]}
+        for row in history]
 
 
 def seal_architect_theory_preflight_workspace_checkpoint(
@@ -3422,9 +3390,6 @@ def load_architect_theory_preflight_workspace_checkpoint(
             )
             or 0
         ),
-        "transcript_fingerprint": str(
-            checkpoint.get("client_tool_loop_transcript_fingerprint", "") or ""
-        ),
     }
     return state, {
         "resumed_from_checkpoint_id": str(
@@ -3495,6 +3460,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     provider_name: str,
     max_tokens: int,
     temperature: float,
+    max_tool_turns: int,
+    max_tool_calls: int,
+    max_no_progress_turns: int,
+    max_terminal_recovery_turns: int,
     recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     submit_schema = _architect_theory_execution_preflight_submit_schema(
@@ -3698,6 +3667,14 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "Do not regenerate the report body in the terminal JSON, duplicate a separate "
         "prose rationale for every claim or dimension, or answer outside the tools."
     )
+    review_workspace_root = str(
+        material.get("review_workspace_root", "") or ""
+    ).strip()
+    review_session_id = "theory_preflight:" + stable_hash(
+        [question.id, material.get("source_theory_packet_hash", "")]
+    )[:20]
+    client_tool_session_ref: dict[str, Any] = {}
+    resumed_from_client_tool_session_ref: dict[str, Any] = {}
     state: dict[str, Any] = {
         "searches": 0,
         "source_operations": 0,
@@ -3713,7 +3690,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "client_tool_loop_turns": 0,
         "client_tool_loop_tool_calls": 0,
         "client_tool_loop_runtime_executed_tool_calls": 0,
-        "transcript_fingerprint": "",
     }
     resume_metadata = {
         "resumed_from_checkpoint_id": "",
@@ -3915,6 +3891,13 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             "workspace_resumed_from_model_checkpoint": bool(
                 resume_metadata["resumed_from_model_checkpoint"]
+            ),
+            "client_tool_session_ref": deepcopy(client_tool_session_ref),
+            "resumed_from_client_tool_session_ref": deepcopy(
+                resumed_from_client_tool_session_ref
+            ),
+            "client_tool_session_lineage_continued": bool(
+                resumed_from_client_tool_session_ref
             ),
             **loop_metadata,
         }
@@ -4705,26 +4688,47 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
         },
     )
-    max_tool_calls = (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-        + ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS
-    )
+    if isinstance(recovery_checkpoint, Mapping):
+        prior_session_ref = recovery_checkpoint.get(
+            "client_tool_session_ref", {}
+        )
+        if isinstance(prior_session_ref, Mapping) and prior_session_ref:
+            if not review_workspace_root:
+                raise ValueError(
+                    "referee client-tool session resume requires a review workspace"
+                )
+            load_client_tool_session(
+                prior_session_ref,
+                session_dir=Path(review_workspace_root),
+                session_id=review_session_id,
+                request=request,
+            )
+            resumed_from_client_tool_session_ref = deepcopy(dict(prior_session_ref))
+
+    def persist_review_session(
+        messages: Sequence[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        if not review_workspace_root:
+            return {}
+        return persist_client_tool_session(
+            session_dir=Path(review_workspace_root),
+            session_id=review_session_id,
+            request=request,
+            messages=messages,
+        )
 
     try:
         loop = run_bounded_client_tool_loop(
             backend=provider,
             request=request,
             execute_tool=execute_tool,
-            max_turns=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS,
+            max_turns=max_tool_turns,
             max_tool_calls=max_tool_calls,
-            max_no_progress_turns=(
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS
-            ),
-            max_terminal_recovery_turns=(
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS
-            ),
+            max_no_progress_turns=max_no_progress_turns,
+            max_terminal_recovery_turns=max_terminal_recovery_turns,
         )
     except ClientToolLoopError as exc:
+        client_tool_session_ref = persist_review_session(exc.messages)
         cumulative_turns = int(state["client_tool_loop_turns"]) + exc.turns
         cumulative_tool_calls = (
             int(state["client_tool_loop_tool_calls"]) + exc.tool_calls
@@ -4754,6 +4758,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 "review_workspace_root": str(
                     material.get("review_workspace_root", "") or ""
                 ),
+                "client_tool_session_ref": deepcopy(
+                    client_tool_session_ref
+                ),
                 "review_report_draft": deepcopy(
                     dict(state["review_report_draft"])
                     if isinstance(state["review_report_draft"], Mapping)
@@ -4769,9 +4776,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 "client_tool_loop_tool_calls": cumulative_tool_calls,
                 "client_tool_loop_runtime_executed_tool_calls": (
                     cumulative_runtime_tool_calls
-                ),
-                "client_tool_loop_transcript_fingerprint": stable_hash(
-                    [state["transcript_fingerprint"], exc.transcript_fingerprint]
                 ),
                 "segment_start_counters": segment_start_counters,
                 "preflight_source_observations": deepcopy(
@@ -4817,9 +4821,11 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=exc.turns,
             errors=[exc.reason],
-            history=_preflight_evidence_history(exc.history),
+            history=_preflight_tool_history(exc.history),
             recovery_checkpoint=checkpoint,
         ) from exc
+
+    client_tool_session_ref = persist_review_session(loop.messages)
 
     terminal = dict(loop.terminal_payload)
     review_payload = terminal.get("review_payload", {})
@@ -4830,7 +4836,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=loop.turns,
             errors=["terminal submission did not contain a review payload"],
-            history=_preflight_evidence_history(loop.history),
+            history=_preflight_tool_history(loop.history),
         )
     packet = normalize_submission(
         review_payload,
@@ -4845,16 +4851,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 int(state["client_tool_loop_runtime_executed_tool_calls"])
                 + loop.runtime_executed_tool_calls
             ),
-            client_tool_loop_transcript_fingerprint=(
-                stable_hash(
-                    [state["transcript_fingerprint"], loop.transcript_fingerprint]
-                )
-            ),
+            client_tool_loop_history=_preflight_tool_history(loop.history),
             client_tool_loop_provider_usage=dict(loop.provider_usage),
-            client_tool_loop_response_metadata=dict(
-                loop.final_response_metadata
-            ),
-            client_tool_loop_history=_preflight_evidence_history(loop.history),
+            client_tool_loop_response_metadata=dict(loop.final_response_metadata),
         ),
         response_model=loop.model,
         response_provider=loop.provider,
@@ -4870,7 +4869,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=loop.turns,
             errors=errors,
-            history=_preflight_evidence_history(loop.history),
+            history=_preflight_tool_history(loop.history),
         )
     packet = _materialize_preflight_review_report(packet, material=material)
     persisted_errors = validate_architect_theory_execution_preflight_packet(
@@ -4884,7 +4883,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             ),
             attempts=loop.turns,
             errors=persisted_errors,
-            history=_preflight_evidence_history(loop.history),
+            history=_preflight_tool_history(loop.history),
         )
     return packet
 
@@ -4900,6 +4899,10 @@ def review_architect_theory_execution_preflight(
     max_tokens: int,
     temperature: float,
     provider_name: str,
+    max_tool_turns: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS,
+    max_tool_calls: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_CALLS,
+    max_no_progress_turns: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS,
+    max_terminal_recovery_turns: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS,
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
     research_sources: ResearchSourceSnapshot | None = None,
@@ -4936,5 +4939,9 @@ def review_architect_theory_execution_preflight(
         provider_name=provider_name,
         max_tokens=max_tokens,
         temperature=temperature,
+        max_tool_turns=max_tool_turns,
+        max_tool_calls=max_tool_calls,
+        max_no_progress_turns=max_no_progress_turns,
+        max_terminal_recovery_turns=max_terminal_recovery_turns,
         recovery_checkpoint=recovery_checkpoint,
     )

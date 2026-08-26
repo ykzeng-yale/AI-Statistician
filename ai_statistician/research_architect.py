@@ -231,8 +231,8 @@ class ResearchArchitectConfig:
     temperature: float = 0.2
     provider_name: str = "anthropic"
     max_validation_retries: int = 2
-    theory_workspace_max_turns: int = 12
-    theory_workspace_max_tool_calls: int = 24
+    theory_workspace_max_turns: int = 24
+    theory_workspace_max_tool_calls: int = 48
     theory_workspace_max_no_progress_turns: int = 2
 
 

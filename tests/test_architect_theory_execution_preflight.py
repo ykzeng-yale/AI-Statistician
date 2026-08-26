@@ -118,7 +118,8 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "Start from attempted falsification" in prompt
     assert "read a\ncomplete authoritative" in prompt
     assert "every line of every authoritative" not in prompt
-    assert "independently reconstruct its decisive transitions" in protocol
+    assert "Independently reconstruct the decisive transitions" in protocol
+    assert "every explicitly requested conclusion or scope boundary" in protocol
     assert "boundary case" in protocol
     assert "special case" in protocol
     assert "counterexample" in protocol
@@ -932,12 +933,22 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_model_directed_document_and_source_inspection_v16"
+        "client_tool_model_directed_document_and_source_inspection_v17"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2
     assert packet["client_tool_loop_tool_calls"] == 3
     assert packet["client_tool_loop_runtime_executed_tool_calls"] == 3
+    session_ref = packet["client_tool_session_ref"]
+    assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
+    assert session_ref["message_count"] >= 3
+    assert (
+        Path(session_ref["root_path"]) / session_ref["relative_path"]
+    ).is_file()
+    assert packet["resumed_from_client_tool_session_ref"] == {}
+    assert packet["client_tool_session_lineage_continued"] is False
+    assert backend.requests[0].metadata["client_tool_loop_max_turns"] == 24
+    assert backend.requests[0].metadata["client_tool_loop_max_calls"] == 48
     assert packet["runtime_selected_review_semantics"] is False
     assert packet["findings"][0]["source_evidence_refs"] == [backend.hit_id]
     assert packet["source_grounding_bindings"] == [
@@ -1037,7 +1048,7 @@ def test_preflight_referee_can_run_model_owned_exploratory_scratch(
     ]
     assert packet["client_tool_loop_turns"] == 2
     assert packet["client_tool_loop_tool_calls"] == 3
-    assert "scratch output omitted" in packet["client_tool_loop_history"][0][
+    assert "client_tool_session_ref" in packet["client_tool_loop_history"][0][
         "tool_calls"
     ][0]["result_excerpt"]
     tampered = deepcopy(packet)
@@ -1467,9 +1478,10 @@ def test_preflight_reviewer_can_search_and_read_task_bound_research_source(
         not in json.dumps(packet)
     )
     assert all(
-        "research-source text omitted" in call["result_excerpt"]
+        "client_tool_session_ref" in call["result_excerpt"]
         for turn in packet["client_tool_loop_history"]
         for call in turn["tool_calls"]
+        if not call["is_error"]
         if call["name"]
         in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}
     )
@@ -1639,7 +1651,7 @@ def test_preflight_referee_independently_discovers_reads_and_cites_public_source
     ]
     assert len(public_history_calls) == 2
     assert all(
-        "research-source text omitted" in call["result_excerpt"]
+        "client_tool_session_ref" in call["result_excerpt"]
         for call in public_history_calls
     )
 
@@ -2123,6 +2135,11 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
     assert checkpoint["kernel_verified"] is False
     assert checkpoint["searches"] == 1
     assert checkpoint["theory_document_inspection_refs"][0]["line_end"] == 4
+    session_ref = checkpoint["client_tool_session_ref"]
+    assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
+    assert (
+        Path(session_ref["root_path"]) / session_ref["relative_path"]
+    ).is_file()
     report_draft = checkpoint["review_report_draft"]
     assert set(report_draft) == {
         "schema_version",
@@ -2188,6 +2205,9 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
     assert packet["workspace_resumed_from_checkpoint_id"] == (
         checkpoint["checkpoint_id"]
     )
+    assert packet["resumed_from_client_tool_session_ref"] == session_ref
+    assert packet["client_tool_session_lineage_continued"] is True
+    assert packet["client_tool_session_ref"] != session_ref
     assert packet["preflight_source_search_count"] == 1
     assert packet["theory_document_inspection_refs"] == (
         checkpoint["theory_document_inspection_refs"]
@@ -2242,6 +2262,20 @@ def test_preflight_referee_rejects_tampered_and_stalled_checkpoints() -> None:
     with pytest.raises(PacketValidationError, match="checkpoint"):
         _tool_review(blocked_backend, recovery_checkpoint=tampered)
     assert blocked_backend.requests == []
+
+    tampered_session_body = deepcopy(checkpoint)
+    tampered_session_body.pop("checkpoint_id")
+    tampered_session_body["client_tool_session_ref"]["sha256"] = "0" * 64
+    tampered_session = seal_architect_theory_preflight_workspace_checkpoint(
+        tampered_session_body
+    )
+    session_blocked_backend = MustNotRun()
+    with pytest.raises(ValueError, match="session bytes"):
+        _tool_review(
+            session_blocked_backend,
+            recovery_checkpoint=tampered_session,
+        )
+    assert session_blocked_backend.requests == []
 
     stalled_body = deepcopy(checkpoint)
     stalled_body.pop("checkpoint_id")
@@ -2703,9 +2737,10 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
     ]
     assert marker not in json.dumps(packet)
     assert all(
-        "authoritative theory text omitted" in call["result_excerpt"]
+        "client_tool_session_ref" in call["result_excerpt"]
         for turn in packet["client_tool_loop_history"]
         for call in turn["tool_calls"]
+        if not call["is_error"]
         if call["name"]
         in {
             THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
