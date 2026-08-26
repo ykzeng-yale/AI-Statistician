@@ -27,6 +27,7 @@ RETIRED_MODULE_PREFIXES = (
     "source_theorem_proof_body_adapter_",
     "source_theorem_semantic_primitive_",
     "theorem_reduction_closure_",
+    "research_next_iteration_audit",
 )
 
 RETIRED_CLI_COMMANDS = {
@@ -34,6 +35,7 @@ RETIRED_CLI_COMMANDS = {
     "formalization-gap-planner",
     "formalization-gap-planner-evaluation",
     "formalization-gap-planner-interactive-session",
+    "next-iteration-audit",
 }
 
 

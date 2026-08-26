@@ -163,7 +163,7 @@ from .research_evaluation import (
 )
 from .research_gold_evaluation import (
     evaluate_research_gold_benchmark,
-    validate_research_gold_benchmark_manifest,
+    validate_research_gold_benchmark_activation,
 )
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
@@ -19931,7 +19931,7 @@ def run_research_agent_runtime(
             "evaluation_mode=research_eval"
         )
     if research_gold_manifest is not None:
-        gold_descriptor = validate_research_gold_benchmark_manifest(
+        gold_descriptor = validate_research_gold_benchmark_activation(
             research_gold_manifest
         )
         missing_gold_questions = sorted(

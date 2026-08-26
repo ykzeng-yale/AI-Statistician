@@ -82,6 +82,34 @@ def validate_research_gold_benchmark_manifest(path: Path) -> dict[str, Any]:
     }
 
 
+def validate_research_gold_benchmark_activation(path: Path) -> dict[str, Any]:
+    """Execute future-task calibration through the frozen candidate validators."""
+
+    descriptor = validate_research_gold_benchmark_manifest(path)
+    benchmark = _load_benchmark_manifest(path.resolve())
+    if benchmark.get("schema_version") != 3:
+        raise ValueError("live gold activation requires schema_version 3")
+    with tempfile.TemporaryDirectory(prefix="ai-stat-gold-activation-") as value:
+        rows = [
+            _run_activation_candidate_suite(
+                task,
+                project_root=Path(__file__).resolve().parents[1],
+                sandbox_root=Path(value),
+            )
+            for task in benchmark["active_tasks"]
+            if task.get("activation_candidate_suite")
+        ]
+    return {
+        **descriptor,
+        "activation_schema_version": 3,
+        "activation_candidate_validator_path": "same_hidden_evaluator_path",
+        "activation_reference_tasks_passed": len(rows),
+        "activation_negative_controls_rejected": sum(
+            row["negative_controls_rejected"] for row in rows
+        ),
+    }
+
+
 def evaluate_research_gold_benchmark(
     results: Sequence[Mapping[str, Any]],
     *,
@@ -1866,9 +1894,9 @@ def _validate_benchmark_manifest(
     if (
         isinstance(schema_version, bool)
         or not isinstance(schema_version, int)
-        or schema_version not in {1, 2}
+        or schema_version not in {1, 2, 3}
     ):
-        errors.append("schema_version must be 1 or 2")
+        errors.append("schema_version must be 1, 2, or 3")
         schema_version = 0
     if benchmark.get("artifact_kind") != "ResearchCapabilityGoldBenchmark":
         errors.append("artifact_kind must be ResearchCapabilityGoldBenchmark")
@@ -2198,6 +2226,22 @@ def _validate_benchmark_manifest(
                         f"active task {index} source-report semantic evaluation "
                         "requires hidden_source_replication_evaluator"
                     )
+        if schema_version >= 3:
+            errors.extend(
+                _activation_candidate_suite_validation_errors(
+                    task,
+                    task_index=index,
+                    project_root=project_root,
+                    algorithm_evaluator=algorithm_evaluator,
+                    empirical_evaluator=(
+                        empirical_evaluator
+                        if isinstance(empirical_evaluator, Mapping)
+                        else {}
+                    ),
+                    contract_clause_ids=contract_clause_ids,
+                    empirical_claim_clause_ids=empirical_claim_clause_ids,
+                )
+            )
         if scoring_scope == "full_task":
             if not _full_task_gold_configured(task):
                 errors.append(
@@ -2456,6 +2500,216 @@ def _hidden_evaluator_validation_errors(
             f"active task {task_index} {label} check_id values must be unique"
         )
     return errors
+
+
+def _activation_candidate_suite_validation_errors(
+    task: Mapping[str, Any],
+    *,
+    task_index: int,
+    project_root: Path,
+    algorithm_evaluator: Mapping[str, Any],
+    empirical_evaluator: Mapping[str, Any],
+    contract_clause_ids: set[str],
+    empirical_claim_clause_ids: set[str],
+) -> list[str]:
+    evaluators = {
+        name: value
+        for name, value in (
+            ("algorithm", algorithm_evaluator),
+            ("empirical", empirical_evaluator),
+        )
+        if value
+    }
+    if not evaluators:
+        return []
+    label = f"active task {task_index} activation_candidate_suite"
+    suite = task.get("activation_candidate_suite")
+    if not isinstance(suite, Mapping):
+        return [f"{label} is required by schema v3"]
+    estimator_ids = {
+        str(value.get("required_estimator_id", "") or "")
+        for value in evaluators.values()
+    }
+    errors = _activation_candidate_validation_errors(
+        suite.get("reference_candidate"),
+        label=f"{label} reference_candidate",
+        project_root=project_root,
+        estimator_ids=estimator_ids,
+    )
+    negatives = suite.get("negative_candidates")
+    if not isinstance(negatives, list) or not negatives:
+        errors.append(f"{label} negative_candidates must be nonempty")
+        negatives = []
+    covered_evaluators: set[str] = set()
+    for candidate_index, candidate in enumerate(negatives):
+        candidate_label = f"{label} negative candidate {candidate_index}"
+        errors.extend(
+            _activation_candidate_validation_errors(
+                candidate,
+                label=candidate_label,
+                project_root=project_root,
+                estimator_ids=estimator_ids,
+            )
+        )
+        targets = (
+            {str(value) for value in candidate.get("must_fail_evaluators", [])}
+            if isinstance(candidate, Mapping)
+            and isinstance(candidate.get("must_fail_evaluators"), list)
+            else set()
+        )
+        if not targets or not targets <= set(evaluators):
+            errors.append(f"{candidate_label} must target configured evaluators")
+        covered_evaluators.update(targets)
+    missing_negative_controls = set(evaluators) - covered_evaluators
+    if missing_negative_controls:
+        errors.append(
+            f"{label} lacks negative controls for: "
+            + ", ".join(sorted(missing_negative_controls))
+        )
+    cited_clauses = {
+        str(clause_id)
+        for evaluator in evaluators.values()
+        for check in evaluator.get("acceptance_checks", []) or []
+        if isinstance(check, Mapping)
+        for clause_id in check.get("contract_clause_refs", []) or []
+    }
+    required_clause_ids = contract_clause_ids - (
+        set() if empirical_evaluator else empirical_claim_clause_ids
+    )
+    if missing_clauses := required_clause_ids - cited_clauses:
+        errors.append(
+            f"{label} does not exercise public contract clauses: "
+            + ", ".join(sorted(missing_clauses))
+        )
+    return errors
+
+
+def _activation_candidate_validation_errors(
+    candidate: Any,
+    *,
+    label: str,
+    project_root: Path,
+    estimator_ids: set[str],
+) -> list[str]:
+    if not isinstance(candidate, Mapping):
+        return [f"{label} must be an object"]
+    errors: list[str] = []
+    if str(candidate.get("estimator_id", "") or "") not in estimator_ids:
+        errors.append(f"{label} estimator identity is invalid")
+    if (
+        str(candidate.get("language", "") or "")
+        not in SCIENTIFIC_SANDBOX_LANGUAGES
+    ):
+        errors.append(f"{label} language is invalid")
+    dependencies = candidate.get("dependencies")
+    if not isinstance(dependencies, list) or any(
+        not isinstance(value, str) or not value.strip() for value in dependencies
+    ):
+        errors.append(f"{label} dependencies must be a string array")
+    source_path = _project_path(
+        str(candidate.get("source_path", "") or ""), project_root=project_root
+    )
+    if not source_path.is_file():
+        errors.append(f"{label} source is missing")
+    elif _file_sha256(source_path) != str(candidate.get("source_sha256", "") or ""):
+        errors.append(f"{label} source hash mismatch")
+    return errors
+
+
+def _run_activation_candidate_suite(
+    task: Mapping[str, Any], *, project_root: Path, sandbox_root: Path
+) -> dict[str, Any]:
+    suite = task["activation_candidate_suite"]
+    evaluators = {
+        name: task[field]
+        for name, field in (
+            ("algorithm", "hidden_algorithm_evaluator"),
+            ("empirical", "hidden_empirical_evaluator"),
+        )
+        if isinstance(task.get(field), Mapping) and task.get(field)
+    }
+    reference = suite["reference_candidate"]
+    reference_results = {
+        name: _run_activation_candidate(
+            reference,
+            evaluator=evaluator,
+            project_root=project_root,
+            sandbox_dir=sandbox_root / str(task["task_id"]) / name / "reference",
+        )
+        for name, evaluator in evaluators.items()
+    }
+    failed_reference = [
+        name for name, row in reference_results.items() if not row["passed"]
+    ]
+    if failed_reference:
+        raise ValueError(
+            f"gold activation reference failed exact candidate validators for "
+            f"task {task['task_id']}: " + ", ".join(failed_reference)
+        )
+    rejected = 0
+    for index, candidate in enumerate(suite["negative_candidates"]):
+        for name in candidate["must_fail_evaluators"]:
+            row = _run_activation_candidate(
+                candidate,
+                evaluator=evaluators[name],
+                project_root=project_root,
+                sandbox_dir=(
+                    sandbox_root / str(task["task_id"]) / name / f"negative-{index}"
+                ),
+            )
+            if row["passed"] or not row["execution_attempted"] or not row[
+                "estimator_invocation_count"
+            ]:
+                raise ValueError(
+                    f"gold activation negative control {index} was not rejected "
+                    f"by the exact {name} candidate validator for task {task['task_id']}"
+                )
+            rejected += 1
+    return {
+        "task_id_hash": stable_hash(str(task["task_id"])),
+        "reference_validator_hashes": {
+            name: stable_hash(evaluator) for name, evaluator in evaluators.items()
+        },
+        "reference_result_hashes": {
+            name: row["result_hash"] for name, row in reference_results.items()
+        },
+        "negative_controls_rejected": rejected,
+    }
+
+
+def _run_activation_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    evaluator: Mapping[str, Any],
+    project_root: Path,
+    sandbox_dir: Path,
+) -> dict[str, Any]:
+    source = _project_path(
+        str(candidate["source_path"]), project_root=project_root
+    ).read_text(encoding="utf-8")
+    harness = _project_path(str(evaluator["harness_path"]), project_root=project_root)
+    execution = _run_hidden_scientific_harness(
+        sandbox_dir=sandbox_dir,
+        artifact_id="gold-activation-candidate",
+        harness_language=str(evaluator["language"]),
+        harness_code=harness.read_text(encoding="utf-8"),
+        harness_dependencies=tuple(evaluator.get("dependencies", []) or []),
+        estimator_binding=ScientificEstimatorBinding(
+            artifact_id=str(candidate["estimator_id"]),
+            language=str(candidate["language"]),
+            code=source,
+            code_hash=stable_hash(source),
+            dependencies=tuple(candidate.get("dependencies", []) or []),
+        ),
+        seed=int(evaluator.get("seed", 0) or 0),
+        replicates=int(evaluator.get("replicates", 1) or 1),
+        timeout_s=int(evaluator.get("timeout_seconds", 60) or 60),
+    )
+    return _hidden_execution_summary(
+        execution,
+        evaluator=evaluator,
+        required_estimator_id=str(evaluator["required_estimator_id"]),
+    )
 
 
 def _project_path(value: str, *, project_root: Path) -> Path:

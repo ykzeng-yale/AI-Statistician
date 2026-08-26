@@ -14,6 +14,7 @@ from ai_statistician.estimator_interface_contract import (
 )
 from ai_statistician.research_gold_evaluation import (
     evaluate_research_gold_benchmark,
+    validate_research_gold_benchmark_activation,
     validate_research_gold_benchmark_manifest,
 )
 from ai_statistician.research_agent_runtime import (
@@ -83,6 +84,7 @@ def test_gold_preflight_rejects_missing_selected_task_before_runtime_output(
     tmp_path: Path,
 ) -> None:
     out_dir = tmp_path / "must-not-exist"
+    manifest = _schema_v3_gold_manifest(tmp_path)
 
     with pytest.raises(ValueError, match="absent from the selected question set"):
         run_research_agent_runtime(
@@ -90,7 +92,7 @@ def test_gold_preflight_rejects_missing_selected_task_before_runtime_output(
             out_dir,
             theory_developer=None,
             config=ResearchAgentRuntimeConfig(evaluation_mode="research_eval"),
-            research_gold_manifest=GOLD_MANIFEST,
+            research_gold_manifest=manifest,
         )
 
     assert not out_dir.exists()
@@ -1659,6 +1661,155 @@ def _schema_v2_gold_manifest(
     manifest_path = tmp_path / "schema-v2-gold.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     return manifest_path
+
+
+def _schema_v3_gold_manifest(
+    tmp_path: Path,
+    *,
+    include_empirical: bool = False,
+) -> Path:
+    path = _schema_v2_gold_manifest(
+        tmp_path,
+        include_empirical=include_empirical,
+    )
+    harness = tmp_path / "activation-candidate-harness.py"
+    harness.write_text(
+        """def run_sandbox(seed, replicates, estimators):
+    del seed, replicates
+    result = estimators[\"est_ols_hc0_covariance\"]({})
+    passed = result.get(\"covariance\") == [[4.0]]
+    return {
+        \"hidden_cases_passed\": 4 if passed else 0,
+        \"all_outputs_finite\": passed,
+    }
+""",
+        encoding="utf-8",
+    )
+    reference = tmp_path / "activation-reference.py"
+    reference.write_text(
+        "def run_estimator(request):\n"
+        "    del request\n"
+        "    return {'covariance': [[4.0]]}\n",
+        encoding="utf-8",
+    )
+    negative = tmp_path / "activation-negative.py"
+    negative.write_text(
+        "def run_estimator(request):\n"
+        "    del request\n"
+        "    return {'covariance': [[3.0]]}\n",
+        encoding="utf-8",
+    )
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 3
+    task = manifest["active_tasks"][0]
+    evaluator_names = ["hidden_algorithm_evaluator"]
+    if include_empirical:
+        evaluator_names.append("hidden_empirical_evaluator")
+    for name in evaluator_names:
+        task[name]["harness_path"] = str(harness)
+        task[name]["harness_sha256"] = _fixture_sha256(harness)
+        task[name]["dependencies"] = []
+    targets = ["algorithm"] + (["empirical"] if include_empirical else [])
+    task["activation_candidate_suite"] = {
+        "reference_candidate": {
+            "estimator_id": "est_ols_hc0_covariance",
+            "source_path": str(reference),
+            "source_sha256": _fixture_sha256(reference),
+            "language": "python",
+            "dependencies": [],
+        },
+        "negative_candidates": [
+            {
+                "estimator_id": "est_ols_hc0_covariance",
+                "source_path": str(negative),
+                "source_sha256": _fixture_sha256(negative),
+                "language": "python",
+                "dependencies": [],
+                "must_fail_evaluators": targets,
+            }
+        ],
+    }
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return path
+
+
+def test_schema_v3_activation_runs_reference_and_negative_through_same_validators(
+    tmp_path: Path,
+) -> None:
+    descriptor = validate_research_gold_benchmark_activation(
+        _schema_v3_gold_manifest(tmp_path, include_empirical=True)
+    )
+
+    assert descriptor["activation_schema_version"] == 3
+    assert descriptor["activation_candidate_validator_path"] == (
+        "same_hidden_evaluator_path"
+    )
+    assert descriptor["activation_reference_tasks_passed"] == 1
+    assert descriptor["activation_negative_controls_rejected"] == 2
+    serialized = json.dumps(descriptor)
+    assert "source_path" not in serialized
+    assert "acceptance_checks" not in serialized
+
+
+def test_live_activation_rejects_historical_schema_v2(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="requires schema_version 3"):
+        validate_research_gold_benchmark_activation(
+            _schema_v2_gold_manifest(tmp_path)
+        )
+
+
+def test_schema_v3_activation_rejects_reference_candidate_failure(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v3_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    suite = manifest["active_tasks"][0]["activation_candidate_suite"]
+    negative = suite["negative_candidates"][0]
+    suite["reference_candidate"] = {
+        key: value for key, value in negative.items() if key != "must_fail_evaluators"
+    }
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="reference failed exact candidate validators"):
+        validate_research_gold_benchmark_activation(path)
+
+
+def test_schema_v3_activation_rejects_vacuous_candidate_validator(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v3_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    evaluator = manifest["active_tasks"][0]["hidden_algorithm_evaluator"]
+    harness = Path(evaluator["harness_path"])
+    harness.write_text(
+        """def run_sandbox(seed, replicates, estimators):
+    del seed, replicates
+    estimators[\"est_ols_hc0_covariance\"]({})
+    return {\"hidden_cases_passed\": 4, \"all_outputs_finite\": True}
+""",
+        encoding="utf-8",
+    )
+    evaluator["harness_sha256"] = _fixture_sha256(harness)
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="negative control 0 was not rejected"):
+        validate_research_gold_benchmark_activation(path)
+
+
+def test_schema_v3_requires_hidden_checks_to_cover_every_public_clause(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v3_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    checks = manifest["active_tasks"][0]["hidden_algorithm_evaluator"][
+        "acceptance_checks"
+    ]
+    for check in checks:
+        check["contract_clause_refs"] = ["response.covariance"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="does not exercise public contract clauses"):
+        validate_research_gold_benchmark_activation(path)
 
 
 def test_schema_v2_gold_binds_hidden_checks_to_visible_contract_clauses(

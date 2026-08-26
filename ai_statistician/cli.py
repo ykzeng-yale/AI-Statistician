@@ -101,7 +101,6 @@ from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
 from .research_knowledge_audit import audit_research_knowledge
 from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
-from .research_next_iteration_audit import audit_next_iteration_queue
 from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
@@ -3051,24 +3050,6 @@ def _research_policy_baseline(args: argparse.Namespace) -> int:
     return 0 if payload["all_ok"] else 1
 
 
-def _next_iteration_audit(args: argparse.Namespace) -> int:
-    payload = audit_next_iteration_queue(Path(args.run_dir), Path(args.out))
-    print("\nAI Statistical Theory Lab Next-Iteration Queue")
-    print("=" * 72)
-    print(
-        f"items={payload['n_ok']}/{payload['n_items']} "
-        f"actionable={payload['n_actionable_items']} all_ok={payload['all_ok']}"
-    )
-    for owner, count in payload["by_owner"].items():
-        print(f"  {owner}: {count}")
-    print(
-        f"\nnext-iteration queue manifest written to "
-        f"{(Path(args.out) / 'next_iteration_queue_manifest.json').resolve()}"
-    )
-    print(f"markdown report written to {(Path(args.out) / 'next_iteration_queue.md').resolve()}")
-    return 0 if payload["all_ok"] else 1
-
-
 def _research_report(args: argparse.Namespace) -> int:
     payload = build_research_markdown_report(Path(args.run_dir), Path(args.out))
     counts = payload["counts"]
@@ -5992,22 +5973,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for research policy baseline predictions and manifest",
     )
     research_policy_baseline.set_defaults(func=_research_policy_baseline)
-
-    next_iteration_audit = sub.add_parser(
-        "next-iteration-audit",
-        help="aggregate per-trace next_iteration_agenda items into a run-level agent queue",
-    )
-    next_iteration_audit.add_argument(
-        "--run-dir",
-        required=True,
-        help="directory containing research_benchmark_manifest.json and research trace JSON files",
-    )
-    next_iteration_audit.add_argument(
-        "--out",
-        default="runs/next_iteration_queue",
-        help="next-iteration queue output directory",
-    )
-    next_iteration_audit.set_defaults(func=_next_iteration_audit)
 
     research_report = sub.add_parser(
         "research-report",
