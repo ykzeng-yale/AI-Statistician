@@ -2711,7 +2711,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is True
     readiness = ladder["current_readiness"]
-    assert readiness["consumed_scored_tasks"] == 50
+    assert readiness["consumed_scored_tasks"] == 51
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
@@ -4272,7 +4272,7 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 51
-    assert readiness["consumed_scored_tasks"] == 50
+    assert readiness["consumed_scored_tasks"] == 51
     assert readiness["fully_gold_configured_tasks"] == 51
     assert readiness["fully_gold_passed_tasks"] == 4
 
@@ -4407,7 +4407,7 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 51
-    assert readiness["consumed_scored_tasks"] == 50
+    assert readiness["consumed_scored_tasks"] == 51
     assert readiness["fully_gold_configured_tasks"] == 51
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 4
@@ -4437,7 +4437,7 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
         assert hidden_name not in runtime_visible
 
 
-def test_weighted_partial_regression_l0_is_frozen_and_unconsumed() -> None:
+def test_weighted_partial_regression_l0_records_its_only_consumed_failed_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -4448,9 +4448,9 @@ def test_weighted_partial_regression_l0_is_frozen_and_unconsumed() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "weighted_partitioned_regression"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_preactivation_calibrated_exact_haiku"
+        "fresh_live_v1_consumed_failed_theory_and_reviewer_lifecycle"
     )
     assert candidate["gold_manifest_sha256"] == (
         "7255132932bd1425c42406522b88b2f6d5f4709fac01b9a07b238cad3a4a1f75"
@@ -4484,15 +4484,28 @@ def test_weighted_partial_regression_l0_is_frozen_and_unconsumed() -> None:
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_status"].startswith("BLOCKED after 20 outer traces")
+    assert evidence["runtime_product_model_calls"] == 128
+    assert evidence["runtime_client_tool_model_turns"] == 126
+    assert evidence["runtime_direct_architect_calls"] == 2
+    assert evidence["hidden_theory_mechanical_checks"].startswith("4/5")
+    assert evidence["hidden_theory_semantic_claims"].startswith("10/11 SATISFIED")
+    assert evidence["accepted_algorithm_handoff"] is False
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
+    assert evidence["hidden_gold_evaluation"].startswith("0/1")
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 51
-    assert readiness["consumed_scored_tasks"] == 50
+    assert readiness["consumed_scored_tasks"] == 51
     assert readiness["fully_gold_configured_tasks"] == 51
     assert readiness["fully_gold_passed_tasks"] == 4
 
