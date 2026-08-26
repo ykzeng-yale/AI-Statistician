@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "normal_normal_conjugate_predictive_known_result",
+      "title": "Normal-normal posterior and posterior predictive",
+      "description": "Focused L0 known-result evaluation grounded in Persi Diaconis and Donald Ylvisaker, Conjugate Priors for Exponential Families, The Annals of Statistics 7(2), 1979, 269-281, DOI 10.1214/aos/1176344611. Let theta have the proper prior N(m0,v0), where m0 is finite and v0>0. Conditionally on theta, observe n>=1 iid Xi~N(theta,sigma2) with known finite sigma2>0. Develop one authoritative Markdown/LaTeX derivation by expanding the prior and likelihood kernels and completing the square. Derive the posterior precision, variance, and precision-weighted mean, and derive the posterior predictive distribution of one future conditionally iid observation by integrating over theta. Make the sufficient-statistic reduction, normalization of the posterior-mean weights, posterior variance reduction, translation and scale behavior, and all positivity assumptions auditable. Distinguish this proper-known-variance result from an improper flat-prior limit, zero observation variance, unknown-variance Student-t analysis, frequentist confidence claims, and simulation evidence. The required model-authored artifact is est_normal_normal_predictive and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may test algebra and limiting cases. A separately frozen confirmatory prior-predictive assessment draws theta, data, and one future observation under multiple predeclared parameter scenarios and checks standardized posterior error, posterior mean squared error, posterior central-interval coverage, standardized predictive error, and predictive central-interval coverage with Monte Carlo uncertainty. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "bayesian_inference",
+        "conjugate_prior",
+        "normal_model",
+        "posterior_predictive",
+        "L0"
+      ],
+      "source": {
+        "title": "Conjugate Priors for Exponential Families",
+        "authors": [
+          "Persi Diaconis",
+          "Donald Ylvisaker"
+        ],
+        "journal": "The Annals of Statistics",
+        "year": 1979,
+        "volume": 7,
+        "issue": 2,
+        "pages": "269-281",
+        "doi": "10.1214/aos/1176344611",
+        "url": "https://doi.org/10.1214/aos/1176344611"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_normal_normal_predictive",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.prior_mean",
+            "name": "prior_mean",
+            "meaning": "The finite mean m0 of the proper normal prior for theta.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "one prior hyperparameter shared by all observations and confirmatory replicates",
+            "edge_cases": "Reject booleans, strings, and nonfinite values; do not coerce.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.prior_variance",
+            "name": "prior_variance",
+            "meaning": "The finite strictly positive variance v0 of the proper normal prior.",
+            "json_type": "number",
+            "shape": "one finite scalar greater than zero",
+            "units": "squared outcome units",
+            "indexing": "one prior hyperparameter shared by all observations and confirmatory replicates",
+            "edge_cases": "Reject zero, negative, boolean, string, and nonfinite values; an improper infinite-variance prior is outside this ABI.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.observation_variance",
+            "name": "observation_variance",
+            "meaning": "The known finite strictly positive conditional variance sigma2 shared by all observations and the future observation.",
+            "json_type": "number",
+            "shape": "one finite scalar greater than zero",
+            "units": "squared outcome units",
+            "indexing": "one known conditional variance shared by all observations and confirmatory replicates",
+            "edge_cases": "Reject zero, negative, boolean, string, and nonfinite values; unknown variance is outside this ABI.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.observations",
+            "name": "observations",
+            "meaning": "The conditionally iid realized observations in stable order.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric vector of length n>=1",
+            "units": "outcome units",
+            "indexing": "one realized conditionally iid vector per estimator invocation",
+            "edge_cases": "Reject booleans, strings, nonfinite entries, nonarrays, and empty arrays; do not silently drop or coerce entries.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "The exact number of observations.",
+            "json_type": "integer",
+            "shape": "one integer at least one",
+            "units": "observations",
+            "indexing": "current observation vector",
+            "edge_cases": "Must not be returned as a boolean, zero, negative, or fractional value.",
+            "normalization": "length of observations"
+          },
+          {
+            "clause_id": "response.sample_mean",
+            "name": "sample_mean",
+            "meaning": "The arithmetic mean of the observations.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "current observation vector",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sum(observations)/n"
+          },
+          {
+            "clause_id": "response.prior_precision",
+            "name": "prior_precision",
+            "meaning": "The reciprocal of prior_variance.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "inverse squared outcome units",
+            "indexing": "current prior hyperparameter",
+            "edge_cases": "Must remain finite and strictly positive.",
+            "normalization": "1/prior_variance"
+          },
+          {
+            "clause_id": "response.data_precision",
+            "name": "data_precision",
+            "meaning": "The total conditional precision supplied by n observations.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "inverse squared outcome units",
+            "indexing": "current sample size and known observation variance",
+            "edge_cases": "Must remain finite and strictly positive.",
+            "normalization": "n/observation_variance"
+          },
+          {
+            "clause_id": "response.posterior_mean",
+            "name": "posterior_mean",
+            "meaning": "The conditional posterior mean of theta.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "posterior conditional on the current observations",
+            "edge_cases": "May be positive, zero, or negative and must lie between prior_mean and sample_mean.",
+            "normalization": "precision-weighted average of prior_mean and sample_mean"
+          },
+          {
+            "clause_id": "response.posterior_variance",
+            "name": "posterior_variance",
+            "meaning": "The conditional posterior variance of theta.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared outcome units",
+            "indexing": "posterior conditional on the current sample size and known variances",
+            "edge_cases": "Must remain strictly positive and smaller than each contributing variance scale.",
+            "normalization": "1/(prior_precision+data_precision)"
+          },
+          {
+            "clause_id": "response.posterior_standard_deviation",
+            "name": "posterior_standard_deviation",
+            "meaning": "The nonnegative square root of posterior_variance.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "outcome units",
+            "indexing": "posterior conditional on the current sample size and known variances",
+            "edge_cases": "Must remain finite and strictly positive.",
+            "normalization": "sqrt(posterior_variance)"
+          },
+          {
+            "clause_id": "response.predictive_mean",
+            "name": "predictive_mean",
+            "meaning": "The posterior predictive mean of one future conditionally iid observation.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "one future observation conditional on the current observations",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "posterior_mean"
+          },
+          {
+            "clause_id": "response.predictive_variance",
+            "name": "predictive_variance",
+            "meaning": "The posterior predictive variance of one future conditionally iid observation.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared outcome units",
+            "indexing": "one future observation conditional on the current observations",
+            "edge_cases": "Must remain finite and strictly exceed observation_variance.",
+            "normalization": "observation_variance+posterior_variance"
+          },
+          {
+            "clause_id": "response.predictive_standard_deviation",
+            "name": "predictive_standard_deviation",
+            "meaning": "The nonnegative square root of predictive_variance.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "outcome units",
+            "indexing": "one future observation conditional on the current observations",
+            "edge_cases": "Must remain finite and strictly positive.",
+            "normalization": "sqrt(predictive_variance)"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request object contains exactly the four declared request fields and the response contains exactly the ten declared response fields. Missing or extra fields are rejected rather than ignored or invented."
+          },
+          {
+            "clause_id": "invariant.information_additivity",
+            "meaning": "posterior_variance is the reciprocal of prior_precision+data_precision, and posterior_mean is the corresponding normalized precision-weighted average."
+          },
+          {
+            "clause_id": "invariant.variance_reduction",
+            "meaning": "For every accepted request, posterior_variance is strictly smaller than both prior_variance and observation_variance/n, while predictive_variance is strictly larger than observation_variance."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting observations leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.translation_equivariance",
+            "meaning": "Adding finite c to prior_mean and every observation adds c to sample_mean, posterior_mean, and predictive_mean and leaves all precision, variance, and standard-deviation fields unchanged."
+          },
+          {
+            "clause_id": "invariant.scale_equivariance",
+            "meaning": "For finite nonzero c, multiplying prior_mean and observations by c and both input variances by c^2 multiplies all mean fields by c, all output variances by c^2, all output standard deviations by abs(c), and both precisions by 1/c^2."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen scenario, independently draw theta from the declared prior, n conditionally iid observations, and one future observation using a seed and replicate count fixed before outcomes, then invoke the accepted estimator on each realized sample."
+          },
+          {
+            "clause_id": "claim.empirical.posterior_standardization",
+            "meaning": "Across prior-predictive replicates, (theta-posterior_mean)/posterior_standard_deviation has mean zero and variance one within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.posterior_mse",
+            "meaning": "Across prior-predictive replicates, the mean squared error of posterior_mean for theta agrees with the average returned posterior_variance within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.posterior_coverage",
+            "meaning": "The central nominal 95 percent posterior interval based on the standard-normal 0.975 quantile covers theta at its nominal prior-predictive rate within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.predictive_standardization",
+            "meaning": "Across prior-predictive replicates, (future_observation-predictive_mean)/predictive_standard_deviation has mean zero and variance one within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.predictive_coverage",
+            "meaning": "The central nominal 95 percent posterior predictive interval based on the standard-normal 0.975 quantile covers the future observation at its nominal prior-predictive rate within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.evidence_boundary",
+            "meaning": "The confirmatory simulation checks implementation and calibration under the frozen scenarios; it does not replace the completing-the-square derivation or prove correctness outside the stated model."
+          }
+        ]
+      }
+    }
+  ]
+}
