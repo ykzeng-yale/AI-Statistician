@@ -846,6 +846,54 @@ passed `124/124`, and the complete repository passed `903/903` in 69.38 seconds.
 149,928 lines. This is future-task mechanism evidence only: the consumed
 Hotelling result remains `0/1`, and the aggregate remains `4/42`.
 
+## Explicit source commit and execution-phase separation
+
+The next disjoint Kendall tau-a draw exercised the full Simulation source-owner
+loop. It exposed two lifecycle defects that belong to the harness rather than to
+Kendall mathematics.
+
+First, every authoring submission executed the complete 5,000-replicate
+confirmatory workload. The source owner repeatedly spent tens of seconds learning
+whether its file executed and produced the requested output shape, even though
+those same outcomes could not become confirmatory evidence before explicit
+commit. Second, after the model exhausted its workspace tool budget without a
+valid terminal commit, runtime retained the last executed prototype and could
+still call it source-valid. Independent review therefore accepted bytes that the
+source owner had never committed.
+
+Commit `a5551714` adopts the corresponding Codex turn-lifecycle principle:
+
+1. A same-owner authoring diagnostic uses a separate seed and at most 128
+   replicates. It returns raw execution and metric shape, while frozen acceptance
+   outcomes are not part of the source-commit observation.
+2. The model explicitly commits exact source bytes. Only then does runtime run
+   those bytes once at the complete frozen confirmatory count with outcomes
+   withheld from that session.
+3. Any nonempty workspace terminal failure makes the last prototype ineligible
+   for promotion, even when it executed and its metric paths resolved.
+4. GeneratedCodeSemanticReviewer v26 names its compact disposition
+   `CURRENT_SOURCE_REWRITE_SUFFICIENT` or
+   `CROSS_ARTIFACT_RESOLUTION_REQUIRED`. A defect in the exact Simulation source
+   is local regardless of the word "downstream", so ordinary source revision does
+   not consume an Architect call.
+
+This does not reduce confirmatory evidence, patch generated source, interpret a
+metric, or add another scheduler. It separates cheap model feedback from expensive
+evidence, preserves a real commit boundary, and keeps local work with its owner.
+Focused regressions passed `79/79`; the final complete repository passed `905/905` in
+69.66 seconds; `research_agent_runtime.py` remains below its fixed budget at
+24,998 lines.
+
+The same Kendall audit also establishes a non-adoption boundary. TheoryDeveloper,
+the independent referee, and the calibrated hidden semantic judge all missed a
+false shared-index covariance despite exact Markdown, model-authored scratch, raw
+`0.111111...` output, and explicit contradiction-reconciliation instructions.
+That is a Haiku mathematical-reasoning failure, not evidence that runtime should
+gain a Kendall formula parser, arithmetic repair worker, repeated vote, or hidden
+answer feedback. Production serious-theory and mathematical-review roles remain
+Sonnet; exact-Haiku evaluation remains intentionally harder. The consumed score
+is immutable `0/1`, and the aggregate is `4/43`.
+
 ## Current upstream boundary recheck
 
 The official checkout was fast-forwarded to

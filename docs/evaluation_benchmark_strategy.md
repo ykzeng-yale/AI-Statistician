@@ -739,3 +739,36 @@ cannot establish improved scientific judgment. Generated Simulation review remai
 source-inspection based until a second cross-task failure justifies a similarly
 general executable interface; one bootstrap-specific failure is not enough reason
 to invent a Simulation probe ABI.
+
+## Kendall tau-a L0 v1 and capability attribution
+
+The forty-third fully gold-covered task received exactly one frozen exact-Haiku
+draw and one automatic hidden evaluation. Its immutable score is `0/1`, leaving
+the aggregate at `4/43`. Formalization was not applicable. Hidden algorithm
+authority passed `9/10`, empirical authority passed `9/9` over 24,000 estimator
+invocations, and runtime remained incomplete at the terminal Critic.
+
+Automated theory fields require an operator override. The Markdown derivation
+uses `1/3` instead of `1/9` for a shared-index kernel-product expectation and
+counts only one-third of the overlapping pair-pairs. Those errors cancel to the
+standard final variance. TheoryDeveloper scratch, referee scratch, and the
+referee's initial report all exposed the contradiction, but the referee later
+misread `0.111111...` as `1/3`; the calibrated hidden judge also returned `9/9`.
+The task therefore receives no theory capability credit despite those frozen
+automated fields.
+
+The trace separately found a shared lifecycle defect. Full 5,000-replicate
+execution happened on every source-authoring submission, and a last executed
+prototype could remain source-valid after the model failed to commit the
+workspace. Future source owners now receive a small separate-seed diagnostic for
+execution and output-shape iteration, explicitly commit exact bytes, and trigger
+one complete blinded confirmatory execution. A terminal workspace failure blocks
+promotion. This changes future harness behavior only; it cannot repair or rescore
+Kendall.
+
+This is the intended evaluation discipline: distinguish model-owned mathematical
+failure, public-interface code failure, malformed model-authored metric gates,
+hidden empirical component success, and a deterministic lifecycle fail-open. Do
+not collapse them into a single repair target, add a Kendall formula parser, or
+use hidden results as feedback. Production serious theory remains a Sonnet role;
+all benchmark calls remain exact Haiku under the frozen model policy.

@@ -1,13 +1,54 @@
 {
-  "schema_version": 173,
-  "updated_at": "2026-08-25",
+  "schema_version": 174,
+  "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "ea0118067a2f9f2558db300c76c3fd74675725b9",
+  "validated_code_head": "a55517140acd3185e20531f147cbc9309238a78b",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all forty-two consumed tasks at immutable scores, now 4/42 under their pre-frozen automated protocols. The disjoint Hotelling draw is 0/1: theory passed hidden mechanics and semantics, the estimator passed 8/9 public-contract-bound checks, hidden empirical authority passed 9/9 over 12,000 invocations, and runtime then failed closed on an unnecessary generated-code-review pointer ABI. Commit ea011806 applies the shared Codex-shaped correction only to future tasks: scientific review lives in model-authored Markdown, and an exact Simulation source plus reviewer finding returns directly to its source-owning coding loop with zero fresh planning calls. The larger bottleneck remains model-owned long-horizon derivation and falsification quality; source replication and exact development Lean closure 0/2 also remain incomplete. Do not add formulas, pointer grammars, repair layers, broader schemas, or another scheduler.",
+  "current_goal_focus": "Preserve all forty-three consumed tasks at immutable scores, now 4/43 under their pre-frozen automated protocols. Kendall tau-a is 0/1: operator audit found cancelling covariance/counting errors that both calibrated Haiku theory judges false-accepted, hidden algorithm authority caught one visible invalid-input defect, hidden empirical authority passed 9/9 over 24,000 invocations, and runtime rejected malformed model-authored metric gates. Commit a5551714 applies only future-task Codex-shaped lifecycle corrections: quick non-evidence diagnostics stay with the source owner, uncommitted workspaces fail closed, full confirmatory evidence executes once, and local source findings bypass Architect. The largest bottleneck remains model-owned long-horizon derivation and falsification quality; source replication and exact development Lean closure 0/2 also remain incomplete. Do not add formulas, arithmetic parsers, repair layers, broader schemas, repeated model voting, or another scheduler.",
+  "latest_kendall_tau_a_l0_evaluation": {
+    "task_id": "kendall_tau_a_independence_known_result",
+    "family": "rank_correlation_independence",
+    "status": "fresh_live_v1_full_task_gold_failed_with_operator_theory_override",
+    "run_path": "runs/main_worker_research_l0_kendall_tau_20260826_v1_codex_harness_exact_haiku",
+    "activation_commit": "e6ab1afb4d0796544d79278ff3ee652b961766f4",
+    "activation_identity_commit": "9d00edec736611b14d8802433fdda8213d4549a3",
+    "runtime_head": "9d00edec736611b14d8802433fdda8213d4549a3",
+    "runtime_model": "claude-haiku-4-5-20251001",
+    "runtime_model_policy_status": "OK",
+    "fresh_live_runs": 1,
+    "runtime_status": "BLOCKED",
+    "runtime_failure_classification": "critic_scientific_rejected",
+    "runtime_outer_traces": 22,
+    "runtime_architect_traces": 7,
+    "runtime_handoffs": 21,
+    "runtime_observations": 47,
+    "runtime_tool_calls": 36,
+    "theory_workspace": "One exact-Haiku source-owner session wrote and committed a 20,399-byte Markdown/LaTeX derivation with SHA-256 3fd3f60c8a7459e4fbeb74a22cf10abb7e1aa9e7ab16a5d7171ed32554154a49. Its scratch output contradicted the final shared-index covariance claim.",
+    "independent_theory_review": "The isolated exact-Haiku referee first identified the variance derivation as critical, then misread its own successful scratch value 0.111111 as 1/3 and accepted after checking an expression that already embedded the false 1/3 assumption.",
+    "operator_mathematical_diagnosis": "The true shared-index kernel-product expectation is 1/9 and each observation triple contributes three overlapping unordered pair-pairs. The document uses 1/3 and one-third of the overlap multiplicity; those two errors cancel to the standard final variance. Automated hidden theory semantics 9/9 is therefore an operator-recorded false positive.",
+    "generated_algorithm": "Model-authored Python executed and passed 9/10 hidden public-contract checks. It applies float conversion to each input value, admitting booleans and numeric strings despite the visible rejection requirement.",
+    "generated_simulation": "Generated simulations executed repeatedly. The final empirical variance behavior passed hidden MCSE-calibrated authority, while the model-authored runtime protocol encoded variance intervals far narrower than its own rationales and required per-DGP prose through scalar metric paths.",
+    "visible_research_evaluation": "0/1 incomplete but mode-conformant",
+    "hidden_gold_evaluation": "0/1; theory structure 7/7, automated calibrated theory semantics 9/9 with operator false-positive override, algorithm 9/10, and empirical authority 9/9 over 24,000 estimator invocations",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "generated_algorithm_executed": true,
+    "generated_simulation_executed": true,
+    "runtime_manifest_sha256": "86e8d830dbeb2fcab952defad516b0225a9c5c98a1230403e6120ae0521cc2b5",
+    "runtime_result_sha256": "412ab04b077178dbc37d239a782d5b5d0895817aa77aa405dd211735d42f04c2",
+    "hidden_gold_report_sha256": "14d9aa18ba1a1714bd35f7a04973509f10cbf939dfa38aec21559adc8b91fbf4",
+    "operator_audit": "docs/operator_audits/kendall_tau_a_l0_v1.md",
+    "full_task_score": "0/1 under the pre-frozen protocol",
+    "ladder_score_after_consumption": "4/43",
+    "post_run_shared_change_commit": "a55517140acd3185e20531f147cbc9309238a78b",
+    "post_run_shared_change": "Future Simulation source-owner diagnostics use a small non-evidence cohort and interface-only commit gate before one full blinded confirmatory execution. Any workspace terminal failure prevents source promotion. Generated-code review v26 uses unambiguous current-source versus cross-artifact dispositions.",
+    "post_run_shared_change_evidence": "Future-task regression only: focused tests passed 79/79 and the final complete repository passed 905/905 in 69.66 seconds. research_agent_runtime.py is 24,998 lines. No formula, arithmetic parser, RepairAgent, scheduler, hidden feedback, rerun, resume, hidden evaluation, rescore, or model escalation was added.",
+    "post_run_score_changed": false,
+    "boundary": "The sole draw and sole hidden evaluation are consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample it. Automated component fields, operator findings, and commit a5551714 cannot alter the immutable 0/1 score."
+  },
   "latest_hotelling_t2_l0_evaluation": {
     "task_id": "hotelling_one_sample_t2_known_result",
     "family": "multivariate_normal_mean_inference",
@@ -282,7 +323,7 @@
     "latest_rechecked_upstream_commit": "2764e83626efe55f64e04d153fc99a157327f3c2",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "ea0118067a2f9f2558db300c76c3fd74675725b9",
+    "implementation_commit": "a55517140acd3185e20531f147cbc9309238a78b",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -305,7 +346,8 @@
       "75f05e46a6ff39adda0c694054bdd087cbbd7779",
       "ba9e553ff9b85a4cdd7367c21abdab2be531b6c7",
       "ec1f6fc8f83fa1a3d6812ab6b8eab8ac8c692940",
-      "ea0118067a2f9f2558db300c76c3fd74675725b9"
+      "ea0118067a2f9f2558db300c76c3fd74675725b9",
+      "a55517140acd3185e20531f147cbc9309238a78b"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
@@ -355,7 +397,9 @@
       "Successful independent-referee scratch executions now reach the same terminal Critic as exact hash-verified model-authored source and raw metrics. Missing or changed files expose no content, and runtime leaves relevance and mathematical interpretation to the Critic rather than treating execution success as validation.",
       "TheoryDeveloper can now atomically apply an ordered batch of model-authored exact replacements to one SHA-bound Markdown/LaTeX document. Runtime validates the complete batch against progressive bytes before mutation; it supplies no mathematical edit, parser, repair agent, or fallback.",
       "GeneratedCodeSemanticReviewer v25 keeps substantive scientific analysis and artifact locations in exact model-authored Markdown. Its compact terminal envelope no longer exposes RFC 6901 evidence pointers; runtime instead binds the complete review input, exact source and theory identities, reviewer independence, hashes, immutable lineage, hidden-outcome boundary, and verdict/finding consistency.",
-      "A hash-valid Simulation review that returns REVISE with current_source_edit_sufficient now restores the exact parent proposal and source, sends the model-authored finding directly to the same Simulation source-owner coding loop, requires changed source bytes, and records zero planning-model calls for that continuation. Architect is not invoked and runtime does not edit or interpret scientific source."
+      "A hash-valid Simulation review that returns REVISE with current_source_edit_sufficient now restores the exact parent proposal and source, sends the model-authored finding directly to the same Simulation source-owner coding loop, requires changed source bytes, and records zero planning-model calls for that continuation. Architect is not invoked and runtime does not edit or interpret scientific source.",
+      "Simulation source authoring now separates a quick non-evidence diagnostic from one full blinded confirmatory execution. Raw diagnostic execution and metric shape stay in the same source-owner session, but confirmatory acceptance outcomes are not a source-commit condition; any terminal workspace failure makes the last executed source ineligible for promotion.",
+      "GeneratedCodeSemanticReviewer v26 replaces the ambiguous parent/no-parent disposition with CURRENT_SOURCE_REWRITE_SUFFICIENT and CROSS_ARTIFACT_RESOLUTION_REQUIRED. A defect in the exact Simulation source is therefore described as local even though Simulation is downstream; runtime adds no repair plan or semantic router."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -365,12 +409,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The official Codex checkout was rechecked through 2764e836; the inspected core turn, router, parallel, multi-agent, app-server, Python SDK, model-provider, and exec-server paths did not change after dc08ace. Commits ec1f6fc8 and ea011806 adopt atomic Theory document edits, model-authored review without a pointer mini-language, and direct reviewed-source continuation without importing another runtime. Focused adjacent regressions passed 124/124 after the latest correction, the complete repository passed 903/903 in 69.38 seconds, research_agent_runtime.py is 24,996 lines, and top-level production Python is 149,928 lines. No consumed-task rerun, resume, output repair, second hidden evaluation, rescore, or model escalation occurred.",
-    "live_validation_runs": 12,
+    "verification": "The official Codex checkout remains rechecked through 2764e836. Commit a5551714 adds diagnostic-versus-confirmatory phase separation, fail-closed explicit source commit, and unambiguous local-versus-cross-artifact review disposition without importing Codex runtime. Focused mechanism regressions passed 79/79, the final complete repository passed 905/905 in 69.66 seconds, compile and diff checks passed, and research_agent_runtime.py is 24,998 lines. No consumed-task rerun, resume, output repair, second hidden evaluation, rescore, or model escalation occurred.",
+    "live_validation_runs": 13,
     "fresh_live_client_tool_model_turns": 371,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics are each immutable 1/1 under their frozen automated protocols and retain their recorded operator caveats. Hotelling and all other failed draws retain 0/1, and the aggregate ladder is 4/42. Commits 75f05e46, ba9e553f, ec1f6fc8, and ea011806 supply future-task mechanism evidence only; exact Lean closure remains 0/2 and separate."
+    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics are each immutable 1/1 under their frozen automated protocols and retain their recorded operator caveats. Kendall, Hotelling, and all other failed draws retain 0/1, and the aggregate ladder is 4/43. Commits 75f05e46, ba9e553f, ec1f6fc8, ea011806, and a5551714 supply future-task mechanism evidence only; exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -1782,7 +1826,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "3/40 consumed tasks passed under their pre-frozen automated protocols. Beta-Binomial completed hidden theory, algorithm, and empirical authority. PyMLE completed exact source replication but has an operator-recorded semantic-judge false positive. Aitken GLS completed hidden theory mechanics and semantics, but operator audit found local mathematical errors and a referee-evidence contradiction, so it is recorded as a caveated automated pass. McNemar and all other failed draws retain their component evidence and 0/1 outcomes. All outcomes and caveats remain immutable",
+    "fully_gold_covered_research_tasks": "4/43 consumed tasks passed under their pre-frozen automated protocols. Beta-Binomial completed hidden theory, algorithm, and empirical authority. PyMLE completed exact source replication but has an operator-recorded semantic-judge false positive. Aitken GLS and Hoeffding U-statistics are automated passes with explicit operator mathematical or referee-evidence caveats. Kendall and every other failed draw retain their scoped component evidence and immutable 0/1 outcomes.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -1804,6 +1848,9 @@
     "latest_runtime_manifest_bytes": 50678
   },
   "next_gates": [
+    "Preserve Kendall tau-a L0 v1 at immutable 0/1. Automated hidden theory semantics 9/9 is an operator-recorded false positive because the derivation combines a false 1/3 shared-index kernel expectation with one-third of the required overlap count. Never rerun, resume, patch, hidden-evaluate again, rescore, or feed this diagnosis to its source owners.",
+    "Validate commit a5551714 only on a newly frozen disjoint task: the same Simulation source owner should receive quick non-evidence execution and output-shape feedback, explicitly commit exact bytes, and then trigger one full blinded confirmatory execution. A terminal workspace failure must block promotion, and a local review finding must return directly without an Architect call. Do not add task formulas or rerun Kendall.",
+    "Treat the Kendall TheoryDeveloper, independent referee, and hidden semantic judge failure as model-capability evidence, not a request for a deterministic math parser. The current Markdown/LaTeX, exact reads, scratch tools, contradiction prompt, and terminal Critic surface were present; serious production theory and review remain Sonnet roles while frozen tests remain exact Haiku.",
     "Preserve Aitken GLS L0 v1 at immutable automated 1/1 with its operator semantic and referee-evidence caveats. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample it. Treat commit 4ebef6c5 solely as future-task evidence that terminal Critics see actual referee scratch status; it does not validate the consumed mathematics or judge.",
     "Preserve fixed-effect meta-analysis R L0 v1 at immutable 0/1. Treat commit 27f3893a's atomic exact-edit batch and boundary-falsification prompt as future-task regression evidence only; never rerun, resume, repair, rescore, or activate a new draw merely to demonstrate the mechanism.",
     "Preserve Mann-Whitney U R L0 v1 at immutable 0/1 without rerun, resume, output repair, hidden rescore, or component promotion. Treat commit be8d57ab's external model-owned metric file, exact edits, compact hash-only commit, and prompt projection as deterministic future-task evidence only; validate capability on a future unrelated pre-frozen task.",
@@ -1811,7 +1858,7 @@
     "Make trustworthy theory development the next scientific priority. Future known-result gold must include plausible wrong intermediate derivations and require the isolated referee to reconstruct load-bearing equation transitions from exact Markdown/LaTeX; do not force extra calls or encode task formulas merely to make a reviewer fail.",
     "Keep retry ownership singular. A provider adapter may retry only the identical unanswered request; a terminal provider or internal-tool error must preserve exact pending workspace state and stop. Any later continuation must be explicit, hash-bound, and visible in AgentRuntime. Do not restore whole-subsystem automatic replay or a Formalizer provider-retry task.",
     "Treat standalone Codex sandboxing as a candidate native Python/R execution backend, not as an adopted runtime dependency. Pin an audited Codex version and calibrate filesystem, network, process, resource, timeout, output, and artifact-hash behavior on macOS and Linux before it can sit beside Pyodide/WebR and Seatbelt.",
-    "Preserve Beta-Binomial, PyMLE, and Aitken GLS at immutable automated 1/1, all failed draws at immutable 0/1, and the aggregate ladder at 3/40. Preserve the explicit operator caveats on PyMLE and Aitken. For future disjoint tasks, audit every hidden behavior atomically against an explicit visible clause before activation. Never rerun, resume, repair, hidden-evaluate, or rescore a consumed task.",
+    "Preserve Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics at immutable automated 1/1, all failed draws at immutable 0/1, and the aggregate ladder at 4/43. Preserve every explicit operator caveat, including Kendall's automated-theory false positive. For future disjoint tasks, audit every hidden behavior atomically against an explicit visible clause before activation. Never rerun, resume, repair, hidden-evaluate, or rescore a consumed task.",
     "Preserve Huber location L0 v1 at immutable 0/1. Treat commits 82083807, f5822f58, and a73be809 plus the one generic Haiku transport calibration as future-task harness evidence only; never rerun, resume, repair, or rescore Huber.",
     "Keep generated-code review model-owned in one isolated same-session tool loop: exact source plus raw execution enter the reviewer, substantive analysis lives in hashed Markdown, and runtime validates identity, evidence references, independence, and promotion. Return model-actionable terminal validation to that reviewer, but do not restore ordered dimensions, full-packet regeneration, a RepairAgent, Architect rerouting, or another scheduler.",
     "Preserve Uniform endpoint L0 v1 at immutable 0/1. Do not rerun, resume, repair, rescore, or feed hidden findings back to its source owners. Keep hidden empirical 8/8 as component evidence only; use commits b49a8f5a and 778b2aac solely as future-task regression evidence for full visible-ABI probing, executable-interface review, risk-directed theory review, canonical artifact parity, and auditable evaluator references.",
