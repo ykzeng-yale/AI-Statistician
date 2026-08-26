@@ -6,7 +6,7 @@ Upstream reviewed: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest implementation commit:
-`1a1f11d993654cef8760d1296701155f9b3c68fd`.
+`4ebef6c57ea2a279faf59bca2bd29e219be120ba`.
 
 Primary references:
 
@@ -654,6 +654,37 @@ remains `0/1` independently of the transport defect. Focused client-tool and
 Theory tests pass `47/47`, the complete repository passes `897/897`, and
 production Python is 149,999 lines. The aggregate is `2/39`; exact development
 Lean closure remains `0/2`.
+
+## Referee observations must reach the terminal judge
+
+The next disjoint Aitken GLS theory-only draw validates the useful part of the
+Codex-shaped architecture and exposes its next missing boundary. One persistent
+TheoryDeveloper session wrote a 352-line Markdown/LaTeX derivation, an isolated
+referee session inspected it and wrote a separate 266-line report, and the
+terminal Critic consumed compact hash-bound evidence. The frozen runtime and
+hidden authority each returned `1/1` under exact Haiku.
+
+Operator audit found that the core BLUE covariance decomposition is correct but
+several local boundary claims are not. It also found a sharper harness defect:
+the referee had one rejected scratch request and one failed Python execution,
+with no successful scratch run, yet its report said all symbolic and numerical
+verification passed without error. The terminal Critic saw the referee's
+conclusion but not enough runtime-owned scratch status to challenge that claim.
+
+Commit `4ebef6c5` follows Codex's function-call observation principle across the
+existing reviewer-to-Critic boundary. The canonical evidence view now projects
+scratch `status`, whether execution occurred, return code, source and result
+hashes, and bounded raw errors. A failed or rejected scratch run can remain
+nonblocking when the mathematical argument is independently sufficient, but no
+model may call it successful. The referee and Critic still interpret the
+mathematics; runtime only preserves observation identity.
+
+This adds no GLS rule, mathematical parser, extra call, retry, repair agent,
+scheduler, output patch, or imported Codex component. Focused regressions passed
+`71/71`, the broader panel `194/194`, and the complete repository `899/899`.
+The consumed Aitken score remains immutable `1/1` with explicit operator
+semantic and referee-evidence caveats; the aggregate is `3/40`, while exact
+development Lean closure remains `0/2`.
 
 ## Standalone sandbox boundary
 
