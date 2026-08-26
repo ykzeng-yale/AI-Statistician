@@ -351,6 +351,25 @@ def test_client_tool_session_rejects_contract_drift_and_tampering(tmp_path) -> N
             request=changed_tool_schema,
         )
 
+    for field_name, changed_value in (
+        ("max_tokens", request.max_tokens + 1),
+        ("temperature", 0.25),
+        ("tool_choice", "submit"),
+        ("disable_parallel_tool_use", True),
+        ("enable_prompt_caching", True),
+    ):
+        changed_sampling_contract = replace(
+            request,
+            **{field_name: changed_value},
+        )
+        with pytest.raises(ValueError, match="identity mismatch"):
+            load_client_tool_session(
+                reference,
+                session_dir=tmp_path,
+                session_id="theory:q1",
+                request=changed_sampling_contract,
+            )
+
     with pytest.raises(ValueError, match="identity mismatch"):
         load_client_tool_session(
             reference,

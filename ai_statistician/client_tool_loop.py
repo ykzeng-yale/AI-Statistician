@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from copy import deepcopy
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
@@ -264,23 +264,19 @@ def _client_tool_content_blocks(content: Any) -> list[Any]:
 def client_tool_session_contract_fingerprint(
     request: ClientToolTurnRequest,
 ) -> str:
-    """Bind a resumable transcript to one model, system prompt, and tool surface."""
+    """Bind a resumable transcript to one complete model sampling contract."""
 
     return stable_hash(
         {
-            "contract_schema_version": 2,
+            "contract_schema_version": 3,
             "model": request.model,
             "system_prompt": request.system_prompt,
-            "tools": [
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "input_schema": deepcopy(dict(tool.input_schema)),
-                    "terminal": tool.terminal,
-                    "strict": tool.strict,
-                }
-                for tool in request.tools
-            ],
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "tool_choice": request.tool_choice,
+            "disable_parallel_tool_use": request.disable_parallel_tool_use,
+            "enable_prompt_caching": request.enable_prompt_caching,
+            "tools": [asdict(tool) for tool in request.tools],
         }
     )
 

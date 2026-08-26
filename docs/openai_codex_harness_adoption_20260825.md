@@ -1629,3 +1629,27 @@ compile-all and diff hygiene pass, and top-level production Python decreases fro
 149,999 to 149,990 lines. No model call, consumed-task rerun, hidden reevaluation,
 rescore, new agent, retry, scheduler, Sonnet call, or Opus call occurred. This is
 future-task harness evidence and grants no scientific or proof capability credit.
+
+## Complete sampling-contract lineage
+
+The current official checkout and Python SDK confirm that Codex core, not the SDK
+wrapper, owns threads, turns, step settings, tool routing, persistence, compaction,
+and child-agent mailboxes. The SDK starts or connects to App Server; it is not a
+provider-neutral inner-loop package. Codex custom providers still speak Codex's
+supported wire protocols, while AI Statistician requires Anthropic's native Claude
+tool transport. Embedding the SDK would therefore add a second conversation owner
+or require a translation gateway without removing `AgentRuntime`.
+
+One narrower Codex invariant did reveal a local omission. A persisted AI
+Statistician workspace transcript was bound to its model, system prompt, and exact
+tool surface, but not to all sampling settings. The shared session-contract
+fingerprint now also binds `max_tokens`, temperature, tool choice, parallel-tool
+policy, and prompt-caching policy. A Theory, Python/R, reviewer, or Lean checkpoint
+therefore cannot resume under changed sampling semantics while claiming the same
+session contract.
+
+This is a shared lifecycle correction only. It adds no agent, scheduler, retry,
+content rule, statistical formula, Lean grammar rule, model escalation, or Codex
+runtime dependency. Specialist collaboration remains one persistent model-owned
+session per workspace plus sparse hash-bound handoffs through the sole outer
+`AgentRuntime`.
