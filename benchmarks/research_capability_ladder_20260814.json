@@ -3889,6 +3889,9 @@
         "operator_audit_path": "docs/operator_audits/hoeffding_u_statistic_l0_v1.md",
         "operator_mathematical_diagnosis": "The exact decomposition and variance are correct, and the first referee drove one real boundary-limit correction. The final nondegenerate CLT proof nevertheless scales the degenerate remainder by 1/sqrt(n) instead of sqrt(n), its overlapping-pair conditional-expectation equality is invalid as written, and it speculates about a generic Gaussian n-scale degenerate limit even though fixed-kernel limits are generally weighted centered chi-square series.",
         "duplicate_handoff_diagnosis": "The authoritative revised Markdown says the root-n boundary limit is zero, while inherited derivation_summary and self_critique JSON still say its variance tends to 2 zeta_2. Substantive mathematical prose must not be duplicated in the structured handoff.",
+        "post_run_shared_change_commit": "75f05e46a6ff39adda0c694054bdd087cbbd7779",
+        "post_run_shared_change": "Future document-backed TheoryDeveloper packets retain one mathematical authority: hash-bound Markdown/LaTeX. Structured derivation transport is restricted to claim_index, sanity_check_index, and optional formalization_handoff. Downstream semantic projection strips stale narrative from older document-backed packets while preserving their complete source hash.",
+        "post_run_shared_change_evidence": "Future-task regression only: initial and same-owner revision packets plus legacy semantic projection passed focused tests; the complete repository passed 901/901 in 69.51 seconds; production Python is 149,997 lines. No task formula, mathematical parser, model call, agent, scheduler, retry, fallback, output patch, rerun, hidden evaluation, or rescore was added.",
         "post_run_score_changed": false,
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
@@ -3927,8 +3930,8 @@
     "source_replication_components_passed": 1,
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
-    "latest_shared_mechanism_head": "192a96d1561fbc960f419c1165d7a0ea8ba7f4f8",
-    "latest_diagnostic": "Four of forty-one consumed, fully gold-covered tasks pass their frozen automated protocols. Hoeffding U-statistics is immutable 1/1 and demonstrates a real referee-driven source revision, but operator audit found an incorrect root-n remainder scaling, an invalid overlapping-pair conditional-expectation step, an unsupported Gaussian degenerate-limit suggestion, and stale contradictory mathematical prose in the structured JSON handoff. The automated Haiku referee, Critic, and hidden semantic judge all missed remaining defects.",
-    "next_step": "Preserve all forty-one draws without rerun, resume, repair, hidden reevaluation, rescore, or resampling. For future tasks, remove duplicate mathematical narrative from document-backed TheoryDeveloper JSON and retain only content-addressed document references, claim/check indexes, dependencies, statuses, and optional formalization ABI. Validate that shared mechanism with regression tests, not by touching the consumed Hoeffding result."
+    "latest_shared_mechanism_head": "75f05e46a6ff39adda0c694054bdd087cbbd7779",
+    "latest_diagnostic": "Four of forty-one consumed, fully gold-covered tasks pass their frozen automated protocols. Hoeffding U-statistics is immutable 1/1 and demonstrates a real referee-driven source revision, but operator audit found an incorrect root-n remainder scaling, an invalid overlapping-pair conditional-expectation step, and an unsupported Gaussian degenerate-limit suggestion that the automated Haiku referee, Critic, and hidden semantic judge all missed. Commit 75f05e46 prevents its separate stale-JSON transport defect on future document-backed theory packets without changing the consumed result.",
+    "next_step": "Preserve all forty-one draws without rerun, resume, repair, hidden reevaluation, rescore, or resampling. Validate the index-only theory handoff on a future disjoint frozen task, while prioritizing model-owned long-horizon derivation and independent falsification quality rather than adding formulas, parsers, repair layers, broader schemas, or another scheduler."
   }
 }

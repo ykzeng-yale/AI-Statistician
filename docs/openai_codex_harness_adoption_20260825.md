@@ -9,7 +9,7 @@ Latest incremental recheck:
 `dc08ace7821614a702b1214c9d08ae0db2634d82`.
 
 Latest implementation commit:
-`192a96d1561fbc960f419c1165d7a0ea8ba7f4f8`.
+`75f05e46a6ff39adda0c694054bdd087cbbd7779`.
 
 Primary references:
 
@@ -732,6 +732,32 @@ milliseconds; only formal-environment search averages roughly 0.6 seconds. A new
 thread pool, read/write gate, and cancellation protocol would therefore save less
 time than one model turn while increasing shared-state risk. Parallel execution
 remains gated on a future measured tool-latency bottleneck.
+
+## One authoritative theory workspace
+
+The frozen Hoeffding U-statistic draw exposed a direct violation of the external
+artifact principle. Its revised Markdown document correctly changed the degenerate
+root-n boundary claim, while inherited `derivation_summary` and `self_critique` JSON
+still stated the rejected conclusion. The handoff had become a stale second source of
+mathematical truth even though its manifest called the documents authoritative.
+
+Commit `75f05e46` removes substantive narrative from document-backed TheoryDeveloper
+handoffs. Their `theory_derivation_packet` now contains only `claim_index`,
+`sanity_check_index`, and an optional `formalization_handoff`; definitions,
+derivations, assumptions, counterexamples, rejected alternatives, uncertainty, and
+self-critique remain in hash-bound Markdown/LaTeX. Initial authoring and same-owner
+revision use the same projection. Downstream semantic material also projects older
+document-backed packets to this index-only view while retaining the SHA-256 of the
+complete original packet for immutable lineage. Legacy non-document theory packets
+retain their existing structured contract.
+
+This is a transport correction, not a mathematical repair. It adds no agent, model
+call, scheduler, parser, formula, task rule, retry, or fallback. The complete
+repository passes `901/901`; production Python is 149,997 lines under the unchanged
+150,000-line control-plane budget. The consumed Hoeffding draw remains immutable
+`1/1` with its operator mathematical, evaluator, and duplicate-handoff caveats. The
+change receives future-task mechanism evidence only and cannot repair, rerun,
+hidden-evaluate, or rescore that candidate.
 
 ## Standalone sandbox boundary
 
