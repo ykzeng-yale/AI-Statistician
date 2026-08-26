@@ -4957,6 +4957,10 @@ def test_statsmodels_adf_kpss_l1_is_frozen_without_consuming_a_draw() -> None:
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_commit"] == (
+        "b0ce95568be18cde682d8e57b1de6141c8e35acd"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
     assert evidence["first_runtime_model_call_occurred"] is False
