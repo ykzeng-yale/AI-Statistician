@@ -1192,10 +1192,6 @@ def _simulation_next_actions_json_schema() -> dict[str, Any]:
     }
 
 
-def _simulation_string_array_schema() -> dict[str, Any]:
-    return {"type": "array", "items": {"type": "string"}}
-
-
 SIMULATION_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",

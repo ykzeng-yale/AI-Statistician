@@ -333,12 +333,6 @@ def _path_check(path: Path, *, required: bool, label: str) -> DoctorCheck:
     return DoctorCheck(label, status, required, f"missing: {path.resolve()}")
 
 
-def _binary_check(command: str, *, label: str) -> DoctorCheck:
-    if _binary_available(command):
-        return DoctorCheck(label, "OK", False, f"{command!r} is available")
-    return DoctorCheck(label, "WARN", False, f"{command!r} not found on PATH")
-
-
 def _local_lean_check() -> DoctorCheck:
     lean_path = shutil.which("lean")
     elan_path = shutil.which("elan")

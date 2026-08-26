@@ -4148,15 +4148,6 @@ def _runtime_research_subsystem(value: Any) -> str:
     return ""
 
 
-def _runtime_research_workspace(value: Any) -> str:
-    """Return the durable workspace authorized by an Architect plan row."""
-
-    return RUNTIME_RESEARCH_WORKSPACE_BY_SUBSYSTEM.get(
-        _runtime_research_subsystem(value),
-        "",
-    )
-
-
 RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS = (
     "AlgorithmEngineer",
     "SimulationEvaluator",
@@ -22734,15 +22725,6 @@ def _runtime_context_requires_formalizer_lean_candidate(
     )
 
 
-def _runtime_context_requires_formalizer_live_prover_tool_call(
-    context: Mapping[str, Any],
-) -> bool:
-    return _runtime_context_requires_formalizer_contract_flag(
-        context,
-        "formal_evaluation_requires_formalizer_live_prover_tool_call",
-    )
-
-
 def _theorem_goal_id(row: Any) -> str:
     if isinstance(row, Mapping):
         return str(row.get("id", "") or "").strip()
@@ -24851,10 +24833,6 @@ def _problem_to_json(problem: ResearchProblemSpec) -> dict[str, Any]:
 
 def _theorem_goal_to_json(goal: TheoremGoal) -> dict[str, Any]:
     return asdict(goal)
-
-
-def _formal_subclaim_to_json(subclaim: FormalSubclaim) -> dict[str, Any]:
-    return asdict(subclaim)
 
 
 def _safe_identifier(raw: str) -> str:

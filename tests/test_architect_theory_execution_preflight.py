@@ -132,6 +132,8 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "corrected argument" in prompt
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
+    assert "exact report lines" in protocol
+    assert "Components may share one span" in protocol
     assert "First challenge unresolved risks" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
     )
@@ -794,11 +796,11 @@ def _compact_submission(payload: dict[str, object]) -> dict[str, object]:
         if isinstance(row, dict)
     ]
     findings = deepcopy(payload.get("findings", []))
+    report = "# Independent theory preflight\n\n" + "\n\n".join(
+        report_parts or ["No additional blocker was identified."]
+    )
     compact: dict[str, object] = {
-        "review_report_markdown": (
-            "# Independent theory preflight\n\n"
-            + "\n\n".join(report_parts or ["No additional blocker was identified."])
-        ),
+        "review_report_markdown": report,
         "report_evidence_refs": evidence_refs or ["theory.estimator_specs"],
         "overall_verdict": (
             "REVISE"
@@ -814,7 +816,14 @@ def _compact_submission(payload: dict[str, object]) -> dict[str, object]:
             )
             else "ACCEPT"
         ),
-        "component_statuses": reported_statuses,
+        "component_reviews": [
+            {
+                "status": status,
+                "report_line_start": 1,
+                "report_line_end": len(report.splitlines()),
+            }
+            for status in reported_statuses
+        ],
         "findings": findings,
     }
     if "prior_finding_reviews" in payload:
@@ -830,10 +839,14 @@ def _hash_bound_submission(
     payload: dict[str, object],
     *,
     report_sha256: str,
+    report_content: str,
 ) -> dict[str, object]:
     compact = _compact_submission(payload)
     compact.pop("review_report_markdown", None)
     compact["review_report_sha256"] = report_sha256
+    for row in compact["component_reviews"]:
+        row["report_line_start"] = 1
+        row["report_line_end"] = len(report_content.splitlines())
     return compact
 
 
@@ -2190,6 +2203,9 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
                     _hash_bound_submission(
                         _payload(accept=True),
                         report_sha256=report_draft["sha256"],
+                        report_content=Path(report_draft["path"]).read_text(
+                            encoding="utf-8"
+                        ),
                     ),
                 )
             )
@@ -2393,7 +2409,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         for component in material["required_review_components"]
         if component["component_kind"] == "finite_estimator_handoff"
     ] == ["generic_stream_method"]
-    assert packet["review_scope"]["model_reported_per_item_statuses"] is True
+    assert packet["review_scope"]["model_reported_component_spans"] is True
     assert "runtime_estimator_identity_bindings" not in packet
     assert packet["execution_authorized"] is False
     assert packet["kernel_verified"] is False
@@ -3166,8 +3182,13 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
         "claim:0",
     ]
     small_schema = _architect_theory_execution_preflight_submit_schema(small_material)
-    assert schema["properties"]["component_statuses"]["minItems"] == 18
-    assert small_schema["properties"]["component_statuses"]["minItems"] == 2
+    assert schema["properties"]["component_reviews"]["minItems"] == 18
+    assert small_schema["properties"]["component_reviews"]["minItems"] == 2
+    assert schema["properties"]["component_reviews"]["items"]["required"] == [
+        "status",
+        "report_line_start",
+        "report_line_end",
+    ]
     assert len(json.dumps(schema, separators=(",", ":"))) - len(
         json.dumps(small_schema, separators=(",", ":"))
     ) < 20
@@ -3276,7 +3297,14 @@ def test_client_tool_preflight_persists_markdown_referee_report(
                             "theory.estimator_specs",
                         ],
                         "overall_verdict": "ACCEPT",
-                        "component_statuses": ["PASS"] * 4,
+                        "component_reviews": [
+                            {
+                                "status": "PASS",
+                                "report_line_start": 1,
+                                "report_line_end": len(report.splitlines()),
+                            }
+                            for _ in range(4)
+                        ],
                         "findings": [],
                     },
                 )
@@ -3315,7 +3343,16 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         for row in packet["component_reviews"]
         if row["component_id"].startswith("claim:")
     ] == ["finite_identity"]
-    assert packet["review_scope"]["model_reported_per_item_statuses"] is True
+    assert packet["review_scope"]["model_reported_component_spans"] is True
+    for component in packet["component_reviews"]:
+        selected = "\n".join(
+            report.splitlines()[
+                component["report_line_start"] - 1 : component["report_line_end"]
+            ]
+        )
+        assert component["report_span_sha256"] == hashlib.sha256(
+            selected.encode("utf-8")
+        ).hexdigest()
     assert review_document["evidence_refs"] == [
         f"theory.document:{relative_path}",
         "theory.estimator_specs",
@@ -3347,6 +3384,24 @@ def test_client_tool_preflight_persists_markdown_referee_report(
         "reconstruction chronology is incomplete" in error
         for error in validate_architect_theory_execution_preflight_packet(
             chronology_tamper,
+            material=material,
+        )
+    )
+    range_tamper = deepcopy(packet)
+    range_tamper["component_reviews"][0]["report_line_end"] = (
+        len(report.splitlines()) + 1
+    )
+    assert "theory execution preflight component report span is invalid" in (
+        validate_architect_theory_execution_preflight_packet(
+            range_tamper,
+            material=material,
+        )
+    )
+    hash_tamper = deepcopy(packet)
+    hash_tamper["component_reviews"][0]["report_span_sha256"] = "0" * 64
+    assert "theory execution preflight component report span hash mismatch" in (
+        validate_architect_theory_execution_preflight_packet(
+            hash_tamper,
             material=material,
         )
     )
@@ -3424,6 +3479,7 @@ def test_preflight_referee_owns_hash_bound_report_iteration() -> None:
                     _hash_bound_submission(
                         _payload(accept=True),
                         report_sha256=report_v2_sha,
+                        report_content=report_v2,
                     ),
                 )
             )
@@ -3498,6 +3554,7 @@ def test_preflight_returns_stale_report_hash_to_same_referee() -> None:
                     _hash_bound_submission(
                         _payload(accept=True),
                         report_sha256=revised_sha,
+                        report_content=revised_report,
                     ),
                 ),
             )
@@ -3512,6 +3569,62 @@ def test_preflight_returns_stale_report_hash_to_same_referee() -> None:
     ) == revised_report
     assert packet["client_tool_loop_turns"] == 3
     assert packet["client_tool_loop_tool_calls"] == 4
+
+
+def test_preflight_returns_invalid_component_span_to_same_referee() -> None:
+    report = (
+        "# Independent referee report\n\n"
+        "I reconstructed the target and compared the candidate's decisive transition.\n"
+    )
+    report_sha = hashlib.sha256(report.encode("utf-8")).hexdigest()
+
+    class SpanCorrectionBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.rejection = {}
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-report",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {"content": report},
+                    )
+                )
+            submission = _hash_bound_submission(
+                _payload(accept=True),
+                report_sha256=report_sha,
+                report_content=report,
+            )
+            if len(self.requests) == 2:
+                submission["component_reviews"][0]["report_line_end"] = 99
+                return _tool_response(
+                    ClientToolCall(
+                        "submit-invalid-span",
+                        "submit_theory_preflight_review",
+                        submission,
+                    )
+                )
+            self.rejection = _last_tool_result(request)
+            return _tool_response(
+                ClientToolCall(
+                    "submit-current-span",
+                    "submit_theory_preflight_review",
+                    submission,
+                )
+            )
+
+    backend = SpanCorrectionBackend()
+    packet = _tool_review(backend)
+
+    assert backend.rejection["error"] == "client_tool_input_rejected"
+    assert "in-range inclusive line span" in backend.rejection["detail"]
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["client_tool_loop_turns"] == 3
 
 
 def test_preflight_rejects_tampered_report_draft_before_model_call() -> None:
@@ -3680,7 +3793,7 @@ def test_preflight_carries_model_owned_finding_without_checklist_rows() -> None:
 
     assert len(backend.requests) == 1
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["review_scope"]["model_reported_per_item_statuses"] is True
+    assert packet["review_scope"]["model_reported_component_spans"] is True
     assert "dimension_reviews" not in packet
     assert "estimator_execution_checks" not in packet
     assert "derived_consistency_warnings" not in packet
