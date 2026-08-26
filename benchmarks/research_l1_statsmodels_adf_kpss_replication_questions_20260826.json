@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "statsmodels_adf_kpss_sunspots_public_replication",
+      "title": "Exact replication and audit of the Statsmodels ADF/KPSS sunspots example",
+      "description": "Conduct an L1 exact public-source replication of the official Statsmodels 0.14.6 Stationarity and detrending (ADF/KPSS) example. Use only the operator-supplied hash-bound source snapshot and operator-pinned execution. Inspect the Statsmodels software article, repository README and license, unchanged generated Python entrypoint and source notebook, ADF and KPSS implementation documentation, relevant tests, bundled sunspots data and loader, package metadata, and independent environment lock. Run the pinned source from its declared working directory with no editing, wrapping, replacement code, model-authored arguments, or network access. In one durable Markdown report, identify the article, repository release and commit, snapshot, entrypoint, data, no-argument command, interpreter, and exact package environment. Describe every ADF and KPSS invocation in execution order, including the series transformation, function options, documented null and alternative, returned statistic, p value, selected lag count, observation count where returned, critical values, and the observed warning. Apply the decision rule at the example's stated significance level without converting failure to reject into acceptance or proof. Independently audit whether the notebook and generated-source prose about the original and differenced series, its four-case taxonomy, detrending, trend versus difference stationarity, strict stationarity, and forecasting readiness is entailed by the calls and outputs actually observed. Distinguish the KPSS null selected by the exact regression argument from other KPSS variants, and distinguish the forms of stationarity that these finite-sample tests address from strict stationarity. State exactly what happened to all plotting calls and result artifacts; do not claim a figure was saved, displayed, visually matched, or replicated unless that artifact was actually observed. Distinguish exact execution of this current Statsmodels release example from validation of ADF, KPSS, the sunspots data-generating process, every Statsmodels environment, or the 2010 software article's historical package results. Do not claim that one example proves a unit root, stationarity, causal structure, forecast validity, general test correctness, a statistical theorem, or Lean proof. No model-authored estimator, replacement simulation, novelty claim, or formalization is required. Disclose all remaining source, version, environment, numerical, visualization, test-interpretation, and scientific-scope gaps honestly.",
+      "tags": [
+        "time series",
+        "unit root",
+        "stationarity",
+        "ADF",
+        "KPSS",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "Statsmodels: Econometric and Statistical Modeling with Python",
+        "authors": [
+          "Skipper Seabold",
+          "Josef Perktold"
+        ],
+        "venue": "Proceedings of the 9th Python in Science Conference",
+        "year": 2010,
+        "pages": "92-96",
+        "doi": "10.25080/MAJORA-92BF1922-011",
+        "paper_url": "https://proceedings.scipy.org/articles/Majora-92bf1922-011.pdf",
+        "example_url": "https://www.statsmodels.org/stable/examples/notebooks/generated/stationarity_detrending_adf_kpss.html",
+        "repository": "https://github.com/statsmodels/statsmodels",
+        "repository_release": "v0.14.6",
+        "repository_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+        "code_license": "BSD-3-Clause",
+        "research_source_snapshot_id": "statsmodels-adf-kpss-sunspots-public-replication-v1",
+        "research_source_snapshot_hash": "83a0acc9580245724b081e5aca45bedde3feb3ffd95966b5049a05b71bb6ee0c",
+        "research_source_manifest_sha256": "8c3a4ec9bfaafb68a26a5c24a667f9eeb5a19895030c104a3af6a9d987216277"
+      }
+    }
+  ]
+}
