@@ -1758,8 +1758,9 @@ def run_theory_artifact_workspace(
     )
     edit_guidance = (
         "For a localized revision to an existing mathematical document, use "
-        "edit_theory_document with the current document SHA-256 and one exact, unique "
-        "model-selected text span. The runtime applies that replacement literally and "
+        "edit_theory_document with the current document SHA-256 and an ordered batch "
+        "of exact, unique model-selected text replacements. The runtime validates the "
+        "whole batch against progressively revised bytes before applying it, then "
         "returns the resulting hash; it does not interpret or rewrite mathematics. "
         if require_document_authority
         else ""
@@ -2895,29 +2896,33 @@ def _theory_workspace_tools(
             ClientToolDefinition(
                 name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
                 description=(
-                    "Apply one exact model-authored replacement to an existing "
-                    "Markdown/LaTeX/BibTeX document. The edit is bound to the current "
-                    "document SHA-256 and the old text must occur exactly once. The "
-                    "runtime applies the bytes literally and never authors mathematics."
+                    "Atomically apply an ordered batch of exact model-authored "
+                    "replacements to an existing Markdown/LaTeX/BibTeX document. "
+                    "The batch is bound to the current document SHA-256; each old_text "
+                    "must occur exactly once in the progressively revised bytes. The "
+                    "runtime validates every replacement before mutating the document "
+                    "and never authors or interprets mathematics."
                 ),
                 input_schema={
                     "type": "object",
                     "additionalProperties": False,
-                    "required": [
-                        "path",
-                        "expected_sha256",
-                        "old_text",
-                        "new_text",
-                    ],
+                    "required": ["path", "expected_sha256", "edits"],
                     "properties": {
                         "path": {"type": "string", "minLength": 1},
-                        "expected_sha256": {
-                            "type": "string",
-                            "minLength": 64,
-                            "maxLength": 64,
+                        "expected_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
+                        "edits": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": ["old_text", "new_text"],
+                                "properties": {
+                                    "old_text": {"type": "string", "minLength": 1},
+                                    "new_text": {"type": "string"},
+                                },
+                            },
                         },
-                        "old_text": {"type": "string", "minLength": 1},
-                        "new_text": {"type": "string"},
                     },
                 },
                 terminal=False,
@@ -3144,67 +3149,69 @@ def _edit_theory_workspace_document(
     current_documents: Mapping[str, str],
     raw_edit: Any,
 ) -> tuple[dict[str, str], dict[str, Any]]:
-    """Apply one model-selected, hash-bound replacement without interpreting text."""
+    """Atomically apply model-selected replacements without interpreting text."""
 
     if not isinstance(raw_edit, Mapping):
         raise ClientToolInputError("theory document edit must be an object")
     edit = dict(raw_edit)
-    required = {"path", "expected_sha256", "old_text", "new_text"}
+    required = {"path", "expected_sha256", "edits"}
     if set(edit) != required:
         raise ClientToolInputError(
-            "edit_theory_document requires exactly path, expected_sha256, "
-            "old_text, and new_text"
+            "edit_theory_document requires exactly path, expected_sha256, and edits"
         )
     path = _normalized_theory_document_path(edit["path"])
     if path not in current_documents:
-        raise ClientToolInputError(
-            f"cannot edit unknown theory document {path!r}"
-        )
+        raise ClientToolInputError(f"cannot edit unknown theory document {path!r}")
     current = current_documents[path]
     expected_sha256 = edit["expected_sha256"]
     if not isinstance(expected_sha256, str):
-        raise ClientToolInputError(
-            "edit_theory_document expected_sha256 must be text"
-        )
+        raise ClientToolInputError("edit_theory_document expected_sha256 must be text")
     current_sha256 = _text_sha256(current)
     if expected_sha256 != current_sha256:
         raise ClientToolInputError(
             f"theory document {path!r} changed since it was read; expected "
             f"{expected_sha256!r}, current {current_sha256!r}"
         )
-    old_text = edit["old_text"]
-    new_text = edit["new_text"]
-    if not isinstance(old_text, str) or not old_text:
-        raise ClientToolInputError(
-            "edit_theory_document old_text must be nonempty text"
-        )
-    if not isinstance(new_text, str):
-        raise ClientToolInputError(
-            "edit_theory_document new_text must be text"
-        )
-    if old_text == new_text:
-        raise ClientToolInputError(
-            "edit_theory_document replacement must change the document"
-        )
-    occurrence_count = current.count(old_text)
-    if occurrence_count != 1:
-        raise ClientToolInputError(
-            f"edit_theory_document old_text must occur exactly once in {path!r}; "
-            f"found {occurrence_count}"
-        )
-    revised = current.replace(old_text, new_text, 1)
+    raw_edits = edit["edits"]
+    if not isinstance(raw_edits, list) or not raw_edits:
+        raise ClientToolInputError("edit_theory_document edits must be a nonempty array")
+    revised = current
+    edit_records: list[dict[str, str]] = []
+    for edit_index, raw_replacement in enumerate(raw_edits):
+        if not isinstance(raw_replacement, Mapping) or set(raw_replacement) != {
+            "old_text", "new_text"
+        }:
+            raise ClientToolInputError(
+                "edit_theory_document edits must contain exactly old_text and "
+                f"new_text; invalid edit index {edit_index}"
+            )
+        old_text = raw_replacement.get("old_text")
+        new_text = raw_replacement.get("new_text")
+        if not (isinstance(old_text, str) and old_text
+                and isinstance(new_text, str) and old_text != new_text):
+            raise ClientToolInputError(
+                "edit_theory_document edits require distinct nonempty old_text "
+                f"and textual new_text; invalid edit index {edit_index}"
+            )
+        occurrence_count = revised.count(old_text)
+        if occurrence_count != 1:
+            raise ClientToolInputError(
+                f"edit_theory_document old_text must occur exactly once in {path!r}; "
+                f"edit index {edit_index} found {occurrence_count}"
+            )
+        revised = revised.replace(old_text, new_text, 1)
+        edit_records.append({"old_text_sha256": _text_sha256(old_text),
+                             "new_text_sha256": _text_sha256(new_text)})
     if not revised.strip():
-        raise ClientToolInputError(
-            "edit_theory_document cannot leave a document empty"
-        )
+        raise ClientToolInputError("edit_theory_document cannot leave a document empty")
     candidate = dict(current_documents)
     candidate[path] = revised
     return candidate, {
-        "operation": "exact_text_replacement",
+        "operation": "atomic_exact_text_replacement_batch",
         "relative_path": path,
         "parent_sha256": current_sha256,
-        "old_text_sha256": _text_sha256(old_text),
-        "new_text_sha256": _text_sha256(new_text),
+        "edit_count": len(edit_records),
+        "edits": edit_records,
         "sha256": _text_sha256(revised),
         "byte_size": len(revised.encode("utf-8")),
     }
