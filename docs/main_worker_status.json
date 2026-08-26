@@ -1,13 +1,13 @@
 {
-  "schema_version": 190,
+  "schema_version": 191,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
+  "validated_code_head": "6f588ff13cb2adf4ab01d1ec61eaecdd8842c594",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all fifty consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw remains excluded because its benchmark is operator-invalid. The current shared harness change separates explicit same-owner Theory, Python/R, referee, and Lean workspace continuations from outer research-graph iteration accounting, without adding a scheduler, provider, retry, or content rule. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
+  "current_goal_focus": "Preserve all fifty consumed draws and immutable artifacts. Trustworthy full-task credit remains 4; the variance-ratio draw remains excluded because its benchmark is operator-invalid. The current shared harness removes the mandatory blind-write/read/rewrite sequence from the isolated theory referee: the same model still reconstructs and challenges load-bearing derivations in a hash-bound Markdown workspace, but now chooses its own tool order. Long-horizon theory correctness, source replication breadth, and exact development Lean closure 0/2 remain incomplete.",
   "latest_codex_workspace_budget_change": {
     "implementation_commit": "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
     "upstream_codex_reference_head": "7625bd56657da7ce6d96b6d27e983e568757cdbc",
@@ -17,6 +17,14 @@
     "telemetry": "Every trace records iteration_budget_scope. Per-question results and the top-level research manifest expose runtime steps, outer graph iterations, and same-owner workspace continuations. These are lifecycle facts, never scientific or proof authority.",
     "regression_evidence": "Focused cross-workspace panel 173/173; complete repository 930/930 in 78.07 seconds; compile-all, JSON, diff, architecture-budget, model-policy, and secret checks passed. research_agent_runtime.py is 24988 lines and top-level production Python is 149976 lines across 139 modules.",
     "capability_boundary": "No product or evaluator model call, consumed-task rerun, hidden reevaluation, rescore, score change, Sonnet call, or Opus call occurred. Trusted capability remains 4/50 and exact development Lean closure remains 0/2."
+  },
+  "latest_theory_referee_order_correction": {
+    "implementation_commit": "6f588ff13cb2adf4ab01d1ec61eaecdd8842c594",
+    "design_error": "The isolated referee was forced to write a blind report before candidate-document access and then forced to change that report after inspection. This deterministic chronology prescribed reasoning order, consumed extra tool calls, and could anchor Haiku to a generic first reconstruction without live evidence of improving mathematical judgment.",
+    "change": "Delete the blind chronology state, validation, read gate, submission gate, and prompt rule. The same isolated model chooses when to search, read exact Markdown/LaTeX, inspect sources, run model-authored Python/R/SymPy scratch, and write or edit its final mathematical report.",
+    "preserved_boundaries": "A verdict still requires an exact authoritative-document read, one model-owned hash-bound Markdown report, exact report-line support for every frozen component, source and artifact identity, reviewer isolation, finding consistency, and fail-closed terminal validation. Runtime still owns no equation, formula, repair, or verdict.",
+    "regression_evidence": "Focused referee suite 65/65; final focused ledger/model-policy/referee panel 120/120; complete repository 930/930 in 78.67 seconds; compile, JSON, secret, and diff checks passed. The mechanism deletes 146 net lines and reduces top-level production Python to 149896 lines.",
+    "capability_boundary": "No model call, consumed-task rerun, hidden reevaluation, rescore, score change, new agent, scheduler, retry, Sonnet call, or Opus call occurred. Trusted capability remains 4/50 and exact development Lean closure remains 0/2."
   },
   "latest_pyod_abod_l1_activation": {
     "task_id": "pyod_abod_example_public_replication",
@@ -705,12 +713,12 @@
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "bde9db1375667c50dcc0c2b52532a4e2672571c2",
-    "latest_incremental_finding": "Codex's authoritative external workspace state and same-session raw observation loop transfer cleanly to specialist scientific agents, but compact indexes remain navigation rather than scientific authority. The newest three upstream commits separate Guardian endpoints, record reviewed-action security risk, and trace actual Responses endpoints; they do not change the adopted model/tool/workspace lifecycle and do not justify importing Codex transport.",
-    "latest_incremental_adoption": "Commit 173cabdb keeps authoritative Theory text in hash-bound external documents and exposes scoped read tools instead of copying full mathematics into Algorithm and Simulation prompts. Commit 6658c762 aligns hidden authority projection and requires TheoryDeveloper, referee, and Critic to cover active document inferences without adding a content parser, repair agent, scheduler, or second conversation owner.",
+    "latest_rechecked_upstream_commit": "7625bd56657da7ce6d96b6d27e983e568757cdbc",
+    "latest_incremental_finding": "Codex distinguishes a persistent user turn from model-tool sampling steps inside it, returns tool observations to the same source-owning context, and uses compact sparse messages for collaboration. Its Python SDK remains an app-server client over Codex core and an OpenAI Responses-compatible provider boundary, so importing it would add a second conversation owner rather than simplify the native Claude runtime.",
+    "latest_incremental_adoption": "Commit 5fd585b8 separates same-owner Theory, Python/R, referee, and Lean workspace continuations from outer research-graph iteration accounting. Commit 6f588ff1 removes the theory referee's mandatory blind-write/read/rewrite chronology while preserving exact reads, one hash-bound Markdown report, isolated judgment, and fail-closed evidence validation.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "6658c7626664b0287eaa1afc3d6cb14252225599",
+    "implementation_commit": "6f588ff13cb2adf4ab01d1ec61eaecdd8842c594",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -741,7 +749,9 @@
       "ea2b8bad4b735ba963904a299837d560ed016442",
       "3b28df58d3ac03af48d7f855ba912725d3324aa3",
       "173cabdb4f0ccce5e494dc760d5936f305db910e",
-      "6658c7626664b0287eaa1afc3d6cb14252225599"
+      "6658c7626664b0287eaa1afc3d6cb14252225599",
+      "5fd585b8e9b6f00435a7ca796aaad651b2f5378f",
+      "6f588ff13cb2adf4ab01d1ec61eaecdd8842c594"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "678e03eebc72ffb02815cc017dbed26bc978e3a31056d6e57c59fedbd9d296d5",
@@ -767,7 +777,7 @@
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable bounded tool surface, external artifact state, credential-safe persisted metadata, terminal-error pending-input preservation, sparse ownership, owner-scoped tool permissions, paginated-history principle, and telemetry boundaries. Do not embed codex exec, app-server, thread store, worktree manager, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime. Treat standalone Codex sandboxing as a future pinned native execution provider only after cross-platform isolation calibration.",
     "implemented_changes": [
       "Theory preflight keeps mathematical judgment in a persistent model-authored Markdown report and returns a compact hash-bound disposition instead of duplicating a scientific checklist packet.",
-      "The same isolated theory referee now writes an independent reconstruction before candidate-document access, then revises the same Markdown report by explicit comparison. Every version is retained by SHA-256; runtime validates chronology and identity only, with no new agent, call, scheduler, equation parser, or task formula.",
+      "The isolated theory referee independently reconstructs and compares decisive transitions in one hash-bound Markdown workspace, but the retired blind-write/read/rewrite chronology no longer dictates its tool order. Exact candidate reads, report identity, component-linked report spans, isolation, and fail-closed submission remain runtime-enforced.",
       "Theory, scientific-code, and Lean workspaces open a fresh context window only at a verified durable checkpoint while preserving exact parent transcript and artifact lineage.",
       "GeneratedCodeSemanticReviewer submits through the existing native client-tool loop; model-actionable validation failures return as error tool observations to the same isolated reviewer session, while repeated invalid submission fails closed.",
       "Metric author and independent reviewer prompts require uncertainty arithmetic on the actual comparison scale and distinguish absolute, relative, MCSE, and standardized errors without adding a numeric detector or statistical formula.",
@@ -912,7 +922,7 @@
     "operator_audit": "docs/operator_audits/complete_randomization_neyman_l0_v1.md",
     "full_task_score": "0/1 under the pre-frozen protocol",
     "ladder_score_after_consumption": "2/33",
-    "next_shared_change": "The persistent metric source workspace is implemented in e7d0174a and blind referee reconstruction chronology in b9ece439. Validate both only on a future disjoint frozen task; do not add task formulas, output patches, forced extra calls, or another scheduler.",
+    "next_shared_change": "The persistent metric source workspace remains implemented in e7d0174a. Commit 6f588ff1 retires the later blind referee chronology because it forced extra work without capability evidence. Validate the simpler model-owned review loop only on a future disjoint frozen task; do not add task formulas, output patches, forced extra calls, or another scheduler.",
     "boundary": "The sole draw is consumed. Never rerun, resume, repair, rescore, or feed hidden/operator findings back to its source owners. Correct final formulas and exact empirical checks do not validate false intermediate derivation or the full research loop."
   },
   "latest_poisson_garwood_r_evaluation": {

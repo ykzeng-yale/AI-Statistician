@@ -8,8 +8,12 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 Latest incremental recheck:
 `7625bd56657da7ce6d96b6d27e983e568757cdbc`.
 
-Latest implementation commit:
-`5fd585b8e9b6f00435a7ca796aaad651b2f5378f`.
+Latest selective-adoption implementation commits:
+
+- `5fd585b8e9b6f00435a7ca796aaad651b2f5378f`: separate same-owner
+  workspace continuations from outer research-graph iterations;
+- `6f588ff13cb2adf4ab01d1ec61eaecdd8842c594`: remove the mandatory
+  blind-write/read/rewrite sequence from independent theory review.
 
 Primary references:
 
@@ -1468,3 +1472,27 @@ The focused cross-workspace panel passed `173/173`; the complete repository pass
 and secret checks passed. `research_agent_runtime.py` is 24,988 lines and top-level
 production Python is 149,976 lines under the unchanged ceilings. No model call,
 consumed-task rerun, hidden reevaluation, rescore, Sonnet call, or Opus call occurred.
+
+## Referee tool order belongs to the model
+
+The prior theory-referee harness forced one blind Markdown write before any candidate
+document access and then required a second changed report after inspection. Although
+that chronology was hash-bound and deterministic, it was still a prescribed reasoning
+ritual. It spent extra tool calls, anchored a small model to its first generic account,
+and had no live evidence of reducing false acceptance of load-bearing equations.
+
+Commit `6f588ff13cb2adf4ab01d1ec61eaecdd8842c594` removes the chronology state,
+validation, prompt rule, and read gate. The isolated referee may now search, read,
+derive, use source or Python/R/SymPy scratch tools, and write or edit its report in the
+order it judges useful. The harness still requires at least one exact authoritative
+document read before a verdict, one model-owned hash-bound Markdown report, exact
+report-line support for every frozen review component, source and artifact identity,
+reviewer isolation, finding consistency, and fail-closed terminal validation.
+
+This follows the Codex division of responsibility more closely: tools expose state and
+raw observations; the model owns the work sequence; runtime owns identity, execution,
+permissions, and evidence boundaries. It introduces no agent, scheduler, retry, model
+escalation, equation parser, task formula, or consumed-task rescore. The focused
+referee suite passed `65/65`, the final focused panel passed `120/120`, and the
+complete repository passed `930/930` in 78.67 seconds. Production Python decreased
+by 80 lines to 149,896 lines; this remains future-task mechanism evidence only.
