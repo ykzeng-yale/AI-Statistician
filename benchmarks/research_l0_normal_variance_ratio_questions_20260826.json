@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "two_sample_normal_variance_ratio_f_interval_known_result",
+      "title": "Exact two-sample normal variance-ratio interval",
+      "description": "Focused L0 known-result evaluation grounded in the NIST/SEMATECH e-Handbook of Statistical Methods. Let X_1,...,X_m be iid N(mu_X,sigma_X^2), let Y_1,...,Y_n be iid N(mu_Y,sigma_Y^2), assume the samples are independent, m,n>=2, and both population variances are positive. With Bessel-corrected sample variances S_X^2 and S_Y^2 and rho=sigma_X^2/sigma_Y^2, develop one authoritative Markdown/LaTeX derivation from the two independent chi-square variance pivots to (S_X^2/S_Y^2)/rho distributed as F_{m-1,n-1}. If Q_p(a,b) denotes the lower-tail p-quantile of F_{a,b}, derive the exact equal-tail 1-alpha confidence interval [R/Q_{1-alpha/2}(m-1,n-1), R/Q_{alpha/2}(m-1,n-1)] for rho, where R=S_X^2/S_Y^2 and 0<alpha<1. Make the quantile direction, degree-of-freedom order, inversion event, nuisance means, normality and independence assumptions, reciprocal sample swap, confidence-level nesting, and degenerate observed-variance boundary auditable. The required model-authored artifact is est_normal_variance_ratio_interval and must implement the frozen Python run_estimator(request) contract exactly. Exploratory Python or R may check the pivot and interval. A separately frozen confirmatory assessment samples from multiple predeclared independent normal pairs and checks interval coverage and probability-integral-transform behavior with Monte Carlo uncertainty. Simulation is implementation and distributional evidence rather than proof. Source-code replication, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "normal_theory",
+        "variance_ratio",
+        "f_distribution",
+        "exact_confidence_interval",
+        "L0"
+      ],
+      "source": {
+        "title": "NIST/SEMATECH e-Handbook of Statistical Methods: Two-Sample Standard Deviation Test",
+        "authors": [
+          "NIST/SEMATECH"
+        ],
+        "publisher": "National Institute of Standards and Technology",
+        "url": "https://www.itl.nist.gov/div898/handbook/prc/section3/prc32.htm",
+        "distribution_reference_url": "https://www.itl.nist.gov/div898/handbook/eda/section3/eda3665.htm"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_normal_variance_ratio_interval",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample_x",
+            "name": "sample_x",
+            "meaning": "Observed values from the first independent normal sample.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric vector of length m at least two with strictly positive Bessel-corrected variance",
+            "units": "X outcome units",
+            "indexing": "one realized first sample; order carries no information",
+            "edge_cases": "Reject nonarrays, arrays shorter than two, booleans, strings, nonfinite entries, and samples with zero Bessel-corrected variance; do not coerce or silently drop entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.sample_y",
+            "name": "sample_y",
+            "meaning": "Observed values from the second independent normal sample.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric vector of length n at least two with strictly positive Bessel-corrected variance",
+            "units": "Y outcome units",
+            "indexing": "one realized second sample; order carries no information",
+            "edge_cases": "Reject nonarrays, arrays shorter than two, booleans, strings, nonfinite entries, and samples with zero Bessel-corrected variance; do not coerce or silently drop entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.alpha",
+            "name": "alpha",
+            "meaning": "The two-sided interval error probability.",
+            "json_type": "number",
+            "shape": "one finite scalar strictly between zero and one",
+            "units": "dimensionless",
+            "indexing": "one confidence level per invocation",
+            "edge_cases": "Reject booleans, strings, nonfinite values, zero, one, and values outside (0,1); do not coerce.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size_x",
+            "name": "sample_size_x",
+            "meaning": "The validated first-sample size m.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "observations",
+            "indexing": "current sample_x",
+            "edge_cases": "Must equal len(sample_x) exactly and must not be a boolean.",
+            "normalization": "length of sample_x"
+          },
+          {
+            "clause_id": "response.sample_size_y",
+            "name": "sample_size_y",
+            "meaning": "The validated second-sample size n.",
+            "json_type": "integer",
+            "shape": "one integer at least two",
+            "units": "observations",
+            "indexing": "current sample_y",
+            "edge_cases": "Must equal len(sample_y) exactly and must not be a boolean.",
+            "normalization": "length of sample_y"
+          },
+          {
+            "clause_id": "response.degrees_freedom_x",
+            "name": "degrees_freedom_x",
+            "meaning": "The numerator F degree of freedom m-1.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "degrees of freedom",
+            "indexing": "current sample_x",
+            "edge_cases": "Must equal sample_size_x-1 exactly.",
+            "normalization": "sample_size_x-1"
+          },
+          {
+            "clause_id": "response.degrees_freedom_y",
+            "name": "degrees_freedom_y",
+            "meaning": "The denominator F degree of freedom n-1.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "degrees of freedom",
+            "indexing": "current sample_y",
+            "edge_cases": "Must equal sample_size_y-1 exactly.",
+            "normalization": "sample_size_y-1"
+          },
+          {
+            "clause_id": "response.sample_variance_x",
+            "name": "sample_variance_x",
+            "meaning": "The Bessel-corrected first-sample variance S_X^2.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared X outcome units",
+            "indexing": "current sample_x",
+            "edge_cases": "Divide the centered sum of squares by sample_size_x-1; a zero value makes the request invalid.",
+            "normalization": "sum((x-mean(sample_x))^2)/(sample_size_x-1)"
+          },
+          {
+            "clause_id": "response.sample_variance_y",
+            "name": "sample_variance_y",
+            "meaning": "The Bessel-corrected second-sample variance S_Y^2.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared Y outcome units",
+            "indexing": "current sample_y",
+            "edge_cases": "Divide the centered sum of squares by sample_size_y-1; a zero value makes the request invalid.",
+            "normalization": "sum((y-mean(sample_y))^2)/(sample_size_y-1)"
+          },
+          {
+            "clause_id": "response.variance_ratio",
+            "name": "variance_ratio",
+            "meaning": "The observed ratio R=S_X^2/S_Y^2.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared X units per squared Y unit",
+            "indexing": "current two samples",
+            "edge_cases": "The numerator is sample_variance_x and the denominator is sample_variance_y, never the reciprocal.",
+            "normalization": "sample_variance_x/sample_variance_y"
+          },
+          {
+            "clause_id": "response.ci_lower",
+            "name": "ci_lower",
+            "meaning": "The lower endpoint of the equal-tail 1-alpha confidence interval for rho=sigma_X^2/sigma_Y^2.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar below variance_ratio",
+            "units": "squared X units per squared Y unit",
+            "indexing": "current samples and alpha",
+            "edge_cases": "Use the upper lower-tail F quantile in the denominator; do not reverse the endpoints.",
+            "normalization": "variance_ratio/scipy.stats.f.ppf(1-alpha/2,degrees_freedom_x,degrees_freedom_y)"
+          },
+          {
+            "clause_id": "response.ci_upper",
+            "name": "ci_upper",
+            "meaning": "The upper endpoint of the equal-tail 1-alpha confidence interval for rho=sigma_X^2/sigma_Y^2.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar above variance_ratio",
+            "units": "squared X units per squared Y unit",
+            "indexing": "current samples and alpha",
+            "edge_cases": "Use the lower lower-tail F quantile in the denominator; do not reverse the endpoints.",
+            "normalization": "variance_ratio/scipy.stats.f.ppf(alpha/2,degrees_freedom_x,degrees_freedom_y)"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the three declared fields and the response contains exactly the nine declared fields. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting either sample independently leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.translation_invariance",
+            "meaning": "Adding any finite constant separately to all observations in either sample leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.common_scale_invariance",
+            "meaning": "Multiplying both samples by the same finite nonzero constant leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.reciprocal_swap",
+            "meaning": "Swapping sample_x and sample_y swaps the sizes, degrees of freedom, and sample variances; replaces variance_ratio by its reciprocal; and returns endpoints 1/old_ci_upper and 1/old_ci_lower."
+          },
+          {
+            "clause_id": "invariant.confidence_nesting",
+            "meaning": "For fixed samples, decreasing alpha gives a weakly wider interval: ci_lower cannot increase and ci_upper cannot decrease."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each frozen pair of independent normal DGPs, fix sample sizes, means, positive variances, alpha, seed, and replicate count before outcomes, then invoke the accepted estimator on each realized pair."
+          },
+          {
+            "clause_id": "claim.empirical.exact_coverage",
+            "meaning": "Across repeated independent normal samples, the returned interval covers the true rho=sigma_X^2/sigma_Y^2 with probability 1-alpha within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.pivot_distribution",
+            "meaning": "Applying the F_{m-1,n-1} CDF to returned variance_ratio divided by true rho produces uniform probability-integral-transform behavior within reported Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.nuisance_means",
+            "meaning": "Frozen scenarios vary nuisance means without changing the normal-theory pivot or exact coverage claim."
+          },
+          {
+            "clause_id": "claim.empirical.evidence_boundary",
+            "meaning": "The confirmatory normal-sampling assessment checks the implementation and pivot behavior; it does not prove the chi-square or F distributional identities and makes no robustness claim outside independent normal sampling."
+          }
+        ]
+      }
+    }
+  ]
+}
