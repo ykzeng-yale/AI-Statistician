@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "rdrobust_senate_python_illustration_public_replication",
+      "title": "Exact replication and audit of the rdrobust Python Senate illustration",
+      "description": "Conduct an L1 exact public-source replication of the official Python Senate illustration maintained in the rdpackages/rdrobust repository, interpreted alongside Calonico, Cattaneo, and Titiunik, The R Journal 7(1):38-51, 2015. Use only the operator-supplied hash-bound source snapshot and operator-pinned execution. Inspect the article text, repository README and package metadata, unchanged Python/rdrobust_illustration.py entrypoint, Senate data, relevant tests or source, license, execution specification, and independent environment lock. Run the pinned source from its declared working directory with no editing, wrapping, replacement code, or model-authored arguments. In one durable Markdown report, identify the article, repository commit, snapshot, entrypoint, data, no-argument command, interpreter, and exact package environment. Explain the sharp regression-discontinuity setup represented by vote and margin at the default cutoff and the local-polynomial procedures used by rdplot, rdrobust, and rdbwselect. Report the default rdrobust output precisely, including observation counts, effective observations, kernel, bandwidth selector, variance estimator, estimation and bias bandwidths, conventional estimate, standard error, p value and confidence interval, and robust p value and confidence interval. Distinguish Conventional, Bias-Corrected, and Robust output rows and report the all=True result. Audit the manual-bandwidth compatibility run, all three confidence-interval length changes, covariate-balance output, clustered and covariate-adjusted clustered runs, and the principal bandwidth-selection rows well enough to demonstrate that the complete script rather than one copied line was inspected. Treat the two hc1-to-cr1 warnings according to the observed successful execution rather than hiding them or declaring the entire run failed. State exactly what happened to the plot calls and result artifacts; do not claim a plot was saved, displayed, or matched to a published figure unless that artifact was actually observed. Distinguish this current Python package and repository snapshot from the 2015 R Journal software article and do not claim a replication of the article's R tables, figures, package version, or dependency environment. Interpret this one observational illustration only within the evidence produced. Do not claim that it proves RD identification assumptions, establishes a causal effect without assumptions, validates robust bias correction or bandwidth selection generally, checks the whole package, supplies confirmatory simulation evidence, proves a theorem, or constitutes Lean proof. No model-authored estimator, replacement simulation, novelty claim, or formalization is required. Disclose all remaining source, version, environment, visualization, statistical-interpretation, and scientific-scope gaps honestly.",
+      "tags": [
+        "regression discontinuity",
+        "rdrobust",
+        "local polynomial regression",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "rdrobust: An R Package for Robust Nonparametric Inference in Regression-Discontinuity Designs",
+        "authors": [
+          "Sebastian Calonico",
+          "Matias D. Cattaneo",
+          "Rocio Titiunik"
+        ],
+        "journal": "The R Journal",
+        "year": 2015,
+        "volume": 7,
+        "issue": 1,
+        "pages": "38-51",
+        "paper_url": "https://journal.r-project.org/archive/2015/RJ-2015-004/",
+        "repository": "https://github.com/rdpackages/rdrobust",
+        "repository_commit": "7dd25671b8f28fc8618b1b7aa4a981564ee53f75",
+        "code_license": "GPL-3.0-only",
+        "research_source_snapshot_id": "rdrobust-senate-python-public-replication-v1",
+        "research_source_snapshot_hash": "9afb817e88f385b6cdda4048ff0f1903c0e7d88f6799ca9128ec113b2613a954",
+        "research_source_manifest_sha256": "b6289bfce94476267c798e6a14a3df7486ce6b85b74be91af73f19cdde0781ed"
+      }
+    }
+  ]
+}
