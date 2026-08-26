@@ -1791,8 +1791,11 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert packet["critic_findings"] == []
     assert packet["next_actions"] == []
     derivation = packet["theory_derivation_packet"]
-    assert "claim_index" in derivation
-    assert "sanity_check_index" in derivation
+    assert set(derivation) == {
+        "claim_index",
+        "sanity_check_index",
+        "formalization_handoff",
+    }
     assert {
         "derivation_steps",
         "equation_chain",
@@ -2587,6 +2590,11 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert Path(final_document["path"]).read_text(encoding="utf-8") == (
         revised_document
     )
+    assert set(packet["theory_derivation_packet"]) == {
+        "claim_index",
+        "sanity_check_index",
+        "formalization_handoff",
+    }
     assert [row["phase"] for row in packet["theory_generation_phases"]] == [
         "artifact_workspace_revision"
     ]

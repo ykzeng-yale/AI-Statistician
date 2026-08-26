@@ -205,6 +205,53 @@ def test_theory_semantic_material_is_consumer_neutral_and_nonproof() -> None:
     assert "stale draft" not in str(material["theory_semantic_material"])
 
 
+def test_document_theory_semantic_material_keeps_only_reference_indexes() -> None:
+    packet = _theory_packet()
+    packet["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    packet["theory_derivation_packet"] = {
+        "derivation_summary": "stale summary contradicting the current document",
+        "claim_index": [
+            {
+                "id": "C1",
+                "kind": "theorem",
+                "document_path": "theory.md",
+                "depends_on": [],
+                "status": "SUPPORTED",
+            }
+        ],
+        "sanity_check_index": [
+            {
+                "id": "S1",
+                "claim_ref": "C1",
+                "document_path": "theory.md",
+                "status": "PASS",
+            }
+        ],
+        "formalization_handoff": {"source_theorem_target": "C1"},
+        "self_critique": ["stale unresolved risk"],
+        "rejected_alternatives": [
+            {"name": "old", "reason": "stale rejection"}
+        ],
+    }
+
+    material = build_theory_semantic_material(
+        theory_packet=packet,
+        theory_packet_id=packet["packet_id"],
+    )
+
+    assert material["source_theory_packet_hash"] == stable_hash(packet)
+    projected = material["theory_semantic_material"][
+        "theory_derivation_packet"
+    ]
+    assert set(projected) == {
+        "claim_index",
+        "sanity_check_index",
+        "formalization_handoff",
+    }
+    assert "stale" not in str(projected)
+    assert "derivation_summary" in packet["theory_derivation_packet"]
+
+
 def test_metric_protocol_wrapper_keeps_legacy_consumer_identity() -> None:
     packet = _theory_packet()
     retrieval_context = {

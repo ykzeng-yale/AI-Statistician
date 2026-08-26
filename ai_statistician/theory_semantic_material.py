@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
 
 
 THEORY_SEMANTIC_MATERIAL_KIND = "RuntimeTheorySemanticMaterial"
@@ -61,13 +62,24 @@ def theory_semantic_material_payload(
     source_packet_id = str(
         theory_packet_id or theory_packet.get("packet_id", "") or ""
     ).strip()
+    semantic_packet = deepcopy(dict(theory_packet))
+    derivation = semantic_packet.get("theory_derivation_packet")
+    if isinstance(derivation, Mapping) and theory_packet.get(
+        "theory_content_authority"
+    ) == THEORY_WORKSPACE_CONTENT_AUTHORITY:
+        semantic_packet["theory_derivation_packet"] = {
+            field: deepcopy(derivation[field])
+            for field in ("claim_index", "sanity_check_index",
+                          "formalization_handoff")
+            if field in derivation
+        }
     return {
         "source_theory_packet_id": source_packet_id,
         "source_theory_packet_hash": stable_hash(dict(theory_packet)),
         "theory_semantic_material": {
-            field: deepcopy(theory_packet[field])
+            field: deepcopy(semantic_packet[field])
             for field in _THEORY_PACKET_SEMANTIC_FIELDS
-            if field in theory_packet
+            if field in semantic_packet
         },
         "execution_results_available": False,
     }

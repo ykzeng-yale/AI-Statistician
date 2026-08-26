@@ -1910,9 +1910,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["estimator_specs"][0][
     ]
 )
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
-    "derivation_summary": (
-        "short cross-agent summary; full mathematics lives in referenced documents"
-    ),
     "claim_index": [
         {
             "id": "stable claim or equation id",
@@ -1935,13 +1932,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
             "formalization_handoff"
         ]
     ),
-    "self_critique": ["short unresolved-risk summary with claim IDs and document paths"],
-    "rejected_alternatives": [
-        {
-            "name": "short id",
-            "reason": "short summary with claim ID or document path",
-        }
-    ],
 }
 
 
@@ -2771,7 +2761,13 @@ def _normalize_theory_packet(
     )
     if isinstance(derivation_packet, Mapping):
         body["theory_derivation_packet"] = (
-            deepcopy(dict(derivation_packet))
+            {
+                field: deepcopy(derivation_packet[field])
+                for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT[
+                    "theory_derivation_packet"
+                ]
+                if field in derivation_packet
+            }
             if document_index_handoff
             else _canonicalize_theory_derivation_packet(
                 derivation_packet,
