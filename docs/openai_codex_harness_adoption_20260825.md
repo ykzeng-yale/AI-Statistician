@@ -2481,3 +2481,48 @@ and the unchanged 150,000-line architecture budget passed; production Python is
 repaired, hidden-evaluated, rescored, or resampled. Task 62 remains immutable `0/1`,
 trustworthy capability remains `4/62`, and exact development theorem closure remains
 `0/2`.
+
+## Required-lane continuation and Task 65
+
+Task 65 supplied a disjoint check of the current collaboration topology. One
+exact-Haiku TheoryDeveloper maintained Markdown/LaTeX and passed hidden theory
+mechanics `7/7` plus integrated semantics `7/7`. One AlgorithmEngineer received
+raw review failures in the same source-owning session and regenerated executable
+Python. The second isolated review accepted that source, but hidden authority found
+that `truth_probability=True` still crossed the closed public contract. Hidden
+algorithm checks were `10/12`; evaluator-only empirical checks were `10/10` over
+30,000 calls. These are component results. Runtime never executed Simulation and
+the immutable full-task score is `0/1`.
+
+The collaboration defect was generic. The accepted Algorithm review restored an
+exact deferred Critic task, and the outer policy returned it before checking for a
+still-unvisited frozen required primary lane. Critic then submitted invalid ACCEPT
+packets without seeing a dimension-by-dimension validator mismatch. Commit
+`5f062672` preserves exact deferred specialist continuations, but lets terminal
+Critic work yield to required frozen lanes. When no required lane remains, the
+original Critic task is preserved. Invalid ACCEPT now receives one structured
+observation listing unsupported required dimensions, `NOT_REQUESTED` mismatches,
+contradictions, gap status, and blocking dimensions; the final exact invalid model
+packet remains auditable.
+
+This is selective Codex reuse, not a Codex embedding. The useful units are the
+same-session model/tool/observation loop, immutable issuing-step authority, exact
+continuation, typed lifecycle reasons, bounded observations, persisted external
+artifacts, and explicit model policy. Theory, Python/R, Simulation, and Lean remain
+independent model-owned workspaces under one AgentRuntime research graph. Codex
+core, App Server, Responses transport, thread management, Guardian, shared-cwd
+subagents, and provider transport remain excluded because they would add a second
+conversation owner or scheduler.
+
+The upstream source audit was refreshed through
+[`5f49aba8`](https://github.com/openai/codex/commit/5f49aba876922d6f2f55caa153bbb0ed1b46feba).
+The latest delta reinforces explicit delegated-model overrides, active-step model
+budgets, bounded terminal-reviewed input, typed lifecycle classifications, and
+frozen tool/plugin attribution. None requires a statistical rule, Lean grammar
+rule, content repair, retry, extra agent, provider escalation, or task-family
+route. Focused future-task checks passed `100/100`; the complete pre-ledger
+repository passed `983/983`. Production Python is 149,995 lines under the unchanged
+150,000-line budget. No live model was called for the correction, and Task 65 was
+not rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled.
+Trustworthy capability remains `4/65`; exact development theorem closure remains
+`0/2`.
