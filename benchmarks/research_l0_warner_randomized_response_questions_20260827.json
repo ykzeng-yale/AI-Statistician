@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "warner_randomized_response_prevalence_known_result",
+      "title": "Unbiased prevalence estimation under Warner randomized response",
+      "description": "Focused L0 known-result evaluation grounded in Warner (1965). Let independent sensitive truths X_i be Bernoulli(theta), where theta lies in [0,1]. Independently for each respondent, a private randomizer instructs a truthful answer with known probability p in (1/2,1] and the complementary answer with probability 1-p. The analyst observes only Z_i=X_i under the truthful instruction and Z_i=1-X_i otherwise. In one authoritative Markdown/LaTeX Theory workspace, derive the observed yes probability lambda=(1-p)+(2p-1)theta, derive the unclipped estimator theta_hat=(bar_Z-(1-p))/(2p-1), and prove its finite-sample unbiasedness and variance lambda(1-lambda)/(n(2p-1)^2). Derive the equivalent decomposition theta(1-theta)/n+p(1-p)/(n(2p-1)^2), explain the direct-response case p=1 and the loss of identifiability and variance inflation as p approaches 1/2, and derive the unbiased variance estimator bar_Z(1-bar_Z)/((n-1)(2p-1)^2) for n at least 2. Do not clip theta_hat: finite samples may place it outside [0,1]. Distinguish mathematical randomizer compliance from real-world nonresponse or dishonest answering, and do not use simulation or a library call as proof. The required model-authored Python artifact is est_warner_randomized_response and must implement run_estimator(request) exactly for the frozen public closed contract. Exploratory Python or R may check the algebra, boundary cases, invariances, and finite-sample behavior. A separately frozen confirmatory assessment invokes the estimator under multiple predeclared prevalence, randomizer-probability, and sample-size settings and compares Monte Carlo bias and variance with the derived finite-sample theory using Monte Carlo uncertainty. That assessment is implementation and finite-sample evidence, not proof that respondents comply, that privacy is sufficient for an application, or that the model handles nonresponse, covariates, intervals, source replication, novelty, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "randomized response",
+        "survey privacy",
+        "prevalence estimation",
+        "unbiased estimation",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Randomized Response: A Survey Technique for Eliminating Evasive Answer Bias",
+          "authors": [
+            "Stanley L. Warner"
+          ],
+          "journal": "Journal of the American Statistical Association",
+          "year": 1965,
+          "volume": 60,
+          "issue": 309,
+          "pages": "63-69",
+          "doi": "10.1080/01621459.1965.10480775",
+          "url": "https://www.tandfonline.com/doi/abs/10.1080/01621459.1965.10480775"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_warner_randomized_response",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.responses",
+            "name": "responses",
+            "meaning": "Observed randomized yes/no answers, not the unobserved sensitive truths or randomizer instructions.",
+            "json_type": "array",
+            "shape": "one array of length 2 through 10000 containing exact JSON integers 0 or 1",
+            "units": "randomized binary answers",
+            "indexing": "sample order is arbitrary and must not affect the response",
+            "edge_cases": "Reject booleans, floats including 0.0 and 1.0, strings, other integers, arrays shorter than 2, oversized arrays, and nested arrays rather than coercing or dropping them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.truth_probability",
+            "name": "truth_probability",
+            "meaning": "Known probability that the private randomizer instructs the respondent to report the sensitive truth rather than its complement.",
+            "json_type": "number",
+            "shape": "one finite JSON number in the half-open interval (0.5,1]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonnumeric or nonfinite values, 0.5, values below 0.5, and values above 1 rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.observed_yes_rate",
+            "name": "observed_yes_rate",
+            "meaning": "Empirical mean of the observed randomized responses.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "observed yes probability",
+            "indexing": "average over every request.responses entry",
+            "edge_cases": "Return exactly 0 for an all-zero response array and exactly 1 for an all-one response array.",
+            "normalization": "sum(responses)/n."
+          },
+          {
+            "clause_id": "response.prevalence_estimate",
+            "name": "prevalence_estimate",
+            "meaning": "Unclipped Warner estimate of the underlying sensitive prevalence.",
+            "json_type": "number",
+            "shape": "one finite scalar that is not restricted to [0,1] in a finite sample",
+            "units": "prevalence",
+            "indexing": "not applicable",
+            "edge_cases": "Do not clip, truncate, or otherwise repair estimates below 0 or above 1.",
+            "normalization": "(observed_yes_rate-(1-truth_probability))/(2*truth_probability-1)."
+          },
+          {
+            "clause_id": "response.variance_estimate",
+            "name": "variance_estimate",
+            "meaning": "Unbiased estimator of the finite-sample variance of prevalence_estimate under the stated compliant Warner model.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared prevalence",
+            "indexing": "uses the full response array and its length n",
+            "edge_cases": "It is exactly zero for all-zero and all-one response arrays.",
+            "normalization": "observed_yes_rate*(1-observed_yes_rate)/((n-1)*(2*truth_probability-1)^2)."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "Nonnegative square root of variance_estimate.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "prevalence",
+            "indexing": "not applicable",
+            "edge_cases": "It is exactly zero when variance_estimate is zero.",
+            "normalization": "sqrt(variance_estimate)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly responses and truth_probability and the response contains exactly observed_yes_rate, prevalence_estimate, variance_estimate, and standard_error. Missing or extra fields and invalid values are rejected rather than ignored, repaired, clipped, or coerced."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting request.responses leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.complement_equivariance",
+            "meaning": "Replacing every response z by 1-z replaces prevalence_estimate by 1-prevalence_estimate and observed_yes_rate by 1-observed_yes_rate while leaving variance_estimate and standard_error unchanged."
+          },
+          {
+            "clause_id": "invariant.direct_response_boundary",
+            "meaning": "At truth_probability=1, prevalence_estimate equals observed_yes_rate and variance_estimate equals observed_yes_rate*(1-observed_yes_rate)/(n-1)."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each prevalence, truth_probability, sample size, seed, replicate count, estimator invocation, theoretical comparator, Monte Carlo precision rule, and joint decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.finite_sample_behavior",
+            "meaning": "For multiple predeclared prevalence and truth_probability values, compare Monte Carlo bias of the unclipped estimate with zero and empirical variance with lambda*(1-lambda)/(n*(2*truth_probability-1)^2), using Monte Carlo uncertainty and more than one sample size."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks the implementation and finite-sample compliant-model behavior only. It does not prove respondent compliance, application-specific privacy, robustness to nonresponse or dishonest answers, a covariate model, interval validity, source replication, novelty, or formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
