@@ -6264,8 +6264,10 @@ def test_measurement_error_attenuation_l0_is_frozen_before_one_product_draw() ->
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["authority_binding_commit"] == "PENDING"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["authority_binding_commit"] == (
+        "025a4f769db89c890fb26452746f3d9738004d45"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["activation_schema_version"] == 3
     assert evidence["activation_reference_tasks_passed"] == 1
     assert evidence["activation_negative_controls_rejected"] == 6
