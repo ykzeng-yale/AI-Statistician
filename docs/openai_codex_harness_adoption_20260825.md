@@ -1833,3 +1833,56 @@ seconds; production Python is 149,998 lines and `research_agent_runtime.py`
 remains 24,986 lines. No model was called and no consumed task was rerun,
 resumed, repaired, reevaluated, rescored, or credited. Trustworthy capability
 therefore remains `4/55` and exact statistical theorem closure remains `0/2`.
+
+## Semantic authority follows task intent
+
+The official OpenAI Codex checkout was rechecked at
+`b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46`. Its
+[`run_turn`](https://github.com/openai/codex/blob/b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46/codex-rs/core/src/session/turn.rs),
+[`ContextManager`](https://github.com/openai/codex/blob/b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46/codex-rs/core/src/context_manager/history.rs),
+[`ToolRouter`](https://github.com/openai/codex/blob/b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46/codex-rs/core/src/tools/router.rs),
+and tool orchestrator keep the inner loop simple: one conversation owner chooses
+tools, exact tool outputs re-enter ordered history, tool declaration/routing is
+separate from execution, and policy is enforced at the environment boundary.
+Multi-agent support uses sparse child-session messages and shared limits rather
+than routing ordinary tool failures through a planning model.
+
+The fresh affine-variance formal task validates that shape. One persistent
+exact-Haiku Formalizer session selected 19 Lean tools and produced an exact,
+locally compiling, identity-verified, axiom-clean theorem candidate. The task
+still failed `0/1` because the cross-workspace reviewer contract required a
+Theory packet even though frozen task intent marked Theory not applicable. The
+review model was never called and no kernel promotion occurred.
+
+Commit `e4d97ee6` corrects only that shared boundary. Independent semantic review
+now binds either to a hash-bound Theory derivation or, for a strictly formal-only
+task, to the exact operator-frozen question and Lean target contract. A missing
+Theory artifact still fails closed for every task that requires theory. The
+runtime does not infer mathematics, weaken a statement, patch Lean, or select a
+proof.
+
+This is also the collaboration rule for the broader system:
+
+- Theory, Python/R, Simulation, and Lean each keep one persistent source owner
+  with direct raw environment feedback.
+- Independent reviewers receive immutable artifact references plus the exact
+  semantic authority selected by frozen task intent.
+- Architect handles initial intent, real cross-workspace conflicts, and stopping;
+  it does not relay routine compiler, simulation, or proof feedback.
+- Artifacts are content-addressed external state; handoffs are compact references,
+  not recursively copied source or conversation payloads.
+
+Codex itself is not embedded. Its current model-provider transport supports the
+OpenAI Responses wire API, not the native Anthropic protocol used by the
+canonical runtime. Importing Codex core, App Server, thread storage, provider,
+SDK, or scheduler would create a second conversation owner without improving the
+Claude research loop. Apache-2.0 source remains useful as a design reference and
+as a possible future pinned sandbox backend after independent isolation
+calibration.
+
+The complete repository passed `951/951` after the correction. Production Python
+fell to 149,830 lines because one unreferenced deterministic legacy audit module
+was deleted; `research_agent_runtime.py` remains 24,986 lines. The consumed task
+cannot be rerun, resumed, repaired, reevaluated, rescored, or credited, so
+trustworthy full-task capability remains `4/56` and exact development theorem
+closure remains `0/2`.
