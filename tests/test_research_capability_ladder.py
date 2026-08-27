@@ -6,9 +6,9 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "5f0626727c99f0aa013ab83d004be56d12d3516b"
+LATEST_SHARED_MECHANISM_HEAD = "464cba39753ff2959e5d0f2c08491c982745cc60"
 CURRENT_ACTIVE_TASKS = 66
-CURRENT_CONSUMED_TASKS = 65
+CURRENT_CONSUMED_TASKS = 66
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
 TASK_62_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
@@ -6237,7 +6237,7 @@ def test_warner_randomized_response_l0_records_one_immutable_failed_draw() -> No
         assert hidden_name not in runtime_visible
 
 
-def test_measurement_error_attenuation_l0_is_frozen_before_one_product_draw() -> None:
+def test_measurement_error_attenuation_l0_records_one_immutable_failed_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -6248,8 +6248,11 @@ def test_measurement_error_attenuation_l0_is_frozen_before_one_product_draw() ->
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "classical_predictor_measurement_error"
-    assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "frozen_ready_v1_no_product_call"
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_consumed_code_contract_failed_simulation_handoff_"
+        "review_blocked"
+    )
     assert candidate["gold_bundle_id"] == (
         "research-l0-measurement-error-attenuation-20260827-v1"
     )
@@ -6286,13 +6289,47 @@ def test_measurement_error_attenuation_l0_is_frozen_before_one_product_draw() ->
     )
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
+    assert evidence["runtime_head"] == (
+        "43b97dbf940ef2789675b7c83dbf8fce5267d03a"
+    )
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_sonnet_or_opus_calls"] == 0
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_outer_iterations"] == 10
+    assert evidence["runtime_failure_classification"] == (
+        "architect_feedback_route_blocked"
+    )
+    assert evidence["runtime_research_evaluation"].startswith("0/1")
+    assert evidence["automated_hidden_evaluation"] == "0/1"
+    assert evidence["hidden_theory_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_checks"].startswith("8/8")
+    assert evidence["hidden_algorithm_checks"].startswith("0/15")
+    assert evidence["hidden_empirical_checks"].startswith("11/11")
+    assert evidence["runtime_manifest_sha256"] == (
+        "52befe0bb5b4fa6ead7f4b30242185dfb8ebdc5f209d0157546913a2f627d968"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "c0aae56ff1d35e812aebce3049c90d3e9a91ccc64e9c9467c60d58b89bfa1ef5"
+    )
+    assert evidence["hidden_gold_evaluation_sha256"] == (
+        "3a00bd04ae31d49e30b1dd21866c570a8f4478483ce8e4be156d01a92a3ed699"
+    )
+    assert evidence["operator_disposition"] == (
+        "CODE_CONTRACT_FAILED_SIMULATION_HANDOFF_AND_REVIEW_BLOCKED"
+    )
+    assert Path(evidence["operator_audit"]).is_file()
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "464cba39753ff2959e5d0f2c08491c982745cc60"
+    )
+    assert evidence["ladder_score_after_consumption"] == "4/66"
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS

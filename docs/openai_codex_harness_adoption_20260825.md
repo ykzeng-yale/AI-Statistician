@@ -6,17 +6,19 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`694edc23b22b4696400dc47663ecacd437623870`.
+`5f49aba876922d6f2f55caa153bbb0ed1b46feba`.
 
-The two commits after `6c59264b` freeze plugin-root attribution for MCP tools
-and propagate only trusted root skills to delegated workers. They reinforce the
-same boundary used here: a child receives an immutable, authority-scoped tool
-view and explicit artifact context. They do not supply a scientific planner,
-Theory method, Simulation evaluator, Lean policy, or reason to embed Codex's
-thread manager as a second scheduler.
+The cumulative audit through that head continues to support the same boundary:
+a delegated worker receives explicit authority-scoped tools and artifact context,
+while one model session consumes its own tool observations. It does not supply a
+scientific planner, Theory method, Simulation evaluator, Lean policy, or reason to
+embed Codex's thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `464cba39753ff2959e5d0f2c08491c982745cc60`: preserve a valid,
+  independently reviewed Algorithm artifact across exploratory Simulation
+  handoff and reserve structured semantic-review findings for active blockers;
 - `b567aaa68195e85cc6f799f727b415903251af46`: separate model-owned
   Python/R source mutation from explicit execution, preserve an unexecuted draft
   across checkpoint resume, and keep commit as a later hash-bound decision;
@@ -2526,3 +2528,42 @@ repository passed `983/983`. Production Python is 149,995 lines under the unchan
 not rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled.
 Trustworthy capability remains `4/65`; exact development theorem closure remains
 `0/2`.
+
+## Explicit estimator handoff and Task 66
+
+The official source was rechecked at current main
+[`5f49aba8`](https://github.com/openai/codex/commit/5f49aba876922d6f2f55caa153bbb0ed1b46feba).
+Its `run_turn` loop keeps one turn-scoped model session across model output, tool
+execution, and returned observation. Its multi-agent session code propagates
+explicit context rather than assuming that an independent worker can reconstruct
+the issuing step's state. Shared working directories remain a Codex product
+choice, not an adequate scientific authority boundary.
+
+Task 66 isolated the corresponding local violation. TheoryDeveloper's persistent
+Markdown/LaTeX workspace passed hidden mechanics `7/7` and all eight semantic
+claims after `11/11` judge calibration. AlgorithmEngineer produced correct core
+formulas but added an unsupported constant-outcome rejection, which the isolated
+reviewer missed. Simulation then received no estimator binding even though a
+hash-bound accepted Algorithm handoff existed; it reimplemented the estimator and
+could not expose that defect. A later Simulation review declared zero blocking
+defects while encoding one nonblocking note as a structured finding, exhausting
+the source lineage. The immutable full-task result is `0/1`.
+
+Commit `464cba39` corrects only those general harness boundaries for future work.
+Simulation always attempts to validate an available accepted Algorithm handoff,
+including during exploratory diagnostics. If no handoff exists, early Simulation
+remains allowed; if a confirmatory task requires one, the existing fail-closed
+gate remains. Once present, the existing scientific executor, rather than a new
+bridge, binds exact estimator source. The semantic-review prompt tells the model
+that a structured finding is an active downstream blocker and that nonblocking
+notes remain in its Markdown report. Runtime does not infer blocking from severity,
+edit scientific source, or add a task-specific check.
+
+This is the maximum useful Codex reuse here. AI-Statistician keeps one native
+AgentRuntime graph and separate model-owned Theory, Python/R, Simulation, and Lean
+workspaces. It does not import Codex core, App Server, Responses transport,
+provider client, thread manager, Guardian, shared-cwd subagents, worktree manager,
+or scheduler. Full deterministic regression passed `985/985`; production Python
+is 149,993 lines. Task 66 was not rerun, resumed, repaired, hidden-evaluated again,
+rescored, or resampled. Trustworthy capability is `4/66`; exact development
+theorem closure remains `0/2`.

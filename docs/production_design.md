@@ -63,7 +63,7 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness reference is [OpenAI Codex at `694edc23`](https://github.com/openai/codex/tree/694edc23b22b4696400dc47663ecacd437623870).
+The general harness reference is [OpenAI Codex at `5f49aba8`](https://github.com/openai/codex/tree/5f49aba876922d6f2f55caa153bbb0ed1b46feba).
 We adopt its incremental session history, immutable per-step tool snapshot, generic
 tool registry, raw tool-error feedback, cancellation, checkpoint/resume, and bounded
 context discipline. We do not embed `codex-core`, App Server, its Responses transport,
