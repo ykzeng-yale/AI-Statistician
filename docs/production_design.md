@@ -166,11 +166,11 @@ guide its revision but cannot satisfy confirmatory gates. Confirmatory source is
 bound to the independently reviewed current theory and frozen protocol.
 
 For live providers with native client tools, the structured proposal carries only
-artifact identity and immutable bindings. Source is authored afterward in the same
-model-owned workspace. `submit_scientific_source` stores and executes each complete Python
-or R candidate unchanged, then returns the raw observation without terminating the
-workspace. On a later turn, the same model may revise or explicitly finish with
-`commit_scientific_source`; it cannot submit and commit before receiving the observation.
+artifact identity and immutable bindings; source is authored in the same model-owned
+workspace. Submission and exact edits store complete Python or R source. The model
+explicitly runs the current source for raw sandbox feedback, so it may batch coherent
+edits before an expensive simulation. A later `commit_scientific_source` requires an
+accepted hash-bound execution observation.
 No repair worker, diagnostic parser, or content patch intervenes. Estimator IDs stay frozen.
 Structured-source packets remain only a replay/static-provider fallback.
 

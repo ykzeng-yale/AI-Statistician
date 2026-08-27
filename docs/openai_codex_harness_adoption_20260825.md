@@ -10,6 +10,9 @@ Latest incremental recheck:
 
 Latest selective-adoption implementation commits:
 
+- `b567aaa68195e85cc6f799f727b415903251af46`: separate model-owned
+  Python/R source mutation from explicit execution, preserve an unexecuted draft
+  across checkpoint resume, and keep commit as a later hash-bound decision;
 - `3fe4bdb9fd3a63148078261e5efc10f76066ee98`: let the native
   Simulation source session own both scientific planning and implementation
   when the runtime can express the boundary as exploratory diagnostics or a
@@ -168,6 +171,37 @@ isolated tools. Architect chooses initial task intent and resolves genuine
 cross-workspace conflicts or stopping; it is not a routine error router.
 Formalizer may scout in parallel, but deep proof blocks completion only when the
 frozen task intent requires formal evidence.
+
+## Explicit scientific source execution
+
+The consumed pinball-loss task exposed one remaining mismatch with Codex's
+general coding loop. `submit_scientific_source` and every exact source edit
+previously launched the complete Python/R check immediately. That behavior was
+tolerable for tiny estimator tests but pathological for a long Simulation run:
+the first timeout was followed by another expensive execution after every
+partial model-authored edit.
+
+The shared scientific workspace now separates three decisions:
+
+1. submit or exact-edit stores complete model-authored source bytes;
+2. `run_current_scientific_source` executes the exact current hash and returns
+   raw output to the same session;
+3. `commit_scientific_source` may occur only on a later turn after an accepted,
+   hash-bound execution observation.
+
+The model can therefore batch coherent edits and choose when evidence is worth
+the execution cost. Each newly authored hash is evaluated at most once in the
+same bound environment; an unchanged parent may run once when a dependency
+environment genuinely changes. A terminal checkpoint preserves a last-turn
+unexecuted draft and marks its execution state explicitly, so resume neither
+loses work nor fabricates an observation.
+
+This is selective harness reuse, not a Codex runtime dependency. AgentRuntime
+still owns identity, sandbox policy, provenance, and evidence authority, while
+the source-owning model controls content and action order. No task formula,
+diagnostic parser, automatic repair, second scheduler, model escalation, or live
+evaluation was added. Focused scientific-workspace tests passed `17/17`; the
+complete pre-ledger suite passed `969/969`.
 
 ## Correction made from this audit
 
@@ -1663,12 +1697,15 @@ same source-owning model -> model-selected source action
                          -> model-selected revision or commit
 ```
 
-Commit `3f0ee0131d2b298bbb668e53afc132cae0ff562a` closes the one local mismatch.
-Scientific Python/R sessions can now choose a complete submission or one exact
-unique text edit. Either action immediately executes the complete resulting source,
-and ambiguous, stale, byte-identical, or invalid actions return as ordinary tool
-observations to that same model. Runtime chooses no patch and contains no Python,
-R, statistical, Lean, or benchmark-specific repair rule.
+Commit `3f0ee0131d2b298bbb668e53afc132cae0ff562a` closed the mismatch present at
+that point. Scientific Python/R sessions could choose a complete submission or
+one exact unique text edit; each source action then immediately executed the
+complete result. Commit `b567aaa68195e85cc6f799f727b415903251af46`
+subsequently separated mutation from explicit execution after a long Simulation
+made the atomic behavior measurably inefficient. Ambiguous, stale,
+byte-identical, or invalid actions still return as ordinary tool observations to
+the same model. Runtime chooses no patch and contains no Python, R, statistical,
+Lean, or benchmark-specific repair rule.
 
 The exact-edit materializer is shared by Theory documents, metric-protocol text,
 scientific source, and Lean source. Each caller retains its own authority boundary:
