@@ -22,7 +22,7 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 4
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 5
 
 
 def _theory_semantic_gold_judge_schema(
@@ -220,8 +220,9 @@ def _generate_semantic_assessment_batch(
             "required support is missing or indeterminate. Calibration cases are unlabeled, and "
             "the candidate phase contains no calibration cases. Follow the keyed response schema "
             "exactly. During "
-            "calibration, each assessment contains only overall status. During candidate "
-            "adjudication, return document_status and one document_decisive_evidence_ref, then "
+            "calibration, each assessment contains only overall status. During candidate-mode "
+            "negative control and candidate adjudication, return document_status and one "
+            "document_decisive_evidence_ref, then "
             "claim_statuses and decisive_evidence_refs keyed by every claim ID in "
             "required_claim_ids. A document can FAIL even when all listed claims are SATISFIED. "
             "Select only supplied evidence_ref values, preferring a violating paragraph over "
@@ -287,6 +288,7 @@ def run_theory_semantic_gold_judge(
     reference_documents: Sequence[Mapping[str, Any]],
     rubric: Mapping[str, Any],
     calibration_cases: Sequence[Mapping[str, Any]],
+    candidate_mode_negative_cases: Sequence[Mapping[str, Any]] = (),
     model: str = LIVE_EVALUATION_CLAUDE_MODEL,
     model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
     max_tokens: int = 6000,
@@ -340,6 +342,46 @@ def run_theory_semantic_gold_judge(
     calibrated = bool(
         calibration_results and all(row["correct"] for row in calibration_results)
     )
+    negative_case_ids = (
+        _calibration_case_ids(candidate_mode_negative_cases)
+        if candidate_mode_negative_cases
+        else []
+    )
+    candidate_mode_negative_results: list[dict[str, Any]] = []
+    candidate_mode_negative_responses: list[Any] = []
+    for case_id, row in zip(negative_case_ids, candidate_mode_negative_cases):
+        negative_packet, negative_response = _generate_semantic_assessment_batch(
+            provider=provider,
+            task_id=task_id,
+            visible_question=visible_question,
+            reference_documents=reference_documents,
+            rubric=rubric,
+            document_cases=[
+                {
+                    "case_id": "candidate",
+                    "documents": deepcopy(list(row.get("documents", []) or [])),
+                }
+            ],
+            required_case_ids=["candidate"],
+            claim_ids=claim_ids,
+            model=model,
+            model_tier=model_tier,
+            max_tokens=max_tokens,
+            artifact_role=artifact_role,
+            phase="candidate_mode_negative",
+        )
+        observed_status = str(negative_packet["assessments"][0]["status"])
+        candidate_mode_negative_results.append(
+            {
+                "case_id_hash": stable_hash(case_id),
+                "correct": observed_status == str(row["expected_status"]),
+            }
+        )
+        candidate_mode_negative_responses.append(negative_response)
+    candidate_mode_negative_controls_passed = all(
+        row["correct"] is True for row in candidate_mode_negative_results
+    )
+    calibrated = bool(calibrated and candidate_mode_negative_controls_passed)
     candidate_packet, candidate_response = _generate_semantic_assessment_batch(
         provider=provider,
         task_id=task_id,
@@ -361,7 +403,6 @@ def run_theory_semantic_gold_judge(
         phase="candidate_integrated",
     )
     candidate_assessment = deepcopy(candidate_packet["assessments"][0])
-    candidate_responses = [candidate_response]
     candidate_errors = validate_theory_semantic_gold_judgment(
         {"assessments": [candidate_assessment]},
         claim_ids=claim_ids,
@@ -371,23 +412,8 @@ def run_theory_semantic_gold_judge(
         raise ValueError("invalid combined hidden candidate semantic judgment: " + "; ".join(candidate_errors))
     candidate_status = str(candidate_assessment["status"])
     passed = bool(calibrated and candidate_status == "PASS")
-    candidate_provider = next(
-        (
-            str(response.provider)
-            for response in candidate_responses
-            if str(response.provider or "").strip()
-        ),
-        "",
-    )
-    candidate_model = next(
-        (
-            str(response.model)
-            for response in candidate_responses
-            if str(response.model or "").strip()
-        ),
-        "",
-    )
-    candidate_response_texts = [response.text for response in candidate_responses]
+    candidate_provider = str(candidate_response.provider or "")
+    candidate_model = str(candidate_response.model or "")
     body = {
         "artifact_kind": (
             "HiddenTheorySemanticGoldJudgment"
@@ -404,10 +430,27 @@ def run_theory_semantic_gold_judge(
         ),
         "model": str(candidate_model or calibration_response.model or model),
         "model_tier": model_tier,
-        "n_model_calls": 1 + len(candidate_responses),
+        "n_model_calls": 2 + len(candidate_mode_negative_responses),
         "calibration_candidate_context_isolated": True,
         "calibration_case_ids_opaque": True,
         "calibration_claim_assessments_requested": False,
+        "candidate_mode_negative_cases_configured": bool(
+            candidate_mode_negative_cases
+        ),
+        "candidate_mode_negative_case_ids_opaque": True,
+        "candidate_mode_negative_claim_assessments_requested": True,
+        "candidate_mode_negative_integrated_context": True,
+        "candidate_mode_negative_model_calls": len(
+            candidate_mode_negative_responses
+        ),
+        "n_candidate_mode_negative_cases": len(negative_case_ids),
+        "n_candidate_mode_negative_cases_correct": sum(
+            row["correct"] is True for row in candidate_mode_negative_results
+        ),
+        "candidate_mode_negative_results": candidate_mode_negative_results,
+        "candidate_mode_negative_controls_passed": (
+            candidate_mode_negative_controls_passed
+        ),
         "candidate_claim_assessments_requested": True,
         "candidate_document_status_requested": True,
         "candidate_claim_scope_isolated": False,
@@ -418,6 +461,9 @@ def run_theory_semantic_gold_judge(
         "reference_documents_hash": stable_hash(reference_documents),
         "candidate_documents_hash": stable_hash(candidate_documents),
         "calibration_cases_hash": stable_hash(calibration_cases),
+        "candidate_mode_negative_cases_hash": stable_hash(
+            candidate_mode_negative_cases
+        ),
         "n_claims": len(claim_ids),
         "n_calibration_cases": len(case_ids),
         "n_calibration_cases_correct": sum(
@@ -443,10 +489,16 @@ def run_theory_semantic_gold_judge(
         ],
         "passed": passed,
         "calibration_raw_response_fingerprint": stable_hash(calibration_response.text),
-        "candidate_raw_response_fingerprint": stable_hash(candidate_response_texts),
+        "candidate_mode_negative_raw_response_fingerprint": stable_hash(
+            [response.text for response in candidate_mode_negative_responses]
+        ),
+        "candidate_raw_response_fingerprint": stable_hash(candidate_response.text),
         "raw_response_fingerprint": stable_hash({
             "calibration": calibration_response.text,
-            "candidate_claims": candidate_response_texts,
+            "candidate_mode_negative": [
+                response.text for response in candidate_mode_negative_responses
+            ],
+            "candidate": candidate_response.text,
         }),
         "proof_evidence_status": "SEMANTIC_GOLD_JUDGMENT_NOT_PROOF_EVIDENCE",
         "boundary": THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY,

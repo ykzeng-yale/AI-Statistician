@@ -1778,6 +1778,50 @@ def _schema_v3_gold_manifest(
     return path
 
 
+def _schema_v4_gold_manifest(tmp_path: Path) -> Path:
+    path = _add_semantic_theory_evaluator(
+        _schema_v3_gold_manifest(tmp_path),
+        tmp_path,
+    )
+    near_miss = tmp_path / "candidate-mode-long-form-near-miss.md"
+    near_miss.write_text(
+        "# Near miss\n\n"
+        "The requested headline conclusion is stated. A load-bearing intermediate "
+        "equality contradicts the definitions, so the endorsed derivation is false.\n",
+        encoding="utf-8",
+    )
+    negative_cases = tmp_path / "candidate-mode-negative-cases.json"
+    negative_cases.write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "case_id": "operator-private-long-form-near-miss",
+                        "expected_status": "FAIL",
+                        "documents": [
+                            {
+                                "document_id": "near-miss.md",
+                                "source_path": str(near_miss),
+                                "sha256": _fixture_sha256(near_miss),
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 4
+    semantic = manifest["active_tasks"][0]["hidden_theory_semantic_evaluator"]
+    semantic["candidate_mode_negative_cases_path"] = str(negative_cases)
+    semantic["candidate_mode_negative_cases_sha256"] = _fixture_sha256(
+        negative_cases
+    )
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return path
+
+
 def test_schema_v3_activation_runs_reference_and_negative_through_same_validators(
     tmp_path: Path,
 ) -> None:
@@ -1794,6 +1838,112 @@ def test_schema_v3_activation_runs_reference_and_negative_through_same_validator
     serialized = json.dumps(descriptor)
     assert "source_path" not in serialized
     assert "acceptance_checks" not in serialized
+
+
+def test_schema_v4_activation_runs_long_form_negative_through_candidate_mode(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v4_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    visible_question = json.loads(
+        Path(manifest["model_visible_questions_path"]).read_text(encoding="utf-8")
+    )["questions"][0]
+
+    def semantic_runner(**kwargs) -> dict:
+        assert kwargs["model"] == "claude-haiku-4-5-20251001"
+        assert kwargs["model_tier"] == "haiku"
+        assert kwargs["candidate_documents"][0]["content"].startswith(
+            "# Reference"
+        )
+        negatives = kwargs["candidate_mode_negative_cases"]
+        assert len(negatives) == 1
+        assert negatives[0]["expected_status"] == "FAIL"
+        assert negatives[0]["documents"][0]["path"] == "near-miss.md"
+        assert "load-bearing intermediate" in negatives[0]["documents"][0][
+            "content"
+        ]
+        return {
+            "judgment_hash": "candidate-mode-activation-result",
+            "semantic_judge_calibrated": True,
+            "candidate_status": "PASS",
+            "candidate_document_status": "PASS",
+            "n_candidate_mode_negative_cases": 1,
+            "n_candidate_mode_negative_cases_correct": 1,
+            "candidate_mode_negative_controls_passed": True,
+            "n_model_calls": 3,
+            "passed": True,
+        }
+
+    descriptor = validate_research_gold_benchmark_activation(
+        path,
+        visible_questions={QUESTION_ID: visible_question},
+        run_theory_semantic_judge=semantic_runner,
+    )
+
+    assert descriptor["activation_schema_version"] == 4
+    assert descriptor["activation_reference_tasks_passed"] == 1
+    assert descriptor["activation_negative_controls_rejected"] == 1
+    assert descriptor["activation_semantic_reference_documents_passed"] == 1
+    assert (
+        descriptor[
+            "activation_semantic_candidate_mode_negative_controls_rejected"
+        ]
+        == 1
+    )
+    assert descriptor["activation_semantic_model_calls"] == 3
+    serialized = json.dumps(descriptor)
+    assert "operator-private-long-form-near-miss" not in serialized
+    assert "load-bearing intermediate" not in serialized
+
+
+def test_schema_v4_activation_fails_when_candidate_mode_negative_is_accepted(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v4_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    visible_question = json.loads(
+        Path(manifest["model_visible_questions_path"]).read_text(encoding="utf-8")
+    )["questions"][0]
+
+    def semantic_runner(**kwargs) -> dict:
+        del kwargs
+        return {
+            "semantic_judge_calibrated": False,
+            "candidate_status": "PASS",
+            "candidate_document_status": "PASS",
+            "n_candidate_mode_negative_cases": 1,
+            "n_candidate_mode_negative_cases_correct": 0,
+            "candidate_mode_negative_controls_passed": False,
+            "n_model_calls": 3,
+            "passed": False,
+        }
+
+    with pytest.raises(
+        ValueError,
+        match="candidate-mode negative control failed exact candidate adjudication",
+    ):
+        validate_research_gold_benchmark_activation(
+            path,
+            visible_questions={QUESTION_ID: visible_question},
+            run_theory_semantic_judge=semantic_runner,
+        )
+
+
+def test_schema_v4_requires_hash_bound_candidate_mode_negative_cases(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v4_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    semantic = manifest["active_tasks"][0]["hidden_theory_semantic_evaluator"]
+    semantic.pop("candidate_mode_negative_cases_path")
+    semantic.pop("candidate_mode_negative_cases_sha256")
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match="candidate-mode negative cases file is missing",
+    ):
+        validate_research_gold_benchmark_manifest(path)
 
 
 def test_live_activation_rejects_historical_schema_v2(tmp_path: Path) -> None:

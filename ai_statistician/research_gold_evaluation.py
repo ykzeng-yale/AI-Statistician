@@ -83,13 +83,20 @@ def validate_research_gold_benchmark_manifest(path: Path) -> dict[str, Any]:
     }
 
 
-def validate_research_gold_benchmark_activation(path: Path) -> dict[str, Any]:
+def validate_research_gold_benchmark_activation(
+    path: Path,
+    *,
+    visible_questions: Mapping[str, Mapping[str, Any]] | None = None,
+    run_theory_semantic_judge: GoldTheorySemanticJudgeRunner | None = None,
+    theory_semantic_judge_provider: GeneratorBackend | None = None,
+) -> dict[str, Any]:
     """Execute future-task calibration through the frozen candidate validators."""
 
     descriptor = validate_research_gold_benchmark_manifest(path)
     benchmark = _load_benchmark_manifest(path.resolve())
-    if benchmark.get("schema_version") != 3:
-        raise ValueError("live gold activation requires schema_version 3")
+    schema_version = int(benchmark.get("schema_version", 0) or 0)
+    if schema_version not in {3, 4}:
+        raise ValueError("live gold activation requires schema_version 3 or 4")
     with tempfile.TemporaryDirectory(prefix="ai-stat-gold-activation-") as value:
         rows = [
             _run_activation_candidate_suite(
@@ -100,13 +107,60 @@ def validate_research_gold_benchmark_activation(path: Path) -> dict[str, Any]:
             for task in benchmark["active_tasks"]
             if task.get("activation_candidate_suite")
         ]
+    semantic_rows: list[dict[str, Any]] = []
+    if schema_version >= 4:
+        visible_by_id = dict(visible_questions or {})
+        for task in benchmark["active_tasks"]:
+            task_id = str(task["task_id"])
+            visible_question = visible_by_id.get(task_id)
+            for field, artifact_role in (
+                ("hidden_theory_semantic_evaluator", "theory"),
+                (
+                    "hidden_source_report_semantic_evaluator",
+                    "source_replication_report",
+                ),
+            ):
+                evaluator = task.get(field)
+                if not isinstance(evaluator, Mapping) or not evaluator:
+                    continue
+                if not isinstance(visible_question, Mapping):
+                    raise ValueError(
+                        "schema_version 4 semantic activation requires the exact "
+                        f"visible question for task {task_id}"
+                    )
+                if stable_hash(
+                    _visible_question_hash_payload(visible_question)
+                ) != str(task["visible_question_hash"]):
+                    raise ValueError(
+                        "schema_version 4 semantic activation visible question "
+                        f"hash mismatch for task {task_id}"
+                    )
+                semantic_rows.append(
+                    _run_semantic_candidate_mode_activation(
+                        evaluator=evaluator,
+                        task_id=task_id,
+                        visible_question=visible_question,
+                        project_root=Path(__file__).resolve().parents[1],
+                        run_semantic_judge=run_theory_semantic_judge,
+                        semantic_judge_provider=theory_semantic_judge_provider,
+                        semantic_artifact_role=artifact_role,
+                    )
+                )
     return {
         **descriptor,
-        "activation_schema_version": 3,
+        "activation_schema_version": schema_version,
         "activation_candidate_validator_path": "same_hidden_evaluator_path",
         "activation_reference_tasks_passed": len(rows),
         "activation_negative_controls_rejected": sum(
             row["negative_controls_rejected"] for row in rows
+        ),
+        "activation_semantic_reference_documents_passed": len(semantic_rows),
+        "activation_semantic_candidate_mode_negative_controls_rejected": sum(
+            row["candidate_mode_negative_controls_rejected"]
+            for row in semantic_rows
+        ),
+        "activation_semantic_model_calls": sum(
+            row["model_calls"] for row in semantic_rows
         ),
     }
 
@@ -321,6 +375,10 @@ def _evaluate_gold_task(
         "hidden_theory_semantic_judge_calibrated": False,
         "hidden_theory_semantic_calibration_case_count": 0,
         "hidden_theory_semantic_calibration_cases_correct": 0,
+        "hidden_theory_semantic_candidate_mode_negative_case_count": 0,
+        "hidden_theory_semantic_candidate_mode_negative_cases_correct": 0,
+        "hidden_theory_semantic_candidate_mode_negative_model_calls": 0,
+        "hidden_theory_semantic_candidate_mode_negative_controls_passed": False,
         "hidden_theory_semantic_claim_count": 0,
         "hidden_theory_semantic_candidate_status": "",
         "hidden_theory_semantic_candidate_document_status": "",
@@ -362,6 +420,10 @@ def _evaluate_gold_task(
         "hidden_source_report_semantic_judge_calibrated": False,
         "hidden_source_report_semantic_calibration_case_count": 0,
         "hidden_source_report_semantic_calibration_cases_correct": 0,
+        "hidden_source_report_semantic_candidate_mode_negative_case_count": 0,
+        "hidden_source_report_semantic_candidate_mode_negative_cases_correct": 0,
+        "hidden_source_report_semantic_candidate_mode_negative_model_calls": 0,
+        "hidden_source_report_semantic_candidate_mode_negative_controls_passed": False,
         "hidden_source_report_semantic_claim_count": 0,
         "hidden_source_report_semantic_candidate_status": "",
         "hidden_source_report_semantic_candidate_document_status": "",
@@ -560,6 +622,30 @@ def _evaluate_gold_task(
                                 )
                                 or 0
                             ),
+                            "hidden_source_report_semantic_candidate_mode_negative_case_count": int(
+                                semantic_judgment.get(
+                                    "n_candidate_mode_negative_cases", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_source_report_semantic_candidate_mode_negative_cases_correct": int(
+                                semantic_judgment.get(
+                                    "n_candidate_mode_negative_cases_correct", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_source_report_semantic_candidate_mode_negative_model_calls": int(
+                                semantic_judgment.get(
+                                    "candidate_mode_negative_model_calls", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_source_report_semantic_candidate_mode_negative_controls_passed": (
+                                semantic_judgment.get(
+                                    "candidate_mode_negative_controls_passed"
+                                )
+                                is True
+                            ),
                             "hidden_source_report_semantic_claim_count": int(
                                 semantic_judgment.get("n_claims", 0) or 0
                             ),
@@ -720,6 +806,30 @@ def _evaluate_gold_task(
                                     "n_calibration_cases_correct", 0
                                 )
                                 or 0
+                            ),
+                            "hidden_theory_semantic_candidate_mode_negative_case_count": int(
+                                semantic_judgment.get(
+                                    "n_candidate_mode_negative_cases", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_theory_semantic_candidate_mode_negative_cases_correct": int(
+                                semantic_judgment.get(
+                                    "n_candidate_mode_negative_cases_correct", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_theory_semantic_candidate_mode_negative_model_calls": int(
+                                semantic_judgment.get(
+                                    "candidate_mode_negative_model_calls", 0
+                                )
+                                or 0
+                            ),
+                            "hidden_theory_semantic_candidate_mode_negative_controls_passed": (
+                                semantic_judgment.get(
+                                    "candidate_mode_negative_controls_passed"
+                                )
+                                is True
                             ),
                             "hidden_theory_semantic_claim_count": int(
                                 semantic_judgment.get("n_claims", 0) or 0
@@ -1259,7 +1369,12 @@ def _load_hidden_theory_semantic_authority(
     evaluator: Mapping[str, Any],
     *,
     project_root: Path,
-) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
     reference_documents: list[dict[str, Any]] = []
     for row in evaluator.get("reference_documents", []) or []:
         if not isinstance(row, Mapping):
@@ -1289,11 +1404,41 @@ def _load_hidden_theory_semantic_authority(
         hash_field="calibration_cases_sha256",
         project_root=project_root,
     )
-    calibration_cases = calibration_payload.get("cases", [])
-    if not isinstance(calibration_cases, list):
-        raise ValueError("hidden theory semantic calibration cases are invalid")
+    candidate_mode_negative_payload: Mapping[str, Any] = {"cases": []}
+    if evaluator.get("candidate_mode_negative_cases_path"):
+        candidate_mode_negative_payload = _load_hidden_json_authority(
+            evaluator,
+            path_field="candidate_mode_negative_cases_path",
+            hash_field="candidate_mode_negative_cases_sha256",
+            project_root=project_root,
+        )
+    return (
+        reference_documents,
+        rubric,
+        _hydrate_hidden_semantic_cases(
+            calibration_payload,
+            project_root=project_root,
+            label="calibration",
+        ),
+        _hydrate_hidden_semantic_cases(
+            candidate_mode_negative_payload,
+            project_root=project_root,
+            label="candidate-mode negative",
+        ),
+    )
+
+
+def _hydrate_hidden_semantic_cases(
+    payload: Mapping[str, Any],
+    *,
+    project_root: Path,
+    label: str,
+) -> list[dict[str, Any]]:
+    cases = payload.get("cases", [])
+    if not isinstance(cases, list):
+        raise ValueError(f"hidden theory semantic {label} cases are invalid")
     hydrated_cases: list[dict[str, Any]] = []
-    for row in calibration_cases:
+    for row in cases:
         if not isinstance(row, Mapping):
             continue
         hydrated = dict(row)
@@ -1312,7 +1457,7 @@ def _load_hidden_theory_semantic_authority(
             expected_hash = str(document.get("sha256", "") or "")
             if _file_sha256(source_path) != expected_hash:
                 raise ValueError(
-                    "hidden theory semantic calibration document hash mismatch"
+                    f"hidden theory semantic {label} document hash mismatch"
                 )
             hydrated_documents.append(
                 {
@@ -1325,7 +1470,7 @@ def _load_hidden_theory_semantic_authority(
             )
         hydrated["documents"] = hydrated_documents
         hydrated_cases.append(hydrated)
-    return reference_documents, rubric, hydrated_cases
+    return hydrated_cases
 
 
 def _run_hidden_document_semantic_evaluation(
@@ -1333,14 +1478,19 @@ def _run_hidden_document_semantic_evaluation(
     evaluator: Mapping[str, Any],
     task_id: str,
     visible_question: Mapping[str, Any],
-    candidate_documents: Sequence[Mapping[str, Any]],
+    candidate_documents: Sequence[Mapping[str, Any]] | None,
     project_root: Path,
     run_semantic_judge: GoldTheorySemanticJudgeRunner | None,
     semantic_judge_provider: GeneratorBackend | None,
     semantic_artifact_role: str,
 ) -> tuple[dict[str, Any] | None, str]:
     try:
-        reference_documents, rubric, calibration_cases = (
+        (
+            reference_documents,
+            rubric,
+            calibration_cases,
+            candidate_mode_negative_cases,
+        ) = (
             _load_hidden_theory_semantic_authority(
                 evaluator,
                 project_root=project_root,
@@ -1349,10 +1499,15 @@ def _run_hidden_document_semantic_evaluation(
         kwargs = {
             "task_id": task_id,
             "visible_question": visible_question,
-            "candidate_documents": candidate_documents,
+            "candidate_documents": (
+                candidate_documents
+                if candidate_documents is not None
+                else reference_documents
+            ),
             "reference_documents": reference_documents,
             "rubric": rubric,
             "calibration_cases": calibration_cases,
+            "candidate_mode_negative_cases": candidate_mode_negative_cases,
             "model": str(evaluator["model"]),
             "model_tier": str(evaluator["model_tier"]),
             "max_tokens": int(evaluator.get("max_tokens", 6000) or 6000),
@@ -1373,7 +1528,7 @@ def _run_hidden_document_semantic_evaluation(
         message = str(exc)
         if "invalid hidden calibration semantic judgment" in message:
             failure_code = "INVALID_CALIBRATION_JUDGMENT"
-        elif "invalid hidden candidate semantic judgment" in message:
+        elif "invalid hidden candidate" in message:
             failure_code = "INVALID_CANDIDATE_JUDGMENT"
         elif "semantic judge provider" in message:
             failure_code = "PROVIDER_FAILURE"
@@ -1383,6 +1538,60 @@ def _run_hidden_document_semantic_evaluation(
             f"hidden {semantic_artifact_role} semantic evaluation failed closed: "
             f"{type(exc).__name__}:{failure_code}"
         )
+
+
+def _run_semantic_candidate_mode_activation(
+    *,
+    evaluator: Mapping[str, Any],
+    task_id: str,
+    visible_question: Mapping[str, Any],
+    project_root: Path,
+    run_semantic_judge: GoldTheorySemanticJudgeRunner | None,
+    semantic_judge_provider: GeneratorBackend | None,
+    semantic_artifact_role: str,
+) -> dict[str, Any]:
+    judgment, error = _run_hidden_document_semantic_evaluation(
+        evaluator=evaluator,
+        task_id=task_id,
+        visible_question=visible_question,
+        candidate_documents=None,
+        project_root=project_root,
+        run_semantic_judge=run_semantic_judge,
+        semantic_judge_provider=semantic_judge_provider,
+        semantic_artifact_role=semantic_artifact_role,
+    )
+    if error or judgment is None:
+        raise ValueError(
+            "schema_version 4 semantic reference or candidate-mode negative "
+            "control failed exact candidate adjudication"
+        )
+    negative_count = int(
+        judgment.get("n_candidate_mode_negative_cases", 0) or 0
+    )
+    activation_passed = bool(
+        negative_count > 0
+        and judgment.get("passed") is True
+        and judgment.get("semantic_judge_calibrated") is True
+        and judgment.get("candidate_status") == "PASS"
+        and judgment.get("candidate_document_status") == "PASS"
+        and int(
+            judgment.get("n_candidate_mode_negative_cases_correct", 0) or 0
+        )
+        == negative_count
+        and judgment.get("candidate_mode_negative_controls_passed") is True
+    )
+    if not activation_passed:
+        raise ValueError(
+            "schema_version 4 semantic reference or candidate-mode negative "
+            "control failed exact candidate adjudication"
+        )
+    return {
+        "task_id_hash": stable_hash(task_id),
+        "semantic_artifact_role": semantic_artifact_role,
+        "candidate_mode_negative_controls_rejected": negative_count,
+        "model_calls": int(judgment.get("n_model_calls", 0) or 0),
+        "judgment_hash": str(judgment.get("judgment_hash", "") or ""),
+    }
 
 
 def _load_hidden_json_authority(
@@ -1945,9 +2154,9 @@ def _validate_benchmark_manifest(
     if (
         isinstance(schema_version, bool)
         or not isinstance(schema_version, int)
-        or schema_version not in {1, 2, 3}
+        or schema_version not in {1, 2, 3, 4}
     ):
-        errors.append("schema_version must be 1, 2, or 3")
+        errors.append("schema_version must be 1, 2, 3, or 4")
         schema_version = 0
     if benchmark.get("artifact_kind") != "ResearchCapabilityGoldBenchmark":
         errors.append("artifact_kind must be ResearchCapabilityGoldBenchmark")
@@ -2267,6 +2476,9 @@ def _validate_benchmark_manifest(
                         task_index=index,
                         project_root=project_root,
                         artifact_label=semantic_label,
+                        require_candidate_mode_negative_cases=(
+                            schema_version >= 4
+                        ),
                     )
                 )
                 if (
@@ -2312,6 +2524,7 @@ def _hidden_theory_semantic_evaluator_validation_errors(
     task_index: int,
     project_root: Path,
     artifact_label: str = "theory",
+    require_candidate_mode_negative_cases: bool = False,
 ) -> list[str]:
     label = (
         f"active task {task_index} hidden {artifact_label} semantic evaluator"
@@ -2341,14 +2554,25 @@ def _hidden_theory_semantic_evaluator_validation_errors(
         elif _file_sha256(path) != str(row.get("sha256", "") or ""):
             errors.append(f"{label} reference {index} hash mismatch")
     authorities: dict[str, dict[str, Any]] = {}
-    for name, path_field, hash_field in (
+    authority_specs = [
         ("rubric", "rubric_path", "rubric_sha256"),
         (
             "calibration cases",
             "calibration_cases_path",
             "calibration_cases_sha256",
         ),
+    ]
+    if require_candidate_mode_negative_cases or evaluator.get(
+        "candidate_mode_negative_cases_path"
     ):
+        authority_specs.append(
+            (
+                "candidate-mode negative cases",
+                "candidate_mode_negative_cases_path",
+                "candidate_mode_negative_cases_sha256",
+            )
+        )
+    for name, path_field, hash_field in authority_specs:
         path = _project_path(
             str(evaluator.get(path_field, "") or ""),
             project_root=project_root,
@@ -2381,15 +2605,49 @@ def _hidden_theory_semantic_evaluator_validation_errors(
         or len(set(claim_ids)) != len(claim_ids)
     ):
         errors.append(f"{label} rubric claims are missing or have invalid identities")
-    calibration = authorities.get("calibration cases", {}).get("cases", [])
-    if not isinstance(calibration, list) or not calibration:
-        errors.append(f"{label} calibration cases are missing")
-        calibration = []
+    calibration_errors, calibration_statuses = (
+        _semantic_case_authority_validation_errors(
+            authorities.get("calibration cases", {}),
+            label=f"{label} calibration",
+            project_root=project_root,
+        )
+    )
+    errors.extend(calibration_errors)
+    if not {"PASS", "FAIL"} <= calibration_statuses:
+        errors.append(f"{label} calibration must contain both PASS and FAIL cases")
+    if require_candidate_mode_negative_cases or (
+        "candidate-mode negative cases" in authorities
+    ):
+        negative_errors, negative_statuses = (
+            _semantic_case_authority_validation_errors(
+                authorities.get("candidate-mode negative cases", {}),
+                label=f"{label} candidate-mode negative",
+                project_root=project_root,
+            )
+        )
+        errors.extend(negative_errors)
+        if negative_statuses != {"FAIL"}:
+            errors.append(
+                f"{label} candidate-mode negative cases must all expect FAIL"
+            )
+    return errors
+
+
+def _semantic_case_authority_validation_errors(
+    authority: Mapping[str, Any],
+    *,
+    label: str,
+    project_root: Path,
+) -> tuple[list[str], set[str]]:
+    errors: list[str] = []
+    cases = authority.get("cases", [])
+    if not isinstance(cases, list) or not cases:
+        return [f"{label} cases are missing"], set()
     case_ids: list[str] = []
     expected_statuses: set[str] = set()
-    for case_index, row in enumerate(calibration):
+    for case_index, row in enumerate(cases):
         if not isinstance(row, Mapping):
-            errors.append(f"{label} calibration case {case_index} is invalid")
+            errors.append(f"{label} case {case_index} is invalid")
             continue
         case_id = str(row.get("case_id", "") or "")
         expected = str(row.get("expected_status", "") or "")
@@ -2397,15 +2655,15 @@ def _hidden_theory_semantic_evaluator_validation_errors(
         expected_statuses.add(expected)
         if not case_id or expected not in {"PASS", "FAIL", "INCONCLUSIVE"}:
             errors.append(
-                f"{label} calibration case {case_index} identity or expectation is invalid"
+                f"{label} case {case_index} identity or expectation is invalid"
             )
         if not isinstance(row.get("documents"), list) or not row.get("documents"):
-            errors.append(f"{label} calibration case {case_index} has no documents")
+            errors.append(f"{label} case {case_index} has no documents")
             continue
         for document_index, document in enumerate(row.get("documents", []) or []):
             if not isinstance(document, Mapping):
                 errors.append(
-                    f"{label} calibration case {case_index} document "
+                    f"{label} case {case_index} document "
                     f"{document_index} is invalid"
                 )
                 continue
@@ -2413,7 +2671,7 @@ def _hidden_theory_semantic_evaluator_validation_errors(
             if not source_path_value:
                 if not str(document.get("content", "") or "").strip():
                     errors.append(
-                        f"{label} calibration case {case_index} document "
+                        f"{label} case {case_index} document "
                         f"{document_index} has no content"
                     )
                 continue
@@ -2423,21 +2681,19 @@ def _hidden_theory_semantic_evaluator_validation_errors(
             )
             if not source_path.is_file():
                 errors.append(
-                    f"{label} calibration case {case_index} document "
+                    f"{label} case {case_index} document "
                     f"{document_index} is missing"
                 )
             elif _file_sha256(source_path) != str(
                 document.get("sha256", "") or ""
             ):
                 errors.append(
-                    f"{label} calibration case {case_index} document "
+                    f"{label} case {case_index} document "
                     f"{document_index} hash mismatch"
                 )
     if len(set(case_ids)) != len(case_ids):
-        errors.append(f"{label} calibration case identities repeat")
-    if not {"PASS", "FAIL"} <= expected_statuses:
-        errors.append(f"{label} calibration must contain both PASS and FAIL cases")
-    return errors
+        errors.append(f"{label} case identities repeat")
+    return errors, expected_statuses
 
 
 def _hidden_evaluator_validation_errors(

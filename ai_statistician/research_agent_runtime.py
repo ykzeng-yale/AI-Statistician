@@ -19856,7 +19856,11 @@ def run_research_agent_runtime(
         )
     if research_gold_manifest is not None:
         gold_descriptor = validate_research_gold_benchmark_activation(
-            research_gold_manifest
+            research_gold_manifest,
+            visible_questions={
+                question.id: _question_to_payload(question)
+                for question in questions
+            },
         )
         missing_gold_questions = sorted(
             set(gold_descriptor["active_task_ids"])

@@ -134,6 +134,7 @@ def _run(
     provider: _RecordingProvider,
     *,
     semantic_artifact_role: str = "theory",
+    include_candidate_mode_negative: bool = False,
 ) -> dict[str, object]:
     return run_theory_semantic_gold_judge(
         provider=provider,
@@ -164,6 +165,22 @@ def _run(
                 "documents": [{"path": "wrong_limit.md", "content": "wrong limit"}],
             },
         ],
+        candidate_mode_negative_cases=(
+            [
+                {
+                    "case_id": "long-form-active-contradiction",
+                    "expected_status": "FAIL",
+                    "documents": [
+                        {
+                            "path": "long-form-near-miss.md",
+                            "content": "A plausible conclusion with an active contradiction.",
+                        }
+                    ],
+                }
+            ]
+            if include_candidate_mode_negative
+            else []
+        ),
         semantic_artifact_role=semantic_artifact_role,
     )
 
@@ -175,7 +192,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 4
+    assert result["protocol_version"] == 5
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -259,6 +276,69 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     assert provider.requests[1].metadata["semantic_adjudication_phase"] == (
         "candidate_integrated"
     )
+
+
+def test_candidate_mode_negative_uses_exact_integrated_candidate_schema() -> None:
+    provider = _RecordingProvider(
+        [
+            _keyed_calibration_packet(),
+            _keyed_candidate_packet(document_status="FAIL"),
+            _keyed_candidate_packet(),
+        ]
+    )
+
+    result = _run(provider, include_candidate_mode_negative=True)
+
+    assert result["semantic_judge_calibrated"] is True
+    assert result["passed"] is True
+    assert result["n_model_calls"] == 3
+    assert result["candidate_mode_negative_cases_configured"] is True
+    assert result["candidate_mode_negative_case_ids_opaque"] is True
+    assert result["candidate_mode_negative_claim_assessments_requested"] is True
+    assert result["candidate_mode_negative_integrated_context"] is True
+    assert result["candidate_mode_negative_model_calls"] == 1
+    assert result["n_candidate_mode_negative_cases"] == 1
+    assert result["n_candidate_mode_negative_cases_correct"] == 1
+    assert result["candidate_mode_negative_controls_passed"] is True
+    assert result["candidate_mode_negative_results"] == [
+        {
+            "case_id_hash": stable_hash("long-form-active-contradiction"),
+            "correct": True,
+        }
+    ]
+    negative_request = provider.requests[1]
+    candidate_request = provider.requests[2]
+    assert negative_request.metadata["semantic_adjudication_phase"] == (
+        "candidate_mode_negative"
+    )
+    assert candidate_request.metadata["semantic_adjudication_phase"] == (
+        "candidate_integrated"
+    )
+    assert negative_request.schema == candidate_request.schema
+    assert "long-form-active-contradiction" not in negative_request.user_prompt
+    assert "expected_status" not in negative_request.user_prompt
+    assert '"case_id": "candidate"' in negative_request.user_prompt
+    assert '"claim:definition"' in negative_request.user_prompt
+    assert '"claim:limit"' in negative_request.user_prompt
+
+
+def test_candidate_pass_cannot_override_candidate_mode_negative_false_accept() -> None:
+    result = _run(
+        _RecordingProvider(
+            [
+                _keyed_calibration_packet(),
+                _keyed_candidate_packet(),
+                _keyed_candidate_packet(),
+            ]
+        ),
+        include_candidate_mode_negative=True,
+    )
+
+    assert result["n_candidate_mode_negative_cases_correct"] == 0
+    assert result["candidate_mode_negative_controls_passed"] is False
+    assert result["semantic_judge_calibrated"] is False
+    assert result["candidate_status"] == "PASS"
+    assert result["passed"] is False
 
 
 def test_candidate_pass_cannot_override_failed_calibration() -> None:
