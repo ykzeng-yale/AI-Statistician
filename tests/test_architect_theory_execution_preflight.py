@@ -134,8 +134,7 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "corrected argument" in prompt
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
-    assert "exact report lines" in protocol
-    assert "Components may share one span" in protocol
+    assert "model-owned report, not a runtime claim checklist" in protocol
     assert "First challenge unresolved risks" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
     )
@@ -695,14 +694,6 @@ def _compact_submission(payload: dict[str, object]) -> dict[str, object]:
             )
             else "ACCEPT"
         ),
-        "component_reviews": [
-            {
-                "status": status,
-                "report_line_start": 1,
-                "report_line_end": len(report.splitlines()),
-            }
-            for status in reported_statuses
-        ],
         "findings": findings,
     }
     if "prior_finding_reviews" in payload:
@@ -723,9 +714,6 @@ def _hash_bound_submission(
     compact = _compact_submission(payload)
     compact.pop("review_report_markdown", None)
     compact["review_report_sha256"] = report_sha256
-    for row in compact["component_reviews"]:
-        row["report_line_start"] = 1
-        row["report_line_end"] = len(report_content.splitlines())
     return compact
 
 
@@ -2293,15 +2281,14 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         assert retired_corner_case not in protocol
     assert packet["overall_verdict"] == "ACCEPT"
     assert "runtime_estimator_status_normalizations" not in packet
-    assert packet["review_scope"]["required_component_ids"] == material[
-        "required_review_component_ids"
-    ]
-    assert [
-        component["component_id"].removeprefix("estimator:")
-        for component in material["required_review_components"]
-        if component["component_kind"] == "finite_estimator_handoff"
-    ] == ["generic_stream_method"]
-    assert packet["review_scope"]["model_reported_component_spans"] is True
+    assert material["execution_handoff_available"] is True
+    assert "required_review_components" not in material
+    assert packet["review_scope"] == {
+        "execution_handoff_required": True,
+        "execution_handoff_available": True,
+        "formal_sources_applicable": True,
+    }
+    assert "component_reviews" not in packet
     assert "runtime_estimator_identity_bindings" not in packet
     assert packet["execution_authorized"] is False
     assert packet["kernel_verified"] is False
@@ -2368,10 +2355,10 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ):
         assert retired_field not in submit_schema["properties"]
     assert "repair_instructions" not in submit_schema["properties"]
-    assert prompt_payload["review_scope"]["ordered_components"] == material[
-        "required_review_components"
-    ]
+    assert "ordered_components" not in prompt_payload["review_scope"]
+    assert "runtime_authored_claim_checklist" not in prompt_payload["review_scope"]
     assert prompt_payload["review_scope"]["execution_handoff_required"] is True
+    assert "component_reviews" not in submit_schema["properties"]
     assert "prior_finding_statuses" not in submit_schema["properties"]
     assert validate_architect_theory_execution_preflight_packet(
         packet,
@@ -2400,14 +2387,12 @@ def test_theory_only_preflight_accepts_without_an_estimator_handoff() -> None:
     )
 
     assert material["execution_handoff_required"] is False
-    assert all(
-        row["component_kind"] != "finite_estimator_handoff"
-        for row in material["required_review_components"]
-    )
+    assert material["execution_handoff_available"] is False
+    assert "required_review_components" not in material
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["review_scope"]["required_component_ids"] == material[
-        "required_review_component_ids"
-    ]
+    assert packet["review_scope"]["execution_handoff_required"] is False
+    assert packet["review_scope"]["execution_handoff_available"] is False
+    assert "runtime_authored_claim_checklist" not in packet["review_scope"]
     prompt_payload = _preflight_prompt_payload(backend.requests[0])
     assert "only when review_scope requests" in prompt_payload["task"]
     assert "otherwise do not invent one" in prompt_payload["verdict_policy"]
@@ -2417,7 +2402,7 @@ def test_theory_only_preflight_accepts_without_an_estimator_handoff() -> None:
     ) == []
 
 
-def test_preflight_review_components_follow_the_active_task_contract() -> None:
+def test_preflight_task_contract_does_not_expand_a_runtime_review_checklist() -> None:
     theory_material = _theory_material()
     semantic = theory_material["theory_semantic_material"]
     semantic["theory_derivation_packet"]["claim_index"] = [
@@ -2439,20 +2424,21 @@ def test_preflight_review_components_follow_the_active_task_contract() -> None:
             "formal_targets": ["formalize the stable claim"],
         },
     )
-    components = {
-        row["component_id"]: row
-        for row in material["required_review_components"]
-    }
+    schema = _architect_theory_execution_preflight_submit_schema(material)
+    prompt_text = build_architect_theory_execution_preflight_prompt(material)
+    prompt = json.loads(prompt_text.split("\n\n", 1)[1])
 
-    assert components["claim:stable_claim"]["required_for_acceptance"] is True
-    assert components["claim:open_claim"]["required_for_acceptance"] is False
-    assert "claim:retired_claim" not in components
-    assert "estimator:generic_stream_method" in components
-    assert {row["component_kind"] for row in components.values()} >= {
-        "research_question_scope",
-        "requested_simulation_target",
-        "requested_formal_target",
-    }
+    assert material["execution_handoff_required"] is True
+    assert material["execution_handoff_available"] is True
+    assert material["formal_sources_applicable"] is True
+    assert "required_review_components" not in material
+    assert "component_reviews" not in schema["properties"]
+    assert "ordered_components" not in prompt["review_scope"]
+    assert "runtime_authored_claim_checklist" not in prompt["review_scope"]
+    assert all(
+        claim_id not in json.dumps(schema, sort_keys=True)
+        for claim_id in ("stable_claim", "open_claim", "retired_claim")
+    )
 
 
 def test_executable_preflight_still_rejects_accept_without_an_estimator() -> None:
@@ -2473,10 +2459,7 @@ def test_executable_preflight_still_rejects_accept_without_an_estimator() -> Non
     )
 
     assert material["execution_handoff_required"] is True
-    assert all(
-        row["component_kind"] != "finite_estimator_handoff"
-        for row in material["required_review_components"]
-    )
+    assert material["execution_handoff_available"] is False
     with pytest.raises(PacketValidationError) as caught:
         _tool_review(
             _PreflightToolBackend(accept=True),
@@ -2801,14 +2784,8 @@ This abandoned route is explicitly rejected.
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["theory_document_inspection_count"] == 1
     assert packet["theory_document_inspection_refs"][0]["line_end"] == 4
-    assert [
-        row["component_id"].removeprefix("claim:")
-        for row in packet["component_reviews"]
-        if row["component_id"].startswith("claim:")
-    ] == [
-        "definition_primitive",
-        "theorem_main",
-    ]
+    assert "component_reviews" not in packet
+    assert "runtime_authored_claim_checklist" not in packet["review_scope"]
     submit_properties = next(
         tool
         for tool in backend.requests[0].tools
@@ -2933,14 +2910,7 @@ Assert an unsupported transition.
     )
 
     assert packet["overall_verdict"] == "REVISE"
-    assert [
-        row["component_id"].removeprefix("claim:")
-        for row in packet["component_reviews"]
-        if row["component_id"].startswith("claim:")
-    ] == [
-        "definition_primitive",
-        "theorem_main",
-    ]
+    assert "component_reviews" not in packet
     assert packet["findings"][0]["category"] == (
         "invalid_active_claim_transition"
     )
@@ -2986,7 +2956,6 @@ def test_preflight_prior_finding_schema_uses_compact_ordered_array() -> None:
             {"anchor_id": "theory.estimator_specs"},
             {"anchor_id": "theory.theorem_cards"},
         ],
-        "required_review_component_ids": ["estimator:generic_stream_method"],
     }
     one_schema = _architect_theory_execution_preflight_submit_schema(
         {**base_material, "active_prior_finding_ids": ["finding:0"]}
@@ -3015,7 +2984,34 @@ def test_preflight_prior_finding_schema_uses_compact_ordered_array() -> None:
 
 
 def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> None:
+    large_theory_material = _theory_material()
+    large_semantic = large_theory_material["theory_semantic_material"]
+    large_semantic["theory_derivation_packet"]["claim_index"] = [
+        {
+            "id": f"claim_{index}",
+            "kind": "lemma",
+            "status": "SUPPORTED",
+        }
+        for index in range(16)
+    ]
+    large_theory_material["source_theory_packet_hash"] = stable_hash(
+        large_semantic
+    )
     material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=large_theory_material,
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+    material["active_prior_finding_ids"] = [
+        "finding:0",
+        "finding:1",
+        "finding:2",
+    ]
+    schema = _architect_theory_execution_preflight_submit_schema(material)
+    small_material = build_architect_theory_execution_preflight_material(
         question=_question(),
         theory_protocol_material=_theory_material(),
         upstream_research_contract={
@@ -3023,33 +3019,12 @@ def test_preflight_client_submit_schema_stays_compact_with_sixteen_claims() -> N
             "simulation_targets": ["evaluate the declared risk"],
         },
     )
-    material["required_review_component_ids"] = [
-        "estimator:estimator_a",
-        "estimator:estimator_b",
-        *(f"claim:{index}" for index in range(16)),
-    ]
-    material["active_prior_finding_ids"] = [
-        "finding:0",
-        "finding:1",
-        "finding:2",
-    ]
-    schema = _architect_theory_execution_preflight_submit_schema(material)
-    small_material = deepcopy(material)
-    small_material["required_review_component_ids"] = [
-        "estimator:estimator_a",
-        "claim:0",
-    ]
+    small_material["active_prior_finding_ids"] = list(
+        material["active_prior_finding_ids"]
+    )
     small_schema = _architect_theory_execution_preflight_submit_schema(small_material)
-    assert schema["properties"]["component_reviews"]["minItems"] == 18
-    assert small_schema["properties"]["component_reviews"]["minItems"] == 2
-    assert schema["properties"]["component_reviews"]["items"]["required"] == [
-        "status",
-        "report_line_start",
-        "report_line_end",
-    ]
-    assert len(json.dumps(schema, separators=(",", ":"))) - len(
-        json.dumps(small_schema, separators=(",", ":"))
-    ) < 20
+    assert schema == small_schema
+    assert "component_reviews" not in schema["properties"]
 
     for retired_field in (
         "claim_statuses",
@@ -3132,25 +3107,27 @@ def test_client_tool_preflight_persists_markdown_referee_report(
                         },
                     )
                 )
+            if len(self.requests) == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-report",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
+                        {"content": report},
+                    )
+                )
             return _tool_response(
                 ClientToolCall(
                     "submit-compact-report",
                     "submit_theory_preflight_review",
                     {
-                        "review_report_markdown": report,
+                        "review_report_sha256": hashlib.sha256(
+                            report.encode("utf-8")
+                        ).hexdigest(),
                         "report_evidence_refs": [
                             f"theory.document:{relative_path}",
                             "theory.estimator_specs",
                         ],
                         "overall_verdict": "ACCEPT",
-                        "component_reviews": [
-                            {
-                                "status": "PASS",
-                                "report_line_start": 1,
-                                "report_line_end": len(report.splitlines()),
-                            }
-                            for _ in range(4)
-                        ],
                         "findings": [],
                     },
                 )
@@ -3173,22 +3150,12 @@ def test_client_tool_preflight_persists_markdown_referee_report(
     assert review_path.read_text(encoding="utf-8") == report
     assert review_path.is_relative_to(tmp_path / "run" / "theory_reviews")
     assert "theory_independent_reconstruction_chronology" not in packet
-    assert len(backend.requests) == 2
-    assert [
-        row["component_id"].removeprefix("claim:")
-        for row in packet["component_reviews"]
-        if row["component_id"].startswith("claim:")
-    ] == ["finite_identity"]
-    assert packet["review_scope"]["model_reported_component_spans"] is True
-    for component in packet["component_reviews"]:
-        selected = "\n".join(
-            report.splitlines()[
-                component["report_line_start"] - 1 : component["report_line_end"]
-            ]
-        )
-        assert component["report_span_sha256"] == hashlib.sha256(
-            selected.encode("utf-8")
-        ).hexdigest()
+    assert len(backend.requests) == 3
+    assert "component_reviews" not in packet
+    assert "runtime_authored_claim_checklist" not in packet["review_scope"]
+    assert review_document["sha256"] == hashlib.sha256(
+        report.encode("utf-8")
+    ).hexdigest()
     assert review_document["evidence_refs"] == [
         f"theory.document:{relative_path}",
         "theory.estimator_specs",
@@ -3212,21 +3179,10 @@ def test_client_tool_preflight_persists_markdown_referee_report(
             material=material,
         )
     )
-    range_tamper = deepcopy(packet)
-    range_tamper["component_reviews"][0]["report_line_end"] = (
-        len(report.splitlines()) + 1
-    )
-    assert "theory execution preflight component report span is invalid" in (
+    review_path.write_text(report + "tampered\n", encoding="utf-8")
+    assert "theory execution preflight review report hash mismatch" in (
         validate_architect_theory_execution_preflight_packet(
-            range_tamper,
-            material=material,
-        )
-    )
-    hash_tamper = deepcopy(packet)
-    hash_tamper["component_reviews"][0]["report_span_sha256"] = "0" * 64
-    assert "theory execution preflight component report span hash mismatch" in (
-        validate_architect_theory_execution_preflight_packet(
-            hash_tamper,
+            packet,
             material=material,
         )
     )
@@ -3396,14 +3352,14 @@ def test_preflight_returns_stale_report_hash_to_same_referee() -> None:
     assert packet["client_tool_loop_tool_calls"] == 4
 
 
-def test_preflight_returns_invalid_component_span_to_same_referee() -> None:
+def test_preflight_returns_obsolete_terminal_field_to_same_referee() -> None:
     report = (
         "# Independent referee report\n\n"
         "I reconstructed the target and compared the candidate's decisive transition.\n"
     )
     report_sha = hashlib.sha256(report.encode("utf-8")).hexdigest()
 
-    class SpanCorrectionBackend:
+    class EnvelopeCorrectionBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -3426,10 +3382,12 @@ def test_preflight_returns_invalid_component_span_to_same_referee() -> None:
                 report_content=report,
             )
             if len(self.requests) == 2:
-                submission["component_reviews"][0]["report_line_end"] = 99
+                submission["component_reviews"] = [
+                    {"status": "PASS", "report_line_start": 1, "report_line_end": 99}
+                ]
                 return _tool_response(
                     ClientToolCall(
-                        "submit-invalid-span",
+                        "submit-obsolete-checklist",
                         "submit_theory_preflight_review",
                         submission,
                     )
@@ -3437,17 +3395,17 @@ def test_preflight_returns_invalid_component_span_to_same_referee() -> None:
             self.rejection = _last_tool_result(request)
             return _tool_response(
                 ClientToolCall(
-                    "submit-current-span",
+                    "submit-compact-envelope",
                     "submit_theory_preflight_review",
                     submission,
                 )
             )
 
-    backend = SpanCorrectionBackend()
+    backend = EnvelopeCorrectionBackend()
     packet = _tool_review(backend)
 
     assert backend.rejection["error"] == "client_tool_input_rejected"
-    assert "in-range inclusive line span" in backend.rejection["detail"]
+    assert "component_reviews" in backend.rejection["detail"]
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["client_tool_loop_turns"] == 3
 
@@ -3507,10 +3465,6 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
     schema = _architect_theory_execution_preflight_submit_schema(
         {
             "anchor_catalog": [{"anchor_id": "theory.estimator_specs"}],
-            "required_review_component_ids": [
-                "estimator:estimator_0",
-                "estimator:estimator_1",
-            ],
             "active_prior_finding_ids": [],
         }
     )
@@ -3523,6 +3477,7 @@ def test_preflight_estimator_transport_is_compact_and_semantically_owned() -> No
     assert "review_report_markdown" not in schema["properties"]
     assert "report_evidence_refs" in schema["required"]
     assert "enum" not in schema["properties"]["report_evidence_refs"]["items"]
+    assert "component_reviews" not in schema["properties"]
 
 
 def test_preflight_cannot_accept_a_failed_independent_identity_check() -> None:
@@ -3618,7 +3573,7 @@ def test_preflight_carries_model_owned_finding_without_checklist_rows() -> None:
 
     assert len(backend.requests) == 1
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["review_scope"]["model_reported_component_spans"] is True
+    assert "runtime_authored_claim_checklist" not in packet["review_scope"]
     assert "dimension_reviews" not in packet
     assert "estimator_execution_checks" not in packet
     assert "derived_consistency_warnings" not in packet
