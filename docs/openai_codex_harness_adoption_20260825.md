@@ -2608,3 +2608,47 @@ panel passed `237/237`; the complete repository passed `986/986` in 78.30 second
 Production Python is 149,998 lines and `research_agent_runtime.py` is 24,961 lines,
 both under unchanged architecture limits. Task 67 remains immutable `0/1`, trusted
 capability remains `4/67`, and exact development theorem closure remains `0/2`.
+
+## Fresh current-source observation after Task 68
+
+Official Codex `main` was fetched again and remains
+[`5f49aba8`](https://github.com/openai/codex/commit/5f49aba876922d6f2f55caa153bbb0ed1b46feba).
+The relevant reusable unit is still Codex's turn-scoped model/tool/observation
+lifecycle: persisted history may provide context, but an action is grounded in the
+active workspace snapshot and raw current tool output. Explicit step identity,
+bounded tools, compact state, and model-owned source iteration are useful here;
+Codex Core, App Server, provider transport, thread storage, worktree management,
+Guardian, and shared-cwd subagents would create a second conversation owner or
+scheduler and remain excluded.
+
+Task 68 exposed a narrow violation of that principle. The second generated-source
+review work order correctly named the final executed confirmatory source and exact
+hash. That source implemented the requested per-DGP decision checks and executed
+successfully. The isolated reviewer nevertheless repeated a prior finding about
+hardcoded lines from the superseded source. Historical finding prose was present in
+the opening context, while no fresh tool observation forced the reviewer to inspect
+the current source associated with the work-order hash.
+
+Commit `f2e39edb` corrects the lifecycle for future tasks. A review with active prior
+findings initially receives current artifact identity and hash, but not a copied
+source body. In the same isolated reviewer session it must call
+`read_current_generated_source` once for every current target before terminal
+submission. The tool returns complete immutable source with line numbers, exact hash,
+line count, and current-authority status. Historical findings remain reviewable
+claims, while the fresh source observation is the current target. A first review has
+no prior finding and therefore incurs no additional turn or tool call.
+
+This is not a repair harness. Runtime neither parses source grammar nor chooses a
+change. The source-owning Algorithm or Simulation model still reads raw execution
+feedback and revises its own complete program; the independent reviewer still owns
+semantic judgment. Runtime supplies identity, tool permission, validation, budget,
+and evidence boundaries only. No statistical formula, Welch rule, Python type patch,
+Lean grammar, tactic, source rewrite, retry, extra reviewer, provider, model
+escalation, or second scheduler was added.
+
+Focused reviewer and runtime regressions passed `146/146`; the complete repository
+passed `988/988` in 79.56 seconds. Compile, diff, and the unchanged 150,000-line
+architecture budget passed, with production Python at 149,998 lines. Task 68 was not
+rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled. Its
+operator-invalidated result remains immutable `0/1`, trustworthy full-task
+capability remains `4/68`, and exact development theorem closure remains `0/2`.

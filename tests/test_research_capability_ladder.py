@@ -6,9 +6,9 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "9dcd43555dc489790ae2dc091f161b9ab319e48f"
+LATEST_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 68
-CURRENT_CONSUMED_TASKS = 67
+CURRENT_CONSUMED_TASKS = 68
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
 TASK_62_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
@@ -306,7 +306,7 @@ def test_weighted_isotonic_pava_l0_records_one_closed_theory_failure() -> None:
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["operator_invalid_tasks"] == 8
+    assert readiness["operator_invalid_tasks"] == 9
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -830,7 +830,7 @@ def test_gamma_poisson_l0_records_one_consumed_operator_invalidated_draw() -> No
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["operator_invalid_tasks"] == 8
+    assert readiness["operator_invalid_tasks"] == 9
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
     )
@@ -961,7 +961,7 @@ def test_pinball_quantile_l0_records_consumed_operator_invalidated_draw() -> Non
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["operator_invalid_tasks"] == 8
+    assert readiness["operator_invalid_tasks"] == 9
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
     )
@@ -5008,7 +5008,7 @@ def test_normal_variance_ratio_l0_consumed_draw_is_operator_invalid_and_immutabl
     assert evidence["trusted_capability_credit"] is False
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["post_run_score_changed"] is False
-    assert ladder["current_readiness"]["operator_invalid_tasks"] == 8
+    assert ladder["current_readiness"]["operator_invalid_tasks"] == 9
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -6002,7 +6002,7 @@ def test_statsmodels_adf_kpss_l1_records_consumed_operator_false_acceptance() ->
     assert readiness["runtime_source_replication_components_ready"] == 6
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
-    assert readiness["operator_invalid_tasks"] == 8
+    assert readiness["operator_invalid_tasks"] == 9
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -6502,7 +6502,7 @@ def test_measurement_error_attenuation_l0_records_one_immutable_failed_draw() ->
         assert hidden_name not in runtime_visible
 
 
-def test_welch_satterthwaite_l0_is_frozen_before_one_product_draw() -> None:
+def test_welch_satterthwaite_l0_consumed_draw_is_operator_invalidated() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -6513,8 +6513,11 @@ def test_welch_satterthwaite_l0_is_frozen_before_one_product_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "heteroskedastic_two_sample_mean_inference"
-    assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"] == "frozen_ready_v1_no_product_call"
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_consumed_operator_invalidated_theory_code_contract_"
+        "failed_runtime_false_rejected_revised_confirmatory_source"
+    )
     assert candidate["gold_bundle_id"] == (
         "research-l0-welch-satterthwaite-20260827-v1"
     )
@@ -6551,19 +6554,60 @@ def test_welch_satterthwaite_l0_is_frozen_before_one_product_draw() -> None:
     )
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_head"] == (
+        "c62e01b7e0a38c3ae874687c387401c6bd4e8560"
+    )
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_sonnet_or_opus_calls"] == 0
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_outer_iterations"] == 12
+    assert evidence["runtime_failure_classification"] == (
+        "architect_feedback_route_blocked"
+    )
+    assert evidence["runtime_research_evaluation"] == (
+        "0/1 complete; 1/1 mode-conformant"
+    )
+    assert evidence["automated_hidden_evaluation"] == "0/1"
+    assert "operator-invalidated" in evidence["hidden_theory_checks"]
+    assert evidence["hidden_algorithm_checks"].startswith("15/17")
+    assert evidence["hidden_empirical_checks"].startswith("11/11")
+    assert evidence["runtime_manifest_sha256"] == (
+        "b4cd1df56bec18c84840806915ddd651fff5fcecf72b802c47301183203d01b9"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "cf4dbaf5dec00b6826cfefc83ad298925d21916ef9f3406e4af4a10bba334f58"
+    )
+    assert evidence["hidden_gold_evaluation_sha256"] == (
+        "f9a082fb11739c2227acd5496770806a1032583f2747c13037d6db8d506491e9"
+    )
+    assert evidence["operator_disposition"] == (
+        "OPERATOR_INVALIDATED_THEORY_CODE_CONTRACT_FAILED_RUNTIME_FALSE_"
+        "REJECTED_REVISED_CONFIRMATORY_SOURCE"
+    )
+    assert Path(evidence["operator_audit"]).is_file()
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+    assert "same isolated reviewer session" in evidence[
+        "post_run_shared_mechanism_change"
+    ]
+    assert "988/988" in evidence["post_run_regression_evidence"]
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/68"
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["operator_invalid_tasks"] == 9
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
     visible_path = Path(candidate["visible_questions_path"])
