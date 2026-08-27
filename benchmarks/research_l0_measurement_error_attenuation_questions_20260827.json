@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "classical_measurement_error_attenuation_known_result",
+      "title": "Regression attenuation and correction with known measurement-error variance",
+      "description": "Focused L0 known-result evaluation grounded in Fuller and Hidiroglou (1978). Let iid latent predictors X_i have mean mu_x and variance sigma_x_squared>0. Let Y_i=alpha+beta*X_i+epsilon_i, where epsilon_i has mean zero and is uncorrelated with X_i. The analyst observes W_i=X_i+U_i rather than X_i, where classical additive errors U_i are iid, mean zero, independent of (X_i,epsilon_i), and have known variance tau_squared>=0. In one authoritative Markdown/LaTeX Theory workspace, derive Cov(W,Y)=beta*sigma_x_squared and Var(W)=sigma_x_squared+tau_squared. Derive the population naive slope beta_naive=beta*sigma_x_squared/(sigma_x_squared+tau_squared), interpret its attenuation toward zero, and recover beta=Cov(W,Y)/(Var(W)-tau_squared). Define sample covariance and sample variance with the same n-1 denominator and derive the corrected least-squares estimator s_WY/(s_WW-tau_squared) when the corrected denominator is positive. Prove consistency under explicit iid finite-moment assumptions, but do not claim that this ratio is generally finite-sample unbiased. Explain the no-error boundary tau_squared=0, increasing attenuation and instability as reliability falls, and why a nonpositive sample corrected variance must be reported rather than clipped or repaired. Distinguish classical nondifferential additive predictor error from Berkson error, correlated or differential error, unknown error variance, and other measurement-error models. Do not use simulation or a library call as proof. The required model-authored Python artifact is est_measurement_error_correction and must implement run_estimator(request) exactly for the frozen public closed contract. Exploratory Python or R may check identities, boundary behavior, equivariances, and finite-sample instability. A separately frozen confirmatory assessment invokes the estimator under multiple predeclared slopes, reliability levels, and sample sizes and compares Monte Carlo means of the naive and corrected slopes with their population targets using Monte Carlo uncertainty. That assessment is implementation and finite-sample evidence, not proof of the algebra, finite-sample unbiasedness, identifiability when tau_squared is unknown, robustness to other error mechanisms, source replication, novelty, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "measurement error",
+        "regression attenuation",
+        "corrected least squares",
+        "errors in variables",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Regression Estimation after Correcting for Attenuation",
+          "authors": [
+            "Wayne A. Fuller",
+            "Michael A. Hidiroglou"
+          ],
+          "journal": "Journal of the American Statistical Association",
+          "year": 1978,
+          "volume": 73,
+          "issue": 361,
+          "pages": "99-104",
+          "doi": "10.1080/01621459.1978.10480011",
+          "url": "https://www.tandfonline.com/doi/abs/10.1080/01621459.1978.10480011"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_measurement_error_correction",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observed_predictor",
+            "name": "observed_predictor",
+            "meaning": "Observed error-contaminated predictor values W_i=X_i+U_i in paired sample order.",
+            "json_type": "array",
+            "shape": "one array of length 3 through 10000 containing finite JSON numbers",
+            "units": "predictor units",
+            "indexing": "entry i is paired with outcome entry i",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, nested arrays, arrays shorter than 3, and oversized arrays rather than coercing or dropping them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.outcome",
+            "name": "outcome",
+            "meaning": "Observed response values Y_i paired one-to-one with observed_predictor.",
+            "json_type": "array",
+            "shape": "one array with exactly the observed_predictor length containing finite JSON numbers",
+            "units": "outcome units",
+            "indexing": "entry i is paired with observed_predictor entry i",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, nested arrays, unequal lengths, and constant-predictor designs rather than coercing or dropping them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.measurement_error_variance",
+            "name": "measurement_error_variance",
+            "meaning": "Known classical additive predictor-error variance tau_squared on the observed-predictor scale.",
+            "json_type": "number",
+            "shape": "one finite nonnegative JSON number",
+            "units": "squared predictor units",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonnumeric or nonfinite values, and negative values. Reject the whole request when subtracting this value from the sample observed-predictor variance gives a nonpositive corrected variance; do not clip or regularize it.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_covariance",
+            "name": "sample_covariance",
+            "meaning": "Paired sample covariance s_WY using denominator n-1.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "predictor units times outcome units",
+            "indexing": "uses every paired request entry",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sum_i((W_i-bar_W)*(Y_i-bar_Y))/(n-1)."
+          },
+          {
+            "clause_id": "response.observed_predictor_variance",
+            "name": "observed_predictor_variance",
+            "meaning": "Sample variance s_WW of the observed predictor using denominator n-1.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared predictor units",
+            "indexing": "uses every request.observed_predictor entry",
+            "edge_cases": "A zero observed-predictor variance makes the request invalid.",
+            "normalization": "sum_i((W_i-bar_W)^2)/(n-1)."
+          },
+          {
+            "clause_id": "response.corrected_predictor_variance",
+            "name": "corrected_predictor_variance",
+            "meaning": "Observed-predictor sample variance after subtracting the known measurement-error variance.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "squared latent-predictor units",
+            "indexing": "not applicable",
+            "edge_cases": "Requests producing zero or a negative value are rejected rather than clipped or regularized.",
+            "normalization": "observed_predictor_variance-measurement_error_variance."
+          },
+          {
+            "clause_id": "response.estimated_reliability_ratio",
+            "name": "estimated_reliability_ratio",
+            "meaning": "Sample analogue of sigma_x_squared/(sigma_x_squared+tau_squared).",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1]",
+            "units": "dimensionless",
+            "indexing": "not applicable",
+            "edge_cases": "It equals one when measurement_error_variance is zero and is not clipped.",
+            "normalization": "corrected_predictor_variance/observed_predictor_variance."
+          },
+          {
+            "clause_id": "response.naive_slope",
+            "name": "naive_slope",
+            "meaning": "Ordinary least-squares slope from regressing outcome on the observed predictor with an intercept.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units per observed-predictor unit",
+            "indexing": "not applicable",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sample_covariance/observed_predictor_variance."
+          },
+          {
+            "clause_id": "response.corrected_slope",
+            "name": "corrected_slope",
+            "meaning": "Corrected least-squares slope using the known measurement-error variance.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units per latent-predictor unit",
+            "indexing": "not applicable",
+            "edge_cases": "May be positive, zero, or negative and is not clipped or regularized.",
+            "normalization": "sample_covariance/corrected_predictor_variance, equivalently naive_slope/estimated_reliability_ratio."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly observed_predictor, outcome, and measurement_error_variance and the response contains exactly the six declared fields. Missing, extra, invalid, or nonidentifiable inputs are rejected rather than ignored, coerced, clipped, or regularized."
+          },
+          {
+            "clause_id": "invariant.paired_permutation_invariance",
+            "meaning": "Applying the same permutation to observed_predictor and outcome leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.translation_invariance",
+            "meaning": "Adding arbitrary constants separately to every observed_predictor value and every outcome value leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.outcome_scale_equivariance",
+            "meaning": "Multiplying every outcome by a finite scalar c multiplies sample_covariance, naive_slope, and corrected_slope by c while leaving the three variance or reliability fields unchanged."
+          },
+          {
+            "clause_id": "invariant.zero_error_boundary",
+            "meaning": "At measurement_error_variance=0, corrected_predictor_variance equals observed_predictor_variance, estimated_reliability_ratio equals one, and corrected_slope equals naive_slope."
+          },
+          {
+            "clause_id": "invariant.correction_identity",
+            "meaning": "For every valid request, corrected_slope equals naive_slope divided by estimated_reliability_ratio without clipping or regularization."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every latent-predictor distribution, true slope, intercept, response-noise variance, measurement-error variance, sample size, seed, replicate count, estimator invocation, population comparator, Monte Carlo precision rule, invalid-denominator disposition, and joint decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.attenuation_and_correction",
+            "meaning": "Across multiple predeclared positive and negative slopes, reliability levels, and more than one sample size, compare the Monte Carlo mean naive slope with beta*sigma_x_squared/(sigma_x_squared+tau_squared) and the mean corrected slope with beta using Monte Carlo uncertainty, while reporting nonpositive corrected-denominator events."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks implementation and finite-sample behavior only. It does not prove the algebra, finite-sample unbiasedness of the ratio estimator, known error variance, robustness to Berkson, correlated, differential, or heteroskedastic error, source replication, novelty, or formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
