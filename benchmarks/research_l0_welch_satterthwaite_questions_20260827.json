@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "welch_satterthwaite_two_sample_interval_known_result",
+      "title": "Welch-Satterthwaite interval for two independent normal means",
+      "description": "Focused L0 known-result evaluation grounded in Welch (1947). Let X_1,...,X_nx be iid with mean mu_x and variance sigma_x_squared and Y_1,...,Y_ny be iid with mean mu_y and variance sigma_y_squared, with the two samples independent and nx,ny>=2. For the interval approximation, specialize to independent normal populations without assuming equal variances. In one authoritative Markdown/LaTeX Theory workspace, define delta=mu_x-mu_y and derive E[bar_X-bar_Y]=delta and Var(bar_X-bar_Y)=sigma_x_squared/nx+sigma_y_squared/ny. Derive the unbiased within-sample variances and the plug-in standard error sqrt(s_x_squared/nx+s_y_squared/ny). Starting from the two independent estimated variance components a=s_x_squared/nx and b=s_y_squared/ny, derive the Welch-Satterthwaite effective degrees of freedom nu=(a+b)^2/(a^2/(nx-1)+b^2/(ny-1)) and the two-sided interval (bar_X-bar_Y) plus or minus t_{nu,(1+confidence_level)/2} sqrt(a+b). Explain why equal variances are not assumed, why independence does not imply equal means or variances, and why the Welch-Satterthwaite t approximation is not an exact finite-sample solution of the Behrens-Fisher problem for arbitrary unequal variances. State an appropriate large-sample justification under explicit moment and growing-sample assumptions, discuss sensitivity to dependence, severe nonnormality, tiny samples, and influential observations, and do not use simulation or a library call as proof. The required model-authored Python artifact is est_welch_satterthwaite_interval and must implement run_estimator(request) exactly for the frozen public closed contract. Exploratory Python or R may recompute identities, compare library values, and test boundaries and equivariances. A separately frozen confirmatory assessment invokes the estimator under multiple independent normal DGPs with positive, zero, and negative mean differences, unequal sample sizes, unequal variance ratios in both directions, and more than one sample-size regime. It compares the Monte Carlo mean difference and sampling variance with population targets and checks interval coverage with Monte Carlo uncertainty. That assessment is implementation and finite-sample approximation evidence, not proof of unbiasedness, exact t calibration, robustness outside the stated DGPs, source replication, novelty, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "Welch interval",
+        "Satterthwaite degrees of freedom",
+        "Behrens-Fisher problem",
+        "two sample means",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "The Generalization of Student's Problem when Several Different Population Variances are Involved",
+          "authors": [
+            "B. L. Welch"
+          ],
+          "journal": "Biometrika",
+          "year": 1947,
+          "volume": 34,
+          "issue": "1-2",
+          "pages": "28-35",
+          "doi": "10.1093/biomet/34.1-2.28",
+          "url": "https://academic.oup.com/biomet/article/34/1-2/28/210174"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_welch_satterthwaite_interval",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample_x",
+            "name": "sample_x",
+            "meaning": "First independent sample in observation order.",
+            "json_type": "array",
+            "shape": "one array of length 2 through 10000 containing finite JSON numbers",
+            "units": "outcome units",
+            "indexing": "entry i is observation i in the X sample",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, nested arrays, arrays shorter than 2, and oversized arrays rather than coercing, dropping, truncating, or padding them. A constant X sample is valid when sample_y has positive sample variance.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.sample_y",
+            "name": "sample_y",
+            "meaning": "Second independent sample in observation order.",
+            "json_type": "array",
+            "shape": "one array of length 2 through 10000 containing finite JSON numbers",
+            "units": "outcome units",
+            "indexing": "entry j is observation j in the Y sample",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, nested arrays, arrays shorter than 2, and oversized arrays rather than coercing, dropping, truncating, or padding them. A constant Y sample is valid when sample_x has positive sample variance. Reject only the joint boundary where both sample variances are zero because the requested studentized interval is undefined.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.confidence_level",
+            "name": "confidence_level",
+            "meaning": "Two-sided confidence coefficient used to select the Student t critical value.",
+            "json_type": "number",
+            "shape": "one finite scalar in the closed interval from 0.5 through 0.999",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, and values outside [0.5,0.999] rather than clipping or replacing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_x",
+            "name": "n_x",
+            "meaning": "Number of observations in sample_x.",
+            "json_type": "integer",
+            "shape": "one exact integer from 2 through 10000",
+            "units": "observations",
+            "indexing": "counts every sample_x entry",
+            "edge_cases": "It is never inferred from values in sample_y.",
+            "normalization": "length(sample_x)."
+          },
+          {
+            "clause_id": "response.n_y",
+            "name": "n_y",
+            "meaning": "Number of observations in sample_y.",
+            "json_type": "integer",
+            "shape": "one exact integer from 2 through 10000",
+            "units": "observations",
+            "indexing": "counts every sample_y entry",
+            "edge_cases": "It is never inferred from values in sample_x.",
+            "normalization": "length(sample_y)."
+          },
+          {
+            "clause_id": "response.mean_x",
+            "name": "mean_x",
+            "meaning": "Arithmetic sample mean of sample_x.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "uses every sample_x entry exactly once",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sum_i sample_x_i/n_x."
+          },
+          {
+            "clause_id": "response.mean_y",
+            "name": "mean_y",
+            "meaning": "Arithmetic sample mean of sample_y.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "uses every sample_y entry exactly once",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sum_j sample_y_j/n_y."
+          },
+          {
+            "clause_id": "response.mean_difference",
+            "name": "mean_difference",
+            "meaning": "Estimated difference mu_x-mu_y.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "mean_x-mean_y."
+          },
+          {
+            "clause_id": "response.variance_x",
+            "name": "variance_x",
+            "meaning": "Unbiased within-X sample variance.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "uses every sample_x entry exactly once",
+            "edge_cases": "Zero is valid when sample_x is constant and sample_y is not constant.",
+            "normalization": "sum_i (sample_x_i-mean_x)^2/(n_x-1)."
+          },
+          {
+            "clause_id": "response.variance_y",
+            "name": "variance_y",
+            "meaning": "Unbiased within-Y sample variance.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "uses every sample_y entry exactly once",
+            "edge_cases": "Zero is valid when sample_y is constant and sample_x is not constant.",
+            "normalization": "sum_j (sample_y_j-mean_y)^2/(n_y-1)."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "Welch plug-in standard error for mean_difference.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "A single zero component variance is valid; the joint zero-variance request is rejected.",
+            "normalization": "sqrt(variance_x/n_x+variance_y/n_y)."
+          },
+          {
+            "clause_id": "response.degrees_freedom",
+            "name": "degrees_freedom",
+            "meaning": "Welch-Satterthwaite effective degrees of freedom.",
+            "json_type": "number",
+            "shape": "one finite scalar at least 1",
+            "units": "degrees of freedom",
+            "indexing": "not applicable",
+            "edge_cases": "When exactly one variance component is zero, it reduces to the other sample's n-1 degrees of freedom.",
+            "normalization": "Let a=variance_x/n_x and b=variance_y/n_y; return (a+b)^2/(a^2/(n_x-1)+b^2/(n_y-1))."
+          },
+          {
+            "clause_id": "response.critical_value",
+            "name": "critical_value",
+            "meaning": "Positive two-sided Student t critical value at the requested confidence level and effective degrees of freedom.",
+            "json_type": "number",
+            "shape": "one finite positive scalar",
+            "units": "standard-error multiples",
+            "indexing": "not applicable",
+            "edge_cases": "It uses the requested confidence level without clipping and may use a noninteger degrees of freedom.",
+            "normalization": "StudentT_quantile((1+confidence_level)/2, degrees_freedom)."
+          },
+          {
+            "clause_id": "response.lower",
+            "name": "lower",
+            "meaning": "Lower endpoint of the requested two-sided Welch interval for mu_x-mu_y.",
+            "json_type": "number",
+            "shape": "one finite scalar not exceeding mean_difference",
+            "units": "outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "mean_difference-critical_value*standard_error."
+          },
+          {
+            "clause_id": "response.upper",
+            "name": "upper",
+            "meaning": "Upper endpoint of the requested two-sided Welch interval for mu_x-mu_y.",
+            "json_type": "number",
+            "shape": "one finite scalar not below mean_difference",
+            "units": "outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "mean_difference+critical_value*standard_error."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly sample_x, sample_y, and confidence_level and the response contains exactly the twelve declared fields. Missing, extra, malformed, nonfinite, out-of-range, oversized, or jointly zero-variance inputs are rejected rather than ignored, coerced, clipped, truncated, padded, or regularized."
+          },
+          {
+            "clause_id": "invariant.within_sample_permutation",
+            "meaning": "Permuting sample_x and sample_y independently leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.common_location_shift",
+            "meaning": "Adding the same finite constant c to every observation in both samples adds c to mean_x and mean_y and leaves all other response fields unchanged."
+          },
+          {
+            "clause_id": "invariant.x_location_shift",
+            "meaning": "Adding a finite constant c only to sample_x adds c to mean_x, mean_difference, lower, and upper and leaves all other response fields unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_scale_equivariance",
+            "meaning": "Multiplying both samples by a finite positive scalar c multiplies mean_x, mean_y, mean_difference, standard_error, lower, and upper by c, multiplies both variances by c^2, and leaves counts, degrees_freedom, and critical_value unchanged."
+          },
+          {
+            "clause_id": "invariant.sample_swap",
+            "meaning": "Swapping sample_x and sample_y swaps counts, means, and variances; negates mean_difference; maps the interval to [-upper,-lower]; and leaves standard_error, degrees_freedom, and critical_value unchanged."
+          },
+          {
+            "clause_id": "invariant.confidence_nesting",
+            "meaning": "For fixed samples, increasing confidence_level within the public range leaves every point and variance quantity plus degrees_freedom unchanged, increases critical_value, weakly decreases lower, and weakly increases upper."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every independent normal DGP, sample size, mean, variance, confidence level, seed, replicate count, estimator invocation, population comparator, Monte Carlo precision rule, coverage rule, and joint decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.welch_sampling_behavior",
+            "meaning": "Across predeclared positive, zero, and negative mean differences, unequal sample sizes, variance ratios in both directions, and more than one sample-size regime, compare the Monte Carlo mean_difference with mu_x-mu_y, its empirical variance with sigma_x_squared/n_x+sigma_y_squared/n_y, and interval coverage with the frozen confidence target using Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks implementation and finite-sample approximation behavior under its independent normal DGPs only. It does not prove unbiasedness, exact t calibration, robustness to dependence or arbitrary nonnormality, source replication, novelty, or formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
