@@ -882,8 +882,10 @@ def test_pinball_quantile_l0_is_frozen_before_one_product_draw() -> None:
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["authority_binding_commit"] == "PENDING"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["authority_binding_commit"] == (
+        "d59bc7d792165c4fa174157d674dd6a77957267c"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["activation_schema_version"] == 3
     assert evidence["activation_reference_tasks_passed"] == 1
     assert evidence["activation_negative_controls_rejected"] == 7
