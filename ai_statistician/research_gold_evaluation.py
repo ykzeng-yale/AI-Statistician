@@ -25,7 +25,10 @@ from .scientific_sandbox import (
     execute_scientific_sandbox,
 )
 from .theory_derivation_trace import document_authoritative_theory_context
-from .theory_semantic_gold_judge import run_theory_semantic_gold_judge
+from .theory_semantic_gold_judge import (
+    run_theory_semantic_gold_judge,
+    theory_semantic_activation_judgment_errors,
+)
 from .theory_workspace import load_theory_workspace_document_rows
 
 
@@ -161,6 +164,12 @@ def validate_research_gold_benchmark_activation(
         ),
         "activation_semantic_model_calls": sum(
             row["model_calls"] for row in semantic_rows
+        ),
+        "activation_semantic_qualification_model_calls": sum(
+            row["qualification_model_calls"] for row in semantic_rows
+        ),
+        "activation_semantic_qualification_reused": bool(
+            semantic_rows and all(row["qualification_reused"] for row in semantic_rows)
         ),
     }
 
@@ -1473,6 +1482,80 @@ def _hydrate_hidden_semantic_cases(
     return hydrated_cases
 
 
+def _load_hidden_semantic_activation_judgment(
+    evaluator: Mapping[str, Any],
+    *,
+    task_id: str,
+    reference_documents: Sequence[Mapping[str, Any]],
+    rubric: Mapping[str, Any],
+    calibration_cases: Sequence[Mapping[str, Any]],
+    candidate_mode_negative_cases: Sequence[Mapping[str, Any]],
+    project_root: Path,
+    semantic_artifact_role: str,
+) -> dict[str, Any] | None:
+    record_path_value = str(
+        evaluator.get("activation_record_path", "") or ""
+    ).strip()
+    if not record_path_value:
+        return None
+    record_path = _project_path(record_path_value, project_root=project_root)
+    expected_hash = str(
+        evaluator.get("activation_record_sha256", "") or ""
+    )
+    if not expected_hash or _file_sha256(record_path) != expected_hash:
+        raise ValueError("hidden semantic activation record hash mismatch")
+    try:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("hidden semantic activation record is invalid") from exc
+    if not isinstance(record, Mapping):
+        raise ValueError("hidden semantic activation record must be an object")
+    record_checks = {
+        "artifact_kind": "HiddenSemanticActivationAttempt",
+        "status": "COMPLETED",
+        "task_id": task_id,
+        "model": str(evaluator.get("model", "") or ""),
+        "model_tier": str(evaluator.get("model_tier", "") or ""),
+        "product_runtime_started": False,
+    }
+    for field, expected in record_checks.items():
+        if record.get(field) != expected:
+            raise ValueError(
+                f"hidden semantic activation record {field} mismatch"
+            )
+    judgment = record.get("judgment")
+    if not isinstance(judgment, Mapping):
+        raise ValueError("hidden semantic activation judgment is missing")
+    errors = theory_semantic_activation_judgment_errors(
+        judgment,
+        task_id=task_id,
+        reference_documents=reference_documents,
+        rubric=rubric,
+        calibration_cases=calibration_cases,
+        candidate_mode_negative_cases=candidate_mode_negative_cases,
+        model=str(evaluator.get("model", "") or ""),
+        model_tier=str(evaluator.get("model_tier", "") or ""),
+        semantic_artifact_role=semantic_artifact_role,
+    )
+    model_calls = record.get("model_calls", [])
+    if (
+        not isinstance(model_calls, list)
+        or len(model_calls) != int(judgment.get("n_model_calls", 0) or 0)
+        or any(
+            not isinstance(row, Mapping)
+            or row.get("provider") != evaluator.get("provider")
+            or row.get("model") != evaluator.get("model")
+            for row in model_calls
+        )
+    ):
+        errors.append("activation record model-call provenance mismatch")
+    if errors:
+        raise ValueError(
+            "invalid hidden semantic activation record: " + "; ".join(errors)
+        )
+    return deepcopy(dict(judgment))
+
+
 def _run_hidden_document_semantic_evaluation(
     *,
     evaluator: Mapping[str, Any],
@@ -1496,6 +1579,16 @@ def _run_hidden_document_semantic_evaluation(
                 project_root=project_root,
             )
         )
+        activation_judgment = _load_hidden_semantic_activation_judgment(
+            evaluator,
+            task_id=task_id,
+            reference_documents=reference_documents,
+            rubric=rubric,
+            calibration_cases=calibration_cases,
+            candidate_mode_negative_cases=candidate_mode_negative_cases,
+            project_root=project_root,
+            semantic_artifact_role=semantic_artifact_role,
+        )
         kwargs = {
             "task_id": task_id,
             "visible_question": visible_question,
@@ -1512,6 +1605,7 @@ def _run_hidden_document_semantic_evaluation(
             "model_tier": str(evaluator["model_tier"]),
             "max_tokens": int(evaluator.get("max_tokens", 6000) or 6000),
             "semantic_artifact_role": semantic_artifact_role,
+            "activation_judgment": activation_judgment,
         }
         if run_semantic_judge is not None:
             return dict(run_semantic_judge(**kwargs)), ""
@@ -1550,16 +1644,41 @@ def _run_semantic_candidate_mode_activation(
     semantic_judge_provider: GeneratorBackend | None,
     semantic_artifact_role: str,
 ) -> dict[str, Any]:
-    judgment, error = _run_hidden_document_semantic_evaluation(
-        evaluator=evaluator,
-        task_id=task_id,
-        visible_question=visible_question,
-        candidate_documents=None,
-        project_root=project_root,
-        run_semantic_judge=run_semantic_judge,
-        semantic_judge_provider=semantic_judge_provider,
-        semantic_artifact_role=semantic_artifact_role,
-    )
+    reused_activation = False
+    judgment: dict[str, Any] | None = None
+    error = ""
+    if evaluator.get("activation_record_path"):
+        (
+            reference_documents,
+            rubric,
+            calibration_cases,
+            candidate_mode_negative_cases,
+        ) = _load_hidden_theory_semantic_authority(
+            evaluator,
+            project_root=project_root,
+        )
+        judgment = _load_hidden_semantic_activation_judgment(
+            evaluator,
+            task_id=task_id,
+            reference_documents=reference_documents,
+            rubric=rubric,
+            calibration_cases=calibration_cases,
+            candidate_mode_negative_cases=candidate_mode_negative_cases,
+            project_root=project_root,
+            semantic_artifact_role=semantic_artifact_role,
+        )
+        reused_activation = judgment is not None
+    else:
+        judgment, error = _run_hidden_document_semantic_evaluation(
+            evaluator=evaluator,
+            task_id=task_id,
+            visible_question=visible_question,
+            candidate_documents=None,
+            project_root=project_root,
+            run_semantic_judge=run_semantic_judge,
+            semantic_judge_provider=semantic_judge_provider,
+            semantic_artifact_role=semantic_artifact_role,
+        )
     if error or judgment is None:
         raise ValueError(
             "schema_version 4 semantic reference or candidate-mode negative "
@@ -1599,7 +1718,17 @@ def _run_semantic_candidate_mode_activation(
         "task_id_hash": stable_hash(task_id),
         "semantic_artifact_role": semantic_artifact_role,
         "candidate_mode_negative_controls_rejected": negative_count,
-        "model_calls": int(judgment.get("n_model_calls", 0) or 0),
+        "model_calls": (
+            0
+            if reused_activation
+            else int(judgment.get("n_model_calls", 0) or 0)
+        ),
+        "qualification_model_calls": (
+            int(judgment.get("n_model_calls", 0) or 0)
+            if reused_activation
+            else 0
+        ),
+        "qualification_reused": reused_activation,
         "judgment_hash": str(judgment.get("judgment_hash", "") or ""),
     }
 
@@ -2602,6 +2731,35 @@ def _hidden_theory_semantic_evaluator_validation_errors(
             errors.append(f"{label} {name} must be an object")
             continue
         authorities[name] = dict(payload)
+    activation_record_path = str(
+        evaluator.get("activation_record_path", "") or ""
+    ).strip()
+    activation_record_hash = str(
+        evaluator.get("activation_record_sha256", "") or ""
+    ).strip()
+    if bool(activation_record_path) != bool(activation_record_hash):
+        errors.append(
+            f"{label} activation record path and hash must be configured together"
+        )
+    elif activation_record_path:
+        record_path = _project_path(
+            activation_record_path,
+            project_root=project_root,
+        )
+        if not record_path.is_file():
+            errors.append(f"{label} activation record is missing")
+        elif _file_sha256(record_path) != activation_record_hash:
+            errors.append(f"{label} activation record hash mismatch")
+        else:
+            try:
+                record = json.loads(record_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                errors.append(f"{label} activation record is invalid JSON")
+            else:
+                if not isinstance(record, Mapping) or record.get(
+                    "artifact_kind"
+                ) != "HiddenSemanticActivationAttempt":
+                    errors.append(f"{label} activation record is invalid")
     rubric = authorities.get("rubric", {})
     claims = rubric.get("claims", [])
     claim_ids = [

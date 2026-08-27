@@ -165,17 +165,28 @@ def _run(
     *,
     semantic_artifact_role: str = "theory",
     include_candidate_mode_negative: bool = False,
+    candidate_is_reference: bool = False,
+    activation_judgment: dict[str, object] | None = None,
 ) -> dict[str, object]:
+    reference_documents = [
+        {"path": "reference.md", "sha256": "reference", "content": "reference"}
+    ]
     return run_theory_semantic_gold_judge(
         provider=provider,
         task_id="known-result",
         visible_question={"id": "known-result", "description": "derive it"},
-        candidate_documents=[
-            {"path": "candidate.md", "sha256": "candidate", "content": "candidate"}
-        ],
-        reference_documents=[
-            {"path": "reference.md", "sha256": "reference", "content": "reference"}
-        ],
+        candidate_documents=(
+            reference_documents
+            if candidate_is_reference
+            else [
+                {
+                    "path": "candidate.md",
+                    "sha256": "candidate",
+                    "content": "candidate",
+                }
+            ]
+        ),
+        reference_documents=reference_documents,
         rubric={
             "rubric_id": "rubric:1",
             "claims": [
@@ -212,6 +223,7 @@ def _run(
             else []
         ),
         semantic_artifact_role=semantic_artifact_role,
+        activation_judgment=activation_judgment,
     )
 
 
@@ -384,6 +396,40 @@ def test_candidate_pass_cannot_override_candidate_mode_negative_false_accept() -
     assert result["semantic_judge_calibrated"] is False
     assert result["candidate_status"] == "PASS"
     assert result["passed"] is False
+
+
+def test_frozen_activation_skips_requalification_and_judges_candidate_once() -> None:
+    activation = _run(
+        _RecordingProvider(
+            [
+                *_keyed_calibration_packets(),
+                _keyed_candidate_packet(document_status="FAIL"),
+                _keyed_candidate_packet(),
+            ]
+        ),
+        include_candidate_mode_negative=True,
+        candidate_is_reference=True,
+    )
+    provider = _RecordingProvider([_keyed_candidate_packet()])
+
+    result = _run(
+        provider,
+        include_candidate_mode_negative=True,
+        activation_judgment=activation,
+    )
+
+    assert result["passed"] is True
+    assert result["semantic_judge_calibrated"] is True
+    assert result["calibration_reused_from_activation"] is True
+    assert result["calibration_model_calls"] == 0
+    assert result["candidate_mode_negative_model_calls"] == 0
+    assert result["activation_model_calls"] == 4
+    assert result["activation_judgment_hash"] == activation["judgment_hash"]
+    assert result["n_model_calls"] == 1
+    assert len(provider.requests) == 1
+    assert provider.requests[0].metadata["semantic_adjudication_phase"] == (
+        "candidate_integrated"
+    )
 
 
 def test_candidate_pass_cannot_override_failed_calibration() -> None:
