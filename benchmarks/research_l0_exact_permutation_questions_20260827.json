@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "exact_two_sample_permutation_known_result",
+      "title": "Finite-sample validity of an exact two-sample permutation test",
+      "description": "Focused L0 known-result evaluation grounded in E. J. G. Pitman, Significance Tests Which May be Applied to Samples from Any Populations, Supplement to the Journal of the Royal Statistical Society 4(1) (1937), 119-130, DOI 10.2307/2984124, with scipy.stats.permutation_test as public computational context. Fix pooled indexed responses z_1,...,z_N, group size 1<=m<N, and let the assigned group A be uniform over all m-subsets of {1,...,N} under the finite randomization null. For each assignment B define T_B as the mean response in B minus the mean response in its complement. For the observed assignment A, define the one-sided exact p-value as the fraction of all binomial(N,m) assignments satisfying T_B>=T_A. In one authoritative Markdown/LaTeX Theory workspace, derive conditional uniformity of the assignment, the exact enumeration formula, and finite-sample super-uniformity P(p_A<=alpha | z_1,...,z_N)<=alpha for every alpha in [0,1]. Give a correct finite counting or rank argument, including repeated responses and tied statistics; explain why weak tail comparison includes the observed assignment and why ties can make the test conservative. State how the same result applies conditionally to two iid samples from a common distribution, and distinguish this exact test from a Monte Carlo permutation approximation and its finite-resample corrections. Do not invoke asymptotics, normality, continuity, simulation, or a library call as proof, and do not replace the exact denominator binomial(N,m) by a Monte Carlo denominator. The required model-authored Python artifact is est_exact_two_sample_permutation and must implement run_estimator(request) exactly for the frozen public two-sample contract. Reusing combinations or scientific-library utilities is allowed when enumeration, tail direction, ties, validation, and evidence boundaries remain exact. Exploratory Python or R may inspect assignment tables and tied examples. A separately frozen confirmatory assessment generates random assignments under predeclared continuous, skewed, and discrete finite-sample null designs, invokes the estimator, and checks one-sided rejection frequencies against the super-uniform bound with Monte Carlo uncertainty. That assessment is implementation and calibration evidence, not a proof of validity. Source-code replication, novelty, asymptotic power, two-sided p-value conventions, studentization, approximate permutation sampling, and Lean formalization are not applicable.",
+      "tags": [
+        "permutation_test",
+        "randomization_inference",
+        "finite_sample_validity",
+        "hypothesis_testing",
+        "known_result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Significance Tests Which May be Applied to Samples from Any Populations",
+          "authors": [
+            "E. J. G. Pitman"
+          ],
+          "journal": "Supplement to the Journal of the Royal Statistical Society",
+          "year": 1937,
+          "volume": 4,
+          "issue": 1,
+          "pages": "119-130",
+          "doi": "10.2307/2984124"
+        },
+        "public_computational_context": [
+          {
+            "project": "SciPy",
+            "api": "scipy.stats.permutation_test",
+            "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.permutation_test.html"
+          }
+        ]
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_exact_two_sample_permutation",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "Observed finite responses in the first group, whose assignment defines the observed one-sided statistic.",
+            "json_type": "array[number]",
+            "shape": "one nonempty finite numeric array",
+            "units": "response scale",
+            "indexing": "within-group order has no statistical meaning and every entry must be preserved",
+            "edge_cases": "Repeated and negative values are valid. Reject nonarrays, empty arrays, booleans, strings, nonnumeric values, nonfinite values, and silently coerced or dropped entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "Observed finite responses in the second group.",
+            "json_type": "array[number]",
+            "shape": "one nonempty finite numeric array",
+            "units": "response scale",
+            "indexing": "within-group order has no statistical meaning and every entry must be preserved",
+            "edge_cases": "Repeated and negative values are valid. Reject nonarrays, empty arrays, booleans, strings, nonnumeric values, nonfinite values, and silently coerced or dropped entries.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.statistic",
+            "name": "statistic",
+            "meaning": "Observed mean(x)-mean(y).",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "response scale",
+            "indexing": "not applicable",
+            "edge_cases": "The value may be zero or negative.",
+            "normalization": "sum(x)/len(x)-sum(y)/len(y)."
+          },
+          {
+            "clause_id": "response.p_value",
+            "name": "p_value",
+            "meaning": "Exact one-sided greater-tail permutation p-value.",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Tied assignment statistics are counted with the observed statistic using >=.",
+            "normalization": "extreme_assignments/assignments."
+          },
+          {
+            "clause_id": "response.assignments",
+            "name": "assignments",
+            "meaning": "Number of enumerated first-group assignments.",
+            "json_type": "integer",
+            "shape": "one positive integer",
+            "units": "assignments",
+            "indexing": "all subsets of pooled indexed responses with size len(x)",
+            "edge_cases": "Must equal binomial(len(x)+len(y),len(x)).",
+            "normalization": "exact combinatorial count without Monte Carlo adjustment."
+          },
+          {
+            "clause_id": "response.extreme_assignments",
+            "name": "extreme_assignments",
+            "meaning": "Number of enumerated assignments whose statistic is at least the observed statistic.",
+            "json_type": "integer",
+            "shape": "one integer between one and assignments",
+            "units": "assignments",
+            "indexing": "weak greater tail over every enumerated assignment",
+            "edge_cases": "The observed assignment is included, and all tied statistics at its value are included.",
+            "normalization": "exact weak-tail count."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly x and y and the response contains exactly statistic, p_value, assignments, and extreme_assignments. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.exact_enumeration",
+            "meaning": "Every indexed subset of pooled responses having size len(x) is enumerated exactly once; assignments is the exact binomial count, extreme_assignments uses >=, and p_value is their exact ratio up to ordinary floating arithmetic."
+          },
+          {
+            "clause_id": "invariant.within_group_permutation",
+            "meaning": "Permuting entries within x or within y leaves the complete response unchanged."
+          },
+          {
+            "clause_id": "invariant.common_affine",
+            "meaning": "Adding one finite constant to both groups leaves p_value and both counts unchanged while preserving statistic up to ordinary floating arithmetic; multiplying both groups by one positive finite constant leaves p_value and both counts unchanged and multiplies statistic by that constant."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each null response generator, group sizes, random-assignment mechanism, alpha level, seed, replicate count, estimator invocation, and Monte Carlo decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.type1_validity",
+            "meaning": "Across predeclared continuous symmetric, continuous skewed, and discrete tied finite-sample randomization-null designs, compare the one-sided rejection frequency at the frozen alpha with its super-uniform upper bound using Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks the executable exact-enumeration map and finite-sample null calibration only for the frozen designs. It does not prove conditional validity, establish asymptotic power, choose a two-sided convention, validate Monte Carlo permutation approximations, replicate source code, establish novelty, or provide formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
