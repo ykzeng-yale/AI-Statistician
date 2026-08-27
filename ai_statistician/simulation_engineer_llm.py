@@ -159,9 +159,6 @@ class LLMSimulationEngineerAgent:
             )
         )
         empirical_evaluation_phase = _feedback_empirical_evaluation_phase(feedback)
-        source_workspace_planning_owned = bool(
-            empirical_evaluation_phase == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
-            and defer_source_authoring and not upstream_estimator_ids)
         requires_typed_metric_contracts = bool(
             requires_generated_code
             and empirical_evaluation_phase
@@ -186,67 +183,32 @@ class LLMSimulationEngineerAgent:
             and metric_requirement_authority_policy
             == GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
         )
-        user_prompt = build_simulation_engineer_prompt(
-            question=question,
-            theory_packet=theory_packet,
-            registered_problem=registered_problem,
-            registered_procedures=registered_procedures,
-            n_runs=n_runs,
-            seed=None if withhold_seed_from_model else seed,
-            environment_feedback=feedback,
-            defer_source_authoring=defer_source_authoring,
-        )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
-        response_schema = _simulation_engineer_response_schema(
-            authoritative_metric_requirements=authoritative_metric_requirements,
-            requires_generated_code=requires_generated_code,
-            requires_typed_metric_contracts=requires_typed_metric_contracts,
-            upstream_estimator_ids=upstream_estimator_ids,
-            defer_source_authoring=defer_source_authoring,
-            theory_packet=theory_packet,
-        )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
             or self.config.provider_name
         ).lower()
-        use_provider_structured_output = bool(
-            requires_generated_code and provider_name == "anthropic"
-        )
-        request = GeneratorRequest(
-            system_prompt=SIMULATION_ENGINEER_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            model=request_model,
-            max_tokens=self.config.max_tokens,
-            temperature=self.config.temperature,
-            schema=response_schema,
-            metadata={
-                "subsystem": "SimulatorEngineer",
-                "agent": "LLMSimulationEngineerAgent",
-                "provider_name": self.config.provider_name,
-                "model_tier": self.config.model_tier,
-                "resolved_model": request_model,
-                "empirical_evaluation_phase": empirical_evaluation_phase,
-                "requires_typed_metric_contracts": requires_typed_metric_contracts,
-                **(
-                    {"provider_structured_output": True}
-                    if use_provider_structured_output
-                    else {}
-                ),
-            },
-        )
 
-        def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
+        def normalize_packet(
+            payload: Mapping[str, Any],
+            *,
+            raw_text: str,
+            response_model: str = "",
+            backend_provider_name: str = provider_name,
+        ) -> dict[str, Any]:
             return _normalize_simulation_packet(
                 payload,
                 question=question,
-                model=response.model or request_model,
+                model=response_model or request_model,
                 model_tier=self.config.model_tier,
-                provider_name=self.config.provider_name or response.provider,
-                backend_provider_name=response.provider,
+                provider_name=(
+                    self.config.provider_name or backend_provider_name
+                ),
+                backend_provider_name=backend_provider_name,
                 raw_response=raw_text,
                 theory_packet=theory_packet,
                 n_runs=n_runs,
@@ -293,38 +255,116 @@ class LLMSimulationEngineerAgent:
                 )
             return sorted(set(errors))
 
+        source_workspace_planning_owned = bool(
+            defer_source_authoring
+            and (
+                not requires_typed_metric_contracts
+                or _uses_source_acceptance_program(
+                    authoritative_metric_requirements
+                )
+            )
+        )
         if source_workspace_planning_owned:
             intent_hash = stable_hash(
-                [question.id, theory_packet.get("packet_id", ""), "simulation"]
+                {
+                    "question_id": question.id,
+                    "theory_packet_id": theory_packet.get("packet_id", ""),
+                    "empirical_evaluation_phase": empirical_evaluation_phase,
+                    "upstream_estimator_ids": list(upstream_estimator_ids),
+                    "metric_requirement_set_id": (
+                        generated_metric_requirement_set_id(
+                            authoritative_metric_requirements
+                        )
+                    ),
+                    "n_runs": n_runs,
+                }
             )[:20]
-            simulation_id = f"exploratory_simulation:{intent_hash}"
-            packet = _normalize_simulation_packet(
+            simulation_prefix = (
+                "exploratory_simulation"
+                if empirical_evaluation_phase
+                == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                else "confirmatory_simulation"
+            )
+            simulation_id = f"{simulation_prefix}:{intent_hash}"
+            packet = normalize_packet(
                 {
                     "simulation_targets": [{"procedure_id": simulation_id}],
                     "simulation_code_drafts": [
-                        {"simulation_id": simulation_id, "required_estimator_ids": []}
+                        {
+                            "simulation_id": simulation_id,
+                            "required_estimator_ids": list(
+                                upstream_estimator_ids
+                            ),
+                        }
                     ],
                     "source_workspace_planning_owned": True,
-                    "source_workspace_intent_id": f"simulation_source_workspace_intent:{intent_hash}",
+                    "source_workspace_intent_id": (
+                        "simulation_source_workspace_intent:" + intent_hash
+                    ),
                     "planning_model_call_used": False,
                 },
-                question=question,
-                model=request_model,
-                model_tier=self.config.model_tier,
-                provider_name=self.config.provider_name,
-                backend_provider_name=provider_name,
-                raw_response=f"source_workspace_intent:{intent_hash}",
-                theory_packet=theory_packet,
-                n_runs=n_runs,
-                seed=seed,
-                empirical_evaluation_phase=empirical_evaluation_phase,
-                scientific_source_transport=SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
-                agentic_execution=True,
+                raw_text=f"source_workspace_intent:{intent_hash}",
             )
             errors = validate_packet(packet)
             if errors:
                 raise ValueError("; ".join(errors))
             return packet
+
+        user_prompt = build_simulation_engineer_prompt(
+            question=question,
+            theory_packet=theory_packet,
+            registered_problem=registered_problem,
+            registered_procedures=registered_procedures,
+            n_runs=n_runs,
+            seed=None if withhold_seed_from_model else seed,
+            environment_feedback=feedback,
+            defer_source_authoring=defer_source_authoring,
+        )
+        response_schema = _simulation_engineer_response_schema(
+            authoritative_metric_requirements=authoritative_metric_requirements,
+            requires_generated_code=requires_generated_code,
+            requires_typed_metric_contracts=requires_typed_metric_contracts,
+            upstream_estimator_ids=upstream_estimator_ids,
+            defer_source_authoring=defer_source_authoring,
+            theory_packet=theory_packet,
+        )
+        use_provider_structured_output = bool(
+            requires_generated_code and provider_name == "anthropic"
+        )
+        request = GeneratorRequest(
+            system_prompt=SIMULATION_ENGINEER_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            model=request_model,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            schema=response_schema,
+            metadata={
+                "subsystem": "SimulatorEngineer",
+                "agent": "LLMSimulationEngineerAgent",
+                "provider_name": self.config.provider_name,
+                "model_tier": self.config.model_tier,
+                "resolved_model": request_model,
+                "empirical_evaluation_phase": empirical_evaluation_phase,
+                "requires_typed_metric_contracts": requires_typed_metric_contracts,
+                **(
+                    {"provider_structured_output": True}
+                    if use_provider_structured_output
+                    else {}
+                ),
+            },
+        )
+
+        def build_packet(
+            payload: Mapping[str, Any],
+            response: Any,
+            raw_text: str,
+        ) -> dict[str, Any]:
+            return normalize_packet(
+                payload,
+                raw_text=raw_text,
+                response_model=response.model,
+                backend_provider_name=response.provider,
+            )
 
         return generate_validated_json_packet(
             provider=self.provider,

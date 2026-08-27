@@ -18,6 +18,7 @@ from ai_statistician.architect_metric_contract_authoring import (
     _materialize_source_acceptance_protocol,
 )
 from ai_statistician.generated_metric_contract import (
+    GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
     GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH,
 )
 from ai_statistician.scientific_sandbox import (
@@ -40,7 +41,9 @@ from ai_statistician.scientific_code_workspace import (
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
+    LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    SimulationEngineerConfig,
     _normalize_simulation_packet,
     _simulation_engineer_response_schema,
     _validate_capability_eval_generated_simulation_packet,
@@ -671,6 +674,100 @@ def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
         for error in injected_errors
     )
     assert injected_packet["metric_contracts"] == packet["metric_contracts"]
+
+
+def test_confirmatory_source_workspace_owns_planning_without_envelope_call() -> None:
+    requirement, requirement_errors = _materialize_source_acceptance_protocol(
+        {
+            "required_runtime_replicates": 2_000,
+            "evaluator_id": "generic-confirmatory-source-owner",
+            "acceptance_protocol": (
+                "Evaluate the preregistered scenarios and return the exact joint "
+                "acceptance decision with raw diagnostics."
+            ),
+            "scientific_rationale": (
+                "The frozen protocol evaluates the declared scientific target."
+            ),
+        },
+        theory_anchor_id="theory_artifact:source-owner",
+    )
+    assert requirement_errors == []
+
+    class Provider:
+        provider_name = "anthropic"
+        planning_calls = 0
+        workspace_calls = 0
+
+        @classmethod
+        def generate(cls, _request):
+            cls.planning_calls += 1
+            raise AssertionError(
+                "confirmatory source ownership must bypass the planning envelope"
+            )
+
+        @classmethod
+        def generate_client_tool_turn(cls, _request):
+            cls.workspace_calls += 1
+            raise AssertionError("propose() must not start the source workspace")
+
+    agent = LLMSimulationEngineerAgent(
+        provider=Provider(),
+        config=SimulationEngineerConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    )
+    packet = agent.propose(
+        question=OpenResearchQuestion(
+            id="generic-confirmatory-source-owner",
+            title="Confirm one accepted estimator",
+            description=(
+                "Implement and execute a preregistered confirmatory simulation."
+            ),
+        ),
+        theory_packet={"packet_id": "theory:source-owner"},
+        registered_problem={},
+        registered_procedures=[],
+        n_runs=2_000,
+        seed=19,
+        withhold_seed_from_model=True,
+        environment_feedback={
+            "empirical_evaluation_phase": "confirmatory",
+            "upstream_algorithm_handoff": {
+                "exact_algorithm_artifacts": [
+                    {"estimator_id": "accepted-estimator"}
+                ]
+            },
+            "runtime_requested_evidence_contract": {
+                "research_evaluation_requires_generated_simulation_code": True,
+                "empirical_metric_requirements": [requirement],
+                "generated_metric_requirement_authority_policy": (
+                    GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
+                ),
+            },
+        },
+    )
+
+    assert Provider.planning_calls == 0
+    assert Provider.workspace_calls == 0
+    assert packet["source_workspace_planning_owned"] is True
+    assert packet["planning_model_call_used"] is False
+    assert packet["candidate_model_seed_disclosure"] == "WITHHELD"
+    assert packet["metric_binding_mode"] == (
+        "runtime_bound_source_acceptance_abi"
+    )
+    assert "dgp_plan" not in packet
+    assert "critic_findings" not in packet
+    draft = packet["simulation_code_drafts"][0]
+    assert draft["simulation_id"].startswith("confirmatory_simulation:")
+    assert draft["required_estimator_ids"] == ["accepted-estimator"]
+    assert packet["metric_contracts"][0]["artifact_id"] == (
+        draft["simulation_id"]
+    )
+    assert packet["metric_contracts"][0]["requirement_id"] == (
+        requirement["requirement_id"]
+    )
 
 
 def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> None:
