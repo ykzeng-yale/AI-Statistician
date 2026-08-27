@@ -1202,11 +1202,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 request=request,
                 execute_tool=execute_tool,
                 max_turns=(GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES if probe_targets else 0)
-                + len(refresh_targets) + 1,
+                + len(refresh_targets)
+                + 1
+                + max(0, int(self.config.max_validation_retries)),
                 max_tool_calls=(GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES if probe_targets else 0)
                 + len(refresh_targets) + 1,
                 max_no_progress_turns=1,
-                max_terminal_recovery_turns=max(0, self.config.max_validation_retries),
             )
         except ClientToolLoopError as exc:
             errors = last_errors or [exc.reason]

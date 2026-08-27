@@ -122,6 +122,7 @@ class ArchitectMetricSemanticReviewerConfig:
     model: str = ""
     model_tier: str = "sonnet"
     max_tokens: int = 7000
+    max_validation_retries: int = 1
     temperature: float = 0.0
     provider_name: str = "anthropic"
 
@@ -1838,12 +1839,13 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=(theory_scratchpad.max_runs if theory_scratchpad else 0) + 1,
+                max_turns=(theory_scratchpad.max_runs if theory_scratchpad else 0)
+                + 1
+                + max(0, int(self.config.max_validation_retries)),
                 max_tool_calls=(
                     (theory_scratchpad.max_runs if theory_scratchpad else 0) + 1
                 ),
                 max_no_progress_turns=1,
-                max_terminal_recovery_turns=3,
             )
         except ClientToolLoopError as exc:
             raise PacketValidationError(

@@ -570,13 +570,13 @@ def test_bounded_client_tool_loop_keeps_one_linear_model_tool_history() -> None:
     assert "'value': 2" in final_context
 
 
-def test_bounded_client_tool_loop_forces_disposition_after_no_tool_turns() -> None:
+def test_bounded_client_tool_loop_stops_without_forced_terminal_phase() -> None:
     response = _response(text="I will describe the change instead.")
     backend = ScriptedToolTurnBackend([response, response, response, response])
 
     with pytest.raises(
         ClientToolLoopError,
-        match="terminal client-tool turn omitted its decision",
+        match="repeated turns without a client tool call",
     ) as exc:
         run_bounded_client_tool_loop(
             backend=backend,
@@ -588,7 +588,7 @@ def test_bounded_client_tool_loop_forces_disposition_after_no_tool_turns() -> No
         )
 
     assert exc.value.tool_calls == 0
-    assert exc.value.turns == 4
+    assert exc.value.turns == 3
     assert exc.value.messages
     assert exc.value.provider == "anthropic"
     assert exc.value.model == "claude-haiku-4-5-20251001"
@@ -628,9 +628,9 @@ def test_bounded_client_tool_loop_does_not_accept_early_terminal_call() -> None:
             tools=(_tool("edit"), _tool("submit", terminal=True)),
         ),
         execute_tool=execute,
-        max_turns=1,
+        max_turns=2,
         max_tool_calls=3,
-        max_no_progress_turns=1,
+        max_no_progress_turns=2,
     )
 
     first_turn = backend.requests[0]
@@ -684,7 +684,7 @@ def test_bounded_client_tool_loop_keeps_normal_final_turn_model_directed() -> No
     ] is False
 
 
-def test_bounded_client_tool_loop_reserves_terminal_call_after_action_budget() -> None:
+def test_terminal_call_does_not_consume_workspace_action_budget() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {"value": 2})),
@@ -717,15 +717,10 @@ def test_bounded_client_tool_loop_reserves_terminal_call_after_action_budget() -
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
     assert final_action_observation == {"ok": True}
-    assert backend.requests[1].metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
-    assert backend.requests[1].metadata[
-        "client_tool_loop_terminal_decision_reason"
-    ] == "standard client-tool call budget exhausted"
+    assert "client_tool_loop_terminal_decision_turn" not in backend.requests[1].metadata
 
 
-def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> None:
+def test_rejected_terminal_is_an_ordinary_same_model_observation() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {"value": 2})),
@@ -757,10 +752,9 @@ def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> Non
         backend=backend,
         request=_request(),
         execute_tool=execute,
-        max_turns=2,
+        max_turns=3,
         max_tool_calls=3,
         max_no_progress_turns=1,
-        max_terminal_recovery_turns=1,
     )
 
     assert result.terminal_payload == {"submitted": True}
@@ -772,15 +766,10 @@ def test_bounded_client_tool_loop_allows_one_rejected_terminal_recovery() -> Non
         "submit",
     ]
     assert backend.requests[2].tool_choice == "any"
-    assert backend.requests[2].metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
-    assert backend.requests[2].metadata[
-        "client_tool_loop_max_terminal_recovery_turns"
-    ] == 1
+    assert "client_tool_loop_terminal_decision_turn" not in backend.requests[2].metadata
 
 
-def test_rejected_terminal_disposition_can_edit_before_reserved_commit() -> None:
+def test_rejected_terminal_can_be_followed_by_model_selected_edit() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit-initial", "edit", {"value": 1})),
@@ -815,24 +804,16 @@ def test_rejected_terminal_disposition_can_edit_before_reserved_commit() -> None
         backend=backend,
         request=_request(),
         execute_tool=execute,
-        max_turns=2,
+        max_turns=4,
         max_tool_calls=2,
         max_no_progress_turns=1,
-        max_terminal_recovery_turns=1,
     )
 
     assert result.terminal_payload == {"submitted": True}
     assert result.turns == 4
     assert executed_tools == ["edit", "submit", "edit", "submit"]
-    assert backend.requests[2].metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
-    assert backend.requests[2].metadata[
-        "client_tool_loop_terminal_recovery_action_allowed"
-    ] is True
-    assert backend.requests[3].metadata[
-        "client_tool_loop_terminal_recovery_action_allowed"
-    ] is False
+    assert "client_tool_loop_terminal_recovery_action_allowed" not in backend.requests[2].metadata
+    assert "client_tool_loop_terminal_recovery_action_allowed" not in backend.requests[3].metadata
     recovery_call = result.history[2]["tool_calls"][0]
     assert recovery_call["executed_by_runtime"] is True
     assert recovery_call["state_changed"] is True
@@ -841,7 +822,7 @@ def test_rejected_terminal_disposition_can_edit_before_reserved_commit() -> None
     )
 
 
-def test_forced_terminal_rejection_can_inspect_edit_and_recommit() -> None:
+def test_terminal_rejection_can_be_inspected_edited_and_resubmitted() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit-initial", "edit", {"value": 1})),
@@ -889,30 +870,24 @@ def test_forced_terminal_rejection_can_inspect_edit_and_recommit() -> None:
         backend=backend,
         request=_request(),
         execute_tool=execute,
-        max_turns=1,
-        max_tool_calls=1,
+        max_turns=5,
+        max_tool_calls=3,
         max_no_progress_turns=2,
-        max_terminal_recovery_turns=1,
     )
 
     assert result.terminal_payload == {"submitted": True}
     assert result.turns == 5
     assert executed_tools == ["edit", "submit", "check", "edit", "submit"]
-    assert backend.requests[2].metadata[
-        "client_tool_loop_terminal_recovery_action_allowed"
-    ] is True
-    assert backend.requests[3].metadata[
-        "client_tool_loop_terminal_recovery_action_allowed"
-    ] is True
-    assert backend.requests[4].metadata[
-        "client_tool_loop_terminal_recovery_action_allowed"
-    ] is False
+    assert all(
+        "client_tool_loop_terminal_recovery_action_allowed" not in request.metadata
+        for request in backend.requests
+    )
     assert "validator rejected the forced commit" in str(
         backend.requests[2].messages[-1]["content"]
     )
 
 
-def test_duplicate_forced_terminal_rejection_does_not_reopen_recovery() -> None:
+def test_duplicate_terminal_rejection_hits_generic_no_progress_bound() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-submit-standard", "submit", {})),
@@ -930,23 +905,16 @@ def test_duplicate_forced_terminal_rejection_does_not_reopen_recovery() -> None:
                 is_error=True,
                 observation_key="same-validator-rejection",
             ),
-            max_turns=1,
+            max_turns=3,
             max_tool_calls=1,
             max_no_progress_turns=1,
-            max_terminal_recovery_turns=1,
         )
 
-    assert "accepted payload" in raised.value.reason
-    assert len(backend.requests) == 3
-    assert backend.requests[1].metadata[
-        "client_tool_loop_terminal_recovery_action_allowed"
-    ] is True
-    assert backend.requests[2].metadata[
-        "client_tool_loop_terminal_recovery_action_allowed"
-    ] is False
+    assert "no new progress" in raised.value.reason
+    assert len(backend.requests) == 2
 
 
-def test_bounded_client_tool_loop_requests_terminal_decision_at_standard_budget() -> None:
+def test_no_tool_observation_stays_in_the_same_generic_loop() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {})),
@@ -967,10 +935,9 @@ def test_bounded_client_tool_loop_requests_terminal_decision_at_standard_budget(
             ),
             observation_key=call.name,
         ),
-        max_turns=2,
+        max_turns=3,
         max_tool_calls=3,
         max_no_progress_turns=2,
-        max_terminal_recovery_turns=1,
     )
 
     assert result.terminal_payload == {"submitted": True}
@@ -980,13 +947,12 @@ def test_bounded_client_tool_loop_requests_terminal_decision_at_standard_budget(
         "check",
         "submit",
     ]
-    assert "final disposition" in str(backend.requests[-1].messages[-1]["content"])
-    assert backend.requests[-1].metadata[
-        "client_tool_loop_terminal_decision_reason"
-    ] == "standard client-tool turn budget exhausted"
+    assert "No client tool was called" in str(
+        backend.requests[-1].messages[-1]["content"]
+    )
 
 
-def test_terminal_decision_keeps_tools_visible_but_rejects_nonterminal_calls() -> None:
+def test_action_budget_keeps_tools_visible_but_does_not_execute_late_action() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {"value": 2})),
@@ -1012,24 +978,23 @@ def test_terminal_decision_keeps_tools_visible_but_rejects_nonterminal_calls() -
         backend=backend,
         request=_request(),
         execute_tool=execute,
-        max_turns=1,
-        max_tool_calls=3,
+        max_turns=3,
+        max_tool_calls=1,
         max_no_progress_turns=2,
-        max_terminal_recovery_turns=1,
     )
 
     assert result.terminal_payload == {"submitted": True}
     assert executed_tools == ["edit", "submit"]
     rejected = result.history[1]["tool_calls"][0]
     assert rejected["executed_by_runtime"] is False
-    assert "final_disposition_requires_terminal_tool" in rejected["result_excerpt"]
+    assert "workspace_action_budget_exhausted" in rejected["result_excerpt"]
     assert all(
         [tool.name for tool in request.tools] == ["edit", "check", "submit"]
         for request in backend.requests
     )
 
 
-def test_bounded_client_tool_loop_requests_terminal_decision_on_no_progress() -> None:
+def test_repeated_observation_can_still_be_followed_by_model_submission() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-check-1", "check", {})),
@@ -1051,8 +1016,7 @@ def test_bounded_client_tool_loop_requests_terminal_decision_on_no_progress() ->
         ),
         max_turns=5,
         max_tool_calls=3,
-        max_no_progress_turns=1,
-        max_terminal_recovery_turns=1,
+        max_no_progress_turns=2,
     )
 
     assert result.terminal_payload == {"submitted": True}
@@ -1062,12 +1026,10 @@ def test_bounded_client_tool_loop_requests_terminal_decision_on_no_progress() ->
         "check",
         "submit",
     ]
-    assert backend.requests[-1].metadata[
-        "client_tool_loop_terminal_decision_reason"
-    ] == "repeated client-tool turns made no new progress"
+    assert "client_tool_loop_terminal_decision_reason" not in backend.requests[-1].metadata
 
 
-def test_terminal_decision_keeps_one_same_model_recovery_turn() -> None:
+def test_rejected_submission_can_be_resubmitted_within_generic_turn_budget() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-check-1", "check", {})),
@@ -1101,8 +1063,7 @@ def test_terminal_decision_keeps_one_same_model_recovery_turn() -> None:
         execute_tool=execute,
         max_turns=5,
         max_tool_calls=4,
-        max_no_progress_turns=1,
-        max_terminal_recovery_turns=1,
+        max_no_progress_turns=2,
     )
 
     assert result.terminal_payload == {"submitted": True}
@@ -1117,7 +1078,7 @@ def test_terminal_decision_keeps_one_same_model_recovery_turn() -> None:
     )
 
 
-def test_standard_submission_does_not_consume_forced_terminal_recovery() -> None:
+def test_multiple_rejected_submissions_share_the_same_generic_turn_budget() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-submit-early", "submit", {})),
@@ -1149,10 +1110,9 @@ def test_standard_submission_does_not_consume_forced_terminal_recovery() -> None
         backend=backend,
         request=_request(),
         execute_tool=execute,
-        max_turns=2,
+        max_turns=4,
         max_tool_calls=4,
         max_no_progress_turns=2,
-        max_terminal_recovery_turns=1,
     )
 
     assert result.terminal_payload == {"submitted": True}
@@ -1193,7 +1153,7 @@ def test_bounded_client_tool_loop_never_executes_unknown_tool() -> None:
         backend=backend,
         request=_request(),
         execute_tool=execute,
-        max_turns=1,
+        max_turns=2,
         max_tool_calls=2,
         max_no_progress_turns=1,
     )

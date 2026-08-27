@@ -325,10 +325,10 @@ def _run_critic_client_tool_review(
             backend=provider,
             request=request,
             execute_tool=execute_tool,
-            max_turns=CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS,
+            max_turns=CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS
+            + max(0, int(config.max_validation_retries)),
             max_tool_calls=CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS,
             max_no_progress_turns=2,
-            max_terminal_recovery_turns=max(0, config.max_validation_retries),
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(

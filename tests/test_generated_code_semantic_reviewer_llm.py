@@ -686,7 +686,7 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_validation_retries=0,
+            max_validation_retries=1,
         ),
     ).review(
         question=_question(),
@@ -811,16 +811,7 @@ def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
             turn = len(self.requests)
-            if turn == 1:
-                return ClientToolTurnResponse(
-                    content_blocks=(),
-                    tool_calls=(),
-                    text="I will inspect the artifact first.",
-                    provider="anthropic",
-                    model=request.model,
-                    metadata={"provider_stop_reason": "end_turn"},
-                )
-            payload = invalid if turn == 2 else corrected
+            payload = invalid if turn == 1 else corrected
             call_id = f"terminal-review-{turn}"
             return ClientToolTurnResponse(
                 content_blocks=(
@@ -859,18 +850,18 @@ def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() 
     )
 
     assert packet["overall_verdict"] == "REVISE"
-    assert packet["client_tool_loop"]["turns"] == 3
+    assert packet["client_tool_loop"]["turns"] == 2
     assert packet["client_tool_loop"]["validation_submissions"] == 2
     assert packet["client_tool_loop"]["validation_feedback_observed"] is True
-    assert len(backend.requests) == 3
-    assert backend.requests[1].metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
-    assert backend.requests[2].metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
+    assert len(backend.requests) == 2
+    assert "client_tool_loop_terminal_decision_turn" not in (
+        backend.requests[0].metadata
+    )
+    assert "client_tool_loop_terminal_decision_turn" not in (
+        backend.requests[1].metadata
+    )
     assert "model verdict must agree with active findings" in str(
-        backend.requests[2].messages[-1]
+        backend.requests[1].messages[-1]
     )
 
 
@@ -943,8 +934,8 @@ def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
             trusted_lineage=_trusted_lineage(),
         )
 
-    assert exc_info.value.attempts == 2
-    assert len(backend.requests) == 2
+    assert exc_info.value.attempts == 1
+    assert len(backend.requests) == 1
     assert "model verdict must agree with active findings" in str(exc_info.value)
 
 

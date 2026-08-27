@@ -92,7 +92,6 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND = "TheoryExecutionPreflig
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 24
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_CALLS = 48
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS = 1
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND = (
     "ArchitectTheoryExecutionPreflightWorkspaceCheckpoint"
@@ -3387,7 +3386,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     max_tool_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
-    max_terminal_recovery_turns: int,
     recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     submit_schema = _architect_theory_execution_preflight_submit_schema(
@@ -4599,7 +4597,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             max_turns=max_tool_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
-            max_terminal_recovery_turns=max_terminal_recovery_turns,
         )
     except ClientToolLoopError as exc:
         client_tool_session_ref = persist_review_session(exc.messages)
@@ -4776,7 +4773,6 @@ def review_architect_theory_execution_preflight(
     max_tool_turns: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS,
     max_tool_calls: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_CALLS,
     max_no_progress_turns: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS,
-    max_terminal_recovery_turns: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TERMINAL_RECOVERY_TURNS,
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
     research_sources: ResearchSourceSnapshot | None = None,
@@ -4816,6 +4812,5 @@ def review_architect_theory_execution_preflight(
         max_tool_turns=max_tool_turns,
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
-        max_terminal_recovery_turns=max_terminal_recovery_turns,
         recovery_checkpoint=recovery_checkpoint,
     )

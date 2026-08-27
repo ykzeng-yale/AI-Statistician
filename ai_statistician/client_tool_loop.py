@@ -542,21 +542,18 @@ def run_bounded_client_tool_loop(
     max_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
-    max_terminal_recovery_turns: int = 0,
 ) -> ClientToolLoopResult:
-    """Run model -> client tool -> observation turns under caller-owned bounds.
+    """Run one model -> tool -> observation session under caller-owned bounds.
 
-    ``max_tool_calls`` bounds ordinary workspace actions. When terminal tools are
-    available, the loop separately reserves one same-model terminal disposition
-    plus ``max_terminal_recovery_turns`` rejected-disposition recovery cycles.
-    A recovery cycle may inspect the current workspace, make a source-owner
-    correction, and resubmit. No separate repair agent is invoked.
+    Terminal submission is a normal model-selected tool call. A rejected
+    submission is returned to the same model like any other tool observation;
+    the harness does not open a separate repair phase or reserve hidden retries.
+    Terminal calls do not consume the ordinary workspace-action budget, but every
+    model turn remains inside ``max_turns``.
     """
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
         raise ValueError("client-tool loop budgets must all be positive")
-    if max_terminal_recovery_turns < 0:
-        raise ValueError("terminal recovery turn budget cannot be negative")
     generate_turn = getattr(backend, "generate_client_tool_turn", None)
     if not callable(generate_turn):
         raise ValueError("backend does not support client-tool turns")
@@ -576,52 +573,7 @@ def run_bounded_client_tool_loop(
     no_progress_turns = 0
     last_response: ClientToolTurnResponse | None = None
     terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
-    terminal_decision_budget = (
-        1 + max_terminal_recovery_turns if terminal_tools else 0
-    )
-    terminal_recovery_action_budget = (
-        max_terminal_recovery_turns * (max_no_progress_turns + 1)
-        if terminal_tools
-        else 0
-    )
-    total_turn_budget = (
-        max_turns
-        + terminal_decision_budget
-        + terminal_recovery_action_budget
-    )
-    standard_tool_calls = 0
-    terminal_decision_tool_calls = 0
-    terminal_decision_pending = False
-    terminal_decision_reason = ""
-    terminal_decision_turns_used = 0
-    terminal_recovery_action_turns_used = 0
-    forced_terminal_rejections_used = 0
-    terminal_recovery_action_pending = False
-
-    def request_terminal_decision(reason: str, *, allow_correction: bool = False) -> None:
-        nonlocal terminal_decision_pending, terminal_decision_reason
-        terminal_decision_pending = True
-        terminal_decision_reason = str(reason)
-        instruction = (
-            "The previous terminal disposition was rejected. Use the ordinary "
-            "workspace tools needed to inspect and address that exact observation, "
-            "or call a terminal tool if no edit is needed; a final terminal call "
-            "remains reserved."
-            if allow_correction
-            else "The bounded workspace must now make its final disposition from "
-            "the observations already gathered. Call one supplied terminal tool; "
-            "do not request more context or answer only in prose."
-        )
-        last_message = deepcopy(dict(messages[-1]))
-        content = last_message.get("content", "")
-        if isinstance(content, list):
-            last_message["content"] = [
-                *deepcopy(content),
-                {"type": "text", "text": instruction},
-            ]
-        else:
-            last_message["content"] = str(content) + "\n\n" + instruction
-        messages[-1] = last_message
+    ordinary_tool_calls = 0
 
     def loop_error(
         reason: str,
@@ -647,36 +599,9 @@ def run_bounded_client_tool_loop(
             ),
         )
 
-    for turn_index in range(total_turn_budget):
-        terminal_decision_turn = bool(
-            terminal_tools
-            and (
-                terminal_recovery_action_pending
-                or terminal_decision_turns_used < terminal_decision_budget
-            )
-            and (terminal_decision_pending or turn_index >= max_turns)
-        )
-        terminal_recovery_action_allowed = bool(
-            terminal_decision_turn
-            and terminal_recovery_action_pending
-            and terminal_recovery_action_turns_used
-            < terminal_recovery_action_budget
-        )
-        if turn_index >= max_turns and not terminal_decision_turn:
-            break
-        if terminal_decision_turn:
-            if terminal_recovery_action_allowed:
-                request_terminal_decision(terminal_decision_reason, allow_correction=True)
-            elif not terminal_decision_pending:
-                request_terminal_decision("standard client-tool turn budget exhausted")
-            terminal_decision_pending = False
-            if terminal_recovery_action_allowed:
-                terminal_recovery_action_turns_used += 1
-            else:
-                terminal_decision_turns_used += 1
+    for turn_index in range(max_turns):
         # Keep one stable tool definition surface across the whole transcript so
-        # provider prompt caches retain the accumulated workspace prefix. The
-        # runtime still rejects nonterminal calls once final disposition is due.
+        # provider prompt caches retain the accumulated workspace prefix.
         turn_tools = request.tools
         terminal_only_turn = bool(
             turn_tools and all(tool.terminal for tool in turn_tools)
@@ -687,12 +612,7 @@ def run_bounded_client_tool_loop(
             metadata={
                 "turn_index": turn_index,
                 "max_turns": max_turns,
-                "max_terminal_recovery_turns": max_terminal_recovery_turns,
                 "model": request.model,
-                "terminal_decision_turn": terminal_decision_turn,
-                "terminal_decision_reason": (
-                    terminal_decision_reason if terminal_decision_turn else ""
-                ),
             },
         ):
             provider_failure: tuple[str, str] | None = None
@@ -708,27 +628,15 @@ def run_bounded_client_tool_loop(
                             else request.tool_choice
                         ),
                         disable_parallel_tool_use=(
-                            True
-                            if terminal_only_turn or terminal_decision_turn
-                            else request.disable_parallel_tool_use
+                            True if terminal_only_turn else request.disable_parallel_tool_use
                         ),
                         metadata={
                             **dict(request.metadata),
                             "client_tool_loop_max_turns": max_turns,
-                            "client_tool_loop_max_terminal_recovery_turns": (
-                                max_terminal_recovery_turns
-                            ),
                             "client_tool_loop_max_calls": max_tool_calls,
+                            "client_tool_loop_calls_before": total_calls,
+                            "client_tool_loop_ordinary_calls_before": ordinary_tool_calls,
                             "client_tool_loop_terminal_only_turn": terminal_only_turn,
-                            "client_tool_loop_terminal_decision_turn": (
-                                terminal_decision_turn
-                            ),
-                            "client_tool_loop_terminal_recovery_action_allowed": terminal_recovery_action_allowed,
-                            "client_tool_loop_terminal_decision_reason": (
-                                terminal_decision_reason
-                                if terminal_decision_turn
-                                else ""
-                            ),
                         },
                     )
                 )
@@ -815,41 +723,18 @@ def run_bounded_client_tool_loop(
                         if provider_output_truncated
                         else (
                             "No client tool was called. Continue by calling one of "
-                            "the supplied tools; prose alone cannot change or submit "
-                            "the runtime artifact."
+                            "the supplied tools; prose alone cannot change the "
+                            "runtime artifact. Use a terminal tool when the current "
+                            "workspace is ready for its final disposition."
+                            if terminal_tools
+                            else "No client tool was called. Continue by calling one "
+                            "of the supplied tools; prose alone cannot change the "
+                            "runtime artifact."
                         )
                     ),
                 }
             )
-            if terminal_decision_turn:
-                if terminal_decision_turns_used < terminal_decision_budget:
-                    request_terminal_decision(
-                        terminal_decision_reason
-                        or "terminal client-tool turn omitted its decision"
-                    )
-                    no_progress_turns = 0
-                    continue
-                raise loop_error(
-                    (
-                        terminal_decision_reason + "; "
-                        if terminal_decision_reason
-                        else ""
-                    )
-                    + "terminal client-tool turn omitted its decision",
-                    turns=turn_index + 1,
-                    tool_calls=total_calls,
-                )
             if no_progress_turns >= max_no_progress_turns:
-                if (
-                    terminal_tools
-                    and terminal_decision_turns_used
-                    < terminal_decision_budget
-                ):
-                    request_terminal_decision(
-                        "repeated turns without a client tool call"
-                    )
-                    no_progress_turns = 0
-                    continue
                 raise loop_error(
                     "repeated turns without a client tool call",
                     turns=turn_index + 1,
@@ -863,28 +748,6 @@ def run_bounded_client_tool_loop(
         terminal_payload: Mapping[str, Any] | None = None
         for call_index, call in enumerate(calls):
             call_definition = tool_definitions.get(call.name)
-            terminal_recovery_action_call = bool(
-                terminal_recovery_action_allowed
-                and call_definition
-                and not call_definition.terminal
-            )
-            if terminal_decision_turn:
-                if not terminal_recovery_action_call:
-                    if terminal_decision_tool_calls >= terminal_decision_budget:
-                        raise loop_error(
-                            "terminal client-tool call budget exhausted",
-                            turns=turn_index + 1,
-                            tool_calls=total_calls,
-                        )
-                    terminal_decision_tool_calls += 1
-            else:
-                if standard_tool_calls >= max_tool_calls:
-                    raise loop_error(
-                        "standard client-tool call budget exhausted",
-                        turns=turn_index + 1,
-                        tool_calls=total_calls,
-                    )
-                standard_tool_calls += 1
             total_calls += 1
             context = ClientToolExecutionContext(
                 turn_index=turn_index,
@@ -905,28 +768,27 @@ def run_bounded_client_tool_loop(
                         "client_tool_unavailable_this_turn:" + call.name
                     ),
                 )
-            elif (
-                terminal_decision_turn
-                and not terminal_recovery_action_allowed
-                and not tool_definitions[call.name].terminal
+            elif call_definition is not None and (
+                not call_definition.terminal
+                and ordinary_tool_calls >= max_tool_calls
             ):
                 execution = ClientToolExecutionResult(
                     content={
                         "ok": False,
-                        "error": "final_disposition_requires_terminal_tool",
+                        "error": "workspace_action_budget_exhausted",
                         "terminal_tools": sorted(
                             tool.name for tool in terminal_tools
                         ),
                         "detail": (
-                            "The standard workspace budget is exhausted. Use one "
-                            "of the supplied terminal tools for the final "
-                            "disposition; nonterminal tools remain visible only to "
-                            "preserve the stable model tool surface."
+                            "The ordinary workspace-action budget is exhausted. "
+                            "The tool surface remains stable, but this action was "
+                            "not executed. Submit the current workspace or let the "
+                            "session end as an explicit checkpoint."
                         ),
                     },
                     is_error=True,
                     observation_key=(
-                        "final_disposition_requires_terminal_tool:" + call.name
+                        "workspace_action_budget_exhausted:" + call.name
                     ),
                 )
             elif provider_output_truncated:
@@ -959,6 +821,8 @@ def run_bounded_client_tool_loop(
                     observation_key="terminal_tool_must_be_last_in_turn",
                 )
             else:
+                if call_definition is not None and not call_definition.terminal:
+                    ordinary_tool_calls += 1
                 executed_by_runtime = True
                 runtime_executed_tool_calls += 1
                 runtime_failure: ClientToolRuntimeError | None = None
@@ -1060,32 +924,6 @@ def run_bounded_client_tool_loop(
                 [call.name, execution.is_error, execution.content]
             )
             observation_is_new = observation_key not in seen_observations
-            if (
-                call_definition
-                and call_definition.terminal
-                and execution.is_error
-                and not execution.terminal
-                and max_terminal_recovery_turns
-            ):
-                if not terminal_decision_turn:
-                    terminal_recovery_action_pending = True
-                elif (
-                    forced_terminal_rejections_used < max_terminal_recovery_turns
-                    and observation_is_new
-                ):
-                    forced_terminal_rejections_used += 1
-                    terminal_recovery_action_pending = True
-                else:
-                    terminal_recovery_action_pending = False
-            elif (
-                terminal_recovery_action_call
-                and execution.state_changed
-            ) or (
-                call_definition
-                and not call_definition.terminal
-                and execution.state_changed
-            ):
-                terminal_recovery_action_pending = False
             if observation_is_new:
                 turn_new_observation = True
                 seen_observations.add(observation_key)
@@ -1145,49 +983,11 @@ def run_bounded_client_tool_loop(
                 final_response_metadata=deepcopy(dict(response.metadata)),
             )
 
-        if (
-            not terminal_decision_turn
-            and terminal_tools
-            and standard_tool_calls >= max_tool_calls
-        ):
-            request_terminal_decision(
-                "standard client-tool call budget exhausted"
-            )
-            no_progress_turns = 0
-            continue
-
         if turn_state_changed or turn_new_observation:
             no_progress_turns = 0
         else:
             no_progress_turns += 1
-        if terminal_decision_turn:
-            if terminal_decision_tool_calls < terminal_decision_budget:
-                request_terminal_decision(
-                    terminal_decision_reason
-                    or "terminal client-tool decision was not accepted"
-                )
-                no_progress_turns = 0
-                continue
-            raise loop_error(
-                (
-                    terminal_decision_reason + "; "
-                    if terminal_decision_reason
-                    else ""
-                )
-                + "terminal client-tool decision did not produce an accepted payload",
-                turns=turn_index + 1,
-                tool_calls=total_calls,
-            )
         if no_progress_turns >= max_no_progress_turns:
-            if (
-                terminal_tools
-                and terminal_decision_turns_used < terminal_decision_budget
-            ):
-                request_terminal_decision(
-                    "repeated client-tool turns made no new progress"
-                )
-                no_progress_turns = 0
-                continue
             raise loop_error(
                 "repeated client-tool turns made no new progress",
                 turns=turn_index + 1,
@@ -1195,7 +995,11 @@ def run_bounded_client_tool_loop(
             )
 
     raise loop_error(
-        "global client-tool turn budget exhausted",
+        (
+            "client-tool turn budget exhausted before a terminal disposition"
+            if terminal_tools
+            else "client-tool turn budget exhausted"
+        ),
         turns=len(history),
         tool_calls=total_calls,
     )

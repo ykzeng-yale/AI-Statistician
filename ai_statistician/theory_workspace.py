@@ -2134,7 +2134,6 @@ def run_theory_artifact_workspace(
             "kernel_verified": False,
         }
 
-    # The shared loop reserves terminal disposition outside this action budget.
     effective_max_turns = (
         max(max_turns, max_tool_calls)
         if allow_source_replication_checkpoint
@@ -2148,7 +2147,6 @@ def run_theory_artifact_workspace(
             max_turns=effective_max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
-            max_terminal_recovery_turns=1,
         )
     except ClientToolLoopError as exc:
         client_tool_session_ref = persist_client_tool_session(

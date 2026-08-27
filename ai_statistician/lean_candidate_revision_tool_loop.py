@@ -490,7 +490,6 @@ def run_lean_candidate_revision_tool_loop(
     if rejected_source_hash and not parent_source.strip():
         raise ValueError("a rejected source hash requires an existing Lean source")
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
-    max_terminal_recovery_turns = 1
     theory_document_catalog, theory_document_map = (
         theory_documents.externalize_theory_document_rows(
             authoritative_theory_document_rows
@@ -1200,8 +1199,7 @@ def run_lean_candidate_revision_tool_loop(
             dict(prior_client_tool_session_ref)
         )
 
-    # Permit one observation plus a final source action; terminal retries remain
-    # a separate budget.
+    # Permit one observation plus a final source action inside the same loop.
     max_tool_calls = max_turns + 1
     try:
         loop = run_bounded_client_tool_loop(
@@ -1211,7 +1209,6 @@ def run_lean_candidate_revision_tool_loop(
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
-            max_terminal_recovery_turns=max_terminal_recovery_turns,
         )
     except ClientToolLoopError as exc:
         client_tool_session_ref = persist_client_tool_session(
@@ -1280,7 +1277,7 @@ def run_lean_candidate_revision_tool_loop(
             ),
             "turns": exc.turns,
             "tool_calls": exc.tool_calls,
-            "max_terminal_recovery_turns": max_terminal_recovery_turns,
+            "interaction_policy": "single_model_tool_observation_budget_v1",
             "transcript_fingerprint": exc.transcript_fingerprint,
             "provider": exc.provider,
             "model": exc.model or model,
@@ -1349,7 +1346,6 @@ def run_lean_candidate_revision_tool_loop(
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
-            max_terminal_recovery_turns=max_terminal_recovery_turns,
             rejected_source_hash=rejected_source_hash,
             turns=loop.turns,
             tool_calls=loop.tool_calls,
@@ -1418,7 +1414,6 @@ def run_lean_candidate_revision_tool_loop(
         max_turns=max_turns,
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
-        max_terminal_recovery_turns=max_terminal_recovery_turns,
         rejected_source_hash=rejected_source_hash,
         turns=loop.turns,
         tool_calls=loop.tool_calls,
@@ -1455,7 +1450,6 @@ def _lean_candidate_revision_success_result(
     max_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
-    max_terminal_recovery_turns: int,
     rejected_source_hash: str,
     turns: int,
     tool_calls: int,
@@ -1501,7 +1495,7 @@ def _lean_candidate_revision_success_result(
         dict.fromkeys([*state_provider_tools, *declaration_provider_tools])
     )
     evidence = {
-        "schema_version": 1,
+        "schema_version": 2,
         "artifact_kind": "LeanCandidateClientToolWorkspace",
         "transport": "native_client_tools",
         "candidate_id": candidate_id,
@@ -1535,7 +1529,7 @@ def _lean_candidate_revision_success_result(
         "max_turns": max_turns,
         "max_tool_calls": max_tool_calls,
         "max_no_progress_turns": max_no_progress_turns,
-        "max_terminal_recovery_turns": max_terminal_recovery_turns,
+        "interaction_policy": "single_model_tool_observation_budget_v1",
         "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
         "tool_surface_policy": "stable_for_workspace",
         "submit_and_check_atomic": True,

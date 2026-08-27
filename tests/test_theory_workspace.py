@@ -637,6 +637,7 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
 
     result = _run_workspace(
         backend,
+        max_turns=5,
         research_sources=research_sources,
         research_source_execution=source_execution,
         workspace_dir=tmp_path / "theory-workspace",
@@ -1036,13 +1037,8 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert checkpoint["model_owned_theory"] is True
     assert checkpoint["runtime_edited_theory"] is False
     assert checkpoint["kernel_verified"] is False
-    assert len(backend.requests) == 3
-    assert backend.requests[-1].metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
-    assert backend.requests[-1].metadata[
-        "client_tool_loop_max_terminal_recovery_turns"
-    ] == 1
+    assert len(backend.requests) == 1
+    assert "client_tool_loop_terminal_decision_turn" not in backend.requests[-1].metadata
 
 
 def test_workspace_uses_one_shared_read_write_tool_budget() -> None:
@@ -1081,7 +1077,7 @@ def test_workspace_uses_one_shared_read_write_tool_budget() -> None:
 
     result = _run_workspace(
         backend,
-        max_turns=11,
+        max_turns=12,
         max_tool_calls=11,
         read_only_artifacts={
             f"context_{index}": {"value": index} for index in range(1, 6)
@@ -1379,22 +1375,15 @@ def test_rejected_terminal_commit_can_checkpoint_same_owner_progress(tmp_path) -
             backend,
             workspace_dir=tmp_path / "theory",
             require_document_authority=True,
-            max_turns=2,
-            max_tool_calls=2,
+            max_turns=4,
+            max_tool_calls=4,
         )
 
     assert len(backend.requests) == 4
     rejected_commit_request = backend.requests[2]
     recovery_request = backend.requests[3]
-    assert rejected_commit_request.metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
-    assert recovery_request.metadata[
-        "client_tool_loop_terminal_decision_turn"
-    ] is True
-    assert recovery_request.metadata[
-        "client_tool_loop_max_terminal_recovery_turns"
-    ] == 1
+    assert "client_tool_loop_terminal_decision_turn" not in rejected_commit_request.metadata
+    assert "client_tool_loop_terminal_decision_turn" not in recovery_request.metadata
     assert "theory checkpoint is not structurally valid" in str(
         recovery_request.messages[-1]
     )

@@ -1850,9 +1850,9 @@ def test_preflight_recovers_from_rejected_final_submission() -> None:
     assert [tool.name for tool in backend.requests[4].tools] == (
         PREFLIGHT_CLIENT_TOOL_NAMES
     )
-    assert backend.requests[4].metadata[
-        "client_tool_loop_max_terminal_recovery_turns"
-    ] == 1
+    assert "client_tool_loop_max_terminal_recovery_turns" not in (
+        backend.requests[4].metadata
+    )
     failed_submit = next(
         row
         for row in packet["client_tool_loop_history"][3]["tool_calls"]
@@ -1910,14 +1910,14 @@ def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
     with pytest.raises(PacketValidationError) as exc_info:
         _tool_review(backend)
 
-    assert len(backend.requests) == 5
+    assert len(backend.requests) == 3
     assert all(
         [tool.name for tool in request.tools] == PREFLIGHT_CLIENT_TOOL_NAMES
         for request in backend.requests[-2:]
     )
-    assert backend.requests[-1].metadata[
-        "client_tool_loop_terminal_decision_reason"
-    ] == "repeated turns without a client tool call"
+    assert "client_tool_loop_terminal_decision_reason" not in (
+        backend.requests[-1].metadata
+    )
     assert "repeated turns without a client tool call" in str(exc_info.value)
 
 

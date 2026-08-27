@@ -883,13 +883,11 @@ def _run_metric_protocol_workspace(
             backend=provider,
             request=request,
             execute_tool=execute_tool,
-            max_turns=METRIC_PROTOCOL_WORKSPACE_MAX_TURNS,
+            max_turns=METRIC_PROTOCOL_WORKSPACE_MAX_TURNS
+            + max(0, int(config.max_validation_retries)),
             max_tool_calls=METRIC_PROTOCOL_WORKSPACE_MAX_TOOL_CALLS,
             max_no_progress_turns=(
                 METRIC_PROTOCOL_WORKSPACE_MAX_NO_PROGRESS_TURNS
-            ),
-            max_terminal_recovery_turns=max(
-                0, int(config.max_validation_retries)
             ),
         )
     except ClientToolLoopError as exc:

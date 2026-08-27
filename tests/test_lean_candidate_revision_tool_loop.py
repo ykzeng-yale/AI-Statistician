@@ -199,7 +199,7 @@ def _lean_workspace_checkpoint(
         "resumed_from_checkpoint_id": resumed_from_checkpoint_id,
         "turns": 1,
         "tool_calls": 1 + int(bool(searches)),
-        "max_terminal_recovery_turns": 1,
+        "interaction_policy": "single_model_tool_observation_budget_v1",
         "transcript_fingerprint": "test-transcript",
         "provider": "anthropic",
         "model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -1808,7 +1808,9 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> Non
     assert all(
         f"declaration query {index}" in final_context for index in range(5)
     )
-    assert result.evidence["max_terminal_recovery_turns"] == 1
+    assert result.evidence["interaction_policy"] == (
+        "single_model_tool_observation_budget_v1"
+    )
     assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
     assert result.evidence["tool_surface_policy"] == "stable_for_workspace"
     assert result.evidence["formal_environment_searches"] == 5
@@ -1853,7 +1855,7 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=1,
+        max_turns=2,
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -1870,8 +1872,10 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
 
     assert result.lean_source == compiled
     assert result.evidence["turns"] == 2
-    assert result.evidence["max_turns"] == 1
-    assert result.evidence["max_terminal_recovery_turns"] == 1
+    assert result.evidence["max_turns"] == 2
+    assert result.evidence["interaction_policy"] == (
+        "single_model_tool_observation_budget_v1"
+    )
     assert [tool.name for tool in backend.requests[1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL,
         LEAN_SOURCE_EDIT_TOOL,
@@ -1935,7 +1939,7 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
         temperature=0.0,
         max_tokens=1200,
         max_turns=5,
-        max_no_progress_turns=1,
+        max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
         initial_source="",
@@ -1972,9 +1976,9 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
     recovery_context = json.dumps(backend.requests[-1].messages, sort_keys=True)
     assert failing in recovery_context.replace("\\n", "\n")
     assert "unknown identifier 'missing_name'" in recovery_context
-    assert backend.requests[-1].metadata[
-        "client_tool_loop_terminal_decision_reason"
-    ] == "repeated client-tool turns made no new progress"
+    assert "client_tool_loop_terminal_decision_reason" not in (
+        backend.requests[-1].metadata
+    )
 
 
 def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> None:
@@ -2435,7 +2439,9 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
             stable_hash(latest)
         )
         assert checkpoint["parent_source_hash"] == stable_hash(initial)
-        assert checkpoint["max_terminal_recovery_turns"] == 1
+        assert checkpoint["interaction_policy"] == (
+            "single_model_tool_observation_budget_v1"
+        )
         assert "final_runtime_check_performed" not in checkpoint
         assert checkpoint["model_owned_lean_code"] is True
         assert checkpoint["kernel_verified"] is False
