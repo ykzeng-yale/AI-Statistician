@@ -6519,18 +6519,20 @@ def test_welch_satterthwaite_l0_is_frozen_before_one_product_draw() -> None:
         "research-l0-welch-satterthwaite-20260827-v1"
     )
     assert candidate["gold_manifest_sha256"] == (
-        "612f95422ee0a6802639de171d38a98972f81ec82e66a78b5870701e5743cfb5"
+        "a7075f583f3f1803555fa2ab36edb2f398ab555acc831746c906b8bdf9415224"
     )
     assert candidate["gold_descriptor_hash"] == (
-        "3712feafdb41c974f0eafe446861f45135c8893bb62a7fca61f008fa34e88032"
+        "84fb96f205ebb757402a027bd94177c474317a3d5e3c6366487b9ed3d7fc4b6e"
     )
     assert evidence["gold_manifest_stable_hash"] == (
-        "3712feafdb41c974f0eafe446861f45135c8893bb62a7fca61f008fa34e88032"
+        "84fb96f205ebb757402a027bd94177c474317a3d5e3c6366487b9ed3d7fc4b6e"
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["authority_binding_commit"] == "PENDING"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["authority_binding_commit"] == (
+        "ba48a3c244a5ccf1d5849aca046983f474bda553"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["activation_schema_version"] == 3
     assert evidence["activation_reference_tasks_passed"] == 1
     assert evidence["activation_negative_controls_rejected"] == 3
