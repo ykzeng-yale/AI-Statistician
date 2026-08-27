@@ -1820,6 +1820,12 @@ def test_source_workspace_prompts_give_tools_to_the_source_owner() -> None:
     assert "valid and rejected requests" in (
         ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     )
+    assert "only a developer diagnostic" in (
+        ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
+    assert "no Algorithm sandbox result is empirical evidence" in (
+        ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
     assert "request's data scope" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     assert "consumer control flow" in SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     assert "literal,\npunctuation-sensitive JSON key" in (
@@ -4083,6 +4089,14 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
     assert manifest["consumer_parent_algorithm_manifest_hash"] == (
         runtime_module.stable_hash(parent_manifest)
     )
+    assert manifest["prototypes"][0]["execution_phase"] == (
+        "estimator_developer_diagnostic"
+    )
+    assert manifest["prototypes"][0]["empirical_evidence_status"] == (
+        "ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE"
+    )
+
+
 def test_semantic_review_resumes_exact_simulation_source_without_planning(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

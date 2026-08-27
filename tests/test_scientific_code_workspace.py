@@ -1350,6 +1350,10 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
 
 def test_execution_observation_omits_stale_callback_samples_after_binding_passes() -> None:
     prototype = {
+        "execution_phase": "estimator_developer_diagnostic",
+        "empirical_evidence_status": (
+            "ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE"
+        ),
         "execution_attempted": True,
         "execution_smoke_passed": True,
         "mechanical_estimator_invocation_verified": True,
@@ -1369,6 +1373,10 @@ def test_execution_observation_omits_stale_callback_samples_after_binding_passes
     )
 
     assert compact["estimator_invocation_counts"] == {"estimator": 100}
+    assert compact["execution_phase"] == "estimator_developer_diagnostic"
+    assert compact["empirical_evidence_status"] == (
+        "ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE"
+    )
     assert "estimator_invocation_samples" not in compact
     assert "estimator_invocation_samples" in failed_binding
 

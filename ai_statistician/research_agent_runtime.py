@@ -12510,6 +12510,12 @@ class AlgorithmEngineerRuntimeSubsystem:
                             **execution_kwargs,
                         )
                     )
+                    candidate_prototype["execution_phase"] = (
+                        "estimator_developer_diagnostic"
+                    )
+                    candidate_prototype["empirical_evidence_status"] = (
+                        "ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE"
+                    )
                     candidate_tool_calls: list[ToolCallRecord] = [
                         candidate_tool_call
                     ]
@@ -12622,8 +12628,11 @@ class AlgorithmEngineerRuntimeSubsystem:
                             ),
                             "run_sandbox_contract": (
                                 "run_sandbox(seed: int, replicates: int) returns "
-                                "named JSON-finite smoke diagnostics and exercises "
-                                "run_estimator"
+                                "named JSON-finite developer diagnostics and exercises "
+                                "run_estimator. It may contain model-authored unit, "
+                                "boundary, and metamorphic checks, but it is not a "
+                                "DGP, confirmatory simulation, empirical gate, or "
+                                "outcome authority"
                             ),
                             "consumer_execution_observation": (
                                 external_initial_observation or {}

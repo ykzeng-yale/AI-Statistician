@@ -1034,6 +1034,7 @@ def scientific_workspace_prototype_observation(
             }
         )
     direct_field_names = [
+        "execution_phase",
         "execution_attempted",
         "execution_smoke_passed",
         "returncode",
@@ -1150,6 +1151,10 @@ def scientific_workspace_prototype_observation(
         ),
         "full_execution_artifact_persisted": True,
         "source_replayed_to_model": False,
+        "empirical_evidence_status": prototype.get(
+            "empirical_evidence_status",
+            "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_CONFIRMATORY_EVIDENCE",
+        ),
         "proof_evidence_status": "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE",
     }
 
