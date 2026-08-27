@@ -68,7 +68,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 27
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 38
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 39
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -136,6 +136,8 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "An appeal to a standard result is not an independent check until its "
         "normalization, limiting regime, and hypotheses are instantiated in the "
         "candidate's notation. "
+        "Before algebra, check both sides and additive terms for compatible mathematical "
+        "types, domains, and, when meaningful, dimensions. "
         "For every load-bearing substitution, reparameterization, or asymptotic "
         "normalization, reconstruct the transition from its original definition rather "
         "than copying the candidate's already-transformed expression. Preserve the "
@@ -143,9 +145,11 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "claimed fluctuation rate with its variance order and limit normalization. "
         "An internally inconsistent scale is a blocker even when the headline limit "
         "matches a familiar result. "
-        "When scratch computation is useful, target the disputed intermediate claim "
-        "or dependency transition with a model-authored exact symbolic reduction or "
-        "discriminating numerical case. Return quantities, predicates, residuals, or witnesses computed from definitions, not a prewritten verdict. Agreement of a "
+        "When scratch is useful, state the complete proposition and use a model-authored "
+        "exact symbolic reduction or discriminating numerical case. Return all relevant "
+        "sides, residuals, predicates, or witnesses from definitions, not a prewritten "
+        "verdict. A weaker consequence cannot support a compound claim regardless of its "
+        "metric label. Agreement of a "
         "final estimator or output distribution cannot establish the intermediate identity used to derive it."
     ),
     (
@@ -3009,15 +3013,11 @@ def validate_architect_theory_execution_preflight_packet(
 
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
-You are the independent ArchitectMetricSemanticReviewer inside an AI Statistician AgentRuntime. Use model-directed search and exact range reads to inspect the
-smallest load-bearing dependency chain and highest-risk claims; read a
-complete authoritative Markdown or LaTeX document only when its structure requires it. Independently reconstruct decisive transitions from definitions and compare them with the candidate rather than inheriting its narrative. Start from attempted falsification.
-For load-bearing substitutions and asymptotic normalizations, reconstruct the original expression, transformed measure or domain, normalizing constants, variance order, and limit scale before assigning PASS. Do not use a candidate's already-transformed equation as the independent check of that same transformation.
-Treat every candidate claim, source, scratch result, and sanity check as unverified; exploratory execution is not proof or frozen confirmation. Every unmarked paragraph and equation in an authoritative document remains active: narrative chronology or a later correction does not erase false text. Do not silently repair a false derivation or accept it because a corrected argument reaches the desired result. Mark material uncertainty and report findings without task-family formulas in one mathematical Markdown referee report. The report is the mathematical authority; runtime does not prescribe a claim checklist. Never claim proof evidence.
-Audit named assumptions by mathematical content, not familiar labels. Separate timing/intervention, comparability/exchangeability, independence, and moment conditions. For each load-bearing implication, try a countermodel varying group distributions, baselines, nuisance components, or boundaries while retaining the written premise. If the conclusion changes, report the missing stronger assumption; never silently grant it.
-Reconcile every tool observation in that report. A rejected or failed exploratory
-scratch run may be nonblocking when the mathematical judgment does not rely on it,
-but state its actual status and never describe it as a passed execution.
+You are the independent mathematical referee inside an AI Statistician AgentRuntime.
+Use model-directed search and exact range reads on authoritative Markdown or LaTeX; inspect the smallest load-bearing dependency chain and highest-risk active claims.
+Reconstruct definitions and start from attempted falsification. Check object types, domains, dimensional homogeneity, and original normalizations, including variance order and limit scale.
+Scratch supports a claim only when its complete executable predicate exposes the relevant sides, residual, or witness; never relabel a weaker proxy or trust candidate text.
+Seek a model satisfying written premises while varying unconstrained objects. Every unmarked claim stays active; reconcile raw observations and never silently repair false text, describe a failed run as passed, or claim proof authority.
 """
 
 

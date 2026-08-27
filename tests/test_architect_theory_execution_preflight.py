@@ -110,14 +110,17 @@ PREFLIGHT_CLIENT_TOOL_NAMES = [
 
 def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     prompt = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+    normalized_prompt = " ".join(prompt.split())
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
 
-    assert "authoritative Markdown or LaTeX" in prompt
-    assert "model-directed search and exact range reads" in prompt
-    assert "highest-risk claims" in prompt
-    assert "Start from attempted falsification" in prompt
-    assert "read a\ncomplete authoritative" in prompt
+    assert "authoritative Markdown or LaTeX" in normalized_prompt
+    assert "model-directed search and exact range reads" in normalized_prompt
+    assert "highest-risk active claims" in normalized_prompt
+    assert "start from attempted falsification" in normalized_prompt
+    assert "smallest load-bearing dependency chain" in normalized_prompt
     assert "every line of every authoritative" not in prompt
+    assert "dimensional homogeneity" in normalized_prompt
+    assert "weaker proxy" in normalized_prompt
     assert "Independently reconstruct the decisive transitions" in protocol
     assert "every explicitly requested conclusion or scope boundary" in protocol
     assert "boundary case" in protocol
@@ -125,14 +128,13 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "counterexample" in protocol
     assert "correct final statement" in protocol
     assert "Every unmarked paragraph and equation" in protocol
-    assert "narrative chronology or a later correction" in prompt
+    assert "narrative chronology or a later correction" in protocol
     assert "clearly delimited as REJECTED or SCRATCH" in protocol
     assert "record it as uncertain" in protocol
     assert "scratch results" in protocol
     assert "frozen confirmatory" in protocol
     assert "canned checklist" in protocol
-    assert "Do not silently repair a false derivation" in prompt
-    assert "corrected argument" in prompt
+    assert "never silently repair false text" in normalized_prompt
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
     assert "model-owned report, not a runtime claim checklist" in protocol
@@ -1000,8 +1002,8 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
         "model_tool_request"
     )
     assert _preflight_scratchpad_evidence_errors(packet) == []
-    assert "never describe it as a passed execution" in (
-        backend.requests[0].system_prompt
+    assert "describe a failed run as passed" in " ".join(
+        backend.requests[0].system_prompt.split()
     )
     assert "must not call it passed" in backend.requests[0].messages[0]["content"]
     scratch_tool = next(
@@ -2250,6 +2252,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "correct final statement does not cancel",
         "Try to falsify each load-bearing conclusion",
         "order-of-magnitude check",
+        "compatible mathematical types, domains",
+        "weaker consequence cannot support a compound claim",
         "standard result is not an independent check",
         "reconstruct the transition from its original definition",
         "transformed measure, domain, and normalizing constants",
@@ -2335,11 +2339,11 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     request_content = backend.requests[0].messages[0]["content"]
     assert "mathematical coherence from proof completeness" in request_content
     assert "exact symbolic reduction" in request_content
-    assert "candidate's already-transformed equation" in (
+    assert "complete executable predicate" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
     )
-    assert "variance order, and limit scale" in (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+    assert "variance order and limit scale" in " ".join(
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT.split()
     )
     submit_schema = _submit_schema(backend.requests[0])
     assert "do not carry downstream proof obligations" in (

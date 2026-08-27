@@ -2164,9 +2164,12 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     )
 
     assert "skeptical referee" in prompt
-    assert "independently recompute pivotal identities" in prompt
-    assert "test the smallest nontrivial and boundary cases" in prompt
-    assert "mark the claim unresolved" in prompt
+    assert "recompute pivotal identities" in prompt
+    assert "test small and boundary cases" in prompt
+    assert "object types, domains, and dimensions" in prompt
+    assert "weaker proxy" in prompt
+    assert "group distributions or baselines" not in prompt
+    assert "mark them unresolved" in prompt
 
 
 def test_theory_developer_requires_interfaces_from_source_workspace_without_side_call(
