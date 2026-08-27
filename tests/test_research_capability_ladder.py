@@ -5126,6 +5126,10 @@ def test_nadaraya_watson_l0_is_frozen_before_its_first_product_call() -> None:
     assert evidence["schema2_authority_binding_commit"] == (
         "5c3adcf2818c6897391ba2084838f8a50bd5af54"
     )
+    assert evidence["authority_binding_commit"] == (
+        "8364ff9aa2c14ca6746cfee6fc5d7ca29f1e0f11"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["activation_schema_version"] == 3
     assert evidence["activation_reference_tasks_passed"] == 0
     assert evidence["activation_negative_controls_rejected"] == 0

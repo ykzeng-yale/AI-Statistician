@@ -5734,6 +5734,8 @@
         "activation_reference_tasks_passed": 0,
         "activation_negative_controls_rejected": 0,
         "schema2_authority_binding_commit": "5c3adcf2818c6897391ba2084838f8a50bd5af54",
+        "authority_binding_commit": "8364ff9aa2c14ca6746cfee6fc5d7ca29f1e0f11",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_failed_launches": 1,
         "preactivation_failure": "Schema-v2 manifest rejected by the live activation gate before AgentRuntime construction, run-directory creation, or any product-model call; authority was upgraded to schema 3 before activation.",
         "preactivation_product_model_calls": 0,
