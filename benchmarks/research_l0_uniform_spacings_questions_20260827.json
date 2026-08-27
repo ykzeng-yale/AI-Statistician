@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "uniform_spacings_dirichlet_known_result",
+      "title": "Uniform order-statistic spacings and the Dirichlet law",
+      "description": "Focused L0 known-result evaluation grounded in R. Pyke, Spacings, Journal of the Royal Statistical Society Series B 27(3) (1965), 395-436, DOI 10.1111/j.2517-6161.1965.tb00602.x, with SciPy and NumPy Dirichlet implementations as public computational context. Let U_1,...,U_n be iid Uniform(0,1), n>=1, write U_(0)=0<U_(1)<...<U_(n)<U_(n+1)=1 almost surely, and define the n+1 endpoint spacings D_i=U_(i)-U_(i-1). In one authoritative Markdown/LaTeX Theory workspace, derive the ordered-sample density from the iid density and permutation regions, transform from order statistics to the first n spacings with an explicit inverse map, support, dimension, reference measure, and Jacobian, and identify the complete spacing vector as Dirichlet(1,...,1). Derive the constant joint density, exchangeability, each Beta(1,n) marginal, E[D_i], Var(D_i), and Cov(D_i,D_j) for i!=j. Explain why the spacings are dependent despite identical beta marginals, handle n=1, and distinguish strict positivity almost surely from deterministic samples with ties or endpoint observations. Do not omit either endpoint spacing, use an (n+1)-dimensional Lebesgue density on a measure-zero hyperplane, replace n! by another factorial, or treat simulation or a library call as proof. The required model-authored Python artifact is est_uniform_order_spacings and must implement run_estimator(request) exactly for the frozen public sample-to-spacings contract. Reusing sorting utilities is allowed when exact input validation, endpoint construction, sample identity, and evidence boundaries are preserved. Exploratory Python or R may check Jacobians, simplex moments, and boundary examples. A separately frozen confirmatory assessment uses predeclared iid Uniform(0,1) sample sizes, seeds, and replicate counts to compare all spacing means, variances, and off-diagonal covariances with their exact Dirichlet values while reporting Monte Carlo uncertainty. That finite-sample moment assessment is implementation evidence, not a proof of the joint distribution. Source-code replication, novelty, asymptotics, goodness-of-fit testing, maximal-spacing theory, and Lean formalization are not applicable.",
+      "tags": [
+        "order_statistics",
+        "uniform_spacings",
+        "dirichlet_distribution",
+        "finite_sample_distribution",
+        "known_result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Spacings",
+          "authors": [
+            "R. Pyke"
+          ],
+          "journal": "Journal of the Royal Statistical Society: Series B (Methodological)",
+          "year": 1965,
+          "volume": 27,
+          "issue": 3,
+          "pages": "395-436",
+          "doi": "10.1111/j.2517-6161.1965.tb00602.x",
+          "url": "https://academic.oup.com/jrsssb/article/27/3/395/7026861"
+        },
+        "public_computational_context": [
+          {
+            "project": "SciPy",
+            "api": "scipy.stats.dirichlet",
+            "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.dirichlet.html"
+          },
+          {
+            "project": "NumPy",
+            "api": "numpy.random.Generator.dirichlet",
+            "url": "https://numpy.org/doc/stable/reference/random/generated/numpy.random.Generator.dirichlet.html"
+          }
+        ]
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_uniform_order_spacings",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "A realized finite sample whose order statistics partition the unit interval.",
+            "json_type": "array[number]",
+            "shape": "one nonempty finite numeric array of length n",
+            "units": "unit-interval coordinate",
+            "indexing": "sample entries have no intrinsic order; every entry must be preserved through sorting",
+            "edge_cases": "Values at zero or one and repeated values are valid deterministic inputs and may create zero spacings. Reject nonarrays, empty arrays, booleans, strings, nonnumeric values, nonfinite values, values outside [0,1], and silently coerced or dropped entries.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sorted_sample",
+            "name": "sorted_sample",
+            "meaning": "All request values sorted in nondecreasing order.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric array with the same length as sample",
+            "units": "unit-interval coordinate",
+            "indexing": "ascending order statistics with multiplicity preserved",
+            "edge_cases": "Ties and endpoint values are preserved exactly up to ordinary floating arithmetic.",
+            "normalization": "sorted(sample)."
+          },
+          {
+            "clause_id": "response.spacings",
+            "name": "spacings",
+            "meaning": "The complete endpoint-spacing vector induced by sorted_sample.",
+            "json_type": "array[number]",
+            "shape": "one finite nonnegative numeric array of length n+1",
+            "units": "unit-interval length",
+            "indexing": "first spacing is sorted_sample[0]-0, interior spacings are successive differences, and final spacing is 1-sorted_sample[-1]",
+            "edge_cases": "Ties or endpoint observations may create exact zero entries; the spacing sum remains one.",
+            "normalization": "[x_(1), x_(2)-x_(1), ..., x_(n)-x_(n-1), 1-x_(n)]."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly sample and the response contains exactly sorted_sample and spacings. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.endpoint_partition",
+            "meaning": "The returned spacings are nonnegative, have length len(sample)+1, include both endpoint gaps, and sum to one up to ordinary floating arithmetic."
+          },
+          {
+            "clause_id": "invariant.permutation",
+            "meaning": "Permuting request sample entries leaves both response arrays unchanged."
+          },
+          {
+            "clause_id": "invariant.reflection",
+            "meaning": "Replacing every sample value x by 1-x reverses the spacing vector and maps sorted_sample to the sorted reflected sample."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each sample size, iid Uniform(0,1) generator, seed, replicate count, exact Dirichlet moment targets, estimator invocation, and Monte Carlo decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.dirichlet_moments",
+            "meaning": "For every frozen sample size, compare every spacing mean and variance and every off-diagonal covariance with the exact Dirichlet(1,...,1) values, reporting standardized Monte Carlo discrepancies or equivalent uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks the executable spacing map and finite-sample moments only for the frozen iid Uniform(0,1) designs. It does not prove the joint density, independence, asymptotics, maximal-spacing results, goodness-of-fit validity, source replication, novelty, or formal correctness."
+          }
+        ]
+      }
+    }
+  ]
+}
