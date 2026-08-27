@@ -156,6 +156,8 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
     )
     assert read_observation["content"].strip() == content.strip()
     assert dict(result.code_draft) == authored
+    assert content.strip() not in str(result.evidence)
+    assert "theory document content omitted" in str(result.evidence["history"])
 
 
 def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> None:

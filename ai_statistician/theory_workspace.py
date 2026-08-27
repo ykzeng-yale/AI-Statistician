@@ -839,51 +839,18 @@ def run_theory_artifact_workspace(
                 ),
             )
 
-        if call.name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
-            if set(tool_input) != {"path", "line_start", "line_end"}:
-                raise ClientToolInputError(
-                    "read_theory_document requires path, line_start, and line_end"
-                )
-            observation, inspection_ref = read_theory_document_lines(
-                state["documents"],
-                path=tool_input.get("path"),
-                line_start=tool_input.get("line_start"),
-                line_end=tool_input.get("line_end"),
+        if call.name in {
+            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        }:
+            observation, inspection_ref = execute_theory_document_client_tool(
+                state["documents"], tool_name=call.name, tool_input=tool_input
             )
             state["document_inspection_refs"].append(inspection_ref)
             state["reads"] += 1
             return ClientToolExecutionResult(
-                content={
-                    **observation,
-                    "reads": state["reads"],
-                },
-                observation_key="theory-document-read:"
-                + stable_hash(inspection_ref),
-            )
-
-        if call.name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
-            if set(tool_input) - {"query", "document_paths", "max_results"}:
-                raise ClientToolInputError(
-                    "search_theory_documents accepts query, document_paths, and "
-                    "optional max_results"
-                )
-            observation, inspection_ref = search_theory_document_lines(
-                state["documents"],
-                query=tool_input.get("query"),
-                document_paths=tool_input.get("document_paths", []),
-                max_results=tool_input.get(
-                    "max_results", MAX_THEORY_DOCUMENT_SEARCH_HITS
-                ),
-            )
-            state["document_inspection_refs"].append(inspection_ref)
-            state["reads"] += 1
-            return ClientToolExecutionResult(
-                content={
-                    **observation,
-                    "reads": state["reads"],
-                },
-                observation_key="theory-document-search:"
-                + stable_hash(inspection_ref),
+                content={**observation, "reads": state["reads"]},
+                observation_key="theory-document:" + stable_hash(inspection_ref),
             )
 
         if call.name == RESEARCH_SOURCE_SEARCH_TOOL:
@@ -2550,15 +2517,34 @@ def run_theory_artifact_workspace(
     return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
 
 
+def theory_document_evidence_history(
+    history: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Omit exact Theory text from telemetry while retaining tool lineage."""
+
+    persisted = [deepcopy(dict(row)) for row in history]
+    for turn in persisted:
+        tool_calls = turn.get("tool_calls", [])
+        if not isinstance(tool_calls, list):
+            continue
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+            if str(tool_call.get("name", "") or "") in {
+                THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+            }:
+                tool_call["result_excerpt"] = (
+                    "[theory document content omitted from persisted evidence; use "
+                    "the hash-bound document inspection refs]"
+                )
+    return persisted
+
+
 def _theory_workspace_evidence_history(
     history: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
-    persisted = [deepcopy(dict(row)) for row in history]
-    workspace_content_tools = {
-        "read_theory_workspace",
-        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-    }
+    persisted = theory_document_evidence_history(history)
     source_tools = {
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
@@ -2581,7 +2567,7 @@ def _theory_workspace_evidence_history(
                     "execution also omitted from transcript; use snapshot/document/"
                     "range or source-replication refs]"
                 )
-            elif tool_name in workspace_content_tools:
+            elif tool_name == "read_theory_workspace":
                 tool_call["result_excerpt"] = (
                     "[theory workspace content omitted from persisted evidence; use "
                     "hash-bound artifact or document inspection refs]"
@@ -3397,6 +3383,29 @@ def read_theory_document_lines(
     )
 
 
+def execute_theory_document_client_tool(
+    documents: Mapping[str, str],
+    *,
+    tool_name: str,
+    tool_input: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Execute either shared read-only Theory document tool."""
+
+    if tool_name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+        if set(tool_input) != {"path", "line_start", "line_end"}:
+            raise ClientToolInputError(
+                "read_theory_document requires path, line_start, and line_end"
+            )
+        return read_theory_document_lines(documents, **dict(tool_input))
+    if tool_name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
+        if set(tool_input) - {"query", "document_paths", "max_results"}:
+            raise ClientToolInputError(
+                "search_theory_documents accepts query, document_paths, and max_results"
+            )
+        return search_theory_document_lines(documents, **dict(tool_input))
+    raise ClientToolInputError("unsupported Theory document client tool")
+
+
 def _theory_document_media_type(path: str) -> str:
     suffix = PurePosixPath(path).suffix.lower()
     return {
@@ -3612,6 +3621,37 @@ def load_theory_workspace_document_rows(
             load_theory_workspace_documents(packet).items()
         )
     ]
+
+
+def externalize_theory_document_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Project exact Theory text into a hash-bound client-tool catalog."""
+
+    if isinstance(rows, (str, bytes)):
+        raise ValueError("theory document rows must be an array")
+    documents: dict[str, str] = {}
+    manifest: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("theory document row must be an object")
+        path = _normalized_theory_document_path(row.get("path", ""))
+        content = row.get("content")
+        sha256 = str(row.get("sha256", "") or "")
+        if (
+            path in documents
+            or not isinstance(content, str)
+            or _text_sha256(content) != sha256
+        ):
+            raise ValueError("theory document identity mismatch")
+        documents[path] = content
+        manifest.append({
+            "path": path,
+            "sha256": sha256,
+            "line_count": len(content.splitlines()),
+            "byte_size": len(content.encode("utf-8")),
+        })
+    return manifest, documents
 
 
 def theory_workspace_manifest_errors(

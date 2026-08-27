@@ -43,7 +43,10 @@ from .theory_derivation_trace import (
     theory_trace_alignment_prompt_instruction,
     theory_trace_consumption_contract,
 )
-from .theory_workspace import load_theory_workspace_document_rows
+from .theory_workspace import (
+    externalize_theory_document_rows,
+    load_theory_workspace_document_rows,
+)
 
 
 FORMALIZER_SCHEMA_VERSION = 1
@@ -291,69 +294,39 @@ class LLMFormalizerProofEngineerAgent:
                 raise ValueError(
                     "formal-target semantic revision lacks its rejected source hash"
                 )
+        theory_document_rows = load_theory_workspace_document_rows(theory_packet)
+        theory_document_manifest, _ = externalize_theory_document_rows(
+            theory_document_rows
+        )
+        theory_document_set_hash = (
+            stable_hash(
+                [
+                    (row["path"], row["sha256"])
+                    for row in theory_document_manifest
+                ]
+            )
+            if theory_document_manifest
+            else ""
+        )
         loop = run_lean_candidate_revision_tool_loop(
             provider=self.provider,
             system_prompt=(
                 FORMALIZER_SYSTEM_PROMPT
-                + "\nYou are authoring or revising one hash-bound Lean target. Any "
-                "compiler, prover, "
-                "retrieval, or independent-review result is an observation only, and "
-                "every changed source must be reviewed again before promotion. "
-                "You own every Lean source and search query. Use the client tools to "
-                "inspect the active formal environment, inspect exact declarations "
-                "when useful, then either edit the exact current source or submit a "
-                "complete standalone source plus its exact declaration name for "
-                "immediate compilation. The source must contain "
-                "every import it relies on because the runtime injects none. Retrieval "
-                "is optional evidence, not a "
-                "prerequisite to an early compiler-grounded source attempt. Do not "
-                "answer with prose or JSON, and do not weaken the target. If concrete "
-                "environment observations establish a missing foundation primitive, "
-                "report that exact gap instead of inventing an API or weaker theorem. "
-                "A diagnostic caused by an import, identifier, type, or proof term in "
-                "your own submitted source is revision feedback, not by itself a "
-                "foundation gap. Prefer exact module and declaration metadata returned "
-                "by the active environment. Treat inspected declaration source as the "
-                "active project's executable API: preserve its surrounding imports, "
-                "namespace/open environment, and complete declaration shape from the "
-                "returned module prefix and local context unless a fresh observation "
-                "requires a change. When declaration inspection returns an "
-                "active_project_api_context, treat all of its fields as one atomic "
-                "observation: import its importable_module when reusing the declaration "
-                "instead of copying that source module's internal dependency imports, "
-                "and preserve the needed lexical environment from its exact source "
-                "context. After a compiler diagnostic on the current source, "
-                "prioritize a model-authored exact edit or complete source revision; "
-                "search again "
-                "only when the diagnostic leaves an unresolved environment question. "
-                "Do not "
-                "claim that a revision was tried unless a tool observation records it. "
-                "Use report_formal_gap only when the unchanged target necessarily "
-                "depends on a primitive that the active environment cannot provide. "
-                "The same tools remain available during standard turns. The initial "
-                "message contains the complete current source and latest exact "
-                "hash-bound Lean, retrieval, and inspection observations; "
-                "the full bounded model-tool transcript then retains every source, "
-                "raw check, search, and inspection observation. Make an "
-                "early compiler-grounded source attempt. Independent search and "
-                "read-only inspection calls may be batched in one model turn when "
-                "none depends on another's result. Keep a source action or formal "
-                "gap after the observations it depends on and make that terminal "
-                "action the final call of its turn. "
-                "Retain useful declarations, "
-                "avoid cycling through synonymous searches, reserve time to revise "
-                "from compiler feedback, and use proof-candidate search or proof-state "
-                "inspection when a checked source exposes concrete proof obligations. "
-                "A temporary admitted body is permitted only as a nonterminal "
-                "development probe for declaration elaboration or proof-state "
-                "inspection; replace it with a complete proof before handoff. When "
-                "Lean reports DECLARATION_ELABORATED_PROOF_UNTRUSTED, preserve the "
-                "statement unless a fresh diagnostic requires changing it and move "
-                "to proof construction. If a model-defined declaration's argument "
-                "shape is unclear, ask Lean with #check or #print in a submitted "
-                "diagnostic source instead of guessing several call signatures. "
-                "Finish by choosing edit_current_lean_source, a complete "
-                "submit_lean_source call, or a concrete report_formal_gap call."
+                + "\nOwn the complete Lean source and every search query for this "
+                "unchanged hash-bound target; do not answer with prose or JSON. Use "
+                "the tools to read Theory context on demand, inspect the active Lean "
+                "environment, and compile early. Retrieval and review are observations, "
+                "not proof. A diagnostic caused by your own submitted source is revision "
+                "feedback, not a foundation gap. Treat inspected declaration source as "
+                "the executable API, including its importable module and lexical context. "
+                "After a compiler diagnostic, prioritize a model-authored exact edit or "
+                "complete source replacement; search again only for a concrete unresolved "
+                "environment question. The same tools remain available during standard "
+                "turns, and independent read-only calls may be batched. Temporary admitted "
+                "sources, #check, and #print are diagnostic only and must be replaced by a "
+                "complete proof. Report a formal gap only after active-environment evidence "
+                "establishes a missing primitive required by the unchanged target. Finish "
+                "with an exact source action or a grounded formal-gap action."
             ),
             user_prompt=_build_lean_candidate_workspace_tool_prompt(
                 question=question,
@@ -364,6 +337,12 @@ class LLMFormalizerProofEngineerAgent:
                 candidate_lean_declaration=candidate_lean_declaration,
                 initial_source=initial_source,
                 environment_feedback=environment_feedback,
+                authoritative_theory_document_count=len(
+                    theory_document_manifest
+                ),
+                authoritative_theory_document_set_hash=(
+                    theory_document_set_hash
+                ),
             ),
             model=request_model,
             model_tier=self.config.model_tier,
@@ -395,6 +374,7 @@ class LLMFormalizerProofEngineerAgent:
                 else {}
             ),
             session_dir=session_dir,
+            authoritative_theory_document_rows=theory_document_rows,
             request_metadata={
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
@@ -771,6 +751,8 @@ def _build_lean_candidate_workspace_tool_prompt(
     candidate_lean_declaration: str,
     initial_source: str,
     environment_feedback: Mapping[str, Any],
+    authoritative_theory_document_count: int = 0,
+    authoritative_theory_document_set_hash: str = "",
 ) -> str:
     indexed_environment_candidates = (
         _formalizer_indexed_lean_environment_candidates(environment_feedback)
@@ -831,35 +813,24 @@ def _build_lean_candidate_workspace_tool_prompt(
             "initial_authoring" if initial_authoring else "revision"
         ),
         "tool_workflow": (
-            "Choose searches and inspections from the current observations. For an "
-            "existing source, use edit_current_lean_source with one exact unique "
-            "old_text substring and model-authored replacement when a localized change "
-            "is sufficient; the complete resulting source is checked immediately. "
-            "Use submit_lean_source for initial authoring, declaration-identity changes, "
-            "or a complete replacement, with one standalone source and "
-            "candidate_declaration_name set only to the Lean identifier introduced or "
-            "checked by that source (for example Namespace.myTheorem, never a theorem "
-            "header, binders, or type). Include every required import in the submitted "
-            "source; the runtime injects none. Every source action is checked "
-            "immediately. Prefer an early compiler-grounded source attempt when you can "
-            "state the target; use retrieval for concrete unresolved environment/API "
-            "questions rather than as a prerequisite. Success hands that exact hash to "
-            "independent semantic review; failure returns raw Lean observations to this "
-            "same source owner."
+            "Choose tools from current observations. Edit the exact current source for "
+            "a local change or submit one complete standalone source for initial "
+            "authoring, declaration changes, or replacement. Supply the exact Lean "
+            "declaration identifier and every import; the runtime checks those bytes "
+            "immediately and never edits them. Read accepted Theory documents on demand, "
+            "compile early, and search for concrete unresolved environment questions. "
+            "Raw observations return to this same source owner; successful source bytes "
+            "go to independent semantic review."
             + (
-                " Start with indexed_lean_environment_candidates already carried "
-                "from task-bound RAG. Each qualified_declaration is an exact symbol "
-                "for inspection and each module is its indexed import location. "
-                "Prefer reusing a matching active-project or direct-dependency API; "
+                " Inspect carried indexed declarations and their exact modules first; "
                 "do not repeat a search for the same identity unless Lean reports "
-                "that the carried candidate is stale or incompatible."
+                "that it is stale or incompatible."
                 if indexed_environment_candidates
                 else ""
             )
             + (
-                " If concrete active-environment evidence establishes a missing "
-                "foundation primitive, report_formal_gap may record that blocker "
-                "without claiming proof."
+                " Report a non-proof formal gap only when active-environment evidence "
+                "establishes a required missing primitive."
                 if initial_authoring
                 else ""
             )
@@ -941,8 +912,16 @@ def _build_lean_candidate_workspace_tool_prompt(
             "theory_derivation_trace": compact_theory_derivation_trace(
                 theory_packet
             ),
-            "authoritative_theory_documents": (
-                load_theory_workspace_document_rows(theory_packet)
+            "n_authoritative_theory_documents": (
+                authoritative_theory_document_count
+            ),
+            "authoritative_theory_document_set_hash": (
+                authoritative_theory_document_set_hash
+            ),
+            "document_content_transport": (
+                "hash_bound_read_only_client_tools"
+                if authoritative_theory_document_count
+                else ""
             ),
             "theory_trace_consumption_contract": (
                 theory_trace_consumption_contract(

@@ -181,11 +181,21 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
             candidate_lean_declaration="C1",
             initial_source="theorem C1 : True := by trivial\n",
             environment_feedback={},
+            authoritative_theory_document_count=1,
+            authoritative_theory_document_set_hash=packet[
+                "theory_workspace_manifest"
+            ]["document_set_hash"],
         )
     )
-    assert revision_payload["task_bound_theory_context"][
-        "authoritative_theory_documents"
-    ] == expected_rows
+    revision_theory = revision_payload["task_bound_theory_context"]
+    assert revision_theory["n_authoritative_theory_documents"] == 1
+    assert revision_theory["authoritative_theory_document_set_hash"] == (
+        packet["theory_workspace_manifest"]["document_set_hash"]
+    )
+    assert revision_theory["document_content_transport"] == (
+        "hash_bound_read_only_client_tools"
+    )
+    assert content not in json.dumps(revision_payload)
 
     parent_packet = json.loads(json.dumps(packet))
     parent_packet["packet_id"] = "theory:C1:parent"

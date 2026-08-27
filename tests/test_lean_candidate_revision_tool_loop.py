@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -43,6 +44,11 @@ from ai_statistician.formalizer_llm import (
     LLMFormalizerProofEngineerAgent,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    theory_workspace_document_manifest,
+)
 from ai_statistician import (
     lean_candidate_revision_tool_loop as lean_candidate_tool_loop_module,
 )
@@ -1036,6 +1042,174 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
     assert target["formal_gap"]["missing_primitives"] == [
         "Project.requiredLemma"
     ]
+
+
+def test_formalizer_reads_exact_theory_document_in_same_lean_session(
+    tmp_path: Path,
+) -> None:
+    theory_content = (
+        "# Exact claim\n\n"
+        "UNIQUE_FORMALIZER_THEORY_BODY: for every n, the bound is finite.\n"
+    )
+    theory_root = tmp_path / "theory"
+    theory_root.mkdir()
+    (theory_root / "claim.md").write_text(theory_content, encoding="utf-8")
+    theory_manifest = theory_workspace_document_manifest(
+        {"claim.md": theory_content},
+        workspace_dir=theory_root,
+    )
+    accepted = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "read-theory",
+                    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    {"path": "claim.md", "line_start": 1, "line_end": 3},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-target",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": accepted,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    agent = LLMFormalizerProofEngineerAgent(
+        provider=backend,
+        config=FormalizerConfig(
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_tokens=1200,
+            client_tool_lean_candidate_max_turns=2,
+        ),
+    )
+
+    packet, evidence = agent.run_lean_candidate_workspace_with_client_tools(
+        question=OpenResearchQuestion(
+            id="document-grounded-formalizer",
+            title="Formalize an exact document claim",
+            description="Use the accepted Theory workspace as mathematical context.",
+        ),
+        theory_packet={
+            "packet_id": "theory:document-grounded",
+            "theory_workspace_manifest": theory_manifest,
+        },
+        parent_packet={
+            "artifact_kind": "FormalizerWorkspaceTarget",
+            "target_ref_id": "formalizer_workspace_target:document-grounded",
+            "question_id": "document-grounded-formalizer",
+            "formal_target": {
+                "id": "target-candidate",
+                "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+                "informal_source": "The exact target is true.",
+                "lean_statement_sketch": "",
+                "candidate_lean_declaration": "",
+                "lean_imports": [],
+                "semantic_alignment_constraints": [
+                    "Preserve the exact accepted Theory claim."
+                ],
+                "source_theorem_target_provenance": {
+                    "source_theorem_goal_id": "goal-target",
+                    "source_theorem_target_known": True,
+                },
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            },
+        },
+        candidate_id="target-candidate",
+        candidate_source_field="formal_targets",
+        candidate_lean_declaration="",
+        initial_source="",
+        environment_feedback={},
+        check_candidate=lambda source, declaration: {
+            "source_hash": stable_hash(source),
+            "candidate_lean_declaration": declaration,
+            "compiled": source == accepted and declaration == "target",
+        },
+        search_formal_environment=lambda query, k: [],
+        session_dir=tmp_path / "lean-session",
+    )
+
+    first_request = backend.requests[0]
+    first_request_text = first_request.system_prompt + str(first_request.messages)
+    assert "UNIQUE_FORMALIZER_THEORY_BODY" not in first_request_text
+    assert {
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    }.issubset({tool.name for tool in first_request.tools})
+    initial_workspace = _initial_workspace(first_request)
+    assert initial_workspace["authoritative_theory_documents"] == [
+        {
+            "path": "claim.md",
+            "sha256": hashlib.sha256(theory_content.encode()).hexdigest(),
+            "line_count": 3,
+            "byte_size": len(theory_content.encode()),
+        }
+    ]
+    assert initial_workspace["theory_document_content_transport"] == (
+        "hash_bound_read_only_client_tools"
+    )
+    assert "UNIQUE_FORMALIZER_THEORY_BODY" in str(backend.requests[1].messages)
+    assert packet["formal_targets"][0]["lean_statement_sketch"] == accepted
+    assert evidence["authoritative_theory_documents"] == 1
+    assert evidence["theory_document_inspections"] == 1
+    assert evidence["theory_document_inspection_refs"][0][
+        "proof_evidence_status"
+    ] == "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
+    assert "UNIQUE_FORMALIZER_THEORY_BODY" not in str(evidence)
+    assert "theory document content omitted" in str(evidence["history"])
+    assert evidence["local_lean_checks"] == 1
+    assert evidence["kernel_verified"] is False
+
+
+def test_lean_workspace_rejects_changed_theory_documents_before_model_call() -> None:
+    source = "theorem target : True := by\n  exact True.intro\n"
+    original = "# Claim\n\nOriginal accepted mathematics.\n"
+    changed = "# Claim\n\nChanged mathematics.\n"
+    checkpoint = _lean_workspace_checkpoint(
+        parent_source=source,
+        current_source=source,
+    )
+    checkpoint = dict(checkpoint)
+    checkpoint.pop("checkpoint_id")
+    checkpoint["authoritative_theory_document_set_hash"] = stable_hash(
+        [("claim.md", hashlib.sha256(original.encode()).hexdigest())]
+    )
+    checkpoint = seal_lean_candidate_workspace_checkpoint(checkpoint)
+    backend = ScriptedLeanToolBackend([])
+
+    with pytest.raises(PacketValidationError, match="Theory documents changed"):
+        run_lean_candidate_revision_tool_loop(
+            provider=backend,
+            system_prompt="Use tools.",
+            user_prompt="Continue the exact target.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=1,
+            max_no_progress_turns=1,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="target",
+            initial_source=source,
+            check_candidate=lambda current, declaration: {},
+            search_formal_environment=lambda query, k: [],
+            recovery_checkpoint=checkpoint,
+            authoritative_theory_document_rows=[
+                {
+                    "path": "claim.md",
+                    "sha256": hashlib.sha256(changed.encode()).hexdigest(),
+                    "content": changed,
+                }
+            ],
+        )
+
+    assert backend.requests == []
 
 
 def test_search_observation_reuses_retained_source_and_raw_lean_feedback() -> None:

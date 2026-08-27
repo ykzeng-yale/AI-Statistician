@@ -20,6 +20,7 @@ from .client_tool_loop import (
 from .fingerprint import stable_hash
 from .structured_output_retry import PacketValidationError
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
+from . import theory_workspace as theory_documents
 
 
 LeanCandidateCheck = Callable[[str, str], Mapping[str, Any]]
@@ -50,6 +51,7 @@ _LEAN_WORKSPACE_OBSERVATION_FIELDS = (
     "latest_proof_search",
     "latest_state_inspection",
     "latest_declaration_inspection",
+    "theory_document_inspection_refs",
 )
 
 
@@ -464,6 +466,7 @@ def run_lean_candidate_revision_tool_loop(
     request_metadata: Mapping[str, Any] | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
     session_dir: Path | None = None,
+    authoritative_theory_document_rows: Sequence[Mapping[str, Any]] = (),
 ) -> LeanCandidateRevisionToolLoopResult:
     """Let the model author or revise one immutable-bound Lean target."""
 
@@ -486,6 +489,28 @@ def run_lean_candidate_revision_tool_loop(
         raise ValueError("a rejected source hash requires an existing Lean source")
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
     max_terminal_recovery_turns = 1
+    theory_document_catalog, theory_document_map = (
+        theory_documents.externalize_theory_document_rows(
+            authoritative_theory_document_rows
+        )
+    )
+    theory_document_set_hash = stable_hash(
+        [(row["path"], row["sha256"]) for row in theory_document_catalog]
+    ) if theory_document_catalog else ""
+    checkpoint_document_set_hash = str(
+        (recovery_checkpoint or {}).get("authoritative_theory_document_set_hash", "")
+        or ""
+    )
+    if recovery_checkpoint and (
+        checkpoint_document_set_hash != theory_document_set_hash
+    ):
+        raise PacketValidationError(
+            validation_label="Lean workspace checkpoint lineage",
+            attempts=1,
+            errors=["authoritative Theory documents changed across continuation"],
+            history=[],
+            recovery_checkpoint=recovery_checkpoint,
+        )
     state: dict[str, Any] = {
         "source": parent_source,
         "source_hash": parent_source_hash,
@@ -505,6 +530,7 @@ def run_lean_candidate_revision_tool_loop(
         "latest_proof_search": {},
         "latest_state_inspection": {},
         "latest_declaration_inspection": {},
+        "theory_document_inspection_refs": [],
     }
     resume_metadata = {
         "resumed_from_model_checkpoint": False,
@@ -519,12 +545,16 @@ def run_lean_candidate_revision_tool_loop(
             rejected_source_hash=rejected_source_hash,
             checkpoint=recovery_checkpoint,
         )
+    state["authoritative_theory_document_catalog"] = deepcopy(theory_document_catalog)
+    state["authoritative_theory_document_set_hash"] = theory_document_set_hash
     tools = _lean_candidate_revision_tools(
         include_proof_search=search_proof_candidates is not None,
         include_state_inspection=inspect_lean_state is not None,
         include_declaration_inspection=inspect_lean_declaration is not None,
         include_formal_gap=allow_formal_gap,
     )
+    if theory_document_map:
+        tools = (*tools, *theory_documents.theory_document_client_tools())
 
     def check_current_source() -> dict[str, Any]:
         raw_result = check_candidate(
@@ -997,6 +1027,25 @@ def run_lean_candidate_revision_tool_loop(
                 observation_key=observation_key,
             )
 
+        if call.name in {
+            theory_documents.THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            theory_documents.THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        }:
+            content, inspection_ref = (
+                theory_documents.execute_theory_document_client_tool(
+                    theory_document_map,
+                    tool_name=call.name,
+                    tool_input=tool_input,
+                )
+            )
+            state["theory_document_inspection_refs"].append(inspection_ref)
+            observation_key = "theory-document:" + stable_hash(inspection_ref)
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=content,
+                observation_key=observation_key,
+            )
+
         raise ClientToolInputError("unsupported Lean candidate client tool")
 
     initial_workspace = {
@@ -1015,6 +1064,19 @@ def run_lean_candidate_revision_tool_loop(
         "latest_state_inspection": deepcopy(state["latest_state_inspection"]),
         "latest_declaration_inspection": deepcopy(
             state["latest_declaration_inspection"]
+        ),
+        **(
+            {
+                "authoritative_theory_documents": theory_document_catalog,
+                "authoritative_theory_document_set_hash": (
+                    theory_document_set_hash
+                ),
+                "theory_document_content_transport": (
+                    "hash_bound_read_only_client_tools"
+                ),
+            }
+            if theory_document_catalog
+            else {}
         ),
         "resumed_from_checkpoint_id": resume_metadata["resume_checkpoint_id"],
         **(
@@ -1172,6 +1234,9 @@ def run_lean_candidate_revision_tool_loop(
                 resumed_client_tool_context_window
             ),
             "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
+            "authoritative_theory_document_set_hash": (
+                theory_document_set_hash
+            ),
             "turns": exc.turns,
             "tool_calls": exc.tool_calls,
             "max_terminal_recovery_turns": max_terminal_recovery_turns,
@@ -1198,7 +1263,9 @@ def run_lean_candidate_revision_tool_loop(
             validation_label="LLM Formalizer Lean candidate client-tool workspace",
             attempts=exc.turns,
             errors=[exc.reason],
-            history=[deepcopy(dict(row)) for row in exc.history],
+            history=theory_documents.theory_document_evidence_history(
+                exc.history
+            ),
             recovery_checkpoint=seal_lean_candidate_workspace_checkpoint(
                 checkpoint_body
             ),
@@ -1221,7 +1288,9 @@ def run_lean_candidate_revision_tool_loop(
                 validation_label="LLM Formalizer Lean candidate client-tool workspace",
                 attempts=loop.turns,
                 errors=["terminal formal-gap payload is incomplete"],
-                history=[deepcopy(dict(row)) for row in loop.history],
+                history=theory_documents.theory_document_evidence_history(
+                    loop.history
+                ),
             )
         return _lean_candidate_revision_success_result(
             source=str(state["source"]),
@@ -1286,7 +1355,9 @@ def run_lean_candidate_revision_tool_loop(
             validation_label="LLM Formalizer Lean candidate client-tool workspace",
             attempts=loop.turns,
             errors=["terminal payload was not bound to a compiled current source"],
-            history=[deepcopy(dict(row)) for row in loop.history],
+            history=theory_documents.theory_document_evidence_history(
+                loop.history
+            ),
         )
 
     return _lean_candidate_revision_success_result(
@@ -1446,6 +1517,23 @@ def _lean_candidate_revision_success_result(
         "lean_declaration_provider_tools": list(
             declaration_provider_tools
         ),
+        "authoritative_theory_documents": len(
+            state.get("authoritative_theory_document_catalog", [])
+        ),
+        "authoritative_theory_document_set_hash": (
+            state.get("authoritative_theory_document_set_hash", "")
+        ),
+        "theory_document_content_transport": (
+            "hash_bound_read_only_client_tools"
+            if state.get("authoritative_theory_document_set_hash", "")
+            else ""
+        ),
+        "theory_document_inspections": len(
+            state.get("theory_document_inspection_refs", [])
+        ),
+        "theory_document_inspection_refs": deepcopy(
+            state.get("theory_document_inspection_refs", [])
+        ),
         "lean_lsp_mcp_live_called": any(
             tool.startswith("lean_lsp_mcp.") for tool in live_provider_tools
         ),
@@ -1455,7 +1543,9 @@ def _lean_candidate_revision_success_result(
         "model": model,
         "model_tier": model_tier,
         "provider_usage": dict(provider_usage),
-        "history": [deepcopy(dict(row)) for row in history],
+        "history": theory_documents.theory_document_evidence_history(
+            history
+        ),
         "transcript_fingerprint": transcript_fingerprint,
         "handoff_mode": (
             "successful_model_source_submission"

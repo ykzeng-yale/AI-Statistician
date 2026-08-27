@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -87,20 +86,10 @@ def externalize_scientific_workspace_documents(
     rows = theory.get("authoritative_theory_documents", [])
     if rows and (not isinstance(rows, Sequence) or isinstance(rows, (str, bytes))):
         raise ValueError("scientific workspace theory documents are malformed")
-    documents: dict[str, str] = {}
-    manifest = []
     iterable = rows if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) else ()
-    for row in iterable:
-        if not isinstance(row, Mapping):
-            raise ValueError("scientific workspace theory document row is malformed")
-        path, content = str(row.get("path", "") or ""), row.get("content")
-        sha256 = str(row.get("sha256", "") or "")
-        if not path or path in documents or not isinstance(content, str) or (
-            hashlib.sha256(content.encode()).hexdigest() != sha256
-        ):
-            raise ValueError("scientific workspace theory document identity mismatch")
-        documents[path] = content
-        manifest.append({"path": path, "sha256": sha256, "line_count": len(content.splitlines())})
+    manifest, documents = theory_documents.externalize_theory_document_rows(
+        iterable
+    )
     if documents:
         theory["authoritative_theory_documents"] = manifest
         theory["document_content_transport"] = "hash_bound_read_only_client_tools"
@@ -916,7 +905,9 @@ def run_source_owner_scientific_workspace(
         prototype["scientific_code_workspace_failure"] = {
             "validation_errors": list(exc.errors),
             "attempts": exc.attempts,
-            "history": [dict(row) for row in exc.history],
+            "history": theory_documents.theory_document_evidence_history(
+                exc.history
+            ),
             "recovery_checkpoint": dict(exc.recovery_checkpoint or {}),
             "runtime_edited_source": False,
         }
@@ -1831,14 +1822,12 @@ def run_scientific_code_workspace(
 
     def execute_tool(call, context):
         tool_input = dict(call.input)
-        if call.name == theory_documents.THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
-            observation, _ = theory_documents.read_theory_document_lines(
-                context_documents or {}, **tool_input
-            )
-            return ClientToolExecutionResult(content=observation)
-        if call.name == theory_documents.THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
-            observation, _ = theory_documents.search_theory_document_lines(
-                context_documents or {}, **tool_input
+        if call.name in {
+            theory_documents.THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            theory_documents.THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        }:
+            observation, _ = theory_documents.execute_theory_document_client_tool(
+                context_documents or {}, tool_name=call.name, tool_input=tool_input
             )
             return ClientToolExecutionResult(content=observation)
         if call.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL:
@@ -2180,7 +2169,9 @@ def run_scientific_code_workspace(
             validation_label="LLM scientific code workspace",
             attempts=exc.turns,
             errors=[exc.reason],
-            history=[deepcopy(dict(row)) for row in exc.history],
+            history=theory_documents.theory_document_evidence_history(
+                exc.history
+            ),
             recovery_checkpoint=checkpoint,
         ) from exc
 
@@ -2211,7 +2202,9 @@ def run_scientific_code_workspace(
                 "terminal payload is not bound to an accepted candidate or exact "
                 "dependency source owner"
             ],
-            history=[deepcopy(dict(row)) for row in loop.history],
+            history=theory_documents.theory_document_evidence_history(
+                loop.history
+            ),
         )
 
     evidence = {
@@ -2258,7 +2251,9 @@ def run_scientific_code_workspace(
         "model": loop.model,
         "model_tier": model_tier,
         "provider_usage": dict(loop.provider_usage),
-        "history": [deepcopy(dict(row)) for row in loop.history],
+        "history": theory_documents.theory_document_evidence_history(
+            loop.history
+        ),
         "transcript_fingerprint": loop.transcript_fingerprint,
         "model_owned_source": True,
         "runtime_edited_source": False,
