@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "two_period_panel_did_known_result",
+      "title": "Two-period panel difference-in-differences identification and sampling variance",
+      "description": "Focused L0 known-result evaluation grounded in Abadie (2005). Observe iid panel units at a pre period t=0 and a post period t=1 with group G_i in {0,1}. No unit is treated at t=0; units with G_i=1 are treated at t=1 and units with G_i=0 remain untreated. Write Y_i0=Y_i0(0), Y_i1=G_i*Y_i1(1)+(1-G_i)*Y_i1(0), and Delta Y_i=Y_i1-Y_i0. In one authoritative Markdown/LaTeX Theory workspace, state consistency/no interference and no anticipation, define tau_ATT=E[Y_i1(1)-Y_i1(0)|G_i=1], and impose the mean parallel-trends condition E[Y_i1(0)-Y_i0(0)|G_i=1]=E[Y_i1(0)-Y_i0(0)|G_i=0]. Derive tau_ATT=E[Delta Y_i|G_i=1]-E[Delta Y_i|G_i=0] step by step, making clear that parallel trends identifies the missing treated-group counterfactual mean rather than following from observed pre-period equality. Define the sample DID estimator as the treated mean change minus the control mean change. Conditional on group sample sizes n_1>=2 and n_0>=2, derive finite-sample unbiasedness under independent iid sampling within groups, sampling variance sigma_1_squared/n_1+sigma_0_squared/n_0 where sigma_g_squared=Var(Delta Y_i|G_i=g), and the unbiased plug-in variance s_1_squared/n_1+s_0_squared/n_0 using within-group sample variances with denominator n_g-1. State an appropriate two-sample asymptotic normal result under explicit finite-variance and growing-group assumptions, but do not claim exact finite-sample normality or that an ordinary normal interval is exact. Explain how differential untreated trends, anticipation, interference, changing composition, or treatment-timing complications invalidate or alter this elementary design, and why a pre-trend check cannot prove the identifying assumption. Do not use simulation or a library call as proof. The required model-authored Python artifact is est_two_period_panel_did and must implement run_estimator(request) exactly for the frozen public closed contract. Exploratory Python or R may check identities, boundaries, and equivariances. A separately frozen confirmatory assessment invokes the estimator under multiple positive, zero, and negative ATT values, unequal group sizes and variances, heterogeneous effects, and more than one sample-size regime. It compares the Monte Carlo mean DID, empirical sampling variance, mean reported variance, and interval coverage with frozen population targets using Monte Carlo uncertainty. That assessment is implementation and finite-sample evidence, not proof of identification, parallel trends, exact finite-sample normality, source replication, novelty, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "difference in differences",
+        "panel data",
+        "parallel trends",
+        "ATT",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Semiparametric Difference-in-Differences Estimators",
+          "authors": [
+            "Alberto Abadie"
+          ],
+          "journal": "The Review of Economic Studies",
+          "year": 2005,
+          "volume": 72,
+          "issue": 1,
+          "pages": "1-19",
+          "doi": "10.1111/0034-6527.00321",
+          "url": "https://academic.oup.com/restud/article-abstract/72/1/1/1581053"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_two_period_panel_did",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.group",
+            "name": "group",
+            "meaning": "Treatment-group indicators G_i in paired panel-unit order, with 1 for treated at post and 0 for never treated.",
+            "json_type": "array",
+            "shape": "one array of length 4 through 10000 containing exact JSON integers 0 or 1, with at least two entries from each group",
+            "units": "binary group label",
+            "indexing": "entry i is paired with pre_outcome and post_outcome entry i",
+            "edge_cases": "Reject booleans, floating-point 0.0 or 1.0, strings, nulls, other integers, nested arrays, arrays shorter than 4, oversized arrays, and samples with fewer than two units in either group rather than coercing or dropping them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.pre_outcome",
+            "name": "pre_outcome",
+            "meaning": "Observed pre-treatment panel outcomes Y_i0 paired one-to-one with group and post_outcome.",
+            "json_type": "array",
+            "shape": "one array with exactly the group length containing finite JSON numbers",
+            "units": "outcome units",
+            "indexing": "entry i belongs to panel unit i",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, nested arrays, and unequal lengths rather than coercing or dropping them. Constant levels and constant within-group changes remain valid.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.post_outcome",
+            "name": "post_outcome",
+            "meaning": "Observed post-period panel outcomes Y_i1 paired one-to-one with group and pre_outcome.",
+            "json_type": "array",
+            "shape": "one array with exactly the group length containing finite JSON numbers",
+            "units": "outcome units",
+            "indexing": "entry i belongs to panel unit i",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, nested arrays, and unequal lengths rather than coercing or dropping them. Positive, zero, or negative changes and zero within-group change variance remain valid.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_treated",
+            "name": "n_treated",
+            "meaning": "Number of panel units with group indicator 1.",
+            "json_type": "integer",
+            "shape": "one exact integer from 2 through 9998",
+            "units": "panel units",
+            "indexing": "counts every request.group entry equal to 1",
+            "edge_cases": "It is never inferred from outcome values.",
+            "normalization": "sum_i 1{G_i=1}."
+          },
+          {
+            "clause_id": "response.n_control",
+            "name": "n_control",
+            "meaning": "Number of panel units with group indicator 0.",
+            "json_type": "integer",
+            "shape": "one exact integer from 2 through 9998",
+            "units": "panel units",
+            "indexing": "counts every request.group entry equal to 0",
+            "edge_cases": "It is never inferred from outcome values.",
+            "normalization": "sum_i 1{G_i=0}."
+          },
+          {
+            "clause_id": "response.treated_mean_change",
+            "name": "treated_mean_change",
+            "meaning": "Sample mean of Delta Y_i=post_outcome_i-pre_outcome_i among treated units.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "uses every and only request entries with group 1",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sum_{i:G_i=1}(post_outcome_i-pre_outcome_i)/n_treated."
+          },
+          {
+            "clause_id": "response.control_mean_change",
+            "name": "control_mean_change",
+            "meaning": "Sample mean of Delta Y_i=post_outcome_i-pre_outcome_i among control units.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "uses every and only request entries with group 0",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "sum_{i:G_i=0}(post_outcome_i-pre_outcome_i)/n_control."
+          },
+          {
+            "clause_id": "response.did_estimate",
+            "name": "did_estimate",
+            "meaning": "Two-period panel difference-in-differences estimate.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "May be positive, zero, or negative.",
+            "normalization": "treated_mean_change-control_mean_change."
+          },
+          {
+            "clause_id": "response.treated_change_variance",
+            "name": "treated_change_variance",
+            "meaning": "Within-treated-group sample variance of individual panel changes.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "uses every and only request entries with group 1",
+            "edge_cases": "Zero is valid when all treated-unit changes are equal.",
+            "normalization": "sum_{i:G_i=1}(Delta Y_i-treated_mean_change)^2/(n_treated-1)."
+          },
+          {
+            "clause_id": "response.control_change_variance",
+            "name": "control_change_variance",
+            "meaning": "Within-control-group sample variance of individual panel changes.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "uses every and only request entries with group 0",
+            "edge_cases": "Zero is valid when all control-unit changes are equal.",
+            "normalization": "sum_{i:G_i=0}(Delta Y_i-control_mean_change)^2/(n_control-1)."
+          },
+          {
+            "clause_id": "response.estimated_variance",
+            "name": "estimated_variance",
+            "meaning": "Unbiased plug-in estimate of the conditional sampling variance of did_estimate under independent iid sampling within groups.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "Zero is valid when both within-group change variances are zero.",
+            "normalization": "treated_change_variance/n_treated+control_change_variance/n_control."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "Nonnegative plug-in standard error for did_estimate.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "Zero is valid when estimated_variance is zero; the estimator does not reject or regularize that boundary.",
+            "normalization": "sqrt(estimated_variance)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly group, pre_outcome, and post_outcome and the response contains exactly the nine declared fields. Missing, extra, malformed, nonfinite, unequal-length, or underpopulated-group inputs are rejected rather than ignored, coerced, truncated, or padded."
+          },
+          {
+            "clause_id": "invariant.paired_permutation_invariance",
+            "meaning": "Applying the same permutation to group, pre_outcome, and post_outcome leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.unit_offset_invariance",
+            "meaning": "Adding an arbitrary finite unit-specific offset c_i to both pre_outcome_i and post_outcome_i leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.treated_post_shift_equivariance",
+            "meaning": "Adding a finite constant c to post_outcome for every treated unit only adds c to treated_mean_change and did_estimate; counts, control_mean_change, both change variances, estimated_variance, and standard_error remain unchanged."
+          },
+          {
+            "clause_id": "invariant.outcome_scale_equivariance",
+            "meaning": "Multiplying both pre_outcome and post_outcome by a finite scalar a multiplies both mean changes and did_estimate by a, multiplies both change variances and estimated_variance by a^2, multiplies standard_error by |a|, and leaves both counts unchanged. The a=0 boundary is valid."
+          },
+          {
+            "clause_id": "invariant.group_label_swap",
+            "meaning": "Replacing every group label by 1-G swaps treated and control counts, mean changes, and change variances; did_estimate changes sign while estimated_variance and standard_error remain unchanged."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every panel DGP, group size, baseline distribution, untreated trend, effect distribution, variance, seed, replicate count, estimator invocation, population comparator, Monte Carlo precision rule, coverage rule, and joint decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.did_sampling_behavior",
+            "meaning": "Across multiple predeclared positive, zero, and negative ATT values, unequal group sizes and variances, homogeneous and heterogeneous effects, and more than one sample-size regime, compare the Monte Carlo mean DID with ATT, the empirical DID variance and mean returned estimated_variance with sigma_1_squared/n_1+sigma_0_squared/n_0, and ordinary 95% normal-interval coverage with its frozen target using Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks implementation and finite-sample sampling behavior only. It does not prove parallel trends, identification, exact finite-sample normality, robustness to anticipation, interference, composition or timing changes, source replication, novelty, or formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
