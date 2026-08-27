@@ -1,13 +1,13 @@
 {
-  "schema_version": 222,
+  "schema_version": 223,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "f2e39edbea3c6f0122a14827d8d996c1854966bd",
+  "validated_code_head": "11ee99bd630cca6d5d5647e7050b7c2f2259badc",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty-eight consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/68 and exact development Lean closure remains 0/2. Task 68 is immutable 0/1: operator audit invalidated its theory, its estimator failed the closed request contract, and a stale-context reviewer falsely rejected the exact revised confirmatory source. Commit f2e39edb applies only to future tasks by requiring the same isolated reviewer session to freshly read each current hash-bound source before judging prior findings. Continue toward a model-owned Theory, Python/R, Simulation, and optional Lean research system under one AgentRuntime; do not rerun Task 68 or add Welch formulas, Python type patches, content repair, retries, extra schedulers, Codex provider/runtime embedding, or model escalation. Production may use Sonnet, all evaluations remain exact Haiku, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty-eight consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/68 and exact development Lean closure remains 0/2. Task 68 is immutable 0/1. Commit f2e39edb requires future revision reviewers to read exact current source; commit 11ee99bd requires future TheoryDeveloper and referee sessions to align scratch with the complete proposition and audit types, domains, and dimensions without task-family examples. Continue toward model-owned Theory, Python/R, Simulation, and optional Lean workspaces under one AgentRuntime; do not rerun Task 68 or add Welch formulas, Python type patches, deterministic mathematics repair, retries, extra reviewers, schedulers, Codex provider/runtime embedding, or model escalation. Production may use Sonnet, all evaluations remain exact Haiku, and Opus remains prohibited.",
   "latest_welch_satterthwaite_l0_evaluation": {
     "task_id": "welch_satterthwaite_two_sample_interval_known_result",
     "family": "heteroskedastic_two_sample_mean_inference",
@@ -63,6 +63,17 @@
     "verification": "Focused tests passed 146/146 and the complete repository passed 988/988 in 79.56 seconds. Compile, diff, JSON, and the unchanged 150000-line architecture budget passed; production Python is 149998 lines.",
     "model_policy": "No live model call occurred while implementing the shared change. Task 68 used exact claude-haiku-4-5-20251001 for all seven enabled roles; no Sonnet or Opus call occurred.",
     "consumed_task_boundary": "Task 68 and every earlier draw remain immutable. Commit f2e39edb is future-task mechanism evidence only; trustworthy capability remains 4/68 and exact development theorem closure remains 0/2."
+  },
+  "latest_theory_complete_claim_alignment_change": {
+    "implementation_commit": "11ee99bd630cca6d5d5647e7050b7c2f2259badc",
+    "upstream_codex_reference_head": "8aea62b2d857e950cb84366602af79403b8ed545",
+    "diagnosis": "Task 68's TheoryDeveloper and isolated referee had the exact Markdown and scratch tools, but both executed a weaker shift predicate and treated its label as evidence for a stronger compound interval claim. They also omitted a dimensional audit. This was model judgment failure, not missing context or a need for a formula parser.",
+    "change": "The existing Theory and referee prompts now ask the model to reconstruct the complete proposition, expose relevant sides, residuals, predicates, or witnesses, check types, domains, and dimensions, and seek countermodels preserving the written premises. Task-family group and baseline examples were removed.",
+    "codex_principle": "A tool observation supports only the action and exact current proposition it actually evaluated. Keep one source-owning model/tool/observation session and external immutable artifacts; do not infer stronger scientific content from a weaker metric label.",
+    "scientific_boundary": "No formula, theorem template, symbolic grammar, content patch, repair agent, reviewer, tool, model call, retry, route, scheduler, provider, or model escalation was added. Runtime still owns only identity, permissions, budgets, provenance, and evidence authority.",
+    "verification": "Focused Theory/referee tests passed 156/156; the complete repository passed 988/988 in 78.68 seconds; compileall and diff hygiene passed; production Python is 149999 lines under the unchanged 150000-line budget.",
+    "model_policy": "No live model call occurred. Future tests and live evaluations remain exact claude-haiku-4-5-20251001; production remains Sonnet or below; Opus and automatic tier escalation remain prohibited.",
+    "consumed_task_boundary": "Task 68 and every earlier draw remain immutable. Commit 11ee99bd is future-task mechanism evidence only; trustworthy capability remains 4/68 and exact development theorem closure remains 0/2."
   },
   "latest_two_period_panel_did_l0_evaluation": {
     "task_id": "two_period_panel_did_known_result",
@@ -1423,12 +1434,12 @@
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "6c59264b14b963d45d1005e7a8b1de87d4b054e2",
-    "latest_incremental_finding": "The one-commit Codex delta from e9a446d7 through 6c59264b changes only Guardian V2 asynchronous test timeouts. The production same-session model/tool/observation loop, App Server boundary, Python SDK, and multi-agent semantics are unchanged. The SDK still launches bundled codex app-server over stdio, so importing it would add a second conversation owner rather than provide a provider-neutral Claude inner loop.",
-    "latest_incremental_adoption": "Commit 3fe4bdb9 applies Codex's source-owner principle to future Simulation work. When runtime already has either an exploratory intent or a frozen confirmatory source-acceptance ABI, one Python/R workspace owns planning, source, execution feedback, and revision. The detached planning-envelope model call is removed while runtime preserves exact requirement bindings, accepted estimator refs, replicate count, seed blinding, and evidence authority.",
+    "latest_rechecked_upstream_commit": "8aea62b2d857e950cb84366602af79403b8ed545",
+    "latest_incremental_finding": "The Codex delta after 5f49aba8 adds descendant-token accounting for root goals, active-step model token budgets, response-usage metadata, explicit delegated-model override policy, and permission/plugin/test hardening. Its production run_turn, tool router, tool-output continuation, and multi-agent workspace semantics relevant here remain unchanged. Importing Codex goal, App Server, thread, provider, or shared-cwd subagent state would duplicate the Claude-first scientific control plane.",
+    "latest_incremental_adoption": "Commit 11ee99bd applies the existing Codex-shaped observation principle to TheoryDeveloper and its isolated referee: a scratch observation supports only the complete proposition its executable predicate actually tests. The same workspaces now emphasize types, domains, dimensions, explicit sides/residuals/witnesses, and countermodels while removing task-family examples; no tool, call, agent, or scheduler was added.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "3fe4bdb9fd3a63148078261e5efc10f76066ee98",
+    "implementation_commit": "11ee99bd630cca6d5d5647e7050b7c2f2259badc",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -1479,7 +1490,8 @@
       "5d5125607c58bc5830ac11a27c6c64ce6764e344",
       "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f",
       "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
-      "3fe4bdb9fd3a63148078261e5efc10f76066ee98"
+      "3fe4bdb9fd3a63148078261e5efc10f76066ee98",
+      "11ee99bd630cca6d5d5647e7050b7c2f2259badc"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -1519,6 +1531,7 @@
     },
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable bounded tool surface, external artifact state, credential-safe persisted metadata, terminal-error pending-input preservation, sparse ownership, owner-scoped tool permissions, paginated-history principle, and telemetry boundaries. Do not embed codex exec, app-server, thread store, worktree manager, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime. Treat standalone Codex sandboxing as a future pinned native execution provider only after cross-platform isolation calibration.",
     "implemented_changes": [
+      "Commit 11ee99bd keeps the existing TheoryDeveloper and independent-referee tool loops but requires model-owned scratch to cover the complete proposition under judgment, exposing relevant sides, residuals, predicates, or witnesses and checking types, domains, and dimensions. It removes task-family countermodel examples and adds no tool, call, content repair, formula, parser, reviewer, route, scheduler, or model escalation.",
       "Commit 3fe4bdb9 lets one native Simulation Python/R workspace own scientific planning, source, execution feedback, and revision whenever runtime has an exploratory intent or a frozen confirmatory source-acceptance ABI. The detached planning-envelope model call is absent; runtime still owns exact requirement binding, accepted estimator refs, replicate count, seed blinding, hashes, and evidence authority.",
       "Future hidden semantic candidates remain in one integrated complete-document model context. One response supplies document-wide and per-claim status, so cross-claim contradictions and extra active falsehoods retain an authority path while candidate calls no longer scale with rubric-claim count.",
       "ArchitectMetricSemanticReviewer now owns one persistent draft across same-session terminal corrections. Generic recursive updates preserve omitted mapping fields, arrays replace only when supplied, raw validator observations stay in the same history, and the unchanged complete validator remains fail-closed.",
@@ -1574,7 +1587,7 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The official Codex checkout is rechecked through 57e2edc6. The focused client-tool suite passed 24/24, the cross-workspace client-tool, Lean, and ladder panel passed 329/329, and the complete repository passed 958/958 in 78.30 seconds. Model-policy and ladder tests passed 89/89; compile-all, JSON, diff, architecture line-budget, and changed-file secret hygiene passed. Task 59 was consumed once; no consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted new capability credit. No Codex transport, provider, history or thread storage, Guardian, or scheduler was imported.",
+    "verification": "The official Codex checkout is rechecked through 8aea62b2. Focused Theory/referee tests passed 156/156 and the complete repository passed 988/988 in 78.68 seconds. Compileall, diff hygiene, and the unchanged architecture line budget passed with production Python at 149999 lines. No live model was called; no consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted new capability credit; no Codex transport, provider, goal extension, thread storage, Guardian, shared-cwd subagent, or scheduler was imported.",
     "live_validation_runs": 22,
     "fresh_live_client_tool_model_turns": 1094,
     "capability_credit": true,
@@ -3027,20 +3040,20 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24984,
-    "scientific_code_workspace_lines": 2512,
-    "theory_workspace_lines": 3831,
-    "research_architect_lines": 4168,
-    "architect_theory_execution_preflight_lines": 4820,
+    "research_agent_runtime_lines": 24963,
+    "scientific_code_workspace_lines": 2537,
+    "theory_workspace_lines": 3833,
+    "research_architect_lines": 4167,
+    "architect_theory_execution_preflight_lines": 4821,
     "architect_metric_contract_authoring_lines": 2965,
-    "architect_coordinator_llm_lines": 3068,
+    "architect_coordinator_llm_lines": 3096,
     "formalizer_llm_lines": 2346,
     "lean_candidate_revision_tool_loop_lines": 1900,
     "client_tool_loop_lines": 1276,
     "agent_runtime_lines": 1248,
     "cli_lines": 7036,
     "top_level_python_modules": 137,
-    "top_level_package_lines": 149337,
+    "top_level_package_lines": 149999,
     "latest_runtime_manifest_bytes": 55858
   },
   "next_gates": [

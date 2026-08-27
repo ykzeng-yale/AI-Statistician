@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`5f49aba876922d6f2f55caa153bbb0ed1b46feba`.
+`8aea62b2d857e950cb84366602af79403b8ed545`.
 
 The cumulative audit through that head continues to support the same boundary:
 a delegated worker receives explicit authority-scoped tools and artifact context,
@@ -16,6 +16,13 @@ embed Codex's thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `11ee99bd630cca6d5d5647e7050b7c2f2259badc`: require TheoryDeveloper
+  and its isolated referee to align scratch observations with the complete
+  proposition being judged, including object type, domain, and dimensional
+  checks, while removing task-family examples and adding no tool or call;
+- `f2e39edbea3c6f0122a14827d8d996c1854966bd`: require a revision
+  reviewer to read the exact current immutable source in its own retained
+  session before judging historical findings;
 - `464cba39753ff2959e5d0f2c08491c982745cc60`: preserve a valid,
   independently reviewed Algorithm artifact across exploratory Simulation
   handoff and reserve structured semantic-review findings for active blockers;
@@ -2652,3 +2659,40 @@ architecture budget passed, with production Python at 149,998 lines. Task 68 was
 rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled. Its
 operator-invalidated result remains immutable `0/1`, trustworthy full-task
 capability remains `4/68`, and exact development theorem closure remains `0/2`.
+
+## Complete-claim alignment and current upstream recheck
+
+Official Codex `main` was fetched through
+[`8aea62b2`](https://github.com/openai/codex/commit/8aea62b2d857e950cb84366602af79403b8ed545).
+The delta after `5f49aba8` adds descendant-token accounting for root goals,
+active-step model token budgets, response-usage metadata, explicit delegated-model
+override policy, and permission/plugin/test hardening. The production `run_turn`,
+tool router, tool-output continuation, and multi-agent workspace semantics that
+matter here are unchanged. Descendant usage accounting is useful lifecycle
+telemetry, but importing Codex's goal extension would add product state without
+improving scientific reasoning; AI Statistician already records provider usage in
+each source-owning session.
+
+The deeper Task 68 failure was not absent context or an unavailable tool. Both the
+TheoryDeveloper and isolated referee executed a weaker shift check, then treated its
+label as evidence for a compound interval claim that the executable predicate never
+tested. They also omitted a type/dimensional audit of a displayed variance formula.
+This is a model-owned claim-to-observation error, not a reason for a Welch formula,
+symbolic grammar parser, deterministic mathematics patch, another reviewer, or
+another scheduler.
+
+Commit `11ee99bd` applies the smallest future-only correction. The existing Theory
+and referee sessions are asked to reconstruct the complete proposition, expose its
+relevant sides, residual, predicate, or witness, check object types, domains, and
+dimensions, and seek a countermodel that preserves the written premises. A weaker
+proxy cannot support the stronger claim merely by sharing its label. DID-specific
+group/baseline examples were removed. Tool surfaces, turn and call budgets, model
+policy, workspace ownership, artifact formats, and AgentRuntime topology are
+unchanged.
+
+The focused Theory/referee panel passed `156/156`; the complete repository passed
+`988/988` in 78.68 seconds. Production Python is 149,999 lines under the unchanged
+150,000-line budget. No live model was called, and no consumed task was rerun,
+resumed, repaired, hidden-evaluated again, rescored, or resampled. Task 68 remains
+immutable `0/1`, trustworthy capability remains `4/68`, and exact development
+theorem closure remains `0/2`.

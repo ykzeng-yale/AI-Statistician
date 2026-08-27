@@ -6,7 +6,8 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
+LATEST_SHARED_MECHANISM_HEAD = "11ee99bd630cca6d5d5647e7050b7c2f2259badc"
+TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 68
 CURRENT_CONSUMED_TASKS = 68
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -6589,7 +6590,7 @@ def test_welch_satterthwaite_l0_consumed_draw_is_operator_invalidated() -> None:
     )
     assert Path(evidence["operator_audit"]).is_file()
     assert evidence["post_run_shared_mechanism_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        TASK_68_SHARED_MECHANISM_HEAD
     )
     assert "same isolated reviewer session" in evidence[
         "post_run_shared_mechanism_change"
@@ -6609,6 +6610,7 @@ def test_welch_satterthwaite_l0_consumed_draw_is_operator_invalidated() -> None:
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == 9
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
+    assert "complete proposition" in readiness["latest_shared_mechanism_summary"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
