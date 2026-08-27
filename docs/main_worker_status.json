@@ -1,13 +1,66 @@
 {
-  "schema_version": 216,
+  "schema_version": 217,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "c6f1a1474a16ade6008f2bbf1494dbb414c03e81",
+  "validated_code_head": "b55a163388ba795d05bb48cd4194881ede829223",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty-three consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/63 and exact development Lean closure remains 0/2. Commit c6f1a147 completes the shared future correction identified after Task 63: one Simulation coding-agent session now authors exact executable preregistration source, receives raw non-confirmatory diagnostics, and commits its own DGP, measurements, decision, and requested replicate count. An isolated reviewer inspects those exact bytes before one unchanged replay on a hidden confirmatory cohort; confirmation opens no planning or source-model call and can never trigger result-informed repair. The obsolete post-implementation Architect metric-authoring operation and its duplicate review-dispatch branch were deleted. OpenAI Codex commit 694edc23 confirms the adopted harness principle: incremental same-session model-tool-observation loops, immutable per-step tools, bounded context, and sparse continuation references. Do not embed Codex core, App Server, provider transport, shared-cwd subagents, task formulas, grammar rules, parsers, retries, routes, or another scheduler. The next capability action is one fresh exact-Haiku known-result evaluation through this path, followed by immutable hidden and operator audit; only shared mechanism defects may change future runs. Production may use Sonnet, all evaluations remain exact Haiku, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty-four consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/64 and exact development Lean closure remains 0/2. Task 64 is an immutable 0/1: its Markdown/LaTeX theory passed hidden 7/7 mechanical and 6/6 semantic checks, but its source-owned evaluator made acceptance independent of its substantive empirical outputs, its isolated reviewer inspected the upstream estimator rather than run_sandbox, exact confirmation was skipped, and Critic false-accepted missing empirical evidence. Commits 7e7c1a2e and b55a1633 apply Codex's useful harness principles to future tasks: current-target-first same-session review, raw tool feedback, exact deferred continuation, byte-identical confirmation, deterministic evidence authority, and direct typed handoffs. Do not embed Codex core, App Server, provider transport, shared-cwd subagents, task formulas, grammar rules, content repair, retries, or another scheduler. After this ledger is on both canonical refs, freeze one disjoint Task 65 before any product call. Production may use Sonnet, all evaluations remain exact Haiku, and Opus remains prohibited.",
+  "latest_brier_score_bernoulli_l0_evaluation": {
+    "task_id": "brier_score_bernoulli_mean_known_result",
+    "family": "proper_scoring_rules_binary_forecasts",
+    "status": "fresh_live_v1_consumed_runtime_false_accept_empirical_evidence_missing",
+    "run_path": "runs/main_worker_research_l0_brier_bernoulli_20260827_v1_codex_workspace_exact_haiku",
+    "runtime_head": "c3df994833e20b35e0229358998d5938090702ac",
+    "runtime_model": "claude-haiku-4-5-20251001",
+    "runtime_enabled_model_tiers": {
+      "haiku": 7
+    },
+    "runtime_sonnet_or_opus_calls": 0,
+    "runtime_status": "ACCEPTED",
+    "runtime_outer_iterations": 9,
+    "runtime_research_evaluation": "0/1 complete; 1/1 mode-conformant",
+    "automated_hidden_evaluation": "0/1",
+    "theory_result": "Persistent Markdown/LaTeX theory passed hidden 7/7 mechanical checks and all 6/6 calibrated semantic claims. Operator audit found the population and empirical Brier identities, uniqueness, boundary cases, and stated scope correct.",
+    "algorithm_result": "One exact Python estimator executed and was independently accepted. Operator inspection found its declared interface mathematically consistent, but hidden algorithm evaluation was not attempted and no hidden pass is claimed.",
+    "empirical_finding": "The evaluator executed 4759 estimator calls at 128 requested replicates, but acceptance_passed ignored its finite-sample event-rate and out-of-sample Brier results. The reviewer inspected the wrong target, the exact confirmation continuation was skipped, and confirmatory evidence remained ineligible.",
+    "critic_finding": "Critic reported all dimensions supported despite simulation_passed=false and confirmatory_empirical_evidence_eligible=false. The old deterministic terminal gate allowed the false ACCEPT.",
+    "hidden_evaluator_finding": "Hidden evaluation expected a retired implementation-interface handoff and missed the direct reviewed algorithm handoff, so hidden algorithm and empirical harnesses were skipped. The consumed evaluation is not rerun or rescored.",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "operator_disposition": "RUNTIME_FALSE_ACCEPTED_EMPIRICAL_EVIDENCE_MISSING",
+    "operator_audit": "docs/operator_audits/brier_score_bernoulli_mean_l0_v1.md",
+    "post_run_shared_mechanism_commits": [
+      "7e7c1a2e5837308a77770bbca994e0e059842294",
+      "b55a163388ba795d05bb48cd4194881ede829223"
+    ],
+    "evidence_hashes": {
+      "runtime_manifest": "b3dc2972cd194bc5913bff6888deb6bce4ca3309c88dbd05fa88855dfe45dea2",
+      "runtime_result": "8d53bda9490146ef904fcf44a6cc2fe160356c5f46645621d43477c4bf1a5ed7",
+      "hidden_gold_evaluation": "674f3d3ba87feb9643f125dfbd6bd0a246dda021eb11880099ae10d1ffd10362",
+      "theory_packet": "7ba412cbf5fafad83208950427378f37b80941a382d13e90bbe2625f860eca71",
+      "theory_document_set": "2ac4f0135d99a54e52ea465ce8149b15f12ca336653314ddff28e3be3663349b",
+      "algorithm_source": "1f250c02e93013508a9bd512f8c2017d6ca612dbff8cfe8ce407673d89c57686",
+      "simulation_source": "1e8aeb08c0dd848119720cd00e2504411b2ef62ec58aa5d50d397e569ab4e1af"
+    },
+    "immutability_boundary": "Exactly one product draw and one post-runtime hidden evaluation were consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample Task 64.",
+    "trusted_capability_credit": "0/1; aggregate remains 4/64"
+  },
+  "latest_codex_harness_lineage_change": {
+    "implementation_commits": [
+      "7e7c1a2e5837308a77770bbca994e0e059842294",
+      "b55a163388ba795d05bb48cd4194881ede829223"
+    ],
+    "upstream_codex_reference_head": "694edc23b22b4696400dc47663ecacd437623870",
+    "change": "Future Simulation evaluator authoring, independent review, accepted continuation, byte-identical hidden replay, Critic terminal authority, and hidden algorithm consumption now agree on direct content-addressed artifacts. The reviewer sees the current run_sandbox target before upstream context and must analyze the generic acceptance ABI before ACCEPT.",
+    "codex_principle": "Reuse one same-session model-tool-observation loop, immutable step-local tool authority, persisted external artifacts, exact continuation, and sparse typed handoffs. Do not import Codex's provider transport, App Server, thread manager, shared-cwd delegation, or a second scheduler.",
+    "scientific_boundary": "Runtime validates only source identity, reviewer independence, requested-replicate and exact-Boolean acceptance ABI, task intent, blinding, and evidence presence. Models still own every DGP, statistic, threshold, derivation, source edit, and scientific judgment.",
+    "verification": "The complete repository passed 980/980 in 79.04 seconds. Compile checks, JSON-independent code hygiene, diff hygiene, changed-file secret scan, and model-policy scan passed. Central runtime is 24970 lines and top-level production Python is 149981 lines.",
+    "model_policy": "No live model call occurred while implementing these shared changes. Task 64 used exact claude-haiku-4-5-20251001 for all seven enabled roles; no Sonnet or Opus call occurred.",
+    "consumed_task_boundary": "Task 64 and every earlier task remain immutable. These commits are future-task mechanism evidence only; trustworthy capability remains 4/64 and exact development theorem closure remains 0/2."
+  },
   "latest_executable_evaluator_authority_change": {
     "implementation_commit": "c6f1a1474a16ade6008f2bbf1494dbb414c03e81",
     "upstream_codex_reference_head": "694edc23b22b4696400dc47663ecacd437623870",

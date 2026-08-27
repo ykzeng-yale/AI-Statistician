@@ -6622,7 +6622,7 @@
       "id": "brier_score_bernoulli_mean_known_result",
       "level": "L0",
       "family": "proper_scoring_rules_binary_forecasts",
-      "status": "active_scored",
+      "status": "consumed_scored",
       "visible_questions_path": "benchmarks/research_l0_brier_bernoulli_questions_20260827.json",
       "source_authority": "published_reference_metadata",
       "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
@@ -6630,7 +6630,7 @@
       "gold_manifest_sha256": "d597aeb11154a1c4bebc48350a2314b7fad2eb01384d24819bea17d338d56411",
       "gold_descriptor_hash": "bcd952c7722cb8c41d0ba0e9bcd2bfbb34dbf21be449c579dfc7693036d38547",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
-      "activation_status": "frozen_ready_v1_no_product_call",
+      "activation_status": "fresh_live_v1_consumed_runtime_false_accept_empirical_evidence_missing",
       "activation_evidence": {
         "public_reference": "Glenn W. Brier, Verification of Forecasts Expressed in Terms of Probability, Monthly Weather Review 78(1), 1950, pages 1-3, DOI 10.1175/1520-0493(1950)078<0001:VOFEIT>2.0.CO;2; Gneiting and Raftery (2007), DOI 10.1198/016214506000001437",
         "preactivation_code_head": "b2669647d2bc283db425ceadf2aa86aa7d1c13ae",
@@ -6674,14 +6674,54 @@
         "preactivation_product_model_calls": 0,
         "preactivation_evaluator_model_calls": 2,
         "preactivation_failed_local_imports_without_api_request": 1,
-        "first_runtime_model_call_occurred": false,
-        "fresh_live_runs": 0,
+        "first_runtime_model_call_occurred": true,
+        "fresh_live_runs": 1,
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
         "formalizer_executed": false,
         "full_task_passed": false,
         "trusted_capability_credit": false,
-        "boundary": "The visible question, schema-3 evaluator-only reference, closed estimator contract, semantic rubric, adversarial calibration cases, mechanical harnesses, and exact-Haiku semantic calibration are frozen before the first product-model call. Hidden authority cannot enter runtime context or generate revision feedback. Exactly one future product draw is authorized only after this activation record and its authority-binding seal are pushed to both canonical refs."
+        "boundary": "The visible question, schema-3 evaluator-only reference, closed estimator contract, semantic rubric, adversarial calibration cases, mechanical harnesses, and exact-Haiku semantic calibration were frozen before the first product-model call. Exactly one product draw and one post-runtime hidden evaluation are now consumed. Hidden authority generated no runtime feedback."
+      },
+      "evaluation_evidence": {
+        "status": "fresh_live_v1_consumed_runtime_false_accept_empirical_evidence_missing",
+        "run_path": "runs/main_worker_research_l0_brier_bernoulli_20260827_v1_codex_workspace_exact_haiku",
+        "runtime_head": "c3df994833e20b35e0229358998d5938090702ac",
+        "runtime_model": "claude-haiku-4-5-20251001",
+        "runtime_enabled_model_tiers": {
+          "haiku": 7
+        },
+        "runtime_sonnet_or_opus_calls": 0,
+        "runtime_status": "ACCEPTED",
+        "runtime_outer_iterations": 9,
+        "runtime_research_evaluation": "0/1 complete; 1/1 mode-conformant",
+        "automated_hidden_evaluation": "0/1",
+        "theory_result": "Persistent Markdown/LaTeX theory passed the frozen hidden 7/7 mechanical checks and all 6/6 calibrated semantic claims. Operator audit found the population and empirical Brier decompositions, uniqueness, boundary cases, and scope limitations correct.",
+        "algorithm_result": "One closed Python estimator executed and an isolated exact-source reviewer accepted it. Operator inspection found the four declared outputs consistent with the public contract. The hidden algorithm harness was not attempted, so no hidden algorithm pass is claimed.",
+        "empirical_finding": "The source executed 4759 estimator calls at 128 requested replicates, but acceptance_passed did not depend on its finite-sample event-rate or out-of-sample Brier results. The reviewer analyzed the upstream estimator rather than run_sandbox; exact confirmation was skipped; confirmatory evidence remained ineligible.",
+        "critic_finding": "Critic declared all required dimensions supported despite canonical simulation_passed=false and confirmatory_empirical_evidence_eligible=false. The old deterministic terminal gate allowed this false ACCEPT.",
+        "hidden_evaluator_finding": "The evaluator expected the retired RuntimeAcceptedImplementationInterfaceHandoff and missed the direct reviewed algorithm handoff, so both hidden algorithm and empirical harnesses were skipped. This consumed result is not rerun or rescored.",
+        "runtime_manifest_sha256": "b3dc2972cd194bc5913bff6888deb6bce4ca3309c88dbd05fa88855dfe45dea2",
+        "runtime_result_sha256": "8d53bda9490146ef904fcf44a6cc2fe160356c5f46645621d43477c4bf1a5ed7",
+        "hidden_gold_evaluation_sha256": "674f3d3ba87feb9643f125dfbd6bd0a246dda021eb11880099ae10d1ffd10362",
+        "accepted_theory_packet_hash": "7ba412cbf5fafad83208950427378f37b80941a382d13e90bbe2625f860eca71",
+        "accepted_theory_document_set_hash": "2ac4f0135d99a54e52ea465ce8149b15f12ca336653314ddff28e3be3663349b",
+        "evaluated_algorithm_source_hash": "1f250c02e93013508a9bd512f8c2017d6ca612dbff8cfe8ce407673d89c57686",
+        "evaluated_simulation_source_hash": "1e8aeb08c0dd848119720cd00e2504411b2ef62ec58aa5d50d397e569ab4e1af",
+        "operator_disposition": "RUNTIME_FALSE_ACCEPTED_EMPIRICAL_EVIDENCE_MISSING",
+        "operator_audit": "docs/operator_audits/brier_score_bernoulli_mean_l0_v1.md",
+        "post_run_shared_mechanism_commits": [
+          "7e7c1a2e5837308a77770bbca994e0e059842294",
+          "b55a163388ba795d05bb48cd4194881ede829223"
+        ],
+        "post_run_shared_mechanism_change": "Future executable evaluator review, exact continuation, hidden replay, deterministic Critic evidence gate, and direct reviewed algorithm handoff consumption now share one artifact lineage. No task formula, content repair, retry, extra agent, scheduler, provider, or model escalation was added.",
+        "post_run_regression_evidence": "Future-task deterministic evidence only: the complete repository passed 980/980. Task 64 was not rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled.",
+        "formalization_requirement": "not_applicable",
+        "formalizer_executed": false,
+        "full_task_passed": false,
+        "trusted_capability_credit": false,
+        "ladder_score_after_consumption": "4/64",
+        "boundary": "The sole exact-Haiku product draw and sole post-runtime hidden evaluation are consumed and immutable. Future mechanism commits are not retroactive Task 64 evidence."
       },
       "task_intent": {
         "source_replication": "not_applicable",
@@ -6706,7 +6746,7 @@
   ],
   "current_readiness": {
     "active_scored_tasks": 64,
-    "consumed_scored_tasks": 63,
+    "consumed_scored_tasks": 64,
     "fully_gold_configured_tasks": 64,
     "fully_gold_passed_tasks": 4,
     "runtime_source_replication_components_ready": 6,
@@ -6714,10 +6754,10 @@
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
     "operator_invalid_tasks": 7,
-    "latest_shared_mechanism_head": "c6f1a1474a16ade6008f2bbf1494dbb414c03e81",
+    "latest_shared_mechanism_head": "b55a163388ba795d05bb48cd4194881ede829223",
     "canonical_live_gold_activation_schema": 3,
     "executable_activation_gate": "Frozen reference and invoked behavioral negatives must run through the exact hidden candidate validators before any product-model call; configured executable evaluators must reject negatives and their checks must cover every applicable public ABI clause.",
-    "latest_diagnostic": "Four of sixty-three consumed tasks receive trustworthy full-task capability credit. A disjoint sixty-fourth Bernoulli Brier-score task is fully frozen but has made no product-model call. It requires one Markdown/LaTeX population and empirical risk derivation, one closed Python implementation, and one source-authored executable confirmatory evaluator; formalization is not applicable. Schema-v3 activation accepted the reference through both exact validators and rejected five invoked negative-validator pairs. Exact-Haiku calibration passed 8/8 and the six-claim semantic reference passed in one integrated candidate call.",
-    "next_step": "Preserve all sixty-three consumed draws and the 4/63 trusted aggregate. Push and seal the Task 64 authority binding on both canonical refs, then execute exactly one fresh product draw on claude-haiku-4-5-20251001. Run hidden authority only after AgentRuntime termination, operator-audit every active mathematical and source claim regardless of automated verdict, and never rerun, resume, repair, hidden-evaluate again, rescore, resample, or add Brier/Bernoulli-specific runtime rules."
+    "latest_diagnostic": "Four of sixty-four consumed tasks receive trustworthy full-task capability credit. Task 64's Markdown/LaTeX theory passed hidden 7/7 mechanical and 6/6 semantic checks, but its executable evaluator had a vacuous empirical decision, its independent review inspected the wrong current target, its exact confirmation continuation was skipped, and Critic false-accepted missing empirical evidence. Hidden algorithm and empirical harnesses were not attempted because the evaluator still expected a retired intermediate handoff. The immutable full-task score is 0/1.",
+    "next_step": "Preserve all sixty-four consumed draws and the 4/64 trusted aggregate. Use commits 7e7c1a2e and b55a1633 only as future-task shared mechanism evidence. After both canonical refs contain this immutable ledger, freeze a disjoint Task 65 authority before any product call; continue to use exact Haiku for evaluation, independently operator-audit every active claim, and never add task-specific runtime rules or retroactively repair a consumed task."
   }
 }
