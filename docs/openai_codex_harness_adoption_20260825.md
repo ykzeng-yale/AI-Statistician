@@ -35,6 +35,10 @@ Latest selective-adoption implementation commits:
   obsolete post-workspace ABI model call, JSON prompt API, stage-recovery route,
   and dead packet-retry control so mathematical documents and executable ABI
   remain in one source-owning session.
+- `e3255046ccfe33b463160bb5fd8f53b619eb59d9`: make Theory progress
+  checkpoints restore cumulative model-observed tool state instead of silently
+  resetting scratch, source-replication, read, write, and provenance state at a
+  fresh context window.
 
 Primary references:
 
@@ -1930,3 +1934,38 @@ complete repository passed `951/951` in 83.21 seconds. Production Python is
 task was rerun, resumed, repaired, reevaluated, rescored, or granted capability
 credit. Trustworthy capability therefore remains `4/56`, and exact development
 theorem closure remains `0/2`.
+
+## Progress checkpoints preserve environment state
+
+TheoryDeveloper already persisted exact Markdown/LaTeX documents, compact
+handoffs, and its client-tool transcript. One important Codex-style invariant was
+still missing: after a model explicitly requested a progress checkpoint, the next
+context window restored the files and recent transcript rounds but initialized
+tool state from zero. Prior scratch refs, source reads, source-discovery refs,
+source-replication manifests, and model write provenance disappeared from the
+eventual evidence packet. A configured one-shot scratch or immutable source run
+could therefore become available again merely because context changed.
+
+Commit `e3255046` makes a Theory progress checkpoint the authoritative cumulative
+environment state for the same source owner. Continuation now verifies workspace,
+question, authoring, and operation identity; restores exact prior counters and
+reference rows; preserves their order; rejects inconsistent scratch or source-run
+counts; and carries the complete cumulative lineage into later checkpoints and
+final evidence. The model-visible progress artifact exposes a compact catalog of
+prior execution status and hashes, while mathematical interpretation remains in
+model-authored documents and recent exact observations.
+
+This adds no new tool, agent, reviewer, repair route, scheduler, provider, model
+call, mathematical parser, statistical formula, Lean rule, or automatic research
+action. The same model still decides whether to read, derive, search, execute,
+revise, checkpoint, commit, or report a gap. Runtime only prevents a new context
+window from pretending that already-observed environment state never happened.
+
+Theory and ResearchArchitect regressions passed `91/91`; the complete repository
+passed `952/952` in 78.16 seconds. Production Python is 148,890 lines,
+`theory_workspace.py` is 3,830 lines, `research_architect.py` is 4,125 lines, and
+`research_agent_runtime.py` remains 24,970 lines. Historical progress artifacts
+with absent later fields were read successfully under empty-state defaults. No
+model was called and no consumed task was rerun, resumed, repaired, reevaluated,
+rescored, or granted capability credit. Trustworthy capability remains `4/56`,
+and exact development theorem closure remains `0/2`.

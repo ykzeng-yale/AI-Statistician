@@ -1,13 +1,13 @@
 {
-  "schema_version": 201,
+  "schema_version": 202,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "efe3017bcd2bf317008d6fabc75763496a97ade3",
+  "validated_code_head": "e3255046ccfe33b463160bb5fd8f53b619eb59d9",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all fifty-six consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/56 and exact development Lean closure remains 0/2. Task 56 remains immutable 0/1: its persistent exact-Haiku Formalizer authored a locally compiling, exact-identity, axiom-clean affine-variance theorem, but the reviewer was never called and no kernel promotion occurred. Commit e4d97ee6 corrects that future-task authority boundary. Commit efe3017b removes the obsolete second Theory content owner: Markdown/LaTeX mathematics, executable ABI authoring, validator feedback, and checkpoint now remain in one persistent workspace session. No model was called and no consumed draw was replayed or rescored. Keep one source owner and direct raw tool feedback inside each Theory, Python/R, Simulation, and Lean workspace; use sparse hash-bound review and handoff contracts selected by task intent; do not embed Codex core or add another scheduler. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited. Long-horizon theory quality, independent referee reliability, source replication breadth, and exact theorem closure remain incomplete.",
+  "current_goal_focus": "Preserve all fifty-six consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/56 and exact development Lean closure remains 0/2. Task 56 remains immutable 0/1, while e4d97ee6 corrects its future-task authority boundary. Commit efe3017b leaves one persistent Theory content owner. Commit e3255046 now makes that owner's progress checkpoint restore cumulative reads, writes, scratch refs, source observations, immutable source-run manifests, and execution counts rather than resetting them at a fresh context window. No model was called and no consumed draw was replayed or rescored. Keep one source owner and direct raw tool feedback inside each Theory, Python/R, Simulation, and Lean workspace; use sparse hash-bound review and handoff contracts selected by task intent; do not embed Codex core or add another scheduler. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited. The next disjoint evaluation must measure mathematical derivation and independent-referee quality rather than transport completion. Source replication breadth and exact theorem closure remain incomplete.",
   "latest_statsmodels_adf_kpss_l1_evaluation": {
     "task_id": "statsmodels_adf_kpss_sunspots_public_replication",
     "family": "time_series_stationarity_source_replication",
@@ -840,10 +840,10 @@
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
     "latest_rechecked_upstream_commit": "b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46",
     "latest_incremental_finding": "The four-commit delta after f374188 adds named standalone tool outputs as durable turn inputs, makes filesystem policy matching URI-native, attaches verified access context to eligible plugin MCP calls, and adjusts Guardian trust for explicitly invoked user skills. Only standalone tool-output persistence is adjacent to the scientific inner loop; it reinforces exact named environment observations. None supplies a provider-neutral Claude research harness or justifies importing Codex core, app-server, Responses transport, Guardian, provider, thread storage, or another scheduler.",
-    "latest_incremental_adoption": "Task 56 validates the Codex-shaped Formalizer inner loop, while commit e4d97ee6 fixes its distinct future-task semantic-authority boundary. Commit efe3017b applies the same one-owner principle to TheoryDeveloper by deleting the obsolete post-workspace ABI model call, JSON prompt API, stage checkpoint and recovery route, parent-interface binding payload, and dead retry setting. Markdown/LaTeX mathematics and the compact executable ABI now stay in one persistent source-owning session with raw validator observations returned there. Runtime adds no mathematical content, repair worker, retry agent, scheduler, or model call.",
+    "latest_incremental_adoption": "Task 56 validates the Codex-shaped Formalizer inner loop, e4d97ee6 fixes its future-task semantic-authority boundary, and efe3017b leaves one Theory content owner. Commit e3255046 applies Codex's durable environment-state principle to that owner's context windows: a Theory progress checkpoint now restores cumulative reads, writes, scratch and source refs, immutable source-run manifests, and execution counts. A new context cannot silently erase evidence or renew one-shot work. The same model still chooses every research action and mathematical interpretation; runtime adds no tool, content repair, reviewer, agent, scheduler, or model call.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "efe3017bcd2bf317008d6fabc75763496a97ade3",
+    "implementation_commit": "e3255046ccfe33b463160bb5fd8f53b619eb59d9",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -883,7 +883,8 @@
     "3408012fd9305de3202effbcd12c1d452cf38bb2",
     "8f5d6295019100dedfa566d01c3b5dee204ead7c",
     "e4d97ee62a4c6dcda6970e583770d2563afa3898",
-    "efe3017bcd2bf317008d6fabc75763496a97ade3"
+    "efe3017bcd2bf317008d6fabc75763496a97ade3",
+    "e3255046ccfe33b463160bb5fd8f53b619eb59d9"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -948,7 +949,8 @@
     "Commit 3f0ee013 gives the existing scientific Python/R source owner a model-authored exact-edit action beside complete submission. Both execute the resulting complete bytes immediately and return raw sandbox observations to the same session. Theory documents, metric protocol, scientific source, and Lean source now share one content-agnostic exact-edit materializer; runtime chooses no edit and adds no language grammar, statistical rule, RepairAgent, retry, scheduler, or model call.",
     "Commit 3408012f replaces complete accepted Theory bodies in the canonical Formalizer opening prompt with a hash-bound document catalog and the existing same-session read/search tools. Exact content stays available to the model but is redacted from persisted telemetry; document reads remain non-proof and cannot replace Lean/compiler feedback, semantic review, axiom audit, or kernel closure.",
     "Commit 8f5d6295 gives the same Formalizer session one model-owned independent Lean scratch action. Exact self-contained snippets run through the existing pinned local checker, raw observations return to the source owner and semantic reviewer, and candidate bytes and counters remain unchanged. Scratch is non-proof and adds no repair agent, provider, scheduler, retry, grammar rule, tactic policy, or theorem template.",
-    "Commit efe3017b removes the obsolete post-workspace Theory ABI generator, JSON prompt surface, stage checkpoint and recovery route, parent-interface binding payload, and dead retry configuration. One persistent model session now owns Markdown/LaTeX mathematics, executable ABI revisions, raw validator feedback, and checkpoint; runtime still supplies no scientific content or repair action."
+    "Commit efe3017b removes the obsolete post-workspace Theory ABI generator, JSON prompt surface, stage checkpoint and recovery route, parent-interface binding payload, and dead retry configuration. One persistent model session now owns Markdown/LaTeX mathematics, executable ABI revisions, raw validator feedback, and checkpoint; runtime still supplies no scientific content or repair action.",
+    "Commit e3255046 makes the same Theory owner's progress checkpoint restore cumulative reads, writes, document inspections, scratch executions, source observations, immutable source-run manifests, and result reads across context windows. Identity and count mismatches fail closed; runtime chooses no research action or mathematical interpretation and adds no tool, agent, reviewer, repair route, or scheduler."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -958,7 +960,7 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-  "verification": "The official Codex checkout is rechecked through b68acc4. Focused Theory, Architect, runtime, CLI, and estimator-interface regressions pass 198/198; the complete repository passes 951/951 in 83.21 seconds. Diff hygiene and JSON validation pass; production Python is 148,696 lines and research_agent_runtime.py is 24,970 lines. No consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted capability credit, and no Codex transport, provider, thread storage, Guardian, or scheduler was imported.",
+  "verification": "The official Codex checkout is rechecked through b68acc4. Theory and ResearchArchitect checkpoint regressions pass 91/91; the complete repository passes 952/952 in 78.16 seconds. Compile-all, diff hygiene, and historical checkpoint compatibility checks pass; production Python is 148,890 lines and research_agent_runtime.py remains 24,970 lines. No consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted capability credit, and no Codex transport, provider, thread storage, Guardian, or scheduler was imported.",
   "live_validation_runs": 19,
   "fresh_live_client_tool_model_turns": 918,
     "capability_credit": true,
@@ -1489,8 +1491,11 @@
     ]
   },
   "validated_change": {
-    "commit": "efe3017bcd2bf317008d6fabc75763496a97ade3",
+    "commit": "e3255046ccfe33b463160bb5fd8f53b619eb59d9",
     "changes": [
+      "Commit e3255046 makes Theory progress continuation restore the same source owner's cumulative read, write, document-inspection, scratch, source-search, source-discovery, immutable source-execution, and source-result state. Workspace, question, authoring, operation, execution order, and count mismatches fail closed instead of silently starting a fresh environment.",
+      "Theory and ResearchArchitect regressions passed 91/91 and the complete repository passed 952/952 in 78.16 seconds. Production Python is 148,890 lines, theory_workspace.py is 3,830 lines, research_architect.py is 4,125 lines, and research_agent_runtime.py remains 24,970 lines. Historical progress artifacts with absent later fields load under empty-state defaults.",
+      "This is future-task checkpoint-continuity evidence only. It adds no tool, model call, reviewer, agent, repair route, scheduler, formula, parser, Lean rule, task branch, rerun, rescore, or capability credit. Trustworthy full-task capability remains 4/56 and exact development theorem closure remains 0/2.",
       "Commit efe3017b removes TheoryDeveloper's obsolete post-workspace ABI model call, dedicated JSON prompt and schema, interface-stage recovery checkpoint and runtime route, parent-interface binding payload, and dead validation-retry control. Markdown/LaTeX mathematics and executable ABI revisions now remain with one persistent source-owning model session, which receives raw generic validator observations before checkpoint.",
       "Focused cross-workspace regressions passed 198/198 and the complete repository passed 951/951 in 83.21 seconds. Production Python is 148,696 lines, research_architect.py is 4,043 lines, and research_agent_runtime.py is 24,970 lines. No model was called and no consumed task was rerun, resumed, repaired, reevaluated, rescored, or resampled.",
       "This is future-task harness regression evidence only. It adds no theorem, statistical formula, content repair, Lean grammar or tactic rule, provider, agent, scheduler, fallback, or capability credit; trustworthy full-task capability remains 4/56 and exact development theorem closure remains 0/2.",
@@ -1854,9 +1859,9 @@
     ],
     "anti_hardcoding_audit": "The product path knows only source and environment identities, task-intent evidence requirements, generic document and claim references, dependency-graph integrity, checkpoint lineage, sandbox isolation, execution boundaries, and the distinction between caller-declared model-actionable input rejection and fatal executor failure. The authoring or reviewing model independently chooses every claim, dependency, research-source query, source handle, exact read, document path, line range, edit, scratch program, counterexample interpretation, readiness decision, metric semantics, confirmatory replicate count, progress summary, and next step. Exact McNemar, sign test, DKW, Wilson score, Benjamini-Hochberg, Horvitz-Thompson, Model-X, Student-t, James-Stein, DoubleML, normal-sample-variance, median-of-means, AR(1), Fisher-z, paired-ratio, and scalar-control-variate expected values and tolerances remain in evaluator-only bundles outside the repository and model workspace. Runtime contains no benchmark formula, expected output, automatic literature query or source selection, mandatory author read-count gate, reviewer counterexample formula, Markdown grammar rule, Lean grammar rule, tactic rule, repair recipe, task-specific metric count, Codex-specific research router, or OpenAI-provider fallback. Terminal disposition is generic control-plane capacity and cannot execute an extra research action; dependency and trace projections preserve identity, hashes, ABI, exact-output locations, and unique unreferenced observations without selecting or rewriting scientific content.",
     "verification": {
-      "full_pytest": "951 passed in 83.21s",
+      "full_pytest": "952 passed in 78.16s",
       "next_frozen_activation": "none currently authorized; all fifty scored draws are permanently consumed, so any future product draw requires a newly frozen disjoint task and evaluator authority",
-      "affected_subsystem_pytest": "Theory, Architect, runtime, CLI, and estimator-interface panels passed 198/198; the complete repository passed 951/951 in 83.21 seconds.",
+      "affected_subsystem_pytest": "Theory workspace and ResearchArchitect progress-continuation panels passed 91/91; the complete repository passed 952/952 in 78.16 seconds.",
       "independent_theory_review_authority": "Commit 9fbbeaba requires an exact isolated review acceptance before terminal Critic whenever theory is required. Theory-only tasks create no metric gate, and bypass attempts block before the Critic model call.",
       "theory_workspace_action_budget": "Commit 9cf75411 replaces class-specific read/write quotas with one shared ordinary-tool budget selected by the TheoryDeveloper model. Turn/action bounds, no-progress termination, execution safety caps, and the separately reserved terminal disposition remain enforced; no model call or frozen-task activation occurred.",
       "simulation_dependency_prompt_projection": "immutable live replay reduced 6,812,024 bytes of recursive environment feedback to a 45,314-byte complete planning prompt; accepted estimator ABI plus source/result hashes remained visible, while source bytes and 4,000 historical smoke-result rows were absent",
@@ -1884,7 +1889,7 @@
       "theory_referee_report_workspace": "the same isolated model writes, reads, hash-edits, and submits one Markdown report by SHA; terminal JSON contains no report body, checkpoints retain only a validated draft manifest, stale hashes return as actionable observations, and disk tampering fails before a provider call",
       "algorithm_source_workspace_planning": "fresh native-tool Algorithm tasks make zero structured proposal calls and one source-owner workspace call; accepted source bytes are rehash-checked and projected by identity for independent review, while an incomplete first segment resumes by source-workspace intent before any proposal exists",
       "compiled_post_theory_transition": "Optional Theory plus required scientific code now routes the exact newly produced theory identity, original Architect plan, n_runs, and seed directly to AlgorithmEngineer with no second Architect model operation. Required-theory preflight and dependency rebuild routes remain unchanged.",
-      "runtime_core_growth": "research_agent_runtime.py is 24,970 lines and remains below the unchanged strict-under-25,000-line regression budget. AgentRuntime is 1,248 lines and the complete top-level Python package is 148,696 lines across 137 modules under its strict-under-150,000-line budget. Commit efe3017b removes the duplicate Theory ABI conversation owner and recovery surface; it adds no agent, provider, retry, fallback, or scheduler.",
+      "runtime_core_growth": "research_agent_runtime.py remains 24,970 lines under the unchanged strict-under-25,000-line regression budget. AgentRuntime remains 1,248 lines and the complete top-level Python package is 148,890 lines across 137 modules under its strict-under-150,000-line budget. Commit e3255046 restores already-persisted Theory environment state across context windows; it adds no tool, agent, provider, retry, fallback, or scheduler.",
       "source_replication_critic_authority": "For future tasks only, terminal Critic receives the exact hash-loaded source report, immutable execution observation, and exact author-read source ranges. Required source replication cannot pass without model support; compact persisted audit contains no report or source text."
     },
     "evidence_boundary": "All fifty scored tasks are consumed. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit with their recorded caveats. The variance-ratio benchmark is operator-invalid; all automatic 0/1 outcomes and scoped component evidence remain unchanged. The trusted aggregate is 4/50, no new draw is authorized, and exact development theorem closure remains 0/2."
@@ -2410,8 +2415,8 @@
   "current_structure": {
     "research_agent_runtime_lines": 24970,
     "scientific_code_workspace_lines": 2440,
-    "theory_workspace_lines": 3718,
-    "research_architect_lines": 4043,
+    "theory_workspace_lines": 3830,
+    "research_architect_lines": 4125,
     "architect_theory_execution_preflight_lines": 5036,
     "architect_metric_contract_authoring_lines": 2903,
     "architect_coordinator_llm_lines": 3068,
@@ -2421,10 +2426,11 @@
     "agent_runtime_lines": 1248,
     "cli_lines": 7036,
     "top_level_python_modules": 137,
-    "top_level_package_lines": 148696,
+    "top_level_package_lines": 148890,
     "latest_runtime_manifest_bytes": 55337
   },
   "next_gates": [
+    "Treat commit e3255046 only as future-task checkpoint-continuity evidence. Do not rerun a consumed task to demonstrate it. On the next independently justified, disjoint, pre-frozen task, verify that a multi-window Theory owner retains prior scratch and source observations without repeating immutable execution, then score mathematical derivation and independent-referee quality rather than transport completion.",
     "Treat commit efe3017b only as future-task harness regression evidence: one Theory session now owns Markdown/LaTeX mathematics, executable ABI authoring, validator feedback, and checkpoint. Do not rerun any consumed task to demonstrate it. On the next independently justified, disjoint, pre-frozen task, measure mathematical derivation quality and independent-referee reliability rather than interface transport or schema completion.",
     "Preserve affine-variance formal L0 v1 as immutable 0/1. Its exact-Haiku Formalizer authored a locally compiling, identity-verified, axiom-clean exact target, but the independent semantic reviewer was never called and no kernel promotion occurred. Treat commit e4d97ee6 only as future-task semantic-authority regression evidence; never rerun, resume, repair, hidden-evaluate again, rescore, resample, or promote the candidate manually.",
     "Preserve rdrobust Senate source replication L1 v1 as immutable automated 1/1 and trustworthy 0/1. Its official source execution passed 10/10 mechanical checks, but material report errors were false-accepted by both the runtime Critic and hidden semantic judge. Treat commit 0134c4cb only as future-task generic document-tool review evidence; never rerun, resume, repair, hidden-evaluate again, rescore, resample, or add an RD phrase rule.",
