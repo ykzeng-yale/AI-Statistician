@@ -33,7 +33,12 @@ from .formal_target_semantic_reviewer_llm import (
 )
 from .structured_output_retry import PacketValidationError
 from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
-from .research_schema import OpenResearchQuestion, research_question_payload
+from .research_schema import (
+    OpenResearchQuestion,
+    frozen_formal_target_contract_errors,
+    research_question_payload,
+)
+from .runtime_research_problem_adapter import is_frozen_formal_only_question
 
 
 RUNTIME_SCHEMA_VERSION = 1
@@ -43,6 +48,8 @@ FORMAL_TARGET_REVIEW_PROPOSAL_PACKET_KINDS = frozenset(
         "FormalizerProofEngineerPacket",
     }
 )
+THEORY_SEMANTIC_AUTHORITY = "theory_derivation_packet"
+FROZEN_FORMAL_TARGET_SEMANTIC_AUTHORITY = "operator_frozen_formal_target_contract"
 
 
 def _bool_like(value: Any) -> bool:
@@ -253,16 +260,31 @@ def _runtime_formal_target_semantic_review_dispatch(
         candidate_materialization.get("manifest_id", "") or ""
     ).strip()
     theory_packet_id = str(theory_packet.get("packet_id", "") or "").strip()
+    question_authority = _question_to_payload(question)
+    frozen_contract_authority = bool(
+        not theory_packet_id
+        and is_frozen_formal_only_question(question)
+        and not frozen_formal_target_contract_errors(
+            question.formal_target_contract, required=True
+        )
+    )
+    semantic_authority_mode = (
+        FROZEN_FORMAL_TARGET_SEMANTIC_AUTHORITY
+        if frozen_contract_authority
+        else THEORY_SEMANTIC_AUTHORITY
+    )
+    semantic_authority = question_authority if frozen_contract_authority else theory_packet
     proposal_packet_id = str(proposal_packet.get("packet_id", "") or "").strip()
     candidate_id = str(candidate_row.get("candidate_id", "") or "").strip()
     for field_name, field_value in (
         ("candidate_materialization_id", candidate_materialization_id),
-        ("theory_packet_id", theory_packet_id),
         ("proposal_packet_id", proposal_packet_id),
         ("candidate_id", candidate_id),
     ):
         if not field_value:
             dispatch_validation_errors.append(f"{field_name} missing")
+    if not theory_packet_id and not frozen_contract_authority:
+        dispatch_validation_errors.append("theory_packet_id missing")
 
     runtime_feedback_loop = architect_context.get("runtime_feedback_loop", {})
     if not isinstance(runtime_feedback_loop, Mapping):
@@ -304,6 +326,8 @@ def _runtime_formal_target_semantic_review_dispatch(
         "target_theorem_statement_hash_algorithm": (
             target_statement_hash_algorithm
         ),
+        "semantic_authority_mode": semantic_authority_mode,
+        "semantic_authority_hash": stable_hash(semantic_authority),
         "review_revision_count": review_revision_count,
     }
     work_order_id = "formal_target_semantic_review_work_order:" + stable_hash(
@@ -337,6 +361,11 @@ def _runtime_formal_target_semantic_review_dispatch(
         "candidate_materialization_hash": stable_hash(candidate_materialization),
         "theory_packet_id": theory_packet_id,
         "theory_packet_hash": stable_hash(theory_packet),
+        "semantic_authority_mode": semantic_authority_mode,
+        "semantic_authority_hash": stable_hash(semantic_authority),
+        "operator_frozen_formal_target_authority": (
+            question_authority if frozen_contract_authority else {}
+        ),
         "proposal_packet_id": proposal_packet_id,
         "proposal_packet_hash": stable_hash(proposal_packet),
         "candidate_id": candidate_id,
@@ -429,7 +458,7 @@ def _runtime_formal_target_semantic_review_dispatch(
         objective=(
             "Independently review whether the exact hash-bound Lean theorem "
             "statement faithfully and non-vacuously formalizes the research "
-            "question and TheoryDeveloper derivation before kernel promotion."
+            "question and its bound semantic authority before kernel promotion."
         ),
         inputs={
             "question": _question_to_payload(question),
@@ -516,6 +545,7 @@ def _runtime_formal_target_semantic_review_material(
     proposal_packet: Mapping[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
+    authority_mode = str(work_order.get("semantic_authority_mode", "") or "")
     candidate_id = str(work_order.get("candidate_id", "") or "")
     candidate_path = str(work_order.get("candidate_artifact_path", "") or "")
     candidate_source_hash = str(
@@ -593,7 +623,11 @@ def _runtime_formal_target_semantic_review_material(
     bound_theory_card = (
         matching_theory_cards[0] if len(matching_theory_cards) == 1 else {}
     )
-    if source_theorem_goal_id and len(matching_theory_cards) != 1:
+    if (
+        authority_mode == THEORY_SEMANTIC_AUTHORITY
+        and source_theorem_goal_id
+        and len(matching_theory_cards) != 1
+    ):
         errors.append("formal-target theory theorem card is not uniquely bound")
     source = ""
     path = Path(candidate_path).expanduser() if candidate_path else Path()
@@ -618,7 +652,29 @@ def _runtime_formal_target_semantic_review_material(
         work_order.get("target_theorem_statement_hash", "") or ""
     ):
         errors.append("formal-target theorem statement hash mismatch")
+    frozen_authority = work_order.get("operator_frozen_formal_target_authority", {})
+    frozen_authority = (
+        dict(frozen_authority) if isinstance(frozen_authority, Mapping) else {}
+    )
+    frozen_contract = frozen_authority.get("formal_target_contract", {})
+    frozen_contract = dict(frozen_contract) if isinstance(frozen_contract, Mapping) else {}
+    if authority_mode == FROZEN_FORMAL_TARGET_SEMANTIC_AUTHORITY:
+        if candidate_id != str(frozen_contract.get("target_id", "") or ""):
+            errors.append("formal-target candidate does not match frozen target identity")
+        if str(work_order.get("target_lean_declaration", "") or "") != str(
+            frozen_contract.get("declaration_name", "") or ""
+        ):
+            errors.append("formal-target declaration does not match frozen authority")
+        if source and not source.startswith(
+            str(frozen_contract.get("lean_source_prefix", "") or "")
+        ):
+            errors.append("formal-target source changed the frozen declaration prefix")
     material = {
+        "semantic_authority": {
+            "mode": authority_mode,
+            "authority_hash": str(work_order.get("semantic_authority_hash", "") or ""),
+            "operator_frozen_question_and_target": frozen_authority,
+        },
         "theory_derivation_packet": dict(theory_packet),
         "formalizer_proposal_packet": dict(proposal_packet),
         "bound_target_contract": {
@@ -627,6 +683,7 @@ def _runtime_formal_target_semantic_review_material(
             "source_theorem_goal_id": source_theorem_goal_id,
             "proposal_target": proposal_target,
             "theory_theorem_card": bound_theory_card,
+            "operator_frozen_formal_target_contract": frozen_contract,
         },
         "exact_formal_target": {
             "candidate_id": candidate_id,
@@ -744,11 +801,36 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             hash_field="candidate_materialization_hash",
             kind="RuntimeFormalizerLeanCandidateMaterialization",
         )
-        theory_packet = bound_artifact(
-            id_field="theory_packet_id",
-            hash_field="theory_packet_hash",
-            kind="TheoryDerivationPacket",
-        )
+        authority_mode = str(work_order.get("semantic_authority_mode", "") or "")
+        authority_hash = str(work_order.get("semantic_authority_hash", "") or "")
+        if authority_mode == THEORY_SEMANTIC_AUTHORITY:
+            theory_packet = bound_artifact(
+                id_field="theory_packet_id",
+                hash_field="theory_packet_hash",
+                kind="TheoryDerivationPacket",
+            )
+            if authority_hash != str(work_order.get("theory_packet_hash", "") or ""):
+                validation_errors.append("formal-target theory authority hash mismatch")
+        elif authority_mode == FROZEN_FORMAL_TARGET_SEMANTIC_AUTHORITY:
+            theory_packet = {}
+            frozen_authority = work_order.get(
+                "operator_frozen_formal_target_authority", {}
+            )
+            if (
+                not isinstance(frozen_authority, Mapping)
+                or stable_hash(frozen_authority) != authority_hash
+                or dict(frozen_authority) != _question_to_payload(question)
+                or not is_frozen_formal_only_question(question)
+                or frozen_formal_target_contract_errors(
+                    question.formal_target_contract, required=True
+                )
+            ):
+                validation_errors.append(
+                    "operator-frozen formal-target semantic authority mismatch"
+                )
+        else:
+            theory_packet = {}
+            validation_errors.append("formal-target semantic authority mode is invalid")
         proposal_packet = bound_artifact(
             id_field="proposal_packet_id",
             hash_field="proposal_packet_hash",
@@ -869,6 +951,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "source_subsystem",
                 "candidate_materialization_id",
                 "candidate_materialization_hash",
+                "semantic_authority_mode",
+                "semantic_authority_hash",
                 "theory_packet_id",
                 "theory_packet_hash",
                 "proposal_packet_id",

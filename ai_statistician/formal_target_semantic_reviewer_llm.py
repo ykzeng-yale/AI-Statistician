@@ -17,7 +17,7 @@ from .model_backend import (
 from .research_schema import OpenResearchQuestion
 
 
-FORMAL_TARGET_SEMANTIC_REVIEW_SCHEMA_VERSION = 6
+FORMAL_TARGET_SEMANTIC_REVIEW_SCHEMA_VERSION = 7
 FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -416,6 +416,8 @@ def _normalize_formal_target_semantic_review_packet(
         "source_subsystem",
         "candidate_materialization_id",
         "candidate_materialization_hash",
+        "semantic_authority_mode",
+        "semantic_authority_hash",
         "theory_packet_id",
         "theory_packet_hash",
         "proposal_packet_id",
@@ -542,8 +544,8 @@ def validate_formal_target_semantic_review_packet(
         "work_order_hash",
         "candidate_materialization_id",
         "candidate_materialization_hash",
-        "theory_packet_id",
-        "theory_packet_hash",
+        "semantic_authority_mode",
+        "semantic_authority_hash",
         "proposal_packet_id",
         "proposal_packet_hash",
         "candidate_id",
@@ -554,4 +556,11 @@ def validate_formal_target_semantic_review_packet(
     ):
         if not str(packet.get(field, "") or "").strip():
             errors.append(f"formal-target review missing trusted lineage field: {field}")
+    authority_mode = str(packet.get("semantic_authority_mode", "") or "")
+    if authority_mode == "theory_derivation_packet":
+        for field in ("theory_packet_id", "theory_packet_hash"):
+            if not str(packet.get(field, "") or "").strip():
+                errors.append(f"formal-target review missing trusted lineage field: {field}")
+    elif authority_mode != "operator_frozen_formal_target_contract":
+        errors.append("formal-target review semantic authority mode is invalid")
     return sorted(set(errors))

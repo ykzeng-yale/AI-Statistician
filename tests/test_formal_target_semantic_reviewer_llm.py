@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Mapping
 
 import pytest
 
+from ai_statistician import lean_kernel_promotion as lean_kernel_promotion_module
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.lean_candidate_identity import (
     LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
     lean_target_statement_hash,
 )
+from ai_statistician.lean_kernel_promotion import evaluate_lean_kernel_promotion
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.formal_target_semantic_review_runtime import (
     FormalTargetSemanticReviewerRuntimeSubsystem,
@@ -127,18 +130,54 @@ def _runtime_fixture(
     max_revisions: int = 2,
     prior_review_feedback: Mapping[str, Any] | None = None,
     workspace_evidence: Mapping[str, Any] | None = None,
+    formal_only: bool = False,
+    omit_theory_packet: bool = False,
 ) -> tuple[
     FormalTargetSemanticReviewerRuntimeSubsystem,
     AgentTask,
     BlackboardState,
     Path,
 ]:
-    question = _question()
     source = (
         "import Mathlib\n\n"
         "theorem exact_source (p : Prop) (hp : p) : p := by\n"
         "  exact hp\n"
     )
+    question = _question()
+    if formal_only:
+        source_prefix = source.removesuffix("  exact hp\n")
+        question = OpenResearchQuestion(
+            id=question.id,
+            title=question.title,
+            description=question.description,
+            tags=question.tags,
+            task_intent={
+                "source_replication": "not_applicable",
+                "theory": "not_applicable",
+                "scientific_code": "not_applicable",
+                "empirical": "not_applicable",
+                "formal": "required",
+                "novelty": "not_applicable",
+                "unresolved_gaps": "required",
+            },
+            formal_target_contract={
+                "schema_version": 1,
+                "contract_kind": "operator_frozen_exact_lean_target",
+                "target_id": "exact_source",
+                "declaration_name": "exact_source",
+                "lean_source_prefix": source_prefix,
+                "lean_source_prefix_sha256": hashlib.sha256(
+                    source_prefix.encode("utf-8")
+                ).hexdigest(),
+                "proof_visibility": "hidden",
+                "lean_environment": {
+                    "project_id": "formal-target-review-test",
+                    "lean_toolchain": "leanprover/lean4:test",
+                    "lake_manifest_sha256": "a" * 64,
+                },
+                "required_primitives": ["exact"],
+            },
+        )
     target_statement = "theorem exact_source (p : Prop) (hp : p) : p"
     source_hash = stable_hash(source)
     target_hash = lean_target_statement_hash(target_statement)
@@ -169,6 +208,8 @@ def _runtime_fixture(
             }
         ],
     }
+    if formal_only or omit_theory_packet:
+        theory_packet = {}
     proposal_packet = {
         "artifact_kind": "FormalizerProofEngineerProposalPacket",
         "packet_id": "formalizer:generic-formal-target-review",
@@ -187,6 +228,7 @@ def _runtime_fixture(
         "schema_version": 1,
         "artifact_kind": "RuntimeFormalizerLeanCandidateMaterialization",
         "manifest_id": "formalizer_lean_candidate_materialization:generic",
+        "question": {"id": question.id},
         "candidate_rows": [
             {
                 "candidate_id": "exact_source",
@@ -195,7 +237,9 @@ def _runtime_fixture(
                 "artifact_path": str(artifact_path),
                 "source_hash": source_hash,
                 "target_lean_declaration": "exact_source",
+                "candidate_lean_declaration": "exact_source",
                 "target_ids": ["exact_source"],
+                "source_theorem_candidate_evidence_eligible": True,
                 "local_lean_attempted": True,
                 "local_lean_compiled": False,
                 "local_lean_exit_status": "1",
@@ -208,6 +252,8 @@ def _runtime_fixture(
         "title": question.title,
         "description": question.description,
         "tags": list(question.tags),
+        "task_intent": dict(question.task_intent),
+        "formal_target_contract": dict(question.formal_target_contract),
     }
     source_task = AgentTask(
         task_id="formalize:generic-formal-target-review",
@@ -215,7 +261,7 @@ def _runtime_fixture(
         objective="Generate an exact formal target.",
         inputs={
             "question": question_payload,
-            "theory_packet_id": theory_packet["packet_id"],
+            "theory_packet_id": str(theory_packet.get("packet_id", "")),
             "architect_context": {
                 "runtime_requested_evidence_contract": {
                     "evaluation_mode": "capability_eval"
@@ -271,7 +317,11 @@ def _runtime_fixture(
         architect_context=source_task.inputs["architect_context"],
         deferred_next_task=deferred_task,
         blackboard_artifacts={
-            theory_packet["packet_id"]: theory_packet,
+            **(
+                {str(theory_packet["packet_id"]): theory_packet}
+                if theory_packet
+                else {}
+            ),
             proposal_packet["packet_id"]: proposal_packet,
             candidate_materialization["manifest_id"]: candidate_materialization,
         },
@@ -282,7 +332,11 @@ def _runtime_fixture(
     blackboard = BlackboardState(project_id="formal-target-semantic-review-test")
     blackboard.artifacts.update(
         {
-            theory_packet["packet_id"]: theory_packet,
+            **(
+                {str(theory_packet["packet_id"]): theory_packet}
+                if theory_packet
+                else {}
+            ),
             proposal_packet["packet_id"]: proposal_packet,
             candidate_materialization["manifest_id"]: candidate_materialization,
             **dispatch["artifacts"],
@@ -327,6 +381,59 @@ def test_accept_routes_hash_bound_target_to_model_owned_lean_generation(
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["kernel_verified"] is False
     assert validate_formal_target_semantic_review_packet(packet) == []
+
+
+def test_operator_frozen_formal_only_target_uses_question_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path, accepted=True, formal_only=True
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    packet = _artifact_of_kind(result, "FormalTargetSemanticReviewPacket")
+    assert packet["semantic_authority_mode"] == (
+        "operator_frozen_formal_target_contract"
+    )
+    assert packet["theory_packet_id"] == ""
+    assert validate_formal_target_semantic_review_packet(packet) == []
+    blackboard.artifacts.update(result.produced_artifacts)
+    monkeypatch.setattr(
+        lean_kernel_promotion_module,
+        "run_lean_candidate_identity_probe",
+        lambda **_kwargs: {
+            "local_lean_attempted": True,
+            "local_lean_compiled": True,
+            "local_lean_source_compiled": True,
+            "candidate_identity_lean_verified": True,
+            "candidate_axiom_audit_clean": True,
+        },
+    )
+    promotion = evaluate_lean_kernel_promotion(
+        blackboard_artifacts=blackboard.artifacts,
+        environment_feedback=result.next_task.inputs["environment_feedback"],
+        lean_project=tmp_path,
+        lean_timeout=30,
+    )
+    assert promotion is not None
+    assert promotion["source_theorem_kernel_verified"] is True
+
+
+def test_missing_theory_without_frozen_formal_authority_fails_closed(
+    tmp_path: Path,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path, accepted=True, omit_theory_packet=True
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == "formal_target_semantic_review_input_invalid"
+    assert not result.tool_calls
 
 
 def test_rejection_returns_observations_to_same_formalizer_workspace(
@@ -659,6 +766,8 @@ def test_reviewer_requests_native_schema_for_generation_and_regeneration() -> No
         "source_subsystem": "FormalizationEvaluator",
         "candidate_materialization_id": "materialization",
         "candidate_materialization_hash": "materialization-hash",
+        "semantic_authority_mode": "theory_derivation_packet",
+        "semantic_authority_hash": "theory-packet-hash",
         "theory_packet_id": "theory-packet",
         "theory_packet_hash": "theory-packet-hash",
         "proposal_packet_id": "proposal-packet",
