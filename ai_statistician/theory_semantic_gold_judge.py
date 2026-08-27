@@ -22,7 +22,7 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 5
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 8
 
 
 def _theory_semantic_gold_judge_schema(
@@ -192,7 +192,7 @@ def _generate_semantic_assessment_batch(
         "claim_rubric": deepcopy(dict(rubric)),
         "document_evidence_units": evidence_units,
         "required_document_case_ids": list(required_case_ids),
-        "required_claim_ids": list(claim_ids),
+        "rubric_claim_ids": _rubric_claim_ids(rubric),
         "adjudication_phase": phase,
         "boundary": THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY,
     }
@@ -219,12 +219,11 @@ def _generate_semantic_assessment_batch(
             "derivation; use INCONCLUSIVE only when no material contradiction is established but "
             "required support is missing or indeterminate. Calibration cases are unlabeled, and "
             "the candidate phase contains no calibration cases. Follow the keyed response schema "
-            "exactly. During "
-            "calibration, each assessment contains only overall status. During candidate-mode "
-            "negative control and candidate adjudication, return document_status and one "
+            "exactly. During calibration, candidate-mode negative control, and candidate "
+            "adjudication, use the same claim-level assessment: return document_status and one "
             "document_decisive_evidence_ref, then "
             "claim_statuses and decisive_evidence_refs keyed by every claim ID in "
-            "required_claim_ids. A document can FAIL even when all listed claims are SATISFIED. "
+            "rubric_claim_ids. A document can FAIL even when all listed claims are SATISFIED. "
             "Select only supplied evidence_ref values, preferring a violating paragraph over "
             "support. Do not copy or rewrite excerpts; the evaluator resolves references and "
             "combines document-wide and per-claim status."
@@ -303,30 +302,34 @@ def run_theory_semantic_gold_judge(
     case_ids = _calibration_case_ids(calibration_cases)
     model_case_ids = [f"case_{index:04d}" for index in range(1, len(case_ids) + 1)]
     case_id_by_model_case_id = dict(zip(model_case_ids, case_ids))
-    calibration_packet, calibration_response = _generate_semantic_assessment_batch(
-        provider=provider,
-        task_id=task_id,
-        visible_question=visible_question,
-        reference_documents=reference_documents,
-        rubric=rubric,
-        document_cases=[
-            {
-                "case_id": model_case_id,
-                "documents": deepcopy(list(row.get("documents", []) or [])),
-            }
-            for model_case_id, row in zip(model_case_ids, calibration_cases)
-        ],
-        required_case_ids=model_case_ids,
-        claim_ids=(),
-        model=model,
-        model_tier=model_tier,
-        max_tokens=max_tokens,
-        artifact_role=artifact_role,
-        phase="calibration",
-    )
+    calibration_assessments: list[dict[str, Any]] = []
+    calibration_responses: list[Any] = []
+    for model_case_id, row in zip(model_case_ids, calibration_cases):
+        calibration_packet, calibration_response = _generate_semantic_assessment_batch(
+            provider=provider,
+            task_id=task_id,
+            visible_question=visible_question,
+            reference_documents=reference_documents,
+            rubric=rubric,
+            document_cases=[
+                {
+                    "case_id": model_case_id,
+                    "documents": deepcopy(list(row.get("documents", []) or [])),
+                }
+            ],
+            required_case_ids=[model_case_id],
+            claim_ids=claim_ids,
+            model=model,
+            model_tier=model_tier,
+            max_tokens=max_tokens,
+            artifact_role=artifact_role,
+            phase="calibration",
+        )
+        calibration_assessments.extend(calibration_packet["assessments"])
+        calibration_responses.append(calibration_response)
     assessment_by_case = {
         case_id_by_model_case_id[str(row["case_id"])]: str(row["status"])
-        for row in calibration_packet["assessments"]
+        for row in calibration_assessments
     }
     expected_by_case = {
         str(row["case_id"]): str(row["expected_status"])
@@ -425,15 +428,20 @@ def run_theory_semantic_gold_judge(
         "task_id_hash": stable_hash(task_id),
         "provider": str(
             candidate_provider
-            or calibration_response.provider
+            or calibration_responses[0].provider
             or getattr(provider, "provider_name", "")
         ),
-        "model": str(candidate_model or calibration_response.model or model),
+        "model": str(candidate_model or calibration_responses[0].model or model),
         "model_tier": model_tier,
-        "n_model_calls": 2 + len(candidate_mode_negative_responses),
+        "n_model_calls": (
+            1
+            + len(calibration_responses)
+            + len(candidate_mode_negative_responses)
+        ),
         "calibration_candidate_context_isolated": True,
         "calibration_case_ids_opaque": True,
-        "calibration_claim_assessments_requested": False,
+        "calibration_claim_assessments_requested": True,
+        "calibration_model_calls": len(calibration_responses),
         "candidate_mode_negative_cases_configured": bool(
             candidate_mode_negative_cases
         ),
@@ -488,13 +496,17 @@ def run_theory_semantic_gold_judge(
             for row in candidate_assessment["claim_assessments"]
         ],
         "passed": passed,
-        "calibration_raw_response_fingerprint": stable_hash(calibration_response.text),
+        "calibration_raw_response_fingerprint": stable_hash(
+            [response.text for response in calibration_responses]
+        ),
         "candidate_mode_negative_raw_response_fingerprint": stable_hash(
             [response.text for response in candidate_mode_negative_responses]
         ),
         "candidate_raw_response_fingerprint": stable_hash(candidate_response.text),
         "raw_response_fingerprint": stable_hash({
-            "calibration": calibration_response.text,
+            "calibration": [
+                response.text for response in calibration_responses
+            ],
             "candidate_mode_negative": [
                 response.text for response in candidate_mode_negative_responses
             ],
