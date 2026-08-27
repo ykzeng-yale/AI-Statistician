@@ -16,7 +16,8 @@ from ai_statistician.theory_semantic_gold_judge import (
 
 
 CLAIM_IDS = ["claim:definition", "claim:limit"]
-CASE_IDS = ["case:a", "case:b"]
+CASE_IDS = ["reference_complete", "wrong_limit"]
+MODEL_CASE_IDS = ["case_0001", "case_0002"]
 
 
 def _claim_rows(*, violated: str = "") -> list[dict[str, object]]:
@@ -42,9 +43,9 @@ def _assessment(case_id: str, *, violated: str = "") -> dict[str, object]:
 def _packet(*, misclassify_second_case: bool = False) -> dict[str, object]:
     return {
         "assessments": [
-            _assessment("case:a"),
+            _assessment(CASE_IDS[0]),
             _assessment(
-                "case:b",
+                CASE_IDS[1],
                 violated="" if misclassify_second_case else "claim:limit",
             ),
             _assessment("candidate"),
@@ -56,9 +57,9 @@ def _calibration_packet(
     *, misclassify_second_case: bool = False
 ) -> dict[str, object]:
     statuses = [
-        ("case:a", "PASS"),
+        (CASE_IDS[0], "PASS"),
         (
-            "case:b",
+            CASE_IDS[1],
             "PASS" if misclassify_second_case else "FAIL",
         ),
     ]
@@ -79,8 +80,8 @@ def _keyed_calibration_packet(
 ) -> dict[str, object]:
     return {
         "assessments": {
-            "case:a": {"status": "PASS"},
-            "case:b": {
+            MODEL_CASE_IDS[0]: {"status": "PASS"},
+            MODEL_CASE_IDS[1]: {
                 "status": "PASS" if misclassify_second_case else "FAIL"
             },
         }
@@ -153,14 +154,14 @@ def _run(
         },
         calibration_cases=[
             {
-                "case_id": "case:a",
+                "case_id": CASE_IDS[0],
                 "expected_status": "PASS",
-                "documents": [{"path": "a.md", "content": "correct"}],
+                "documents": [{"path": "reference_complete.md", "content": "correct"}],
             },
             {
-                "case_id": "case:b",
+                "case_id": CASE_IDS[1],
                 "expected_status": "FAIL",
-                "documents": [{"path": "b.md", "content": "wrong limit"}],
+                "documents": [{"path": "wrong_limit.md", "content": "wrong limit"}],
             },
         ],
         semantic_artifact_role=semantic_artifact_role,
@@ -174,7 +175,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 2
+    assert result["protocol_version"] == 3
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -198,6 +199,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         "candidate"
     )
     assert result["calibration_candidate_context_isolated"] is True
+    assert result["calibration_case_ids_opaque"] is True
     assert len(provider.requests) == 2
     assert all(
         request.model == LIVE_EVALUATION_CLAUDE_MODEL
@@ -208,8 +210,11 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         for request in provider.requests
     )
     assert "expected_status" not in provider.requests[0].user_prompt
+    assert all(case_id not in provider.requests[0].user_prompt for case_id in CASE_IDS)
+    assert "reference_complete.md" not in provider.requests[0].user_prompt
+    assert "wrong_limit.md" not in provider.requests[0].user_prompt
     assert '"case_id": "candidate"' not in provider.requests[0].user_prompt
-    assert '"case_id": "case:a"' not in provider.requests[1].user_prompt
+    assert all(case_id not in provider.requests[1].user_prompt for case_id in CASE_IDS)
     assert '"required_claim_ids": []' in provider.requests[0].user_prompt
     assert '"required_claim_ids": []' not in provider.requests[1].user_prompt
     assert '"claim:limit"' in provider.requests[1].user_prompt
@@ -220,7 +225,8 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         "assessments"
     ]
     assert calibration_assessments["type"] == "object"
-    assert calibration_assessments["required"] == CASE_IDS
+    assert calibration_assessments["required"] == MODEL_CASE_IDS
+    assert all(case_id not in json.dumps(provider.requests[0].schema) for case_id in CASE_IDS)
     assert all(
         row["required"] == ["status"]
         for row in calibration_assessments["properties"].values()

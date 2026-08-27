@@ -22,7 +22,7 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 2
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 3
 
 
 def _theory_semantic_gold_judge_schema(
@@ -109,9 +109,7 @@ def _materialize_semantic_assessment_packet(
         assessment = dict(raw_assessment) if isinstance(raw_assessment, Mapping) else {}
         if claim_ids:
             document_status = str(assessment.get("document_status", "") or "")
-            document_evidence_ref = str(
-                assessment.get("document_decisive_evidence_ref", "") or ""
-            )
+            document_evidence_ref = str(assessment.get("document_decisive_evidence_ref", "") or "")
             raw_statuses = assessment.get("claim_statuses", {})
             raw_statuses = raw_statuses if isinstance(raw_statuses, Mapping) else {}
             raw_refs = assessment.get("decisive_evidence_refs", {})
@@ -139,9 +137,7 @@ def _materialize_semantic_assessment_packet(
                 "case_id": str(case_id),
                 "status": status,
                 "document_status": document_status,
-                "document_decisive_excerpt": str(
-                    evidence_by_ref.get(document_evidence_ref, "")
-                ),
+                "document_decisive_excerpt": str(evidence_by_ref.get(document_evidence_ref, "")),
                 "claim_assessments": claim_assessments,
             }
         )
@@ -152,7 +148,7 @@ def _semantic_evidence_units(document_cases: Sequence[Mapping[str, Any]]) -> lis
     return [
         {
             "case_id": str(case.get("case_id", "") or ""),
-            "document_path": str(document.get("path", "") or ""),
+            "document_path": f"document_{document_index:04d}",
             "evidence_ref": f"{case.get('case_id', '')}:{document_index}:{paragraph_index}",
             "content": content,
         }
@@ -301,6 +297,8 @@ def run_theory_semantic_gold_judge(
         raise ValueError("semantic artifact role must be nonempty")
     claim_ids = _rubric_claim_ids(rubric)
     case_ids = _calibration_case_ids(calibration_cases)
+    model_case_ids = [f"case_{index:04d}" for index in range(1, len(case_ids) + 1)]
+    case_id_by_model_case_id = dict(zip(model_case_ids, case_ids))
     calibration_packet, calibration_response = _generate_semantic_assessment_batch(
         provider=provider,
         task_id=task_id,
@@ -309,12 +307,12 @@ def run_theory_semantic_gold_judge(
         rubric=rubric,
         document_cases=[
             {
-                "case_id": str(row["case_id"]),
+                "case_id": model_case_id,
                 "documents": deepcopy(list(row.get("documents", []) or [])),
             }
-            for row in calibration_cases
+            for model_case_id, row in zip(model_case_ids, calibration_cases)
         ],
-        required_case_ids=case_ids,
+        required_case_ids=model_case_ids,
         claim_ids=(),
         model=model,
         model_tier=model_tier,
@@ -323,7 +321,7 @@ def run_theory_semantic_gold_judge(
         phase="calibration",
     )
     assessment_by_case = {
-        str(row["case_id"]): str(row["status"])
+        case_id_by_model_case_id[str(row["case_id"])]: str(row["status"])
         for row in calibration_packet["assessments"]
     }
     expected_by_case = {
@@ -409,6 +407,7 @@ def run_theory_semantic_gold_judge(
         "model_tier": model_tier,
         "n_model_calls": 1 + len(candidate_responses),
         "calibration_candidate_context_isolated": True,
+        "calibration_case_ids_opaque": True,
         "calibration_claim_assessments_requested": False,
         "candidate_claim_assessments_requested": True,
         "candidate_document_status_requested": True,
