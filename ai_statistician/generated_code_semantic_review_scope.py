@@ -619,9 +619,7 @@ def _executable_evaluator_source_identity(
     """Identify exact evaluator bytes without interpreting statistical content."""
 
     raw_rows = manifest.get("generated_simulation_sandbox_prototypes", [])
-    if not isinstance(raw_rows, Sequence) or isinstance(
-        raw_rows, (str, bytes, bytearray)
-    ):
+    if not isinstance(raw_rows, Sequence) or isinstance(raw_rows, (str, bytes, bytearray)):
         return [], ["executable evaluator source rows are not a sequence"]
     identities: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -630,12 +628,9 @@ def _executable_evaluator_source_identity(
         if not isinstance(raw_row, Mapping):
             errors.append(f"executable evaluator source row {index} is not an object")
             continue
-        artifact_id = str(
-            raw_row.get("simulation_id", "")
-            or raw_row.get("estimator_id", "")
-            or raw_row.get("prototype_artifact_id", "")
-            or ""
-        ).strip()
+        artifact_id = str(raw_row.get("simulation_id", "")
+                          or raw_row.get("estimator_id", "")
+                          or raw_row.get("prototype_artifact_id", "") or "").strip()
         script_hash = str(raw_row.get("script_hash", "") or "").strip()
         source_code = str(raw_row.get("source_code", "") or "")
         language = str(raw_row.get("language", "") or "").strip().lower()
@@ -658,16 +653,10 @@ def _executable_evaluator_source_identity(
                 "artifact_id": artifact_id,
                 "script_hash": script_hash,
                 "language": language,
-                "dependencies": sorted(
-                    str(value)
-                    for value in raw_row.get("dependencies", []) or []
-                    if str(value)
-                ),
-                "required_estimator_ids": sorted(
-                    str(value)
-                    for value in raw_row.get("required_estimator_ids", []) or []
-                    if str(value)
-                ),
+                "dependencies": sorted(str(value) for value in
+                                       raw_row.get("dependencies", []) or [] if str(value)),
+                "required_estimator_ids": sorted(str(value) for value in
+                                                  raw_row.get("required_estimator_ids", []) or [] if str(value)),
             }
         )
     if not identities:
@@ -756,9 +745,8 @@ def executable_evaluator_review_binding(
         errors.append(
             "executable evaluator authoring lacks an accepted independent review"
         )
-    review_execution_id = str(
-        accepted_reviews[-1][1].get("execution_id", "") or accepted_reviews[-1][0]
-    ) if accepted_reviews else ""
+    review_execution_id = (str(accepted_reviews[-1][1].get("execution_id", "")
+                               or accepted_reviews[-1][0]) if accepted_reviews else "")
     return {
         "valid": not errors,
         "confirmation_manifest_id": confirmation_manifest_id,

@@ -1784,7 +1784,18 @@ def _latest_accepted_algorithm_handoff(
         ):
             continue
         for artifact_id in reversed(artifact_ids):
-            implementation_handoff = artifacts.get(str(artifact_id), {})
+            artifact_id = str(artifact_id)
+            implementation_handoff = artifacts.get(artifact_id, {})
+            if (
+                isinstance(implementation_handoff, Mapping)
+                and implementation_handoff.get("artifact_kind")
+                == "RuntimeAcceptedAlgorithmHandoff"
+            ):
+                if implementation_handoff.get("handoff_id") != artifact_id:
+                    return "", {}, ["accepted algorithm handoff identity mismatch"]
+                if not implementation_handoff.get("exact_algorithm_artifacts"):
+                    return "", {}, ["accepted algorithm handoff has no exact source"]
+                return artifact_id, implementation_handoff, []
             if not (
                 isinstance(implementation_handoff, Mapping)
                 and implementation_handoff.get("artifact_kind")

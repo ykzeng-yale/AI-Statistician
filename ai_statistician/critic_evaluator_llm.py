@@ -1599,9 +1599,11 @@ def critic_required_dimension_evidence_gaps(
 
     raw_requirements = canonical_evidence_view.get("dimension_requirements", {})
     requirements = dict(raw_requirements) if isinstance(raw_requirements, Mapping) else {}
+
     def section(name: str) -> Mapping[str, Any]:
         value = canonical_evidence_view.get(name, {})
         return value if isinstance(value, Mapping) else {}
+
     def accepted_review(value: Mapping[str, Any]) -> bool:
         review = value.get("independent_semantic_review", {})
         return bool(
@@ -1648,13 +1650,9 @@ def critic_required_dimension_evidence_gaps(
         ),
         "formal": ((formal.get("source_theorem_kernel_verified") is not True, "formal.exact_source_theorem_not_kernel_closed"),),
     }
-    gaps = [
-        label
-        for dimension, rows in checks.items()
-        if requirements.get(dimension) == "required"
-        for missing, label in rows
-        if missing
-    ]
+    gaps = [label for dimension, rows in checks.items()
+            if requirements.get(dimension) == "required"
+            for missing, label in rows if missing]
 
     if requirements.get("empirical") == "required":
         review = empirical.get("independent_semantic_review", {})
@@ -1665,28 +1663,19 @@ def critic_required_dimension_evidence_gaps(
                 gaps.append("empirical.executable_evaluator_execution_missing")
             else:
                 for row in prototypes:
-                    metrics = (
-                        row.get("reported_metrics", {})
-                        if isinstance(row, Mapping)
-                        else {}
-                    )
-                    requested = (
-                        metrics.get("requested_runtime_replicates")
-                        if isinstance(metrics, Mapping)
-                        else None
-                    )
-                    if not (
+                    metrics = row.get("reported_metrics", {}) if isinstance(row, Mapping) else {}
+                    requested = metrics.get("requested_runtime_replicates") if isinstance(metrics, Mapping) else None
+                    valid_output = bool(
                         isinstance(row, Mapping)
                         and row.get("execution_attempted") is True
                         and row.get("execution_smoke_passed") is True
                         and isinstance(metrics, Mapping)
                         and type(metrics.get("acceptance_passed")) is bool
                         and metrics.get("acceptance_passed") is True
-                        and type(requested) is int
-                        and requested > 0
-                        and int(row.get("runtime_replicates", 0) or 0)
-                        == requested
-                    ):
+                        and type(requested) is int and requested > 0
+                        and int(row.get("runtime_replicates", 0) or 0) == requested
+                    )
+                    if not valid_output:
                         gaps.append(
                             "empirical.executable_evaluator_authority_output_invalid"
                         )

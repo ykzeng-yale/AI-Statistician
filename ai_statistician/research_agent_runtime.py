@@ -2041,6 +2041,7 @@ def _runtime_accepted_algorithm_handoff_from_review(
     if not exact_artifacts:
         return {}
     payload = {
+        "artifact_kind": "RuntimeAcceptedAlgorithmHandoff",
         "source": "accepted_algorithm_semantic_review_materialization",
         "question_id": question_id,
         "algorithm_sandbox_manifest_id": str(

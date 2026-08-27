@@ -112,11 +112,16 @@ def run_sandbox(seed, replicates):
 """
 
 
-def _runtime_result(*, include_handoff: bool = True) -> dict:
+def _runtime_result(
+    *, include_handoff: bool = True, direct_handoff: bool = False
+) -> dict:
     source = _model_source()
     accepted_id = "accepted_algorithm_handoff:test"
     implementation_id = "accepted_implementation_interface_handoff:test"
     accepted = {
+        "artifact_kind": "RuntimeAcceptedAlgorithmHandoff",
+        "handoff_id": accepted_id,
+        "source": "accepted_algorithm_semantic_review_materialization",
         "question_id": QUESTION_ID,
         "exact_algorithm_artifacts": [
             {
@@ -144,13 +149,33 @@ def _runtime_result(*, include_handoff: bool = True) -> dict:
     produced = []
     if include_handoff:
         artifacts[accepted_id] = accepted
-        artifacts[implementation_id] = implementation
-        produced.append(implementation_id)
+        if direct_handoff:
+            produced.append(accepted_id)
+        else:
+            artifacts[implementation_id] = implementation
+            produced.append(implementation_id)
     return {
         "status": "ACCEPTED",
         "traces": [{"produced_artifact_ids": produced}],
         "blackboard": {"artifacts": artifacts},
     }
+
+
+def test_hidden_evaluator_accepts_direct_reviewed_algorithm_handoff() -> None:
+    result = _runtime_result(direct_handoff=True)
+
+    handoff_id, handoff, errors = (
+        gold_evaluation_module._latest_accepted_algorithm_handoff(
+            result,
+            result["blackboard"]["artifacts"],
+        )
+    )
+
+    assert errors == []
+    assert handoff_id == "accepted_algorithm_handoff:test"
+    assert handoff["exact_algorithm_artifacts"][0]["exact_source_code"] == (
+        _model_source()
+    )
 
 
 def _runtime_result_with_accepted_theory(
