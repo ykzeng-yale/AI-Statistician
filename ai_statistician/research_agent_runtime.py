@@ -8779,12 +8779,62 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         )
 
 
+def _runtime_executable_evaluator_authoring_task(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    architect_context: Mapping[str, Any],
+    algorithm_sandbox_manifest_id: str = "",
+    upstream_algorithm_handoff: Mapping[str, Any] | None = None,
+    exploratory_manifest_id: str = "",
+    exploratory_manifest_hash: str = "",
+) -> AgentTask:
+    context = invalidate_metric_protocol_authorization(architect_context)
+    phase = EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+    context.update({
+        "theory_packet_id": theory_packet_id,
+        "executable_evaluator_source_authority": True,
+        "evaluator_source_authoring": True,
+        "empirical_evaluation_phase": phase,
+    })
+    if exploratory_manifest_id:
+        context["exploratory_diagnostic_feedback"] = {
+            "simulation_manifest_id": exploratory_manifest_id,
+            "simulation_manifest_hash": exploratory_manifest_hash,
+            "status": "PASSED_NOT_CONFIRMATORY_EVIDENCE",
+        }
+    handoff = deepcopy(dict(upstream_algorithm_handoff or {}))
+    algorithm_id = algorithm_sandbox_manifest_id or str(
+        handoff.get("algorithm_sandbox_manifest_id", "") or ""
+    )
+    inputs = {
+        "question": _question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+        "architect_context": context,
+        "empirical_evaluation_phase": phase,
+        "evaluator_source_authoring": True,
+        "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+        "algorithm_sandbox_manifest_id": algorithm_id,
+        "upstream_algorithm_handoff": handoff,
+    }
+    if type(task.inputs.get("seed")) is int:
+        inputs["seed"] = task.inputs["seed"]
+    return replace(
+        task,
+        task_id=f"evaluator-source-authoring:{question.id}:" + stable_hash(
+            [task.task_id, theory_packet_id, exploratory_manifest_id]
+        )[:8],
+        objective="Author executable evaluator source and obtain independent review before confirmatory execution.",
+        inputs=inputs,
+    )
+
+
 def _runtime_simulation_metric_protocol_guard(
     *,
     task: AgentTask,
     question: OpenResearchQuestion,
     theory_packet_id: str,
-    theory_packet: Mapping[str, Any],
     architect_context: Mapping[str, Any],
     exploratory_diagnostic: bool,
 ) -> AgentStepResult | None:
@@ -8808,94 +8858,18 @@ def _runtime_simulation_metric_protocol_guard(
     ):
         return None
 
-    context = invalidate_metric_protocol_authorization(architect_context)
-    context.update(
-        {
-            "theory_packet_id": theory_packet_id,
-            "executable_evaluator_source_authority": True,
-            "evaluator_source_authoring": True,
-            "empirical_evaluation_phase": (
-                EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
-            ),
-        }
-    )
-    transition_id = "executable_evaluator_authoring_transition:" + stable_hash(
-        [task.task_id, theory_packet_id, evidence_contract]
-    )[:20]
-    transition = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeExecutableEvaluatorAuthoringTransition",
-        "manifest_id": transition_id,
-        "question_id": question.id,
-        "source_theory_packet_id": theory_packet_id,
-        "execution_attempted": False,
-        "confirmatory_execution_authorized": False,
-        "next_owner_subsystem": "SimulationEvaluator",
-        "runtime_authored_scientific_content": False,
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-    }
-    next_inputs = dict(task.inputs)
-    next_inputs.update(
-        {
-            "architect_context": context,
-            "empirical_evaluation_phase": (
-                EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
-            ),
-            "evaluator_source_authoring": True,
-            "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
-        }
-    )
-    next_task = replace(
-        task,
-        task_id=(
-            f"evaluator-source-authoring:{question.id}:"
-            f"{stable_hash(transition_id)[:8]}"
-        ),
-        objective=(
-            "Author executable evaluator source and obtain independent review "
-            "before confirmatory execution."
-        ),
-        inputs=next_inputs,
-    )
-    evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:" + stable_hash([task.task_id, transition_id])[:20],
-        task_id=task.task_id,
-        artifact_id=transition_id,
-        evidence_type="executable_evaluator_authoring_transition",
-        status="SOURCE_AUTHORING_REQUIRED_BEFORE_CONFIRMATION",
-        boundary=(
-            "The transition selects no statistical content and is not empirical or "
-            "proof evidence."
-        ),
-        payload={
-            "source_theory_packet_id": theory_packet_id,
-            "execution_attempted": False,
-            "confirmatory_execution_authorized": False,
-            "kernel_verified": False,
-        },
+    next_task = _runtime_executable_evaluator_authoring_task(
+        task=task,
+        question=question,
+        theory_packet_id=theory_packet_id,
+        architect_context=architect_context,
     )
     return AgentStepResult(
         status="REROUTE",
         rationale=(
-            "SimulationEvaluator is replacing detached prose-protocol authoring with "
-            "model-owned executable evaluator source."
+            "SimulationEvaluator routes to model-owned executable evaluator source "
+            "authoring; this orchestration transition is not scientific evidence."
         ),
-        produced_artifacts={transition_id: transition},
-        observations=(
-            EnvironmentObservation(
-                observation_type="executable_evaluator_authoring_required",
-                summary=(
-                    "same Simulation source owner will author the preregistration"
-                ),
-                payload={
-                    "transition_id": transition_id,
-                    "theory_packet_id": theory_packet_id,
-                    "execution_attempted": False,
-                    "runtime_authored_scientific_content": False,
-                },
-            ),
-        ),
-        evidence_entries=(evidence,),
         next_task=next_task,
     )
 
@@ -9027,7 +9001,6 @@ class SimulationEvaluatorRuntimeSubsystem:
             task=task,
             question=question,
             theory_packet_id=packet_id,
-            theory_packet=packet if isinstance(packet, Mapping) else {},
             architect_context=context,
             exploratory_diagnostic=exploratory_diagnostic,
         )
@@ -11188,6 +11161,15 @@ class SimulationEvaluatorRuntimeSubsystem:
             deferred_metric_protocol_payload = task.inputs.get(
                 "deferred_metric_protocol_task", {}
             )
+            evidence_contract = _architect_runtime_plan(effective_context).get(
+                "evidence_contract", {})
+            exploratory_evaluator_authoring_required = bool(
+                exploratory_diagnostic and isinstance(evidence_contract, Mapping)
+                and _runtime_metric_protocol_authoring_required(
+                    evidence_contract=evidence_contract,
+                    architect_context=effective_context,
+                )
+            )
             confirmatory_feedback_id = ""
             if evaluator_confirmation_task is not None:
                 next_task = evaluator_confirmation_task
@@ -11300,6 +11282,17 @@ class SimulationEvaluatorRuntimeSubsystem:
             ):
                 next_task = _agent_task_from_runtime_payload(
                     deferred_metric_protocol_payload
+                )
+            elif exploratory_evaluator_authoring_required:
+                next_task = _runtime_executable_evaluator_authoring_task(
+                    task=task,
+                    question=question,
+                    theory_packet_id=packet_id,
+                    architect_context=effective_context,
+                    algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+                    upstream_algorithm_handoff=upstream_algorithm_handoff,
+                    exploratory_manifest_id=manifest_id,
+                    exploratory_manifest_hash=stable_hash(manifest),
                 )
             elif implementation_gaps and not generated_algorithm_sandbox_manifest_id:
                 next_task = AgentTask(
@@ -11442,7 +11435,10 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "semantic review now gates its immutable confirmatory outcome."
                     if confirmatory_generated_metric_failure
                     else "Runtime recorded non-promotable exploratory diagnostics and is "
-                    "routing to the independent confirmatory metric-protocol gate."
+                    "routing to model-owned executable evaluator authoring."
+                    if exploratory_evaluator_authoring_required
+                    else "Runtime recorded exploratory diagnostics and is routing "
+                    "the remaining task-intent evidence through AgentRuntime."
                     if exploratory_diagnostic
                     else "Runtime recorded executable simulation feedback and is routing "
                     "remaining implementation/formalization feedback through the agent runtime."

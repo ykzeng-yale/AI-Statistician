@@ -842,7 +842,6 @@ def test_simulation_guard_blocks_before_proposal_or_execution() -> None:
         task=task,
         question=question,
         theory_packet_id="theory:guard",
-        theory_packet={"packet_id": "theory:guard"},
         architect_context=context,
         exploratory_diagnostic=False,
     )
@@ -853,10 +852,8 @@ def test_simulation_guard_blocks_before_proposal_or_execution() -> None:
     assert result.next_task.owner_subsystem == "SimulationEvaluator"
     assert result.next_task.inputs["evaluator_source_authoring"] is True
     assert result.next_task.inputs["n_runs"] == 100_000
-    block = next(iter(result.produced_artifacts.values()))
-    assert block["execution_attempted"] is False
-    assert block["confirmatory_execution_authorized"] is False
-    assert block["runtime_authored_scientific_content"] is False
+    assert not result.produced_artifacts
+    assert not result.evidence_entries
 
 
 def test_research_evaluation_summary_requires_every_research_artifact() -> None:

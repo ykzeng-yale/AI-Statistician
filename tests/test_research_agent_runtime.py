@@ -4091,7 +4091,41 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         def propose(cls, **kwargs):
             cls.propose_calls += 1
             proposal_feedback.append(dict(kwargs["environment_feedback"]))
-            raise RuntimeError("stop after observing the planning context")
+            return {
+                "artifact_kind": "SimulationEngineerProposalPacket",
+                "packet_id": "simulation-proposal:generic-exploratory",
+                "source_agent": "LLMSimulationEngineerAgent",
+                "model": "claude-haiku-4-5-20251001",
+                "model_tier": "haiku",
+                "source_workspace_planning_owned": True,
+                "scientific_source_transport": "native_client_tools",
+                "simulation_targets": [{"procedure_id": "diagnostic"}],
+                "simulation_code_drafts": [
+                    {"simulation_id": "diagnostic", "required_estimator_ids": []}
+                ],
+                "metric_contracts": [],
+            }
+
+    def source_workspace(**_kwargs):
+        source = "def run_sandbox(seed, replicates):\n    return {'ok': True}\n"
+        return ({
+            "simulation_id": "diagnostic",
+            "prototype_status": "EXECUTED",
+            "executor": "generated_simulation_sandbox",
+            "language": "python",
+            "requested_execution_profile": "stdlib",
+            "executor_profile": "stdlib",
+            "dependencies": [],
+            "required_estimator_ids": [],
+            "source_code": source,
+            "script_hash": runtime_module.stable_hash(source),
+            "smoke_passed": True,
+            "execution_smoke_passed": True,
+            "execution_attempted": True,
+            "metrics": {"ok": True},
+            "metric_contracts": [],
+            "metric_contract_evaluation": {},
+        }, [])
 
     monkeypatch.setattr(
         runtime_module,
@@ -4102,6 +4136,11 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         runtime_module,
         "_runtime_simulation_metric_protocol_guard",
         lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        source_workspace,
     )
     subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=SimulationAgent(),
@@ -4114,6 +4153,11 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         "empirical_evaluation_phase": (
             runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
         ),
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "research_evaluation_requires_executable_evaluator_source": True,
+            }
+        },
     }
     blackboard = BlackboardState(
         project_id=question.id,
@@ -4137,14 +4181,24 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         },
     )
 
-    with pytest.raises(RuntimeError, match="stop after observing"):
-        subsystem.run(task, blackboard)
+    exploratory = subsystem.run(task, blackboard)
 
     feedback = proposal_feedback[0]
     assert feedback["upstream_algorithm_handoff"] == handoff
     assert feedback["runtime_execution_contract"][
         "available_upstream_estimator_ids"
     ] == ["accepted-estimator"]
+    assert exploratory.status == "REROUTE"
+    assert exploratory.next_task is not None
+    assert exploratory.next_task.owner_subsystem == "SimulationEvaluator"
+    assert exploratory.next_task.inputs["evaluator_source_authoring"] is True
+    assert exploratory.next_task.inputs["upstream_algorithm_handoff"] == handoff
+    assert exploratory.next_task.inputs["seed"] == 11
+    diagnostic = exploratory.next_task.inputs["architect_context"][
+        "exploratory_diagnostic_feedback"
+    ]
+    assert diagnostic["simulation_manifest_id"].startswith("simulation_manifest:")
+    assert diagnostic["status"] == "PASSED_NOT_CONFIRMATORY_EVIDENCE"
 
     monkeypatch.setattr(
         runtime_module,
@@ -4211,7 +4265,6 @@ def test_missing_metric_authority_routes_to_same_evaluator_source_owner() -> Non
         task=task,
         question=question,
         theory_packet_id=theory_packet_id,
-        theory_packet=theory_packet,
         architect_context=context,
         exploratory_diagnostic=False,
     )
@@ -4222,10 +4275,8 @@ def test_missing_metric_authority_routes_to_same_evaluator_source_owner() -> Non
     assert result.next_task.owner_subsystem == "SimulationEvaluator"
     assert result.next_task.inputs["evaluator_source_authoring"] is True
     assert result.next_task.inputs["n_runs"] == 100_000
-    assert all(
-        artifact.get("runtime_authored_scientific_content") is False
-        for artifact in result.produced_artifacts.values()
-    )
+    assert not result.produced_artifacts
+    assert not result.evidence_entries
 
 
 def test_confirmatory_evaluator_replays_only_independently_reviewed_source(

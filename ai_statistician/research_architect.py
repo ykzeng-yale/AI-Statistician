@@ -1355,7 +1355,7 @@ predictions, and formalization obligations. Use equation-level reasoning and
 self-critique. Before offering a checkpoint, reread the central argument as a
 skeptical referee: independently recompute pivotal identities, test the smallest
 nontrivial and boundary cases, and verify that each implication uses only stated
-assumptions. Correct defects you find or mark the claim unresolved; do not let a
+assumptions. Audit named assumptions by mathematical content, separating timing/intervention, comparability/exchangeability, independence, and moment or tail conditions. For each claimed equality, identification step, or normalization, try a countermodel varying group distributions or baselines while preserving the premise; derive the implication or expose its missing stronger assumption. Correct defects you find or mark the claim unresolved; do not let a
 plausible narrative substitute for a derivation. Preserve uncertainty and semantic
 risks. Do not claim formal proof or Lean kernel verification.
 """

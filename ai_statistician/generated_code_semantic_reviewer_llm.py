@@ -44,7 +44,7 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 29
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 30
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -53,7 +53,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "statistical acceptance or theorem proof evidence."
 )
 GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = (
-    "model_authored_markdown_review_with_optional_exact_probe_v6"
+    "model_authored_markdown_review_with_optional_exact_probe_v7"
 )
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
@@ -175,6 +175,7 @@ def _exact_estimator_probe_targets(
             ),
         }
     return targets
+
 
 def generated_code_semantic_review_finding_id(
     *,
@@ -911,9 +912,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 },
             },
         )
-        tools = (
-            (probe_tool,) if probe_targets else ()
-        ) + (
+        tools = ((probe_tool,) if probe_targets else ()) + (
             ClientToolDefinition(
                 name=GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL,
                 description=(
@@ -942,7 +941,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         + (
                             " You may first call "
                             + GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL
-                            + " to actively test an exact current estimator. When useful, "
+                            + " for a model-authored multi-case Python or R test. When useful, "
                             "prefer one broad model-authored probe that covers multiple "
                             "load-bearing public boundary cases; choose the cases and "
                             "interpretation yourself. A probe failure before exact target invocation "
@@ -953,6 +952,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             "A broad numerical probe does not cover an omitted input boundary; a probe "
                             "that failed before exact target invocation covers nothing; do not infer "
                             "coverage from test count alone."
+                            " If you attempt a probe and then request ACCEPT, at least one "
+                            "probe must reach the exact target; repair and rerun failed "
+                            "reviewer scaffolding in this session."
                             if probe_targets
                             else ""
                         )
@@ -1119,6 +1121,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
+            if (packet.get("overall_verdict") == "ACCEPT" and probe_executions
+                    and not any(row.get("target_source_invoked") is True
+                                for row in probe_executions)):
+                errors.append(
+                    "ACCEPT after a review probe requires at least one exact target "
+                    "invocation; repair and rerun it or submit a non-accepting judgment")
             validation_history.append(
                 {
                     "attempt_index": len(validation_history),
