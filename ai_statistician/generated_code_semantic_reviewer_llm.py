@@ -670,16 +670,33 @@ def build_generated_code_semantic_review_prompt(
             for row in _active_prior_findings(review_material)
         ],
     }
+    executable_evaluator_authoring = bool(
+        str(review_material.get("empirical_evaluation_phase", "") or "")
+        == "executable_evaluator_authoring"
+    )
+    review_scope_instruction = (
+        "This is preconfirmatory executable-evaluator authoring. The exact source, "
+        "not a separate prose protocol, owns the DGP, measurements, decision rule, "
+        "and requested Monte Carlo replicates. Review those choices directly against "
+        "the theory and question, including whether requested_runtime_replicates is "
+        "fixed independently of diagnostic outcomes and scientifically justified. "
+        "The attached run is a non-confirmatory authoring diagnostic; its realized "
+        "values cannot establish acceptance. ACCEPT authorizes only unchanged-source "
+        "execution on a later hidden cohort.\n\n"
+        if executable_evaluator_authoring
+        else "The empirical evaluator owns realized outcome values, thresholds, "
+        "Monte Carlo precision, power, and efficiency, so those values are withheld "
+        "and cannot by themselves create a source finding.\n\n"
+    )
     return (
         "Act as an independent senior scientific-code reviewer. Inspect the exact executed "
         "source against the research question, authoritative theory, public interface, actual "
         "runtime arguments, and frozen measurement meanings. Choose the load-bearing checks "
         "yourself; do not fill a fixed dimension checklist. Actively try to falsify explicit "
         "public acceptance, rejection, and boundary behavior instead of checking only a happy "
-        "path. The empirical evaluator owns "
-        "realized outcome values, thresholds, Monte Carlo precision, power, and efficiency, "
-        "so those values are withheld and cannot by themselves create a source finding.\n\n"
-        "Return a compact JSON envelope matching the response schema. Put the actual scientific "
+        "path. "
+        + review_scope_instruction
+        + "Return a compact JSON envelope matching the response schema. Put the actual scientific "
         "analysis in review_document as Markdown. Set overall_verdict to ACCEPT only when the "
         "exact artifact is semantically fit for downstream use; otherwise use REVISE and report "
         "each active defect once. Findings must state observed and expected behavior. Ground "

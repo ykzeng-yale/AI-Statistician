@@ -72,6 +72,7 @@ from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
     bind_generated_metric_contract_authority,
     evaluate_generated_metric_contracts,
     generated_metric_contract_set_id,
@@ -79,7 +80,6 @@ from .generated_metric_contract import (
     generated_metric_requirement_authority_policy_from_context,
     generated_metric_runtime_replicates_from_context,
     generated_metric_requirement_set_id,
-    generated_metric_requirement_target_namespace_contract,
     generated_metric_requirements_from_context,
     generated_sandbox_runtime_replicates,
     validate_generated_metric_contracts,
@@ -153,10 +153,6 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_PREREQUISITE_PENDING,
     build_theory_informed_metric_protocol_material,
     reviewed_metric_protocol_authority_matches_theory,
-)
-from .implementation_metric_handoff import (
-    accepted_implementation_interface_handoff_errors,
-    build_accepted_implementation_interface_handoff,
 )
 from .research_evaluation import (
     build_research_evaluation_summary,
@@ -306,6 +302,8 @@ from .runtime_research_problem_adapter import (
     is_frozen_formal_only_question as _is_frozen_formal_only_question,
 )
 from .simulation_engineer_llm import (
+    EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY,
+    EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING,
     EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
     LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_BOUNDARY,
@@ -323,9 +321,6 @@ from .theory_derivation_trace import (
 RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT = (
     "theory_execution_preflight_then_algorithm"
-)
-RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC = (
-    "implementation_accepted_metric_authoring"
 )
 SIMULATION_NOT_PROOF_BOUNDARY = (
     "Executable simulation and deterministic scaffold runs are empirical "
@@ -657,7 +652,6 @@ def _runtime_architect_operation(task: AgentTask) -> str:
 
 _THEORY_DESCENDANT_CONTEXT_FIELDS = (
     "accepted_generated_code_semantic_reviews",
-    "accepted_implementation_interface_handoff",
     "algorithm_sandbox_manifest_id",
     "architect_theory_execution_preflight_acceptance",
     "confirmatory_simulation_requires_accepted_algorithm_handoff",
@@ -1135,77 +1129,6 @@ def _architect_theory_preflight_accepted_result(
         evidence_entries=(evidence,),
         next_task=next_task,
     )
-
-
-_METRIC_AUTHORING_CONTEXT_FIELDS = frozenset(
-    {
-        "theory_packet_id",
-        "previous_theory_packet_id",
-        "retrieval_context",
-        "retrieval_memory_manifest_id",
-        "architect_runtime_plan",
-        "runtime_requested_evidence_contract",
-        "runtime_evaluation_mode",
-        "architect_metric_protocol_theory_material",
-        "architect_metric_protocol_gate",
-        "architect_theory_execution_preflight_acceptance",
-        "architect_metric_protocol_prior_rejection",
-        "implementation_gaps",
-    }
-)
-
-
-def _architect_post_implementation_metric_context(
-    *,
-    question: OpenResearchQuestion,
-    architect_context: Mapping[str, Any],
-    blackboard: BlackboardState,
-) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
-    context = dict(architect_context)
-    theory_packet_id = _architect_context_theory_packet_id(context)
-    algorithm_manifest_id = _architect_context_algorithm_sandbox_manifest_id(
-        context
-    )
-    raw_handoff = context.get("upstream_algorithm_handoff", {})
-    validated_handoff = _runtime_validated_algorithm_handoff(
-        architect_context=context,
-        blackboard=blackboard,
-        question_id=question.id,
-        theory_packet_id=theory_packet_id,
-        algorithm_sandbox_manifest_id=algorithm_manifest_id,
-        upstream_algorithm_handoff=(
-            raw_handoff if isinstance(raw_handoff, Mapping) else {}
-        ),
-    )
-    errors: list[str] = []
-    if not validated_handoff:
-        errors.append(
-            "post-implementation metric authoring requires a validated accepted "
-            "AlgorithmEngineer handoff"
-        )
-        return {}, {}, errors
-    interface_handoff = build_accepted_implementation_interface_handoff(
-        validated_handoff
-    )
-    errors.extend(
-        accepted_implementation_interface_handoff_errors(
-            interface_handoff,
-            question_id=question.id,
-            theory_packet_id=theory_packet_id,
-        )
-    )
-    proposal_context = {
-        key: deepcopy(context[key])
-        for key in _METRIC_AUTHORING_CONTEXT_FIELDS
-        if key in context
-    }
-    proposal_context["accepted_implementation_interface_handoff"] = (
-        interface_handoff
-    )
-    proposal_context["runtime_architect_operation"] = (
-        RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
-    )
-    return proposal_context, interface_handoff, errors
 
 
 def _architect_feedback_runtime_progress_snapshot(
@@ -1689,79 +1612,10 @@ class ArchitectCoordinatorRuntimeSubsystem:
         runtime_config_payload["proof_search_tool_available"] = (
             self.proof_search_tool_available
         )
-        proposal_context = context
-        if (
-            architect_operation
-            == RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
-        ):
-            (
-                proposal_context,
-                implementation_interface_handoff,
-                implementation_context_errors,
-            ) = _architect_post_implementation_metric_context(
-                question=question,
-                architect_context=context,
-                blackboard=blackboard,
-            )
-            if implementation_context_errors:
-                return AgentStepResult(
-                    status="BLOCKED",
-                    rationale=(
-                        "ArchitectCoordinator rejected post-implementation metric "
-                        "authoring before any model call because accepted code "
-                        "lineage was missing or inconsistent."
-                    ),
-                    observations=(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "post_implementation_metric_authoring_input_rejected"
-                            ),
-                            summary="; ".join(
-                                implementation_context_errors
-                            )[:500],
-                            payload={
-                                "validation_errors": (
-                                    implementation_context_errors
-                                ),
-                                "model_call_authorized": False,
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        ),
-                    ),
-                    failure_classification=(
-                        "post_implementation_metric_authoring_lineage_invalid"
-                    ),
-                )
-            context["accepted_implementation_interface_handoff"] = (
-                implementation_interface_handoff
-            )
-            context["algorithm_sandbox_manifest_id"] = str(
-                implementation_interface_handoff.get(
-                    "algorithm_sandbox_manifest_id", ""
-                )
-                or ""
-            )
-            metric_gate = context.get("architect_metric_protocol_gate", {})
-            if isinstance(metric_gate, Mapping):
-                metric_gate = dict(metric_gate)
-                metric_gate["required_disposition"] = (
-                    "PREEXECUTION_REVIEW_ACCEPTED"
-                )
-                metric_gate["implementation_interface_handoff_id"] = str(
-                    implementation_interface_handoff.get("handoff_id", "")
-                    or ""
-                )
-                metric_gate["implementation_interface_handoff_hash"] = (
-                    stable_hash(implementation_interface_handoff)
-                )
-                context["architect_metric_protocol_gate"] = metric_gate
-                proposal_context["architect_metric_protocol_gate"] = dict(
-                    metric_gate
-                )
         try:
             packet = self.coordinator.propose(
                 question=question,
-                architect_context=proposal_context,
+                architect_context=context,
                 runtime_config=runtime_config_payload,
             )
         except ArchitectMetricSemanticReviewRejected as exc:
@@ -1795,34 +1649,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
                     exc=exc,
                 )
             raise
-        except ValueError as exc:
-            if (
-                architect_operation
-                != RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
-            ):
-                raise
-            return AgentStepResult(
-                status="BLOCKED",
-                rationale=(
-                    "Post-implementation metric authoring rejected a stale or "
-                    "incomplete result-blind contract before execution."
-                ),
-                observations=(
-                    EnvironmentObservation(
-                        observation_type=(
-                            "post_implementation_metric_authoring_contract_rejected"
-                        ),
-                        summary=str(exc)[:500],
-                        payload={
-                            "confirmatory_simulation_authorized": False,
-                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                        },
-                    ),
-                ),
-                failure_classification=(
-                    "post_implementation_metric_authoring_contract_invalid"
-                ),
-            )
         packet_id = str(packet["packet_id"])
         context["architect_coordinator_proposal_id"] = packet_id
         context["architect_runtime_plan"] = {
@@ -1871,57 +1697,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 "proof_evidence_status": ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE,
             },
         )
-        continuation_owner = ""
-        continuation_source = ""
-        if (
-            architect_operation
-            == RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
-        ):
-            continuation_owner = _architect_metric_protocol_execution_owner(
-                packet
-            )
-            continuation_source = "accepted_metric_protocol_target"
-            if not continuation_owner:
-                return AgentStepResult(
-                    status="BLOCKED",
-                    rationale=(
-                        "The independently accepted metric protocol did not resolve "
-                        "to exactly one runtime execution owner from its declared "
-                        "target namespace."
-                    ),
-                    produced_artifacts={packet_id: packet},
-                    observations=(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "accepted_metric_protocol_execution_owner_invalid"
-                            ),
-                            summary=(
-                                "validated metric targets do not resolve to one "
-                                "runtime execution owner"
-                            ),
-                            payload={
-                                "metric_requirement_set_id": str(
-                                    packet.get("evidence_contract", {}).get(
-                                        "empirical_metric_requirement_set_id",
-                                        "",
-                                    )
-                                    if isinstance(
-                                        packet.get("evidence_contract", {}),
-                                        Mapping,
-                                    )
-                                    else ""
-                                ),
-                                "model_call_completed": True,
-                                "runtime_authored_metric_target": False,
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        ),
-                    ),
-                    evidence_entries=(evidence,),
-                    failure_classification=(
-                        "accepted_metric_protocol_execution_owner_invalid"
-                    ),
-                )
         routing_decision = _architect_initial_routing_decision(
             question=question,
             packet=packet,
@@ -1929,8 +1704,6 @@ class ArchitectCoordinatorRuntimeSubsystem:
             packet_id=packet_id,
             runtime_config=self.runtime_config,
             blackboard=blackboard,
-            requested_subsystem_override=continuation_owner,
-            routing_source_override=continuation_source,
         )
         context["architect_initial_routing"] = routing_decision["record"]
         next_task = routing_decision["task"]
@@ -3304,18 +3077,11 @@ def _architect_initial_routing_decision(
             context["environment_feedback"] = dict(feedback)
             inputs["environment_feedback"] = dict(feedback)
             inputs["architect_context"] = context
-        if selected.get("source") == "accepted_metric_protocol_target":
-            routing_rationale = (
-                "ArchitectCoordinator is routing directly to SimulationEvaluator "
-                "because the independently accepted metric protocol declares that "
-                "execution target and its required handoff artifacts exist."
-            )
-        else:
-            routing_rationale = (
-                "ArchitectCoordinator recorded a compact research decision and "
-                "is routing directly to SimulationEvaluator because the model "
-                "selected that worker and its required handoff artifacts exist."
-            )
+        routing_rationale = (
+            "ArchitectCoordinator recorded a compact research decision and "
+            "is routing directly to SimulationEvaluator because the model "
+            "selected that worker and its required handoff artifacts exist."
+        )
         return {
             "task": AgentTask(
                 task_id=f"simulation:{question.id}:{stable_hash([packet_id, record])[:8]}",
@@ -3420,42 +3186,55 @@ def _architect_initial_routing_decision(
             acceptance_id = str(
                 metric_gate.get("preflight_acceptance_id", "") or ""
             )
+            evaluator_authoring_context = dict(context)
+            evaluator_authoring_context.update(
+                {
+                    "executable_evaluator_source_authority": True,
+                    "evaluator_source_authoring": True,
+                    "confirmatory_simulation_requires_accepted_algorithm_handoff": True,
+                    "empirical_evaluation_phase": (
+                        EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+                    ),
+                }
+            )
             deferred_metric_task = AgentTask(
                 task_id=(
-                    f"architect-metric-after-implementation:{question.id}:"
+                    f"evaluator-source-after-implementation:{question.id}:"
                     f"{stable_hash([packet_id, acceptance_id])[:8]}"
                 ),
-                owner_subsystem="ArchitectCoordinator",
+                owner_subsystem="SimulationEvaluator",
                 objective=(
-                    "Author and independently review the smallest confirmatory "
-                    "simulation metric portfolio after implementation acceptance, "
-                    "without observing implementation smoke-test results."
+                    "Author one executable evaluator against the accepted algorithm "
+                    "interface, then obtain independent source review before any "
+                    "confirmatory cohort is consumed."
                 ),
                 inputs={
                     "question": _question_to_payload(question),
-                    "architect_context": context,
-                    "runtime_architect_operation": (
-                        RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+                    "theory_packet_id": _architect_context_theory_packet_id(context),
+                    "architect_context": evaluator_authoring_context,
+                    "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+                    "seed": runtime_config.seed,
+                    "empirical_evaluation_phase": (
+                        EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
                     ),
+                    "evaluator_source_authoring": True,
                 },
                 allowed_tools=(
                     "model_backend",
-                    "blackboard",
-                    "evidence_ledger",
+                    "python",
+                    "filesystem_sandbox",
                 ),
                 expected_artifacts=(
-                    "architect_coordinator_proposal",
-                    "architect_metric_requirement_authoring",
-                    "architect_metric_semantic_review",
+                    "simulation_evaluator_source_manifest",
+                    "generated_code_semantic_review",
                 ),
                 acceptance_gate=(
-                    "accepted implementation interface is result-free and the "
-                    "theory-bound confirmatory simulation protocol receives "
-                    "independent ACCEPT"
+                    "exact executable evaluator source receives independent ACCEPT "
+                    "before confirmatory execution"
                 ),
                 stop_condition=(
-                    "metric protocol is accepted and routed to confirmatory "
-                    "simulation, or typed review feedback preserves exact lineage"
+                    "reviewed source is replayed confirmatorily or an exact source "
+                    "or upstream blocker is recorded"
                 ),
             )
             inputs.update(
@@ -3750,47 +3529,6 @@ def _architect_select_initial_subsystem(
         "source": "architect_packet",
         "requires_prerequisite_theory": requested != selected,
     }
-
-
-def _architect_metric_protocol_execution_owner(
-    packet: Mapping[str, Any],
-) -> str:
-    """Resolve a reviewed metric protocol's declared runtime execution owner."""
-
-    evidence_contract = packet.get("evidence_contract", {})
-    if not isinstance(evidence_contract, Mapping) or not (
-        evidence_contract.get("empirical_metric_protocol_phase")
-        == METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED
-        and evidence_contract.get("metric_protocol_execution_authorized") is True
-    ):
-        return ""
-    requirements = evidence_contract.get("empirical_metric_requirements", [])
-    author_targets = list(
-        dict.fromkeys(
-            str(target).strip()
-            for row in requirements or []
-            if isinstance(row, Mapping) and row.get("required") is True
-            for target in row.get("target_subsystems", []) or []
-            if str(target).strip()
-        )
-    )
-    namespace = generated_metric_requirement_target_namespace_contract()
-    owner_by_author = namespace.get(
-        "runtime_execution_owner_by_author_subsystem", {}
-    )
-    owner_by_author = (
-        owner_by_author if isinstance(owner_by_author, Mapping) else {}
-    )
-    runtime_owners = list(
-        dict.fromkeys(
-            _canonical_architect_subsystem(owner_by_author.get(target, ""))
-            for target in author_targets
-            if _canonical_architect_subsystem(
-                owner_by_author.get(target, "")
-            )
-        )
-    )
-    return runtime_owners[0] if len(runtime_owners) == 1 else ""
 
 
 def _architect_packet_requested_subsystem(packet: Mapping[str, Any]) -> str:
@@ -8703,70 +8441,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 next_context["algorithm_sandbox_manifest_id"] = str(
                     algorithm_handoff["algorithm_sandbox_manifest_id"]
                 )
-                accepted_task_operation = str(
-                    deferred_task.inputs.get("runtime_architect_operation", "")
-                    or ""
-                )
-                if (
-                    deferred_task.owner_subsystem == "ArchitectCoordinator"
-                    and accepted_task_operation
-                    == RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
-                ):
-                    implementation_interface_handoff = (
-                        build_accepted_implementation_interface_handoff(
-                            algorithm_handoff
-                        )
-                    )
-                    implementation_interface_errors = (
-                        accepted_implementation_interface_handoff_errors(
-                            implementation_interface_handoff,
-                            question_id=question.id,
-                            theory_packet_id=str(
-                                work_order.get("theory_packet_id", "") or ""
-                            ),
-                        )
-                    )
-                    if implementation_interface_errors:
-                        return AgentStepResult(
-                            status="BLOCKED",
-                            rationale=(
-                                "The accepted implementation could not be projected "
-                                "into a result-blind metric-authoring interface."
-                            ),
-                            produced_artifacts=produced_artifacts,
-                            observations=(
-                                EnvironmentObservation(
-                                    observation_type=(
-                                        "accepted_implementation_interface_rejected"
-                                    ),
-                                    summary="; ".join(
-                                        implementation_interface_errors
-                                    )[:500],
-                                    payload={
-                                        "validation_errors": (
-                                            implementation_interface_errors
-                                        ),
-                                        "deferred_metric_authoring_released": False,
-                                        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                                    },
-                                ),
-                            ),
-                            failure_classification=(
-                                "accepted_implementation_interface_invalid"
-                            ),
-                        )
-                    interface_handoff_id = str(
-                        implementation_interface_handoff["handoff_id"]
-                    )
-                    produced_artifacts[interface_handoff_id] = (
-                        implementation_interface_handoff
-                    )
-                    next_inputs[
-                        "accepted_implementation_interface_handoff"
-                    ] = implementation_interface_handoff
-                    next_context[
-                        "accepted_implementation_interface_handoff"
-                    ] = implementation_interface_handoff
             next_inputs["architect_context"] = next_context
             next_task = replace(
                 deferred_task,
@@ -9110,126 +8784,110 @@ def _runtime_simulation_metric_protocol_guard(
     )
     if not isinstance(evidence_contract, Mapping):
         evidence_contract = {}
-    if exploratory_diagnostic or not _runtime_metric_protocol_authoring_required(
+    executable_evaluator_source = bool(
+        task.inputs.get("evaluator_source_authoring") is True
+        or task.inputs.get("evaluator_source_confirmation") is True
+        or architect_context.get("executable_evaluator_source_authority") is True
+    )
+    if (
+        exploratory_diagnostic
+        or executable_evaluator_source
+        or not _runtime_metric_protocol_authoring_required(
         evidence_contract=evidence_contract,
         architect_context=architect_context,
+        )
     ):
         return None
 
     context = invalidate_metric_protocol_authorization(architect_context)
-    context["theory_packet_id"] = theory_packet_id
-    context["architect_metric_protocol_theory_material"] = (
-        build_theory_informed_metric_protocol_material(
-            theory_packet=theory_packet,
-            theory_packet_id=theory_packet_id,
-            retrieval_context=(
-                context.get("retrieval_context", {})
-                if isinstance(context.get("retrieval_context", {}), Mapping)
-                else {}
+    context.update(
+        {
+            "theory_packet_id": theory_packet_id,
+            "executable_evaluator_source_authority": True,
+            "evaluator_source_authoring": True,
+            "empirical_evaluation_phase": (
+                EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
             ),
-        )
+        }
     )
-    prior_gate = context.get("architect_metric_protocol_gate", {})
-    prior_gate = dict(prior_gate) if isinstance(prior_gate, Mapping) else {}
-    context["architect_metric_protocol_gate"] = {
-        **prior_gate,
-        "artifact_kind": "RuntimeArchitectMetricProtocolGate",
-        "source_theory_packet_id": theory_packet_id,
-        "required_disposition": "PREEXECUTION_REVIEW_ACCEPTED",
-        "execution_authorized": False,
-        "consumed": False,
-        "proof_evidence_status": (
-            "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
-        ),
-    }
-    block_id = "metric_protocol_execution_blocked:" + stable_hash(
+    transition_id = "executable_evaluator_authoring_transition:" + stable_hash(
         [task.task_id, theory_packet_id, evidence_contract]
     )[:20]
-    manifest = {
+    transition = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeMetricProtocolExecutionBlocked",
-        "manifest_id": block_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "artifact_kind": "RuntimeExecutableEvaluatorAuthoringTransition",
+        "manifest_id": transition_id,
         "question_id": question.id,
-        "source_task_id": task.task_id,
         "source_theory_packet_id": theory_packet_id,
-        "source_requirement_set_id": str(
-            evidence_contract.get("empirical_metric_requirement_set_id", "")
-            or ""
-        ),
         "execution_attempted": False,
-        "execution_authorized": False,
-        "required_next_owner": "ArchitectCoordinator",
-        "proof_evidence_status": "METRIC_PROTOCOL_GUARD_NOT_PROOF_EVIDENCE",
-        "boundary": (
-            "This guard blocks SimulationEngineer generation and all simulation "
-            "execution until the current theory-bound metric protocol passes "
-            "independent pre-execution review. It is not empirical or proof evidence."
-        ),
+        "confirmatory_execution_authorized": False,
+        "next_owner_subsystem": "SimulationEvaluator",
+        "runtime_authored_scientific_content": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
-    next_task = AgentTask(
-        task_id=(
-            f"architect-metric-protocol-guard:{question.id}:"
-            f"{stable_hash(block_id)[:8]}"
-        ),
-        owner_subsystem="ArchitectCoordinator",
-        objective=(
-            "Author and independently review the current theory-bound empirical "
-            "protocol before SimulationEvaluator may run."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
+    next_inputs = dict(task.inputs)
+    next_inputs.update(
+        {
             "architect_context": context,
-        },
-        allowed_tools=("model_backend", "blackboard", "evidence_ledger"),
-        expected_artifacts=(
-            "architect_coordinator_proposal",
-            "architect_metric_requirement_authoring",
-            "architect_metric_semantic_review",
+            "empirical_evaluation_phase": (
+                EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+            ),
+            "evaluator_source_authoring": True,
+            "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+        }
+    )
+    next_task = replace(
+        task,
+        task_id=(
+            f"evaluator-source-authoring:{question.id}:"
+            f"{stable_hash(transition_id)[:8]}"
         ),
-        acceptance_gate=(
-            "the current theory-bound requirement set receives an independent "
-            "pre-execution ACCEPT certificate"
+        objective=(
+            "Author executable evaluator source and obtain independent review "
+            "before confirmatory execution."
         ),
-        stop_condition=(
-            "reviewed protocol is accepted or a typed owner-specific blocker is recorded"
-        ),
+        inputs=next_inputs,
     )
     evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:" + stable_hash([task.task_id, block_id])[:20],
+        evidence_id="evidence:" + stable_hash([task.task_id, transition_id])[:20],
         task_id=task.task_id,
-        artifact_id=block_id,
-        evidence_type="metric_protocol_execution_guard",
-        status="EXECUTION_BLOCKED_PREEXECUTION_REVIEW_REQUIRED",
-        boundary=str(manifest["boundary"]),
+        artifact_id=transition_id,
+        evidence_type="executable_evaluator_authoring_transition",
+        status="SOURCE_AUTHORING_REQUIRED_BEFORE_CONFIRMATION",
+        boundary=(
+            "The transition selects no statistical content and is not empirical or "
+            "proof evidence."
+        ),
         payload={
             "source_theory_packet_id": theory_packet_id,
             "execution_attempted": False,
-            "execution_authorized": False,
+            "confirmatory_execution_authorized": False,
             "kernel_verified": False,
         },
     )
     return AgentStepResult(
         status="REROUTE",
         rationale=(
-            "SimulationEvaluator refused to call the simulation agent because the "
-            "current theory-bound metric protocol is not independently authorized."
+            "SimulationEvaluator is replacing detached prose-protocol authoring with "
+            "model-owned executable evaluator source."
         ),
-        produced_artifacts={block_id: manifest},
+        produced_artifacts={transition_id: transition},
         observations=(
             EnvironmentObservation(
-                observation_type="metric_protocol_execution_blocked",
-                summary="simulation generation and execution blocked before API call",
+                observation_type="executable_evaluator_authoring_required",
+                summary=(
+                    "same Simulation source owner will author the preregistration"
+                ),
                 payload={
-                    "manifest_id": block_id,
+                    "transition_id": transition_id,
                     "theory_packet_id": theory_packet_id,
                     "execution_attempted": False,
+                    "runtime_authored_scientific_content": False,
                 },
             ),
         ),
         evidence_entries=(evidence,),
         next_task=next_task,
-        failure_classification="metric_protocol_preexecution_authorization_required",
     )
 
 
@@ -9266,8 +8924,30 @@ class SimulationEvaluatorRuntimeSubsystem:
             empirical_evaluation_phase
             == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
         )
+        evaluator_source_authoring = bool(
+            task.inputs.get("evaluator_source_authoring") is True
+            or context.get("evaluator_source_authoring") is True
+        )
+        evaluator_source_confirmation = bool(
+            task.inputs.get("evaluator_source_confirmation") is True
+            or context.get("evaluator_source_confirmation") is True
+        )
+        if evaluator_source_authoring and evaluator_source_confirmation:
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "SimulationEvaluator rejected contradictory executable evaluator "
+                    "phase flags before any model or sandbox call."
+                ),
+                failure_classification="executable_evaluator_phase_invalid",
+            )
+        executable_evaluator_source = bool(
+            evaluator_source_authoring or evaluator_source_confirmation
+        )
         if empirical_evaluation_phase:
             context["empirical_evaluation_phase"] = empirical_evaluation_phase
+        if executable_evaluator_source:
+            context["executable_evaluator_source_authority"] = True
         environment_feedback: Mapping[str, Any] = (
             task.inputs.get("environment_feedback", {})
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
@@ -9451,10 +9131,13 @@ class SimulationEvaluatorRuntimeSubsystem:
         confirmatory_evaluation_cohort: dict[str, Any] = {}
         confirmatory_seed_blind = bool(
             not exploratory_diagnostic
+            and not evaluator_source_authoring
             and confirmatory_candidate_seed_blinding_required(context)
         )
-        if not exploratory_diagnostic and candidate_gate_independence_required(
-            context
+        if (
+            not exploratory_diagnostic
+            and not evaluator_source_authoring
+            and candidate_gate_independence_required(context)
         ):
             (
                 confirmatory_evaluation_cohort,
@@ -9634,6 +9317,82 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
             )
         elif raw_consumer_resume_manifest:
+            if evaluator_source_confirmation:
+                accepted_source_review = next(
+                    (
+                        dict(row)
+                        for row in context.get(
+                            "accepted_generated_code_semantic_reviews", []
+                        )
+                        or []
+                        if isinstance(row, Mapping)
+                        and row.get("source_subsystem") == "SimulationEvaluator"
+                        and row.get("overall_verdict") == "ACCEPT"
+                        and str(row.get("source_manifest_id", "") or "")
+                        == consumer_resume_manifest_id
+                        and str(row.get("source_manifest_hash", "") or "")
+                        == consumer_resume_manifest_hash
+                    ),
+                    {},
+                )
+                confirmation_errors: list[str] = []
+                if not accepted_source_review:
+                    confirmation_errors.append(
+                        "exact evaluator source lacks an accepted independent review"
+                    )
+                if (
+                    consumer_resume_manifest.get("evaluator_source_authoring")
+                    is not True
+                    or consumer_resume_manifest.get(
+                        "confirmatory_empirical_evidence_eligible"
+                    )
+                    is not False
+                ):
+                    confirmation_errors.append(
+                        "evaluator source manifest is not a preconfirmatory authoring artifact"
+                    )
+                requested_counts = [
+                    row.get("metrics", {}).get("requested_runtime_replicates")
+                    for row in consumer_resume_manifest.get(
+                        "generated_simulation_sandbox_prototypes", []
+                    )
+                    or []
+                    if isinstance(row, Mapping)
+                    and isinstance(row.get("metrics", {}), Mapping)
+                ]
+                if requested_counts != [n_runs]:
+                    confirmation_errors.append(
+                        "confirmatory runtime count does not match reviewed source"
+                    )
+                if confirmation_errors:
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "SimulationEvaluator rejected unreviewed or changed "
+                            "evaluator source before confirmatory execution."
+                        ),
+                        observations=tuple(observations)
+                        + (
+                            EnvironmentObservation(
+                                observation_type=(
+                                    "executable_evaluator_confirmation_rejected"
+                                ),
+                                summary="; ".join(confirmation_errors)[:500],
+                                payload={
+                                    "source_manifest_id": (
+                                        consumer_resume_manifest_id
+                                    ),
+                                    "validation_errors": confirmation_errors,
+                                    "model_call_authorized": False,
+                                    "execution_authorized": False,
+                                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                                },
+                            ),
+                        ),
+                        failure_classification=(
+                            "executable_evaluator_confirmation_lineage_invalid"
+                        ),
+                    )
             proposal_id, consumer_resume_code_drafts, resume_errors = (
                 scientific_consumer_replay_drafts(
                     consumer_resume_manifest,
@@ -9874,6 +9633,15 @@ class SimulationEvaluatorRuntimeSubsystem:
             ]
             environment_feedback = {
                 **dict(environment_feedback),
+                "executable_evaluator_source_authority": bool(
+                    executable_evaluator_source
+                ),
+                "evaluator_source_authoring": bool(
+                    evaluator_source_authoring
+                ),
+                "evaluator_source_confirmation": bool(
+                    evaluator_source_confirmation
+                ),
                 "runtime_execution_contract": {
                     "timeout_seconds": self.timeout_s,
                     "runtime_replicates": generated_sandbox_runtime_replicates(
@@ -9890,7 +9658,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "avoid redundant calls while preserving the frozen protocol."
                     ),
                     "resource_policy": (
-                        "The complete confirmatory workload must finish within "
+                        "During evaluator authoring, runtime_replicates is the maximum "
+                        "available capacity; the source must request and justify its "
+                        "own confirmatory count before outcomes. During confirmation, "
+                        "that reviewed count is exact. A timeout is failed execution "
+                        "evidence and never authorizes weaker scientific criteria."
+                        if executable_evaluator_source
+                        else "The complete confirmatory workload must finish within "
                         "timeout_seconds. A timeout is failed execution evidence "
                         "and must be repaired from exact runtime diagnostics; it "
                         "does not authorize fewer frozen replicates or weaker gates."
@@ -9995,7 +9769,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             effective_context,
             environment_feedback,
             subsystem="SimulationEvaluator",
-        ) and not exploratory_diagnostic
+        ) and not exploratory_diagnostic and not executable_evaluator_source
         registered_simulator_tool_calls: tuple[ToolCallRecord, ...] = ()
         registered_baseline_skip_reason = (
             "Canonical AgentRuntime requires model-owned scientific source; "
@@ -10026,7 +9800,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             architect_subsystem="SimulationEvaluator",
             target_subsystem="SimulationEngineer",
         )
-        if exploratory_diagnostic:
+        if exploratory_diagnostic or executable_evaluator_source:
             simulation_metric_requirements = []
             simulation_metric_authority_policy = (
                 GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
@@ -10213,6 +9987,15 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "SimulationEngineer"
                     ),
                     "source_authoring_diagnostic": False,
+                    "executable_evaluator_source_authority": bool(
+                        executable_evaluator_source
+                    ),
+                    "evaluator_source_authoring": bool(
+                        evaluator_source_authoring
+                    ),
+                    "evaluator_source_confirmation": bool(
+                        evaluator_source_confirmation
+                    ),
                 },
                 "upstream_algorithm_handoff": upstream_algorithm_handoff,
                 "n_runs": n_runs,
@@ -10277,6 +10060,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                                 "source_workspace_planning_owned"
                             )
                         ),
+                        "executable_evaluator_source_authority": bool(
+                            executable_evaluator_source
+                        ),
+                        "evaluator_source_authoring": bool(
+                            evaluator_source_authoring
+                        ),
                         "simulation_id": simulation_id,
                         "simulation_target": next(
                             (
@@ -10340,6 +10129,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         source_revision_observation or None
                     ),
                     confirmatory_result_blind=not exploratory_diagnostic,
+                    defer_confirmatory_execution=evaluator_source_authoring,
                     disallowed_unchanged_source_hashes=(
                         (parent_source_hash,) if parent_source_hash else ()
                     ),
@@ -10501,7 +10291,9 @@ class SimulationEvaluatorRuntimeSubsystem:
         simulation_evidence_source = "generated_simulation_sandbox"
         requires_generated_algorithm_code = True
         implementation_gaps = _implementation_gaps(packet)
-        confirmatory_empirical_evidence_eligible = not exploratory_diagnostic
+        confirmatory_empirical_evidence_eligible = bool(
+            not exploratory_diagnostic and not evaluator_source_authoring
+        )
         confirmatory_simulation_passed = bool(
             simulation_passed and confirmatory_empirical_evidence_eligible
         )
@@ -10531,6 +10323,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "empirical_evaluation_phase": empirical_evaluation_phase,
             "exploratory_diagnostic": exploratory_diagnostic,
+            "executable_evaluator_source_authority": executable_evaluator_source,
+            "evaluator_source_authoring": bool(evaluator_source_authoring),
+            "evaluator_source_confirmation": evaluator_source_confirmation,
             "candidate_gate_independence_required": bool(
                 confirmatory_evaluation_cohort
             ),
@@ -10657,6 +10452,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             ),
             "generated_code_semantic_review_pending": bool(
                 self.semantic_reviewer_available
+                and not evaluator_source_confirmation
                 and not generated_simulation_revision_required
                 and any(
                     row.get("smoke_passed") is True
@@ -11308,12 +11104,93 @@ class SimulationEvaluatorRuntimeSubsystem:
                         payload={"implementation_gaps": implementation_gaps},
                     )
                 )
+        evaluator_confirmation_task: AgentTask | None = None
+        if evaluator_source_authoring:
+            requested_counts = [
+                row.get("metrics", {}).get("requested_runtime_replicates")
+                for row in generated_simulation_rows
+                if isinstance(row.get("metrics", {}), Mapping)
+            ]
+            if (
+                len(requested_counts) != 1
+                or isinstance(requested_counts[0], bool)
+                or not isinstance(requested_counts[0], int)
+            ):
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "The executable evaluator source did not commit one valid "
+                        "pre-outcome runtime request."
+                    ),
+                    produced_artifacts=produced_artifacts,
+                    observations=tuple(observations),
+                    tool_calls=tuple(generated_simulation_tool_calls),
+                    evidence_entries=tuple(
+                        row for row in (proposal_evidence, evidence) if row is not None
+                    ),
+                    failure_classification=(
+                        "executable_evaluator_runtime_request_invalid"
+                    ),
+                )
+            requested_runtime_replicates = int(requested_counts[0])
+            confirmation_context = dict(effective_context)
+            confirmation_context.pop("evaluator_source_authoring", None)
+            confirmation_context.update(
+                {
+                    "executable_evaluator_source_authority": True,
+                    "evaluator_source_confirmation": True,
+                    "empirical_evaluation_phase": (
+                        EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
+                    ),
+                    "confirmatory_simulation_requires_accepted_algorithm_handoff": True,
+                }
+            )
+            evaluator_confirmation_task = AgentTask(
+                task_id=(
+                    f"evaluator-confirmation:{question.id}:"
+                    f"{stable_hash([manifest_id, requested_runtime_replicates])[:8]}"
+                ),
+                owner_subsystem="SimulationEvaluator",
+                objective=(
+                    "Replay the independently reviewed executable evaluator source "
+                    "unchanged on one hidden confirmatory cohort."
+                ),
+                inputs={
+                    "question": _question_to_payload(question),
+                    "theory_packet_id": packet_id,
+                    "architect_context": confirmation_context,
+                    "consumer_resume_manifest": manifest,
+                    "algorithm_sandbox_manifest_id": (
+                        algorithm_sandbox_manifest_id
+                    ),
+                    "upstream_algorithm_handoff": upstream_algorithm_handoff,
+                    "n_runs": requested_runtime_replicates,
+                    "seed": confirmatory_evaluation_seed(
+                        confirmation_context,
+                        fallback_seed=seed,
+                    ),
+                    "empirical_evaluation_phase": (
+                        EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
+                    ),
+                    "evaluator_source_confirmation": True,
+                },
+                allowed_tools=("python", "filesystem_sandbox"),
+                expected_artifacts=("confirmatory_simulation_manifest",),
+                acceptance_gate=(
+                    "reviewed exact source hash executes once on the hidden cohort"
+                ),
+                stop_condition=(
+                    "confirmatory evidence or an immutable execution blocker is recorded"
+                ),
+            )
         if simulation_passed or confirmatory_generated_metric_failure:
             deferred_metric_protocol_payload = task.inputs.get(
                 "deferred_metric_protocol_task", {}
             )
             confirmatory_feedback_id = ""
-            if confirmatory_generated_metric_failure:
+            if evaluator_confirmation_task is not None:
+                next_task = evaluator_confirmation_task
+            elif confirmatory_generated_metric_failure:
                 confirmatory_feedback_payload = {
                     "schema_version": RUNTIME_SCHEMA_VERSION,
                     "artifact_kind": "RuntimeConfirmatorySimulationOutcome",
@@ -11353,7 +11230,12 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "simulation_passed": False,
                     "source_execution_valid": True,
                     "execution_results_observed": True,
-                    "source_semantic_review_required_before_release": True,
+                    "source_semantic_review_required_before_release": bool(
+                        not evaluator_source_confirmation
+                    ),
+                    "source_semantic_review_completed_before_execution": bool(
+                        evaluator_source_confirmation
+                    ),
                     "unchanged_source_retry_authorized": False,
                     "outcome_informed_source_revision_authorized": False,
                     "terminal_gap_reporting_required": True,
@@ -11460,7 +11342,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
             semantic_review_dispatch: Mapping[str, Any] | None = None
             semantic_review_evidence: EvidenceLedgerEntry | None = None
-            if self.semantic_reviewer_available:
+            if self.semantic_reviewer_available and not evaluator_source_confirmation:
                 semantic_review_dispatch = (
                     _runtime_generated_code_semantic_review_dispatch(
                         task=task,
@@ -11492,7 +11374,28 @@ class SimulationEvaluatorRuntimeSubsystem:
                     observations.append(semantic_review_dispatch["observation"])
                     semantic_review_evidence = semantic_review_dispatch["evidence"]
                     next_task = semantic_review_dispatch["next_task"]
-            if confirmatory_generated_metric_failure and semantic_review_dispatch is None:
+            if evaluator_source_authoring and semantic_review_dispatch is None:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "Executable evaluator source cannot consume a confirmatory "
+                        "cohort without independent review of its exact bytes."
+                    ),
+                    produced_artifacts=produced_artifacts,
+                    observations=tuple(observations),
+                    tool_calls=tuple(generated_simulation_tool_calls),
+                    evidence_entries=tuple(
+                        row for row in (proposal_evidence, evidence) if row is not None
+                    ),
+                    failure_classification=(
+                        "executable_evaluator_semantic_review_unavailable"
+                    ),
+                )
+            if (
+                confirmatory_generated_metric_failure
+                and semantic_review_dispatch is None
+                and not evaluator_source_confirmation
+            ):
                 observations.append(
                     EnvironmentObservation(
                         observation_type="confirmatory_outcome_sealed",
@@ -11530,7 +11433,11 @@ class SimulationEvaluatorRuntimeSubsystem:
             return AgentStepResult(
                 status="REROUTE",
                 rationale=(
-                    "The source executed without result-directed iteration; independent "
+                    "The Simulation source owner committed executable preregistration "
+                    "bytes on a non-confirmatory diagnostic; independent review now "
+                    "gates exact-hash replay."
+                    if evaluator_source_authoring
+                    else "The source executed without result-directed iteration; independent "
                     "semantic review now gates its immutable confirmatory outcome."
                     if confirmatory_generated_metric_failure
                     else "Runtime recorded non-promotable exploratory diagnostics and is "
@@ -11789,22 +11696,21 @@ class AlgorithmEngineerRuntimeSubsystem:
                 )
             if not isinstance(deferred_metric_protocol_payload, Mapping):
                 pre_metric_contract_errors.append(
-                    "pre-metric implementation requires a deferred Architect task"
+                    "pre-metric implementation requires a deferred evaluator task"
                 )
                 deferred_metric_protocol_payload = {}
-            if str(
+            deferred_owner = str(
                 deferred_metric_protocol_payload.get("owner_subsystem", "") or ""
-            ) != "ArchitectCoordinator":
-                pre_metric_contract_errors.append(
-                    "pre-metric deferred task must be owned by ArchitectCoordinator"
-                )
+            )
             deferred_inputs = deferred_metric_protocol_payload.get("inputs", {})
-            if not isinstance(deferred_inputs, Mapping) or str(
-                deferred_inputs.get("runtime_architect_operation", "") or ""
-            ) != RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC:
+            executable_evaluator_continuation = bool(
+                deferred_owner == "SimulationEvaluator"
+                and isinstance(deferred_inputs, Mapping)
+                and deferred_inputs.get("evaluator_source_authoring") is True
+            )
+            if not executable_evaluator_continuation:
                 pre_metric_contract_errors.append(
-                    "pre-metric deferred task must request post-implementation "
-                    "metric authoring"
+                    "pre-metric deferred task must author executable evaluator source"
                 )
             metric_gate = context.get("architect_metric_protocol_gate", {})
             if not (
@@ -22850,12 +22756,6 @@ def _runtime_context_requires_formalizer_lean_candidate(
     )
 
 
-def _theorem_goal_id(row: Any) -> str:
-    if isinstance(row, Mapping):
-        return str(row.get("id", "") or "").strip()
-    return str(getattr(row, "id", "") or "").strip()
-
-
 def _runtime_input_context_summary(
     architect_context: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -24164,6 +24064,31 @@ def _generated_simulation_revision_feedback(
         prototypes=prototypes,
     )
 
+def _executable_evaluator_interface_errors(
+    metrics: Mapping[str, Any],
+    *,
+    expected_runtime_replicates: int | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    if type(metrics.get("acceptance_passed")) is not bool:
+        errors.append("acceptance_passed must be a boolean")
+    requested = metrics.get("requested_runtime_replicates")
+    if isinstance(requested, bool) or not isinstance(requested, int):
+        errors.append("requested_runtime_replicates must be a positive integer")
+    elif requested <= 0 or requested > GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES:
+        errors.append(
+            "requested_runtime_replicates exceeds the executable sandbox capacity"
+        )
+    elif (
+        expected_runtime_replicates is not None
+        and requested != expected_runtime_replicates
+    ):
+        errors.append(
+            "requested_runtime_replicates changed after source review"
+        )
+    return errors
+
+
 def _run_generated_simulation_sandbox(
     *,
     sandbox_dir: Path,
@@ -24290,10 +24215,41 @@ def _run_generated_simulation_sandbox(
         prototype.get("execution_smoke_passed", prototype.get("smoke_passed") is True)
     )
     metric_gate_errors = list(_str_tuple(prototype.get("metric_gate_errors", [])))
+    executable_evaluator_source = bool(
+        (validation_context or {}).get(
+            "executable_evaluator_source_authority"
+        )
+    )
+    evaluator_confirmation = bool(
+        (validation_context or {}).get("evaluator_source_confirmation")
+    )
+    evaluator_interface_errors = (
+        _executable_evaluator_interface_errors(
+            prototype.get("metrics", {}),
+            expected_runtime_replicates=(n_runs if evaluator_confirmation else None),
+        )
+        if executable_evaluator_source and execution_smoke_passed
+        else []
+    )
+    prototype["executable_evaluator_source_authority"] = (
+        executable_evaluator_source
+    )
+    prototype["executable_evaluator_interface_errors"] = (
+        evaluator_interface_errors
+    )
+    if evaluator_confirmation and execution_smoke_passed:
+        if prototype.get("metrics", {}).get("acceptance_passed") is not True:
+            metric_gate_errors.append(
+                "reviewed executable evaluator returned acceptance_passed=false"
+            )
     prototype["execution_smoke_passed"] = execution_smoke_passed
-    prototype["metric_gate_errors"] = metric_gate_errors
-    prototype["smoke_passed"] = execution_smoke_passed and not metric_gate_errors
-    if execution_smoke_passed and metric_gate_errors:
+    prototype["metric_gate_errors"] = sorted(set(metric_gate_errors))
+    prototype["smoke_passed"] = bool(
+        execution_smoke_passed
+        and not evaluator_interface_errors
+        and not metric_gate_errors
+    )
+    if execution_smoke_passed and (metric_gate_errors or evaluator_interface_errors):
         prototype["prototype_status"] = "FAILED_METRIC_GATE"
     prototype["boundary"] = simulation_boundary
     dependency_failure_ids = list(

@@ -560,6 +560,101 @@ def test_blind_confirmatory_executes_once_after_model_owned_diagnostic_loop() ->
     assert '"accepted":true' in str(backend.requests[0].messages)
 
 
+def test_blind_authoring_can_defer_confirmation_until_source_review() -> None:
+    source = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": (
+            "def run_sandbox(seed, replicates):\n"
+            "    return {'acceptance_passed': False, "
+            "'requested_runtime_replicates': 2000}\n"
+        ),
+    }
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit-source",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=source,
+                )
+            ),
+            _run_response(),
+            _commit_response(),
+        ]
+    )
+
+    class SourceAgent:
+        provider = backend
+
+        @classmethod
+        def iterate_code_with_tools(cls, **kwargs):
+            return run_scientific_code_workspace(
+                provider=cls.provider,
+                system_prompt="Use the scientific source tools.",
+                user_prompt="Author the executable evaluator.",
+                model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+                model_tier="haiku",
+                temperature=0.0,
+                max_tokens=1200,
+                max_turns=4,
+                max_no_progress_turns=3,
+                artifact_id=kwargs["artifact_id"],
+                initial_code_draft=None,
+                initial_check_result=kwargs["initial_observation"],
+                check_candidate=kwargs["check_candidate"],
+                workspace_operation=kwargs["workspace_operation"],
+            )
+
+    confirmatory_sources: list[str] = []
+
+    def diagnostic(candidate):
+        return (
+            {
+                "script_hash": stable_hash(candidate["code"]),
+                "result_hash": "diagnostic-result",
+                "runtime_seed": 17,
+                "runtime_replicates": 12,
+                "execution_attempted": True,
+                "execution_smoke_passed": True,
+                "smoke_passed": False,
+                "metrics": {
+                    "acceptance_passed": False,
+                    "requested_runtime_replicates": 2_000,
+                },
+                "metric_gate_errors": ["diagnostic outcome is not acceptance"],
+            },
+            "diagnostic",
+        )
+
+    def confirmatory(candidate):
+        confirmatory_sources.append(str(candidate["code"]))
+        raise AssertionError("confirmation must wait for independent source review")
+
+    prototype, tool_calls = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(),
+        question=object(),
+        artifact_id="question:evaluator-source",
+        code_draft={},
+        source_deferred=True,
+        workspace_context={},
+        execute_candidate=confirmatory,
+        execute_authoring_diagnostic=diagnostic,
+        failure_identity={"simulation_id": "evaluator-source"},
+        confirmatory_result_blind=True,
+        defer_confirmatory_execution=True,
+    )
+
+    assert confirmatory_sources == []
+    assert tool_calls == ["diagnostic"]
+    assert prototype["script_hash"] == stable_hash(source["code"])
+    workspace = prototype["scientific_code_workspace"]
+    assert workspace["confirmatory_execution_after_model_commit"] is False
+    assert workspace["confirmatory_execution_deferred_for_independent_review"] is True
+
+
 def test_uncommitted_workspace_failure_cannot_promote_last_executed_source() -> None:
     candidate = {
         "language": "python",

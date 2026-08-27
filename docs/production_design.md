@@ -63,6 +63,15 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
+The general harness reference is [OpenAI Codex at `694edc23`](https://github.com/openai/codex/tree/694edc23b22b4696400dc47663ecacd437623870).
+We adopt its incremental session history, immutable per-step tool snapshot, generic
+tool registry, raw tool-error feedback, cancellation, checkpoint/resume, and bounded
+context discipline. We do not embed `codex-core`, App Server, its Responses transport,
+shared-working-directory subagents, or another thread scheduler into the Claude-first
+runtime. Each scientific workspace is the domain session; AgentRuntime remains the
+single outer research graph. An optional Codex sidecar is admissible only after model,
+tool, lineage, isolation, and resume parity tests, and can never become required authority.
+
 ## Progressive commitment
 
 The graph imposes no universal research order. TheoryDeveloper chooses early
@@ -207,9 +216,12 @@ handoff.
 
 ## Empirical protocol
 
-For fresh tasks, one compact confirmatory acceptance protocol is independently reviewed before results are visible. It states the measurements, formulas, scenarios, joint decision, raw diagnostics, and replicate design. SimulationEngineer implements that frozen protocol in ordinary Python or R and returns raw evidence plus one top-level `acceptance_passed` boolean. AgentRuntime binds that stable path and does not author, interpret, or repair the scientific decision. A failed result cannot mutate its own protocol or source.
-
-Older frozen typed-metric packets remain reconstructable for evidence compatibility, but their condition-heavy row schema is not the canonical fresh authoring language.
+For fresh tasks, exact executable Simulation source is the preregistration authority.
+The same source-owning model authors DGPs, measurements, formulas, decision logic,
+diagnostics, and replicate justification in ordinary Python or R before confirmatory
+outcomes exist. Runtime validates only a generic executor ABI: one exact Boolean
+`acceptance_passed` and one positive `requested_runtime_replicates` within sandbox
+capacity. It contains no statistical threshold, formula, DGP, or repair rule.
 
 There is no universal replicate count such as 100. Before outcomes are revealed,
 the evaluator freezes a task-specific budget from a declared Monte Carlo standard
@@ -221,33 +233,20 @@ crossed a desired threshold.
 The minimal source-owner pattern is:
 
 ```text
-metric owner reads the scaffold and applies exact hash-bound literal edits
-  -> runtime validates and returns raw errors to the same model session
-  -> independent reviewer reports source-grounded pre-outcome findings
-  -> the same owner edits the file, then commits only its exact current SHA-256
-  -> accept and freeze, or block the source workspace
-  -> execution evaluates only an accepted frozen protocol
+Simulation owner writes and runs source on non-confirmatory diagnostics
+  -> raw environment feedback returns to that same model session
+  -> owner commits exact source bytes and requested confirmatory size
+  -> isolated reviewer inspects those exact bytes without outcomes
+  -> ACCEPT releases one exact-hash replay on the hidden cohort
+  -> outcome is terminal evidence; it cannot trigger source revision
 ```
 
-The reviewer supplies a theory-consistent positive control for the frozen protocol. Runtime reports that observation; models still own protocol semantics, source, and revisions. A later executable-source reviewer checks whether the exact Simulation source implements the complete protocol and retains auditable raw and per-check diagnostics; it cannot infer correctness from `acceptance_passed` alone. There is no whole-packet repair worker, runtime-authored statistical transformation, or model-selected metric path.
-The isolated metric reviewer may choose the shared Python/R/SymPy scratch tool before its terminal judgment. Raw calculations return to that same session; runtime records their lineage but neither interprets them nor promotes them to empirical or proof authority. Metric and generated-code review have no detached one-shot fallback.
-
-The authoritative `metric_protocol.json` is external workspace state, not a structured-output response packet. Its fresh scaffold has only `required_runtime_replicates`, `evaluator_id`, `acceptance_protocol`, and `scientific_rationale`. Its stable tools are exact read, exact literal replacement against the current parent SHA-256, and hash-only commit. The terminal tool never carries the document body. Runtime initializes only that structural scaffold, stores model edits unchanged, returns validation observations, and never edits scientific content.
-
-A rejected `metric_contract_review` returns exact findings to the same metric owner. A still-rejected revision blocks with full lineage; only a separately evidenced cross-workspace inconsistency reaches Architect.
-
-A rejected theory preflight returns exact observations to the parent-bound theory
-workspace. Inside the isolated referee session, model-actionable tool or envelope errors
-return to that same referee. It chooses document reads, source search, scratch work, and
-edits to one authoritative Markdown report in whatever order supports its judgment.
-Runtime validates task intent, bytes, hashes, references, disposition, and lineage only; it creates no claim checklist and never selects mathematics or judges correctness.
-
-The reviewer may query task-bound literature or formal RAG, and every cited source
-is snapshot-verified. It may also author an isolated Python/R/SymPy countercheck and
-interpret the raw result in the existing tool loop. Prior findings remain immutable
-records but may be resolved or retracted by the model. All scratch evidence remains
-exploratory, never confirmatory/proof, with no added reviewer, vote, repair worker,
-model call, or route.
+The reviewer may use isolated Python/R/SymPy scratch tools but must judge source semantics,
+theory alignment, pre-outcome independence, and diagnostic sufficiency rather than trust
+the returned Boolean. A rejection returns exact findings to the same source owner. Frozen
+legacy metric packets remain reconstructable for old evidence only; they are not a fresh
+authoring path. There is no prose-to-source translator, packet repair worker, result-informed
+revision, or routine Architect hop.
 
 ## Lean formalization workspace
 

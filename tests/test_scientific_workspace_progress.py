@@ -456,15 +456,19 @@ def test_algorithm_source_workspace_owns_planning_and_source(
     )
     context = _research_context(question.id, theory_packet_id)
     deferred_task = AgentTask(
-        task_id="architect:metric-after-direct-source",
-        owner_subsystem="ArchitectCoordinator",
-        objective="Continue metric authoring after independent source review.",
+        task_id="simulation:evaluator-after-direct-source",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author the executable evaluator after source review.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
             "architect_context": context,
-            "runtime_architect_operation": (
-                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
             ),
+            "evaluator_source_authoring": True,
+            "n_runs": 100_000,
+            "seed": 7,
         },
     )
     result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
@@ -792,15 +796,19 @@ def test_algorithm_subsystem_resumes_source_without_replanning(
     )
     context = _research_context(question.id, theory_packet_id)
     deferred_task = AgentTask(
-        task_id="architect:metric-after-algorithm-progress",
-        owner_subsystem="ArchitectCoordinator",
-        objective="Continue metric authoring.",
+        task_id="simulation:evaluator-after-algorithm-progress",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author the executable evaluator after algorithm progress.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
             "architect_context": context,
-            "runtime_architect_operation": (
-                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
             ),
+            "evaluator_source_authoring": True,
+            "n_runs": 100_000,
+            "seed": 7,
         },
     )
     task = AgentTask(

@@ -56,6 +56,10 @@ from .theory_derivation_trace import (
 
 SIMULATION_ENGINEER_SCHEMA_VERSION = 1
 EMPIRICAL_EVALUATION_PHASE_EXPLORATORY = "exploratory_diagnostic"
+EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING = (
+    "executable_evaluator_authoring"
+)
+EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY = "confirmatory_evaluator_execution"
 SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE = "LLM_SIMULATION_PROPOSAL_NOT_EXECUTION_EVIDENCE"
 SIMULATION_ENGINEER_BOUNDARY = (
     "LLM SimulatorEngineer packets are simulation-design proposals only. They "
@@ -159,8 +163,12 @@ class LLMSimulationEngineerAgent:
             )
         )
         empirical_evaluation_phase = _feedback_empirical_evaluation_phase(feedback)
+        executable_evaluator_source = _feedback_uses_executable_evaluator_source(
+            feedback
+        )
         requires_typed_metric_contracts = bool(
             requires_generated_code
+            and not executable_evaluator_source
             and empirical_evaluation_phase
             != EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
         )
@@ -228,6 +236,7 @@ class LLMSimulationEngineerAgent:
                     else SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET
                 ),
                 agentic_execution=requires_generated_code,
+                executable_evaluator_source=executable_evaluator_source,
             )
 
         def validate_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -258,7 +267,8 @@ class LLMSimulationEngineerAgent:
         source_workspace_planning_owned = bool(
             defer_source_authoring
             and (
-                not requires_typed_metric_contracts
+                executable_evaluator_source
+                or not requires_typed_metric_contracts
                 or _uses_source_acceptance_program(
                     authoritative_metric_requirements
                 )
@@ -327,6 +337,7 @@ class LLMSimulationEngineerAgent:
             upstream_estimator_ids=upstream_estimator_ids,
             defer_source_authoring=defer_source_authoring,
             theory_packet=theory_packet,
+            executable_evaluator_source=executable_evaluator_source,
         )
         use_provider_structured_output = bool(
             requires_generated_code and provider_name == "anthropic"
@@ -473,8 +484,12 @@ def build_simulation_engineer_prompt(
     empirical_evaluation_phase = _feedback_empirical_evaluation_phase(
         compact_environment_feedback
     )
+    executable_evaluator_source = _feedback_uses_executable_evaluator_source(
+        raw_environment_feedback
+    )
     requires_typed_metric_contracts = bool(
         requires_generated_code
+        and not executable_evaluator_source
         and empirical_evaluation_phase
         != EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
     )
@@ -482,8 +497,9 @@ def build_simulation_engineer_prompt(
         compact_environment_feedback,
         target_subsystem="SimulationEngineer",
     ) if requires_typed_metric_contracts else []
-    source_acceptance_program = _uses_source_acceptance_program(
-        authoritative_metric_requirements
+    source_acceptance_program = bool(
+        executable_evaluator_source
+        or _uses_source_acceptance_program(authoritative_metric_requirements)
     )
     metric_requirement_authority_policy = (
         GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
@@ -551,7 +567,13 @@ def build_simulation_engineer_prompt(
                 ),
                 "model_output": [],
                 "source_obligation": (
-                    "implement the frozen acceptance_protocol and return top-level "
+                    "author the exact executable preregistration: choose the DGP, "
+                    "measurements, scientifically justified replicate count, and "
+                    "decision in source; return top-level acceptance_passed, "
+                    "requested_runtime_replicates, raw measurements, and per-check "
+                    "diagnostics"
+                    if executable_evaluator_source
+                    else "implement the frozen acceptance_protocol and return top-level "
                     "acceptance_passed plus raw measurements and per-check diagnostics"
                 ),
             }
@@ -610,7 +632,10 @@ def build_simulation_engineer_prompt(
         )
         if source_acceptance_program:
             metric_instruction = (
-                "leave metric_contracts empty and implement the complete frozen "
+                "leave metric_contracts empty and make the exact source the complete "
+                "executable preregistration"
+                if executable_evaluator_source
+                else "leave metric_contracts empty and implement the complete frozen "
                 "acceptance protocol in that source"
             )
         elif requires_typed_metric_contracts:
@@ -642,18 +667,30 @@ def build_simulation_engineer_prompt(
             "run_sandbox and declare its exact language, execution profile, and "
             "dependencies. "
         )
-    if requires_typed_metric_contracts:
+    if source_acceptance_program:
         generated_simulation_instruction += (
             (
-                "Set metric_contracts to an empty array. Implement the exact frozen "
+                "Set metric_contracts to an empty array. Author the complete "
+                "experimental design and decision in executable source. Return "
+                "top-level acceptance_passed as a boolean, "
+                "requested_runtime_replicates as a positive integer justified by "
+                "the target Monte Carlo precision, and raw measurements and "
+                "per-check diagnostics sufficient for independent review. The "
+                "requested count and decision must be fixed by source logic, not "
+                "selected from diagnostic outcomes. AgentRuntime checks only this "
+                "stable ABI and capacity; it never authors or repairs the science. "
+                if executable_evaluator_source
+                else "Set metric_contracts to an empty array. Implement the exact frozen "
                 "acceptance_protocol in the simulation source. Return one top-level "
                 "acceptance_passed boolean together with raw measurements and "
                 "per-check diagnostics sufficient for independent review. "
                 "AgentRuntime binds only that stable interface and never authors, "
                 "interprets, or repairs the scientific decision. "
             )
-            if source_acceptance_program
-            else (
+        )
+    elif requires_typed_metric_contracts:
+        generated_simulation_instruction += (
+            (
                 "For every authoritative empirical requirement, emit one binding with "
                 "only contract_id, exact requirement_id, artifact_id, and metric_path. "
                 "AgentRuntime joins the immutable thresholds and evaluation semantics. "
@@ -789,7 +826,12 @@ evaluator_mode is simulation_source_acceptance_v1, implement the complete frozen
 measurement_protocol in this source and return top-level acceptance_passed as a
 boolean together with raw measurements and per-check diagnostics. Runtime checks
 only that stable interface; it does not implement or repair the scientific decision.
-When
+When executable_evaluator_source_authority is true, the exact source is itself the
+preregistration authority: choose and document the DGP, measurements, decision rule,
+and Monte Carlo precision in source, and return requested_runtime_replicates as a
+positive integer fixed independently of diagnostic outcomes. Runtime validates only
+the stable result ABI and capacity. Independent semantic review must accept the exact
+bytes before those bytes can execute on a confirmatory cohort. When
 required_estimator_ids are bound, the estimators argument contains runtime-injected
 callbacks at those exact keys. Call every bound callback with its declared request
 object and consume its declared response; never reimplement, wrap, or substitute a
@@ -927,6 +969,18 @@ def _feedback_empirical_evaluation_phase(feedback: Mapping[str, Any]) -> str:
         if phase:
             return phase
     return ""
+
+
+def _feedback_uses_executable_evaluator_source(
+    feedback: Mapping[str, Any],
+) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    context = _mapping(feedback.get("architect_context", {}))
+    return bool(
+        feedback.get("executable_evaluator_source_authority") is True
+        or context.get("executable_evaluator_source_authority") is True
+    )
 
 
 def _first_mapping_rows(value: Any, *, limit: int) -> list[Mapping[str, Any]]:
@@ -1175,6 +1229,7 @@ def _simulation_engineer_response_schema(
     upstream_estimator_ids: tuple[str, ...] = (),
     defer_source_authoring: bool = False,
     theory_packet: Mapping[str, Any] | None = None,
+    executable_evaluator_source: bool = False,
 ) -> dict[str, Any]:
     """Build a compact provider-native envelope for generated simulation code."""
 
@@ -1190,8 +1245,9 @@ def _simulation_engineer_response_schema(
         if isinstance(row, Mapping)
         and str(row.get("requirement_id", "") or "").strip()
     ]
-    source_acceptance_program = _uses_source_acceptance_program(
-        authoritative_metric_requirements
+    source_acceptance_program = bool(
+        executable_evaluator_source
+        or _uses_source_acceptance_program(authoritative_metric_requirements)
     )
     if source_acceptance_program or not requires_typed_metric_contracts:
         metric_contract_schema: dict[str, Any] = {"maxItems": 0}
@@ -1637,6 +1693,7 @@ def _normalize_simulation_packet(
     upstream_algorithm_handoff: Mapping[str, Any] | None = None,
     scientific_source_transport: str = SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
     agentic_execution: bool = False,
+    executable_evaluator_source: bool = False,
 ) -> dict[str, Any]:
     body = dict(payload)
     raw_metric_contracts = body.get("metric_contracts", [])
@@ -1653,8 +1710,9 @@ def _normalize_simulation_packet(
         for row in authoritative_metric_requirements or []
         if isinstance(row, Mapping)
     ]
-    source_acceptance_program = _uses_source_acceptance_program(
-        authority_rows
+    source_acceptance_program = bool(
+        executable_evaluator_source
+        or _uses_source_acceptance_program(authority_rows)
     )
     source_acceptance_binding_errors: list[str] = []
     if source_acceptance_program:
@@ -1687,6 +1745,9 @@ def _normalize_simulation_packet(
     body["source_acceptance_binding_errors"] = (
         source_acceptance_binding_errors
     )
+    body["executable_evaluator_source_authority"] = bool(
+        executable_evaluator_source
+    )
     body["metric_contract_set_id"] = generated_metric_contract_set_id(
         metric_contract_rows
     )
@@ -1700,7 +1761,10 @@ def _normalize_simulation_packet(
     body["empirical_evaluation_phase"] = empirical_evaluation_phase
     body["confirmatory_empirical_evidence_eligible"] = bool(
         empirical_evaluation_phase
-        != EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        not in {
+            EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
+            EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING,
+        }
     )
     body["upstream_algorithm_handoff"] = dict(
         upstream_algorithm_handoff or {}

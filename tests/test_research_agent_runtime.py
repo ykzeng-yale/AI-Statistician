@@ -2932,15 +2932,19 @@ def test_algorithm_workspace_executes_exact_theory_revision_seed_before_reauthor
         }
     )
     deferred_task = AgentTask(
-        task_id="architect-metric-after-source-seed",
-        owner_subsystem="ArchitectCoordinator",
-        objective="Continue metric authoring after implementation review.",
+        task_id="simulation-evaluator-after-source-seed",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author the executable evaluator after implementation review.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
             "architect_context": context,
-            "runtime_architect_operation": (
-                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
             ),
+            "evaluator_source_authoring": True,
+            "n_runs": 100_000,
+            "seed": 7,
         },
     )
     task = AgentTask(
@@ -3844,6 +3848,395 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
     )
 
 
+def test_missing_metric_authority_routes_to_same_evaluator_source_owner() -> None:
+    question = OpenResearchQuestion(
+        id="generic-executable-evaluator-transition",
+        title="Author an executable evaluator",
+        description="Evaluate one theory-bound implementation.",
+    )
+    theory_packet_id = "theory:generic-executable-evaluator-transition"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    context = _full_evidence_context(question.id)
+    context["theory_packet_id"] = theory_packet_id
+    context["architect_runtime_plan"]["evidence_contract"][
+        "research_evaluation_requires_typed_metric_contracts"
+    ] = True
+    task = AgentTask(
+        task_id="simulation:needs-evaluator-source",
+        owner_subsystem="SimulationEvaluator",
+        objective="Run empirical evaluation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": context,
+            "n_runs": 100,
+            "seed": 11,
+        },
+    )
+
+    result = runtime_module._runtime_simulation_metric_protocol_guard(
+        task=task,
+        question=question,
+        theory_packet_id=theory_packet_id,
+        theory_packet=theory_packet,
+        architect_context=context,
+        exploratory_diagnostic=False,
+    )
+
+    assert result is not None
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.next_task.inputs["evaluator_source_authoring"] is True
+    assert result.next_task.inputs["n_runs"] == 100_000
+    assert all(
+        artifact.get("runtime_authored_scientific_content") is False
+        for artifact in result.produced_artifacts.values()
+    )
+
+
+def test_confirmatory_evaluator_replays_only_independently_reviewed_source(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-reviewed-evaluator-replay",
+        title="Replay a reviewed evaluator",
+        description="Run exact preregistered source on a hidden cohort.",
+    )
+    theory_packet_id = "theory:generic-reviewed-evaluator-replay"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    proposal_id = "simulation-proposal:reviewed-evaluator"
+    proposal = {
+        "artifact_kind": "SimulationEngineerProposalPacket",
+        "packet_id": proposal_id,
+        "source_agent": "LLMSimulationEngineerAgent",
+        "model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "simulation_targets": [],
+        "metric_contracts": [],
+    }
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'acceptance_passed': True, "
+        "'requested_runtime_replicates': 2000}\n"
+    )
+    authoring_manifest_id = "simulation:reviewed-evaluator-authoring"
+    authoring_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": authoring_manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_packet_id,
+        "llm_simulation_engineer_proposal_id": proposal_id,
+        "evaluator_source_authoring": True,
+        "confirmatory_empirical_evidence_eligible": False,
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "reviewed-evaluator",
+                "prototype_status": "EXECUTED",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "metrics": {
+                    "acceptance_passed": False,
+                    "requested_runtime_replicates": 2_000,
+                },
+            }
+        ],
+    }
+    observed_sources: list[str] = []
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("confirmatory replay must not open a source turn")
+
+    class SimulationAgent:
+        provider = Provider()
+
+        @staticmethod
+        def propose(**_kwargs):
+            raise AssertionError("confirmatory replay must bypass planning")
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            raise AssertionError("confirmatory replay must not revise source")
+
+    def execute(**kwargs):
+        observed_sources.append(str(kwargs["code_draft"]["code"]))
+        metrics = {
+            "acceptance_passed": True,
+            "requested_runtime_replicates": 2_000,
+        }
+        return (
+            {
+                "simulation_id": str(kwargs["simulation_id"]),
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "metrics": metrics,
+                "metric_contracts": [],
+                "metric_contract_evaluation": {},
+            },
+            ToolCallRecord(
+                tool_name="python.generated_simulation_sandbox",
+                exit_status="0",
+            ),
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_simulation_sandbox",
+        execute,
+    )
+    subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=False,
+    )
+
+    def task(context):
+        return AgentTask(
+            task_id="simulation:reviewed-evaluator-confirmation",
+            owner_subsystem="SimulationEvaluator",
+            objective="Replay exact reviewed source.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "consumer_resume_manifest": authoring_manifest,
+                "architect_context": context,
+                "n_runs": 2_000,
+                "seed": 29,
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
+                ),
+                "evaluator_source_confirmation": True,
+            },
+        )
+
+    base_context = {
+        "executable_evaluator_source_authority": True,
+        "evaluator_source_confirmation": True,
+        "empirical_evaluation_phase": (
+            runtime_module.EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
+        ),
+    }
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={
+            theory_packet_id: theory_packet,
+            proposal_id: proposal,
+            authoring_manifest_id: authoring_manifest,
+        },
+    )
+
+    rejected = subsystem.run(task(base_context), blackboard)
+    assert rejected.status == "BLOCKED"
+    assert rejected.failure_classification == (
+        "executable_evaluator_confirmation_lineage_invalid"
+    )
+    assert observed_sources == []
+
+    accepted_context = {
+        **base_context,
+        "accepted_generated_code_semantic_reviews": [
+            {
+                "source_subsystem": "SimulationEvaluator",
+                "source_manifest_id": authoring_manifest_id,
+                "source_manifest_hash": runtime_module.stable_hash(
+                    authoring_manifest
+                ),
+                "overall_verdict": "ACCEPT",
+            }
+        ],
+    }
+    accepted = subsystem.run(task(accepted_context), blackboard)
+    assert accepted.status == "REROUTE"
+    assert observed_sources == [source]
+    manifests = [
+        artifact
+        for artifact in accepted.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    ]
+    assert len(manifests) == 1
+    assert manifests[0]["evaluator_source_confirmation"] is True
+    assert manifests[0]["planning_model_call_used"] is False
+    assert manifests[0]["generated_code_semantic_review_pending"] is False
+
+
+def test_evaluator_authoring_dispatches_review_before_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-evaluator-authoring",
+        title="Author one evaluator",
+        description="Freeze executable source before confirmation.",
+    )
+    theory_packet_id = "theory:generic-evaluator-authoring"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    proposal_id = "simulation-proposal:generic-evaluator-authoring"
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("source workspace is stubbed in this state test")
+
+    class SimulationAgent:
+        provider = Provider()
+
+        @staticmethod
+        def propose(**_kwargs):
+            return {
+                "artifact_kind": "SimulationEngineerProposalPacket",
+                "packet_id": proposal_id,
+                "source_agent": "LLMSimulationEngineerAgent",
+                "model": "claude-haiku-4-5-20251001",
+                "model_tier": "haiku",
+                "source_workspace_planning_owned": True,
+                "scientific_source_transport": "native_client_tools",
+                "simulation_targets": [{"procedure_id": "evaluator"}],
+                "simulation_code_drafts": [
+                    {"simulation_id": "evaluator", "required_estimator_ids": []}
+                ],
+                "metric_contracts": [],
+            }
+
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'acceptance_passed': False, "
+        "'requested_runtime_replicates': 2000}\n"
+    )
+
+    def source_workspace(**kwargs):
+        assert kwargs["defer_confirmatory_execution"] is True
+        assert kwargs["confirmatory_result_blind"] is True
+        metrics = {
+            "acceptance_passed": False,
+            "requested_runtime_replicates": 2_000,
+        }
+        return (
+            {
+                "simulation_id": "evaluator",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": source,
+                "script_path": str(tmp_path / "evaluator.py"),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(tmp_path / "diagnostic.json"),
+                "result_hash": runtime_module.stable_hash(metrics),
+                "runtime_seed": 17,
+                "runtime_replicates": 12,
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "metrics": metrics,
+                "metric_contracts": [],
+                "metric_contract_evaluation": {},
+                "scientific_code_workspace": {
+                    "confirmatory_execution_after_model_commit": False,
+                    "confirmatory_execution_deferred_for_independent_review": True,
+                },
+            },
+            [],
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        source_workspace,
+    )
+    context = {
+        "executable_evaluator_source_authority": True,
+        "evaluator_source_authoring": True,
+        "empirical_evaluation_phase": (
+            runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+        ),
+        "runtime_requested_evidence_contract": {
+            "research_evaluation_requires_generated_simulation_code": True,
+        },
+    }
+    task = AgentTask(
+        task_id="simulation:evaluator-authoring",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author executable evaluator source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": context,
+            "n_runs": 100_000,
+            "seed": 11,
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+            ),
+            "evaluator_source_authoring": True,
+        },
+    )
+    result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=True,
+    ).run(
+        task,
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "GeneratedCodeSemanticReviewer"
+    manifests = [
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    ]
+    assert len(manifests) == 1
+    assert manifests[0]["evaluator_source_authoring"] is True
+    assert manifests[0]["confirmatory_empirical_evidence_eligible"] is False
+    assert manifests[0]["n_generated_simulation_sandbox_executed"] == 1
+
+
 def test_semantic_review_resumes_exact_algorithm_source_without_planning(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -3950,15 +4343,19 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
         "preflight_acceptance_id": "preflight:accepted",
     }
     deferred_task = AgentTask(
-        task_id="architect-metric-after-reviewed-source",
-        owner_subsystem="ArchitectCoordinator",
-        objective="Continue metric authoring after implementation review.",
+        task_id="simulation-evaluator-after-reviewed-source",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author the executable evaluator after implementation review.",
         inputs={
             "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
             "architect_context": context,
-            "runtime_architect_operation": (
-                runtime_module.RUNTIME_ARCHITECT_OPERATION_POST_IMPLEMENTATION_METRIC
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
             ),
+            "evaluator_source_authoring": True,
+            "n_runs": 100_000,
+            "seed": 7,
         },
     )
     source_inputs: list[dict[str, object]] = []

@@ -163,3 +163,33 @@ def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
     assert projected["exact_smoke_result_hash"] == stable_hash(result)
     assert "exact_smoke_result" not in projected
     assert len(json.dumps(handoff)) < 25_000
+
+
+def test_executable_evaluator_prompt_makes_source_the_preregistration() -> None:
+    prompt = build_simulation_engineer_prompt(
+        question=OpenResearchQuestion(
+            id="generic-executable-evaluator",
+            title="Generic executable evaluator",
+            description="Evaluate one theory claim without a prose translation step.",
+        ),
+        theory_packet={},
+        registered_problem={},
+        registered_procedures=[],
+        n_runs=100_000,
+        seed=7,
+        environment_feedback={
+            "executable_evaluator_source_authority": True,
+            "empirical_evaluation_phase": "executable_evaluator_authoring",
+            "runtime_requested_evidence_contract": {
+                "research_evaluation_requires_generated_simulation_code": True,
+            },
+        },
+        defer_source_authoring=True,
+    )
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+
+    assert payload["authoritative_empirical_metric_requirements"] == []
+    assert payload["required_output_contract"]["metric_contracts"] == []
+    assert "exact source the complete executable preregistration" in prompt
+    assert "requested_runtime_replicates" in prompt
+    assert "SimulationEngineer later implements" not in prompt

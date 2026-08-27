@@ -712,6 +712,7 @@ def run_source_owner_scientific_workspace(
     failure_identity: Mapping[str, Any],
     external_initial_observation: Mapping[str, Any] | None = None,
     confirmatory_result_blind: bool = False,
+    defer_confirmatory_execution: bool = False,
     allow_current_source_run: bool = False,
     disallowed_unchanged_source_hashes: Sequence[str] = (),
     recovery_checkpoint: Mapping[str, Any] | None = None,
@@ -721,6 +722,10 @@ def run_source_owner_scientific_workspace(
 
     if execute_authoring_diagnostic and not confirmatory_result_blind:
         raise ValueError("authoring diagnostic requires blinded confirmation")
+    if defer_confirmatory_execution and not execute_authoring_diagnostic:
+        raise ValueError(
+            "deferred confirmation requires an authoring diagnostic executor"
+        )
 
     can_use_workspace = bool(
         proposal_agent is not None
@@ -940,8 +945,11 @@ def run_source_owner_scientific_workspace(
 
     if authoring_diagnostic_enabled:
         committed_draft = {**dict(workspace_result.code_draft), **bound_execution_fields}
-        prototype, tool_call = execute_candidate(committed_draft)
-        record_tool_calls(tool_call)
+        if defer_confirmatory_execution:
+            prototype = deepcopy(last_checked_prototype)
+        else:
+            prototype, tool_call = execute_candidate(committed_draft)
+            record_tool_calls(tool_call)
         workspace_evidence = {
             **dict(workspace_result.evidence),
             "authoring_execution_phase": "exploratory_diagnostic",
@@ -953,12 +961,21 @@ def run_source_owner_scientific_workspace(
             "authoring_diagnostic_runtime_replicates": (
                 last_checked_prototype.get("runtime_replicates")
             ),
-            "confirmatory_execution_after_model_commit": True,
+            "confirmatory_execution_after_model_commit": bool(
+                not defer_confirmatory_execution
+            ),
+            "confirmatory_execution_deferred_for_independent_review": bool(
+                defer_confirmatory_execution
+            ),
             "confirmatory_outcomes_returned_to_source_model": False,
             "evidence_boundary": (
                 "The model iterates on diagnostic execution; exact committed bytes "
-                "then execute once on a blinded confirmatory cohort whose outcome "
-                "is not returned to the authoring session."
+                + (
+                    "are held for independent review before confirmatory execution."
+                    if defer_confirmatory_execution
+                    else "then execute once on a blinded confirmatory cohort whose "
+                    "outcome is not returned to the authoring session."
+                )
             ),
         }
     else:
@@ -1172,6 +1189,14 @@ def scientific_workspace_measurement_interface_failures(
 ) -> list[dict[str, Any]]:
     """Return outcome-blind failures in the generated metric output ABI."""
 
+    evaluator_failures = [
+        {
+            "measurement_interface_status": "INVALID",
+            "measurement_interface_errors": [str(error)],
+        }
+        for error in prototype.get("executable_evaluator_interface_errors", []) or []
+        if str(error).strip()
+    ]
     contracts = {
         str(row.get("contract_id", "") or ""): row
         for row in prototype.get("metric_contracts", []) or []
@@ -1184,7 +1209,7 @@ def scientific_workspace_measurement_interface_failures(
         if isinstance(evaluation, Mapping)
         else []
     )
-    failures: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = evaluator_failures
     for row in rows or []:
         if not isinstance(row, Mapping):
             continue
