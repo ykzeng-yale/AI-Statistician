@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "fieller_bivariate_normal_ratio_confidence_set_known_result",
+      "title": "Fieller confidence set for a ratio of bivariate-normal means",
+      "description": "Focused L0 known-result evaluation grounded in Fieller (1954). Let (X_i,Y_i), i=1,...,n, be iid bivariate normal with unknown mean (mu_x,mu_y), unknown positive-definite covariance, n>=3, and mu_x nonzero. The target is theta=mu_y/mu_x. In one authoritative Markdown/LaTeX Theory workspace, derive for each fixed theta_0 the exact Student pivot based on D_i(theta_0)=Y_i-theta_0 X_i and its t distribution with n-1 degrees of freedom under theta=theta_0. Invert the two-sided level-alpha test. With q equal to the squared t critical value and sample covariance entries computed with divisor n-1, derive the confidence set {theta: A theta^2+B theta+C<=0}, where A=xbar^2-q s_xx/n, B=-2(xbar ybar-q s_xy/n), and C=ybar^2-q s_yy/n. Classify the complete quadratic and linear geometry: bounded interval, singleton, two rays, lower or upper half-line, all real numbers, or empty set. Explain why replacing every unbounded case by a finite delta-method interval destroys exact Fieller coverage near a weak denominator. Do not use simulation or a library call as proof. The required model-authored Python artifact is est_fieller_ratio_set and must implement run_estimator(request) exactly for the frozen public closed contract. Exploratory Python or R may check algebra and set membership. A separately frozen confirmatory assessment varies sample size, denominator strength, ratio sign, marginal scales, and correlation under positive-definite bivariate-normal DGPs; it checks true-ratio membership and the occurrence of unbounded sets using Monte Carlo uncertainty. That assessment is implementation and finite-design evidence, not proof, robustness outside iid bivariate normal sampling, source replication, novelty, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "Fieller theorem",
+        "ratio inference",
+        "bivariate normal",
+        "confidence set geometry",
+        "weak denominator",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Some Problems in Interval Estimation",
+          "authors": [
+            "E. C. Fieller"
+          ],
+          "journal": "Journal of the Royal Statistical Society: Series B (Methodological)",
+          "year": 1954,
+          "volume": 16,
+          "issue": 2,
+          "pages": "175-185",
+          "doi": "10.1111/j.2517-6161.1954.tb00159.x",
+          "url": "https://academic.oup.com/jrsssb/article/16/2/175/7026708"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_fieller_ratio_set",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.pairs",
+            "name": "pairs",
+            "meaning": "Paired observations in sample order, with denominator variable X first and numerator variable Y second.",
+            "json_type": "array",
+            "shape": "an array of 3 through 2000 rows, each exactly [x_i,y_i]",
+            "units": "the first and second coordinates may have different physical units",
+            "indexing": "pairs[i][0] is X_i and pairs[i][1] is Y_i",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, coordinate magnitudes above 1e50, malformed rows, fewer than three or more than 2000 rows, or a sample covariance matrix that is not strictly positive definite under the declared divisor. Do not coerce, drop, truncate, regularize, or jitter inputs.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.confidence",
+            "name": "confidence",
+            "meaning": "Two-sided confidence level 1-alpha.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar strictly between 0 and 1",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Reject zero, one, out-of-range, nonfinite, Boolean, string, null, array, or object values rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "Validated number of paired observations.",
+            "json_type": "integer",
+            "shape": "one exact integer from 3 through 2000",
+            "units": "pairs",
+            "indexing": "counts every supplied row",
+            "edge_cases": "It is not inferred from either coordinate separately.",
+            "normalization": "length(pairs)."
+          },
+          {
+            "clause_id": "response.degrees_of_freedom",
+            "name": "degrees_of_freedom",
+            "meaning": "Student reference degrees of freedom.",
+            "json_type": "integer",
+            "shape": "one exact positive integer",
+            "units": "degrees of freedom",
+            "indexing": "not applicable",
+            "edge_cases": "It equals n-1 without approximation.",
+            "normalization": "n-1."
+          },
+          {
+            "clause_id": "response.critical_value",
+            "name": "critical_value",
+            "meaning": "Positive two-sided Student critical value.",
+            "json_type": "number",
+            "shape": "one finite positive scalar",
+            "units": "dimensionless",
+            "indexing": "not applicable",
+            "edge_cases": "Use the upper (1+confidence)/2 quantile of t with n-1 degrees of freedom.",
+            "normalization": "t_{n-1,(1+confidence)/2}."
+          },
+          {
+            "clause_id": "response.coefficients",
+            "name": "coefficients",
+            "meaning": "Coefficients of the inverted Fieller inequality in descending polynomial order.",
+            "json_type": "array[number]",
+            "shape": "exactly [A,B,C] with three finite scalars",
+            "units": "coordinate-dependent squared-mean units",
+            "indexing": "indices 0,1,2 are A,B,C",
+            "edge_cases": "A or B may equal zero; do not perturb coefficients to force a bounded interval.",
+            "normalization": "A=xbar^2-q s_xx/n; B=-2(xbar*ybar-q s_xy/n); C=ybar^2-q s_yy/n, q=critical_value^2, and sample covariance uses divisor n-1."
+          },
+          {
+            "clause_id": "response.discriminant",
+            "name": "discriminant",
+            "meaning": "Quadratic discriminant computed from the returned coefficients.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "the squared units of B",
+            "indexing": "not applicable",
+            "edge_cases": "Return B^2-4AC even when A is zero; do not clip its sign.",
+            "normalization": "B^2-4*A*C."
+          },
+          {
+            "clause_id": "response.set_type",
+            "name": "set_type",
+            "meaning": "Geometry of all real theta satisfying A theta^2+B theta+C<=0.",
+            "json_type": "string",
+            "shape": "one of bounded_interval, singleton, two_rays, lower_halfline, upper_halfline, all_real, or empty",
+            "units": "not applicable",
+            "indexing": "not applicable",
+            "edge_cases": "Classify the returned floating coefficients by ordinary strict, equal, and non-strict comparisons without inserting a tolerance or replacing unbounded sets by finite endpoints.",
+            "normalization": "The label must exactly describe the non-strict polynomial sublevel set."
+          },
+          {
+            "clause_id": "response.boundaries",
+            "name": "boundaries",
+            "meaning": "Sorted finite boundary points needed to reconstruct the reported set geometry.",
+            "json_type": "array[number]",
+            "shape": "two values for bounded_interval or two_rays, one for singleton or either half-line, and an empty array for all_real or empty",
+            "units": "Y units divided by X units",
+            "indexing": "all returned values are finite and strictly increasing when two are present",
+            "edge_cases": "Infinite endpoints are represented by set_type, never by sentinels, nulls, or large finite substitutes.",
+            "normalization": "Quadratic roots use the returned A,B,C; a linear boundary is -C/B."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly pairs and confidence, and the response contains exactly the seven declared fields. Missing, extra, malformed, nonfinite, singular, or oversized inputs are rejected rather than ignored, coerced, clipped, truncated, regularized, or padded."
+          },
+          {
+            "clause_id": "invariant.sample_permutation",
+            "meaning": "Permuting the paired rows leaves every response field unchanged up to floating roundoff."
+          },
+          {
+            "clause_id": "invariant.joint_sign_reversal",
+            "meaning": "Replacing every pair (x,y) by (-x,-y) leaves every response field unchanged up to floating roundoff."
+          },
+          {
+            "clause_id": "invariant.positive_numerator_scale",
+            "meaning": "Multiplying every Y coordinate by a finite positive c, while remaining in the input domain, leaves n, degrees_of_freedom, critical_value, and set_type unchanged; transforms [A,B,C] to [A,cB,c^2C], the discriminant to c^2 times its prior value, and every finite boundary to c times its prior value."
+          },
+          {
+            "clause_id": "invariant.positive_denominator_scale",
+            "meaning": "Multiplying every X coordinate by a finite positive c, while remaining in the input domain, leaves n, degrees_of_freedom, critical_value, and set_type unchanged; transforms [A,B,C] to [c^2A,cB,C], the discriminant to c^2 times its prior value, and every finite boundary to its prior value divided by c."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every positive-definite bivariate-normal DGP, sample size, mean vector with nonzero denominator mean, covariance, confidence level, seed, replicate count, estimator invocation, true-ratio membership rule, Monte Carlo precision rule, and joint decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.fieller_coverage",
+            "meaning": "Across the frozen designs, estimate true-ratio membership in the returned Fieller set and compare it with the requested confidence using Monte Carlo uncertainty; also record unbounded-set frequency without imposing a target not entailed by the DGP."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks implementation and finite-design behavior under its iid positive-definite bivariate-normal DGPs only. It does not prove the pivot or coverage theorem, establish robustness, replicate author code, establish novelty, or provide formal proof evidence."
+          }
+        ],
+        "termination_guarantee": "For every valid request, run_estimator performs finite validation, finite sample-moment arithmetic, one finite Student quantile evaluation, and finite polynomial classification over at most 2000 pairs, then returns exactly one response object without randomization, file access, network access, subprocesses, or mutation of the request."
+      }
+    }
+  ]
+}
