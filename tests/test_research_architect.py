@@ -2234,10 +2234,63 @@ def test_theory_interface_authoring_rejects_math_metadata_in_abi(
         )
 
     assert any(
-        "must contain only executable ABI fields" in error
+        "response_fields[0].sample_size_order" in error
         for error in exc_info.value.errors
     )
     assert provider.requests == []
+
+
+def test_document_theory_handoff_keeps_math_out_of_estimator_json(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="document_estimator_handoff",
+        title="Document-owned estimator mathematics",
+        description="Keep executable identity separate from mathematical prose.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+    )
+    packet, _ = _file_authority_theory_fixture(
+        _sample_response(),
+        workspace_dir=tmp_path / "document-estimator-handoff",
+    )
+    rich_spec = packet["estimator_specs"][0]
+    packet["estimator_specs"] = [
+        {
+            "id": rich_spec["id"],
+            "name": rich_spec["name"],
+            "estimator_interface_contract": deepcopy(
+                rich_spec["estimator_interface_contract"]
+            ),
+        }
+    ]
+    normalized = research_architect_module._normalize_theory_packet(
+        packet,
+        question=question,
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(packet),
+        theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
+        formalization_authoring_required=False,
+    )
+
+    assert set(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["estimator_specs"][0]) == {
+        "id",
+        "name",
+        "estimator_interface_contract",
+    }
+    assert validate_theory_packet(normalized) == []
+    assert set(normalized["estimator_specs"][0]) == {
+        "id",
+        "name",
+        "estimator_interface_contract",
+        "estimator_interface_contract_id",
+    }
 
 
 def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows(

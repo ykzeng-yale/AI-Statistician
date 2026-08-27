@@ -16,7 +16,6 @@ from .estimator_interface_contract import (
     estimator_interface_contract_errors,
     estimator_interface_contract_id,
     normalize_theory_estimator_interface_contracts,
-    project_executable_estimator_interface_contract,
     theory_semantic_reference_ids,
 )
 from .model_backend import (
@@ -1530,13 +1529,17 @@ del THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["estimator_specs"][0][
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT = deepcopy(
     THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
 )
-THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["estimator_specs"][0][
-    "estimator_interface_contract"
-] = deepcopy(
-    THEORY_DEVELOPER_OUTPUT_CONTRACT["estimator_specs"][0][
-        "estimator_interface_contract"
-    ]
-)
+THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["estimator_specs"] = [
+    {
+        "id": "stable executable estimator id",
+        "name": "short human-readable name",
+        "estimator_interface_contract": deepcopy(
+            THEORY_DEVELOPER_OUTPUT_CONTRACT["estimator_specs"][0][
+                "estimator_interface_contract"
+            ]
+        ),
+    }
+]
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
     "claim_index": [
         {
@@ -1598,10 +1601,15 @@ def _canonical_estimator_interface_alignment_errors(
         contract = row.get("estimator_interface_contract")
         if not isinstance(contract, Mapping):
             continue
-        if dict(contract) != project_executable_estimator_interface_contract(contract):
+        unexpected_paths = _unexpected_executable_interface_paths(contract)
+        if unexpected_paths:
             errors.append(
-                f"estimator_specs[{index}] must contain only executable ABI fields; "
-                "mathematical rates and orders belong in theory documents"
+                f"estimator_specs[{index}].estimator_interface_contract has "
+                "unsupported fields: "
+                + ", ".join(unexpected_paths)
+                + "; allowed executable ABI fields are request_fields[*]."
+                "{name,meaning,binding} and response_fields[*]."
+                "{name,meaning,normalization,derivation_ref}"
             )
         outputs = row.get("outputs", [])
         response_fields = contract.get("response_fields", [])
@@ -1617,6 +1625,35 @@ def _canonical_estimator_interface_alignment_errors(
                 f"{len(response_fields)}"
             )
     return errors
+
+
+def _unexpected_executable_interface_paths(
+    contract: Mapping[str, Any],
+) -> list[str]:
+    """Name unsupported ABI paths so the source owner can revise its own payload."""
+
+    allowed_rows = {
+        "request_fields": {"name", "meaning", "binding"},
+        "response_fields": {
+            "name",
+            "meaning",
+            "normalization",
+            "derivation_ref",
+        },
+    }
+    paths = [str(key) for key in sorted(set(contract) - set(allowed_rows))]
+    for collection, allowed_fields in allowed_rows.items():
+        rows = contract.get(collection, [])
+        if not isinstance(rows, list):
+            continue
+        for row_index, row in enumerate(rows):
+            if not isinstance(row, Mapping):
+                continue
+            paths.extend(
+                f"{collection}[{row_index}].{key}"
+                for key in sorted(set(row) - allowed_fields)
+            )
+    return paths
 
 
 def validate_theory_core_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -2058,17 +2095,23 @@ def _validate_theory_packet(
         if not isinstance(row, Mapping):
             errors.append("estimator_specs entries must be objects")
             continue
-        for field in ("id", "name", "formula", "algorithm_sketch"):
+        required_estimator_fields = (
+            ("id", "name")
+            if document_authority
+            else ("id", "name", "formula", "algorithm_sketch")
+        )
+        for field in required_estimator_fields:
             if not str(row.get(field, "") or "").strip():
                 errors.append(f"estimator_specs[{idx}].{field} must be non-empty")
         estimator_id = str(row.get("id", "") or "").strip()
         if estimator_id:
             estimator_ids.append(estimator_id)
-        required_assumptions = row.get("required_assumptions", [])
-        if not isinstance(required_assumptions, list) or not required_assumptions:
-            errors.append(
-                f"estimator_specs[{idx}].required_assumptions must be non-empty"
-            )
+        if not document_authority:
+            required_assumptions = row.get("required_assumptions", [])
+            if not isinstance(required_assumptions, list) or not required_assumptions:
+                errors.append(
+                    f"estimator_specs[{idx}].required_assumptions must be non-empty"
+                )
         if require_estimator_interfaces:
             contract = row.get("estimator_interface_contract")
             errors.extend(
