@@ -4012,7 +4012,9 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
             "theory_packet_id": theory_packet_id,
             "n_runs": 8,
             "seed": 11,
-            "empirical_evaluation_phase": "exploratory",
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
             "consumer_resume_manifest": prior_manifest,
             "architect_context": context,
         },
@@ -4277,6 +4279,82 @@ def test_missing_metric_authority_routes_to_same_evaluator_source_owner() -> Non
     assert result.next_task.inputs["n_runs"] == 100_000
     assert not result.produced_artifacts
     assert not result.evidence_entries
+
+
+def test_evaluator_authoring_validates_required_algorithm_before_model_call(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-evaluator-required-algorithm",
+        title="Require an accepted estimator before evaluator authoring",
+        description="Freeze an evaluator against one reviewed implementation.",
+    )
+    theory_packet_id = "theory:generic-evaluator-required-algorithm"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+
+    class SimulationAgent:
+        provider = SimpleNamespace(provider_name="static")
+        propose_calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.propose_calls += 1
+            raise AssertionError(
+                "evaluator authoring must wait for its required algorithm handoff"
+            )
+
+    context = {
+        "executable_evaluator_source_authority": True,
+        "evaluator_source_authoring": True,
+        "empirical_evaluation_phase": (
+            runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+        ),
+        "runtime_requested_evidence_contract": {
+            "research_evaluation_requires_generated_algorithm_code": True,
+            "research_evaluation_requires_generated_simulation_code": True,
+            "research_evaluation_requires_executable_evaluator_source": True,
+        },
+    }
+    task = AgentTask(
+        task_id="simulation:evaluator-required-algorithm",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author executable evaluator source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": context,
+            "n_runs": 100_000,
+            "seed": 11,
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+            ),
+            "evaluator_source_authoring": True,
+        },
+    )
+
+    result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=True,
+    ).run(
+        task,
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == "accepted_algorithm_handoff_missing"
+    assert SimulationAgent.propose_calls == 0
+    assert not result.produced_artifacts
+    assert not result.tool_calls
 
 
 def test_confirmatory_evaluator_replays_only_independently_reviewed_source(
@@ -4565,11 +4643,19 @@ def test_evaluator_authoring_dispatches_review_before_confirmation(
     context = {
         "executable_evaluator_source_authority": True,
         "evaluator_source_authoring": True,
+        "confirmatory_simulation_requires_accepted_algorithm_handoff": True,
         "empirical_evaluation_phase": (
             runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
         ),
         "runtime_requested_evidence_contract": {
+            "research_evaluation_requires_generated_algorithm_code": False,
             "research_evaluation_requires_generated_simulation_code": True,
+            "dimension_requirements": {
+                "theory": "required",
+                "scientific_code": "not_applicable",
+                "empirical": "required",
+                "formal": "not_applicable",
+            },
         },
     }
     task = AgentTask(
@@ -4613,6 +4699,26 @@ def test_evaluator_authoring_dispatches_review_before_confirmation(
     assert manifests[0]["evaluator_source_authoring"] is True
     assert manifests[0]["confirmatory_empirical_evidence_eligible"] is False
     assert manifests[0]["n_generated_simulation_sandbox_executed"] == 1
+    work_order = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+    )
+    deferred_task = restore_agent_task_continuation(
+        result.produced_artifacts[
+            work_order["deferred_next_task_continuation_id"]
+        ],
+        result.produced_artifacts,
+    )
+    assert deferred_task.inputs["evaluator_source_confirmation"] is True
+    assert "algorithm_sandbox_manifest_id" not in deferred_task.inputs
+    assert "upstream_algorithm_handoff" not in deferred_task.inputs
+    assert (
+        "confirmatory_simulation_requires_accepted_algorithm_handoff"
+        not in deferred_task.inputs["architect_context"]
+    )
 
 
 def test_semantic_review_resumes_exact_algorithm_source_without_planning(

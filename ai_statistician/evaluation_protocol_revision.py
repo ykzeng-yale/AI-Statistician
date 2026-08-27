@@ -20,6 +20,7 @@ from .architect_theory_execution_preflight import (
 from .fingerprint import stable_hash
 from .structured_output_retry import PacketValidationError
 from .generated_metric_contract import (
+    GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
     is_generated_metric_numeric_authority_error,
 )
 from .metric_protocol_stage import (
@@ -27,6 +28,9 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
+from .simulation_engineer_llm import (
+    EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING,
+)
 from .theory_revision_lineage import (
     RUNTIME_THEORY_REVISION_PROGRESS_CONTEXT_KEY,
 )
@@ -59,6 +63,92 @@ def invalidate_metric_protocol_authorization(
     context["architect_runtime_plan"] = plan
     context.pop("architect_metric_requirement_authoring", None)
     return context
+
+
+def build_executable_evaluator_authoring_task(
+    *,
+    task: AgentTask,
+    question: OpenResearchQuestion,
+    theory_packet_id: str,
+    architect_context: Mapping[str, Any],
+    requires_accepted_algorithm_handoff: bool,
+    algorithm_sandbox_manifest_id: str = "",
+    upstream_algorithm_handoff: Mapping[str, Any] | None = None,
+    exploratory_manifest_id: str = "",
+    exploratory_manifest_hash: str = "",
+) -> AgentTask:
+    """Build the pre-outcome evaluator-source continuation."""
+
+    context = invalidate_metric_protocol_authorization(architect_context)
+    phase = EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+    context.update(
+        {
+            "theory_packet_id": theory_packet_id,
+            "executable_evaluator_source_authority": True,
+            "evaluator_source_authoring": True,
+            "empirical_evaluation_phase": phase,
+        }
+    )
+    if requires_accepted_algorithm_handoff:
+        context[
+            "confirmatory_simulation_requires_accepted_algorithm_handoff"
+        ] = True
+    else:
+        context.pop(
+            "confirmatory_simulation_requires_accepted_algorithm_handoff",
+            None,
+        )
+    if exploratory_manifest_id:
+        context["exploratory_diagnostic_feedback"] = {
+            "simulation_manifest_id": exploratory_manifest_id,
+            "simulation_manifest_hash": exploratory_manifest_hash,
+            "status": "PASSED_NOT_CONFIRMATORY_EVIDENCE",
+        }
+    raw_handoff = (
+        upstream_algorithm_handoff
+        if upstream_algorithm_handoff is not None
+        else task.inputs.get(
+            "upstream_algorithm_handoff",
+            context.get("upstream_algorithm_handoff", {}),
+        )
+    )
+    handoff = (
+        deepcopy(dict(raw_handoff))
+        if isinstance(raw_handoff, Mapping)
+        else {}
+    )
+    algorithm_id = algorithm_sandbox_manifest_id or str(
+        handoff.get("algorithm_sandbox_manifest_id", "")
+        or task.inputs.get("algorithm_sandbox_manifest_id", "")
+        or context.get("algorithm_sandbox_manifest_id", "")
+        or ""
+    )
+    inputs = {
+        "question": research_question_payload(question, include_task_intent=True),
+        "theory_packet_id": theory_packet_id,
+        "architect_context": context,
+        "empirical_evaluation_phase": phase,
+        "evaluator_source_authoring": True,
+        "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+    }
+    if algorithm_id:
+        inputs["algorithm_sandbox_manifest_id"] = algorithm_id
+    if handoff:
+        inputs["upstream_algorithm_handoff"] = handoff
+    if type(task.inputs.get("seed")) is int:
+        inputs["seed"] = task.inputs["seed"]
+    return replace(
+        task,
+        task_id=f"evaluator-source-authoring:{question.id}:"
+        + stable_hash(
+            [task.task_id, theory_packet_id, exploratory_manifest_id]
+        )[:8],
+        objective=(
+            "Author executable evaluator source and obtain independent review "
+            "before confirmatory execution."
+        ),
+        inputs=inputs,
+    )
 
 
 def metric_protocol_preexecution_review_observation_errors(

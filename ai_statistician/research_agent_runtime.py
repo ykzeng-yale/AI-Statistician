@@ -146,6 +146,7 @@ from .evaluation_protocol_revision import (
     architect_metric_requirement_validation_failure_result,
     architect_metric_semantic_review_validation_failure_result,
     architect_preexecution_metric_protocol_rejection_result,
+    build_executable_evaluator_authoring_task,
     invalidate_metric_protocol_authorization,
     metric_protocol_preexecution_review_observation_blocked_result,
     metric_protocol_preexecution_review_observation_errors,
@@ -8779,54 +8780,20 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         )
 
 
-def _runtime_executable_evaluator_authoring_task(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
+def _runtime_evaluator_requires_accepted_algorithm_handoff(
     architect_context: Mapping[str, Any],
-    algorithm_sandbox_manifest_id: str = "",
-    upstream_algorithm_handoff: Mapping[str, Any] | None = None,
-    exploratory_manifest_id: str = "",
-    exploratory_manifest_hash: str = "",
-) -> AgentTask:
-    context = invalidate_metric_protocol_authorization(architect_context)
-    phase = EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
-    context.update({
-        "theory_packet_id": theory_packet_id,
-        "executable_evaluator_source_authority": True,
-        "evaluator_source_authoring": True,
-        "empirical_evaluation_phase": phase,
-    })
-    if exploratory_manifest_id:
-        context["exploratory_diagnostic_feedback"] = {
-            "simulation_manifest_id": exploratory_manifest_id,
-            "simulation_manifest_hash": exploratory_manifest_hash,
-            "status": "PASSED_NOT_CONFIRMATORY_EVIDENCE",
-        }
-    handoff = deepcopy(dict(upstream_algorithm_handoff or {}))
-    algorithm_id = algorithm_sandbox_manifest_id or str(
-        handoff.get("algorithm_sandbox_manifest_id", "") or ""
+) -> bool:
+    task_owned_requirement = _runtime_task_owned_contract_flag(
+        architect_context,
+        flag="research_evaluation_requires_generated_algorithm_code",
     )
-    inputs = {
-        "question": _question_to_payload(question),
-        "theory_packet_id": theory_packet_id,
-        "architect_context": context,
-        "empirical_evaluation_phase": phase,
-        "evaluator_source_authoring": True,
-        "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
-        "algorithm_sandbox_manifest_id": algorithm_id,
-        "upstream_algorithm_handoff": handoff,
-    }
-    if type(task.inputs.get("seed")) is int:
-        inputs["seed"] = task.inputs["seed"]
-    return replace(
-        task,
-        task_id=f"evaluator-source-authoring:{question.id}:" + stable_hash(
-            [task.task_id, theory_packet_id, exploratory_manifest_id]
-        )[:8],
-        objective="Author executable evaluator source and obtain independent review before confirmatory execution.",
-        inputs=inputs,
+    if task_owned_requirement is not None:
+        return task_owned_requirement
+    return bool(
+        _runtime_requires_generated_algorithm_code(architect_context)
+        or architect_context.get(
+            "confirmatory_simulation_requires_accepted_algorithm_handoff"
+        ) is True
     )
 
 
@@ -8837,6 +8804,8 @@ def _runtime_simulation_metric_protocol_guard(
     theory_packet_id: str,
     architect_context: Mapping[str, Any],
     exploratory_diagnostic: bool,
+    algorithm_sandbox_manifest_id: str = "",
+    upstream_algorithm_handoff: Mapping[str, Any] | None = None,
 ) -> AgentStepResult | None:
     evidence_contract = _architect_runtime_plan(architect_context).get(
         "evidence_contract", {}
@@ -8858,11 +8827,16 @@ def _runtime_simulation_metric_protocol_guard(
     ):
         return None
 
-    next_task = _runtime_executable_evaluator_authoring_task(
+    next_task = build_executable_evaluator_authoring_task(
         task=task,
         question=question,
         theory_packet_id=theory_packet_id,
         architect_context=architect_context,
+        requires_accepted_algorithm_handoff=(
+            _runtime_evaluator_requires_accepted_algorithm_handoff(architect_context)
+        ),
+        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+        upstream_algorithm_handoff=upstream_algorithm_handoff,
     )
     return AgentStepResult(
         status="REROUTE",
@@ -8997,15 +8971,6 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             if missing_theory is not None:
                 return missing_theory
-        metric_protocol_guard = _runtime_simulation_metric_protocol_guard(
-            task=task,
-            question=question,
-            theory_packet_id=packet_id,
-            architect_context=context,
-            exploratory_diagnostic=exploratory_diagnostic,
-        )
-        if metric_protocol_guard is not None:
-            return metric_protocol_guard
         algorithm_sandbox_manifest_id = str(
             task.inputs.get("algorithm_sandbox_manifest_id", "")
             or context.get("algorithm_sandbox_manifest_id", "")
@@ -9014,10 +8979,23 @@ class SimulationEvaluatorRuntimeSubsystem:
         upstream_algorithm_handoff: dict[str, Any] = {}
         requires_accepted_algorithm_handoff = bool(
             not exploratory_diagnostic
-            and context.get(
-                "confirmatory_simulation_requires_accepted_algorithm_handoff"
+            and _runtime_evaluator_requires_accepted_algorithm_handoff(
+                effective_context
             )
-            is True
+        )
+        if requires_accepted_algorithm_handoff:
+            context[
+                "confirmatory_simulation_requires_accepted_algorithm_handoff"
+            ] = True
+        else:
+            context.pop(
+                "confirmatory_simulation_requires_accepted_algorithm_handoff",
+                None,
+            )
+        effective_context = _runtime_context_with_environment_feedback_contract(
+            context,
+            environment_feedback,
+            subsystem="SimulationEvaluator",
         )
         upstream_algorithm_handoff = _runtime_validated_algorithm_handoff(
             task=task,
@@ -9082,6 +9060,17 @@ class SimulationEvaluatorRuntimeSubsystem:
                     subsystem="SimulationEvaluator",
                 )
             )
+        metric_protocol_guard = _runtime_simulation_metric_protocol_guard(
+            task=task,
+            question=question,
+            theory_packet_id=packet_id,
+            architect_context=effective_context,
+            exploratory_diagnostic=exploratory_diagnostic,
+            algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+            upstream_algorithm_handoff=upstream_algorithm_handoff,
+        )
+        if metric_protocol_guard is not None:
+            return metric_protocol_guard
         runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
             consumer_subsystem="SimulationEngineer",
             source_theory_packet_id=packet_id,
@@ -11117,9 +11106,41 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "empirical_evaluation_phase": (
                         EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
                     ),
-                    "confirmatory_simulation_requires_accepted_algorithm_handoff": True,
                 }
             )
+            if requires_accepted_algorithm_handoff:
+                confirmation_context[
+                    "confirmatory_simulation_requires_accepted_algorithm_handoff"
+                ] = True
+            else:
+                confirmation_context.pop(
+                    "confirmatory_simulation_requires_accepted_algorithm_handoff",
+                    None,
+                )
+            confirmation_inputs = {
+                "question": _question_to_payload(question),
+                "theory_packet_id": packet_id,
+                "architect_context": confirmation_context,
+                "consumer_resume_manifest": manifest,
+                "n_runs": requested_runtime_replicates,
+                "seed": confirmatory_evaluation_seed(
+                    confirmation_context,
+                    fallback_seed=seed,
+                ),
+                "empirical_evaluation_phase": (
+                    EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
+                ),
+                "evaluator_source_confirmation": True,
+            }
+            if upstream_algorithm_handoff:
+                confirmation_inputs.update(
+                    {
+                        "algorithm_sandbox_manifest_id": (
+                            algorithm_sandbox_manifest_id
+                        ),
+                        "upstream_algorithm_handoff": upstream_algorithm_handoff,
+                    }
+                )
             evaluator_confirmation_task = AgentTask(
                 task_id=(
                     f"evaluator-confirmation:{question.id}:"
@@ -11130,25 +11151,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     "Replay the independently reviewed executable evaluator source "
                     "unchanged on one hidden confirmatory cohort."
                 ),
-                inputs={
-                    "question": _question_to_payload(question),
-                    "theory_packet_id": packet_id,
-                    "architect_context": confirmation_context,
-                    "consumer_resume_manifest": manifest,
-                    "algorithm_sandbox_manifest_id": (
-                        algorithm_sandbox_manifest_id
-                    ),
-                    "upstream_algorithm_handoff": upstream_algorithm_handoff,
-                    "n_runs": requested_runtime_replicates,
-                    "seed": confirmatory_evaluation_seed(
-                        confirmation_context,
-                        fallback_seed=seed,
-                    ),
-                    "empirical_evaluation_phase": (
-                        EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
-                    ),
-                    "evaluator_source_confirmation": True,
-                },
+                inputs=confirmation_inputs,
                 allowed_tools=("python", "filesystem_sandbox"),
                 expected_artifacts=("confirmatory_simulation_manifest",),
                 acceptance_gate=(
@@ -11285,11 +11288,14 @@ class SimulationEvaluatorRuntimeSubsystem:
                     deferred_metric_protocol_payload
                 )
             elif exploratory_evaluator_authoring_required:
-                next_task = _runtime_executable_evaluator_authoring_task(
+                next_task = build_executable_evaluator_authoring_task(
                     task=task,
                     question=question,
                     theory_packet_id=packet_id,
                     architect_context=effective_context,
+                    requires_accepted_algorithm_handoff=(
+                        requires_accepted_algorithm_handoff
+                    ),
                     algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
                     upstream_algorithm_handoff=upstream_algorithm_handoff,
                     exploratory_manifest_id=manifest_id,
