@@ -215,6 +215,11 @@ def test_semantic_review_delegates_load_bearing_checks_to_the_model() -> None:
     assert "do not fill a fixed dimension checklist" in prompt
     assert "Actively try to falsify explicit public" in prompt
     assert "instead of checking only a happy path" in prompt
+    assert "public contract is closed in both directions" in prompt
+    assert "do not invent stricter conditions" in prompt
+    assert "Use findings only for active defects" in prompt
+    assert "Put nonblocking observations in" in prompt
+    assert "ACCEPT a fit artifact with no findings" in prompt
     assert "actual_runtime_arguments" in prompt
     assert "runtime_argument_rule" in prompt
 

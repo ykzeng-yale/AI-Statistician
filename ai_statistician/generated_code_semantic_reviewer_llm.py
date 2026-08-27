@@ -753,8 +753,13 @@ def build_generated_code_semantic_review_prompt(
         + review_scope_instruction
         + "Return a compact JSON envelope matching the response schema. Put the actual scientific "
         "analysis in review_document as Markdown. Set overall_verdict to ACCEPT only when the "
-        "exact artifact is semantically fit for downstream use; otherwise use REVISE and report "
-        "each active defect once. Findings must state observed and expected behavior. Ground "
+        "exact artifact is semantically fit for downstream use. The supplied public contract is "
+        "closed in both directions: every implementation rejection needs support from an explicit "
+        "supplied clause; do not invent stricter conditions. Use findings only for active defects "
+        "that make the current artifact unfit for downstream use. Put nonblocking observations in "
+        "review_document, not findings; ACCEPT a fit artifact with no findings. Otherwise use "
+        "REVISE and report each active defect once. Findings must state observed and expected "
+        "behavior. Ground "
         "the exact artifact locations and source lines in review_document; the compact envelope "
         "does not carry a second citation language. Review every listed prior finding once, without "
         "restating an unresolved prior as a new finding.\n\n"
@@ -779,7 +784,8 @@ def build_generated_code_semantic_review_prompt(
 GENERATED_CODE_SEMANTIC_REVIEW_SYSTEM_PROMPT = (
     "You are an independent semantic reviewer inside an AI Statistician runtime. "
     "Judge what executed generated code actually measures and implements. Ground every "
-    "blocking observation in supplied artifacts. Assess source sufficiency without choosing "
+    "structured finding in supplied artifacts; findings are active downstream blockers. "
+    "Assess source sufficiency without choosing "
     "a repair owner or writing replacement code. Never claim statistical acceptance or proof."
 )
 

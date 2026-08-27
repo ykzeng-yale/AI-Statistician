@@ -4054,6 +4054,127 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
     )
 
 
+def test_exploratory_simulation_preserves_available_algorithm_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="generic-exploratory-algorithm-handoff",
+        title="Consume one accepted estimator during exploration",
+        description="Exercise an accepted algorithm from a simulation workspace.",
+    )
+    theory_packet_id = "theory:generic-exploratory-algorithm-handoff"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    handoff = {
+        "handoff_id": "accepted-algorithm-handoff:generic",
+        "algorithm_sandbox_manifest_id": "algorithm:accepted",
+        "algorithm_sandbox_manifest_hash": "a" * 64,
+        "exact_algorithm_artifacts": [
+            {
+                "estimator_id": "accepted-estimator",
+            }
+        ],
+    }
+    proposal_feedback: list[dict[str, object]] = []
+
+    class SimulationAgent:
+        provider = SimpleNamespace(provider_name="static")
+        propose_calls = 0
+
+        @classmethod
+        def propose(cls, **kwargs):
+            cls.propose_calls += 1
+            proposal_feedback.append(dict(kwargs["environment_feedback"]))
+            raise RuntimeError("stop after observing the planning context")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_validated_algorithm_handoff",
+        lambda **_kwargs: deepcopy(handoff),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_simulation_metric_protocol_guard",
+        lambda **_kwargs: None,
+    )
+    subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=False,
+    )
+    context = {
+        "algorithm_sandbox_manifest_id": "algorithm:accepted",
+        "upstream_algorithm_handoff": handoff,
+        "empirical_evaluation_phase": (
+            runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        ),
+    }
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={theory_packet_id: theory_packet},
+    )
+    task = AgentTask(
+        task_id="simulation:exploratory-accepted-dependency",
+        owner_subsystem="SimulationEvaluator",
+        objective="Exercise the accepted estimator.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "algorithm_sandbox_manifest_id": "algorithm:accepted",
+            "upstream_algorithm_handoff": handoff,
+            "architect_context": context,
+            "n_runs": 8,
+            "seed": 11,
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+            ),
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="stop after observing"):
+        subsystem.run(task, blackboard)
+
+    feedback = proposal_feedback[0]
+    assert feedback["upstream_algorithm_handoff"] == handoff
+    assert feedback["runtime_execution_contract"][
+        "available_upstream_estimator_ids"
+    ] == ["accepted-estimator"]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_validated_algorithm_handoff",
+        lambda **_kwargs: {},
+    )
+    confirmatory_context = {
+        **context,
+        "empirical_evaluation_phase": (
+            runtime_module.EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
+        ),
+        "confirmatory_simulation_requires_accepted_algorithm_handoff": True,
+    }
+    confirmatory_task = replace(
+        task,
+        task_id="simulation:confirmatory-missing-dependency",
+        inputs={
+            **task.inputs,
+            "architect_context": confirmatory_context,
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY
+            ),
+        },
+    )
+    blocked = subsystem.run(confirmatory_task, blackboard)
+    assert blocked.status == "BLOCKED"
+    assert blocked.failure_classification == "runtime_handoff_artifact_missing"
+    assert SimulationAgent.propose_calls == 1
+
+
 def test_missing_metric_authority_routes_to_same_evaluator_source_owner() -> None:
     question = OpenResearchQuestion(
         id="generic-executable-evaluator-transition",

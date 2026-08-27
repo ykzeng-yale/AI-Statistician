@@ -9046,63 +9046,55 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             is True
         )
-        if requires_accepted_algorithm_handoff:
-            upstream_algorithm_handoff = (
-                _runtime_validated_algorithm_handoff(
+        upstream_algorithm_handoff = _runtime_validated_algorithm_handoff(
+            task=task,
+            architect_context=context,
+            blackboard=blackboard,
+            question_id=question.id,
+            theory_packet_id=packet_id,
+            algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
+        )
+        if requires_accepted_algorithm_handoff and not upstream_algorithm_handoff:
+            missing_handoff = (
+                _runtime_missing_algorithm_handoff_result_if_needed(
+                    source_subsystem="SimulationEvaluator",
                     task=task,
-                    architect_context=context,
-                    blackboard=blackboard,
-                    question_id=question.id,
-                    theory_packet_id=packet_id,
+                    question=question,
                     algorithm_sandbox_manifest_id=(
                         algorithm_sandbox_manifest_id
                     ),
+                    algorithm_manifest={},
                 )
             )
-            if not upstream_algorithm_handoff:
-                simulation_manifest_id = str(
-                    context.get("simulation_manifest_id", "")
-                    or ""
-                )
-                missing_handoff = (
-                    _runtime_missing_algorithm_handoff_result_if_needed(
-                        source_subsystem="SimulationEvaluator",
-                        task=task,
-                        question=question,
-                        algorithm_sandbox_manifest_id=(
-                            algorithm_sandbox_manifest_id
+            if missing_handoff is not None:
+                return missing_handoff
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale=(
+                    "Confirmatory simulation requires a hash-bound, independently "
+                    "reviewed AlgorithmEngineer artifact, but no artifact identity "
+                    "was available to recover."
+                ),
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="accepted_algorithm_handoff_missing",
+                        summary=(
+                            "confirmatory simulation refused to run without an "
+                            "accepted algorithm artifact"
                         ),
-                        algorithm_manifest={},
-                    )
-                )
-                if missing_handoff is not None:
-                    return missing_handoff
-                return AgentStepResult(
-                    status="BLOCKED",
-                    rationale=(
-                        "Confirmatory simulation requires a hash-bound, independently "
-                        "reviewed AlgorithmEngineer artifact, but no artifact identity "
-                        "was available to recover."
-                    ),
-                    observations=(
-                        EnvironmentObservation(
-                            observation_type="accepted_algorithm_handoff_missing",
-                            summary=(
-                                "confirmatory simulation refused to run without an "
-                                "accepted algorithm artifact"
+                        payload={
+                            "question_id": question.id,
+                            "theory_packet_id": packet_id,
+                            "algorithm_sandbox_manifest_id": (
+                                algorithm_sandbox_manifest_id
                             ),
-                            payload={
-                                "question_id": question.id,
-                                "theory_packet_id": packet_id,
-                                "algorithm_sandbox_manifest_id": (
-                                    algorithm_sandbox_manifest_id
-                                ),
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                            },
-                        ),
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                        },
                     ),
-                    failure_classification="accepted_algorithm_handoff_missing",
-                )
+                ),
+                failure_classification="accepted_algorithm_handoff_missing",
+            )
+        if upstream_algorithm_handoff:
             context["upstream_algorithm_handoff"] = (
                 upstream_algorithm_handoff
             )
