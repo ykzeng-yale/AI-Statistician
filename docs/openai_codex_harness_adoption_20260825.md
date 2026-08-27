@@ -2061,3 +2061,39 @@ updates. The final focused panel passed `331/331`; the complete repository passe
 hygiene passed. Task 58 remains `0/1`; it was not rerun, resumed, repaired,
 hidden-evaluated, rescored, or resampled. Trustworthy capability remains `4/58`,
 and exact development theorem closure remains `0/2`.
+
+## Terminal rejection returns to the source owner
+
+The orthogonal-Lasso draw exposed one remaining client-loop mismatch. Its metric
+author stayed in one model/tool history and received three raw validator
+observations. The third submission was the loop's forced terminal commit. When
+that commit was rejected, the state machine permitted only another terminal
+submission, so the same model could no longer inspect the authority catalog, edit
+its file, and recommit. AgentRuntime blocked even though the source owner and
+ordinary environment feedback were still available.
+
+The official Codex checkout was rechecked at
+[`57e2edc6`](https://github.com/openai/codex/commit/57e2edc6e97474448f1fb634224471448bc09d40).
+The reusable principle is unchanged: one scoped model owns its edits; tool output
+returns to that model's ordered history; capabilities are invocation-scoped; and
+external files carry substantive state. Codex core, App Server, Responses
+transport, thread storage, Guardian, and its scheduler remain outside AI
+Statistician because importing them would create a second conversation owner and
+outer scheduler without improving the native Claude scientific loop.
+
+Commit `7b07d9e7` makes terminal validation failure an observation for the same
+source owner. Under a separate bounded recovery-action budget, that model may
+inspect or read, edit, and recommit. A successful commit still terminates; repeated
+rejection, exhausted recovery actions, and no progress still fail closed. The
+regression executes the exact sequence
+`forced final commit rejected -> check/read -> edit -> final commit`.
+
+This is harness control, not content repair. It adds no Lasso rule, semantic path,
+mathematical parser, generated-output patch, RepairAgent, Architect route, retry
+scheduler, provider, or model escalation. The focused client-loop suite passed
+`24/24`; the cross-workspace client-tool, Lean, and ladder panel passed `329/329`;
+and the complete repository passed `958/958` in 78.30 seconds. Model-policy and
+ladder tests passed `89/89`; compile-all, JSON, diff, architecture line-budget,
+and changed-file secret hygiene passed. Task 59 remains `0/1`; it was not rerun,
+resumed, repaired, hidden-evaluated again, rescored, or resampled. Trustworthy
+capability remains `4/59`, and exact development theorem closure remains `0/2`.
