@@ -251,11 +251,14 @@ def test_semantic_review_keeps_current_artifact_distinct_from_dependency() -> No
         review_material=material,
     )
 
-    assert "/current_target_artifacts as the current target" in prompt
-    assert "/upstream_generated_dependency as context" in prompt
-    assert "never substitute an upstream review" in prompt
-    assert prompt.index('"current_target_artifacts"') < prompt.index(
-        '"upstream_generated_dependency"'
+    assert "/current_target_artifacts as the final current snapshot" in prompt
+    assert "/supporting_review_context and prior findings as historical context" in prompt
+    assert "Never substitute an upstream review" in prompt
+    assert prompt.index('"supporting_review_context"') < prompt.index(
+        '"current_target_artifacts"'
+    )
+    assert prompt.index('"upstream_generated_dependency"') < prompt.index(
+        '"current_target_artifacts"'
     )
 
 
@@ -280,7 +283,35 @@ def _agent(response: dict[str, object]) -> LLMGeneratedCodeSemanticReviewerAgent
     class StaticReviewClientToolBackend:
         provider_name = "static"
 
+        def __init__(self) -> None:
+            self.current_source_read = False
+
         def generate_client_tool_turn(self, request):
+            if (
+                any(tool.name == "read_current_generated_source" for tool in request.tools)
+                and not self.current_source_read
+            ):
+                self.current_source_read = True
+                call = ClientToolCall(
+                    call_id="static-current-source",
+                    name="read_current_generated_source",
+                    input={"artifact_id": "simulation:1"},
+                )
+                return ClientToolTurnResponse(
+                    content_blocks=(
+                        {
+                            "type": "tool_use",
+                            "id": call.call_id,
+                            "name": call.name,
+                            "input": call.input,
+                        },
+                    ),
+                    tool_calls=(call,),
+                    text="",
+                    provider="static",
+                    model=request.model,
+                    metadata={"provider_stop_reason": "tool_use"},
+                )
             call = ClientToolCall(
                 call_id="static-review",
                 name="submit_generated_code_semantic_review",
@@ -1413,9 +1444,6 @@ def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
         "The executed source"
     )
     assert "required_change" not in packet["findings"][0]
-    assert packet["source_revision_assessment"][
-        "current_source_edit_sufficient"
-    ] is True
     assert packet["source_revision_assessment"]["resolution_scope"] == (
         "CURRENT_SOURCE_REWRITE_SUFFICIENT"
     )
@@ -1501,7 +1529,6 @@ def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> 
     assert assessment["resolution_scope"] == (
         "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
     )
-    assert assessment["current_source_edit_sufficient"] is False
     assert assessment["evidence_refs"] == []
     assert not _contains_key(packet, {"repair_owner", "repair_plan"})
     assert validate_generated_code_semantic_review_packet(
@@ -1537,7 +1564,7 @@ def test_all_pass_review_cannot_emit_blocking_findings() -> None:
     assert "model verdict must agree with active findings" in str(exc_info.value)
 
 
-def test_legacy_repair_fields_are_reduced_to_descriptive_observations() -> None:
+def test_repair_fields_are_ignored_in_descriptive_observations() -> None:
     response = {
         "prior_finding_reviews": [],
         "dimension_reviews": _dimension_rows(failed="metric_semantics_alignment"),
@@ -1546,12 +1573,10 @@ def test_legacy_repair_fields_are_reduced_to_descriptive_observations() -> None:
                 "severity": "high",
                 "category": "metric_semantics",
                 "summary": "The reported scalar has the wrong meaning.",
+                "observed_behavior": "Returns an unrelated constant.",
+                "expected_behavior": "Returns the stated estimand.",
                 "required_change": "Return the stated estimand.",
                 "repair_scope": "source_code",
-                "artifact_delta": {
-                    "current_behavior": "Returns an unrelated constant.",
-                    "required_behavior": "Returns the stated estimand.",
-                },
                 "evidence_refs": [
                     "/exact_executed_artifacts/0/exact_source_code"
                 ],
@@ -1644,10 +1669,54 @@ def test_prior_findings_are_reviewed_by_identity_without_owner_state() -> None:
         "generated_code_semantic_finding:prior"
     )
     assert packet["active_unresolved_finding_ids"] == []
+    assert packet["client_tool_loop"][
+        "fresh_current_source_observation_required"
+    ] is True
+    assert packet["client_tool_loop"][
+        "refreshed_current_source_artifact_ids"
+    ] == ["simulation:1"]
+    assert packet["client_tool_loop"]["turns"] == 2
     assert validate_generated_code_semantic_review_packet(
         packet,
         review_material=material,
     ) == []
+
+
+def test_revision_prompt_defers_current_source_to_fresh_tool_observation() -> None:
+    material = _review_material()
+    current_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    acceptance_passed = all([True])\n"
+        "    return {'acceptance_passed': acceptance_passed}\n"
+    )
+    material["exact_executed_artifacts"][0]["exact_source_code"] = current_source
+    material["exact_executed_artifacts"][0]["exact_source_hash"] = stable_hash(
+        current_source
+    )
+    material["prior_semantic_observations"] = {
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": "generated_code_semantic_finding:stale-source",
+                "status": "UNRESOLVED",
+                "finding": {
+                    "summary": "The old source hardcoded acceptance_passed=True.",
+                    "category": "acceptance",
+                },
+            }
+        ]
+    }
+
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(), review_material=material
+    )
+
+    assert "The old source hardcoded acceptance_passed=True" in prompt
+    assert "acceptance_passed = all([True])" not in prompt
+    assert '"fresh_source_observation_required":true' in prompt
+    assert (
+        '"exact_source_available_via_tool":"read_current_generated_source"'
+        in prompt
+    )
 
 
 def test_unresolved_prior_finding_keeps_review_in_revise_without_restatement() -> None:

@@ -89,6 +89,8 @@ from .generated_code_semantic_reviewer_llm import (
     GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
     GENERATED_CODE_SEMANTIC_REVIEW_SOURCE_SUBSYSTEMS,
     LLMGeneratedCodeSemanticReviewerAgent,
+    SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE,
+    SOURCE_REVISION_SCOPE_PARENT_CHANGE,
     normalize_generated_code_semantic_review_findings,
     validate_generated_code_semantic_review_packet,
 )
@@ -8041,10 +8043,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         )
         cross_artifact_revision_required = bool(
             reviewer_verdict == "REVISE"
-            and source_revision_assessment.get(
-                "current_source_edit_sufficient"
-            )
-            is False
+            and source_revision_assessment.get("resolution_scope")
+            == SOURCE_REVISION_SCOPE_PARENT_CHANGE
         )
         reviewer_model = str(review_packet.get("model", "") or "")
         reviewer_tier = str(review_packet.get("model_tier", "") or "")
@@ -9191,7 +9191,8 @@ class SimulationEvaluatorRuntimeSubsystem:
             and str(environment_feedback.get("overall_verdict", "") or "")
             == "REVISE"
             and isinstance(raw_revision_assessment, Mapping)
-            and raw_revision_assessment.get("current_source_edit_sufficient") is True
+            and raw_revision_assessment.get("resolution_scope")
+            == SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE
         )
         outcome_source_revision = bool(
             feedback_type == "confirmatory_simulation_outcome"
@@ -11799,7 +11800,8 @@ class AlgorithmEngineerRuntimeSubsystem:
             and str(environment_feedback.get("overall_verdict", "") or "")
             == "REVISE"
             and isinstance(raw_revision_assessment, Mapping)
-            and raw_revision_assessment.get("current_source_edit_sufficient") is True
+            and raw_revision_assessment.get("resolution_scope")
+            == SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE
         )
         source_revision_artifact_ids = [
             str(value or "").strip()

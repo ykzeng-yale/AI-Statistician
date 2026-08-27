@@ -4698,7 +4698,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
             }
         ],
         "source_revision_assessment": {
-            "current_source_edit_sufficient": True,
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
         },
         "reviewed_source_artifacts": [
             {
@@ -4943,7 +4943,7 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
             }
         ],
         "source_revision_assessment": {
-            "current_source_edit_sufficient": True,
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
         },
     }
     context = _full_evidence_context(question.id)
@@ -6793,7 +6793,7 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
     )
     assert resolved_feedback["observation_artifact_ref"][
         "source_revision_assessment"
-    ]["current_source_edit_sufficient"] is False
+    ]["resolution_scope"] == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
     execution = next(
         artifact
         for artifact in outcome.produced_artifacts.values()

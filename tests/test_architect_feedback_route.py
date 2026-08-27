@@ -717,7 +717,6 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
         "runtime_errors": ["metric_path /estimate resolved no values"],
         "observation_artifact_ref": {
             "source_revision_assessment": {
-                "current_source_edit_sufficient": True,
                 "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
             }
         },
@@ -749,8 +748,8 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
         "budget_exhausted"
     ] is True
     assert prompt_payload["active_source_revision_assessment"][
-        "current_source_edit_sufficient"
-    ] is True
+        "resolution_scope"
+    ] == "CURRENT_SOURCE_REWRITE_SUFFICIENT"
     assert "do not reinterpret source-budget exhaustion" in prompt
 
     critic_wrapped_feedback = {
