@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "orthogonal_lasso_soft_threshold_known_result",
+      "title": "Orthogonal-design Lasso and soft thresholding",
+      "description": "Focused L0 known-result evaluation grounded in Robert Tibshirani, Regression Shrinkage and Selection Via the Lasso, Journal of the Royal Statistical Society Series B 58(1) (1996), 267-288, DOI 10.1111/j.2517-6161.1996.tb02080.x, and the open-source scikit-learn Lasso objective and coordinate-descent implementation. For a fixed real design X with X^T X / n = I_p, response y, no intercept, score vector z = X^T y / n, and finite penalty lambda >= 0, derive the unique minimizer of (1/(2n))||y-X beta||_2^2 + lambda||beta||_1. In one authoritative Markdown/LaTeX Theory workspace, derive the coordinatewise objective from the original regression objective, solve every subgradient case including |z_j|=lambda, and prove the exact soft-threshold formula with its normalization. Explain uniqueness, the active-set characterization, lambda=0, sign and permutation equivariance, simultaneous positive scaling of scores and penalty, and monotonicity of coefficient magnitudes and support as lambda increases. Keep the orthogonal-design result distinct from general correlated-design coordinate descent, support-recovery theory, post-selection inference, and claims that regularization universally improves risk. The required model-authored Python artifact is est_orthogonal_lasso_soft_threshold and must implement run_estimator(request) exactly for the frozen public score-domain contract. Reusing a mature scientific library is allowed only when the exact ABI, objective scaling, source identity, and evidence boundaries are preserved. Exploratory Python or R may check subgradient conditions and threshold boundaries. A separately frozen confirmatory assessment uses predeclared sparse Gaussian sequence designs to compare coefficient squared error of soft thresholding with the unregularized score vector, reporting Monte Carlo uncertainty for average improvement. That finite-design average-risk result is not pointwise, universal, asymptotic, or a theorem for correlated designs. Source-code replication, novelty, post-selection inference, and Lean formalization are not applicable.",
+      "tags": [
+        "sparse_linear_regression",
+        "lasso",
+        "soft_thresholding",
+        "convex_optimization",
+        "known_result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Regression Shrinkage and Selection Via the Lasso",
+          "authors": [
+            "Robert Tibshirani"
+          ],
+          "journal": "Journal of the Royal Statistical Society: Series B (Methodological)",
+          "year": 1996,
+          "volume": 58,
+          "issue": 1,
+          "pages": "267-288",
+          "doi": "10.1111/j.2517-6161.1996.tb02080.x",
+          "url": "https://doi.org/10.1111/j.2517-6161.1996.tb02080.x"
+        },
+        "open_source_implementation": {
+          "project": "scikit-learn",
+          "api": "sklearn.linear_model.Lasso",
+          "objective_url": "https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Lasso.html",
+          "source_url": "https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/linear_model/_coordinate_descent.py"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_orthogonal_lasso_soft_threshold",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.scores",
+            "name": "scores",
+            "meaning": "The orthogonal-design score coordinates z_j = X_j^T y / n in their fixed feature order.",
+            "json_type": "array[number]",
+            "shape": "one nonempty finite numeric array of length p",
+            "units": "coefficient units under X^T X / n = I_p",
+            "indexing": "scores[j] belongs to the j-th fixed design column and order must be preserved",
+            "edge_cases": "A one-element array is valid. Reject nonarrays, empty arrays, booleans, strings, nonnumeric values, nonfinite values, and silently coerced or dropped entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.penalty",
+            "name": "penalty",
+            "meaning": "The finite nonnegative L1 coefficient lambda in (1/(2n))||y-X beta||_2^2 + lambda||beta||_1.",
+            "json_type": "number",
+            "shape": "one finite scalar greater than or equal to zero",
+            "units": "score units",
+            "indexing": "common to all score coordinates",
+            "edge_cases": "Zero is valid. Reject booleans, strings, containers, nonnumeric or nonfinite values, negative values, and silently coerced values.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.coefficients",
+            "name": "coefficients",
+            "meaning": "The unique soft-threshold minimizer in the same feature order as scores.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric array with the same length as scores",
+            "units": "coefficient units",
+            "indexing": "coefficients[j] corresponds to scores[j]",
+            "edge_cases": "At |scores[j]| <= penalty, including exact equality, coefficients[j] is zero; at penalty zero, coefficients equals scores up to ordinary floating arithmetic.",
+            "normalization": "sign(scores[j])*max(abs(scores[j])-penalty, 0) coordinatewise for the stated 1/(2n) regression objective."
+          },
+          {
+            "clause_id": "response.active_count",
+            "name": "active_count",
+            "meaning": "The number of nonzero returned coefficients under the exact threshold convention.",
+            "json_type": "integer",
+            "shape": "one integer from zero through p",
+            "units": "feature count",
+            "indexing": "current scores and penalty request",
+            "edge_cases": "Coordinates exactly at the threshold are inactive.",
+            "normalization": "sum_j 1{abs(scores[j]) > penalty}."
+          },
+          {
+            "clause_id": "response.reduced_objective",
+            "name": "reduced_objective",
+            "meaning": "The minimized separable objective after removing the beta-independent regression constant.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared coefficient units",
+            "indexing": "current scores and penalty request",
+            "edge_cases": "At penalty zero it equals zero.",
+            "normalization": "sum_j [0.5*(coefficients[j]-scores[j])^2 + penalty*abs(coefficients[j])]."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly scores and penalty, and the response contains exactly coefficients, active_count, and reduced_objective. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.subgradient_optimality",
+            "meaning": "Every coordinate satisfies the Lasso subgradient condition beta_j-z_j+penalty*s_j=0 with s_j=sign(beta_j) when beta_j is nonzero and s_j in [-1,1] when beta_j is zero."
+          },
+          {
+            "clause_id": "invariant.threshold_boundary",
+            "meaning": "A coordinate is nonzero exactly when abs(scores[j]) is strictly greater than penalty; equality maps to zero."
+          },
+          {
+            "clause_id": "invariant.symmetry_and_permutation",
+            "meaning": "Negating every score negates every coefficient without changing active_count or reduced_objective, and applying any common feature permutation permutes coefficients the same way."
+          },
+          {
+            "clause_id": "invariant.positive_scale_equivariance",
+            "meaning": "For finite c>0, multiplying both scores and penalty by c multiplies coefficients by c, leaves active_count unchanged, and multiplies reduced_objective by c^2 whenever transformed inputs remain finite."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each coefficient dimension, sparse truth vector, Gaussian score-noise scale, penalty, seed, replicate count, squared-error comparison, and Monte Carlo decision rule; invoke the accepted estimator on every realized scores and frozen penalty request."
+          },
+          {
+            "clause_id": "claim.empirical.average_sparse_risk_improvement",
+            "meaning": "For each frozen sparse Gaussian sequence design, report the mean unregularized-minus-thresholded coefficient squared-error difference and its Monte Carlo standard error, and require a predeclared positive lower confidence bound rather than selecting a favorable design or replicate count after outcomes."
+          },
+          {
+            "clause_id": "claim.empirical.nonuniversal_scope",
+            "meaning": "The confirmatory assessment checks implementation and average finite-design risk only for the frozen sparse Gaussian sequence designs. It does not assert pointwise improvement, universal domination, support recovery, a correlated-design result, post-selection validity, or theorem proof from simulation."
+          }
+        ]
+      }
+    }
+  ]
+}
