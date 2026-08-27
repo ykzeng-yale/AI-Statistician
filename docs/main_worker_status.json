@@ -1,13 +1,13 @@
 {
-  "schema_version": 220,
+  "schema_version": 221,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "d388a0ce6d9e27ce7fbf2075d4b3657b9cabce1c",
+  "validated_code_head": "9dcd43555dc489790ae2dc091f161b9ab319e48f",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty-seven consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/67 and exact development Lean closure remains 0/2. Task 67 is immutable 0/1. It confirms that persistent Markdown/LaTeX workspaces, accepted-estimator handoff into Simulation, direct source execution, optional Formalizer policy, and terminal Critic blocking work. It also exposes three future-only shared gaps: author and referee both conflated no anticipation with equal group baseline means while the calibrated hidden semantic judge false-passed; every exact reviewer probe failed before target invocation and was followed by a false ACCEPT; and empirical-required work stopped after exploratory diagnostics without a source-owned confirmatory phase. First commit the immutable operator ledger, then simplify generic callable probing, complete exploratory-to-confirmatory progression, and align research completion with executable-evaluator intent. Do not add DID formulas, assumption rules, Boolean patches, content repair, retries, extra schedulers, Codex provider/runtime embedding, or model escalation. Production may use Sonnet, all evaluations remain exact Haiku, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty-seven consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/67 and exact development Lean closure remains 0/2. Task 67 is immutable 0/1. Commit 9dcd4355 applies only future-task shared corrections: same-session model-owned probe revision after raw sandbox errors, exact-target invocation before probe-supported ACCEPT, exploratory-to-confirmatory continuation in the same Simulation workspace, compact hash handoffs, and general countermodel-based assumption auditing. Next evaluate an unrelated frozen L0 task once; do not rerun Task 67 or add formulas, assumption semantics, input-type patches, output repair, retries, extra schedulers, Codex provider/runtime embedding, or model escalation. Production may use Sonnet, all evaluations remain exact Haiku, and Opus remains prohibited.",
   "latest_two_period_panel_did_l0_evaluation": {
     "task_id": "two_period_panel_did_known_result",
     "family": "two_period_panel_difference_in_differences",
@@ -32,6 +32,9 @@
     "formalizer_executed": false,
     "operator_disposition": "OPERATOR_INVALIDATED_THEORY_CODE_CONTRACT_FAILED_CONFIRMATORY_EMPIRICAL_NOT_RUN",
     "operator_audit": "docs/operator_audits/two_period_panel_did_l0_v1.md",
+    "post_run_shared_mechanism_commit": "9dcd43555dc489790ae2dc091f161b9ab319e48f",
+    "post_run_shared_mechanism_change": "Future reviewers that choose executable probes must reach the immutable target before probe-supported ACCEPT and revise their own failed probe in the same session. Successful exploratory Simulation continues with the same source owner to executable-evaluator authoring, independent review, and exact confirmation when required. Theory author and referee prompts request generic assumption-role countermodels. No DID rule, Boolean patch, content repair, retry, agent, scheduler, provider, or model escalation was added.",
+    "post_run_regression_evidence": "Future-task deterministic evidence only: the affected Theory, reviewer, Simulation, runtime, and research-eval panel passed 237/237; the complete repository passed 986/986 in 78.30 seconds. Production Python is 149998 lines and research_agent_runtime.py is 24961 lines. Task 67 was not rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled.",
     "evidence_hashes": {
       "runtime_manifest": "a990b80871166265c7af04d514530fa2f9d871a2b5e867eba949230b8ec5203c",
       "runtime_result": "ad3925dbb8964a4eb2e92ba6a037634687cecdbbdd78aa14e1e843ade930eaee",
@@ -90,14 +93,14 @@
     "trusted_capability_credit": "0/1; aggregate remains 4/66"
   },
   "latest_codex_harness_context_and_review_change": {
-    "implementation_commit": "464cba39753ff2959e5d0f2c08491c982745cc60",
+    "implementation_commit": "9dcd43555dc489790ae2dc091f161b9ab319e48f",
     "upstream_codex_reference_head": "5f49aba876922d6f2f55caa153bbb0ed1b46feba",
-    "change": "Simulation now validates and consumes any available accepted Algorithm handoff during exploratory as well as confirmatory work. Semantic-review structured findings are model-authored active blockers; nonblocking observations remain in Markdown.",
-    "codex_principle": "Reuse same-session model-tool-observation, explicit sparse artifact context, immutable issuing-step authority, and compact typed lifecycle envelopes. Keep one AgentRuntime graph and do not import Codex core, App Server, Responses transport, thread management, Guardian, shared-cwd subagents, provider transport, or scheduler.",
-    "scientific_boundary": "Runtime chooses no estimator formula, rejection condition, DGP, threshold, source edit, proof tactic, or severity route. The same source-owning models still plan, execute, observe, and revise against real Python/R/Lean feedback.",
-    "verification": "The complete repository passed 985/985 in 78.26 seconds; focused post-cleanup checks passed 33/33. Compile, JSON, and diff hygiene passed. Top-level production Python is 149993 lines under the unchanged 150000-line budget.",
-    "model_policy": "No live model call occurred while implementing the shared change. Task 66 used exact claude-haiku-4-5-20251001 for all seven enabled roles; no Sonnet or Opus call occurred.",
-    "consumed_task_boundary": "Task 66 and every earlier draw remain immutable. The commit is future-task mechanism evidence only; trustworthy capability remains 4/66 and exact development theorem closure remains 0/2."
+    "change": "Reviewer-authored probes receive raw failures in the same session and cannot support ACCEPT until one invokes the exact target. Successful exploratory Simulation continues with the same source owner to executable-evaluator authoring, existing independent review, and exact confirmation. Theory author and referee prompts request general countermodel-based assumption audits.",
+    "codex_principle": "Reuse same-session model-tool-observation, explicit sparse artifact context, immutable target authority, and compact typed lifecycle envelopes. Keep one AgentRuntime graph and do not import Codex core, App Server, Responses transport, thread management, Guardian, shared-cwd subagents, provider transport, or scheduler.",
+    "scientific_boundary": "Runtime chooses no estimator formula, input type, assumption semantics, DGP, threshold, source edit, proof tactic, or severity route. Source-owning models plan, execute, observe, and revise against raw Python/R/Lean feedback; orchestration transitions are not scientific evidence.",
+    "verification": "The affected Theory, reviewer, Simulation, runtime, and research-eval panel passed 237/237; the complete repository passed 986/986 in 78.30 seconds. Compile, JSON-independent code, diff, and architecture hygiene passed. Top-level production Python is 149998 lines and research_agent_runtime.py is 24961 lines under unchanged budgets.",
+    "model_policy": "No live model call occurred while implementing the shared change. Task 67 used exact claude-haiku-4-5-20251001 for all seven enabled roles; no Sonnet or Opus call occurred.",
+    "consumed_task_boundary": "Task 67 and every earlier draw remain immutable. The commit is future-task mechanism evidence only; trustworthy capability remains 4/67 and exact development theorem closure remains 0/2."
   },
   "latest_warner_randomized_response_l0_evaluation": {
     "task_id": "warner_randomized_response_prevalence_known_result",

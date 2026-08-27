@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "464cba39753ff2959e5d0f2c08491c982745cc60"
+LATEST_SHARED_MECHANISM_HEAD = "9dcd43555dc489790ae2dc091f161b9ab319e48f"
 CURRENT_ACTIVE_TASKS = 67
 CURRENT_CONSUMED_TASKS = 67
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -5254,6 +5254,11 @@ def test_two_period_panel_did_l0_records_one_consumed_operator_invalid_draw() ->
         "EMPIRICAL_NOT_RUN"
     )
     assert Path(evidence["operator_audit"]).is_file()
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "9dcd43555dc489790ae2dc091f161b9ab319e48f"
+    )
+    assert "same model session" in evidence["post_run_shared_mechanism_change"]
+    assert "986/986" in evidence["post_run_regression_evidence"]
     assert evidence["ladder_score_after_consumption"] == "4/67"
 
     readiness = ladder["current_readiness"]

@@ -2567,3 +2567,44 @@ or scheduler. Full deterministic regression passed `985/985`; production Python
 is 149,993 lines. Task 66 was not rerun, resumed, repaired, hidden-evaluated again,
 rescored, or resampled. Trustworthy capability is `4/66`; exact development
 theorem closure remains `0/2`.
+
+## Source-owned falsification and confirmation after Task 67
+
+Official Codex `main` was fetched again and remains pinned at
+[`5f49aba8`](https://github.com/openai/codex/commit/5f49aba876922d6f2f55caa153bbb0ed1b46feba).
+The reusable design remains its persistent model/tool/observation loop: the model
+that owns an artifact sees raw execution output, edits its own artifact, and
+continues in the same context. Cross-owner collaboration passes explicit compact
+state; lifecycle, permissions, budgets, and durable identity stay outside the
+model. AI-Statistician does not import Codex Core, App Server, provider transport,
+thread store, shared-cwd subagents, Guardian, or another scheduler.
+
+The immutable Task 67 draw exposed three generic failures. A reviewer attempted
+three executable probes that all failed before target invocation and then accepted
+the source. Exploratory Simulation successfully used the accepted estimator but
+returned to Critic before authoring the required confirmatory evaluator. Separately,
+both theory author and referee trusted a familiar assumption label instead of
+testing its actual implication; the calibrated hidden semantic judge missed the
+same error. None justifies a DID rule, Boolean patch, output repair, or retry layer.
+
+Commit `9dcd4355` applies the Codex-style correction for future tasks. A reviewer
+that chooses to probe may not use those probes to support ACCEPT until at least one
+has invoked the exact immutable target; raw sandbox failure is returned to that
+same reviewer, which must rewrite and rerun its own probe or submit a non-accepting
+judgment. A successful exploratory simulation whose frozen intent requires an
+executable evaluator now continues in the same Simulation workspace to source
+authoring, existing independent semantic review, and existing exact confirmatory
+replay. The handoff contains accepted estimator identity plus compact exploratory
+manifest hashes, not copied prototype payloads. Routine collaboration does not go
+through Architect, and the orchestration transition is not mislabeled as scientific
+evidence.
+
+TheoryDeveloper and its independent referee receive only a general scientific
+instruction: interpret assumptions by mathematical content and attempt
+countermodels for load-bearing implications. Runtime still encodes no theorem,
+formula, assumption semantics, input type rule, DGP, threshold, source patch, Lean
+grammar, or tactic. No live model was called for this correction. The final focused
+panel passed `237/237`; the complete repository passed `986/986` in 78.30 seconds.
+Production Python is 149,998 lines and `research_agent_runtime.py` is 24,961 lines,
+both under unchanged architecture limits. Task 67 remains immutable `0/1`, trusted
+capability remains `4/67`, and exact development theorem closure remains `0/2`.

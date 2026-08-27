@@ -7061,13 +7061,16 @@
         "hidden_empirical_result_hash": "9f18850328cb9ce22a212ed114c1be084336205c38ac8631c844ba5bc2f64484",
         "operator_disposition": "OPERATOR_INVALIDATED_THEORY_CODE_CONTRACT_FAILED_CONFIRMATORY_EMPIRICAL_NOT_RUN",
         "operator_audit": "docs/operator_audits/two_period_panel_did_l0_v1.md",
+        "post_run_shared_mechanism_commit": "9dcd43555dc489790ae2dc091f161b9ab319e48f",
+        "post_run_shared_mechanism_change": "Future reviewers that choose executable probes must reach the immutable target before probe-supported ACCEPT and revise failed probe source in the same model session. Successful exploratory Simulation continues with the same source owner to executable-evaluator authoring, independent review, and exact confirmation when frozen intent requires it. Theory author and referee prompts request generic countermodel-based assumption audits. No task formula, assumption rule, Boolean patch, content repair, retry, extra agent, scheduler, provider, or model escalation was added.",
+        "post_run_regression_evidence": "Future-task deterministic evidence only: the affected panel passed 237/237 and the complete repository passed 986/986 in 78.30 seconds. Production Python is 149998 lines and research_agent_runtime.py is 24961 lines. Task 67 was not rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled.",
         "model_draw_resampling_blocked": true,
         "formalization_requirement": "not_applicable",
         "formalizer_executed": false,
         "full_task_passed": false,
         "trusted_capability_credit": false,
         "ladder_score_after_consumption": "4/67",
-        "boundary": "The sole exact-Haiku product draw and sole post-runtime hidden evaluation are consumed and immutable. Hidden results generated no runtime feedback. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample this task. Future shared mechanism changes cannot retroactively alter its 0/1 result."
+        "boundary": "The sole exact-Haiku product draw and sole post-runtime hidden evaluation are consumed and immutable. Hidden results generated no runtime feedback. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample this task. Commit 9dcd4355 is future-task shared mechanism evidence only and cannot alter its 0/1 result."
       },
       "task_intent": {
         "source_replication": "not_applicable",
@@ -7100,10 +7103,10 @@
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
     "operator_invalid_tasks": 8,
-    "latest_shared_mechanism_head": "464cba39753ff2959e5d0f2c08491c982745cc60",
+    "latest_shared_mechanism_head": "9dcd43555dc489790ae2dc091f161b9ab319e48f",
     "canonical_live_gold_activation_schema": 3,
     "executable_activation_gate": "Frozen reference and invoked behavioral negatives must run through the exact hidden candidate validators before any product-model call; configured executable evaluators must reject negatives and their checks must cover every applicable public ABI clause.",
-    "latest_diagnostic": "Four of sixty-seven consumed tasks receive trustworthy full-task capability credit. Task 67 is immutable 0/1. Runtime correctly bound accepted Algorithm source into exploratory Simulation and correctly blocked without confirmatory evidence. Operator audit invalidated the automated theory pass because both author and reviewer conflated no anticipation with equal group baseline means. The estimator passed 17/19 hidden checks and all 13/13 hidden empirical checks over 16000 calls, but violated the public Boolean-outcome boundary; all reviewer probes failed before target invocation and were followed by a false ACCEPT.",
-    "next_step": "Preserve all sixty-seven consumed draws and the 4/67 trusted aggregate. For future tasks only, simplify exact callable probing, prevent failed reviewer scaffolds from supporting ACCEPT, complete the exploratory-to-confirmatory source-owned empirical path, and align completion requirements with executable-evaluator task intent. Add no DID formula, no-anticipation rule, Boolean patch, content repair, retry, extra scheduler, or model escalation."
+    "latest_diagnostic": "Four of sixty-seven consumed tasks receive trustworthy full-task capability credit. Task 67 is immutable 0/1. Commit 9dcd4355 applies future-only shared corrections: reviewer probe failures return to the same model-owned session and cannot support ACCEPT before exact target invocation; successful exploratory Simulation continues to source-owned evaluator authoring and existing independent confirmation when required; theory author and referee prompts request generic assumption countermodels. No task result changed.",
+    "next_step": "Preserve all sixty-seven consumed draws and the 4/67 trusted aggregate. Freeze and execute one unrelated L0 known-result task once under the same exact-Haiku policy to test generalization. Add no DID formula, assumption semantics, Boolean patch, content repair, retry, extra scheduler, Codex runtime embedding, or model escalation."
   }
 }
