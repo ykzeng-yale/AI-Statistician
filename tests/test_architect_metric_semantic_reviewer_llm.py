@@ -724,7 +724,7 @@ def test_dynamic_schema_is_small_and_provider_transformable() -> None:
     ]
     assert requirement_properties["semantic_positive_control"]["properties"][
         "raw_comparison_value"
-    ] == {"type": "number"}
+    ] == {"anyOf": [{"type": "number"}, {"type": "boolean"}]}
     assert schema["properties"]["prior_finding_reviews"]["minItems"] == 1
     assert "claim_checks" not in schema["properties"]
     assert "response_identity_checks" not in schema["properties"]

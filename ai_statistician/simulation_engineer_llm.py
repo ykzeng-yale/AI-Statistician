@@ -13,6 +13,8 @@ from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED,
     GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
+    GENERATED_METRIC_SOURCE_ACCEPTANCE_MODE,
+    GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH,
     generated_metric_contract_binding_json_schema,
     generated_metric_contract_prompt_schema,
     generated_metric_contract_set_id,
@@ -61,6 +63,42 @@ SIMULATION_ENGINEER_BOUNDARY = (
     "and do not count as proof evidence. Executable simulation evidence requires "
     "AgentRuntime to execute the exact submitted source with recorded seed and metrics."
 )
+
+
+def _uses_source_acceptance_program(
+    requirements: list[Mapping[str, Any]],
+) -> bool:
+    return bool(
+        requirements
+        and all(
+            str(row.get("evaluator_mode", "") or "")
+            == GENERATED_METRIC_SOURCE_ACCEPTANCE_MODE
+            for row in requirements
+        )
+    )
+
+
+def _source_acceptance_metric_bindings(
+    *,
+    requirements: list[Mapping[str, Any]],
+    simulation_ids: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    bindings: list[dict[str, Any]] = []
+    for simulation_id in simulation_ids:
+        for requirement in requirements:
+            requirement_id = str(
+                requirement.get("requirement_id", "") or ""
+            )
+            binding_hash = stable_hash([requirement_id, simulation_id])[:20]
+            bindings.append(
+                {
+                    "contract_id": f"source_acceptance_binding:{binding_hash}",
+                    "requirement_id": requirement_id,
+                    "artifact_id": simulation_id,
+                    "metric_path": list(GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH),
+                }
+            )
+    return bindings
 
 
 @dataclass(frozen=True)
@@ -404,6 +442,9 @@ def build_simulation_engineer_prompt(
         compact_environment_feedback,
         target_subsystem="SimulationEngineer",
     ) if requires_typed_metric_contracts else []
+    source_acceptance_program = _uses_source_acceptance_program(
+        authoritative_metric_requirements
+    )
     metric_requirement_authority_policy = (
         GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         if empirical_evaluation_phase
@@ -463,14 +504,36 @@ def build_simulation_engineer_prompt(
             ),
         },
         "typed_metric_contract_schema": (
-            generated_metric_contract_prompt_schema(
-                artifact_id_label="generated simulation_code_drafts simulation_id"
+            {
+                "binding_owner": "AgentRuntime",
+                "stable_metric_path": list(
+                    GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH
+                ),
+                "model_output": [],
+                "source_obligation": (
+                    "implement the frozen acceptance_protocol and return top-level "
+                    "acceptance_passed plus raw measurements and per-check diagnostics"
+                ),
+            }
+            if source_acceptance_program
+            else generated_metric_contract_prompt_schema(
+                artifact_id_label=(
+                    "generated simulation_code_drafts simulation_id"
+                )
             )
             if requires_typed_metric_contracts
             else {}
         ),
         "metric_evaluation_semantics": (
-            generated_metric_evaluation_semantics_contract()
+            {
+                "runtime_role": (
+                    "check only that acceptance_passed is boolean true; all "
+                    "scientific formulas and decisions belong to the reviewed "
+                    "model-authored source"
+                )
+            }
+            if source_acceptance_program
+            else generated_metric_evaluation_semantics_contract()
             if requires_typed_metric_contracts
             else {}
         ),
@@ -485,6 +548,9 @@ def build_simulation_engineer_prompt(
         "required_output_contract": _simulation_engineer_output_contract(
             requires_generated_code=requires_generated_code,
             requires_typed_metric_contracts=requires_typed_metric_contracts,
+            authoritative_metric_requirements=(
+                authoritative_metric_requirements
+            ),
             defer_source_authoring=defer_source_authoring,
             theory_packet=theory_packet,
         ),
@@ -494,29 +560,31 @@ def build_simulation_engineer_prompt(
         payload["generated_simulation_code_contract"]["status"] = (
             "required for capability-eval simulation coding-agent evidence"
         )
+        draft_instruction = (
+            "include one simulation_code_drafts identity row and author source "
+            "only in the following bound client-tool workspace; "
+            if defer_source_authoring
+            else "include one safe simulation_code_drafts entry with entrypoint "
+            "exactly run_sandbox in Python or R, with language, execution_profile, "
+            "dependencies, and complete source declared; "
+        )
+        if source_acceptance_program:
+            metric_instruction = (
+                "leave metric_contracts empty and implement the complete frozen "
+                "acceptance protocol in that source"
+            )
+        elif requires_typed_metric_contracts:
+            metric_instruction = (
+                "include metric_contracts rows bound to the same simulation_id and "
+                "to every authoritative empirical requirement"
+            )
+        else:
+            metric_instruction = (
+                "return raw finite diagnostics and leave metric_contracts empty "
+                "until confirmatory protocol review"
+            )
         payload["generated_simulation_code_contract"]["capability_eval_default"] = (
-            (
-                "include one simulation_code_drafts identity row and author source "
-                "only in the following bound client-tool workspace; "
-                if defer_source_authoring
-                else "include one safe simulation_code_drafts entry with entrypoint "
-                "exactly run_sandbox in Python or R, with language, execution_profile, "
-                "dependencies, and complete source declared; "
-            )
-            + "include metric_contracts rows bound to the same simulation_id and to "
-            "every authoritative empirical requirement"
-            if requires_typed_metric_contracts
-            else (
-                (
-                    "include one simulation_code_drafts identity row, author source "
-                    "only in the following bound client-tool workspace, return raw "
-                    "finite diagnostics, and leave "
-                    if defer_source_authoring
-                    else "include one safe simulation_code_drafts entry with entrypoint "
-                    "exactly run_sandbox, return raw finite diagnostics, and leave "
-                )
-                + "metric_contracts empty until confirmatory protocol review"
-            )
+            draft_instruction + metric_instruction
         )
     if not requires_generated_code:
         generated_simulation_instruction = ""
@@ -536,11 +604,23 @@ def build_simulation_engineer_prompt(
         )
     if requires_typed_metric_contracts:
         generated_simulation_instruction += (
-            "For every authoritative empirical requirement, emit one binding with "
-            "only contract_id, exact requirement_id, artifact_id, and metric_path. "
-            "AgentRuntime joins the immutable thresholds and evaluation semantics. "
-            "The executed source must return raw finite measurements at every frozen "
-            "metric_path; do not weaken or pre-threshold numeric requirements. "
+            (
+                "Set metric_contracts to an empty array. Implement the exact frozen "
+                "acceptance_protocol in the simulation source. Return one top-level "
+                "acceptance_passed boolean together with raw measurements and "
+                "per-check diagnostics sufficient for independent review. "
+                "AgentRuntime binds only that stable interface and never authors, "
+                "interprets, or repairs the scientific decision. "
+            )
+            if source_acceptance_program
+            else (
+                "For every authoritative empirical requirement, emit one binding with "
+                "only contract_id, exact requirement_id, artifact_id, and metric_path. "
+                "AgentRuntime joins the immutable thresholds and evaluation semantics. "
+                "The executed source must return raw finite measurements at every "
+                "frozen metric_path; do not weaken or pre-threshold numeric "
+                "requirements. "
+            )
         )
     elif requires_generated_code:
         generated_simulation_instruction += (
@@ -665,6 +745,11 @@ punctuation-sensitive JSON key. Before each submission, compare the nested keys
 returned by run_sandbox with every frozen path segment; do not normalize names or
 reuse a nearby name from theory prose. A measurement_interface_failure is a failed
 source ABI until the submitted result resolves the exact frozen path. When
+evaluator_mode is simulation_source_acceptance_v1, implement the complete frozen
+measurement_protocol in this source and return top-level acceptance_passed as a
+boolean together with raw measurements and per-check diagnostics. Runtime checks
+only that stable interface; it does not implement or repair the scientific decision.
+When
 required_estimator_ids are bound, the estimators argument contains runtime-injected
 callbacks at those exact keys. Call every bound callback with its declared request
 object and consume its declared response; never reimplement, wrap, or substitute a
@@ -1006,6 +1091,7 @@ def _simulation_engineer_output_contract(
     *,
     requires_generated_code: bool,
     requires_typed_metric_contracts: bool = True,
+    authoritative_metric_requirements: list[Mapping[str, Any]] | None = None,
     defer_source_authoring: bool = False,
     theory_packet: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -1023,11 +1109,19 @@ def _simulation_engineer_output_contract(
             }
         ]
     if requires_generated_code and requires_typed_metric_contracts:
-        contract["metric_contracts"] = [
-            generated_metric_contract_prompt_schema(
-                artifact_id_label="generated simulation_code_drafts simulation_id"
+        contract["metric_contracts"] = (
+            []
+            if _uses_source_acceptance_program(
+                list(authoritative_metric_requirements or [])
             )
-        ]
+            else [
+                generated_metric_contract_prompt_schema(
+                    artifact_id_label=(
+                        "generated simulation_code_drafts simulation_id"
+                    )
+                )
+            ]
+        )
     elif requires_generated_code:
         contract["metric_contracts"] = []
     return contract
@@ -1056,6 +1150,18 @@ def _simulation_engineer_response_schema(
         if isinstance(row, Mapping)
         and str(row.get("requirement_id", "") or "").strip()
     ]
+    source_acceptance_program = _uses_source_acceptance_program(
+        authoritative_metric_requirements
+    )
+    if source_acceptance_program or not requires_typed_metric_contracts:
+        metric_contract_schema: dict[str, Any] = {"maxItems": 0}
+    else:
+        metric_contract_schema = {
+            "minItems": max(1, len(requirement_ids)),
+            "items": generated_metric_contract_binding_json_schema(
+                requirement_ids=requirement_ids,
+            ),
+        }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -1124,16 +1230,7 @@ def _simulation_engineer_response_schema(
             },
             "metric_contracts": {
                 "type": "array",
-                **(
-                    {
-                        "minItems": max(1, len(requirement_ids)),
-                        "items": generated_metric_contract_binding_json_schema(
-                            requirement_ids=requirement_ids,
-                        ),
-                    }
-                    if requires_typed_metric_contracts
-                    else {"maxItems": 0}
-                ),
+                **metric_contract_schema,
             },
             "next_actions": _simulation_next_actions_json_schema(),
         },
@@ -1441,6 +1538,11 @@ def _validate_capability_eval_generated_simulation_packet(
         == SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
     )
     errors: list[str] = []
+    errors.extend(
+        str(error)
+        for error in packet.get("source_acceptance_binding_errors", []) or []
+        if str(error).strip()
+    )
     if not drafts:
         errors.append(
             "capability_eval requires at least one Claude/OpenAI-generated "
@@ -1511,12 +1613,40 @@ def _normalize_simulation_packet(
         for row in authoritative_metric_requirements or []
         if isinstance(row, Mapping)
     ]
+    source_acceptance_program = _uses_source_acceptance_program(
+        authority_rows
+    )
+    source_acceptance_binding_errors: list[str] = []
+    if source_acceptance_program:
+        if metric_contract_rows:
+            source_acceptance_binding_errors.append(
+                "source-acceptance mode requires model metric_contracts to remain "
+                "empty; AgentRuntime owns the stable binding"
+            )
+        simulation_ids = tuple(
+            str(row.get("simulation_id", "") or "").strip()
+            for row in body.get("simulation_code_drafts", []) or []
+            if isinstance(row, Mapping)
+            and str(row.get("simulation_id", "") or "").strip()
+        )
+        metric_contract_rows = _source_acceptance_metric_bindings(
+            requirements=authority_rows,
+            simulation_ids=simulation_ids,
+        )
     metric_contract_rows = materialize_generated_metric_contract_bindings(
         metric_contract_rows,
         authoritative_requirements=authority_rows,
         target_subsystem="SimulationEngineer",
     )
     body["metric_contracts"] = metric_contract_rows
+    body["metric_binding_mode"] = (
+        "runtime_bound_source_acceptance_abi"
+        if source_acceptance_program
+        else "model_bound_metric_path"
+    )
+    body["source_acceptance_binding_errors"] = (
+        source_acceptance_binding_errors
+    )
     body["metric_contract_set_id"] = generated_metric_contract_set_id(
         metric_contract_rows
     )

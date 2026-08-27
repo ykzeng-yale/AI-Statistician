@@ -15,12 +15,11 @@ from ai_statistician.client_tool_loop import (
 from ai_statistician.architect_metric_contract_authoring import (
     ArchitectMetricContractAuthoringConfig,
     ArchitectMetricSemanticReviewRejected,
-    FRESH_METRIC_AUTHORING_AUTHORITY_KIND,
     METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
     METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
     METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
     METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
-    _materialize_metric_authoring_model_requirement,
+    _materialize_source_acceptance_protocol,
     _run_metric_protocol_workspace,
     author_reviewed_architect_metric_requirements,
     build_architect_upstream_research_contract,
@@ -143,155 +142,32 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "evidence authority" in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
 
 
-def test_fresh_metric_author_owns_semantics_not_provenance_labels() -> None:
-    anchor_id = "theory#/guarantee"
-    materialized, errors = _materialize_metric_authoring_model_requirement(
+def test_source_acceptance_protocol_materializes_one_stable_boolean_abi() -> None:
+    materialized, errors = _materialize_source_acceptance_protocol(
         {
-            "requirement_id": "generic-risk-bound",
-            "metric_semantics": "estimated risk of the generated procedure",
-            "metric_value_kind": "numeric",
-            "measurement_protocol": "return the empirical risk over fresh replicates",
-            "operator": "<=",
-            "aggregation": "identity",
-            "predicate_authority": {
-                "source_anchors": [anchor_id],
-                "rationale": "the theory identifies risk as the target quantity",
-            },
-            "gate_fields": {
-                "threshold": {
-                    "value": 0.1,
-                    "source_anchors": [anchor_id],
-                    "rationale": "pre-execution decision threshold",
-                }
-            },
+            "required_runtime_replicates": 2_000,
+            "evaluator_id": "generic-confirmatory-acceptance",
+            "acceptance_protocol": (
+                "Compute raw bias and coverage diagnostics across the declared "
+                "scenarios, retain every check, and accept only when their joint "
+                "pre-outcome criterion passes."
+            ),
+            "scientific_rationale": (
+                "Two thousand replicates target the declared Monte Carlo precision."
+            ),
         },
-        requirement_index=0,
-        required_runtime_replicates=7_300,
+        theory_anchor_id="theory_artifact:generic",
     )
 
     assert errors == []
-    assert materialized["threshold"] == 0.1
-    assert materialized["required_runtime_replicates"] == 7_300
-    assert materialized["acceptance_authority_kind"] == (
-        FRESH_METRIC_AUTHORING_AUTHORITY_KIND
-    )
-    assert materialized["gate_field_authorities"][0]["authority_kind"] == (
-        FRESH_METRIC_AUTHORING_AUTHORITY_KIND
-    )
-
-
-def test_fresh_metric_gate_object_has_unique_keys_and_runtime_order() -> None:
-    anchor_id = "theory#/guarantee"
-    materialized, errors = _materialize_metric_authoring_model_requirement(
-        {
-            "requirement_id": "generic-calibrated-risk",
-            "metric_semantics": "calibrated empirical risk",
-            "metric_value_kind": "numeric",
-            "measurement_protocol": "return one risk estimate",
-            "operator": "<=",
-            "aggregation": "identity",
-            "predicate_authority": {
-                "source_anchors": [anchor_id],
-                "rationale": "risk is the target quantity",
-            },
-            "gate_fields": {
-                "tolerance": {
-                    "value": 0.02,
-                    "source_anchors": [anchor_id],
-                    "rationale": "finite replicate uncertainty",
-                },
-                "threshold": {
-                    "value": 0.1,
-                    "source_anchors": [anchor_id],
-                    "rationale": "decision threshold",
-                },
-            },
-        },
-        requirement_index=0,
-        required_runtime_replicates=7_300,
-    )
-
-    assert errors == []
-    assert [
-        row["field"] for row in materialized["gate_field_authorities"]
-    ] == ["threshold", "tolerance"]
-
-    _materialized, invalid_errors = (
-        _materialize_metric_authoring_model_requirement(
-            {
-                "requirement_id": "invalid-gate-key",
-                "metric_semantics": "one scalar",
-                "metric_value_kind": "numeric",
-                "measurement_protocol": "return one scalar",
-                "operator": "<=",
-                "aggregation": "identity",
-                "predicate_authority": {
-                    "source_anchors": [anchor_id],
-                    "rationale": "scalar target",
-                },
-                "gate_fields": {
-                    "threshold": {
-                        "value": 0.1,
-                        "source_anchors": [anchor_id],
-                        "rationale": "decision threshold",
-                    },
-                    "duplicate_threshold": {
-                        "value": 0.2,
-                        "source_anchors": [anchor_id],
-                        "rationale": "unsupported duplicate alias",
-                    },
-                },
-            },
-            requirement_index=0,
-            required_runtime_replicates=7_300,
-        )
-    )
-    assert any("unsupported fields" in error for error in invalid_errors)
-
-
-def test_fresh_boolean_all_rejects_redundant_quorum_field_without_repair() -> None:
-    anchor_id = "theory#/guarantee"
-    base = {
-        "requirement_id": "generic-identity-check",
-        "metric_semantics": "whether a declared identity holds on every replicate",
-        "metric_value_kind": "boolean",
-        "measurement_protocol": "return one boolean identity result per replicate",
-        "operator": "==",
-        "aggregation": "all",
-        "predicate_authority": {
-            "source_anchors": [anchor_id],
-            "rationale": "the theory declares an exact identity",
-        },
-    }
-    invalid, errors = _materialize_metric_authoring_model_requirement(
-        {
-            **base,
-            "gate_fields": {
-                "minimum_pass_fraction": {
-                    "value": 1.0,
-                    "source_anchors": [anchor_id],
-                    "rationale": "redundantly restates all",
-                }
-            },
-        },
-        requirement_index=0,
-        required_runtime_replicates=7_300,
-    )
-
-    assert invalid["minimum_pass_fraction"] == 1.0
-    assert any(
-        "expected=[] observed=['minimum_pass_fraction']" in error
-        for error in errors
-    )
-
-    valid, valid_errors = _materialize_metric_authoring_model_requirement(
-        {**base, "gate_fields": {}},
-        requirement_index=0,
-        required_runtime_replicates=7_300,
-    )
-    assert valid_errors == []
-    assert valid["minimum_pass_fraction"] is None
-    assert valid["gate_field_authorities"] == []
+    assert materialized["requirement_id"] == "generic-confirmatory-acceptance"
+    assert materialized["metric_value_kind"] == "boolean"
+    assert materialized["operator"] == "=="
+    assert materialized["aggregation"] == "identity"
+    assert materialized["threshold"] == 1
+    assert materialized["gate_field_authorities"] == []
+    assert materialized["source_anchors"] == ["theory_artifact:generic"]
+    assert materialized["evaluator_mode"] == "simulation_source_acceptance_v1"
 
 
 class _Backend:
@@ -4491,8 +4367,11 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert "distinguish absolute error, relative error" in prompt
     assert "bare O(1/sqrt(n)) rate" in prompt
     assert "does not alone justify a tight finite-run threshold" in prompt
-    assert "Preserve the requested scientific claim granularity" in prompt
-    assert "remain exploratory" in prompt
+    assert "exactly one compact evaluator protocol" in prompt
+    assert "Do not expand scenarios or moments into repeated schema rows" in prompt
+    assert "top-level acceptance_passed" in prompt
+    assert "gate_fields" not in prompt
+    assert len(prompt) < 10_000
     assert [tool.name for tool in request.tools] == [
         METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
@@ -4504,7 +4383,7 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert request.metadata["document_body_in_terminal_tool"] is False
     assert request.metadata["runtime_initialized_structural_scaffold"] is True
     assert request.max_tokens == 8000
-    assert "model-authored pre-execution count for the entire portfolio" in prompt
+    assert "required_runtime_replicates" in prompt
 
 
 def test_metric_protocol_atomic_batch_rejects_partial_then_commits(

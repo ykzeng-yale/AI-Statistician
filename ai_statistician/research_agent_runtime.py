@@ -24098,9 +24098,14 @@ def _scientific_workspace_metric_contracts(
         "minimum_pass_count",
         "minimum_pass_fraction",
         "required_runtime_replicates",
+        "evaluator_mode",
     )
     return [
-        {field: deepcopy(row.get(field)) for field in fields}
+        {
+            field: deepcopy(row.get(field))
+            for field in fields
+            if field != "evaluator_mode" or field in row
+        }
         for row in values
         if isinstance(row, Mapping)
     ]

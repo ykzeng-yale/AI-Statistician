@@ -79,10 +79,13 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "resource limits are not scientific justification."
     ),
     (
-        "For every numeric row, substitute the declared raw metric through its exact "
-        "aggregation and gate; runtime applies no hidden centering, absolute value, or "
-        "normalization. Supply one scientifically justified comparison-scale "
-        "semantic_positive_control, which runtime will evaluate after the review."
+        "For a legacy numeric row, substitute the declared raw metric through its "
+        "exact aggregation and gate; runtime applies no hidden centering, absolute "
+        "value, or normalization. For a model-owned source acceptance program, "
+        "challenge the complete protocol as one preregistered scientific decision, "
+        "including its formulas, scenarios, raw diagnostics, multiplicity, and "
+        "attainability. Supply one scientifically justified semantic_positive_control "
+        "that should pass; runtime checks only its declared boolean-or-numeric ABI."
     ),
     (
         "Judge the portfolio for consistency, redundancy, dependence, multiplicity, "
@@ -285,6 +288,7 @@ def _compact_evaluator_certificate(value: Any) -> dict[str, Any]:
                 "requirement_id",
                 "target_subsystems",
                 "metric_value_kind",
+                "evaluator_mode",
                 "operator",
                 "aggregation",
                 "required",
@@ -488,7 +492,9 @@ def _review_row_schema(
             "additionalProperties": False,
             "required": ["raw_comparison_value", "rationale", "evidence_refs"],
             "properties": {
-                "raw_comparison_value": {"type": "number"},
+                "raw_comparison_value": {
+                    "anyOf": [{"type": "number"}, {"type": "boolean"}]
+                },
                 "rationale": {
                     "type": "string",
                     "minLength": 1,
@@ -1137,12 +1143,10 @@ def validate_architect_metric_semantic_review_packet(
             )
             control = {}
         control_value = control.get("raw_comparison_value")
-        if not isinstance(control_value, (int, float)) or isinstance(
-            control_value, bool
-        ):
+        if not isinstance(control_value, (bool, int, float)):
             errors.append(
                 f"requirement review {requirement_id or index} positive control "
-                "must contain one numeric raw_comparison_value"
+                "must contain one boolean or numeric raw_comparison_value"
             )
         if not str(control.get("rationale", "") or "").strip():
             errors.append(

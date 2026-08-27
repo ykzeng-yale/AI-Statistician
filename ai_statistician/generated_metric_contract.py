@@ -14,6 +14,10 @@ GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES = 100_000
 GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE = (
     "GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE"
 )
+GENERATED_METRIC_SOURCE_ACCEPTANCE_MODE = "simulation_source_acceptance_v1"
+GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH: tuple[str, ...] = (
+    "acceptance_passed",
+)
 GENERATED_METRIC_CONTRACT_BOUNDARY = (
     "Typed generated-metric contracts are pre-execution empirical acceptance "
     "controls. Runtime evaluation of them is implementation or simulation "
@@ -127,6 +131,7 @@ GENERATED_METRIC_AUTHORITY_COPY_FIELDS: tuple[str, ...] = (
     "acceptance_authority_rationale",
     "gate_field_authority_mode",
     "gate_field_authorities",
+    "evaluator_mode",
 )
 GENERATED_METRIC_BINDING_FIELDS: tuple[str, ...] = (
     "contract_id",
@@ -266,6 +271,9 @@ def generated_metric_evaluator_certificate(
             "dispatch_value": aggregation,
             "dispatch_class": dispatch_class,
             "metric_value_kind": _generated_metric_value_kind(requirement),
+            "evaluator_mode": str(
+                requirement.get("evaluator_mode", "") or ""
+            ),
             "evaluation_order": evaluation_order,
             "comparison_stage": {
                 "input": comparison_input,
@@ -816,6 +824,15 @@ def generated_metric_requirement_json_schema(
                     "Use numeric for measurable finite quantities. Use boolean "
                     "only for an intrinsically true/false predicate returned as "
                     "bool or exact 0/1."
+                ),
+            },
+            "evaluator_mode": {
+                "type": "string",
+                "enum": [GENERATED_METRIC_SOURCE_ACCEPTANCE_MODE],
+                "description": (
+                    "When present, SimulationEngineer owns the complete reviewed "
+                    "acceptance implementation and runtime checks only the stable "
+                    "acceptance_passed boolean ABI."
                 ),
             },
             "measurement_protocol": {

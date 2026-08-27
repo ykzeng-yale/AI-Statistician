@@ -14,6 +14,12 @@ from ai_statistician.algorithm_engineer_llm import (
     validate_algorithm_engineer_packet,
 )
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.architect_metric_contract_authoring import (
+    _materialize_source_acceptance_protocol,
+)
+from ai_statistician.generated_metric_contract import (
+    GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH,
+)
 from ai_statistician.scientific_sandbox import (
     SCIENTIFIC_SANDBOX_BOUNDARY,
     ScientificEstimatorBinding,
@@ -35,9 +41,11 @@ from ai_statistician.scientific_code_workspace import (
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    _normalize_simulation_packet,
     _simulation_engineer_response_schema,
     _validate_capability_eval_generated_simulation_packet,
     _validate_simulation_estimator_selection,
+    build_simulation_engineer_prompt,
     validate_simulation_engineer_packet,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
@@ -512,6 +520,157 @@ def test_native_source_transport_removes_source_from_provider_schema() -> None:
     assert "registered_simulator" not in simulation_schema["properties"][
         "runtime_execution_plan"
     ]["properties"]
+
+
+def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
+    requirement, requirement_errors = _materialize_source_acceptance_protocol(
+        {
+            "required_runtime_replicates": 2_000,
+            "evaluator_id": "generic-source-acceptance",
+            "acceptance_protocol": (
+                "Return raw diagnostics and accept exactly when the preregistered "
+                "joint scientific criterion holds."
+            ),
+            "scientific_rationale": "The criterion tests the declared target.",
+        },
+        theory_anchor_id="theory_artifact:generic",
+    )
+    assert requirement_errors == []
+    schema = _simulation_engineer_response_schema(
+        authoritative_metric_requirements=[requirement],
+        requires_generated_code=True,
+        requires_typed_metric_contracts=True,
+        defer_source_authoring=True,
+    )
+    assert schema["properties"]["metric_contracts"]["maxItems"] == 0
+
+    question = OpenResearchQuestion(
+        id="generic-source-acceptance",
+        title="Evaluate one generic source acceptance program",
+        description="Run one model-authored confirmatory evaluator.",
+    )
+    prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet={},
+        registered_problem={},
+        registered_procedures=[],
+        n_runs=2_000,
+        seed=7,
+        environment_feedback={
+            "runtime_requested_evidence_contract": {
+                "research_evaluation_requires_generated_simulation_code": True,
+                "empirical_metric_requirements": [requirement],
+            }
+        },
+        defer_source_authoring=True,
+    )
+    prompt_payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    capability_default = prompt_payload["generated_simulation_code_contract"][
+        "capability_eval_default"
+    ]
+    assert "leave metric_contracts empty" in capability_default
+    assert "include metric_contracts rows" not in capability_default
+
+    model_payload = {
+        "theory_trace_alignment": {},
+        "simulation_targets": [
+            {
+                "procedure_id": "generic-simulation",
+                "estimand": "generic target",
+            }
+        ],
+        "runtime_execution_plan": {"n_runs": 2_000, "seed": 7},
+        "critic_findings": [
+            {
+                "critic": "independent source reviewer",
+                "finding": "inspect the exact implementation",
+                "reroute_if_confirmed": "SimulationEngineer",
+            }
+        ],
+        "simulation_code_drafts": [
+            {
+                "simulation_id": "generic-simulation",
+                "required_estimator_ids": [],
+            }
+        ],
+        "metric_contracts": [],
+        "next_actions": [
+            {
+                "owner_agent": "SimulationEngineer",
+                "action": "author the exact source",
+                "acceptance_gate": "frozen source acceptance ABI",
+            }
+        ],
+    }
+    normalization_kwargs = {
+        "question": question,
+        "model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "raw_response": "source-acceptance-envelope",
+        "theory_packet": {},
+        "n_runs": 2_000,
+        "seed": 7,
+        "authoritative_metric_requirements": [requirement],
+        "metric_requirement_authority_policy": (
+            "architect_authored_coding_agent_bound_required"
+        ),
+        "empirical_evaluation_phase": "confirmatory",
+        "scientific_source_transport": (
+            SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+        ),
+        "agentic_execution": True,
+    }
+    packet = _normalize_simulation_packet(
+        model_payload,
+        **normalization_kwargs,
+    )
+
+    assert packet["metric_binding_mode"] == (
+        "runtime_bound_source_acceptance_abi"
+    )
+    assert packet["source_acceptance_binding_errors"] == []
+    assert len(packet["metric_contracts"]) == 1
+    binding = packet["metric_contracts"][0]
+    assert binding["artifact_id"] == "generic-simulation"
+    assert binding["metric_path"] == list(
+        GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH
+    )
+    assert binding["requirement_id"] == requirement["requirement_id"]
+    assert binding["evaluator_mode"] == "simulation_source_acceptance_v1"
+    assert _validate_capability_eval_generated_simulation_packet(
+        packet,
+        authoritative_metric_requirements=[requirement],
+        require_authoritative_requirements=True,
+        require_typed_metric_contracts=True,
+    ) == []
+
+    injected_packet = _normalize_simulation_packet(
+        {
+            **model_payload,
+            "metric_contracts": [
+                {
+                    "contract_id": "model-owned-binding",
+                    "requirement_id": requirement["requirement_id"],
+                    "artifact_id": "generic-simulation",
+                    "metric_path": ["model_selected_path"],
+                }
+            ],
+        },
+        **normalization_kwargs,
+    )
+    injected_errors = _validate_capability_eval_generated_simulation_packet(
+        injected_packet,
+        authoritative_metric_requirements=[requirement],
+        require_authoritative_requirements=True,
+        require_typed_metric_contracts=True,
+    )
+    assert any(
+        "model metric_contracts to remain empty" in error
+        for error in injected_errors
+    )
+    assert injected_packet["metric_contracts"] == packet["metric_contracts"]
 
 
 def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> None:

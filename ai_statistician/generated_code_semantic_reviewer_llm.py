@@ -64,6 +64,7 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
         "declared assumptions and theory alignment",
         "executable interface and actual runtime arguments",
         "experiment non-vacuity and identifiability",
+        "source implementation of a frozen model-authored acceptance protocol",
     ],
     "downstream_empirical_evaluator_scope": [
         "realized metric values and acceptance thresholds",
@@ -79,7 +80,10 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
     "metric_dimension_rule": (
         "frozen_measurement_protocol_alignment checks statistic binding, path, shape, "
         "units, and meaning; metric_semantics_alignment checks meaning. Neither "
-        "adjudicates realized threshold pass or fail."
+        "adjudicates realized threshold pass or fail. When evaluator_mode is "
+        "simulation_source_acceptance_v1, inspect whether the exact source implements "
+        "the complete frozen protocol and retains auditable raw measurements and "
+        "per-check diagnostics; do not infer correctness from acceptance_passed alone."
     ),
     "runtime_argument_rule": (
         "Every runtime argument with a declared semantic or resource role must affect "
@@ -375,6 +379,7 @@ _SEMANTIC_METRIC_FIELDS = frozenset(
         "authority_source_subsystem",
         "boundary",
         "contract_id",
+        "evaluator_mode",
         "gate_field_authorities",
         "gate_field_authority_mode",
         "lower",
