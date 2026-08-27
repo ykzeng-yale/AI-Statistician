@@ -5730,6 +5730,8 @@
         "semantic_calibration_model": "claude-haiku-4-5-20251001",
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
+        "authority_binding_commit": "5c3adcf2818c6897391ba2084838f8a50bd5af54",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_product_model_calls": 0,
         "preactivation_evaluator_model_calls": 2,
         "first_runtime_model_call_occurred": false,

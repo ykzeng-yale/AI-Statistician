@@ -5123,6 +5123,10 @@ def test_nadaraya_watson_l0_is_frozen_before_its_first_product_call() -> None:
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["authority_binding_commit"] == (
+        "5c3adcf2818c6897391ba2084838f8a50bd5af54"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
     assert evidence["mechanical_reference_checks"] == "7/7"
