@@ -6,10 +6,15 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`e9a446d79dc2b40549186ac69f665794ad52cdd5`.
+`6c59264b14b963d45d1005e7a8b1de87d4b054e2`.
 
 Latest selective-adoption implementation commits:
 
+- `3fe4bdb9fd3a63148078261e5efc10f76066ee98`: let the native
+  Simulation source session own both scientific planning and implementation
+  when the runtime can express the boundary as exploratory diagnostics or a
+  frozen confirmatory source-acceptance ABI, removing the detached planning
+  model call without weakening preregistration, blinding, or lineage;
 - `2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60`: keep one complete hidden
   candidate in one semantic context and return document-wide plus per-claim
   judgments together instead of fragmenting it across one call per claim;
@@ -88,6 +93,8 @@ Primary references:
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [OpenAI's App Server harness explanation](https://openai.com/index/unlocking-the-codex-harness/)
 - [OpenAI's harness-engineering principles](https://openai.com/index/harness-engineering/)
+- [Codex multi-agent session instructions](https://github.com/openai/codex/blob/6c59264b14b963d45d1005e7a8b1de87d4b054e2/codex-rs/core/src/session/multi_agents.rs)
+- [Codex Python SDK app-server client](https://github.com/openai/codex/blob/6c59264b14b963d45d1005e7a8b1de87d4b054e2/sdk/python/src/openai_codex/client.py)
 
 ## Decision
 
@@ -2386,3 +2393,47 @@ passed `967/967` in 78.15 seconds. Compileall, diff hygiene, the unchanged 150,0
 architecture budget, and changed-file secret hygiene passed. Task 62 and every earlier
 draw remain immutable, trustworthy capability remains `4/62`, and exact development
 theorem closure remains `0/2`.
+
+## Source-owned Simulation planning
+
+The current Codex checkout was rechecked through
+[`6c59264b`](https://github.com/openai/codex/commit/6c59264b14b963d45d1005e7a8b1de87d4b054e2).
+The only delta after the prior `e9a446d7` pin increases Guardian V2 async-test
+timeouts; it changes no production agent-loop, collaboration, tool, or state
+boundary.
+
+The deeper reuse decision remains selective. Codex's Python SDK is a typed client
+that launches the bundled `codex app-server --listen stdio://`; importing it would
+therefore import Codex's conversation owner, thread lifecycle, tool router, and
+provider boundary rather than supply a provider-neutral inner-loop library. Codex
+multi-agent V2 is useful as a collaboration vocabulary: a same-owner continuation
+keeps exact session state, while a new specialist can receive no parent turns and a
+small explicit task. Its default shared working directory is not sufficient for
+scientific blinding or independent review, so AI Statistician keeps isolated
+reviewer workspaces and content-addressed artifact references.
+
+The local audit found one remaining violation of the reusable principle.
+AlgorithmEngineer already lets one native Python/R source session plan, implement,
+execute, and revise against raw observations. Confirmatory Simulation still made a
+detached structured-output planning call before entering the same model's source
+session, even when runtime had already frozen one stable source-acceptance ABI.
+
+Commit `3fe4bdb9` removes that call for future exploratory runs and future
+confirmatory source-acceptance runs. Runtime materializes only a deterministic
+intent identity, exact accepted-estimator references, frozen requirement bindings,
+replicate count, and seed-disclosure state. The Simulation source owner receives
+the authoritative Theory documents, estimator ABI, frozen protocol, sandbox tools,
+and raw observations in one session; it chooses the DGP, implementation, and
+diagnostics. Legacy frozen metric-path packets retain their existing reconstruction
+path because their binding cannot be inferred without changing scientific content.
+
+This adds no App Server, SDK, thread manager, shared-cwd collaboration, planner
+agent, repair worker, provider retry, model escalation, statistical rule, or second
+scheduler. The focused source-acceptance checks passed `3/3`, the adjacent
+Simulation/Runtime panel passed `132/132`, and the complete repository passed
+`968/968` in 79.47 seconds. Compile-all, diff hygiene, model-policy and secret scans,
+and the unchanged 150,000-line architecture budget passed; production Python is
+149,270 lines. No live model was called and no consumed task was rerun, resumed,
+repaired, hidden-evaluated, rescored, or resampled. Task 62 remains immutable `0/1`,
+trustworthy capability remains `4/62`, and exact development theorem closure remains
+`0/2`.

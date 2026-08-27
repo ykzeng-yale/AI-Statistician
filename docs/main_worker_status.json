@@ -1,13 +1,25 @@
 {
-  "schema_version": 213,
+  "schema_version": 214,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
+  "validated_code_head": "3fe4bdb9fd3a63148078261e5efc10f76066ee98",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty-two consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/62 and exact development Lean closure remains 0/2. Task 62 confirms that persistent Markdown/LaTeX Theory, direct Algorithm source execution, and same-session reviewer probes work mechanically, but exact Haiku author and referee retained a false fixed-rate large-shape Poisson-limit claim and runtime stopped before Simulation. Commit ccaca8d7 fixes only future same-session metric-review draft lifecycle. Commit 2696ebb5 fixes a separate future evaluator flaw: hidden candidate semantics now use one integrated document context with both document-wide and per-claim status, replacing one isolated call per claim so an extra active falsehood has an authority path and cross-claim contradictions remain visible. Neither change rescored Task 62. AgentRuntime still owns only intent, identity, blinding, lineage, structural validation, execution, and evidence authority. Improve scientific judgment without Gamma-Poisson formulas, deterministic mathematical parsers, extra votes, retries, routes, or another scheduler; then freeze a disjoint known-result task before any new exact-Haiku product call. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty-two consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/62 and exact development Lean closure remains 0/2. Task 62 confirms that persistent Markdown/LaTeX Theory, direct Algorithm source execution, and same-session reviewer probes work mechanically, but exact Haiku author and referee retained a false fixed-rate large-shape Poisson-limit claim and runtime stopped before Simulation. Commit ccaca8d7 fixes only future same-session metric-review draft lifecycle. Commit 2696ebb5 fixes a separate future evaluator flaw by judging one complete candidate in one integrated context. Commit 3fe4bdb9 removes a redundant confirmatory Simulation planning-envelope model call: when a stable source-acceptance ABI is frozen, the same Python/R source session now owns scientific planning, implementation, execution feedback, and revision while runtime retains requirement identity, accepted estimator refs, replicates, seed blinding, and evidence authority. None of these changes rescored Task 62. AgentRuntime still owns only intent, identity, blinding, lineage, structural validation, execution, and evidence authority. Improve scientific judgment without Gamma-Poisson formulas, deterministic mathematical parsers, extra votes, retries, routes, or another scheduler; then freeze a disjoint known-result task before any new exact-Haiku product call. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
+  "latest_codex_simulation_source_owner_change": {
+    "implementation_commit": "3fe4bdb9fd3a63148078261e5efc10f76066ee98",
+    "upstream_codex_reference_head": "6c59264b14b963d45d1005e7a8b1de87d4b054e2",
+    "upstream_incremental_finding": "The only upstream delta after e9a446d7 increases Guardian V2 asynchronous test timeouts. It changes no production agent-loop, collaboration, tool, or state boundary.",
+    "reuse_decision": "Reuse Codex's same-session model-tool-observation loop, external authoritative files, exact continuation semantics, and sparse artifact-referenced collaboration. Do not import Codex core, the Python SDK, App Server, thread storage, provider transport, shared-cwd multi-agent execution, Guardian, or another scheduler.",
+    "change": "Future exploratory Simulation and confirmatory source-acceptance runs no longer ask the model for a detached structured planning envelope before opening the Python/R coding workspace. Runtime materializes one deterministic intent and frozen dependency/evaluator bindings; the same source-owning model session chooses the DGP, implementation, and diagnostics against raw sandbox observations.",
+    "authority_boundary": "Runtime still freezes metric requirement identity, replicate count, exact accepted-estimator references, seed disclosure, source/result hashes, outcome blinding, and terminal evidence authority. Frozen legacy metric-path packets keep their explicit reconstruction path. No scientific content is inferred, patched, or relaxed.",
+    "collaboration_mapping": "Same-owner continuation restores the exact persisted workspace checkpoint. Cross-owner specialists receive compact hash-bound artifact references and no copied parent transcript. Independent scientific reviewers retain isolated workspaces rather than Codex's default shared working directory.",
+    "model_policy": "No live model call occurred. Tests use exact claude-haiku-4-5-20251001 fixtures; no Sonnet, Opus, provider retry, escalation, or alternate provider was introduced.",
+    "regression_evidence": "Focused source-acceptance 3/3; adjacent Simulation/Runtime 132/132; complete repository 968/968 in 79.47 seconds. Compile-all, diff hygiene, model-policy and changed-file secret scans passed. Top-level production Python is 149270 lines under the unchanged 150000-line budget.",
+    "consumed_task_boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated, rescored, or resampled. Task 62 remains immutable 0/1, trustworthy capability remains 4/62, and exact development theorem closure remains 0/2."
+  },
   "latest_integrated_semantic_gold_judge_change": {
     "implementation_commit": "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
     "change": "Future hidden theory and source-report candidates are adjudicated once in a complete document context. The same structured response carries an independent document_status plus keyed statuses for every frozen rubric claim. Overall status fails when either the whole-document judgment or a required claim fails.",
@@ -1094,12 +1106,12 @@
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "e9a446d79dc2b40549186ac69f665794ad52cdd5",
-    "latest_incremental_finding": "The one-commit Codex delta from 89650c66 through e9a446d adds low-cardinality Guardian V2 classification and fast-decision reason metrics, including explicit deferred reasons for missing, stale, failed, out-of-scope, or elevated-risk scores. It does not alter the same-session model/tool/observation loop. The applicable principle is to keep lifecycle decision telemetry compact and reason-coded while never treating it as scientific evidence; embedding Guardian, Codex core, App Server, Responses transport, or its SDK would still add the wrong authority and scheduler boundaries.",
-    "latest_incremental_adoption": "Commit 2696ebb5 applies the same context-coherence principle to evaluator work: one hidden semantic candidate remains in one complete document context instead of fragmenting the same artifact across one call per claim. The model returns document-wide and per-claim judgments together; deterministic code only validates evidence identities and combines statuses. Candidate calls drop from the claim count to one, with no new agent, vote, repair path, Architect route, provider retry, model escalation, or scheduler.",
+    "latest_rechecked_upstream_commit": "6c59264b14b963d45d1005e7a8b1de87d4b054e2",
+    "latest_incremental_finding": "The one-commit Codex delta from e9a446d7 through 6c59264b changes only Guardian V2 asynchronous test timeouts. The production same-session model/tool/observation loop, App Server boundary, Python SDK, and multi-agent semantics are unchanged. The SDK still launches bundled codex app-server over stdio, so importing it would add a second conversation owner rather than provide a provider-neutral Claude inner loop.",
+    "latest_incremental_adoption": "Commit 3fe4bdb9 applies Codex's source-owner principle to future Simulation work. When runtime already has either an exploratory intent or a frozen confirmatory source-acceptance ABI, one Python/R workspace owns planning, source, execution feedback, and revision. The detached planning-envelope model call is removed while runtime preserves exact requirement bindings, accepted estimator refs, replicate count, seed blinding, and evidence authority.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
+    "implementation_commit": "3fe4bdb9fd3a63148078261e5efc10f76066ee98",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -1149,7 +1161,8 @@
       "f44fcd21cee441f0a2f9bf90a29083c09157422d",
       "5d5125607c58bc5830ac11a27c6c64ce6764e344",
       "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f",
-      "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
+      "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
+      "3fe4bdb9fd3a63148078261e5efc10f76066ee98"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -1182,10 +1195,14 @@
       "codex-rs/protocol/src/response_usage.rs": "0e59149bfc41168543d127ee0e8a4e1add368e54962ad69d15f6d4a3603104d1",
       "codex-rs/ext/guardian-v2/src/async_scorer/extension.rs": "9e4c8613c1887442df189ced2c615f2a15bab5432c70fcaaeaae9a6ee63225c7",
       "codex-rs/ext/guardian-v2/src/async_scorer/metrics.rs": "b3c1a87de570107de7017540950397836e69511760fed2c8e8a3785b495a1010",
+      "codex-rs/ext/guardian-v2/src/async_scorer/extension_tests.rs": "6b54a551bb007c936778142a0e31a552c9dd474cc4317ae05f6e5871fd735305",
+      "codex-rs/core/src/session/multi_agents.rs": "2ea650cdededf56c2a94425be7a3c5323f200f675acc543cd281a3d1d0ea0c80",
+      "sdk/python/src/openai_codex/client.py": "76bdb1e63c62987c3530ea763e9655a06b308cbc4e18cb51958e85b6c23aec3b",
       "sdk/python/docs/api-reference.md": "cd9948e7d014c52ba826e86517bb502b8f97044d2e677bf7aec197252e7ab495"
     },
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable bounded tool surface, external artifact state, credential-safe persisted metadata, terminal-error pending-input preservation, sparse ownership, owner-scoped tool permissions, paginated-history principle, and telemetry boundaries. Do not embed codex exec, app-server, thread store, worktree manager, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime. Treat standalone Codex sandboxing as a future pinned native execution provider only after cross-platform isolation calibration.",
     "implemented_changes": [
+      "Commit 3fe4bdb9 lets one native Simulation Python/R workspace own scientific planning, source, execution feedback, and revision whenever runtime has an exploratory intent or a frozen confirmatory source-acceptance ABI. The detached planning-envelope model call is absent; runtime still owns exact requirement binding, accepted estimator refs, replicate count, seed blinding, hashes, and evidence authority.",
       "Future hidden semantic candidates remain in one integrated complete-document model context. One response supplies document-wide and per-claim status, so cross-claim contradictions and extra active falsehoods retain an authority path while candidate calls no longer scale with rubric-claim count.",
       "ArchitectMetricSemanticReviewer now owns one persistent draft across same-session terminal corrections. Generic recursive updates preserve omitted mapping fields, arrays replace only when supplied, raw validator observations stay in the same history, and the unchanged complete validator remains fail-closed.",
       "Theory preflight keeps mathematical judgment in a persistent model-authored Markdown report and returns a compact hash-bound disposition instead of duplicating a scientific checklist packet.",
