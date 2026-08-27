@@ -1792,6 +1792,30 @@ def test_critic_acceptance_keeps_optional_formalization_nonblocking() -> None:
     )
 
 
+def test_critic_accept_cannot_override_missing_required_empirical_evidence() -> None:
+    decision = runtime_module._critic_evidence_contract_decision(
+        critic_control={
+            "evidence_contract": {"formal_verification_policy": "optional"}
+        },
+        formalization_manifest={"counts": {"formal_gap": 1}},
+        revision_required=False,
+        scientific_disposition="ACCEPT",
+        required_evidence_gaps=(
+            "empirical.confirmatory_evidence_ineligible",
+            "empirical.simulation_not_passed",
+        ),
+    )
+
+    assert decision["runtime_status"] == "BLOCKED"
+    assert decision["failure_classification"] == (
+        "required_research_evidence_missing"
+    )
+    assert decision["required_evidence_gaps"] == [
+        "empirical.confirmatory_evidence_ineligible",
+        "empirical.simulation_not_passed",
+    ]
+
+
 def test_workspace_parent_lineage_reopens_only_after_parent_artifact_changes() -> None:
     formalizer_parents = runtime_module._runtime_workspace_parent_artifact_ids(
         "FormalizationEvaluator",
@@ -2492,6 +2516,128 @@ def test_semantic_review_revision_precedes_unvisited_lane_coverage() -> None:
     assert continued is result
     assert continued.next_task is source_revision_task
     assert continued.next_task.owner_subsystem == "AlgorithmEngineer"
+
+
+def test_accepted_semantic_review_preserves_exact_deferred_phase_task() -> None:
+    question = OpenResearchQuestion(
+        id="generic-reviewed-phase-continuation",
+        title="Generic reviewed phase continuation",
+        description="Replay reviewed evaluator source before terminal criticism.",
+    )
+    context = _full_evidence_context(question.id)
+    context["runtime_outer_graph_workspace_outcomes"] = [
+        {
+            "source_subsystem": "SimulationEvaluator",
+            "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
+        }
+    ]
+    deferred_task = AgentTask(
+        task_id="evaluator-confirmation:generic",
+        owner_subsystem="SimulationEvaluator",
+        objective="Replay the independently reviewed evaluator source unchanged.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": "theory:generic",
+            "architect_context": context,
+            "consumer_resume_manifest": {
+                "artifact_kind": "RuntimeSimulationManifest",
+                "manifest_id": "simulation:authoring",
+            },
+            "evaluator_source_confirmation": True,
+            "n_runs": 2_000,
+        },
+        allowed_tools=("python", "filesystem_sandbox"),
+        expected_artifacts=("confirmatory_simulation_manifest",),
+        acceptance_gate="reviewed exact source hash executes once",
+        stop_condition="confirmatory evidence or an immutable blocker is recorded",
+    )
+    continuation_id, continuation, continuation_artifacts = (
+        materialize_agent_task_continuation(deferred_task)
+    )
+    work_order = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewWorkOrder",
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation:authoring",
+        "source_manifest_hash": "authoring-manifest-hash",
+        "deferred_next_task_ref": agent_task_reference(deferred_task),
+        "deferred_next_task_continuation_id": continuation_id,
+        "deferred_next_task_continuation_hash": runtime_module.stable_hash(
+            continuation
+        ),
+    }
+    work_order_id = "semantic-review-work-order:phase-continuation"
+    work_order_hash = runtime_module.stable_hash(work_order)
+    reviewer_task = AgentTask(
+        task_id="semantic-review:generic-phase-continuation",
+        owner_subsystem=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        objective="Review exact evaluator source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "work_order_id": work_order_id,
+            "work_order_hash": work_order_hash,
+        },
+    )
+    accepted_next_task = replace(
+        deferred_task,
+        task_id="semantic-review-accepted:generic",
+        inputs={
+            **deferred_task.inputs,
+            "architect_context": {
+                **context,
+                "accepted_generated_code_semantic_reviews": [
+                    {"source_manifest_id": "simulation:authoring"}
+                ],
+            },
+        },
+    )
+    execution = {
+        "artifact_kind": (
+            "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+        ),
+        "work_order_id": work_order_id,
+        "work_order_hash": work_order_hash,
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation:authoring",
+        "source_manifest_hash": "authoring-manifest-hash",
+        "semantic_review_accepted": True,
+        "independent_agent": True,
+        "independent_invocation": True,
+    }
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Review accepted exact source and restored its phase task.",
+        produced_artifacts={"review-execution:generic": execution},
+        next_task=accepted_next_task,
+    )
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={
+            "theory:generic": {"packet_id": "theory:generic"},
+            **continuation_artifacts,
+            work_order_id: work_order,
+        },
+    )
+
+    transitioned = _runtime_transition_policy(
+        iteration=9,
+        task=reviewer_task,
+        subsystem_name=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        result=result,
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval",
+            formal_verification_policy="optional",
+        ),
+    )
+
+    assert transitioned is result
+    assert transitioned.next_task is accepted_next_task
+    assert transitioned.next_task.owner_subsystem == "SimulationEvaluator"
+    assert transitioned.next_task.inputs["evaluator_source_confirmation"] is True
 
 
 def test_canonical_context_preserves_accepted_lane_identity() -> None:

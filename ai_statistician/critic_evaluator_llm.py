@@ -16,6 +16,9 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
+from .generated_code_semantic_review_scope import (
+    executable_evaluator_review_binding,
+)
 from .structured_output_retry import (
     PacketValidationError,
 )
@@ -1582,8 +1585,113 @@ def build_critic_canonical_evidence_view(
             "work."
         ),
     }
+    body["required_dimension_evidence_gaps"] = (
+        critic_required_dimension_evidence_gaps(body)
+    )
     body["view_hash"] = stable_hash(body)
     return body
+
+
+def critic_required_dimension_evidence_gaps(
+    canonical_evidence_view: Mapping[str, Any],
+) -> list[str]:
+    """Report missing mechanical evidence without judging scientific content."""
+
+    raw_requirements = canonical_evidence_view.get("dimension_requirements", {})
+    requirements = dict(raw_requirements) if isinstance(raw_requirements, Mapping) else {}
+    def section(name: str) -> Mapping[str, Any]:
+        value = canonical_evidence_view.get(name, {})
+        return value if isinstance(value, Mapping) else {}
+    def accepted_review(value: Mapping[str, Any]) -> bool:
+        review = value.get("independent_semantic_review", {})
+        return bool(
+            isinstance(review, Mapping)
+            and review.get("present") is True
+            and review.get("accepted") is True
+            and review.get("independent_agent") is True
+            and review.get("independent_invocation") is True
+        )
+
+    source = section("source_replication")
+    theory = section("theory")
+    code = section("scientific_code")
+    empirical = section("empirical")
+    formal = section("formal")
+    preflight = theory.get("independent_preflight", {})
+    preflight = preflight if isinstance(preflight, Mapping) else {}
+    report = source.get("report_document", {})
+    execution = source.get("source_execution", {})
+    checks = {
+        "source_replication": (
+            (source.get("present") is not True, "source_replication.checkpoint_missing"),
+            (source.get("lineage_verified") is not True, "source_replication.lineage_unverified"),
+            (not isinstance(report, Mapping) or report.get("content_loaded") is not True, "source_replication.report_unavailable"),
+            (not isinstance(execution, Mapping) or execution.get("present") is not True, "source_replication.execution_unavailable"),
+        ),
+        "theory": (
+            (theory.get("serious_theory_mode") is not True, "theory.serious_workspace_missing"),
+            (theory.get("authoritative_documents_loaded") is not True, "theory.authoritative_documents_unavailable"),
+            (not (preflight.get("acceptance_present") is True and preflight.get("overall_verdict") == "ACCEPT" and not preflight.get("active_unresolved_finding_ids")), "theory.independent_preflight_unaccepted"),
+        ),
+        "scientific_code": (
+            (int(code.get("live_executed", 0) or 0) <= 0, "scientific_code.live_execution_missing"),
+            (int(code.get("passed", 0) or 0) <= 0, "scientific_code.execution_not_passed"),
+            (int(code.get("execution_failed", 0) or 0) > 0, "scientific_code.execution_failure_present"),
+            (not accepted_review(code), "scientific_code.independent_review_unaccepted"),
+        ),
+        "empirical": (
+            (empirical.get("confirmatory_empirical_evidence_eligible") is not True, "empirical.confirmatory_evidence_ineligible"),
+            (int(empirical.get("live_executed", 0) or 0) <= 0, "empirical.live_execution_missing"),
+            (empirical.get("generated_simulation_passed") is not True, "empirical.generated_simulation_not_passed"),
+            (empirical.get("simulation_passed") is not True, "empirical.simulation_not_passed"),
+            (not accepted_review(empirical), "empirical.independent_review_unaccepted"),
+        ),
+        "formal": ((formal.get("source_theorem_kernel_verified") is not True, "formal.exact_source_theorem_not_kernel_closed"),),
+    }
+    gaps = [
+        label
+        for dimension, rows in checks.items()
+        if requirements.get(dimension) == "required"
+        for missing, label in rows
+        if missing
+    ]
+
+    if requirements.get("empirical") == "required":
+        review = empirical.get("independent_semantic_review", {})
+        review = review if isinstance(review, Mapping) else {}
+        if review.get("source_replay_binding_valid") is True:
+            prototypes = empirical.get("prototypes", [])
+            if not isinstance(prototypes, list) or not prototypes:
+                gaps.append("empirical.executable_evaluator_execution_missing")
+            else:
+                for row in prototypes:
+                    metrics = (
+                        row.get("reported_metrics", {})
+                        if isinstance(row, Mapping)
+                        else {}
+                    )
+                    requested = (
+                        metrics.get("requested_runtime_replicates")
+                        if isinstance(metrics, Mapping)
+                        else None
+                    )
+                    if not (
+                        isinstance(row, Mapping)
+                        and row.get("execution_attempted") is True
+                        and row.get("execution_smoke_passed") is True
+                        and isinstance(metrics, Mapping)
+                        and type(metrics.get("acceptance_passed")) is bool
+                        and metrics.get("acceptance_passed") is True
+                        and type(requested) is int
+                        and requested > 0
+                        and int(row.get("runtime_replicates", 0) or 0)
+                        == requested
+                    ):
+                        gaps.append(
+                            "empirical.executable_evaluator_authority_output_invalid"
+                        )
+                        break
+    return sorted(set(gaps))
 
 
 def _critic_resolved_source_observations(
@@ -1760,6 +1868,25 @@ def _critic_semantic_review_summary(
     source_manifest_id: str,
     source_manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
+    if source_subsystem == "SimulationEvaluator":
+        evaluator_binding = executable_evaluator_review_binding(
+            artifacts,
+            confirmation_manifest_id=source_manifest_id,
+            confirmation_manifest=source_manifest,
+        )
+        if evaluator_binding["valid"] is True:
+            return {
+                "present": True,
+                "review_id": evaluator_binding["review_execution_id"],
+                "accepted": True,
+                "independent_agent": True,
+                "independent_invocation": True,
+                "source_replay_binding_valid": True,
+                "reviewed_authoring_manifest_id": evaluator_binding[
+                    "authoring_manifest_id"
+                ],
+                "source_identity": evaluator_binding["source_identity"],
+            }
     expected_hash = stable_hash(dict(source_manifest)) if source_manifest else ""
     matches = [
         artifact
@@ -1782,6 +1909,7 @@ def _critic_semantic_review_summary(
         "independent_agent": review.get("independent_agent") is True,
         "independent_invocation": review.get("independent_invocation") is True,
         "reviewer_model_tier": str(review.get("reviewer_model_tier", "") or ""),
+        "source_replay_binding_valid": False,
     }
 
 

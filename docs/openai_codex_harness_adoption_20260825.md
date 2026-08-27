@@ -6,7 +6,14 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`6c59264b14b963d45d1005e7a8b1de87d4b054e2`.
+`694edc23b22b4696400dc47663ecacd437623870`.
+
+The two commits after `6c59264b` freeze plugin-root attribution for MCP tools
+and propagate only trusted root skills to delegated workers. They reinforce the
+same boundary used here: a child receives an immutable, authority-scoped tool
+view and explicit artifact context. They do not supply a scientific planner,
+Theory method, Simulation evaluator, Lean policy, or reason to embed Codex's
+thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 

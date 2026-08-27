@@ -100,6 +100,7 @@ from .generated_code_semantic_review_replan import (
     record_generated_code_semantic_review_lineage_action,
 )
 from .generated_code_semantic_review_scope import (
+    accepted_semantic_review_deferred_continuation,
     algorithm_handoff_artifacts,
     generated_code_semantic_review_proposal_projection,
     generated_code_semantic_review_scope_projection,
@@ -518,9 +519,10 @@ def _runtime_requested_evidence_contract(
         "research_evaluation_requires_generated_code_semantic_review": (
             generated_code_review_required
         ),
-        "research_evaluation_requires_typed_metric_contracts": (
+        "research_evaluation_requires_executable_evaluator_source": (
             generated_simulation_required
         ),
+        "research_evaluation_requires_typed_metric_contracts": False,
         "independent_theory_review_required": bool(
             not explicit_task_intent
             or dimension_requirements["theory"] == "required"
@@ -598,7 +600,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
             "generated_algorithm_code",
             "generated_simulation_code",
             "generated_code_semantic_review",
-            "typed_metric_contracts",
+            "executable_evaluator_source",
         ):
             requested_contract[
                 f"research_evaluation_requires_{requirement}"
@@ -4499,11 +4501,11 @@ def _runtime_transition_policy(
         blackboard=blackboard,
     ):
         return result
-    if (
-        subsystem_name == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
-        and next_task.owner_subsystem == "SimulationEvaluator"
-        and SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY in next_task.budget
-        and "consumer_resume_manifest" in next_task.inputs
+    if accepted_semantic_review_deferred_continuation(
+        task=task,
+        result=result,
+        next_task=next_task,
+        blackboard=blackboard,
     ):
         return result
     if next_task.owner_subsystem == "CriticEvaluator":
@@ -4869,9 +4871,12 @@ def _runtime_metric_protocol_authoring_required(
     evidence_contract: Mapping[str, Any],
     architect_context: Mapping[str, Any],
 ) -> bool:
+    if _runtime_research_evaluation_contract_flag(
+        evidence_contract, "executable_evaluator_source"
+    ):
+        return True
     if not _runtime_research_evaluation_contract_flag(
-        evidence_contract,
-        "typed_metric_contracts",
+        evidence_contract, "typed_metric_contracts"
     ):
         return False
     metric_gate = architect_context.get("architect_metric_protocol_gate", {})
@@ -19196,6 +19201,14 @@ class CriticEvaluatorRuntimeSubsystem:
             evidence_contract=critic_evidence_contract,
             research_sources=self.research_sources,
         )
+        required_dimension_evidence_gaps = list(
+            canonical_evidence_view.get("required_dimension_evidence_gaps", []) or []
+        )
+        critic_runtime_observations["required_dimension_evidence_gaps"] = required_dimension_evidence_gaps
+        if not explicit_critic_environment_feedback:
+            critic_environment_feedback[
+                "required_dimension_evidence_gaps"
+            ] = required_dimension_evidence_gaps
         critic_source_audit = dict(
             canonical_evidence_view["theory"]["research_source_grounding"][
                 "runtime_audit"
@@ -19367,6 +19380,7 @@ class CriticEvaluatorRuntimeSubsystem:
                 or proposal_validation_failure_feedback is not None
             ),
             scientific_disposition=scientific_disposition,
+            required_evidence_gaps=required_dimension_evidence_gaps,
         )
         manifest_id = "critic_evaluator_manifest:" + stable_hash(
             [
@@ -19397,6 +19411,7 @@ class CriticEvaluatorRuntimeSubsystem:
             "canonical_evidence_view_hash": str(
                 canonical_evidence_view.get("view_hash", "") or ""
             ),
+            "required_dimension_evidence_gaps": required_dimension_evidence_gaps,
             "research_source_audit": critic_source_audit,
             "source_replication_audit": critic_source_replication_audit,
             "research_disposition": dict(research_disposition),
@@ -21993,6 +22008,7 @@ def _critic_evidence_contract_decision(
     source_theorem_kernel_verified: bool = False,
     revision_required: bool,
     scientific_disposition: str = "",
+    required_evidence_gaps: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Classify terminal critic status under the Architect evidence contract."""
 
@@ -22025,6 +22041,14 @@ def _critic_evidence_contract_decision(
     normalized_scientific_disposition = str(
         scientific_disposition or ""
     ).strip().upper()
+    normalized_required_evidence_gaps = sorted({
+        str(value).strip() for value in required_evidence_gaps if str(value).strip()
+    })
+    nonformal_required_evidence_gaps = [
+        value
+        for value in normalized_required_evidence_gaps
+        if not value.startswith("formal.")
+    ]
     if revision_required:
         final_status = "REROUTE_REQUIRED_BEFORE_FINAL"
         runtime_status = "REVISE"
@@ -22037,6 +22061,10 @@ def _critic_evidence_contract_decision(
         final_status = "RESEARCH_CANDIDATE_INCONCLUSIVE"
         runtime_status = "BLOCKED"
         failure_classification = "critic_scientific_inconclusive"
+    elif nonformal_required_evidence_gaps:
+        final_status = "REQUIRED_RESEARCH_EVIDENCE_MISSING"
+        runtime_status = "BLOCKED"
+        failure_classification = "required_research_evidence_missing"
     elif policy == "required" and not formal_satisfied:
         final_status = "FORMAL_REQUIRED_BLOCKED"
         runtime_status = "BLOCKED"
@@ -22075,6 +22103,7 @@ def _critic_evidence_contract_decision(
         "full_frontier_theorem_proved": source_theorem_kernel_verified,
         "formal_satisfied": formal_satisfied,
         "scientific_disposition": normalized_scientific_disposition,
+        "required_evidence_gaps": normalized_required_evidence_gaps,
         "runtime_status": runtime_status,
         "final_acceptance_status": final_status,
         "failure_classification": failure_classification,

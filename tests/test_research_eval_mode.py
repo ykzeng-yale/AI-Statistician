@@ -64,7 +64,13 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
     assert research[
         "research_evaluation_requires_generated_code_semantic_review"
     ] is True
-    assert research["research_evaluation_requires_typed_metric_contracts"] is True
+    assert research[
+        "research_evaluation_requires_executable_evaluator_source"
+    ] is True
+    assert research["research_evaluation_requires_typed_metric_contracts"] is False
+    assert research["generated_metric_contract_policy"] == (
+        "typed_artifact_bound_preferred"
+    )
     assert research["generated_sandbox_runtime_replicates"] == 100
     assert research["generated_sandbox_max_runtime_replicates"] == 100_000
     assert research["generated_simulation_timeout_seconds"] == 60
@@ -201,6 +207,9 @@ def test_explicit_theory_only_intent_does_not_require_unused_lanes() -> None:
     assert contract["simulation_target_authoring_required"] is False
     assert contract["research_evaluation_requires_generated_algorithm_code"] is False
     assert contract["research_evaluation_requires_generated_simulation_code"] is False
+    assert contract[
+        "research_evaluation_requires_executable_evaluator_source"
+    ] is False
     assert contract["research_evaluation_requires_typed_metric_contracts"] is False
     assert contract["independent_theory_review_required"] is True
     assert set(_required_architect_plan_subsystems(contract)) == {
@@ -360,12 +369,15 @@ def test_research_eval_keeps_serious_theory_and_independent_review_gate(
     assert contract["research_evaluation_requires_generated_algorithm_code"] is True
     assert contract["research_evaluation_requires_generated_simulation_code"] is True
     assert contract["research_evaluation_requires_generated_code_semantic_review"] is True
+    assert contract[
+        "research_evaluation_requires_executable_evaluator_source"
+    ] is True
     assert contract["research_evaluation_requires_generated_algorithm_code"] is True
     assert contract["research_evaluation_requires_generated_simulation_code"] is True
     assert contract[
         "research_evaluation_requires_generated_code_semantic_review"
     ] is True
-    assert contract["research_evaluation_requires_typed_metric_contracts"] is True
+    assert contract["research_evaluation_requires_typed_metric_contracts"] is False
     assert contract["formal_evaluation_requires_formalizer_lean_candidate"] is False
     assert contract["formal_target_authoring_required"] is False
     assert (
@@ -1108,6 +1120,204 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
     assert summary["all_questions_research_eval_complete"] is True
     assert summary["rows"][0]["mode_conformance"][
         "strict_formal_lane_not_executed"
+    ] is False
+
+
+def test_research_summary_accepts_reviewed_executable_evaluator_lineage() -> None:
+    question = {"id": "generic_executable_evaluator_summary"}
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'acceptance_passed': True, "
+        "'requested_runtime_replicates': replicates}\n"
+    )
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory",
+        "question": question,
+        "serious_theory_mode": True,
+        "provider": "anthropic",
+    }
+    algorithm = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm",
+        "theory_packet_id": "theory",
+        "n_live_generated_code_executed": 1,
+        "n_passed": 1,
+        "n_live_generated_code_execution_failed": 0,
+    }
+    authoring = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": "simulation:authoring",
+        "theory_packet_id": "theory",
+        "executable_evaluator_source_authority": True,
+        "evaluator_source_authoring": True,
+        "confirmatory_empirical_evidence_eligible": False,
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "evaluator",
+                "source_code": source,
+                "script_hash": stable_hash(source),
+                "language": "python",
+                "dependencies": [],
+                "required_estimator_ids": ["estimator"],
+            }
+        ],
+    }
+    confirmation = {
+        "artifact_kind": "RuntimeSimulationManifest",
+        "manifest_id": "simulation:confirmation",
+        "theory_packet_id": "theory",
+        "executable_evaluator_source_authority": True,
+        "evaluator_source_confirmation": True,
+        "confirmatory_empirical_evidence_eligible": True,
+        "consumer_resume_manifest_id": "simulation:authoring",
+        "consumer_resume_manifest_hash": stable_hash(authoring),
+        "consumer_resume_exact_source_replayed": True,
+        "n_live_generated_simulation_sandbox_executed": 1,
+        "generated_simulation_passed": True,
+        "simulation_passed": True,
+        "generated_simulation_sandbox_prototypes": [
+            {
+                "simulation_id": "evaluator",
+                "source_code": source,
+                "script_hash": stable_hash(source),
+                "language": "python",
+                "dependencies": [],
+                "required_estimator_ids": ["estimator"],
+                "execution_attempted": True,
+                "execution_smoke_passed": True,
+                "runtime_replicates": 2_000,
+                "metrics": {
+                    "acceptance_passed": True,
+                    "requested_runtime_replicates": 2_000,
+                },
+                "executable_evaluator_interface_errors": [],
+                "estimator_binding_errors": [],
+                "estimator_runtime_errors": [],
+                "metric_gate_errors": [],
+            }
+        ],
+    }
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "source_theory_packet_id": "theory",
+        "source_theory_packet_hash": stable_hash(theory),
+        "overall_verdict": "ACCEPT",
+        "active_unresolved_finding_ids": [],
+    }
+    artifacts = {
+        "theory": theory,
+        "preflight": preflight,
+        "preflight_acceptance": {
+            "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+            "source_theory_packet_id": "theory",
+            "source_theory_packet_hash": stable_hash(theory),
+            "preflight_packet_id": "preflight",
+            "preflight_packet_hash": stable_hash(preflight),
+        },
+        "algorithm": algorithm,
+        "algorithm_review": {
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+            ),
+            "source_subsystem": "AlgorithmEngineer",
+            "source_manifest_id": "algorithm",
+            "source_manifest_hash": stable_hash(algorithm),
+            "semantic_review_accepted": True,
+            "independent_agent": True,
+            "independent_invocation": True,
+            "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            "confirmatory_empirical_evidence_eligible": False,
+        },
+        "simulation:authoring": authoring,
+        "simulation:confirmation": confirmation,
+        "simulation_authoring_review": {
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+            ),
+            "execution_id": "simulation-authoring-review",
+            "source_subsystem": "SimulationEvaluator",
+            "source_manifest_id": "simulation:authoring",
+            "source_manifest_hash": stable_hash(authoring),
+            "semantic_review_accepted": True,
+            "independent_agent": True,
+            "independent_invocation": True,
+            "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            "confirmatory_empirical_evidence_eligible": False,
+        },
+        "critic": {
+            "artifact_kind": "RuntimeCriticEvaluatorManifest",
+            "manifest_id": "critic",
+            "question": question,
+            "theory_packet_id": "theory",
+            "algorithm_sandbox_manifest_id": "algorithm",
+            "simulation_manifest_id": "simulation:confirmation",
+            "llm_critic_evaluator_proposal_id": "critic_proposal",
+            "evidence_contract_decision": {
+                "runtime_status": "ACCEPTED",
+                "scientific_disposition": "ACCEPT",
+            },
+        },
+        "critic_proposal": {
+            "artifact_kind": "CriticEvaluatorProposalPacket",
+            "dimension_assessments": [
+                {
+                    "dimension": dimension,
+                    "status": (
+                        "NOT_REQUESTED" if dimension == "formal" else "SUPPORTED"
+                    ),
+                }
+                for dimension in (
+                    "theory",
+                    "scientific_code",
+                    "empirical",
+                    "formal",
+                )
+            ],
+            "gap_disclosure": {
+                "status": "COMPLETE",
+                "disclosed_gaps": [],
+                "evidence_refs": ["critic-canonical-view"],
+                "rationale": "All observed gaps are disclosed.",
+            },
+            "research_disposition": {
+                "status": "ACCEPT",
+                "blocking_dimensions": [],
+                "rationale": "Required evidence is supported.",
+            },
+        },
+    }
+    result = {
+        "status": "ACCEPTED",
+        "blackboard": {"artifacts": artifacts},
+        "traces": (
+            {
+                "subsystem": "CriticEvaluator",
+                "status": "ACCEPTED",
+                "produced_artifact_ids": ("critic",),
+            },
+        ),
+    }
+
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    row = summary["rows"][0]
+    assert row["requirements"]["metric_protocol_independently_accepted"] is True
+    assert row["requirements"]["simulation_semantic_review_accepted"] is True
+    assert row["requirements"][
+        "simulation_metric_evidence_nonvacuous_and_bound"
+    ] is True
+    assert row["research_eval_complete"] is True
+
+    confirmation["generated_simulation_sandbox_prototypes"][0]["metrics"][
+        "requested_runtime_replicates"
+    ] = 1_999
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["rows"][0]["requirements"][
+        "simulation_metric_evidence_nonvacuous_and_bound"
     ] is False
 
 

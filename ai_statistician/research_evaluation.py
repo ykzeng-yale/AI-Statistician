@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .generated_code_semantic_review_scope import (
+    executable_evaluator_review_binding,
+)
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
 )
@@ -357,6 +360,23 @@ def _latest_independently_reviewed_manifest(
     return "", {}
 
 
+def _latest_executable_evaluator_confirmation_manifest(
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> tuple[str, Mapping[str, Any]]:
+    for artifact_id, artifact in reversed(list(artifacts.items())):
+        if artifact.get("artifact_kind") != "RuntimeSimulationManifest":
+            continue
+        binding = executable_evaluator_review_binding(
+            artifacts,
+            confirmation_manifest_id=str(artifact_id),
+            confirmation_manifest=artifact,
+            required_reviewer_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        )
+        if binding["valid"] is True:
+            return str(artifact_id), artifact
+    return "", {}
+
+
 def _latest_serious_theory_packet(
     artifacts: Mapping[str, Mapping[str, Any]],
 ) -> tuple[str, Mapping[str, Any]]:
@@ -455,8 +475,61 @@ def _latest_metric_protocol_packet(
 def _simulation_has_bound_nonvacuous_metric_evidence(
     simulation_manifest: Mapping[str, Any],
     *,
+    artifacts: Mapping[str, Mapping[str, Any]],
+    simulation_manifest_id: str,
     requirement_set_id: str,
 ) -> bool:
+    evaluator_binding = executable_evaluator_review_binding(
+        artifacts,
+        confirmation_manifest_id=simulation_manifest_id,
+        confirmation_manifest=simulation_manifest,
+        required_reviewer_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    )
+    if evaluator_binding["valid"] is True:
+        prototypes = simulation_manifest.get(
+            "generated_simulation_sandbox_prototypes", []
+        )
+        if not isinstance(prototypes, Sequence) or isinstance(
+            prototypes, (str, bytes, bytearray)
+        ):
+            return False
+        executed_rows = [
+            row
+            for row in prototypes
+            if isinstance(row, Mapping)
+            and row.get("execution_attempted") is True
+        ]
+        if not executed_rows:
+            return False
+        for row in executed_rows:
+            metrics = row.get("metrics", {})
+            requested_replicates = (
+                metrics.get("requested_runtime_replicates")
+                if isinstance(metrics, Mapping)
+                else None
+            )
+            runtime_replicates = row.get("runtime_replicates")
+            if not (
+                row.get("execution_smoke_passed", row.get("smoke_passed"))
+                is True
+                and isinstance(metrics, Mapping)
+                and type(metrics.get("acceptance_passed")) is bool
+                and metrics.get("acceptance_passed") is True
+                and type(requested_replicates) is int
+                and requested_replicates > 0
+                and type(runtime_replicates) is int
+                and runtime_replicates == requested_replicates
+                and not row.get("executable_evaluator_interface_errors")
+                and not row.get("estimator_binding_errors")
+                and not row.get("estimator_runtime_errors")
+                and not row.get("metric_gate_errors")
+            ):
+                return False
+        return bool(
+            simulation_manifest.get("generated_simulation_passed") is True
+            and simulation_manifest.get("simulation_passed") is True
+        )
+
     if not requirement_set_id:
         return False
     if int(
@@ -618,13 +691,17 @@ def build_research_evaluation_summary(
                 )
             )
             simulation_manifest_id, simulation_manifest = (
-                _latest_independently_reviewed_manifest(
-                    artifacts,
-                    artifact_kind="RuntimeSimulationManifest",
-                    source_subsystem="SimulationEvaluator",
-                    require_confirmatory_empirical_evidence=True,
-                )
+                _latest_executable_evaluator_confirmation_manifest(artifacts)
             )
+            if not simulation_manifest_id:
+                simulation_manifest_id, simulation_manifest = (
+                    _latest_independently_reviewed_manifest(
+                        artifacts,
+                        artifact_kind="RuntimeSimulationManifest",
+                        source_subsystem="SimulationEvaluator",
+                        require_confirmatory_empirical_evidence=True,
+                    )
+                )
             theory_packet_id = str(
                 algorithm_manifest.get("theory_packet_id", "")
                 or simulation_manifest.get("theory_packet_id", "")
@@ -661,6 +738,12 @@ def build_research_evaluation_summary(
             )
             if isinstance(architect_contract, Mapping)
             else ""
+        )
+        executable_evaluator_binding = executable_evaluator_review_binding(
+            artifacts,
+            confirmation_manifest_id=simulation_manifest_id,
+            confirmation_manifest=simulation_manifest,
+            required_reviewer_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
         )
         traces = result.get("traces", [])
         executed = {
@@ -719,10 +802,13 @@ def build_research_evaluation_summary(
                 == 0,
             ),
             "metric_protocol_independently_accepted": bool(
-                architect_packet.get("artifact_kind")
-                == "ArchitectCoordinatorProposalPacket"
-                and architect_packet.get("packet_id") == architect_packet_id
-                and _metric_protocol_accepted(architect_packet)
+                executable_evaluator_binding["valid"] is True
+                or (
+                    architect_packet.get("artifact_kind")
+                    == "ArchitectCoordinatorProposalPacket"
+                    and architect_packet.get("packet_id") == architect_packet_id
+                    and _metric_protocol_accepted(architect_packet)
+                )
             ),
             "algorithm_semantic_review_accepted": _semantic_review_accepted(
                 artifacts,
@@ -749,15 +835,20 @@ def build_research_evaluation_summary(
             "simulation_metric_evidence_nonvacuous_and_bound": (
                 _simulation_has_bound_nonvacuous_metric_evidence(
                     simulation_manifest,
+                    artifacts=artifacts,
+                    simulation_manifest_id=simulation_manifest_id,
                     requirement_set_id=final_requirement_set_id,
                 )
             ),
-            "simulation_semantic_review_accepted": _semantic_review_accepted(
-                artifacts,
-                source_subsystem="SimulationEvaluator",
-                source_manifest_id=simulation_manifest_id,
-                source_manifest=simulation_manifest,
-                require_confirmatory_empirical_evidence=True,
+            "simulation_semantic_review_accepted": bool(
+                executable_evaluator_binding["valid"] is True
+                or _semantic_review_accepted(
+                    artifacts,
+                    source_subsystem="SimulationEvaluator",
+                    source_manifest_id=simulation_manifest_id,
+                    source_manifest=simulation_manifest,
+                    require_confirmatory_empirical_evidence=True,
+                )
             ),
             "exact_formal_target_kernel_closed": any(
                 manifest.get("source_theorem_kernel_verified") is True

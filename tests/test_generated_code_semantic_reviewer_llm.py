@@ -246,9 +246,12 @@ def test_semantic_review_keeps_current_artifact_distinct_from_dependency() -> No
         review_material=material,
     )
 
-    assert "exact_executed_artifacts as the current target" in prompt
-    assert "upstream_generated_dependency as context only" in prompt
+    assert "/current_target_artifacts as the current target" in prompt
+    assert "/upstream_generated_dependency as context" in prompt
     assert "never substitute an upstream review" in prompt
+    assert prompt.index('"current_target_artifacts"') < prompt.index(
+        '"upstream_generated_dependency"'
+    )
 
 
 def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
@@ -677,6 +680,69 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
     assert backend.requests[1].metadata[
         "full_packet_regeneration_disabled"
     ] is True
+
+
+def test_executable_evaluator_acceptance_must_review_current_authority_abi() -> None:
+    material = _review_material()
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'acceptance_passed': True, "
+        "'requested_runtime_replicates': replicates}\n"
+    )
+    metrics = {
+        "acceptance_passed": True,
+        "requested_runtime_replicates": 2_000,
+    }
+    material.update(
+        {
+            "empirical_evaluation_phase": "executable_evaluator_authoring",
+            "confirmatory_empirical_evidence_eligible": False,
+            "source_manifest_id": "simulation-manifest:authoring",
+            "exact_executed_artifacts": [
+                {
+                    "artifact_id": "simulation:evaluator",
+                    "exact_source_code": source,
+                    "exact_source_hash": stable_hash(source),
+                    "exact_result": metrics,
+                    "exact_result_hash": stable_hash(metrics),
+                    "actual_runtime_arguments": {
+                        "seed": 7,
+                        "replicates": 12,
+                    },
+                }
+            ],
+        }
+    )
+    response = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe upstream estimator is aligned.",
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No active finding requires a parent change.",
+        },
+    }
+
+    with pytest.raises(PacketValidationError, match="current target ABI"):
+        _agent(response).review(
+            question=_question(),
+            review_material=material,
+            trusted_lineage=_trusted_lineage(),
+        )
+
+    response["review_document"] = (
+        "# Review\n\nI reviewed the current `run_sandbox` source. Its "
+        "`acceptance_passed` decision and `requested_runtime_replicates` "
+        "commitment are the evaluator authority outputs."
+    )
+    packet = _agent(response).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
 
 
 def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() -> None:

@@ -2300,14 +2300,46 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "evidence_contract.generated_metric_contract_policy must be "
                 "typed_artifact_bound_required or typed_artifact_bound_preferred"
             )
+        raw_typed_required = evidence_contract.get(
+            "research_evaluation_requires_typed_metric_contracts"
+        )
+        raw_executable_evaluator_required = evidence_contract.get(
+            "research_evaluation_requires_executable_evaluator_source"
+        )
         typed_required = _research_evaluation_contract_flag(
             evidence_contract,
             "typed_metric_contracts",
         )
-        if typed_required is not None and not isinstance(typed_required, bool):
+        executable_evaluator_required = _research_evaluation_contract_flag(
+            evidence_contract,
+            "executable_evaluator_source",
+        )
+        if raw_typed_required is not None and not isinstance(
+            raw_typed_required, bool
+        ):
             errors.append(
                 "evidence_contract.research_evaluation_requires_typed_metric_contracts "
                 "must be a boolean"
+            )
+        if raw_executable_evaluator_required is not None and not isinstance(
+            raw_executable_evaluator_required, bool
+        ):
+            errors.append(
+                "evidence_contract.research_evaluation_requires_executable_evaluator_source "
+                "must be a boolean"
+            )
+        if (
+            research_evaluation
+            and _research_evaluation_contract_flag(
+                evidence_contract,
+                "generated_simulation_code",
+            )
+            and typed_required is not True
+            and executable_evaluator_required is not True
+        ):
+            errors.append(
+                "research evaluation with generated simulation requires either "
+                "an executable evaluator source or the legacy typed metric protocol"
             )
         if authority_policy and authority_policy not in {
             GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED,
@@ -2589,6 +2621,7 @@ def _architect_runtime_owned_evidence_contract(
         "research_evaluation_requires_generated_algorithm_code",
         "research_evaluation_requires_generated_code_semantic_review",
         "research_evaluation_requires_generated_simulation_code",
+        "research_evaluation_requires_executable_evaluator_source",
         "research_evaluation_requires_typed_metric_contracts",
         "recommended_research_path_frozen",
         "simulation_target_authoring_required",
@@ -2607,13 +2640,9 @@ def _architect_runtime_owned_evidence_contract(
         prior_contract = {}
     theory_material = theory_informed_metric_protocol_material(context)
     evaluation_contract = _architect_runtime_evaluation_contract(config)
-    if (
-        isinstance(requested_contract.get("dimension_requirements"), Mapping)
-        and requested_contract["dimension_requirements"]
-    ):
-        for field in tuple(evaluation_contract):
-            if field in requested_contract:
-                evaluation_contract[field] = requested_contract[field]
+    for field in tuple(evaluation_contract):
+        if field in requested_contract:
+            evaluation_contract[field] = requested_contract[field]
     strict_metric_protocol = _research_evaluation_contract_flag(
         evaluation_contract,
         "typed_metric_contracts",
@@ -2812,12 +2841,12 @@ def _architect_runtime_owned_evidence_contract(
         contract["generated_metric_requirement_authority_policy"] = (
             GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         )
-    capability_eval = _research_evaluation_contract_flag(
+    strict_metric_protocol_required = _research_evaluation_contract_flag(
         contract,
         "typed_metric_contracts",
     )
     accepted_requirements = bool(contract.get("empirical_metric_requirements"))
-    if not capability_eval:
+    if not strict_metric_protocol_required:
         contract["empirical_metric_protocol_phase"] = (
             METRIC_PROTOCOL_PHASE_NOT_REQUIRED
         )
@@ -2967,7 +2996,10 @@ def _architect_runtime_evaluation_contract(
         "research_evaluation_requires_generated_code_semantic_review": (
             research_evaluation
         ),
-        "research_evaluation_requires_typed_metric_contracts": research_evaluation,
+        "research_evaluation_requires_executable_evaluator_source": (
+            research_evaluation
+        ),
+        "research_evaluation_requires_typed_metric_contracts": False,
         "formal_evaluation_requires_formal_target_semantic_review": bool(
             capability_eval
             and runtime_config.get(
@@ -2988,14 +3020,10 @@ def _architect_runtime_evaluation_contract(
             int(runtime_config.get("generated_simulation_timeout_seconds", 60) or 60),
         ),
         "generated_metric_contract_policy": (
-            "typed_artifact_bound_required"
-            if research_evaluation
-            else "typed_artifact_bound_preferred"
+            "typed_artifact_bound_preferred"
         ),
         "generated_metric_requirement_authority_policy": (
-            GENERATED_METRIC_REQUIREMENT_AUTHORITY_REQUIRED
-            if research_evaluation
-            else GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
+            GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         ),
         "formal_evaluation_exposes_proof_search_tool": (
             capability_eval

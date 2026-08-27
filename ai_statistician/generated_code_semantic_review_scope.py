@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from typing import Any, Mapping, Sequence
 
+from .agent_runtime import (
+    AgentStepResult,
+    AgentTask,
+    BlackboardState,
+    agent_task_reference,
+    resolve_runtime_artifact_references,
+    restore_agent_task_continuation,
+)
 from .fingerprint import stable_hash
 from .theory_workspace import load_theory_workspace_document_rows
 
@@ -602,6 +611,234 @@ def algorithm_handoff_artifacts(
         for row in exact_artifacts
         if isinstance(row, Mapping)
     ]
+
+
+def _executable_evaluator_source_identity(
+    manifest: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Identify exact evaluator bytes without interpreting statistical content."""
+
+    raw_rows = manifest.get("generated_simulation_sandbox_prototypes", [])
+    if not isinstance(raw_rows, Sequence) or isinstance(
+        raw_rows, (str, bytes, bytearray)
+    ):
+        return [], ["executable evaluator source rows are not a sequence"]
+    identities: list[dict[str, Any]] = []
+    errors: list[str] = []
+    seen_ids: set[str] = set()
+    for index, raw_row in enumerate(raw_rows):
+        if not isinstance(raw_row, Mapping):
+            errors.append(f"executable evaluator source row {index} is not an object")
+            continue
+        artifact_id = str(
+            raw_row.get("simulation_id", "")
+            or raw_row.get("estimator_id", "")
+            or raw_row.get("prototype_artifact_id", "")
+            or ""
+        ).strip()
+        script_hash = str(raw_row.get("script_hash", "") or "").strip()
+        source_code = str(raw_row.get("source_code", "") or "")
+        language = str(raw_row.get("language", "") or "").strip().lower()
+        if not artifact_id:
+            errors.append(f"executable evaluator source row {index} lacks an id")
+            continue
+        if artifact_id in seen_ids:
+            errors.append(f"duplicate executable evaluator source id: {artifact_id}")
+            continue
+        seen_ids.add(artifact_id)
+        if not source_code or not script_hash:
+            errors.append(
+                f"executable evaluator source bytes or hash missing: {artifact_id}"
+            )
+            continue
+        if stable_hash(source_code) != script_hash:
+            errors.append(f"executable evaluator source hash mismatch: {artifact_id}")
+        identities.append(
+            {
+                "artifact_id": artifact_id,
+                "script_hash": script_hash,
+                "language": language,
+                "dependencies": sorted(
+                    str(value)
+                    for value in raw_row.get("dependencies", []) or []
+                    if str(value)
+                ),
+                "required_estimator_ids": sorted(
+                    str(value)
+                    for value in raw_row.get("required_estimator_ids", []) or []
+                    if str(value)
+                ),
+            }
+        )
+    if not identities:
+        errors.append("executable evaluator source identity is empty")
+    return sorted(identities, key=lambda row: row["artifact_id"]), sorted(set(errors))
+
+
+def executable_evaluator_review_binding(
+    artifacts: Mapping[str, Mapping[str, Any]],
+    *,
+    confirmation_manifest_id: str,
+    confirmation_manifest: Mapping[str, Any],
+    required_reviewer_model_tier: str = "",
+) -> dict[str, Any]:
+    """Bind hidden confirmation to reviewed, byte-identical evaluator authoring."""
+
+    errors: list[str] = []
+    if (
+        confirmation_manifest.get("artifact_kind") != "RuntimeSimulationManifest"
+        or str(confirmation_manifest.get("manifest_id", "") or "")
+        != confirmation_manifest_id
+    ):
+        errors.append("executable evaluator confirmation manifest identity is invalid")
+    for field in (
+        "executable_evaluator_source_authority",
+        "evaluator_source_confirmation",
+        "confirmatory_empirical_evidence_eligible",
+        "consumer_resume_exact_source_replayed",
+    ):
+        if confirmation_manifest.get(field) is not True:
+            errors.append(f"executable evaluator confirmation requires {field}=true")
+
+    authoring_manifest_id = str(
+        confirmation_manifest.get("consumer_resume_manifest_id", "") or ""
+    ).strip()
+    authoring_manifest_hash = str(
+        confirmation_manifest.get("consumer_resume_manifest_hash", "") or ""
+    ).strip()
+    authoring_manifest = artifacts.get(authoring_manifest_id, {})
+    if not authoring_manifest_id or not isinstance(authoring_manifest, Mapping):
+        errors.append("executable evaluator authoring manifest is missing")
+        authoring_manifest = {}
+    elif stable_hash(dict(authoring_manifest)) != authoring_manifest_hash:
+        errors.append("executable evaluator authoring manifest hash mismatch")
+    if authoring_manifest:
+        if (
+            authoring_manifest.get("artifact_kind") != "RuntimeSimulationManifest"
+            or str(authoring_manifest.get("manifest_id", "") or "")
+            != authoring_manifest_id
+        ):
+            errors.append("executable evaluator authoring manifest identity is invalid")
+        for field in (
+            "executable_evaluator_source_authority",
+            "evaluator_source_authoring",
+        ):
+            if authoring_manifest.get(field) is not True:
+                errors.append(f"executable evaluator authoring requires {field}=true")
+        if authoring_manifest.get("confirmatory_empirical_evidence_eligible") is not False:
+            errors.append(
+                "executable evaluator authoring must remain non-confirmatory"
+            )
+
+    authoring_identity, authoring_errors = _executable_evaluator_source_identity(authoring_manifest)
+    confirmation_identity, confirmation_errors = _executable_evaluator_source_identity(confirmation_manifest)
+    errors.extend(authoring_errors)
+    errors.extend(confirmation_errors)
+    if authoring_identity != confirmation_identity:
+        errors.append("executable evaluator confirmation changed reviewed source bytes")
+
+    expected_tier = str(required_reviewer_model_tier or "").strip().lower()
+    expected_authoring_hash = stable_hash(dict(authoring_manifest)) if authoring_manifest else ""
+    accepted_reviews = [
+        (str(artifact_id), artifact)
+        for artifact_id, artifact in artifacts.items()
+        if isinstance(artifact, Mapping)
+        and artifact.get("artifact_kind") == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+        and artifact.get("source_subsystem") == "SimulationEvaluator"
+        and artifact.get("source_manifest_id") == authoring_manifest_id
+        and artifact.get("source_manifest_hash") == expected_authoring_hash
+        and artifact.get("semantic_review_accepted") is True
+        and artifact.get("independent_agent") is True
+        and artifact.get("independent_invocation") is True
+        and (not expected_tier or str(artifact.get("reviewer_model_tier", "") or "").lower() == expected_tier)
+    ]
+    if not accepted_reviews:
+        errors.append(
+            "executable evaluator authoring lacks an accepted independent review"
+        )
+    review_execution_id = str(
+        accepted_reviews[-1][1].get("execution_id", "") or accepted_reviews[-1][0]
+    ) if accepted_reviews else ""
+    return {
+        "valid": not errors,
+        "confirmation_manifest_id": confirmation_manifest_id,
+        "authoring_manifest_id": authoring_manifest_id,
+        "authoring_manifest_hash": authoring_manifest_hash,
+        "review_execution_id": review_execution_id,
+        "source_identity": confirmation_identity,
+        "validation_errors": sorted(set(errors)),
+        "proof_evidence_status": "EXECUTABLE_EVALUATOR_REVIEW_BINDING_NOT_PROOF_EVIDENCE",
+    }
+
+
+def accepted_semantic_review_deferred_continuation(
+    *,
+    task: AgentTask,
+    result: AgentStepResult,
+    next_task: AgentTask,
+    blackboard: BlackboardState,
+) -> bool:
+    """Recognize the exact task restored after an accepted source review."""
+
+    if task.owner_subsystem != "GeneratedCodeSemanticReviewer" or result.status != "REROUTE":
+        return False
+    work_order_id = str(task.inputs.get("work_order_id", "") or "")
+    work_order = blackboard.artifacts.get(work_order_id, {})
+    work_order_hash = str(task.inputs.get("work_order_hash", "") or "")
+    if not (
+        isinstance(work_order, Mapping)
+        and work_order.get("artifact_kind") == "RuntimeGeneratedCodeSemanticReviewWorkOrder"
+        and stable_hash(work_order) == work_order_hash
+    ):
+        return False
+    accepted = any(
+        isinstance(artifact, Mapping)
+        and artifact.get("artifact_kind") == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
+        and artifact.get("work_order_id") == work_order_id
+        and artifact.get("work_order_hash") == work_order_hash
+        and artifact.get("source_subsystem") == work_order.get("source_subsystem")
+        and artifact.get("source_manifest_id") == work_order.get("source_manifest_id")
+        and artifact.get("source_manifest_hash") == work_order.get("source_manifest_hash")
+        and artifact.get("semantic_review_accepted") is True
+        and artifact.get("independent_agent") is True
+        and artifact.get("independent_invocation") is True
+        for artifact in result.produced_artifacts.values()
+    )
+    if not accepted:
+        return False
+    continuation_id = str(work_order.get("deferred_next_task_continuation_id", "") or "")
+    continuation = blackboard.artifacts.get(continuation_id, {})
+    if not (
+        isinstance(continuation, Mapping)
+        and continuation.get("artifact_kind") == "RuntimeAgentTaskContinuation"
+        and stable_hash(continuation) == str(
+            work_order.get("deferred_next_task_continuation_hash", "") or ""
+        )
+        and continuation.get("task_ref") == work_order.get("deferred_next_task_ref")
+    ):
+        return False
+    try:
+        persisted = restore_agent_task_continuation(continuation, blackboard.artifacts)
+        deferred = replace(
+            persisted,
+            inputs=resolve_runtime_artifact_references(persisted.inputs, blackboard.artifacts),
+        )
+    except ValueError:
+        return False
+    if (
+        agent_task_reference(persisted) != work_order.get("deferred_next_task_ref")
+        or deferred.owner_subsystem != next_task.owner_subsystem
+        or deferred.objective != next_task.objective
+        or deferred.allowed_tools != next_task.allowed_tools
+        or deferred.expected_artifacts != next_task.expected_artifacts
+        or deferred.acceptance_gate != next_task.acceptance_gate
+        or deferred.stop_condition != next_task.stop_condition
+    ):
+        return False
+    return all(
+        key == "architect_context" or next_task.inputs.get(key) == value
+        for key, value in deferred.inputs.items()
+    )
 
 
 def _string_set(value: Any) -> set[str]:
