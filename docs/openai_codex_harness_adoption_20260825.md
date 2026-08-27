@@ -31,6 +31,10 @@ Latest selective-adoption implementation commits:
 - `8f5d6295019100dedfa566d01c3b5dee204ead7c`: add model-owned independent
   Lean scratch execution to the existing Formalizer session without mutating or
   promoting the active candidate source.
+- `efe3017bcd2bf317008d6fabc75763496a97ade3`: remove TheoryDeveloper's
+  obsolete post-workspace ABI model call, JSON prompt API, stage-recovery route,
+  and dead packet-retry control so mathematical documents and executable ABI
+  remain in one source-owning session.
 
 Primary references:
 
@@ -1886,3 +1890,43 @@ was deleted; `research_agent_runtime.py` remains 24,986 lines. The consumed task
 cannot be rerun, resumed, repaired, reevaluated, rescored, or credited, so
 trustworthy full-task capability remains `4/56` and exact development theorem
 closure remains `0/2`.
+
+## Theory and ABI share one source owner
+
+The document-native Theory workspace already asked one persistent model session
+to author Markdown/LaTeX mathematics and the compact executable estimator ABI,
+returning validator observations directly to that same session. A legacy branch
+nevertheless remained after workspace completion: if a returned packet was
+invalid, it could open a separate structured-output model call to author the ABI,
+save a `TheoryDeveloperStageRecoveryCheckpoint`, and teach AgentRuntime to resume
+that content phase. A tests-only `build_theory_developer_prompt()` also still
+described the retired JSON-core-then-ABI protocol.
+
+Commit `efe3017b` removes that duplicate conversation owner and its entire
+supporting surface:
+
+- no post-commit ABI generator request or full-packet JSON regeneration;
+- no interface-stage schema, prompt, parser, recovery checkpoint, or runtime
+  recovery route;
+- no `max_validation_retries` Theory setting or CLI flag;
+- no separate parent-interface binding packet copied into revision context;
+- no legacy public prompt that contradicts the real Markdown/LaTeX workspace.
+
+The canonical workspace commit validator still enforces generic cross-agent ABI
+identity: every new ABI contains only executable fields, its response fields
+match the model-declared outputs, its semantic references resolve, and any
+frozen operator ABI remains exact. Those observations return inside the active
+Theory session before checkpoint. Historical packet readers remain compatible;
+the runtime does not rewrite old mathematical metadata or infer statistical
+content.
+
+This is selective Codex adoption: one ordered model/tool/observation history,
+external authoritative files, and policy at the environment boundary. It does
+not embed Codex core, App Server, Responses transport, provider code, thread
+storage, or scheduler. The focused cross-workspace panel passed `198/198`; the
+complete repository passed `951/951` in 83.21 seconds. Production Python is
+148,696 lines, `research_architect.py` is 4,043 lines, and
+`research_agent_runtime.py` is 24,970 lines. No model was called and no consumed
+task was rerun, resumed, repaired, reevaluated, rescored, or granted capability
+credit. Trustworthy capability therefore remains `4/56`, and exact development
+theorem closure remains `0/2`.
