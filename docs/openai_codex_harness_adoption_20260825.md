@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`5af6979986a23fcd6bbeb1ef7b206cbc96e9a0a2`.
+`57e2edc6e97474448f1fb634224471448bc09d40`.
 
 Latest selective-adoption implementation commits:
 
@@ -42,6 +42,9 @@ Latest selective-adoption implementation commits:
 - `0824246428d4695bf273e578372cf0fae3d469de`: focus future independent
   Theory review on reconstruction from original definitions and isolate each
   evaluator-only frozen claim in its own exact-Haiku adjudication call.
+- `f56db3a789de9ed25e86ed492a52ae7f6e6062a6`: keep document-authoritative
+  estimator handoffs to compact executable identity and return exact unsupported
+  nested ABI paths to the same Theory owner.
 
 Primary references:
 
@@ -2017,3 +2020,44 @@ The focused future-task mechanism panel passed `142/142`; the complete
 repository passed `953/953` in 79.47 seconds. Task 57 was not rerun, resumed,
 repaired, hidden-evaluated again, rescored, or resampled. Trustworthy capability
 is `4/57`, and exact development theorem closure remains `0/2`.
+
+## Compact Theory ABI and encrypted-argument delta
+
+The weighted-isotonic draw exercised the same Codex-shaped source-owner loop for
+34 exact-Haiku turns. Its Markdown authority, public-source tools, scratch
+execution, and direct validator observations all worked. The remaining transport
+friction was a contradictory handoff schema: document-authoritative Theory still
+advertised rich estimator metadata, while the cross-agent executable ABI accepted
+only compact request and response bindings. A generic rejection omitted the exact
+nested paths, so the model repeatedly revised the wrong layer.
+
+Commit `f56db3a7` applies the minimal harness correction for future tasks. The
+document path now returns only estimator identity and compact executable ABI; all
+formulae, algorithms, assumptions, rates, and proofs stay in Markdown/LaTeX.
+Unsupported ABI metadata is reported with exact JSON paths to the same source
+owner. Runtime does not project, repair, or infer the desired payload. The legacy
+structured-JSON path remains compatible.
+
+The official Codex checkout was incrementally rechecked from `5af6979` through
+[`57e2edc6`](https://github.com/openai/codex/commit/57e2edc6e97474448f1fb634224471448bc09d40).
+That one-commit delta marks history/notes search queries and note text as encrypted
+tool arguments and sends `x-openai-encrypted-tool-arguments: true` only on the
+matching backend routes, with schema and route tests. It sharpens a transport
+principle: sensitive arguments should be declared and protected at the provider
+boundary, while unrelated tool calls retain ordinary transport.
+
+AI Statistician cannot copy that private Responses/backend header into its Claude
+and local-workspace providers. The applicable rule is to keep credentials and
+secret values out of model-visible tool payloads and persisted telemetry, expose
+only necessary hash-bound metadata, and implement any future encryption in the
+owning provider adapter. This delta does not add scientific judgment, collaboration
+semantics, or a reason to embed Codex core, App Server, Responses transport,
+history/notes storage, or another scheduler.
+
+The future-task Theory, ABI, document-consumer, AgentRuntime, gold-evaluation, and
+scientific-progress mechanism panel passed `275/275` before immutable accounting
+updates. The final focused panel passed `331/331`; the complete repository passed
+`955/955` in 83.05 seconds. Compile-all, JSON, diff, model-policy, and secret
+hygiene passed. Task 58 remains `0/1`; it was not rerun, resumed, repaired,
+hidden-evaluated, rescored, or resampled. Trustworthy capability remains `4/58`,
+and exact development theorem closure remains `0/2`.
