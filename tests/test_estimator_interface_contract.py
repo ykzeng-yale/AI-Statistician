@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import ai_statistician.research_architect as research_architect_module
 from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_alignment_errors,
     frozen_estimator_execution_contract_clause_ids,
@@ -15,7 +16,6 @@ from ai_statistician.research_agent_runtime import (
     _question_from_payload,
     _question_to_payload,
 )
-from ai_statistician.research_architect import build_theory_developer_prompt
 from ai_statistician.research_lab import load_open_research_questions
 from ai_statistician.research_schema import (
     OpenResearchQuestion,
@@ -254,8 +254,19 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
     assert payload["estimator_execution_contract"] == contract
     assert _question_from_payload(payload).estimator_execution_contract == contract
 
+    theory_artifacts = (
+        research_architect_module._initial_theory_workspace_read_only_artifacts(
+            question=question,
+            architect_context={},
+            theory_prompt_mode=(
+                research_architect_module.THEORY_PROMPT_MODE_COMPACT
+            ),
+            max_tool_calls=48,
+            formalization_authoring_required=True,
+        )
+    )
     prompts = (
-        build_theory_developer_prompt(question, architect_context={}),
+        json.dumps(theory_artifacts, default=str),
         build_algorithm_engineer_prompt(
             question=question,
             theory_packet={},

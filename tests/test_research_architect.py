@@ -58,8 +58,9 @@ from ai_statistician.research_architect import (
     THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT,
     THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
+    THEORY_PROMPT_MODE_COMPACT,
+    THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
     build_theory_developer_revision_inputs,
-    build_theory_developer_prompt,
     source_replication_checkpoint_allowed,
     theory_handoff_requirements,
     validate_theory_core_packet,
@@ -1074,9 +1075,14 @@ def test_theory_only_revision_prompt_exposes_only_task_intent_handoffs(
         parent=parent,
     )
 
-    prompt = build_theory_developer_prompt(
-        question,
-        architect_context=context,
+    revision_inputs = build_theory_developer_revision_inputs(
+        context,
+        question=question,
+    )
+    prompt = research_architect_module._theory_workspace_revision_prompt(
+        question=question,
+        revision_inputs=revision_inputs,
+        formalization_authoring_required=False,
     )
     payload = json.loads(prompt.split("\n\n", 1)[1])
 
@@ -1248,56 +1254,82 @@ def test_advisory_theory_can_omit_formalization_authoring_artifacts() -> None:
 
 
 def test_optional_theory_prompt_does_not_invent_formalization_work() -> None:
-    prompt = build_theory_developer_prompt(
-        OpenResearchQuestion(
-            id="optional_formalization",
-            title="Optional formalization",
-            description="Develop and test a statistical procedure.",
-        ),
-        architect_context={
-            "runtime_requested_evidence_contract": {
-                "evaluation_mode": "research_eval",
-                "formal_target_authoring_required": False,
-            }
-        },
+    question = OpenResearchQuestion(
+        id="optional_formalization",
+        title="Optional formalization",
+        description="Develop and test a statistical procedure.",
     )
-    payload = json.loads(prompt.split("\n\n", 1)[1])
+    context = {
+        "runtime_requested_evidence_contract": {
+            "evaluation_mode": "research_eval",
+            "formal_target_authoring_required": False,
+        }
+    }
+    formalization_required = (
+        research_architect_module._theory_formalization_authoring_required(context)
+    )
+    artifacts = research_architect_module._initial_theory_workspace_read_only_artifacts(
+        question=question,
+        architect_context=context,
+        theory_prompt_mode=THEORY_PROMPT_MODE_COMPACT,
+        max_tool_calls=48,
+        formalization_authoring_required=formalization_required,
+    )
+    prompt = research_architect_module._initial_theory_workspace_prompt(
+        question=question,
+        theory_prompt_mode=THEORY_PROMPT_MODE_COMPACT,
+        max_tool_calls=48,
+        formalization_authoring_required=formalization_required,
+    )
+    payload = artifacts["initial_authoring_context"]
 
-    assert payload["concise_output_budget"]["max_formalization_requests"] == 0
     assert payload["required_output_contract"]["formalization_requests"] == []
     assert payload["required_output_contract"]["theory_derivation_packet"][
         "formalization_handoff"
     ] == {}
-    assert "Leave formalization artifacts empty" in prompt
+    assert payload["authoring_policy"]["formalization_authoring_required"] is False
+    assert "Formalization is not requested" in prompt
 
 
 def test_runtime_formal_contract_cannot_be_lowered_by_architect_plan() -> None:
-    prompt = build_theory_developer_prompt(
-        OpenResearchQuestion(
-            id="strict_formalization",
-            title="Strict formalization",
-            description="Exercise the strict integrated proof capability.",
-        ),
-        architect_context={
-            "runtime_requested_evidence_contract": {
-                "evaluation_mode": "capability_eval",
-                "formal_target_authoring_required": True,
-            },
-            "architect_runtime_plan": {
-                "evidence_contract": {
-                    "evaluation_mode": "research_eval",
-                    "formal_target_authoring_required": False,
-                }
-            },
-        },
+    question = OpenResearchQuestion(
+        id="strict_formalization",
+        title="Strict formalization",
+        description="Exercise the strict integrated proof capability.",
     )
-    payload = json.loads(prompt.split("\n\n", 1)[1])
+    context = {
+        "runtime_requested_evidence_contract": {
+            "evaluation_mode": "capability_eval",
+            "formal_target_authoring_required": True,
+        },
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "evaluation_mode": "research_eval",
+                "formal_target_authoring_required": False,
+            }
+        },
+    }
+    formalization_required = (
+        research_architect_module._theory_formalization_authoring_required(context)
+    )
+    artifacts = research_architect_module._initial_theory_workspace_read_only_artifacts(
+        question=question,
+        architect_context=context,
+        theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
+        max_tool_calls=48,
+        formalization_authoring_required=formalization_required,
+    )
+    prompt = research_architect_module._initial_theory_workspace_prompt(
+        question=question,
+        theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
+        max_tool_calls=48,
+        formalization_authoring_required=formalization_required,
+    )
+    payload = artifacts["initial_authoring_context"]
 
-    assert payload["serious_theory_output_budget"][
-        "formalization_requests_required"
-    ] is True
     assert payload["required_output_contract"]["formalization_requests"]
-    assert "Keep the formal target consistent" in prompt
+    assert payload["authoring_policy"]["formalization_authoring_required"] is True
+    assert "formalization handoff" in prompt
 
 
 def test_theory_validation_preserves_an_unresolved_sanity_check_for_review() -> None:
@@ -1542,7 +1574,6 @@ def test_capability_theory_mode_rejects_legacy_json_only_transport(
         provider=provider,
         config=ResearchArchitectConfig(
             provider_name="anthropic",
-            max_validation_retries=0,
         ),
     )
 
@@ -1574,7 +1605,6 @@ def test_agent_runtime_theory_rejects_legacy_json_only_transport(
         provider=provider,
         config=ResearchArchitectConfig(
             provider_name="anthropic",
-            max_validation_retries=0,
         ),
     )
 
@@ -1705,7 +1735,6 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
             provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -1897,7 +1926,6 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
             provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -2001,7 +2029,6 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
             provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -2026,7 +2053,6 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
             provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
     with pytest.raises(PacketValidationError, match="context mismatch"):
@@ -2083,7 +2109,6 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
             provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -2137,79 +2162,37 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     assert "mark the claim unresolved" in prompt
 
 
-def test_theory_developer_authors_interfaces_after_freezing_core_theory(
+def test_theory_developer_requires_interfaces_from_source_workspace_without_side_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     core_response = _sample_response()
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
-    expected_contract = project_executable_estimator_interface_contract(
-        core_estimators[0].pop("estimator_interface_contract")
-    )
-    core_estimators[0].pop("sample_size_order", None)
+    core_estimators[0].pop("estimator_interface_contract")
     core_response["estimator_specs"] = core_estimators
-    interface_response = {
-        "interfaces": {"crossfit_aipw": expected_contract}
-    }
     _stub_initial_theory_workspace(monkeypatch, core_response)
-    provider = WorkspaceStubGeneratorBackend([interface_response])
+    provider = WorkspaceStubGeneratorBackend([])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
-    packet = developer.derive(
-        OpenResearchQuestion(
-            id="two_phase_theory",
-            title="Two-phase theory authoring",
-            description="Freeze theory before authoring executable interfaces.",
+    with pytest.raises(
+        PacketValidationError,
+        match="estimator_interface_contract",
+    ):
+        developer.derive(
+            OpenResearchQuestion(
+                id="single_session_theory",
+                title="Single-session theory authoring",
+                description="Author theory and executable interfaces together.",
+            )
         )
-    )
 
-    assert packet["ok"] is True
-    assert validate_theory_packet(packet) == []
-    assert len(provider.requests) == 1
-    assert provider.requests[0].model == "claude-haiku-4-5-20251001"
-    assert [
-        request.metadata["theory_developer_phase"]
-        for request in provider.requests
-    ] == ["estimator_interface_authoring"]
-    interface_schema = provider.requests[0].schema["properties"]["interfaces"]
-    assert interface_schema["type"] == "object"
-    assert interface_schema["additionalProperties"] is False
-    assert interface_schema["required"] == ["crossfit_aipw"]
-    assert list(interface_schema["properties"]) == ["crossfit_aipw"]
-    contract_schema = interface_schema["properties"]["crossfit_aipw"]
-    assert contract_schema["properties"]["request_fields"]["minItems"] == 1
-    response_schema = contract_schema["properties"]["response_fields"]
-    assert response_schema["minItems"] == response_schema["maxItems"] == 1
-    assert contract_schema["properties"]["request_fields"]["items"][
-        "properties"
-    ]["binding"]["enum"] == list(ESTIMATOR_REQUEST_BINDINGS)
-    response_item_schema = response_schema["items"]
-    assert response_item_schema["required"] == [
-        "name",
-        "meaning",
-        "normalization",
-        "derivation_ref",
-    ]
-    assert "sample_size_order" not in response_item_schema["properties"]
-    assert "sample_size_rate" not in response_item_schema["properties"]
-    estimator = packet["estimator_specs"][0]
-    assert estimator["estimator_interface_contract"] == expected_contract
-    assert estimator["estimator_interface_contract_id"] == (
-        estimator_interface_contract_id(expected_contract)
-    )
-    assert packet["estimator_interface_authoring"]["n_interfaces"] == 1
-    assert packet["estimator_interface_authoring"]["model_tier"] == "haiku"
-    assert [row["phase"] for row in packet["theory_generation_phases"]] == [
-        "core_theory_workspace",
-        "estimator_interface_authoring",
-    ]
+    assert provider.requests == []
 
 
 def test_theory_interface_authoring_rejects_math_metadata_in_abi(
@@ -2217,21 +2200,20 @@ def test_theory_interface_authoring_rejects_math_metadata_in_abi(
 ) -> None:
     core_response = _sample_response()
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
-    interface = core_estimators[0].pop("estimator_interface_contract")
-    core_response["estimator_specs"] = core_estimators
-    legacy_interface = deepcopy(interface)
-    legacy_interface["response_fields"][0]["sample_size_order"] = "O_p(1)"
-    _stub_initial_theory_workspace(monkeypatch, core_response)
-    provider = WorkspaceStubGeneratorBackend(
-        [{"interfaces": {"crossfit_aipw": legacy_interface}}]
+    legacy_interface = deepcopy(
+        core_estimators[0]["estimator_interface_contract"]
     )
+    legacy_interface["response_fields"][0]["sample_size_order"] = "O_p(1)"
+    core_estimators[0]["estimator_interface_contract"] = legacy_interface
+    core_response["estimator_specs"] = core_estimators
+    _stub_initial_theory_workspace(monkeypatch, core_response)
+    provider = WorkspaceStubGeneratorBackend([])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
             provider_name="sequential_test",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -2248,6 +2230,7 @@ def test_theory_interface_authoring_rejects_math_metadata_in_abi(
         "must contain only executable ABI fields" in error
         for error in exc_info.value.errors
     )
+    assert provider.requests == []
 
 
 def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows(
@@ -2255,23 +2238,19 @@ def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows(
 ) -> None:
     core_response = _sample_response()
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
-    contract = core_estimators[0].pop("estimator_interface_contract")
     core_estimators[0]["outputs"] = [
         "point estimate",
         "estimated standard error",
     ]
     core_response["estimator_specs"] = core_estimators
     _stub_initial_theory_workspace(monkeypatch, core_response)
-    provider = WorkspaceStubGeneratorBackend(
-        [{"interfaces": {"crossfit_aipw": contract}}]
-    )
+    provider = WorkspaceStubGeneratorBackend([])
     developer = LLMTheoryDeveloperAgent(
         provider=provider,
         config=ResearchArchitectConfig(
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -2285,10 +2264,11 @@ def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows(
         )
 
     assert any(
-        "response_fields must correspond one-for-one to the 2 frozen outputs"
+        "response_fields must correspond one-for-one to the 2 estimator outputs"
         in error
         for error in exc_info.value.errors
     )
+    assert provider.requests == []
 
 
 
@@ -2444,7 +2424,6 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -2513,7 +2492,6 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
     continued_context = {
@@ -2729,27 +2707,18 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     assert revision_inputs["base_core_payload"]["problem_card"]["estimand"] == (
         "psi = E[m_1(X)-m_0(X)]"
     )
-    expected_core_spec = deepcopy(
-        revision_inputs["base_core_payload"]["estimator_specs"][0]
+    parent_spec = revision_inputs["base_core_payload"]["estimator_specs"][0]
+    assert parent_spec["estimator_interface_contract"] == (
+        parent["estimator_specs"][0]["estimator_interface_contract"]
     )
-    expected_core_spec.pop("estimator_interface_contract")
-    assert revision_inputs["parent_estimator_interface_bindings"] == [
-        {
-            "estimator_id": "crossfit_aipw",
-            "core_spec_fingerprint": stable_hash(expected_core_spec),
-            "estimator_interface_contract": (
-                parent["estimator_specs"][0]["estimator_interface_contract"]
-            ),
-            "estimator_interface_contract_id": (
-                estimator_interface_contract_id(
-                    parent["estimator_specs"][0][
-                        "estimator_interface_contract"
-                    ]
-                )
-            ),
-        }
-    ]
-    prompt = build_theory_developer_prompt(question, architect_context=context)
+    assert "estimator_interface_contract_id" not in parent_spec
+    assert "parent_estimator_interface_bindings" not in revision_inputs
+    assert "parent_estimator_interface_authoring" not in revision_inputs
+    prompt = research_architect_module._theory_workspace_revision_prompt(
+        question=question,
+        revision_inputs=revision_inputs,
+        formalization_authoring_required=True,
+    )
     assert "model_owned_document_workspace" in prompt
     assert "generated_code_semantic_review_postexecution" in prompt
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
@@ -2839,7 +2808,6 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_validation_retries=1,
         ),
     )
 
@@ -3002,7 +2970,6 @@ def test_theory_revision_repairs_interface_in_same_document_workspace(
             model_tier="haiku",
             serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             serious_model_tier="haiku",
-            max_validation_retries=1,
         ),
     )
 
@@ -3094,7 +3061,6 @@ def test_serious_theory_truncation_recovery_does_not_resample_json() -> None:
         config=ResearchArchitectConfig(
             provider_name="sequential_test",
             model="repair-test-model",
-            max_validation_retries=2,
         ),
     )
     context = {
@@ -3630,14 +3596,13 @@ def test_live_llm_backend_rejects_codex_provider_for_main_cli() -> None:
 
 
 def test_theory_prompt_uses_current_sources_without_historical_routing_memory() -> None:
-    prompt = build_theory_developer_prompt(
-        OpenResearchQuestion(
-            id="generic_prompt_compaction",
-            title="Prompt compaction",
-            description="Use current task evidence without historical route recipes.",
-            tags=("statistics",),
-        ),
-        architect_context={
+    question = OpenResearchQuestion(
+        id="generic_prompt_compaction",
+        title="Prompt compaction",
+        description="Use current task evidence without historical route recipes.",
+        tags=("statistics",),
+    )
+    context = {
             "runtime_task": {
                 "task_id": "theory:current",
                 "owner_subsystem": "TheoryDeveloper",
@@ -3679,8 +3644,15 @@ def test_theory_prompt_uses_current_sources_without_historical_routing_memory() 
                     }
                 ]
             },
-        },
+        }
+    artifacts = research_architect_module._initial_theory_workspace_read_only_artifacts(
+        question=question,
+        architect_context=context,
+        theory_prompt_mode=THEORY_PROMPT_MODE_COMPACT,
+        max_tool_calls=48,
+        formalization_authoring_required=True,
     )
+    prompt = json.dumps(artifacts, default=str)
 
     assert "Statlib.current_bound" in prompt
     assert "theorem current_bound (h : P) : Q" in prompt

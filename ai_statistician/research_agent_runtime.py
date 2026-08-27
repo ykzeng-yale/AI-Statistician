@@ -261,7 +261,6 @@ from .research_architect import (
     KERNEL_PROOF_BOUNDARY,
     LLMTheoryDeveloperAgent,
     THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY,
-    THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
     THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
     source_replication_checkpoint_allowed,
     theory_developer_source_environment_feedback,
@@ -5664,22 +5663,10 @@ class TheoryDeveloperRuntimeSubsystem:
             or getattr(theory_config, "provider_name", "")
             or ""
         ).strip().lower()
-        environment_feedback = context.get("environment_feedback", {})
-        recovery_checkpoint = (
-            environment_feedback.get("recovery_checkpoint", {})
-            if isinstance(environment_feedback, Mapping)
-            else {}
-        )
-        recovering_interface_stage = bool(
-            isinstance(recovery_checkpoint, Mapping)
-            and recovery_checkpoint.get("failed_phase")
-            == "estimator_interface_authoring"
-        )
         theory_artifact_workspace_expected = bool(
             callable(
                 getattr(theory_provider, "generate_client_tool_turn", None)
             )
-            and not recovering_interface_stage
         )
         try:
             with agent_runtime_substage(
@@ -6609,10 +6596,7 @@ def _theory_developer_packet_validation_failure_result(
         deepcopy(dict(raw_recovery_checkpoint))
         if isinstance(raw_recovery_checkpoint, Mapping)
         and raw_recovery_checkpoint.get("artifact_kind")
-        in {
-            THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
-            THEORY_WORKSPACE_CHECKPOINT_KIND,
-        }
+        == THEORY_WORKSPACE_CHECKPOINT_KIND
         and raw_recovery_checkpoint.get("question_id") == question.id
         and raw_recovery_checkpoint.get("kernel_verified") is False
         else {}

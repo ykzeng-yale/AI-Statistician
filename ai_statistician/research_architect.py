@@ -15,8 +15,6 @@ from .estimator_interface_contract import (
     frozen_estimator_execution_contract_alignment_errors,
     estimator_interface_contract_errors,
     estimator_interface_contract_id,
-    estimator_interface_contract_json_schema,
-    normalize_estimator_interface_contract,
     normalize_theory_estimator_interface_contracts,
     project_executable_estimator_interface_contract,
     theory_semantic_reference_ids,
@@ -29,11 +27,7 @@ from .model_backend import (
     StaticJSONGeneratorBackend,
     resolve_generator_model,
 )
-from .structured_output_retry import (
-    PacketValidationError,
-    extract_json_object,
-    generate_validated_json_packet,
-)
+from .structured_output_retry import PacketValidationError
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
 )
@@ -76,7 +70,6 @@ THEORY_SERIOUS_PROMPT_MODES = (
     THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
     THEORY_PROMPT_MODE_SERIOUS_REVISION,
 )
-THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND = "TheoryDeveloperStageRecoveryCheckpoint"
 THEORY_DEVELOPER_PROGRESS_CHECKPOINT_CONTEXT_KEY = (
     "theory_developer_progress_checkpoint"
 )
@@ -231,7 +224,6 @@ class ResearchArchitectConfig:
     serious_max_tokens: int = 10000
     temperature: float = 0.2
     provider_name: str = "anthropic"
-    max_validation_retries: int = 2
     theory_workspace_max_turns: int = 24
     theory_workspace_max_tool_calls: int = 48
     theory_workspace_max_no_progress_turns: int = 2
@@ -291,7 +283,6 @@ class LLMTheoryDeveloperAgent:
             _theory_formalization_authoring_required(context)
         )
         serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
-        transport_recovery = _theory_developer_transport_recovery(context)
         effective_model_tier = (
             self.config.serious_model_tier
             if serious_theory_mode
@@ -311,25 +302,6 @@ class LLMTheoryDeveloperAgent:
             ),
             model_tier=effective_model_tier,
         )
-        backend_provider_name = str(
-            getattr(self.provider, "provider_name", self.config.provider_name)
-            or self.config.provider_name
-        ).strip().lower()
-        use_provider_structured_output = backend_provider_name == "anthropic"
-        effective_max_validation_retries = (
-            min(self.config.max_validation_retries, 1)
-            if transport_recovery
-            else self.config.max_validation_retries
-        )
-        revision_inputs: Mapping[str, Any] | None = None
-        document_workspace_required = bool(
-            theory_workspace_root is not None or serious_theory_mode
-        )
-        recovered_core_packet = _theory_developer_recovered_core_checkpoint(
-            context,
-            question=question,
-            theory_prompt_mode=theory_prompt_mode,
-        )
         progress_checkpoint_state = (
             _theory_developer_progress_checkpoint_state(
                 context,
@@ -338,24 +310,10 @@ class LLMTheoryDeveloperAgent:
             )
         )
         if (
-            recovered_core_packet is not None
-            and progress_checkpoint_state is not None
-        ):
-            raise PacketValidationError(
-                validation_label="TheoryDeveloper recovery checkpoint",
-                attempts=0,
-                errors=[
-                    "interface-stage and theory-progress recovery cannot be active "
-                    "at the same time"
-                ],
-                history=[],
-            )
-        if (
             (
                 self.research_sources is not None
                 or self.research_source_discovery is not None
             )
-            and recovered_core_packet is None
             and not callable(
                 getattr(self.provider, "generate_client_tool_turn", None)
             )
@@ -368,22 +326,7 @@ class LLMTheoryDeveloperAgent:
                 ],
                 history=[],
             )
-        if recovered_core_packet is not None:
-            if document_workspace_required and recovered_core_packet.get(
-                "theory_content_authority"
-            ) != THEORY_WORKSPACE_CONTENT_AUTHORITY:
-                raise PacketValidationError(
-                    validation_label="LLM TheoryDeveloper document workspace",
-                    attempts=0,
-                    errors=[
-                        "AgentRuntime and serious theory recovery require a "
-                        "model-authored Markdown/LaTeX checkpoint; a legacy "
-                        "JSON-only core packet cannot become the theory authority"
-                    ],
-                    history=[],
-                )
-            core_packet = recovered_core_packet
-        elif theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
+        if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
             revision_inputs = build_theory_developer_revision_inputs(
                 context,
                 question=question,
@@ -473,33 +416,19 @@ class LLMTheoryDeveloperAgent:
             == SOURCE_REPLICATION_CHECKPOINT_KIND
         ):
             return core_packet
-        # Test doubles may return a sentinel without running the supplied builder.
-        if not core_packet.get("estimator_specs"):
-            return core_packet
-        if not validate_theory_packet(core_packet):
-            return core_packet
-        return _complete_theory_estimator_interfaces(
+        validation_errors = _validate_theory_packet_for_question(
             core_packet,
             question=question,
-            provider=self.provider,
-            provider_name=self.config.provider_name,
-            request_model=request_model,
-            model_tier=effective_model_tier,
-            temperature=self.config.temperature,
-            max_tokens=effective_max_tokens,
-            max_validation_retries=effective_max_validation_retries,
-            use_provider_structured_output=use_provider_structured_output,
-            parent_estimator_interface_bindings=(
-                revision_inputs.get("parent_estimator_interface_bindings", [])
-                if isinstance(revision_inputs, Mapping)
-                else []
-            ),
-            parent_estimator_interface_authoring=(
-                revision_inputs.get("parent_estimator_interface_authoring", {})
-                if isinstance(revision_inputs, Mapping)
-                else {}
-            ),
         )
+        if validation_errors:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper document workspace",
+                attempts=0,
+                errors=validation_errors,
+                history=[],
+                last_invalid_packet=core_packet,
+            )
+        return core_packet
 
 
 class ResearchArchitectAgent:
@@ -569,194 +498,6 @@ class ResearchArchitectAgent:
 
 
 
-def build_theory_developer_prompt(
-    question: OpenResearchQuestion,
-    *,
-    architect_context: Mapping[str, Any],
-) -> str:
-    theory_prompt_mode = _theory_developer_prompt_mode(architect_context)
-    if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION:
-        formalization_authoring_required = (
-            _theory_formalization_authoring_required(architect_context)
-        )
-        revision_inputs = build_theory_developer_revision_inputs(
-            architect_context,
-            question=question,
-        )
-        return _theory_workspace_revision_prompt(
-            question=question,
-            revision_inputs=revision_inputs,
-            formalization_authoring_required=(
-                formalization_authoring_required
-            ),
-        )
-
-    compact_context = _compact_architect_context_for_prompt(architect_context)
-    serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
-    transport_recovery = _theory_developer_transport_recovery(architect_context)
-    formalization_authoring_required = (
-        _theory_formalization_authoring_required(architect_context)
-    )
-    required_output_contract, handoff_requirements = (
-        _theory_output_contract_for_question(
-            THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
-            question=question,
-            formalization_authoring_required=formalization_authoring_required,
-        )
-    )
-    if serious_theory_mode:
-        prompt_mode = {
-            "mode": theory_prompt_mode,
-            "purpose": (
-                "derive or revise a research-grade statistical procedure with a "
-                "coherent equation chain, assumption audit, feasibility analysis, "
-                "and critic pass to support independent downstream authoring"
-            ),
-            "do_not_expand_full_retrieval_or_architect_json": True,
-        }
-        output_budget_key = "serious_theory_output_budget"
-        output_budget = {
-            **(
-                {
-                    "max_derivation_steps": 5,
-                    "max_equation_chain_steps": 4,
-                    "max_sanity_checks": 3,
-                    "max_candidate_procedures": 1,
-                    "max_theorem_goals": 1,
-                    "max_lemma_cards": 2,
-                    "max_formalization_requests": (
-                        1 if formalization_authoring_required else 0
-                    ),
-                    "max_critic_findings": 2,
-                    "max_simulation_predictions": 2,
-                    "max_next_actions": 1,
-                    "max_string_chars": 320,
-                }
-                if transport_recovery
-                else {
-                    "row_count_policy": "model_selected_within_token_budget",
-                    "per_field_row_caps": None,
-                    "per_string_character_caps": None,
-                }
-            ),
-            "transport_recovery": transport_recovery,
-            "formalization_requests_required": bool(
-                formalization_authoring_required
-            ),
-            "instruction": (
-                (
-                    "This is a transport recovery after a truncated response. "
-                    "Return the minimum complete serious-theory handoff while "
-                    "preserving every active mathematical obligation. "
-                )
-                if transport_recovery
-                else (
-                    "Use as many dependency-linked claims, equations, lemmas, "
-                    "counterchecks, and alternatives as the argument needs within "
-                    "the model token budget. The schema does not define research "
-                    "quality through row counts or string lengths. "
-                )
-            ) + (
-                "Return one complete valid JSON object. Build a coherent mathematical "
-                "workspace at the level required by the question: derive claims from "
-                "the stated setup and assumptions, link equations and lemmas by id, "
-                "and independently check the claims most likely to invalidate the "
-                "procedure. Keep the DGP, estimand, procedure, theorem, executable "
-                "semantics and simulation plan mutually consistent. "
-                + (
-                    "Keep the formal target consistent with them. "
-                    if formalization_authoring_required
-                    else "Do not invent a formalization handoff for this task. "
-                )
-                + "When evidence is insufficient or a contradiction remains, record it "
-                "as an unresolved critic finding instead of inventing certainty. Use "
-                "only the rows the argument needs, state each definition or equation "
-                "once, and refer to its id elsewhere. On a revision turn, use the "
-                "supplied candidate and reviewer observations as evidence, reconsider "
-                "the approach freely, and regenerate the entire packet."
-            ),
-        }
-    else:
-        prompt_mode = {
-            "mode": THEORY_PROMPT_MODE_COMPACT,
-            "purpose": "derive the core statistical object, procedure, theorem goals, and proof obligations without replaying full retrieval artifacts",
-            "do_not_expand_full_retrieval_or_architect_json": True,
-        }
-        output_budget_key = "concise_output_budget"
-        output_budget = {
-            "max_derivation_steps": 5,
-            "max_equation_chain_steps": 5,
-            "max_sanity_checks": 3,
-            "max_candidate_procedures": 1,
-            "max_theorem_goals": 1,
-            "max_lemma_cards": 1,
-            "max_formalization_requests": (
-                1 if formalization_authoring_required else 0
-            ),
-            "max_critic_findings": 1,
-            "max_simulation_predictions": 1,
-            "max_next_actions": 1,
-            "max_string_chars": 180,
-            "instruction": (
-                "Return a complete valid JSON object within this budget. Author one "
-                "primary estimator and theorem target. "
-                + (
-                    "Author one formalization request. "
-                    if formalization_authoring_required
-                    else "Leave formalization artifacts empty. "
-                )
-                + "Choose "
-                "the number of derivation, equation, lemma, sanity-check, critic, and "
-                "action rows from the argument itself; optional lists may be empty. "
-                "Keep every string one sentence or one equation fragment. Do not "
-                "include essays, tables, Markdown, or long simulation instructions."
-            ),
-        }
-    payload = {
-        "question": research_question_payload(
-            question, include_task_intent=True
-        ),
-        "prompt_mode": prompt_mode,
-        "architect_context": compact_context,
-        "required_output_contract": required_output_contract,
-        "structured_handoff_requirements": handoff_requirements,
-        output_budget_key: output_budget,
-        "proof_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-    serious_mode_label = (
-        "upstream-theory revision"
-        if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION
-        else "capability-theory pass"
-    )
-    mode_instruction = (
-        f"This is a serious {serious_mode_label}: produce a rigorous equation and "
-        "lemma dependency trace, audit assumptions, and preserve every active "
-        "review observation. Choose the number and organization of mathematical "
-        "objects from the argument itself; row counts are not a quality metric."
-        if serious_theory_mode
-        else "This is a focused first-pass discovery packet with one primary "
-        "procedure and theorem target. Choose all supporting "
-        "row counts from the argument; counts are not a quality metric."
-    )
-    return (
-        "Derive statistical theory artifacts for the Architect loop. Return ONLY one "
-        "JSON object matching required_output_contract. You own all mathematical "
-        "content and may change the approach when observations warrant it; the runtime "
-        "does not provide issue-specific corrections. State the setup and assumptions, "
-        "give an explicit dependency-linked derivation, define the procedure, expose "
-        "uncertainty, and align the theorem, simulation, executable, and formalization "
-        "handoffs. Use retrieved declarations as context, never as proof evidence. Do "
-        "not emit estimator_interface_contract in this core phase; the same "
-        "TheoryDeveloper authors the bounded interface after the core packet is frozen. "
-        "Do not claim Lean or kernel verification. Check the output contract before "
-        "returning and avoid repeating content across fields. "
-        + mode_instruction
-        + " Keep the packet within its declared budget and finish as one valid JSON "
-        "object; do not trade JSON completeness for detail.\n\n"
-        + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
-    )
-
-
 def _theory_developer_prompt_mode(
     architect_context: Mapping[str, Any],
 ) -> str:
@@ -813,18 +554,6 @@ def _theory_formalization_authoring_required(
         if evaluation_mode == "capability_eval":
             return True
     return True
-
-
-def _theory_developer_transport_recovery(
-    architect_context: Mapping[str, Any],
-) -> bool:
-    feedback = architect_context.get("environment_feedback", {})
-    return bool(
-        isinstance(feedback, Mapping)
-        and feedback.get("artifact_kind")
-        == "RuntimeTheoryDeveloperValidationFeedback"
-        and feedback.get("truncation_detected") is True
-    )
 
 
 def theory_developer_source_environment_feedback(
@@ -939,86 +668,6 @@ def _theory_progress_prompt_artifact(
             "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
         ),
     }
-
-
-def _theory_developer_recovered_core_checkpoint(
-    architect_context: Mapping[str, Any],
-    *,
-    question: OpenResearchQuestion,
-    theory_prompt_mode: str,
-) -> dict[str, Any] | None:
-    """Resume interface authoring from one validator-bound completed core phase."""
-
-    feedback = architect_context.get("environment_feedback", {})
-    checkpoint = (
-        feedback.get("recovery_checkpoint", {})
-        if isinstance(feedback, Mapping)
-        and feedback.get("artifact_kind")
-        == "RuntimeTheoryDeveloperValidationFeedback"
-        else {}
-    )
-    if not isinstance(checkpoint, Mapping) or not checkpoint:
-        return None
-
-    errors: list[str] = []
-    if checkpoint.get("artifact_kind") != THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND:
-        errors.append("TheoryDeveloper recovery checkpoint has the wrong artifact kind")
-    if checkpoint.get("failed_phase") != "estimator_interface_authoring":
-        errors.append("TheoryDeveloper recovery checkpoint is not for interface authoring")
-    if str(checkpoint.get("question_id", "") or "") != question.id:
-        errors.append("TheoryDeveloper recovery checkpoint belongs to another question")
-    if checkpoint.get("kernel_verified") is not False:
-        errors.append("TheoryDeveloper recovery checkpoint must remain non-proof")
-
-    raw_core_packet = checkpoint.get("validated_core_packet", {})
-    core_packet = (
-        deepcopy(dict(raw_core_packet))
-        if isinstance(raw_core_packet, Mapping)
-        else {}
-    )
-    if not core_packet:
-        errors.append("TheoryDeveloper recovery checkpoint has no completed core packet")
-    expected_fingerprint = str(
-        checkpoint.get("validated_core_packet_fingerprint", "") or ""
-    )
-    actual_fingerprint = stable_hash(core_packet) if core_packet else ""
-    if not expected_fingerprint or expected_fingerprint != actual_fingerprint:
-        errors.append("TheoryDeveloper recovery checkpoint fingerprint does not match")
-    if core_packet:
-        errors.extend(validate_theory_core_packet(core_packet))
-
-    if theory_prompt_mode == THEORY_PROMPT_MODE_SERIOUS_REVISION and core_packet:
-        revision_inputs = build_theory_developer_revision_inputs(
-            architect_context,
-            question=question,
-        )
-        transport = core_packet.get("theory_revision_transport", {})
-        if not isinstance(transport, Mapping) or not transport:
-            errors.append("recovered targeted core has no revision transport lineage")
-        else:
-            if transport.get("source_theory_packet_id") != revision_inputs.get(
-                "source_theory_packet_id"
-            ):
-                errors.append("recovered targeted core parent packet id changed")
-            if transport.get("source_theory_packet_hash") != revision_inputs.get(
-                "source_theory_packet_hash"
-            ):
-                errors.append("recovered targeted core parent packet hash changed")
-            if transport.get("feedback_id") != revision_inputs.get("feedback_id"):
-                errors.append("recovered targeted core feedback lineage changed")
-            if transport.get("revision_binding_id") != revision_inputs.get(
-                "revision_binding_id"
-            ):
-                errors.append("recovered targeted core revision binding changed")
-
-    if errors:
-        raise PacketValidationError(
-            validation_label="TheoryDeveloper stage recovery checkpoint",
-            attempts=0,
-            errors=list(dict.fromkeys(errors)),
-            history=[],
-        )
-    return core_packet
 
 
 def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[str, Any]:
@@ -1843,41 +1492,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
 }
 
 
-def _bounded_theory_schema_value(
-    value: Any,
-    *,
-    max_string_chars: int | None,
-    default_max_items: int | None,
-) -> Any:
-    if isinstance(value, Mapping):
-        bounded = {
-            str(key): _bounded_theory_schema_value(
-                child,
-                max_string_chars=max_string_chars,
-                default_max_items=default_max_items,
-            )
-            for key, child in value.items()
-        }
-        if bounded.get("type") == "string":
-            bounded["minLength"] = 1
-            if max_string_chars is not None:
-                bounded["maxLength"] = max_string_chars
-        elif bounded.get("type") == "array":
-            if default_max_items is not None:
-                bounded.setdefault("maxItems", default_max_items)
-        return bounded
-    if isinstance(value, list):
-        return [
-            _bounded_theory_schema_value(
-                child,
-                max_string_chars=max_string_chars,
-                default_max_items=default_max_items,
-            )
-            for child in value
-        ]
-    return deepcopy(value)
-
-
 def validate_theory_packet(packet: Mapping[str, Any]) -> list[str]:
     return _validate_theory_packet(
         packet,
@@ -1891,6 +1505,7 @@ def _validate_theory_packet_for_question(
     question: OpenResearchQuestion,
 ) -> list[str]:
     errors = validate_theory_packet(packet)
+    errors.extend(_canonical_estimator_interface_alignment_errors(packet))
     errors.extend(
         frozen_estimator_execution_contract_alignment_errors(
             packet,
@@ -1898,6 +1513,39 @@ def _validate_theory_packet_for_question(
         )
     )
     return list(dict.fromkeys(errors))
+
+
+def _canonical_estimator_interface_alignment_errors(
+    packet: Mapping[str, Any],
+) -> list[str]:
+    """Keep the committed cross-agent ABI exact without interpreting statistics."""
+
+    errors: list[str] = []
+    for index, row in enumerate(packet.get("estimator_specs", []) or []):
+        if not isinstance(row, Mapping):
+            continue
+        contract = row.get("estimator_interface_contract")
+        if not isinstance(contract, Mapping):
+            continue
+        if dict(contract) != project_executable_estimator_interface_contract(contract):
+            errors.append(
+                f"estimator_specs[{index}] must contain only executable ABI fields; "
+                "mathematical rates and orders belong in theory documents"
+            )
+        outputs = row.get("outputs", [])
+        response_fields = contract.get("response_fields", [])
+        if (
+            isinstance(outputs, list)
+            and outputs
+            and isinstance(response_fields, list)
+            and len(response_fields) != len(outputs)
+        ):
+            errors.append(
+                f"estimator_specs[{index}] response_fields must correspond "
+                f"one-for-one to the {len(outputs)} estimator outputs; received "
+                f"{len(response_fields)}"
+            )
+    return errors
 
 
 def validate_theory_core_packet(packet: Mapping[str, Any]) -> list[str]:
@@ -2706,50 +2354,13 @@ def build_theory_developer_revision_inputs(
     ):
         if field in semantic_material:
             base_core_payload[field] = deepcopy(semantic_material[field])
-    parent_estimator_interface_bindings: list[dict[str, Any]] = []
     raw_specs = base_core_payload.get("estimator_specs", [])
-    if isinstance(raw_specs, list):
-        workspace_specs: list[Any] = []
+    if not isinstance(raw_specs, list):
+        errors.append("prior estimator_specs must be a list")
+    else:
         for index, raw_spec in enumerate(raw_specs):
             if not isinstance(raw_spec, Mapping):
                 errors.append(f"prior estimator_specs[{index}] must be an object")
-                workspace_specs.append(deepcopy(raw_spec))
-                continue
-            workspace_spec = deepcopy(dict(raw_spec))
-            interface_contract = workspace_spec.get(
-                "estimator_interface_contract"
-            )
-            interface_contract_id = workspace_spec.pop(
-                "estimator_interface_contract_id",
-                None,
-            )
-            core_spec = deepcopy(workspace_spec)
-            core_spec.pop("estimator_interface_contract", None)
-            estimator_id = str(workspace_spec.get("id", "") or "").strip()
-            if (
-                estimator_id
-                and isinstance(interface_contract, Mapping)
-                and interface_contract
-            ):
-                parent_estimator_interface_bindings.append(
-                    {
-                        "estimator_id": estimator_id,
-                        "core_spec_fingerprint": stable_hash(core_spec),
-                        "estimator_interface_contract": deepcopy(
-                            dict(interface_contract)
-                        ),
-                        "estimator_interface_contract_id": str(
-                            interface_contract_id
-                            or estimator_interface_contract_id(
-                                interface_contract
-                            )
-                        ),
-                    }
-                )
-            workspace_specs.append(workspace_spec)
-        base_core_payload["estimator_specs"] = workspace_specs
-    else:
-        errors.append("prior estimator_specs must be a list")
 
     derivation = base_core_payload.get("theory_derivation_packet", {})
     if isinstance(derivation, Mapping):
@@ -2809,17 +2420,6 @@ def build_theory_developer_revision_inputs(
         ),
         "base_core_payload": base_core_payload,
         "base_core_payload_fingerprint": stable_hash(base_core_payload),
-        "parent_estimator_interface_bindings": (
-            parent_estimator_interface_bindings
-        ),
-        "parent_estimator_interface_authoring": deepcopy(
-            dict(semantic_material.get("estimator_interface_authoring", {}))
-            if isinstance(
-                semantic_material.get("estimator_interface_authoring", {}),
-                Mapping,
-            )
-            else {}
-        ),
     }
 
 
@@ -4054,22 +3654,6 @@ def _generate_theory_workspace_revision(
     return packet
 
 
-THEORY_ESTIMATOR_INTERFACE_SYSTEM_PROMPT = """\
-You are the interface-authoring phase of the AI Statistician TheoryDeveloper.
-
-The core mathematical workspace is frozen. Translate each frozen estimator into
-one typed request/response contract. Do not revise the estimand, formula,
-algorithm, assumptions, theorem, or derivation. Every response normalization must
-cite an exact semantic id supplied in the prompt. This
-artifact is an executable handoff specification, not proof evidence. Preserve
-the frozen outputs exactly: do not invent status, unavailable, diagnostic, or
-resource fields that the core theory did not declare. Runtime owns operational
-execution status. Mathematical rates and asymptotic claims remain authoritative
-only in the frozen Markdown/LaTeX workspace; do not duplicate them in this ABI.
-The runtime validates shape and references but never interprets mathematics.
-"""
-
-
 def _theory_core_generation_phase(core_packet: Mapping[str, Any]) -> str:
     client_tool_loop = core_packet.get("llm_client_tool_loop", {})
     if (
@@ -4086,70 +3670,6 @@ def _theory_core_generation_phase(core_packet: Mapping[str, Any]) -> str:
     ):
         return "artifact_workspace_revision"
     return "full_core_revision"
-
-
-def _reusable_parent_estimator_interfaces(
-    core_packet: Mapping[str, Any],
-    parent_bindings: Sequence[Mapping[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    """Return exact parent ABIs only when every estimator core is unchanged."""
-
-    expected_ids = _theory_estimator_ids(core_packet)
-    bindings_by_id = {
-        str(row.get("estimator_id", "") or "").strip(): row
-        for row in parent_bindings
-        if isinstance(row, Mapping)
-        and str(row.get("estimator_id", "") or "").strip()
-    }
-    if not expected_ids or set(bindings_by_id) != set(expected_ids):
-        return {}
-
-    allowed_refs = theory_semantic_reference_ids(core_packet)
-    reusable: dict[str, dict[str, Any]] = {}
-    for raw_spec in core_packet.get("estimator_specs", []) or []:
-        if not isinstance(raw_spec, Mapping):
-            return {}
-        spec = deepcopy(dict(raw_spec))
-        spec.pop("estimator_interface_contract", None)
-        spec.pop("estimator_interface_contract_id", None)
-        estimator_id = str(spec.get("id", "") or "").strip()
-        binding = bindings_by_id.get(estimator_id, {})
-        if str(binding.get("core_spec_fingerprint", "") or "") != stable_hash(
-            spec
-        ):
-            return {}
-        contract = binding.get("estimator_interface_contract", {})
-        if not isinstance(contract, Mapping) or not contract:
-            return {}
-        contract = deepcopy(dict(contract))
-        if str(
-            binding.get("estimator_interface_contract_id", "") or ""
-        ) != estimator_interface_contract_id(contract):
-            return {}
-        if estimator_interface_contract_errors(
-            contract,
-            label=f"estimator_specs[{estimator_id!r}].estimator_interface_contract",
-            required=True,
-            allowed_derivation_refs=allowed_refs,
-        ):
-            return {}
-        if contract != project_executable_estimator_interface_contract(
-            contract
-        ):
-            return {}
-        expected_outputs = spec.get("outputs", [])
-        response_fields = contract.get("response_fields", [])
-        if (
-            isinstance(expected_outputs, list)
-            and expected_outputs
-            and (
-                not isinstance(response_fields, list)
-                or len(response_fields) != len(expected_outputs)
-            )
-        ):
-            return {}
-        reusable[estimator_id] = contract
-    return reusable
 
 
 def _theory_core_generation_phase_record(
@@ -4254,620 +3774,6 @@ def _finalize_document_workspace_estimator_interfaces(
     merged["theory_generation_phases"] = [phase]
     _refresh_theory_packet_id(merged, question=question)
     return merged
-
-
-def _complete_theory_estimator_interfaces(
-    core_packet: Mapping[str, Any],
-    *,
-    question: OpenResearchQuestion,
-    provider: GeneratorBackend,
-    provider_name: str,
-    request_model: str,
-    model_tier: str,
-    temperature: float,
-    max_tokens: int,
-    max_validation_retries: int,
-    use_provider_structured_output: bool,
-    parent_estimator_interface_bindings: Sequence[Mapping[str, Any]] = (),
-    parent_estimator_interface_authoring: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Author bounded executable interfaces after core theory is frozen."""
-
-    reusable_interfaces = _reusable_parent_estimator_interfaces(
-        core_packet,
-        parent_estimator_interface_bindings,
-    )
-    if reusable_interfaces:
-        merged = deepcopy(dict(core_packet))
-        merged_specs: list[Any] = []
-        for raw_spec in merged.get("estimator_specs", []) or []:
-            if not isinstance(raw_spec, Mapping):
-                merged_specs.append(raw_spec)
-                continue
-            spec = dict(raw_spec)
-            estimator_id = str(spec.get("id", "") or "").strip()
-            spec["estimator_interface_contract"] = deepcopy(
-                reusable_interfaces[estimator_id]
-            )
-            spec.pop("estimator_interface_contract_id", None)
-            merged_specs.append(spec)
-        merged["estimator_specs"] = merged_specs
-        normalize_theory_estimator_interface_contracts(merged)
-        parent_authoring = (
-            dict(parent_estimator_interface_authoring)
-            if isinstance(parent_estimator_interface_authoring, Mapping)
-            else {}
-        )
-        parent_packet_id = str(
-            (
-                core_packet.get("theory_revision_transport", {})
-                if isinstance(
-                    core_packet.get("theory_revision_transport", {}), Mapping
-                )
-                else {}
-            ).get("source_theory_packet_id", "")
-            or ""
-        )
-        reuse_identity = {
-            "source_theory_packet_id": str(core_packet.get("packet_id", "")),
-            "parent_theory_packet_id": parent_packet_id,
-            "interface_contract_ids": {
-                estimator_id: estimator_interface_contract_id(contract)
-                for estimator_id, contract in reusable_interfaces.items()
-            },
-        }
-        merged["estimator_interface_authoring"] = {
-            "artifact_kind": "TheoryEstimatorInterfaceReuseRecord",
-            "artifact_id": (
-                "theory_estimator_interfaces_reuse:"
-                + stable_hash(reuse_identity)[:24]
-            ),
-            **reuse_identity,
-            "provider": str(parent_authoring.get("provider", "") or ""),
-            "model": str(parent_authoring.get("model", "") or ""),
-            "model_tier": str(parent_authoring.get("model_tier", "") or ""),
-            "n_interfaces": len(reusable_interfaces),
-            "n_interfaces_reused": len(reusable_interfaces),
-            "model_call_used": False,
-            "runtime_edited_interfaces": False,
-            "reuse_basis": "exact_unchanged_estimator_core_fingerprints",
-            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-            "kernel_verified": False,
-        }
-        merged["theory_generation_phases"] = [
-            _theory_core_generation_phase_record(core_packet),
-            {
-                "phase": "estimator_interface_reuse",
-                "model": str(parent_authoring.get("model", "") or ""),
-                "model_tier": str(
-                    parent_authoring.get("model_tier", "") or ""
-                ),
-                "model_call_used": False,
-                "n_interfaces_reused": len(reusable_interfaces),
-            },
-        ]
-        _refresh_theory_packet_id(merged, question=question)
-        errors = _validate_theory_packet_for_question(merged, question=question)
-        if errors:
-            raise PacketValidationError(
-                validation_label="reused TheoryDeveloper estimator interfaces",
-                attempts=0,
-                errors=errors,
-                history=[],
-                last_invalid_packet=merged,
-            )
-        merged["validation_errors"] = []
-        merged["ok"] = True
-        return merged
-
-    interface_schema = _theory_estimator_interface_authoring_json_schema(
-        core_packet
-    )
-    request = GeneratorRequest(
-        system_prompt=THEORY_ESTIMATOR_INTERFACE_SYSTEM_PROMPT,
-        user_prompt=_theory_estimator_interface_authoring_prompt(core_packet),
-        model=request_model,
-        max_tokens=min(max_tokens, 8000),
-        temperature=temperature,
-        schema=interface_schema,
-        metadata={
-            "subsystem": "TheoryDeveloper",
-            "agent": "LLMTheoryDeveloperAgent",
-            "theory_developer_phase": "estimator_interface_authoring",
-            "provider_name": provider_name,
-            "model_tier": model_tier,
-            "resolved_model": request_model,
-            "source_theory_packet_id": str(core_packet.get("packet_id", "")),
-            **(
-                {"provider_structured_output": True}
-                if use_provider_structured_output
-                else {}
-            ),
-        },
-    )
-
-    def build_packet(
-        raw_payload: Mapping[str, Any],
-        response: Any,
-        raw_text: str,
-    ) -> dict[str, Any]:
-        raw_interfaces = raw_payload.get("interfaces", [])
-        interfaces = _canonical_theory_estimator_interface_rows(
-            raw_interfaces,
-            estimator_ids=_theory_estimator_ids(core_packet),
-        )
-        body = {
-            "source_theory_packet_id": str(core_packet.get("packet_id", "")),
-            "interfaces": interfaces,
-            "interface_transport_shape": (
-                "exact_key_object"
-                if isinstance(raw_interfaces, Mapping)
-                else "invalid_non_object"
-            ),
-            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-            "kernel_verified": False,
-        }
-        artifact_id = stable_hash(
-            {
-                "provider": provider_name,
-                "model": response.model or request_model,
-                "model_tier": model_tier,
-                "body": body,
-            }
-        )[:24]
-        return {
-            "schema_version": ARCHITECT_SCHEMA_VERSION,
-            "artifact_kind": "TheoryEstimatorInterfaceAuthoringPacket",
-            "artifact_id": f"theory_estimator_interfaces:{artifact_id}",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "source_agent": "LLMTheoryDeveloperAgent",
-            "provider": provider_name or response.provider,
-            "model": response.model or request_model,
-            "model_tier": model_tier,
-            "raw_response_fingerprint": stable_hash(raw_text),
-            **body,
-        }
-
-    try:
-        interface_packet = generate_validated_json_packet(
-            provider=provider,
-            request=request,
-            extract_payload=_extract_json_object,
-            build_packet=build_packet,
-            validate_packet=lambda packet: (
-                _validate_theory_estimator_interface_authoring_packet(
-                    packet,
-                    core_packet=core_packet,
-                )
-            ),
-            validation_label="LLM TheoryDeveloper estimator interface packet",
-            max_validation_retries=min(max(0, max_validation_retries), 1),
-        )
-    except PacketValidationError as exc:
-        completed_phase = _theory_core_generation_phase(core_packet)
-        checkpoint = {
-            "schema_version": ARCHITECT_SCHEMA_VERSION,
-            "artifact_kind": THEORY_DEVELOPER_STAGE_CHECKPOINT_KIND,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "question_id": question.id,
-            "completed_phase": completed_phase,
-            "failed_phase": "estimator_interface_authoring",
-            "validated_core_packet_fingerprint": (
-                stable_hash(core_packet)
-            ),
-            "validated_core_packet": deepcopy(dict(core_packet)),
-            "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-            "kernel_verified": False,
-            "boundary": (
-                "This checkpoint preserves a locally validated TheoryDeveloper core "
-                "for bounded interface-stage recovery. It is not execution, review "
-                "acceptance, or theorem proof evidence."
-            ),
-        }
-        raise PacketValidationError(
-            validation_label=exc.validation_label,
-            attempts=exc.attempts,
-            errors=exc.errors,
-            history=exc.history,
-            last_invalid_packet=exc.last_invalid_packet,
-            recovery_checkpoint=checkpoint,
-        ) from exc
-    merged = deepcopy(dict(core_packet))
-    authored_by_id = {
-        str(row.get("estimator_id", "") or "").strip(): deepcopy(
-            row.get("estimator_interface_contract", {})
-        )
-        for row in interface_packet.get("interfaces", []) or []
-        if isinstance(row, Mapping)
-    }
-    merged_specs: list[Any] = []
-    for raw_spec in merged.get("estimator_specs", []) or []:
-        if not isinstance(raw_spec, Mapping):
-            merged_specs.append(raw_spec)
-            continue
-        spec = dict(raw_spec)
-        estimator_id = str(spec.get("id", "") or "").strip()
-        spec["estimator_interface_contract"] = deepcopy(
-            authored_by_id[estimator_id]
-        )
-        spec.pop("estimator_interface_contract_id", None)
-        merged_specs.append(spec)
-    merged["estimator_specs"] = merged_specs
-    normalize_theory_estimator_interface_contracts(merged)
-    merged["estimator_interface_authoring"] = {
-        "artifact_kind": interface_packet["artifact_kind"],
-        "artifact_id": interface_packet["artifact_id"],
-        "source_theory_packet_id": interface_packet["source_theory_packet_id"],
-        "provider": interface_packet["provider"],
-        "model": interface_packet["model"],
-        "model_tier": interface_packet["model_tier"],
-        "n_interfaces": len(authored_by_id),
-        "structured_output_retry_attempts": interface_packet.get(
-            "structured_output_retry_attempts", 0
-        ),
-        "structured_output_retry_history": deepcopy(
-            interface_packet.get("structured_output_retry_history", [])
-        ),
-        "raw_response_fingerprint": interface_packet.get(
-            "raw_response_fingerprint", ""
-        ),
-        "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
-        "kernel_verified": False,
-    }
-    merged["theory_generation_phases"] = [
-        _theory_core_generation_phase_record(core_packet),
-        {
-            "phase": "estimator_interface_authoring",
-            "model": interface_packet["model"],
-            "model_tier": interface_packet["model_tier"],
-            "structured_output_retry_attempts": interface_packet.get(
-                "structured_output_retry_attempts", 0
-            ),
-        },
-    ]
-    _refresh_theory_packet_id(merged, question=question)
-    errors = _validate_theory_packet_for_question(merged, question=question)
-    if errors:
-        raise PacketValidationError(
-            validation_label="merged LLM TheoryDeveloper packet",
-            attempts=1
-            + int(interface_packet.get("structured_output_retry_attempts", 0) or 0),
-            errors=errors,
-            history=interface_packet.get("structured_output_retry_history", []),
-            last_invalid_packet=merged,
-        )
-    merged["validation_errors"] = []
-    merged["ok"] = True
-    return merged
-
-
-def _theory_estimator_interface_authoring_json_schema(
-    core_packet: Mapping[str, Any],
-) -> dict[str, Any]:
-    estimator_ids = _theory_estimator_ids(core_packet)
-    base_contract_schema = _bounded_theory_schema_value(
-        estimator_interface_contract_json_schema(),
-        max_string_chars=600,
-        default_max_items=12,
-    )
-    contract_schemas: dict[str, dict[str, Any]] = {}
-    specs_by_id = {
-        str(row.get("id", "") or "").strip(): row
-        for row in core_packet.get("estimator_specs", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("id", "") or "").strip()
-    }
-    for estimator_id in estimator_ids:
-        contract_schema = deepcopy(base_contract_schema)
-        outputs = specs_by_id.get(estimator_id, {}).get("outputs", [])
-        if isinstance(outputs, list) and outputs:
-            response_schema = contract_schema["properties"]["response_fields"]
-            response_schema["minItems"] = len(outputs)
-            response_schema["maxItems"] = len(outputs)
-        contract_schemas[estimator_id] = contract_schema
-    return {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["interfaces"],
-        "properties": {
-            "interfaces": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": estimator_ids,
-                "properties": {
-                    estimator_id: contract_schemas[estimator_id]
-                    for estimator_id in estimator_ids
-                },
-            }
-        },
-    }
-
-
-def _theory_estimator_interface_authoring_prompt(
-    core_packet: Mapping[str, Any],
-) -> str:
-    problem = core_packet.get("problem_card", {})
-    if not isinstance(problem, Mapping):
-        problem = {}
-    estimator_rows = []
-    for row in core_packet.get("estimator_specs", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        estimator_rows.append(
-            {
-                field: _compact_prompt_value_for_key(field, row.get(field))
-                for field in (
-                    "id",
-                    "name",
-                    "formula",
-                    "algorithm_sketch",
-                    "inputs",
-                    "outputs",
-                    "tuning",
-                    "required_assumptions",
-                )
-                if row.get(field) not in (None, "", [], {})
-            }
-        )
-    payload = {
-        "frozen_core_theory": {
-            "source_theory_packet_id": core_packet.get("packet_id", ""),
-            "problem_card": {
-                field: _compact_prompt_value_for_key(field, problem.get(field))
-                for field in (
-                    "observed_data",
-                    "dgp",
-                    "estimand",
-                    "assumptions",
-                    "asymptotic_regime",
-                )
-                if problem.get(field) not in (None, "", [], {})
-            },
-            "estimator_specs": estimator_rows,
-            "semantic_reference_catalog": _theory_semantic_reference_catalog(
-                core_packet
-            ),
-            "allowed_semantic_reference_ids": sorted(
-                theory_semantic_reference_ids(core_packet)
-            ),
-            "active_revision_finding_ids": list(
-                (
-                    core_packet.get("theory_revision_transport", {})
-                    if isinstance(
-                        core_packet.get("theory_revision_transport", {}),
-                        Mapping,
-                    )
-                    else {}
-                ).get("active_unresolved_finding_ids", [])
-                or []
-            ),
-        },
-        "required_output_schema": (
-            _theory_estimator_interface_authoring_json_schema(core_packet)
-        ),
-        "frozen_output_contract": {
-            str(row.get("id", "") or "").strip(): deepcopy(
-                row.get("outputs", [])
-            )
-            for row in core_packet.get("estimator_specs", []) or []
-            if isinstance(row, Mapping)
-            and str(row.get("id", "") or "").strip()
-            and isinstance(row.get("outputs", []), list)
-            and row.get("outputs", [])
-        },
-        "regeneration_contract": {
-            "candidate_scope": "complete_interfaces_object",
-            "mathematical_owner": "TheoryDeveloper",
-            "runtime_role": "schema_reference_lineage_validation_only",
-            "independent_acceptance_owner": "semantic_reviewer",
-        },
-        "proof_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-    return (
-        "Return ONLY one JSON object matching required_output_schema. Emit exactly "
-        "one interfaces object property for every frozen estimator_id and no other "
-        "keys; each property value is that estimator's interface contract, without "
-        "repeating estimator_id inside the value. Infer no "
-        "new mathematics: request fields expose the frozen algorithm inputs and "
-        "lifecycle; response fields correspond one-for-one, in order, to the exact "
-        "frozen outputs. Do not add operational status or unavailable fields unless "
-        "one is itself a frozen output. Include the exact value normalization needed "
-        "for a caller to consume each output. Cite only ids in "
-        "semantic_reference_catalog for derivation_ref. Do not copy asymptotic rates, "
-        "orders, theorem conclusions, or explanatory derivations into this executable "
-        "interface; they remain in the frozen Markdown/LaTeX workspace. Do not edit or restate the "
-        "core theory, keep prose fields concise, and do not claim proof evidence.\n\n"
-        + json.dumps(payload, separators=(",", ":"), default=str, ensure_ascii=False)
-    )
-
-
-def _theory_semantic_reference_catalog(
-    core_packet: Mapping[str, Any],
-) -> list[dict[str, str]]:
-    derivation = core_packet.get("theory_derivation_packet", {})
-    if not isinstance(derivation, Mapping):
-        derivation = {}
-    rows: list[dict[str, str]] = []
-    for collection, id_field, text_fields in (
-        ("derivation_steps", "id", ("claim", "equation_or_argument")),
-        ("equation_chain", "step_id", ("lhs", "relation", "rhs")),
-        ("sanity_checks", "id", ("recomputation", "result")),
-        (
-            "claim_index",
-            "id",
-            ("kind", "document_path", "depends_on", "status"),
-        ),
-        (
-            "sanity_check_index",
-            "id",
-            ("claim_ref", "document_path", "status"),
-        ),
-    ):
-        for raw_row in derivation.get(collection, []) or []:
-            if not isinstance(raw_row, Mapping):
-                continue
-            reference_id = str(raw_row.get(id_field, "") or "").strip()
-            if not reference_id:
-                continue
-            rows.append(
-                {
-                    "id": reference_id,
-                    "kind": collection,
-                    "claim": _truncate_text(
-                        " | ".join(
-                            str(raw_row.get(field, "") or "").strip()
-                            for field in text_fields
-                            if str(raw_row.get(field, "") or "").strip()
-                        ),
-                        480,
-                    ),
-                }
-            )
-    for collection, text_fields in (
-        ("theorem_cards", ("informal_statement", "rate_or_limit_law")),
-        ("lemma_cards", ("statement",)),
-    ):
-        for raw_row in core_packet.get(collection, []) or []:
-            if not isinstance(raw_row, Mapping):
-                continue
-            reference_id = str(raw_row.get("id", "") or "").strip()
-            if not reference_id:
-                continue
-            rows.append(
-                {
-                    "id": reference_id,
-                    "kind": collection,
-                    "claim": _truncate_text(
-                        " | ".join(
-                            str(raw_row.get(field, "") or "").strip()
-                            for field in text_fields
-                            if str(raw_row.get(field, "") or "").strip()
-                        ),
-                        480,
-                    ),
-                }
-            )
-    return rows
-
-
-def _canonical_theory_estimator_interface_rows(
-    raw: Any,
-    *,
-    estimator_ids: Sequence[str],
-) -> Any:
-    """Convert the exact-key provider transport into the canonical row shape."""
-
-    if not isinstance(raw, Mapping):
-        return deepcopy(raw)
-    return [
-        {
-            "estimator_id": str(estimator_id),
-            "estimator_interface_contract": (
-                normalize_estimator_interface_contract(raw.get(estimator_id))
-                if isinstance(raw.get(estimator_id), Mapping)
-                else deepcopy(raw.get(estimator_id))
-            ),
-        }
-        for estimator_id in estimator_ids
-        if estimator_id in raw
-    ]
-
-
-def _theory_estimator_ids(packet: Mapping[str, Any]) -> list[str]:
-    return [
-        str(row.get("id", "") or "").strip()
-        for row in packet.get("estimator_specs", []) or []
-        if isinstance(row, Mapping) and str(row.get("id", "") or "").strip()
-    ]
-
-
-def _validate_theory_estimator_interface_authoring_packet(
-    packet: Mapping[str, Any],
-    *,
-    core_packet: Mapping[str, Any],
-) -> list[str]:
-    errors: list[str] = []
-    if packet.get("interface_transport_shape") != "exact_key_object":
-        errors.append("interface transport must be an exact-key object")
-    expected_ids = _theory_estimator_ids(core_packet)
-    if len(expected_ids) != len(set(expected_ids)):
-        errors.append("frozen core estimator ids must be unique")
-    rows = packet.get("interfaces", [])
-    if not isinstance(rows, list):
-        return ["interfaces must be a list"]
-    observed_ids: list[str] = []
-    allowed_refs = theory_semantic_reference_ids(core_packet)
-    specs_by_id = {
-        str(row.get("id", "") or "").strip(): row
-        for row in core_packet.get("estimator_specs", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("id", "") or "").strip()
-    }
-    for index, row in enumerate(rows):
-        if not isinstance(row, Mapping):
-            errors.append(f"interfaces[{index}] must be an object")
-            continue
-        estimator_id = str(row.get("estimator_id", "") or "").strip()
-        interface_label = (
-            f"interfaces[{json.dumps(estimator_id, ensure_ascii=False)}]"
-            if estimator_id
-            else f"interfaces[{index}]"
-        )
-        observed_ids.append(estimator_id)
-        if estimator_id not in expected_ids:
-            errors.append(
-                f"{interface_label}.estimator_id must name a frozen estimator"
-            )
-        errors.extend(
-            estimator_interface_contract_errors(
-                row.get("estimator_interface_contract"),
-                label=interface_label,
-                required=True,
-                allowed_derivation_refs=allowed_refs,
-            )
-        )
-        contract = row.get("estimator_interface_contract", {})
-        if (
-            isinstance(contract, Mapping)
-            and dict(contract)
-            != project_executable_estimator_interface_contract(contract)
-        ):
-            errors.append(
-                f"{interface_label} must contain only executable ABI fields; "
-                "mathematical rates and orders belong in theory documents"
-            )
-        expected_outputs = specs_by_id.get(estimator_id, {}).get("outputs", [])
-        response_fields = (
-            contract.get("response_fields", [])
-            if isinstance(contract, Mapping)
-            else []
-        )
-        if (
-            isinstance(expected_outputs, list)
-            and expected_outputs
-            and isinstance(response_fields, list)
-            and len(response_fields) != len(expected_outputs)
-        ):
-            errors.append(
-                f"{interface_label} response_fields must correspond one-for-one "
-                f"to the {len(expected_outputs)} frozen outputs; received "
-                f"{len(response_fields)}"
-            )
-    if len(observed_ids) != len(set(observed_ids)):
-        errors.append("interface estimator ids must be unique")
-    if set(observed_ids) != set(expected_ids) or len(observed_ids) != len(
-        expected_ids
-    ):
-        errors.append(
-            "interfaces must contain exactly one row for every frozen estimator id"
-        )
-    if packet.get("proof_evidence_status") != THEORY_DERIVATION_NOT_PROOF_EVIDENCE:
-        errors.append("interface packet must preserve the LLM-not-proof boundary")
-    if packet.get("kernel_verified") is not False:
-        errors.append("interface packet cannot set kernel_verified=true")
-    errors.extend(_forbidden_proof_claims(packet))
-    return sorted(set(errors))
 
 
 def _refresh_theory_packet_id(
@@ -5088,10 +3994,6 @@ def _project_state(
         "proof_evidence_status": THEORY_DERIVATION_NOT_PROOF_EVIDENCE,
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
-
-
-def _extract_json_object(text: str) -> dict[str, Any]:
-    return extract_json_object(text, label="LLM TheoryDeveloper")
 
 
 def _forbidden_proof_claims(value: Any, *, path: str = "") -> list[str]:

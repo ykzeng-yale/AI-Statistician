@@ -3512,7 +3512,6 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
             serious_max_tokens=args.max_tokens,
             temperature=args.temperature,
             provider_name=provider_name,
-            max_validation_retries=args.max_validation_retries,
             theory_workspace_max_turns=args.theory_workspace_max_turns,
             theory_workspace_max_tool_calls=(
                 args.theory_workspace_max_tool_calls
@@ -3770,7 +3769,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             ),
             temperature=args.temperature,
             provider_name=provider_name,
-            max_validation_retries=args.theory_max_validation_retries,
             theory_workspace_max_turns=args.theory_workspace_max_turns,
             theory_workspace_max_tool_calls=(
                 args.theory_workspace_max_tool_calls
@@ -6249,15 +6247,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     research_architect_theory.add_argument("--temperature", type=float, default=0.2)
-    research_architect_theory.add_argument(
-        "--max-validation-retries",
-        type=int,
-        default=ResearchArchitectConfig().max_validation_retries,
-        help=(
-            "maximum complete-packet retries after TheoryDeveloper validation "
-            "packets; set 0 to disable extra provider calls"
-        ),
-    )
     research_architect_theory.add_argument("--out", default="runs/research_architect_theory")
     research_architect_theory.add_argument("--env-file", default=".env")
     research_architect_theory.set_defaults(func=_research_architect_theory_develop)
@@ -6468,15 +6457,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum output tokens for serious TheoryDeveloper workspaces",
     )
     research_agent_runtime.add_argument("--temperature", type=float, default=0.2)
-    research_agent_runtime.add_argument(
-        "--theory-max-validation-retries",
-        type=int,
-        default=ResearchArchitectConfig().max_validation_retries,
-        help=(
-            "maximum complete-packet retries after TheoryDeveloper validation "
-            "packets; set 0 to disable extra provider calls"
-        ),
-    )
     research_agent_runtime.add_argument(
         "--llm-timeout-seconds",
         type=float,
