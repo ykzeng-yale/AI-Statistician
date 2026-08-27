@@ -813,6 +813,9 @@ def test_source_replication_separates_identity_from_report_semantics(
             "n_calibration_cases_correct": 2 if calibrated else 1,
             "n_claims": 1,
             "candidate_status": candidate_status,
+            "candidate_document_status": candidate_status,
+            "candidate_integrated_context": True,
+            "candidate_integrated_model_calls": 1,
             "candidate_claim_assessments": [
                 {
                     "claim_id_hash": stable_hash(
@@ -846,6 +849,11 @@ def test_source_replication_separates_identity_from_report_semantics(
     assert task["hidden_source_report_semantic_execution_attempted"] is True
     assert task["hidden_source_report_semantic_judge_calibrated"] is calibrated
     assert task["hidden_source_report_semantic_candidate_status"] == candidate_status
+    assert task["hidden_source_report_semantic_candidate_document_status"] == (
+        candidate_status
+    )
+    assert task["hidden_source_report_semantic_candidate_integrated_context"] is True
+    assert task["hidden_source_report_semantic_candidate_model_calls"] == 1
     assert task["hidden_source_report_semantic_claim_assessments"] == [
         {
             "claim_id_hash": stable_hash("private-source-method-identity"),
@@ -1257,6 +1265,9 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
             "n_calibration_cases_correct": 2 if calibrated else 1,
             "n_claims": 1,
             "candidate_status": "PASS",
+            "candidate_document_status": "PASS",
+            "candidate_integrated_context": True,
+            "candidate_integrated_model_calls": 1,
             "candidate_claim_assessments": [
                 {
                     "claim_id_hash": stable_hash("private-claim"),
@@ -1315,6 +1326,9 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
     assert task["hidden_theory_semantic_execution_attempted"] is True
     assert task["hidden_theory_semantic_judge_calibrated"] is calibrated
     assert task["hidden_theory_semantic_passed"] is calibrated
+    assert task["hidden_theory_semantic_candidate_document_status"] == "PASS"
+    assert task["hidden_theory_semantic_candidate_integrated_context"] is True
+    assert task["hidden_theory_semantic_candidate_model_calls"] == 1
     assert task["hidden_theory_semantic_claim_assessments"] == [
         {
             "claim_id_hash": stable_hash("private-claim"),

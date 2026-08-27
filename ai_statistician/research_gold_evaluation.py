@@ -323,6 +323,9 @@ def _evaluate_gold_task(
         "hidden_theory_semantic_calibration_cases_correct": 0,
         "hidden_theory_semantic_claim_count": 0,
         "hidden_theory_semantic_candidate_status": "",
+        "hidden_theory_semantic_candidate_document_status": "",
+        "hidden_theory_semantic_candidate_integrated_context": False,
+        "hidden_theory_semantic_candidate_model_calls": 0,
         "hidden_theory_semantic_claim_assessments": [],
         "hidden_theory_semantic_passed": False,
         "hidden_theory_combined_passed": False,
@@ -361,6 +364,9 @@ def _evaluate_gold_task(
         "hidden_source_report_semantic_calibration_cases_correct": 0,
         "hidden_source_report_semantic_claim_count": 0,
         "hidden_source_report_semantic_candidate_status": "",
+        "hidden_source_report_semantic_candidate_document_status": "",
+        "hidden_source_report_semantic_candidate_integrated_context": False,
+        "hidden_source_report_semantic_candidate_model_calls": 0,
         "hidden_source_report_semantic_claim_assessments": [],
         "hidden_source_report_semantic_passed": False,
         "hidden_source_replication_combined_passed": False,
@@ -560,6 +566,22 @@ def _evaluate_gold_task(
                             "hidden_source_report_semantic_candidate_status": str(
                                 semantic_judgment.get("candidate_status", "") or ""
                             ),
+                            "hidden_source_report_semantic_candidate_document_status": str(
+                                semantic_judgment.get(
+                                    "candidate_document_status", ""
+                                )
+                                or ""
+                            ),
+                            "hidden_source_report_semantic_candidate_integrated_context": (
+                                semantic_judgment.get("candidate_integrated_context")
+                                is True
+                            ),
+                            "hidden_source_report_semantic_candidate_model_calls": int(
+                                semantic_judgment.get(
+                                    "candidate_integrated_model_calls", 0
+                                )
+                                or 0
+                            ),
                             "hidden_source_report_semantic_claim_assessments": deepcopy(
                                 semantic_judgment.get("candidate_claim_assessments", [])
                             ),
@@ -705,6 +727,22 @@ def _evaluate_gold_task(
                             "hidden_theory_semantic_candidate_status": str(
                                 semantic_judgment.get("candidate_status", "")
                                 or ""
+                            ),
+                            "hidden_theory_semantic_candidate_document_status": str(
+                                semantic_judgment.get(
+                                    "candidate_document_status", ""
+                                )
+                                or ""
+                            ),
+                            "hidden_theory_semantic_candidate_integrated_context": (
+                                semantic_judgment.get("candidate_integrated_context")
+                                is True
+                            ),
+                            "hidden_theory_semantic_candidate_model_calls": int(
+                                semantic_judgment.get(
+                                    "candidate_integrated_model_calls", 0
+                                )
+                                or 0
                             ),
                             "hidden_theory_semantic_claim_assessments": deepcopy(
                                 semantic_judgment.get("candidate_claim_assessments", [])

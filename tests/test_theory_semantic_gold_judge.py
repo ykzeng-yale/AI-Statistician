@@ -33,6 +33,8 @@ def _assessment(case_id: str, *, violated: str = "") -> dict[str, object]:
     return {
         "case_id": case_id,
         "status": "FAIL" if violated else "PASS",
+        "document_status": "PASS",
+        "document_decisive_excerpt": "candidate",
         "claim_assessments": _claim_rows(violated=violated),
     }
 
@@ -86,29 +88,28 @@ def _keyed_calibration_packet(
 
 
 def _keyed_candidate_packet(
-    claim_id: str,
     *,
     violated: str = "",
+    document_status: str = "PASS",
+    claim_ids: list[str] | None = None,
 ) -> dict[str, object]:
+    required_claim_ids = claim_ids if claim_ids is not None else CLAIM_IDS
     return {
         "assessments": {
             "candidate": {
+                "document_status": document_status,
+                "document_decisive_evidence_ref": "candidate:0:0",
                 "claim_statuses": {
                     claim_id: "VIOLATED" if claim_id == violated else "SATISFIED"
+                    for claim_id in required_claim_ids
                 },
                 "decisive_evidence_refs": {
                     claim_id: "candidate:0:0"
+                    for claim_id in required_claim_ids
                 },
             }
         }
     }
-
-
-def _candidate_packets(*, violated: str = "") -> list[dict[str, object]]:
-    return [
-        _keyed_candidate_packet(claim_id, violated=violated)
-        for claim_id in CLAIM_IDS
-    ]
 
 
 class _RecordingProvider:
@@ -168,11 +169,12 @@ def _run(
 
 def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     provider = _RecordingProvider(
-        [_keyed_calibration_packet(), *_candidate_packets()]
+        [_keyed_calibration_packet(), _keyed_candidate_packet()]
     )
 
     result = _run(provider)
 
+    assert result["protocol_version"] == 2
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -185,11 +187,18 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     ]
     assert result["passed"] is True
     assert result["n_calibration_cases_correct"] == 2
-    assert result["n_model_calls"] == 3
-    assert result["candidate_claim_model_calls"] == 2
-    assert result["candidate_claim_scope_isolated"] is True
+    assert result["n_model_calls"] == 2
+    assert result["candidate_claim_model_calls"] == 1
+    assert result["candidate_integrated_model_calls"] == 1
+    assert result["candidate_claim_scope_isolated"] is False
+    assert result["candidate_integrated_context"] is True
+    assert result["candidate_document_status_requested"] is True
+    assert result["candidate_document_status"] == "PASS"
+    assert result["candidate_document_decisive_excerpt_hash"] == stable_hash(
+        "candidate"
+    )
     assert result["calibration_candidate_context_isolated"] is True
-    assert len(provider.requests) == 3
+    assert len(provider.requests) == 2
     assert all(
         request.model == LIVE_EVALUATION_CLAUDE_MODEL
         for request in provider.requests
@@ -200,17 +209,11 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     )
     assert "expected_status" not in provider.requests[0].user_prompt
     assert '"case_id": "candidate"' not in provider.requests[0].user_prompt
-    assert all(
-        '"case_id": "case:a"' not in request.user_prompt
-        for request in provider.requests[1:]
-    )
+    assert '"case_id": "case:a"' not in provider.requests[1].user_prompt
     assert '"required_claim_ids": []' in provider.requests[0].user_prompt
-    assert all(
-        '"required_claim_ids": []' not in request.user_prompt
-        for request in provider.requests[1:]
-    )
-    assert '"claim:limit"' not in provider.requests[1].user_prompt
-    assert '"claim:definition"' not in provider.requests[2].user_prompt
+    assert '"required_claim_ids": []' not in provider.requests[1].user_prompt
+    assert '"claim:limit"' in provider.requests[1].user_prompt
+    assert '"claim:definition"' in provider.requests[1].user_prompt
     assert result["calibration_claim_assessments_requested"] is False
     assert result["candidate_claim_assessments_requested"] is True
     calibration_assessments = provider.requests[0].schema["properties"][
@@ -222,24 +225,24 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         row["required"] == ["status"]
         for row in calibration_assessments["properties"].values()
     )
-    for claim_id, request in zip(CLAIM_IDS, provider.requests[1:], strict=True):
-        candidate_assessments = request.schema["properties"]["assessments"]
-        assert candidate_assessments["required"] == ["candidate"]
-        candidate_schema = candidate_assessments["properties"]["candidate"]
-        assert candidate_schema["required"] == [
-            "claim_statuses",
-            "decisive_evidence_refs",
-        ]
-        assert "status" not in candidate_schema["properties"]
-        assert candidate_schema["properties"]["claim_statuses"]["required"] == [
-            claim_id
-        ]
+    candidate_assessments = provider.requests[1].schema["properties"]["assessments"]
+    assert candidate_assessments["required"] == ["candidate"]
+    candidate_schema = candidate_assessments["properties"]["candidate"]
+    assert candidate_schema["required"] == [
+        "document_status",
+        "document_decisive_evidence_ref",
+        "claim_statuses",
+        "decisive_evidence_refs",
+    ]
+    assert "status" not in candidate_schema["properties"]
+    assert candidate_schema["properties"]["claim_statuses"]["required"] == (
+        CLAIM_IDS
+    )
     assert provider.requests[0].metadata["semantic_adjudication_phase"] == (
         "calibration"
     )
-    assert all(
-        request.metadata["semantic_adjudication_phase"] == "candidate_claim"
-        for request in provider.requests[1:]
+    assert provider.requests[1].metadata["semantic_adjudication_phase"] == (
+        "candidate_integrated"
     )
 
 
@@ -248,7 +251,7 @@ def test_candidate_pass_cannot_override_failed_calibration() -> None:
         _RecordingProvider(
             [
                 _keyed_calibration_packet(misclassify_second_case=True),
-                *_candidate_packets(),
+                _keyed_candidate_packet(),
             ]
         )
     )
@@ -261,7 +264,7 @@ def test_candidate_pass_cannot_override_failed_calibration() -> None:
 
 def test_theory_role_preserves_existing_judgment_contract() -> None:
     provider = _RecordingProvider(
-        [_keyed_calibration_packet(), *_candidate_packets()]
+        [_keyed_calibration_packet(), _keyed_candidate_packet()]
     )
 
     result = _run(provider)
@@ -275,7 +278,7 @@ def test_theory_role_preserves_existing_judgment_contract() -> None:
 
 def test_semantic_judge_records_scientific_document_role() -> None:
     provider = _RecordingProvider(
-        [_keyed_calibration_packet(), *_candidate_packets()]
+        [_keyed_calibration_packet(), _keyed_candidate_packet()]
     )
 
     result = _run(
@@ -294,12 +297,12 @@ def test_semantic_judge_records_scientific_document_role() -> None:
     )
 
 
-def test_candidate_document_status_is_derived_from_keyed_claim_statuses() -> None:
+def test_candidate_status_combines_document_and_keyed_claim_statuses() -> None:
     result = _run(
         _RecordingProvider(
             [
                 _keyed_calibration_packet(),
-                *_candidate_packets(violated="claim:limit"),
+                _keyed_candidate_packet(violated="claim:limit"),
             ]
         )
     )
@@ -322,19 +325,55 @@ def test_candidate_document_status_is_derived_from_keyed_claim_statuses() -> Non
     assert result["passed"] is False
 
 
+def test_candidate_global_falsehood_blocks_satisfied_rubric_claims() -> None:
+    result = _run(
+        _RecordingProvider(
+            [
+                _keyed_calibration_packet(),
+                _keyed_candidate_packet(document_status="FAIL"),
+            ]
+        )
+    )
+
+    assert result["semantic_judge_calibrated"] is True
+    assert result["candidate_document_status"] == "FAIL"
+    assert result["candidate_status"] == "FAIL"
+    assert result["candidate_claim_status_counts"]["SATISFIED"] == 2
+    assert result["passed"] is False
+
+
 def test_keyed_candidate_schema_fails_closed_on_missing_claim() -> None:
-    candidate = _keyed_candidate_packet("claim:limit")
+    candidate = _keyed_candidate_packet()
     del candidate["assessments"]["candidate"]["claim_statuses"]["claim:limit"]
 
     with pytest.raises(
         ValueError,
-        match="invalid hidden candidate_claim semantic judgment",
+        match="invalid hidden candidate_integrated semantic judgment",
     ):
         _run(
             _RecordingProvider(
                 [
                     _keyed_calibration_packet(),
-                    _keyed_candidate_packet("claim:definition"),
+                    candidate,
+                ]
+            )
+        )
+
+
+def test_candidate_document_grounding_must_select_a_supplied_evidence_ref() -> None:
+    candidate = _keyed_candidate_packet(document_status="FAIL")
+    candidate["assessments"]["candidate"][
+        "document_decisive_evidence_ref"
+    ] = "invented:evidence:ref"
+
+    with pytest.raises(
+        ValueError,
+        match="document status needs a valid decisive candidate evidence ref",
+    ):
+        _run(
+            _RecordingProvider(
+                [
+                    _keyed_calibration_packet(),
                     candidate,
                 ]
             )
@@ -342,7 +381,7 @@ def test_keyed_candidate_schema_fails_closed_on_missing_claim() -> None:
 
 
 def test_candidate_grounding_must_select_a_supplied_evidence_ref() -> None:
-    candidate = _keyed_candidate_packet("claim:definition")
+    candidate = _keyed_candidate_packet()
     candidate["assessments"]["candidate"]["decisive_evidence_refs"][
         "claim:definition"
     ] = "invented:evidence:ref"
@@ -356,7 +395,6 @@ def test_candidate_grounding_must_select_a_supplied_evidence_ref() -> None:
                 [
                     _keyed_calibration_packet(),
                     candidate,
-                    _keyed_candidate_packet("claim:limit"),
                 ]
             )
         )
@@ -374,7 +412,10 @@ def test_semantic_judge_validator_rejects_inconsistent_overall_status() -> None:
         calibration_case_ids=CASE_IDS,
     )
 
-    assert "assessments[2] status is inconsistent with claim assessments" in errors
+    assert (
+        "assessments[2] status is inconsistent with document and claim assessments"
+        in errors
+    )
 
 
 def test_semantic_judge_identity_checks_do_not_require_row_order() -> None:

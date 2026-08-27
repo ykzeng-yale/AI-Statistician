@@ -187,6 +187,15 @@ canonical candidate authority as runtime consumers: hash-verified Markdown/LaTeX
 the model-authored executable ABI projection. It must not silently discard either half
 or require mathematical prose to be duplicated into JSON.
 
+For future draws, hidden candidate semantics use one integrated document context, not
+one isolated model call per rubric claim. The calibrated judge returns both a
+document-wide status and keyed per-claim statuses in the same structured response.
+The document-wide status can reject any material active falsehood even when every
+listed rubric claim is satisfied; deterministic aggregation fails when either the
+whole-document judgment or a required claim fails. This reduces candidate calls from
+one per claim to one per document set and preserves cross-claim contradictions. It is
+post-runtime evaluator authority only and cannot revise or route the candidate.
+
 A schema-valid theory write does not automatically close the workspace. The author
 model explicitly commits a review checkpoint or continues within the existing
 bounded session; the harness imposes no fixed review ritual. Independent theory
