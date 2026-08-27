@@ -2696,3 +2696,51 @@ The focused Theory/referee panel passed `156/156`; the complete repository passe
 resumed, repaired, hidden-evaluated again, rescored, or resampled. Task 68 remains
 immutable `0/1`, trustworthy capability remains `4/68`, and exact development
 theorem closure remains `0/2`.
+
+## Upstream Codex recheck and Neyman-Scott evaluator false positive
+
+Official Codex `main` was refreshed through
+[`e931d07b`](https://github.com/openai/codex/commit/e931d07b88338c1898ad37b056aedf5458037de6).
+The current source reinforces four mechanisms that AI Statistician should reuse as
+principles rather than dependencies:
+
+1. `run_turn` keeps one turn-scoped model session alive across model, tool, and raw
+   observation continuations. Transport retries are separate from source revision.
+2. world-state sections emit identity-bound diffs and retire replaced context instead
+   of repeating unchanged instructions or recursive payloads.
+3. executed tool calls retain call identity and completion state while bounding copied
+   arguments and prioritizing recent observations.
+4. Guardian review receives an exact current action plus a compact transcript delta,
+   explicitly treats the transcript as untrusted evidence, and keeps reviewer state
+   separate from the source-owning session.
+
+AI Statistician already uses the corresponding scientific form: one AgentRuntime,
+persistent Theory/Python/R/Simulation/Lean owner sessions, exact artifact hashes,
+direct environment feedback, content-addressed continuation references, and isolated
+review sessions. Importing Codex Core, App Server, Responses transport, thread store,
+Guardian, or multi-agent shared-working-directory semantics would duplicate the
+scheduler and weaken scientific artifact isolation. Codex's new extension and
+multi-agent lifecycle code does not change that conclusion.
+
+Task 69 provides a useful negative result. Its exact-Haiku TheoryDeveloper wrote a
+persistent Markdown/LaTeX derivation, the isolated referee read and scratched against
+it, and the calibrated hidden semantic judge ran only after termination. Nevertheless,
+all three accepted an active probability-limit equality containing one extra `1/T`.
+The referee also miscomputed a displayed variance by a factor of ten and then called
+the matching scratch result a 920% Monte Carlo discrepancy. Exact workspaces and tools
+made the error auditable; they did not make Haiku reason correctly.
+
+The correct response is not another product layer. The existing prompts already say
+that a correct conclusion cannot cancel a false intermediate equality and already
+offer Python/R/SymPy scratch. No formula rule, parser, repair worker, extra reviewer,
+repeated sample, retry, scheduler, provider, or model escalation is added.
+
+The evaluation lesson is narrower. Calibration used concise negative notes under an
+overall-status schema, while the live candidate used a long integrated document and
+per-claim schema. Before a future unrelated authority is activated, the exact
+candidate-mode semantic path should pass the full reference and reject at least one
+realistic long-form near miss with a correct headline conclusion and a material active
+contradiction. That negative remains evaluator-only, is frozen before the first
+product call, and never becomes runtime feedback. Task 69 remains immutable `0/1`,
+trustworthy capability remains `4/69`, and exact development theorem closure remains
+`0/2`.

@@ -88,6 +88,17 @@ task activation, the operator still audits semantic entailment and uses independ
 boundary/property probes appropriate to the declared domain. Those probes live in
 evaluator artifacts, not product runtime rules or model prompts.
 
+Theory-semantic activation must also exercise the exact adjudication mode later used
+for the product candidate. Concise overall-status calibration cases are necessary but
+not sufficient because the live path uses an integrated long document, a claim rubric,
+and document-wide contradiction status. Before the first product call, the frozen
+authority should pass its complete reference document and reject at least one
+realistic long-form near miss through that exact candidate-mode path. The near miss
+should preserve plausible headline conclusions while retaining a material active
+contradiction, so keyword or final-answer matching cannot pass it. Its source,
+judgment, model identity, and hashes remain evaluator-only. This is a benchmark
+negative control, not a product formula, prompt answer, repair rule, or post-run retry.
+
 That audit is performed at the granularity of one hidden behavior, not one
 aggregate boolean. Every hidden test vector must be entailed by at least one
 explicit visible clause, including missing-field, extra-field, coercion, and
