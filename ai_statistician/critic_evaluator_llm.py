@@ -52,21 +52,11 @@ CRITIC_EVALUATOR_BOUNDARY = (
     "AXLE/local Lean/kernel verification records."
 )
 CRITIC_RESEARCH_DIMENSIONS = (
-    "source_replication",
-    "theory",
-    "scientific_code",
-    "empirical",
-    "formal",
+    "source_replication", "theory", "scientific_code", "empirical", "formal"
 )
-CRITIC_DIMENSION_STATUSES = frozenset(
-    {"SUPPORTED", "INCONCLUSIVE", "CONTRADICTED", "NOT_REQUESTED"}
-)
-CRITIC_RESEARCH_DISPOSITIONS = frozenset(
-    {"ACCEPT", "INCONCLUSIVE", "REJECT"}
-)
-CRITIC_DIMENSION_REQUIREMENTS = frozenset(
-    {"required", "optional", "not_applicable"}
-)
+CRITIC_DIMENSION_STATUSES = frozenset({"SUPPORTED", "INCONCLUSIVE", "CONTRADICTED", "NOT_REQUESTED"})
+CRITIC_RESEARCH_DISPOSITIONS = frozenset({"ACCEPT", "INCONCLUSIVE", "REJECT"})
+CRITIC_DIMENSION_REQUIREMENTS = frozenset({"required", "optional", "not_applicable"})
 CRITIC_EVIDENCE_READ_TOOL = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
 CRITIC_EVIDENCE_SEARCH_TOOL = THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL
 CRITIC_EVALUATION_SUBMIT_TOOL = "submit_critic_evaluation"
@@ -346,6 +336,17 @@ def _run_critic_client_tool_review(
             attempts=1,
             errors=[exc.reason],
             history=list(exc.history),
+            last_invalid_packet=next(
+                (
+                    block.get("input")
+                    for block in reversed(
+                        (exc.messages[-2] if len(exc.messages) > 1 else {}).get("content", [])
+                    )
+                    if isinstance(block, Mapping)
+                    and block.get("name") == CRITIC_EVALUATION_SUBMIT_TOOL
+                ),
+                None,
+            ),
         ) from exc
     payload = loop.terminal_payload.get("review_payload", {})
     if not isinstance(payload, Mapping):
@@ -749,10 +750,20 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
             or gap_status != "COMPLETE"
             or blocking_dimensions
         ):
+            mismatch = {
+                "required_not_supported": {
+                    d: dimension_statuses.get(d, "MISSING") for d in sorted(required_dimensions) if dimension_statuses.get(d) != "SUPPORTED"
+                },
+                "not_applicable_not_requested": {
+                    d: dimension_statuses.get(d, "MISSING") for d in sorted(not_applicable_dimensions) if dimension_statuses.get(d) != "NOT_REQUESTED"
+                },
+                "contradicted": sorted(contradicted),
+                "gap_status": gap_status or "MISSING",
+                "blocking_dimensions": list(blocking_dimensions),
+            }
             errors.append(
-                "ACCEPT requires supported required dimensions, correctly marked "
-                "not-applicable dimensions, no contradicted dimension, complete gap "
-                "disclosure, and no blocking dimensions"
+                "ACCEPT evidence mismatch: "
+                + json.dumps(mismatch, sort_keys=True, separators=(",", ":"))
             )
         if disposition_status == "REJECT" and not contradicted:
             errors.append("REJECT requires a contradicted dimension")

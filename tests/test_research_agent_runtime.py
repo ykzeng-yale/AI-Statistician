@@ -2640,6 +2640,66 @@ def test_accepted_semantic_review_preserves_exact_deferred_phase_task() -> None:
     assert transitioned.next_task.inputs["evaluator_source_confirmation"] is True
 
 
+def test_accepted_review_defers_critic_until_required_lanes_finish(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reviewer_task = AgentTask(
+        task_id="semantic-review:generic",
+        owner_subsystem=(
+            runtime_module.GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+        ),
+        objective="Review exact source.",
+    )
+    critic_task = AgentTask(
+        task_id="critic:generic",
+        owner_subsystem="CriticEvaluator",
+        objective="Audit the completed evidence graph.",
+    )
+    result = AgentStepResult(
+        status="REROUTE",
+        rationale="Exact source accepted.",
+        next_task=critic_task,
+    )
+    simulation_task = AgentTask(
+        task_id="simulation:generic",
+        owner_subsystem="SimulationEvaluator",
+        objective="Run the unvisited required empirical lane.",
+    )
+    continued = replace(
+        result,
+        rationale="Continue the frozen required evidence topology.",
+        next_task=simulation_task,
+        failure_classification="runtime_required_evidence_lane_continuation",
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "accepted_semantic_review_deferred_continuation",
+        lambda **_kwargs: True,
+    )
+
+    def required_lane_continuation(**kwargs):
+        assert kwargs["proposed_next_task"] is critic_task
+        return continued
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_outer_graph_continuation",
+        required_lane_continuation,
+    )
+
+    transitioned = _runtime_transition_policy(
+        iteration=7,
+        task=reviewer_task,
+        subsystem_name=reviewer_task.owner_subsystem,
+        result=result,
+        blackboard=BlackboardState(project_id="generic"),
+        runtime_config=ResearchAgentRuntimeConfig(evaluation_mode="research_eval"),
+    )
+
+    assert transitioned is continued
+    assert transitioned.next_task is simulation_task
+
+
 def test_canonical_context_preserves_accepted_lane_identity() -> None:
     question = OpenResearchQuestion(
         id="generic-durable-lane-completion",

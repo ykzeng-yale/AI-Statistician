@@ -4502,12 +4502,13 @@ def _runtime_transition_policy(
         blackboard=blackboard,
     ):
         return result
-    if accepted_semantic_review_deferred_continuation(
+    accepted_deferred = accepted_semantic_review_deferred_continuation(
         task=task,
         result=result,
         next_task=next_task,
         blackboard=blackboard,
-    ):
+    )
+    if accepted_deferred and next_task.owner_subsystem != "CriticEvaluator":
         return result
     if next_task.owner_subsystem == "CriticEvaluator":
         continuation = _runtime_outer_graph_continuation(
@@ -4521,6 +4522,8 @@ def _runtime_transition_policy(
         )
         if continuation is not None:
             return continuation
+    if accepted_deferred:
+        return result
     reviewer_source_revision = (
         subsystem_name == GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
         and result.status == "REVISE"

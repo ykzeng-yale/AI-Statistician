@@ -23,6 +23,7 @@ from ai_statistician.model_backend import (
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.research_source_library import load_research_source_snapshot
+from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_revision_lineage import (
     build_theory_claim_revision_delta,
 )
@@ -174,11 +175,9 @@ def test_critic_can_accept_without_inventing_a_finding() -> None:
         for row in packet["dimension_assessments"]
         if row["dimension"] == "theory"
     )["status"] = "INCONCLUSIVE"
-    assert (
-        "ACCEPT requires supported required dimensions, correctly marked "
-        "not-applicable dimensions, no contradicted dimension, complete gap "
-        "disclosure, and no blocking dimensions"
-    ) in validate_critic_evaluator_packet(packet)
+    errors = validate_critic_evaluator_packet(packet)
+    mismatch = next(error for error in errors if error.startswith("ACCEPT evidence mismatch:"))
+    assert '"theory":"INCONCLUSIVE"' in mismatch
 
 
 def test_canonical_evidence_view_excludes_legacy_simulation_flags() -> None:
@@ -1082,7 +1081,7 @@ def test_required_source_replication_blocks_unsupported_critic_acceptance() -> N
     }
 
     errors = validate_critic_evaluator_packet(packet)
-    assert any(error.startswith("ACCEPT requires supported required") for error in errors)
+    assert any(error.startswith("ACCEPT evidence mismatch:") for error in errors)
 
     packet["dimension_assessments"][0]["status"] = "SUPPORTED"
     assert validate_critic_evaluator_packet(packet) == []
@@ -1263,3 +1262,94 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
     assert loop["provider_usage"] == {"input_tokens": 30, "output_tokens": 15}
     assert loop["full_packet_regeneration_used"] is False
     assert validate_critic_evaluator_packet(packet) == []
+
+
+def test_failed_critic_session_preserves_last_submission_and_exact_errors() -> None:
+    invalid = _critic_packet()
+    for row in invalid["dimension_assessments"]:
+        if row["dimension"] == "theory":
+            row["status"] = "INCONCLUSIVE"
+            row["gaps"] = ["Theory evidence is incomplete."]
+        elif row["dimension"] in {"scientific_code", "empirical"}:
+            row["status"] = "SUPPORTED"
+            row["gaps"] = []
+    invalid["research_disposition"] = {
+        "status": "ACCEPT",
+        "blocking_dimensions": [],
+        "rationale": "The model incorrectly accepts an incomplete required dimension.",
+    }
+
+    class RepeatingInvalidCriticBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate_client_tool_turn(self, request):
+            self.calls += 1
+            call = ClientToolCall(
+                call_id=f"submit-invalid-{self.calls}",
+                name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                input=deepcopy(invalid),
+            )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": dict(call.input),
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider=self.provider_name,
+                model="claude-haiku-4-5-20251001",
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    provider = RepeatingInvalidCriticBackend()
+    agent = LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+            max_validation_retries=0,
+        ),
+    )
+    canonical_view = {
+        "artifact_kind": "CriticCanonicalEvidenceView",
+        "view_hash": "critic-failure-view",
+        "dimension_requirements": {
+            "source_replication": "not_applicable",
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+    }
+
+    try:
+        agent.propose(
+            question=OpenResearchQuestion(
+                id="critic-failed-terminal-session",
+                title="Preserve a rejected critic terminal packet",
+                description="Return exact validator observations to one reviewer session.",
+            ),
+            retrieval_manifest={},
+            theory_packet={},
+            simulation_manifest={},
+            algorithm_manifest={},
+            formalization_manifest={},
+            canonical_evidence_view=canonical_view,
+        )
+    except PacketValidationError as exc:
+        assert provider.calls >= 2
+        assert exc.last_invalid_packet is not None
+        assert exc.last_invalid_packet["research_disposition"]["status"] == "ACCEPT"
+        feedback_history = json.dumps(exc.history, sort_keys=True)
+        assert "ACCEPT evidence mismatch:" in feedback_history
+        assert "theory" in feedback_history and "INCONCLUSIVE" in feedback_history
+    else:
+        raise AssertionError("invalid repeated Critic submissions must fail closed")
