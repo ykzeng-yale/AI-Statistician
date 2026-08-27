@@ -81,6 +81,19 @@ def _commit_response(call_id: str = "commit") -> ClientToolTurnResponse:
     )
 
 
+def _run_response(
+    call_id: str = "run-current",
+    reason: str = "Execute the exact current model-authored source.",
+) -> ClientToolTurnResponse:
+    return _response(
+        ClientToolCall(
+            call_id=call_id,
+            name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+            input={"reason": reason},
+        )
+    )
+
+
 def test_scientific_session_reads_externalized_theory_on_demand() -> None:
     content = "# Claim\n\nFor every admitted sample, $T_n \\to T$.\n"
     sha256 = hashlib.sha256(content.encode()).hexdigest()
@@ -117,6 +130,7 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
                     input=authored,
                 )
             ),
+            _run_response(),
             _commit_response(),
         ]
     )
@@ -149,6 +163,7 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
     read_observation = json.loads(
@@ -181,6 +196,7 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
                     input=revised,
                 ),
             ),
+            _run_response(),
             _commit_response(),
         ]
     )
@@ -226,8 +242,9 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert result.evidence["parent_code_draft_hash"] != result.evidence[
         "submitted_code_draft_hash"
     ]
-    assert result.evidence["runtime_executed_tool_calls"] == 2
-    assert result.evidence["submit_and_execute_atomic"] is True
+    assert result.evidence["runtime_executed_tool_calls"] == 3
+    assert result.evidence["submit_and_execute_atomic"] is False
+    assert result.evidence["source_mutation_and_execution_separated"] is True
     assert result.evidence["explicit_model_commit_required"] is True
     assert result.evidence["model_commit_after_observation"] is True
     assert "NameError: missing_name" in str(backend.requests[0].messages)
@@ -236,11 +253,9 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
-    assert SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL not in str(
-        backend.requests[0].messages
-    )
     submission_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
@@ -307,6 +322,7 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
                     },
                 )
             ),
+            _run_response(),
             _commit_response(),
         ]
     )
@@ -369,6 +385,7 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
                     input=authored,
                 )
             ),
+            _run_response(),
             _commit_response(),
         ]
     )
@@ -407,9 +424,10 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 3
 
 
 def test_blind_confirmatory_executes_once_after_model_owned_diagnostic_loop() -> None:
@@ -433,6 +451,7 @@ def test_blind_confirmatory_executes_once_after_model_owned_diagnostic_loop() ->
                     input=revised,
                 )
             ),
+            _run_response(),
             _commit_response(),
         ]
     )
@@ -626,6 +645,7 @@ def test_same_model_can_revise_after_technically_successful_execution() -> None:
                     input=first,
                 )
             ),
+            _run_response("run-first"),
             _response(
                 ClientToolCall(
                     call_id="submit-revised",
@@ -633,6 +653,7 @@ def test_same_model_can_revise_after_technically_successful_execution() -> None:
                     input=revised,
                 )
             ),
+            _run_response("run-revised"),
             _commit_response(),
         ]
     )
@@ -659,7 +680,7 @@ def test_same_model_can_revise_after_technically_successful_execution() -> None:
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=3,
+        max_turns=5,
         max_no_progress_turns=2,
         artifact_id="question:successful-process-failed-diagnostic",
         initial_code_draft=None,
@@ -674,7 +695,7 @@ def test_same_model_can_revise_after_technically_successful_execution() -> None:
 
     assert checked == [first, revised]
     assert dict(result.code_draft) == revised
-    assert '"passed":false' in str(backend.requests[1].messages).lower()
+    assert '"passed":false' in str(backend.requests[2].messages).lower()
     assert result.evidence["sandbox_checks"] == 2
     assert result.evidence["model_commit_after_observation"] is True
 
@@ -701,6 +722,7 @@ def test_model_cannot_submit_and_commit_before_observing_execution() -> None:
                     input={},
                 ),
             ),
+            _run_response(),
             _commit_response("observed-commit"),
         ]
     )
@@ -713,7 +735,7 @@ def test_model_cannot_submit_and_commit_before_observing_execution() -> None:
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=2,
+        max_turns=3,
         max_no_progress_turns=2,
         artifact_id="question:observation-before-commit",
         initial_code_draft=None,
@@ -732,7 +754,7 @@ def test_model_cannot_submit_and_commit_before_observing_execution() -> None:
 
     premature = result.evidence["history"][0]["tool_calls"][1]
     assert premature["is_error"] is True
-    assert "subsequent model turn" in premature["result_excerpt"]
+    assert "accepted hash-bound" in premature["result_excerpt"]
     assert dict(result.code_draft) == source
     assert result.evidence["sandbox_checks"] == 1
     assert result.evidence["model_commit_after_observation"] is True
@@ -759,6 +781,7 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
                     input=submitted,
                 )
             ),
+            _run_response(),
             _response(
                 ClientToolCall(
                     call_id="report-dependency",
@@ -823,10 +846,11 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     assert result.check_result["dependency_failure_report"]["model_selected"] is True
     assert result.evidence["source_updates"] == 1
     assert result.evidence["sandbox_checks"] == 1
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 3
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
         SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
     ]
@@ -860,6 +884,7 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
                     input=revised,
                 ),
             ),
+            _run_response(),
             _commit_response(),
         ]
     )
@@ -872,7 +897,7 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=3,
+        max_turns=4,
         max_no_progress_turns=2,
         artifact_id="question:no-op-replacement",
         initial_code_draft=initial,
@@ -962,8 +987,8 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
-        SCIENTIFIC_SOURCE_COMMIT_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+        SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
 
 
@@ -1005,6 +1030,7 @@ def test_current_source_runs_at_most_once_per_dependency_environment() -> None:
                     revised,
                 )
             ),
+            _run_response("run-revision"),
             _commit_response(),
         ]
     )
@@ -1025,7 +1051,7 @@ def test_current_source_runs_at_most_once_per_dependency_environment() -> None:
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=3,
+        max_turns=5,
         max_no_progress_turns=2,
         artifact_id="question:single-parent-reexecution",
         initial_code_draft=initial,
@@ -1069,6 +1095,7 @@ def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:
                     first_revision,
                 )
             ),
+            _run_response("run-first"),
             _response(
                 ClientToolCall(
                     "submit-old",
@@ -1083,6 +1110,7 @@ def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:
                     accepted_revision,
                 )
             ),
+            _run_response("run-accepted"),
             _commit_response(),
         ]
     )
@@ -1104,7 +1132,7 @@ def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=3,
+        max_turns=6,
         max_no_progress_turns=2,
         artifact_id="question:no-source-cycling",
         initial_code_draft=initial,
@@ -1122,7 +1150,7 @@ def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:
         stable_hash(accepted_revision),
     ]
     assert result.evidence["source_updates"] == 2
-    old = result.evidence["history"][1]["tool_calls"][0]
+    old = result.evidence["history"][2]["tool_calls"][0]
     assert old["executed_by_runtime"] is True
     assert old["is_error"] is True
     assert "previously executed" in old["result_excerpt"]
@@ -1153,18 +1181,18 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
             )
             for index, draft in enumerate(drafts)
         ]
-        + [_commit_response()]
+        + [_run_response(), _commit_response()]
     )
 
     result = run_scientific_code_workspace(
         provider=backend,
         system_prompt="Use tools.",
-        user_prompt="Keep revising from each exact sandbox observation.",
+        user_prompt="Batch coherent source revisions, then execute the final source.",
         model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=5,
+        max_turns=7,
         max_no_progress_turns=2,
         artifact_id="question:global-code-budget",
         initial_code_draft=None,
@@ -1185,7 +1213,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
 
     assert dict(result.code_draft) == drafts[-1]
     assert result.evidence["source_updates"] == 5
-    assert result.evidence["sandbox_checks"] == 5
+    assert result.evidence["sandbox_checks"] == 1
     assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
     assert [len(request.messages) for request in backend.requests] == [
         1,
@@ -1194,6 +1222,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         7,
         9,
         11,
+        13,
     ]
     first_prompt = str(backend.requests[0].messages)
     assert "at most 5 total model/tool turns" not in first_prompt
@@ -1205,6 +1234,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         == [
             SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             SCIENTIFIC_SOURCE_EDIT_TOOL,
+            SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
             SCIENTIFIC_SOURCE_COMMIT_TOOL,
         ]
         for request in backend.requests
@@ -1280,13 +1310,15 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
     assert checkpoint_draft == first_revision
     assert checkpoint_observation["stderr"] == "NameError: missing"
     assert checkpoint["source_updates"] == 1
-    assert checkpoint["checks"] == 1
+    assert checkpoint["checks"] == 0
+    assert checkpoint["current_source_executed"] is False
     assert checkpoint["resumable"] is True
     session_ref = checkpoint["client_tool_session_ref"]
     assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
 
     second_backend = ScriptedScientificBackend(
         [
+            _run_response("run-checkpoint-source"),
             _response(
                 ClientToolCall(
                     call_id="submit-accepted",
@@ -1294,6 +1326,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
                     input=accepted_revision,
                 )
             ),
+            _run_response("run-accepted"),
             _commit_response(),
         ]
     )
@@ -1311,7 +1344,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=1,
+        max_turns=4,
         max_no_progress_turns=1,
         artifact_id="question:durable-source",
         initial_code_draft=checkpoint_draft,
@@ -1321,7 +1354,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
         session_dir=tmp_path / "scientific-session",
     )
 
-    assert executed == [accepted_revision]
+    assert executed == [first_revision, accepted_revision]
     assert dict(result.code_draft) == accepted_revision
     assert result.evidence["resumed_from_checkpoint_id"] == checkpoint[
         "checkpoint_id"

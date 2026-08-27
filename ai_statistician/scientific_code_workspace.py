@@ -131,17 +131,22 @@ def load_scientific_code_workspace_checkpoint(
     ):
         raise ValueError("scientific code workspace checkpoint source hash mismatch")
     observed_hashes = checkpoint.get("observed_code_draft_hashes", [])
-    if (
-        not isinstance(observed_hashes, list)
-        or draft_hash not in observed_hashes
-        or any(not str(value or "").strip() for value in observed_hashes)
+    if not isinstance(observed_hashes, list) or any(
+        not str(value or "").strip() for value in observed_hashes
     ):
         raise ValueError("scientific code workspace observed source hashes are invalid")
+    current_source_executed = checkpoint.get("current_source_executed", True)
+    if type(current_source_executed) is not bool:
+        raise ValueError("scientific code workspace execution state is malformed")
+    if current_source_executed != (draft_hash in observed_hashes):
+        raise ValueError("scientific code workspace execution state is inconsistent")
     last_check = checkpoint.get("last_check", {})
-    if not isinstance(last_check, Mapping) or not last_check:
-        raise ValueError("scientific code workspace last check is missing")
+    if not isinstance(last_check, Mapping):
+        raise ValueError("scientific code workspace last check is malformed")
     last_check = deepcopy(dict(last_check))
-    if str(last_check.get("code_draft_hash", "") or "") != draft_hash:
+    if current_source_executed and str(
+        last_check.get("code_draft_hash", "") or ""
+    ) != draft_hash:
         raise ValueError("scientific code workspace last check source hash mismatch")
     if stable_hash(last_check) != str(
         checkpoint.get("last_check_hash", "") or ""
@@ -155,10 +160,13 @@ def load_scientific_code_workspace_checkpoint(
     segment_start_checks = int(checkpoint.get("segment_start_checks", 0) or 0)
     if (
         source_updates < segment_start_source_updates
-        or checks <= segment_start_checks
-        or checks < 1
+        or checks < segment_start_checks
+        or (
+            source_updates == segment_start_source_updates
+            and checks == segment_start_checks
+        )
     ):
-        raise ValueError("scientific code workspace checkpoint made no executable progress")
+        raise ValueError("scientific code workspace checkpoint made no progress")
     return draft, last_check
 
 
@@ -1651,6 +1659,7 @@ def run_scientific_code_workspace(
     prior_source_updates = 0
     prior_checks = 0
     prior_observed_hashes: set[str] = set()
+    resumed_current_source_executed = True
     if resumed_checkpoint:
         resumed_draft, resumed_last_check = (
             load_scientific_code_workspace_checkpoint(
@@ -1682,26 +1691,35 @@ def run_scientific_code_workspace(
             or []
             if str(value or "").strip()
         }
+        resumed_current_source_executed = bool(
+            resumed_checkpoint.get("current_source_executed", True)
+        )
     if workspace_operation == "targeted_revision" and not parent_draft:
         raise ValueError("targeted scientific source revision requires parent source")
     parent_hash = stable_hash(parent_draft) if parent_draft else ""
     observed_draft_hashes = set(prior_observed_hashes)
-    if parent_hash:
+    initial_check_hash = str(
+        initial_check_result.get("code_draft_hash", "") or ""
+    )
+    if (
+        parent_hash
+        and initial_check_hash == parent_hash
+        and (not resumed_checkpoint or resumed_current_source_executed)
+    ):
         observed_draft_hashes.add(parent_hash)
     state: dict[str, Any] = {
         "code_draft": parent_draft,
         "code_draft_hash": parent_hash,
         "source_updates": prior_source_updates,
         "current_source_run_requests": 0,
+        "dependency_parent_reexecuted": False,
         "checks": prior_checks,
         "last_check": deepcopy(dict(initial_check_result)),
         "last_check_turn_index": -1,
         "commit_turn_index": -1,
     }
     tools = _scientific_code_tools(
-        allow_current_source_run=(
-            bool(parent_draft) and allow_current_source_run
-        ),
+        allow_current_source_run=bool(parent_draft) and allow_current_source_run,
         allow_dependency_handoff=allow_dependency_handoff,
         context_documents_available=bool(context_documents),
     )
@@ -1794,36 +1812,52 @@ def run_scientific_code_workspace(
             ),
         )
 
-    def execute_model_source(
+    def store_model_source(
         draft: Mapping[str, Any],
         *,
-        turn_index: int,
         source_action: str,
         edit_metadata: Mapping[str, Any] | None = None,
     ) -> ClientToolExecutionResult:
         draft = _complete_code_draft(draft)
         draft_hash = stable_hash(draft)
+        if draft_hash == state["code_draft_hash"]:
+            raise ClientToolInputError(
+                "byte-identical scientific source is already current"
+            )
         if draft_hash in observed_draft_hashes:
             raise ClientToolInputError(
                 "byte-identical scientific source was previously executed"
             )
-        changed = draft_hash != state["code_draft_hash"]
         state["code_draft"], state["code_draft_hash"] = draft, draft_hash
         state["source_updates"] += 1
-        observed_draft_hashes.add(draft_hash)
-        result = execute_checked_draft(
-            draft,
-            source_changed=changed,
-            current_source_reexecuted=False,
-            turn_index=turn_index,
+        return ClientToolExecutionResult(
+            content={
+                "ok": True,
+                "source_updated": True,
+                "source_action": source_action,
+                "code_draft_hash": draft_hash,
+                "source_updates": state["source_updates"],
+                "execution_required": True,
+                "instruction": (
+                    "Continue editing if needed, then call "
+                    "run_current_scientific_source to execute these exact bytes."
+                ),
+                **(
+                    {"edit_metadata": dict(edit_metadata)}
+                    if edit_metadata
+                    else {}
+                ),
+            },
+            state_changed=True,
+            observation_key="scientific-source-update:"
+            + stable_hash(
+                {
+                    "code_draft_hash": draft_hash,
+                    "source_action": source_action,
+                    "source_updates": state["source_updates"],
+                }
+            ),
         )
-        if not edit_metadata:
-            return result
-        return replace(result, content={
-            **dict(result.content),
-            "source_action": source_action,
-            "edit_metadata": dict(edit_metadata),
-        })
 
     def execute_tool(call, context):
         tool_input = dict(call.input)
@@ -1842,9 +1876,8 @@ def run_scientific_code_workspace(
                 raise ClientToolInputError(
                     "submit_scientific_source requires one complete candidate"
                 )
-            return execute_model_source(
+            return store_model_source(
                 tool_input,
-                turn_index=context.turn_index,
                 source_action="complete_source_submission",
             )
 
@@ -1865,9 +1898,8 @@ def run_scientific_code_workspace(
                 edits=[tool_input],
                 replacement_key="replacement",
             )
-            return execute_model_source(
+            return store_model_source(
                 current,
-                turn_index=context.turn_index,
                 source_action="exact_text_edit",
                 edit_metadata=edit_metadata[0],
             )
@@ -1923,31 +1955,41 @@ def run_scientific_code_workspace(
             )
 
         if call.name == SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL:
-            if not parent_draft or not allow_current_source_run:
-                raise ClientToolInputError(
-                    "run_current_scientific_source is unavailable unless the current "
-                    "source is bound to a newly changed dependency environment"
-                )
-            if state["current_source_run_requests"]:
-                raise ClientToolInputError(
-                    "the exact current source was already executed in the current "
-                    "dependency environment"
-                )
             if set(tool_input) != {"reason"} or not str(
                 tool_input.get("reason", "") or ""
             ).strip():
                 raise ClientToolInputError(
                     "run_current_scientific_source requires one nonempty reason"
                 )
+            draft = deepcopy(dict(state["code_draft"]))
+            draft_hash = str(state["code_draft_hash"] or "")
+            if not draft or not draft_hash:
+                raise ClientToolInputError(
+                    "run_current_scientific_source requires current source; use "
+                    "submit_scientific_source for initial authoring"
+                )
+            dependency_reexecution = bool(
+                allow_current_source_run
+                and parent_hash
+                and draft_hash == parent_hash
+                and not state["dependency_parent_reexecuted"]
+            )
+            if draft_hash in observed_draft_hashes and not dependency_reexecution:
+                raise ClientToolInputError(
+                    "the exact current scientific source was already executed in "
+                    "the current dependency environment"
+                )
             state["current_source_run_requests"] += 1
-            state["code_draft"] = deepcopy(parent_draft)
-            state["code_draft_hash"] = parent_hash
-            return execute_checked_draft(
-                state["code_draft"],
-                source_changed=False,
-                current_source_reexecuted=True,
+            if dependency_reexecution:
+                state["dependency_parent_reexecuted"] = True
+            result = execute_checked_draft(
+                draft,
+                source_changed=draft_hash != parent_hash,
+                current_source_reexecuted=dependency_reexecution,
                 turn_index=context.turn_index,
             )
+            observed_draft_hashes.add(draft_hash)
+            return result
 
         if call.name == SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL:
             if not allow_dependency_handoff:
@@ -2035,12 +2077,18 @@ def run_scientific_code_workspace(
                 "content": (
                     user_prompt
                     + "\n\nRetain observed source hashes and sandbox results. Do "
-                    "not resubmit a previously observed byte-identical candidate."
+                    "not resubmit a previously observed byte-identical candidate. "
+                    "Source submission and exact edits do not execute. You may make "
+                    "several edits, then call run_current_scientific_source only when "
+                    "you want raw sandbox feedback. Commit remains separate and "
+                    "requires an accepted execution observation."
                 )
                 + (
                     "\n\nNo scientific source exists yet. Author the complete "
-                    "candidate with submit_scientific_source. Each submission is "
-                    "executed immediately; later exact edits remain model-authored."
+                    "candidate with submit_scientific_source. Submission and exact "
+                    "edits only change model-owned bytes. Continue editing as needed, "
+                    "then explicitly call run_current_scientific_source when the "
+                    "current source is ready for sandbox execution."
                     if not parent_draft
                     else "\n\nCurrent complete code candidate:\n"
                     + _compact_json(parent_draft)
@@ -2124,9 +2172,10 @@ def run_scientific_code_workspace(
             and current_draft_hash
             and str(last_check.get("code_draft_hash", "") or "")
             == current_draft_hash
+            and current_draft_hash in observed_draft_hashes
         )
         checkpoint_body = {
-            "schema_version": 2,
+            "schema_version": 3,
             "artifact_kind": SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND,
             "artifact_id": artifact_id,
             "workspace_operation": workspace_operation,
@@ -2134,6 +2183,7 @@ def run_scientific_code_workspace(
             "current_code_draft_hash": current_draft_hash,
             "current_code_draft": current_draft,
             "observed_code_draft_hashes": sorted(observed_draft_hashes),
+            "current_source_executed": last_check_bound,
             "source_updates": state["source_updates"],
             "checks": state["checks"],
             "segment_start_source_updates": prior_source_updates,
@@ -2154,7 +2204,11 @@ def run_scientific_code_workspace(
                 else {}
             ),
             "resumable": bool(
-                last_check_bound and state["checks"] > prior_checks
+                current_draft
+                and (
+                    state["source_updates"] > prior_source_updates
+                    or state["checks"] > prior_checks
+                )
             ),
             "accepted": False,
             "model_owned_source": True,
@@ -2243,7 +2297,8 @@ def run_scientific_code_workspace(
         ],
         "source_updates": state["source_updates"],
         "sandbox_checks": state["checks"],
-        "submit_and_execute_atomic": True,
+        "submit_and_execute_atomic": False,
+        "source_mutation_and_execution_separated": True,
         "explicit_model_commit_required": True,
         "model_commit_after_observation": bool(
             state["commit_turn_index"] > state["last_check_turn_index"] >= 0
@@ -2317,8 +2372,9 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             description=(
-                "Submit and immediately execute one complete Python/R candidate. "
-                "Raw sandbox output returns here; commit is separate. Python allows "
+                "Store one complete model-authored Python/R candidate without "
+                "executing it. Continue editing if useful, then call "
+                "run_current_scientific_source for raw sandbox feedback. Python allows "
                 + ", ".join(PYTHON_SCIENTIFIC_DEPENDENCIES)
                 + "; R allows "
                 + ", ".join(R_SCIENTIFIC_DEPENDENCIES)
@@ -2371,8 +2427,9 @@ def _scientific_code_tools(
             name=SCIENTIFIC_SOURCE_EDIT_TOOL,
             description=(
                 "Apply one model-authored exact-text edit to current Python/R source "
-                "and immediately execute the complete result. old_text must match "
-                "once; runtime does not interpret or repair source."
+                "without executing it. old_text must match once; runtime does not "
+                "interpret or repair source. Make as many coherent edits as needed, "
+                "then explicitly run the current complete source."
             ),
             input_schema={
                 "type": "object",
@@ -2382,6 +2439,28 @@ def _scientific_code_tools(
                     "old_text": {"type": "string", "minLength": 1},
                     "replacement": {"type": "string"},
                 },
+            },
+            terminal=False,
+        ),
+        ClientToolDefinition(
+            name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+            description=(
+                "Execute the exact current complete Python/R source and return raw "
+                "sandbox output. Source bytes are unchanged. Each newly authored "
+                "source hash can run once in this workspace"
+                + (
+                    "; the unchanged parent may also run once because its bound "
+                    "dependency environment changed"
+                    if allow_current_source_run
+                    else ""
+                )
+                + "."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["reason"],
+                "properties": {"reason": {"type": "string"}},
             },
             terminal=False,
         ),
@@ -2408,18 +2487,6 @@ def _scientific_code_tools(
         "required": ["reason"],
         "properties": {"reason": {"type": "string"}},
     }
-    if allow_current_source_run:
-        tools.append(
-            ClientToolDefinition(
-                name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
-                description=(
-                    "Execute unchanged current source after a bound dependency changed; "
-                    "raw output returns here without runtime ownership inference."
-                ),
-                input_schema=reason_schema,
-                terminal=False,
-            )
-        )
     if allow_dependency_handoff:
         tools.append(
             ClientToolDefinition(
