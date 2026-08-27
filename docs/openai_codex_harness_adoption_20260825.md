@@ -6,10 +6,13 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`89650c66f2f3ff0d028d3f5d6d0b187b2ed49be5`.
+`e9a446d79dc2b40549186ac69f665794ad52cdd5`.
 
 Latest selective-adoption implementation commits:
 
+- `ccaca8d7ffcc9cecd0380c0cb07879bcc395647f`: preserve one isolated
+  metric-reviewer's incrementally updated draft across validator corrections
+  instead of requiring complete-packet regeneration;
 - `5d5125607c58bc5830ac11a27c6c64ce6764e344`: separate Algorithm
   developer diagnostics from independently preregistered confirmatory
   Simulation evidence without adding a content judge or another loop;
@@ -2296,3 +2299,57 @@ sandbox, reviewer, research runtime, evaluation, and model-policy panel passed
 Task 61 was not rerun, resumed, repaired, hidden-evaluated again, rescored, or
 resampled. Trustworthy capability remains `4/61`, and exact development theorem
 closure remains `0/2`.
+
+## Persistent reviewer drafts and Task 62
+
+Task 62 supplied another disjoint live check. One exact-Haiku TheoryDeveloper
+maintained hash-bound Markdown/LaTeX and used direct scratch feedback. One
+AlgorithmEngineer maintained executable Python, and its isolated reviewer repaired
+its own failed probes in the same model/tool history before invoking the exact
+target. Hidden mechanics passed theory `7/7`, algorithm `12/12`, and evaluator-only
+empirical checks `11/11`. Runtime nevertheless stopped before Simulation, and the
+task remains `0/1`.
+
+The terminal failure identified a harness mismatch. The metric reviewer first
+submitted a valid requirement judgment without the complete portfolio. Later
+correction calls supplied the missing portfolio fields, but each call replaced the
+whole object and erased the earlier requirement. This recreated a form of full
+packet regeneration inside a nominally persistent coding-agent loop.
+
+Commit `ccaca8d7` makes the reviewer draft persistent. Each terminal-tool call
+recursively updates only model-supplied mapping fields, explicitly supplied arrays
+replace prior arrays, and omitted fields remain intact. Raw validator observations
+return to the same isolated model history. The existing complete validator remains
+fail-closed. There is no runtime-authored scientific completion, packet repair
+agent, Architect route, provider retry, model escalation, or second scheduler.
+
+This adopts the useful Codex boundary rather than Codex itself: a specialist owns
+one durable work state, tools return raw observations to that same session, and a
+small authority layer validates identity, hashes, and terminal invariants. Theory,
+Python/R, Simulation, and Lean can use that inner-loop pattern independently;
+AgentRuntime should coordinate only cross-workspace intent, accepted artifact
+handoffs, blinding, and stopping. Codex core, App Server, Responses transport,
+thread storage, Guardian, and the Codex SDK remain excluded from the Claude-first
+product path because importing them would create another conversation owner and
+scheduler.
+
+The operator audit also found an active mathematical error that no harness merge
+can fix: with `beta` and `t` fixed, increasing Gamma shape `r` does not make the
+Gamma-Poisson count approach a fixed-mean Poisson law. Both author and referee
+accepted that extra claim. This remains exact-Haiku model-judgment evidence; it did
+not trigger a Gamma-Poisson rule, deterministic equation parser, extra reviewer
+vote, or hidden feedback.
+
+The upstream Codex checkout was rechecked through
+[`e9a446d7`](https://github.com/openai/codex/commit/e9a446d79dc2b40549186ac69f665794ad52cdd5).
+The only new commit adds low-cardinality Guardian decision metrics with explicit
+reasons for approval or deferred review. The reusable principle is to keep
+lifecycle decisions reason-coded and observable while keeping telemetry outside
+scientific authority. It does not change the core model/tool/observation loop and
+does not justify importing Guardian.
+
+The focused reviewer panel passed `19/19`; the shared client-tool and reviewer
+panel passed `44/44`; research-eval passed `23/23`; and the complete repository
+passed `965/965` in 78.25 seconds. Task 62 was not rerun, resumed, repaired,
+hidden-evaluated again, rescored, or resampled. Trustworthy capability remains
+`4/62`, and exact development theorem closure remains `0/2`.
