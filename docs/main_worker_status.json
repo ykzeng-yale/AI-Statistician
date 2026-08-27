@@ -1,13 +1,13 @@
 {
-  "schema_version": 207,
+  "schema_version": 208,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "24de629178cb2c8214dcefe5c553ef1015378052",
+  "validated_code_head": "5fb0711a2852568fe884cb7bdf6cc6a492ed3732",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/60 and exact development Lean closure remains 0/2. Task 60 validates the Codex-shaped inner coding loop: one Algorithm owner revised exact Python source, an isolated reviewer kept two invalid probes local, repaired its own probe, and accepted code that passed hidden ABI 11/11 and hidden empirical 9/9. The scientific judgment loop still failed: hidden Theory semantics satisfied only 1/8 claims because active Markdown retained contradictory spacing definitions, maps, measures, and factorial derivations that the isolated referee false-accepted; runtime then blocked on a 15,076-character eight-row metric protocol with quoted numeric gates, so no confirmatory Simulation or Critic ran. Commit 24de6291 is future-task-only mechanism evidence: every unmarked authoritative paragraph/equation remains active until removed or clearly delimited as rejected scratch, and the same model can perform count-checked repeated exact edits without a repair worker. Do not rerun, resume, repair, hidden-evaluate again, rescore, or resample Task 60. Keep one model-owned tool loop inside Theory, Python/R, Simulation, and Lean; keep formalization optional by task intent; reuse Codex harness principles without embedding Codex core or adding a scheduler. Before Task 61, reduce the oversized metric-protocol surface toward a compact model-owned Simulation evaluator or envelope with independent pre-outcome review. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/60 and exact development Lean closure remains 0/2. Task 60 validates the Codex-shaped inner Algorithm loop but still exposes a false-accepted Theory document and a blocked oversized metric protocol. Commits 24de6291 and 5fb0711a are future-task-only mechanism evidence: active mathematical authority must be explicit, repeated exact edits remain model-owned, fresh empirical preregistration is one compact four-field protocol, and SimulationEngineer implements its complete decision in the existing Python/R coding workspace. AgentRuntime binds only identity, blinding, lineage, and acceptance_passed; independent review must inspect protocol and exact source rather than trusting the boolean. Do not rerun, resume, repair, hidden-evaluate again, rescore, or resample Task 60. Keep one model-owned tool loop inside Theory, Python/R, Simulation, and Lean; keep formalization optional by task intent; reuse Codex harness principles without embedding Codex core or adding a scheduler. The next justified disjoint task must evaluate this mechanism and long-horizon Theory quality without adding task rules after observation. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
   "latest_uniform_spacings_dirichlet_l0_evaluation": {
     "task_id": "uniform_spacings_dirichlet_known_result",
     "family": "order_statistics_uniform_spacings",
@@ -45,7 +45,10 @@
     "operator_audit": "docs/operator_audits/uniform_spacings_dirichlet_l0_v1.md",
     "post_run_shared_mechanism_commit": "24de629178cb2c8214dcefe5c553ef1015378052",
     "post_run_shared_change": "Future Theory authors and referees receive explicit active-document authority semantics; future count-checked repeated exact edits remain model-authored and atomic. The numeric metric example is an unquoted JSON number. No task formula, parser, RepairAgent, extra reviewer, Architect route, scheduler, provider, or model escalation was added.",
-    "remaining_design_debt": "The count-checked edit fixes observed source-tool ergonomics but not the oversized metric interface. The simple task still projected 22,359 prompt characters and elicited a 15,076-character protocol. Move toward a compact model-owned Simulation evaluator or envelope rather than expanding condition fields.",
+    "post_run_metric_surface_mechanism_commit": "5fb0711a2852568fe884cb7bdf6cc6a492ed3732",
+    "post_run_metric_surface_change": "Future fresh tasks author one compact preregistered acceptance protocol. SimulationEngineer implements its complete scientific decision in ordinary Python/R and returns acceptance_passed plus raw and per-check diagnostics. Runtime owns only the stable binding and rejects a model-selected alternate path. The obsolete fresh numeric-row authoring schema was deleted; frozen legacy reconstruction remains separate.",
+    "post_run_metric_surface_evidence": "Future-task deterministic evidence only: prompt projection fell from the observed Task 60 size to 6107 characters in the generic regression fixture; source-mode schema, runtime binding, alternate-path rejection, reviewer scope, compile-all, architecture budgets, and the complete repository passed. No model call or consumed-task action occurred.",
+    "remaining_design_debt": "The oversized fresh metric authoring interface is removed, but there is no live capability evidence yet that exact Haiku will author a scientifically valid compact protocol or that SimulationEngineer will implement it faithfully. TheoryDeveloper and its isolated referee remain the larger demonstrated scientific bottleneck.",
     "verification": "Focused Theory, metric, client-loop, and Lean edit panel 168/168; complete repository 960/960 in 78.45 seconds; compile-all, JSON, diff, and changed-file secret hygiene passed. Ruff was unavailable and is not claimed.",
     "full_task_score": "0/1 under the pre-frozen protocol",
     "ladder_score_after_consumption": "4/60",
@@ -1004,10 +1007,10 @@
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
     "latest_rechecked_upstream_commit": "57e2edc6e97474448f1fb634224471448bc09d40",
     "latest_incremental_finding": "The one-commit delta from 5af6979 through 57e2edc6 marks history and notes search queries and note text as encrypted tool arguments, sends the encrypted-arguments header only on matching backend routes, and tests both protected and unrelated requests. This reinforces provider-owned sensitive-argument policy, but AI Statistician cannot copy a private Responses/backend header into Claude or local tools. Secrets must remain outside model-visible payloads and persisted telemetry; the delta supplies no scientific judgment or reason to import Codex core, App Server, Responses transport, history storage, or another scheduler.",
-    "latest_incremental_adoption": "Task 59 exercised persistent Theory, scientific-code review, and metric source-owner loops. Its metric model saw raw validator feedback but a rejected forced-terminal commit removed read/edit authority. Commit 7b07d9e7 lets that same source owner inspect or read, edit, and recommit under a separate bounded recovery-action budget, while a repeated identical rejection cannot reopen recovery. It adds no statistical formula, content repair, reviewer vote, RepairAgent, Architect route, second scheduler, provider, model escalation, Sonnet call, or Opus call.",
+    "latest_incremental_adoption": "Task 60 showed that the fresh condition-row metric language overwhelmed the model despite a correct same-owner tool loop. Commit 5fb0711a replaces it with one compact model-authored preregistration protocol and ordinary SimulationEngineer Python/R source. Runtime binds only acceptance_passed and rejects model-selected alternate metric paths; independent reviewers retain protocol and exact-source authority. The obsolete fresh authoring DSL was deleted without adding an agent, route, scheduler, repair worker, provider, or model escalation.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "7b07d9e7c183cd5a11fcbe4959f058e7386cfdca",
+    "implementation_commit": "5fb0711a2852568fe884cb7bdf6cc6a492ed3732",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -1051,7 +1054,8 @@
     "e3255046ccfe33b463160bb5fd8f53b619eb59d9",
       "0824246428d4695bf273e578372cf0fae3d469de",
       "f56db3a789de9ed25e86ed492a52ae7f6e6062a6",
-      "7b07d9e7c183cd5a11fcbe4959f058e7386cfdca"
+      "7b07d9e7c183cd5a11fcbe4959f058e7386cfdca",
+      "5fb0711a2852568fe884cb7bdf6cc6a492ed3732"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",

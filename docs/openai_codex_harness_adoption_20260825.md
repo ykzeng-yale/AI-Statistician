@@ -2174,3 +2174,29 @@ The focused panel passed `168/168`; the complete repository passed `960/960` in
 78.45 seconds. Compile-all, JSON, diff, and changed-file secret hygiene passed.
 Task 60 remains immutable `0/1`; trustworthy capability is `4/60`, and exact
 development theorem closure remains `0/2`.
+
+## Compact preregistration, ordinary Simulation source
+
+Task 60 also demonstrated where a coding-agent harness should stop. A simple
+confirmatory check was projected through a 22,359-character prompt into a
+15,076-character, eight-row condition document. The model received exact validator
+errors, but the size and repetition of the runtime-designed language dominated its
+work. More repair actions would have preserved the wrong abstraction.
+
+Commit `5fb0711a` removes that fresh authoring language. The pre-outcome model now
+writes one four-field acceptance protocol capable of expressing arbitrary formulas,
+scenarios, and joint decisions. SimulationEngineer implements the frozen protocol in
+its existing Python/R coding workspace, reads raw execution failures in the same model
+history, and returns `acceptance_passed` with raw measurements and per-check
+diagnostics. Independent protocol review occurs before outcomes; independent source
+review checks the exact implementation. AgentRuntime owns only theory identity,
+hashes, blinding, lineage, and the stable boolean path. A model-supplied alternate
+metric binding fails closed.
+
+This applies Codex's scoped model/tool/observation loop without importing Codex core,
+App Server, Responses transport, thread storage, Guardian, or another scheduler. The
+obsolete fresh numeric-row schema and its tests were deleted; frozen legacy packets
+retain their separate reconstruction path. No model was called and no consumed task
+was rerun, resumed, repaired, hidden-evaluated, rescored, or resampled. The complete
+repository passed `959/959` in 78.40 seconds. Task 60 remains `0/1`, trustworthy
+capability remains `4/60`, and exact development theorem closure remains `0/2`.

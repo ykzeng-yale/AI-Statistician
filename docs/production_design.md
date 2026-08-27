@@ -207,9 +207,9 @@ handoff.
 
 ## Empirical protocol
 
-Confirmatory metrics are proposed and independently reviewed before confirmatory
-results are visible. Their identities and numeric authority are frozen for that
-candidate. A failed result cannot mutate its own gate.
+For fresh tasks, one compact confirmatory acceptance protocol is independently reviewed before results are visible. It states the measurements, formulas, scenarios, joint decision, raw diagnostics, and replicate design. SimulationEngineer implements that frozen protocol in ordinary Python or R and returns raw evidence plus one top-level `acceptance_passed` boolean. AgentRuntime binds that stable path and does not author, interpret, or repair the scientific decision. A failed result cannot mutate its own protocol or source.
+
+Older frozen typed-metric packets remain reconstructable for evidence compatibility, but their condition-heavy row schema is not the canonical fresh authoring language.
 
 There is no universal replicate count such as 100. Before outcomes are revealed,
 the evaluator freezes a task-specific budget from a declared Monte Carlo standard
@@ -229,10 +229,10 @@ metric owner reads the scaffold and applies exact hash-bound literal edits
   -> execution evaluates only an accepted frozen protocol
 ```
 
-Metric row limits are execution/review budgets, not statistical rules. The reviewer supplies a theory-consistent positive control that the frozen evaluator executes. Runtime reports that observation; models still own protocol semantics and revisions. There is no whole-packet repair worker or runtime-authored statistical transformation.
+The reviewer supplies a theory-consistent positive control for the frozen protocol. Runtime reports that observation; models still own protocol semantics, source, and revisions. A later executable-source reviewer checks whether the exact Simulation source implements the complete protocol and retains auditable raw and per-check diagnostics; it cannot infer correctness from `acceptance_passed` alone. There is no whole-packet repair worker, runtime-authored statistical transformation, or model-selected metric path.
 The isolated metric reviewer may choose the shared Python/R/SymPy scratch tool before its terminal judgment. Raw calculations return to that same session; runtime records their lineage but neither interprets them nor promotes them to empirical or proof authority. Metric and generated-code review have no detached one-shot fallback.
 
-The authoritative `metric_protocol.json` is external workspace state, not a structured-output response packet. Its stable tools are exact read, exact unique-literal replacement against the current parent SHA-256, and hash-only commit. The terminal tool never carries the document body. Runtime initializes only the structural schema scaffold, stores model edits unchanged, returns validation observations, never edits scientific content, and seals terminal state without automatic replay.
+The authoritative `metric_protocol.json` is external workspace state, not a structured-output response packet. Its fresh scaffold has only `required_runtime_replicates`, `evaluator_id`, `acceptance_protocol`, and `scientific_rationale`. Its stable tools are exact read, exact literal replacement against the current parent SHA-256, and hash-only commit. The terminal tool never carries the document body. Runtime initializes only that structural scaffold, stores model edits unchanged, returns validation observations, and never edits scientific content.
 
 A rejected `metric_contract_review` returns exact findings to the same metric owner. A still-rejected revision blocks with full lineage; only a separately evidenced cross-workspace inconsistency reaches Architect.
 
