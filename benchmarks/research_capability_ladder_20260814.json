@@ -5597,6 +5597,50 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "statlib_variance_affine_formal_known_result",
+      "level": "L0",
+      "family": "probability_moments_formalization",
+      "status": "proposed_pending_hidden_authority",
+      "visible_questions_path": "benchmarks/research_l0_statlib_variance_affine_formal_questions_20260826.json",
+      "source_authority": "operator_frozen_exact_lean_target_in_pinned_statlib_environment",
+      "source_snapshot_id": "statlib-variance-affine-formal-target-v1",
+      "source_snapshot_hash": "1ae8d4b9fd1b7f3d00d8a2e3a6bd88c3039cd92a74d824a6df1d1e64eb309edd",
+      "gold_authority": "pending_operator_freeze_outside_repository_and_model_workspace",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "visible_target_frozen_before_hidden_authority_binding",
+      "activation_evidence": {
+        "public_reference": "Mathlib commit 81343555dae873c8de2de2b27bbabf7bc4d8d97a, Mathlib.Probability.Moments.Variance, inside the pinned Statlib project",
+        "preactivation_code_head": "bbc4889394e8e00676d803fab900407dd8c76ca4",
+        "visible_questions_sha256": "2a09b5021a3355b5596a9dd7ce26823b53eac2726d64889856e3d68917bc29ec",
+        "visible_question_hash": "185d09b17c9e9fea49a277c58747816067b2abf7c31442f54a9d7d503bb5d40d",
+        "lean_source_prefix_sha256": "1ae8d4b9fd1b7f3d00d8a2e3a6bd88c3039cd92a74d824a6df1d1e64eb309edd",
+        "active_lean_project_commit": "4cec7860c926feebd4cbcdaccedb63b2156972dd",
+        "active_lean_toolchain": "leanprover/lean4:v4.30.0",
+        "active_lake_manifest_sha256": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
+        "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+        "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a",
+        "evaluator_only_staging_gold_kernel_compiled": true,
+        "activation_push_confirmed_on_work_branch_and_main": false,
+        "gold_frozen_before_first_runtime_model_call": false,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "fresh_live_model": "claude-haiku-4-5-20251001",
+        "sonnet_or_opus_calls_allowed": false,
+        "formalization_requirement": "required",
+        "full_task_passed": false,
+        "boundary": "No product model call is authorized until the visible target is pushed to both canonical refs and a calibrated hidden gold proof, exact entailment harness, and negative controls are frozen outside the repository."
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "required",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -5623,6 +5667,6 @@
     "canonical_live_gold_activation_schema": 3,
     "executable_activation_gate": "Frozen reference and invoked behavioral negatives must run through the exact hidden candidate validators before any product-model call; configured executable evaluators must reject negatives and their checks must cover every applicable public ABI clause.",
     "latest_diagnostic": "Four of fifty-five consumed tasks receive trustworthy full-task capability credit. Task 55 completed exact Statsmodels source execution and received an immutable automated 1/1, but its report contains material statistical and source-identity errors that both the new document-session Critic and hidden semantic judge false-accepted; trustworthy credit is 0/1. The document harness worked mechanically, so future production Critic work uses Sonnet while frozen evaluations remain exact Haiku.",
-    "next_step": "Preserve all fifty-five consumed draws. Run no further Task 55 model call or evaluator. Freeze a disjoint future task before its first product call; use the same canonical runtime and distinguish model-capacity failures from tool, lineage, execution, or authority failures without adding task-specific rules."
+    "next_step": "Preserve all fifty-five consumed draws. Run no further Task 55 model call or evaluator. The disjoint variance-affine formal target is visible but remains unconsumed and unauthorized until its hidden proof, entailment harness, and negative controls are calibrated and frozen outside the repository; then use exactly one fresh Haiku draw in the unchanged canonical runtime without task-specific rules."
   }
 }

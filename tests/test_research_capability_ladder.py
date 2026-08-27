@@ -1791,6 +1791,44 @@ def test_statlib_formal_l0_draw_is_consumed_without_proof_credit() -> None:
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
 
 
+def test_variance_affine_formal_l0_target_is_visible_but_unconsumed() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "statlib_variance_affine_formal_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["status"] == "proposed_pending_hidden_authority"
+    assert candidate["activation_status"] == (
+        "visible_target_frozen_before_hidden_authority_binding"
+    )
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is False
+    assert evidence["fresh_live_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["sonnet_or_opus_calls_allowed"] is False
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    contract = question["formal_target_contract"]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["task_intent"]["formal"] == "required"
+    assert contract["proof_visibility"] == "hidden"
+    assert contract["declaration_name"] == "AIStatisticianBench.variance_affine"
+    assert hashlib.sha256(
+        contract["lean_source_prefix"].encode("utf-8")
+    ).hexdigest() == contract["lean_source_prefix_sha256"]
+    assert contract["lean_source_prefix"].rstrip().endswith(":= by")
+    assert "variance_add_const" not in contract["lean_source_prefix"]
+
+
 def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
     ladder = _load_ladder()
     candidate = next(

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "questions": [
+    {
+      "id": "statlib_variance_affine_formal_known_result",
+      "title": "Variance under an affine transformation",
+      "description": "Focused formal L0 known-result evaluation in probability and statistical moments. Complete the single operator-frozen Lean declaration in formal_target_contract using the pinned active Statlib project. The exact namespace, variables, assumptions, variance expression, conclusion, declaration name, and source prefix are authoritative and must not be weakened, replaced, or renamed. Use indexed Statlib/Mathlib declarations, source inspection, proof search, independent Lean scratch, and raw local Lean feedback as useful. Submit one standalone Lean source for AIStatisticianBench.variance_affine. The proof is hidden. Retrieval hits, scratch compilation, model judgment, and compilation of a different declaration do not count; success requires independent whole-target semantic acceptance, clean axiom audit, and unchanged exact-source local kernel promotion. If the bounded workspace cannot close the target, report the concrete formal gap without inventing an axiom, sorry, or altered theorem. Theory development, scientific Python/R code, simulation, source replication, and novelty are not applicable to this proof-only component task.",
+      "tags": [
+        "formal_L0",
+        "Statlib",
+        "Mathlib",
+        "probability_moments",
+        "variance",
+        "Lean"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "required",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "formal_target_contract": {
+        "schema_version": 1,
+        "contract_kind": "operator_frozen_exact_lean_target",
+        "target_id": "statlib_variance_affine",
+        "declaration_name": "AIStatisticianBench.variance_affine",
+        "lean_source_prefix": "import Statlib\nimport Mathlib.Probability.Moments.Variance\n\nopen MeasureTheory ProbabilityTheory\n\nnamespace AIStatisticianBench\n\ntheorem variance_affine\n    {Omega : Type*} [MeasurableSpace Omega] (mu : Measure Omega)\n    [IsProbabilityMeasure mu] (X : Omega -> Real)\n    (hX : AEStronglyMeasurable X mu) (a b : Real) :\n    Var[fun omega => a * X omega + b; mu] = a ^ 2 * Var[X; mu] := by\n",
+        "lean_source_prefix_sha256": "1ae8d4b9fd1b7f3d00d8a2e3a6bd88c3039cd92a74d824a6df1d1e64eb309edd",
+        "proof_visibility": "hidden",
+        "lean_environment": {
+          "project_id": "EmpericalProcessLEAN-Statlib-active-20260826",
+          "project_commit": "4cec7860c926feebd4cbcdaccedb63b2156972dd",
+          "lean_toolchain": "leanprover/lean4:v4.30.0",
+          "lake_manifest_sha256": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
+          "lakefile_sha256": "2066011983ec7ed716f5c4e6224c5e779c3237bf96f4b7f4ae63083ded34fb66",
+          "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+          "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a"
+        },
+        "required_primitives": [
+          "ProbabilityTheory.variance",
+          "ProbabilityTheory.variance_add_const",
+          "ProbabilityTheory.variance_const_mul",
+          "MeasureTheory.AEStronglyMeasurable"
+        ]
+      }
+    }
+  ]
+}
