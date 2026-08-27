@@ -6,10 +6,10 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "6d751fb601ffa6688f14a98e28ad6db2ee3c13c4"
+LATEST_SHARED_MECHANISM_HEAD = "ecfc240341ce3e39ad3c8f68ec0aa556fdac6e7f"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
-CURRENT_ACTIVE_TASKS = 69
-CURRENT_CONSUMED_TASKS = 69
+CURRENT_ACTIVE_TASKS = 70
+CURRENT_CONSUMED_TASKS = 70
 CURRENT_OPERATOR_INVALID_TASKS = 10
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
@@ -6744,6 +6744,94 @@ def test_neyman_scott_l0_automated_pass_is_operator_invalidated() -> None:
     assert question["source"]["primary_paper"]["doi"] == "10.2307/1914288"
     assert question["estimator_execution_contract"]["estimator_id"] == (
         "est_neyman_scott_variance"
+    )
+    assert question["task_intent"]["formal"] == "not_applicable"
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_algorithm_harness.py",
+        "hidden_empirical_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+        "reference_estimator.py",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_fieller_ratio_l0_preserves_theory_component_and_full_task_failure() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "fieller_bivariate_normal_ratio_confidence_set_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "bivariate_normal_ratio_confidence_set_geometry"
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_consumed_hidden_theory_pass_algorithm_uncommitted_"
+        "full_task_failed"
+    )
+    assert candidate["gold_bundle_id"] == (
+        "research-l0-fieller-ratio-20260827-v1"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "87136c34aeb25352ff26e8f663d6873b236be81e10b96d4a286ecc09943b6340"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_schema_version"] == 4
+    assert evidence["semantic_protocol_version"] == 8
+    assert evidence["semantic_calibration_cases"] == 4
+    assert evidence["semantic_calibration_cases_correct"] == 4
+    assert evidence["semantic_candidate_mode_negative_cases"] == 1
+    assert evidence["semantic_candidate_mode_negative_cases_correct"] == 1
+    assert evidence["semantic_reference_claims"] == 8
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_enabled_model_tiers"] == {"haiku": 7}
+    assert evidence["runtime_sonnet_or_opus_calls"] == 0
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_outer_iterations"] == 10
+    assert evidence["runtime_research_evaluation"].startswith("0/1")
+    assert evidence["automated_hidden_evaluation"] == "0/1"
+    assert evidence["hidden_theory_checks"].startswith("7/7")
+    assert "8/8" in evidence["hidden_theory_checks"]
+    assert "never explicitly committed" in evidence["algorithm_finding"]
+    assert "did not run" in evidence["empirical_finding"]
+    assert evidence["post_run_shared_mechanism_commit"] == "ecfc2403"
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/70"
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["primary_paper"]["doi"] == (
+        "10.1111/j.2517-6161.1954.tb00159.x"
+    )
+    assert question["estimator_execution_contract"]["estimator_id"] == (
+        "est_fieller_ratio_set"
     )
     assert question["task_intent"]["formal"] == "not_applicable"
 

@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`8aea62b2d857e950cb84366602af79403b8ed545`.
+`f6494dc8f5969e8576a8a0945a674f2a15ac4de6`.
 
 The cumulative audit through that head continues to support the same boundary:
 a delegated worker receives explicit authority-scoped tools and artifact context,
@@ -16,6 +16,11 @@ embed Codex's thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `ecfc2403`: give the shared Python/R source workspace an atomic ordered
+  multi-hunk exact patch, and require the existing explicit source-acceptance
+  gate everywhere AlgorithmEngineer counts, reuses, materializes, or resumes a
+  candidate; raw smoke success without model commit remains checkpointed
+  diagnostic execution;
 - `11ee99bd630cca6d5d5647e7050b7c2f2259badc`: require TheoryDeveloper
   and its isolated referee to align scratch observations with the complete
   proposition being judged, including object type, domain, and dimensional
@@ -2812,3 +2817,53 @@ reduction of 262 lines and leaves top-level production Python at 149,430 lines. 
 live model was called. Task 70's visible Fieller benchmark remains unconsumed: no
 product call, semantic activation call, hidden evaluator call, retry, rerun, score,
 or runtime feedback occurred.
+
+## Fieller draw: patch ergonomics and commit-aware continuation
+
+Task 70 consumed one exact-Haiku product draw and one post-runtime hidden
+evaluation under schema-4 authority. It is permanently `0/1`; trustworthy
+aggregate credit is `4/70`.
+
+The draw supplies positive evidence for the scientific architecture rather than
+for the complete system. TheoryDeveloper maintained two authoritative
+Markdown/LaTeX documents, used local scratch and exact edits, explicitly
+checkpointed them, and passed independent preflight. The hidden mechanical
+theory harness passed `7/7`. The qualified integrated exact-Haiku semantic judge
+passed `4/4` calibration cases and `1/1` long-form near miss, then marked the
+candidate document `PASS` with all eight rubric claims satisfied. Formalization
+was correctly not applicable and never ran.
+
+The Algorithm workspace exposed a generic harness integration defect. Its model
+submitted complete Python, received raw sandbox errors, edited directly, and
+executed four distinct hashes. Two executions exited successfully, but the
+model's own diagnostic output still reported metamorphic failures. The model
+continued editing and exhausted the segment immediately after an unexecuted
+final edit, so it never called `commit_scientific_source`. The workspace
+correctly produced a resumable exact checkpoint. AlgorithmEngineer then
+incorrectly treated the last raw `smoke_passed` value as accepted source and
+attempted source-packet materialization before same-owner continuation. The
+materializer failed closed because explicit workspace evidence and one model
+identity were absent. No accepted algorithm handoff existed, so hidden algorithm
+and empirical evaluators correctly did not run.
+
+Commit `ecfc2403` makes two shared future-task corrections:
+
+1. Algorithm source acceptance, pass counts, source reuse, source-owned packet
+   materialization, and checkpoint resume all use the existing explicit
+   scientific-source gate. Successful process execution with a workspace
+   failure remains diagnostic execution, not accepted code, and its checkpoint
+   returns to the same source owner without Architect routing.
+2. `edit_current_scientific_source` now accepts an ordered array of exact edits
+   and applies the whole patch atomically. This mirrors Theory's existing batch
+   edits and Codex's grammar-delimited multi-hunk
+   [`apply_patch`](https://github.com/openai/codex/blob/f6494dc8f5969e8576a8a0945a674f2a15ac4de6/codex-rs/core/src/tools/handlers/apply_patch.lark),
+   reducing one-edit-per-turn churn while leaving all source content with the
+   model.
+
+No auto-commit, forced terminal turn, hidden retry, repair phase, diagnostic
+parser, task formula, extra reviewer, agent, Architect route, scheduler, provider,
+or model escalation was added. Focused scientific workspace and continuation
+tests passed `25/25`; the mechanism-only repository passed `985/985` in 81.02
+seconds. After adding the immutable Task 70 ledger assertion, the complete
+repository passed `986/986` in 80.87 seconds. Task 70 was not rerun, resumed,
+repaired, hidden-evaluated again, rescored, resampled, or manually committed.
