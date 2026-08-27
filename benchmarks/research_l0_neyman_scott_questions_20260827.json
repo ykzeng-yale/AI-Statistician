@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "neyman_scott_fixed_group_variance_known_result",
+      "title": "Neyman-Scott variance inconsistency with fixed group size",
+      "description": "Focused L0 known-result evaluation grounded in Neyman and Scott (1948). For groups i=1,...,N and observations j=1,...,T, let X_ij=mu_i+epsilon_ij, where all epsilon_ij are independent N(0,sigma_squared), T>=2 is fixed, sigma_squared>0 is common, and every group mean mu_i is an unrestricted nuisance parameter. In one authoritative Markdown/LaTeX Theory workspace, derive the joint maximum-likelihood estimators mu_hat_i=bar_X_i and sigma_hat_ML_squared=RSS/(NT), where RSS=sum_i sum_j (X_ij-bar_X_i)^2. Derive RSS/sigma_squared distributed as chi-square with N(T-1) degrees of freedom, E[sigma_hat_ML_squared]=((T-1)/T)sigma_squared, Var(sigma_hat_ML_squared)=2N(T-1)sigma_squared^2/(N^2 T^2), and sigma_hat_ML_squared converging in probability to ((T-1)/T)sigma_squared as N tends to infinity with fixed T. Explain why increasing the number of nuisance means with N causes inconsistency even though the total observation count diverges. Derive the within-group correction sigma_hat_W_squared=RSS/[N(T-1)], its unbiasedness, variance 2 sigma_squared^2/[N(T-1)], and consistency under the stated model. Distinguish fixed-T from growing-T asymptotics, and do not use simulation or a library call as proof. The required model-authored Python artifact is est_neyman_scott_variance and must implement run_estimator(request) exactly for the frozen public closed contract. Exploratory Python or R may recompute identities and test invariances. A separately frozen confirmatory assessment varies N, T, sigma_squared, and nuisance-mean patterns; it compares Monte Carlo means and variances of both estimators with their exact targets using Monte Carlo uncertainty. That assessment is implementation and finite-design evidence, not proof, source replication, novelty, robustness outside the normal common-variance model, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "Neyman-Scott",
+        "incidental parameters",
+        "maximum likelihood inconsistency",
+        "variance estimation",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Consistent Estimates Based on Partially Consistent Observations",
+          "authors": [
+            "J. Neyman",
+            "Elizabeth L. Scott"
+          ],
+          "journal": "Econometrica",
+          "year": 1948,
+          "volume": 16,
+          "issue": 1,
+          "pages": "1-32",
+          "doi": "10.2307/1914288",
+          "url": "https://www.jstor.org/stable/1914288"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_neyman_scott_variance",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.groups",
+            "name": "groups",
+            "meaning": "Rectangular grouped observations in group order and within-group observation order.",
+            "json_type": "array",
+            "shape": "an outer array of 2 through 2000 groups, each an array of the same length T from 2 through 100 containing finite JSON numbers with absolute value at most 1e100",
+            "units": "outcome units",
+            "indexing": "groups[i][j] is observation j in group i",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, values with absolute magnitude above 1e100, nested non-scalar entries, empty or singleton groups, fewer than two groups, ragged rows, more than 2000 groups, or group size above 100 rather than coercing, dropping, truncating, padding, or regularizing them. Constant groups and jointly constant data are valid and yield zero residual variation.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_groups",
+            "name": "n_groups",
+            "meaning": "Number N of supplied groups.",
+            "json_type": "integer",
+            "shape": "one exact integer from 2 through 2000",
+            "units": "groups",
+            "indexing": "counts every outer-array entry",
+            "edge_cases": "It is not inferred from any group size.",
+            "normalization": "length(groups)."
+          },
+          {
+            "clause_id": "response.group_size",
+            "name": "group_size",
+            "meaning": "Common number T of observations per group.",
+            "json_type": "integer",
+            "shape": "one exact integer from 2 through 100",
+            "units": "observations per group",
+            "indexing": "the validated common row length",
+            "edge_cases": "Ragged rows are rejected rather than summarized.",
+            "normalization": "length(groups[0]) after rectangularity validation."
+          },
+          {
+            "clause_id": "response.residual_sum_squares",
+            "name": "residual_sum_squares",
+            "meaning": "Within-group residual sum of squares after profiling every nuisance mean.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "uses every supplied observation exactly once",
+            "edge_cases": "Zero is valid for jointly constant or groupwise constant data.",
+            "normalization": "sum_i sum_j (groups[i][j]-mean(groups[i]))^2."
+          },
+          {
+            "clause_id": "response.mle_variance",
+            "name": "mle_variance",
+            "meaning": "Profile joint maximum-likelihood estimate of sigma_squared.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "Zero is valid when residual_sum_squares is zero.",
+            "normalization": "residual_sum_squares/(n_groups*group_size)."
+          },
+          {
+            "clause_id": "response.corrected_variance",
+            "name": "corrected_variance",
+            "meaning": "Degrees-of-freedom-corrected within-group estimate of sigma_squared.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared outcome units",
+            "indexing": "not applicable",
+            "edge_cases": "Zero is valid when residual_sum_squares is zero.",
+            "normalization": "residual_sum_squares/[n_groups*(group_size-1)]."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly groups and the response contains exactly the five declared fields. Missing, extra, malformed, nonfinite, ragged, or oversized inputs are rejected rather than ignored, coerced, clipped, truncated, padded, or regularized."
+          },
+          {
+            "clause_id": "invariant.group_permutation",
+            "meaning": "Permuting whole groups leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.within_group_permutation",
+            "meaning": "Permuting observations independently within groups leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.group_specific_location_shift",
+            "meaning": "Adding any finite group-specific constant c_i to every observation in group i leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_scale_equivariance",
+            "meaning": "Multiplying every observation by a finite positive scalar c, when the scaled request remains in the declared input domain and all compared outputs are finite, leaves n_groups and group_size unchanged and multiplies residual_sum_squares, mle_variance, and corrected_variance by c squared."
+          },
+          {
+            "clause_id": "invariant.group_replication",
+            "meaning": "Repeating the complete list of groups exactly once doubles n_groups and residual_sum_squares while leaving group_size, mle_variance, and corrected_variance unchanged, provided the resulting group count is at most 2000."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every normal DGP, N, T, sigma_squared, nuisance-mean pattern, seed, replicate count, estimator invocation, exact comparator, Monte Carlo precision rule, and joint decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.neyman_scott_behavior",
+            "meaning": "Across the frozen designs, compare the Monte Carlo mean and variance of mle_variance with ((T-1)/T)sigma_squared and 2(T-1)sigma_squared^2/(N*T^2), and compare corrected_variance with sigma_squared and variance 2*sigma_squared^2/[N(T-1)], using Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks implementation and finite-design behavior under its independent normal common-variance DGPs only. It does not prove the theorem, establish robustness outside the model, replicate author code, establish novelty, or provide formal proof evidence."
+          }
+        ],
+        "termination_guarantee": "For every valid request, run_estimator performs finite validation and finite arithmetic over at most 200000 observations and returns exactly one response object without randomization, file access, network access, subprocesses, or mutation of the request."
+      }
+    }
+  ]
+}
