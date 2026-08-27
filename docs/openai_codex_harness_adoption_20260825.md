@@ -45,6 +45,9 @@ Latest selective-adoption implementation commits:
 - `f56db3a789de9ed25e86ed492a52ae7f6e6062a6`: keep document-authoritative
   estimator handoffs to compact executable identity and return exact unsupported
   nested ABI paths to the same Theory owner.
+- `24de629178cb2c8214dcefe5c553ef1015378052`: make active Markdown authority
+  explicit and let model-owned exact edits safely replace a declared number of
+  repeated literals without regenerating a large file.
 
 Primary references:
 
@@ -2130,3 +2133,44 @@ Compile-all, JSON, diff, and changed-file secret hygiene passed. No model was
 called and no consumed task was rerun, resumed, repaired, hidden-evaluated again,
 rescored, or resampled. Task 59 remains `0/1`, trustworthy capability remains
 `4/59`, and exact development theorem closure remains `0/2`.
+
+## Active-document authority and repeated exact edits
+
+The disjoint uniform-spacings draw separates the inner-loop result from the
+scientific-judgment result. AlgorithmEngineer submitted several complete source
+versions; the isolated reviewer wrote two invalid optional probes, saw their raw
+failures in its own history, corrected the probe, executed it successfully, and
+accepted exact source that later passed all `11/11` hidden ABI checks and `9/9`
+hidden empirical checks. No Architect route or repair worker was needed. This is
+the Codex model/tool/observation principle working as intended.
+
+TheoryDeveloper and its isolated referee failed differently. The authoritative
+Markdown contained invalid spacing indexes, contradictory forward and inverse
+maps, incompatible simplex dimensions and reference measures, and many false
+factorial calculations before a correct final formula. Both prompts already said
+that a correct final statement does not cancel false intermediate steps, yet the
+referee treated narrative self-correction as if it changed document authority.
+
+Commit `24de6291` defines that authority without parsing mathematics: every
+unmarked paragraph and equation remains active; narrative chronology cannot
+revoke it; rejected exploration must be clearly delimited and unused by active
+claims. The runtime still makes no content judgment.
+
+The same draw exposed a file-edit mismatch. The metric owner received exact
+errors for sixteen quoted numeric bounds, then its natural local replacement was
+rejected because each literal appeared eight times. The shared exact editor now
+accepts an optional positive occurrence count, verifies that count, refuses
+overlapping matches, and performs one atomic model-authored replacement. The
+prompt schema also shows a numeric value as a JSON number rather than a
+descriptive string.
+
+This is not a claim that the metric protocol is now well-sized. Its 22,359-character
+prompt projection elicited a 15,076-byte eight-row JSON document for a simple
+moment check. The architectural direction remains to move toward a compact
+model-owned evaluator or envelope in the Simulation workspace, not to add more
+repair agents, condition fields, or schedulers.
+
+The focused panel passed `168/168`; the complete repository passed `960/960` in
+78.45 seconds. Compile-all, JSON, diff, and changed-file secret hygiene passed.
+Task 60 remains immutable `0/1`; trustworthy capability is `4/60`, and exact
+development theorem closure remains `0/2`.
