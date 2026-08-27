@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "pinball_loss_quantile_known_result",
+      "title": "Quantiles as minimizers of expected pinball loss",
+      "description": "Focused L0 known-result evaluation grounded in Tilmann Gneiting, Quantiles as optimal point forecasts, International Journal of Forecasting 27(2) (2011), 197-207, DOI 10.1016/j.ijforecast.2009.12.015, with Koenker and Bassett (1978) and numpy.quantile(method='inverted_cdf') as public mathematical and computational context. For tau in (0,1), define rho_tau(u)=u(tau-1{u<0}) and let R(q)=E[rho_tau(Y-q)] for a real-valued Y with CDF F and finite first moment. In one authoritative Markdown/LaTeX Theory workspace, derive a risk-difference or one-sided-derivative argument and characterize every minimizer exactly by F(q-)<=tau<=F(q). Explain why atoms can produce nonunique minimizers, why q_tau=inf{x:F(x)>=tau} is a valid lower-quantile choice, and what additional conditions make the population minimizer unique. For a nonempty sample, derive that the lower empirical inverse-CDF X_(ceil(n*tau)) is a deterministic empirical-risk minimizer, including the case n*tau is an integer and ties occur. Do not replace the lower inverse-CDF by linear interpolation, assert uniqueness for arbitrary distributions, reverse the loss asymmetry, or use simulation or a numerical library as proof. The required model-authored Python artifact is est_pinball_lower_quantile and must implement run_estimator(request) exactly for the frozen public closed contract, returning the lower empirical quantile, its mean pinball loss, and the strict and weak empirical counts at that quantile. Exploratory Python or R may check order statistics, objective values, atoms, and affine transformations. A separately frozen confirmatory assessment invokes the estimator under multiple predeclared continuous distributions and quantile levels, compares finite-sample error at increasing sample sizes, and compares out-of-sample pinball loss with predeclared shifted forecasts using Monte Carlo uncertainty. That assessment is implementation and finite-sample evidence, not proof of the population minimizer theorem. Source-code replication, conditional quantile regression, interval estimation, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "quantile",
+        "pinball loss",
+        "statistical decision theory",
+        "empirical risk minimization",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Quantiles as optimal point forecasts",
+          "authors": [
+            "Tilmann Gneiting"
+          ],
+          "journal": "International Journal of Forecasting",
+          "year": 2011,
+          "volume": 27,
+          "issue": 2,
+          "pages": "197-207",
+          "doi": "10.1016/j.ijforecast.2009.12.015",
+          "url": "https://arxiv.org/abs/0912.0902"
+        },
+        "public_mathematical_context": [
+          {
+            "title": "Regression Quantiles",
+            "authors": [
+              "Roger Koenker",
+              "Gilbert Bassett Jr."
+            ],
+            "journal": "Econometrica",
+            "year": 1978,
+            "volume": 46,
+            "issue": 1,
+            "pages": "33-50",
+            "doi": "10.2307/1913643",
+            "url": "https://www.bls.gov/osmr/research-papers/1992/ec921690.htm"
+          }
+        ],
+        "public_computational_context": [
+          {
+            "project": "NumPy",
+            "api": "numpy.quantile(method='inverted_cdf')",
+            "url": "https://numpy.org/doc/stable/reference/generated/numpy.quantile.html"
+          }
+        ]
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_pinball_lower_quantile",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.values",
+            "name": "values",
+            "meaning": "Observed real sample whose lower empirical tau-quantile is requested.",
+            "json_type": "array",
+            "shape": "one array of length 1 through 5000 containing finite JSON numbers in [-1000000,1000000]",
+            "units": "outcome units",
+            "indexing": "sample order is arbitrary and must not affect the response",
+            "edge_cases": "Reject booleans, strings, nonnumeric or nonfinite entries, out-of-domain values, empty arrays, oversized arrays, and nested arrays rather than coercing or dropping them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.tau",
+            "name": "tau",
+            "meaning": "Quantile level and pinball-loss asymmetry parameter.",
+            "json_type": "number",
+            "shape": "one finite scalar in the closed numerical domain [0.01,0.99]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonnumeric or nonfinite values, and values outside the closed numerical domain rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.quantile",
+            "name": "quantile",
+            "meaning": "Lower empirical inverse-CDF at tau.",
+            "json_type": "number",
+            "shape": "one finite scalar equal to sorted(values)[ceil(n*tau)-1]",
+            "units": "outcome units",
+            "indexing": "one-based order statistic ceil(n*tau), returned with zero-based implementation index ceil(n*tau)-1",
+            "edge_cases": "Return an observed sample value; do not interpolate or average adjacent order statistics when n*tau is an integer.",
+            "normalization": "inf{x:F_n(x)>=tau}."
+          },
+          {
+            "clause_id": "response.mean_pinball_loss",
+            "name": "mean_pinball_loss",
+            "meaning": "Empirical mean of rho_tau(value-quantile) at the returned lower quantile.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "outcome units",
+            "indexing": "average over every request.values entry",
+            "edge_cases": "Use rho_tau(u)=u*(tau-1{u<0}) with u=value-quantile; do not reverse underprediction and overprediction weights.",
+            "normalization": "sum rho_tau(value-quantile)/n."
+          },
+          {
+            "clause_id": "response.count_below",
+            "name": "count_below",
+            "meaning": "Number of sample values strictly below the returned quantile.",
+            "json_type": "integer",
+            "shape": "one integer in [0,n-1]",
+            "units": "observations",
+            "indexing": "strict comparison with response.quantile",
+            "edge_cases": "Tied values equal to the quantile are not counted.",
+            "normalization": "sum 1{value<quantile}."
+          },
+          {
+            "clause_id": "response.count_at_or_below",
+            "name": "count_at_or_below",
+            "meaning": "Number of sample values weakly below the returned quantile.",
+            "json_type": "integer",
+            "shape": "one integer in [1,n]",
+            "units": "observations",
+            "indexing": "weak comparison with response.quantile",
+            "edge_cases": "Every value tied at the quantile is counted.",
+            "normalization": "sum 1{value<=quantile}."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly values and tau and the response contains exactly quantile, mean_pinball_loss, count_below, and count_at_or_below. Missing or extra fields and invalid values are rejected rather than ignored, repaired, clipped, or coerced."
+          },
+          {
+            "clause_id": "invariant.empirical_quantile_coverage",
+            "meaning": "The returned counts satisfy count_below/n<=tau<=count_at_or_below/n, including ties and integer n*tau."
+          },
+          {
+            "clause_id": "invariant.empirical_risk_minimizer",
+            "meaning": "The returned observed value attains the minimum empirical mean pinball loss over all real q and follows the lower inverse-CDF convention when the minimizer is not unique."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting request.values leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_affine_equivariance",
+            "meaning": "For transformed values a+b*value with finite b>0 inside the numerical domain, quantile becomes a+b*quantile, mean_pinball_loss becomes b*mean_pinball_loss, and both counts remain unchanged."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each continuous DGP, tau, sample size, seed, replicate count, shifted comparator, estimator invocation, out-of-sample evaluation rule, and Monte Carlo decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.finite_sample_behavior",
+            "meaning": "For multiple predeclared continuous distributions with unique tau-quantiles, compare estimator error at increasing sample sizes and compare out-of-sample pinball loss with predeclared shifted forecasts using Monte Carlo standard errors."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks the executable lower-quantile convention and finite-sample behavior only. It does not prove population optimality, establish uniqueness for atomic distributions, fit conditional quantile regression, provide interval estimation, reproduce source code, establish novelty, or provide formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
