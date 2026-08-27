@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "brier_score_bernoulli_mean_known_result",
+      "title": "Bernoulli probability as the unique minimizer of expected Brier loss",
+      "description": "Focused L0 known-result evaluation grounded in Brier (1950) and Gneiting and Raftery (2007). Let Y be Bernoulli(q), let a probability forecast p lie in [0,1], and define the Brier loss L(p,Y)=(p-Y)^2. In one authoritative Markdown/LaTeX Theory workspace, derive the population risk exactly, prove the decomposition R_q(p)=q(1-q)+(p-q)^2, and conclude that q is the unique population minimizer with excess risk (p-q)^2, including q=0 and q=1. Derive the finite-sample empirical-risk decomposition for binary observations and prove that the sample event rate is the unique empirical minimizer over [0,1], including all-zero and all-one samples. Distinguish this unconditional Bernoulli result from calibration or optimality claims for heterogeneous covariate-dependent forecasts, and do not use simulation or a library call as proof. The required model-authored Python artifact is est_brier_bernoulli_mean and must implement run_estimator(request) exactly for the frozen public closed contract, returning the empirical event rate, mean Brier loss at the supplied forecast, minimum empirical Brier loss, and empirical excess loss. Exploratory Python or R may check the algebra, edge cases, invariances, and finite-sample behavior. A separately frozen confirmatory assessment invokes the estimator under multiple predeclared Bernoulli probabilities, compares event-rate error at increasing sample sizes, and compares out-of-sample Brier loss with predeclared off-target forecasts using Monte Carlo uncertainty. That assessment is implementation and finite-sample evidence, not proof of strict propriety or a general calibration theorem. Source-code replication, conditional probability estimation, interval estimation, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "Brier score",
+        "proper scoring rule",
+        "Bernoulli",
+        "empirical risk minimization",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Verification of Forecasts Expressed in Terms of Probability",
+          "authors": [
+            "Glenn W. Brier"
+          ],
+          "journal": "Monthly Weather Review",
+          "year": 1950,
+          "volume": 78,
+          "issue": 1,
+          "pages": "1-3",
+          "doi": "10.1175/1520-0493(1950)078<0001:VOFEIT>2.0.CO;2",
+          "url": "https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml"
+        },
+        "public_mathematical_context": [
+          {
+            "title": "Strictly Proper Scoring Rules, Prediction, and Estimation",
+            "authors": [
+              "Tilmann Gneiting",
+              "Adrian E. Raftery"
+            ],
+            "journal": "Journal of the American Statistical Association",
+            "year": 2007,
+            "volume": 102,
+            "issue": 477,
+            "pages": "359-378",
+            "doi": "10.1198/016214506000001437",
+            "url": "https://doi.org/10.1198/016214506000001437"
+          }
+        ]
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_brier_bernoulli_mean",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.outcomes",
+            "name": "outcomes",
+            "meaning": "Observed binary outcomes used to form the empirical event rate and empirical Brier risk.",
+            "json_type": "array",
+            "shape": "one array of length 1 through 5000 containing exact JSON integers 0 or 1",
+            "units": "binary events",
+            "indexing": "sample order is arbitrary and must not affect the response",
+            "edge_cases": "Reject booleans, floats including 0.0 and 1.0, strings, other integers, empty arrays, oversized arrays, and nested arrays rather than coercing or dropping them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.forecast",
+            "name": "forecast",
+            "meaning": "Probability forecast at which empirical Brier loss is evaluated.",
+            "json_type": "number",
+            "shape": "one finite JSON number in the closed interval [0,1]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonnumeric or nonfinite values, and values outside [0,1] rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.event_rate",
+            "name": "event_rate",
+            "meaning": "Empirical mean of the binary outcomes.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "average over every request.outcomes entry",
+            "edge_cases": "Return exactly 0 for an all-zero sample and exactly 1 for an all-one sample.",
+            "normalization": "sum(outcomes)/n."
+          },
+          {
+            "clause_id": "response.mean_brier_loss",
+            "name": "mean_brier_loss",
+            "meaning": "Empirical mean of (forecast-outcome)^2.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared probability",
+            "indexing": "average over every request.outcomes entry",
+            "edge_cases": "Use every observation exactly once and the supplied forecast without clipping or replacement.",
+            "normalization": "sum((forecast-outcome)^2)/n."
+          },
+          {
+            "clause_id": "response.optimal_mean_brier_loss",
+            "name": "optimal_mean_brier_loss",
+            "meaning": "Minimum empirical mean Brier loss attained at the empirical event rate.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared probability",
+            "indexing": "average over every request.outcomes entry",
+            "edge_cases": "It is zero for all-zero and all-one samples.",
+            "normalization": "event_rate*(1-event_rate)."
+          },
+          {
+            "clause_id": "response.excess_brier_loss",
+            "name": "excess_brier_loss",
+            "meaning": "Empirical Brier loss above its sample minimum.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared probability",
+            "indexing": "not applicable",
+            "edge_cases": "Numerically equals both mean_brier_loss-optimal_mean_brier_loss and (forecast-event_rate)^2.",
+            "normalization": "(forecast-event_rate)^2."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly outcomes and forecast and the response contains exactly event_rate, mean_brier_loss, optimal_mean_brier_loss, and excess_brier_loss. Missing or extra fields and invalid values are rejected rather than ignored, repaired, clipped, or coerced."
+          },
+          {
+            "clause_id": "invariant.empirical_risk_decomposition",
+            "meaning": "For every valid request, mean_brier_loss equals optimal_mean_brier_loss plus excess_brier_loss, where the latter equals (forecast-event_rate)^2."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting request.outcomes leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.complement_equivariance",
+            "meaning": "Replacing every outcome y by 1-y and forecast by 1-forecast replaces event_rate by 1-event_rate while leaving all three Brier-loss fields unchanged."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each Bernoulli probability, sample size, seed, replicate count, off-target comparator, estimator invocation, out-of-sample evaluation rule, and Monte Carlo decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.finite_sample_behavior",
+            "meaning": "For multiple predeclared Bernoulli probabilities, compare empirical event-rate error at increasing sample sizes and compare out-of-sample Brier loss with predeclared off-target forecasts using Monte Carlo standard errors."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks the executable decomposition and finite-sample behavior only. It does not prove strict propriety, establish a conditional calibration theorem, fit a conditional probability model, provide intervals, reproduce source code, establish novelty, or provide formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
