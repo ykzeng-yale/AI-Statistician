@@ -12,6 +12,7 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     LLMArchitectMetricSemanticReviewerAgent,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_review_json_schema,
+    architect_metric_semantic_review_update_json_schema,
     bind_architect_metric_finding_evidence_identities,
     build_architect_metric_semantic_review_prompt,
     validate_architect_metric_semantic_review_packet,
@@ -463,6 +464,71 @@ def test_metric_reviewer_receives_submission_validation_in_same_session() -> Non
     assert packet["client_tool_loop"]["validation_feedback_observed"] is True
 
 
+def test_metric_reviewer_preserves_partial_draft_across_validation_feedback() -> None:
+    requirements = [_requirement("gate_one"), _requirement("gate_two")]
+    material = _material(requirements=requirements)
+    complete = _payload(requirements)
+    responses = iter(
+        [
+            {"requirement_reviews": complete["requirement_reviews"]},
+            {
+                "portfolio_review": complete["portfolio_review"],
+                "prior_finding_reviews": [],
+                "findings": [],
+            },
+        ]
+    )
+
+    packet, backend, _ = _review(
+        lambda request: next(responses),
+        material=material,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["reviewed_requirement_ids"] == ["gate_one", "gate_two"]
+    assert len(backend.requests) == 2
+    second_request = json.dumps(backend.requests[1].messages, default=str)
+    assert "draft update was saved" in second_request.lower()
+    loop = packet["client_tool_loop"]
+    assert loop["stateful_review_draft_updates"] is True
+    assert loop["validation_submissions"] == 2
+    assert loop["draft_update_history"][0]["updated_top_level_fields"] == [
+        "requirement_reviews"
+    ]
+    assert loop["draft_update_history"][1]["updated_top_level_fields"] == [
+        "findings",
+        "portfolio_review",
+        "prior_finding_reviews",
+    ]
+
+
+def test_metric_reviewer_merges_nested_draft_correction_without_rewriting_row() -> None:
+    material = _material()
+    requirements = material["empirical_metric_requirements"]
+    incomplete = _payload(requirements)
+    incomplete["portfolio_review"]["status"] = ""
+    responses = iter(
+        [
+            incomplete,
+            {"portfolio_review": {"status": "PASS"}},
+        ]
+    )
+
+    packet, _, _ = _review(
+        lambda request: next(responses),
+        material=material,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["portfolio_review"]["status"] == "PASS"
+    assert packet["portfolio_review"]["rationale"] == (
+        incomplete["portfolio_review"]["rationale"]
+    )
+    assert packet["portfolio_review"]["evidence_refs"] == (
+        incomplete["portfolio_review"]["evidence_refs"]
+    )
+
+
 def test_compact_reviewer_derives_revise_from_model_judgments() -> None:
     material = _material()
     requirements = material["empirical_metric_requirements"]
@@ -746,6 +812,24 @@ def test_dynamic_schema_is_small_and_provider_transformable() -> None:
         "prior_finding_reviews",
         "findings",
     }
+
+
+def test_stateful_update_schema_allows_partial_fields_but_not_unknown_rows() -> None:
+    material = _material(
+        requirements=[_requirement("gate_one"), _requirement("gate_two")]
+    )
+    schema = architect_metric_semantic_review_update_json_schema(material)
+
+    assert schema["required"] == []
+    requirement_schema = schema["properties"]["requirement_reviews"]
+    assert requirement_schema["required"] == []
+    assert set(requirement_schema["properties"]) == {"gate_one", "gate_two"}
+    assert requirement_schema["additionalProperties"] is False
+    assert schema["$defs"]["requirement_review"]["required"] == []
+    assert schema["$defs"]["requirement_review"]["properties"][
+        "semantic_positive_control"
+    ]["required"] == []
+    assert schema["properties"]["portfolio_review"]["required"] == []
 
 
 def test_finding_evidence_binding_preserves_exact_current_value() -> None:
