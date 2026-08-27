@@ -2097,3 +2097,36 @@ ladder tests passed `89/89`; compile-all, JSON, diff, architecture line-budget,
 and changed-file secret hygiene passed. Task 59 remains `0/1`; it was not rerun,
 resumed, repaired, hidden-evaluated again, rescored, or resampled. Trustworthy
 capability remains `4/59`, and exact development theorem closure remains `0/2`.
+
+## Reviewer-owned probe failures stay local
+
+The immutable Task 59 trace exposed a smaller Codex-lifecycle error after the
+source-owner correction. The first generated-code reviewer wrote three probes
+that failed before invoking the exact estimator. Its Markdown review explicitly
+said the target source appeared correct and the failures belonged to its own
+diagnostic environment. The old runtime nevertheless prohibited `ACCEPT` after
+any unsuccessful optional probe. On validation retry, the same model converted
+its own tool failure into a false `CROSS_ARTIFACT_RESOLUTION_REQUIRED` finding,
+and AgentRuntime spent another Architect and Algorithm route on correct source.
+
+Commit `6fda37bbc9ce8b9f3a6a55574047d8f995de3626` removes that harness-induced
+distortion. A reviewer-authored probe failure is returned as an error observation
+in the same ordered model/tool history. Its exact record still states whether the
+target was invoked and whether the failure can be source evidence. An optional
+failed probe no longer deterministically forbids a source-grounded `ACCEPT`; the
+reviewer may repair and rerun its probe when execution is needed or ignore the
+invalid action and judge immutable source independently.
+
+This is the narrow Codex function-call principle: the action owner receives raw
+environment failure and chooses the next action. It does not add a RepairAgent,
+probe-repair workflow, finding taxonomy, packet field, Architect route, retry,
+scheduler, statistical rule, ABI special case, provider, or model escalation.
+Codex core, App Server, Responses transport, thread storage, Guardian, and its
+outer scheduler remain intentionally excluded.
+
+The generated-code reviewer, shared client-tool loop, and AgentRuntime panel
+passed `135/135`; the complete repository passed `958/958` in 78.65 seconds.
+Compile-all, JSON, diff, and changed-file secret hygiene passed. No model was
+called and no consumed task was rerun, resumed, repaired, hidden-evaluated again,
+rescored, or resampled. Task 59 remains `0/1`, trustworthy capability remains
+`4/59`, and exact development theorem closure remains `0/2`.
