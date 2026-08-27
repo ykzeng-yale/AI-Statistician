@@ -5116,17 +5116,20 @@ def test_nadaraya_watson_l0_is_frozen_before_its_first_product_call() -> None:
         "research-l0-nadaraya-watson-20260826-v1"
     )
     assert candidate["gold_manifest_sha256"] == (
-        "1fef351c7409bc9c17b3b78d8f118ee9ea5bf5e52b03901a803fc731f59d76e9"
+        "8729698eabacda0ebbe7a6ad9ab4358c1b436f923010344b0b8761e8ee184329"
     )
     assert candidate["gold_descriptor_hash"] == (
-        "1a4d813eab81952aac493a2099e4858d742cdfaf8dd74398e6fa84cdc1f4a13a"
+        "6a69d4af60704985bd28417a5c569d47b275550c777c92ad363f7a49d5808770"
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["authority_binding_commit"] == (
+    assert evidence["schema2_authority_binding_commit"] == (
         "5c3adcf2818c6897391ba2084838f8a50bd5af54"
     )
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["activation_schema_version"] == 3
+    assert evidence["activation_reference_tasks_passed"] == 0
+    assert evidence["activation_negative_controls_rejected"] == 0
+    assert evidence["preactivation_failed_launches"] == 1
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 2
     assert evidence["mechanical_reference_checks"] == "7/7"

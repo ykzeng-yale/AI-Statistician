@@ -5704,8 +5704,8 @@
       "source_authority": "published_reference_metadata_and_model_visible_problem_statement",
       "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
       "gold_bundle_id": "research-l0-nadaraya-watson-20260826-v1",
-      "gold_manifest_sha256": "1fef351c7409bc9c17b3b78d8f118ee9ea5bf5e52b03901a803fc731f59d76e9",
-      "gold_descriptor_hash": "1a4d813eab81952aac493a2099e4858d742cdfaf8dd74398e6fa84cdc1f4a13a",
+      "gold_manifest_sha256": "8729698eabacda0ebbe7a6ad9ab4358c1b436f923010344b0b8761e8ee184329",
+      "gold_descriptor_hash": "6a69d4af60704985bd28417a5c569d47b275550c777c92ad363f7a49d5808770",
       "gold_runtime_visibility": "evaluator_only_after_runtime",
       "activation_status": "frozen_ready_v1_no_product_call",
       "activation_evidence": {
@@ -5730,8 +5730,12 @@
         "semantic_calibration_model": "claude-haiku-4-5-20251001",
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
-        "authority_binding_commit": "5c3adcf2818c6897391ba2084838f8a50bd5af54",
-        "activation_push_confirmed_on_work_branch_and_main": true,
+        "activation_schema_version": 3,
+        "activation_reference_tasks_passed": 0,
+        "activation_negative_controls_rejected": 0,
+        "schema2_authority_binding_commit": "5c3adcf2818c6897391ba2084838f8a50bd5af54",
+        "preactivation_failed_launches": 1,
+        "preactivation_failure": "Schema-v2 manifest rejected by the live activation gate before AgentRuntime construction, run-directory creation, or any product-model call; authority was upgraded to schema 3 before activation.",
         "preactivation_product_model_calls": 0,
         "preactivation_evaluator_model_calls": 2,
         "first_runtime_model_call_occurred": false,
@@ -5741,7 +5745,7 @@
         "formalizer_executed": false,
         "full_task_passed": false,
         "trusted_capability_credit": false,
-        "boundary": "The visible question, evaluator-only reference, rubric, behavioral calibration cases, mechanical harness, and exact-Haiku calibration are frozen before the first product-model call. No product draw has occurred. Hidden authority cannot enter runtime context or generate revision feedback."
+        "boundary": "The visible question, schema-3 evaluator-only reference, rubric, behavioral calibration cases, mechanical harness, and exact-Haiku calibration are frozen before the first product-model call. One schema preflight failed before runtime construction and made no model call, so no product draw has occurred. Hidden authority cannot enter runtime context or generate revision feedback."
       },
       "task_intent": {
         "source_replication": "not_applicable",
