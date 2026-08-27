@@ -1800,16 +1800,21 @@ def test_variance_affine_formal_l0_target_is_visible_but_unconsumed() -> None:
     )
     evidence = candidate["activation_evidence"]
 
-    assert candidate["status"] == "proposed_pending_hidden_authority"
-    assert candidate["activation_status"] == (
-        "visible_target_frozen_before_hidden_authority_binding"
-    )
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "frozen_ready_no_model_calls"
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
-    assert evidence["gold_frozen_before_first_runtime_model_call"] is False
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["fresh_live_model"] == "claude-haiku-4-5-20251001"
     assert evidence["sonnet_or_opus_calls_allowed"] is False
+    assert evidence["hidden_formal_harness_calibration_cases"] == "5/5"
+    assert evidence["hidden_gold_kernel_compiled"] is True
+    assert evidence["negative_weakened_conclusion_rejected"] is True
+    assert evidence["negative_extra_assumption_rejected"] is True
+    assert evidence["negative_sorry_rejected"] is True
+    assert evidence["negative_custom_axiom_rejected"] is True
+    assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -4309,9 +4314,9 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 55
+    assert readiness["active_scored_tasks"] == 56
     assert readiness["consumed_scored_tasks"] == 55
-    assert readiness["fully_gold_configured_tasks"] == 55
+    assert readiness["fully_gold_configured_tasks"] == 56
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4444,9 +4449,9 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 55
+    assert readiness["active_scored_tasks"] == 56
     assert readiness["consumed_scored_tasks"] == 55
-    assert readiness["fully_gold_configured_tasks"] == 55
+    assert readiness["fully_gold_configured_tasks"] == 56
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 6
     assert readiness["source_replication_components_passed"] == 1
@@ -4549,9 +4554,9 @@ def test_weighted_partial_regression_l0_records_its_only_consumed_failed_draw() 
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 55
+    assert readiness["active_scored_tasks"] == 56
     assert readiness["consumed_scored_tasks"] == 55
-    assert readiness["fully_gold_configured_tasks"] == 55
+    assert readiness["fully_gold_configured_tasks"] == 56
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4666,9 +4671,9 @@ def test_clopper_pearson_l0_single_draw_is_consumed_and_scored() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 55
+    assert readiness["active_scored_tasks"] == 56
     assert readiness["consumed_scored_tasks"] == 55
-    assert readiness["fully_gold_configured_tasks"] == 55
+    assert readiness["fully_gold_configured_tasks"] == 56
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4780,9 +4785,9 @@ def test_ols_press_l0_consumed_draw_preserves_component_evidence() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 55
+    assert readiness["active_scored_tasks"] == 56
     assert readiness["consumed_scored_tasks"] == 55
-    assert readiness["fully_gold_configured_tasks"] == 55
+    assert readiness["fully_gold_configured_tasks"] == 56
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4914,9 +4919,9 @@ def test_rdrobust_senate_l1_records_consumed_operator_false_acceptance() -> None
     assert evidence["ladder_score_after_consumption"] == "4/54"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 55
+    assert readiness["active_scored_tasks"] == 56
     assert readiness["consumed_scored_tasks"] == 55
-    assert readiness["fully_gold_configured_tasks"] == 55
+    assert readiness["fully_gold_configured_tasks"] == 56
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 6
     assert readiness["source_replication_components_passed"] == 1
@@ -5044,9 +5049,9 @@ def test_statsmodels_adf_kpss_l1_records_consumed_operator_false_acceptance() ->
     assert evidence["ladder_score_after_consumption"] == "4/55"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 55
+    assert readiness["active_scored_tasks"] == 56
     assert readiness["consumed_scored_tasks"] == 55
-    assert readiness["fully_gold_configured_tasks"] == 55
+    assert readiness["fully_gold_configured_tasks"] == 56
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 6
     assert readiness["source_replication_components_passed"] == 1
