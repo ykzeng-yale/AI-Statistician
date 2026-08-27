@@ -83,17 +83,26 @@ FROZEN_METRIC_PROTOCOL_REBINDING_GATE_MUTABLE_FIELDS = frozenset(
     {"source_anchors", "rationale"}
 )
 METRIC_PROTOCOL_WORKSPACE_TRANSPORT = (
-    "persistent_model_owned_source_acceptance_protocol_workspace_v4"
+    "persistent_model_owned_markdown_acceptance_protocol_workspace_v5"
 )
 METRIC_PROTOCOL_WORKSPACE_CHECKPOINT_KIND = "MetricProtocolWorkspaceCheckpoint"
 METRIC_PROTOCOL_WORKSPACE_READ_TOOL = "read_metric_protocol"
 METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL = "edit_metric_protocol"
 METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL = "commit_metric_protocol"
+# The generic helper defaults to this compact JSON document for compatibility.
+# Fresh preregistration keeps substantive scientific content in Markdown instead.
 METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT = (
     '{\n  "required_runtime_replicates": null,\n'
     '  "evaluator_id": "",\n'
     '  "acceptance_protocol": "",\n'
     '  "scientific_rationale": ""\n}\n'
+)
+METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT = (
+    "# Confirmatory Acceptance Protocol\n\n"
+    "## Measurements and scenarios\n\n"
+    "Describe the decisive pre-outcome measurements and scenarios.\n\n"
+    "## Decision rule\n\n"
+    "Define the joint acceptance decision and retained diagnostics.\n"
 )
 METRIC_PROTOCOL_WORKSPACE_FROZEN_INITIAL_DOCUMENT = (
     '{\n  "empirical_metric_requirements": []\n}\n'
@@ -490,23 +499,49 @@ def _metric_protocol_tool(
     )
 
 
-def _metric_protocol_workspace_tools() -> tuple[ClientToolDefinition, ...]:
+def _metric_protocol_workspace_tools(
+    *,
+    source_acceptance_mode: bool = False,
+) -> tuple[ClientToolDefinition, ...]:
     hash_field = {
         "type": "string",
         "minLength": 64,
         "maxLength": 64,
         "pattern": "^[0-9a-f]{64}$",
     }
+    document_name = (
+        "metric_protocol.md" if source_acceptance_mode else "metric_protocol.json"
+    )
+    commit_properties: dict[str, Any] = {"expected_sha256": hash_field}
+    commit_required = ["expected_sha256"]
+    if source_acceptance_mode:
+        commit_properties.update(
+            {
+                "required_runtime_replicates": {
+                    "type": "integer",
+                    "minimum": 1,
+                },
+                "evaluator_id": {"type": "string", "minLength": 1},
+                "scientific_rationale": {"type": "string", "minLength": 1},
+            }
+        )
+        commit_required.extend(
+            [
+                "required_runtime_replicates",
+                "evaluator_id",
+                "scientific_rationale",
+            ]
+        )
     return (
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
-            "Read the exact current metric_protocol.json and SHA-256.",
+            f"Read the exact current {document_name} and SHA-256.",
         ),
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
             (
                 "Atomically apply an ordered batch of exact model-authored text "
-                "replacements to the external metric_protocol.json. Bind the batch "
+                f"replacements to the external {document_name}. Bind the batch "
                 "to the current SHA-256. Each old_text must occur exactly once unless "
                 "expected_occurrences declares its exact positive count, in which case "
                 "all occurrences are replaced. Runtime validates the whole batch "
@@ -538,12 +573,20 @@ def _metric_protocol_workspace_tools() -> tuple[ClientToolDefinition, ...]:
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
             (
-                "Commit the exact current external metric_protocol.json by SHA-256. "
-                "The call contains no document body. Runtime validates the existing "
-                "bytes; rejection returns raw errors to this same source-owner session."
+                f"Commit the exact current external {document_name} by SHA-256. "
+                "The call contains no document body. "
+                + (
+                    "Supply only the compact evaluator identity, replicate count, and "
+                    "scientific rationale alongside the hash; runtime binds the exact "
+                    "Markdown bytes as the acceptance protocol. "
+                    if source_acceptance_mode
+                    else ""
+                )
+                + "Runtime validates the existing bytes; rejection returns raw errors "
+                "to this same source-owner session."
             ),
-            properties={"expected_sha256": hash_field},
-            required=("expected_sha256",),
+            properties=commit_properties,
+            required=tuple(commit_required),
             terminal=True,
         ),
     )
@@ -568,6 +611,7 @@ def _run_metric_protocol_workspace(
     workspace_dir: Path | None = None,
     session_id: str = "",
     revision_index: int = 0,
+    source_acceptance_mode: bool = False,
 ) -> MetricProtocolWorkspaceResult:
     """Let one model own an editable protocol document and its validation loop."""
 
@@ -585,7 +629,10 @@ def _run_metric_protocol_workspace(
         raise ValueError("metric protocol workspace requires a nonempty scaffold")
     runtime_initialized_scaffold = not bool(str(prior_document_content or "").strip())
     root = workspace_dir.resolve() if workspace_dir is not None else None
-    document_path = root / "metric_protocol.json" if root is not None else None
+    document_name = (
+        "metric_protocol.md" if source_acceptance_mode else "metric_protocol.json"
+    )
+    document_path = root / document_name if root is not None else None
     relative_document_path = document_path.name if document_path else ""
     if root is not None:
         root.mkdir(parents=True, exist_ok=True)
@@ -603,14 +650,29 @@ def _run_metric_protocol_workspace(
         if document_path is not None:
             document_path.write_text(document, encoding="utf-8")
 
+    latest_submission_metadata: dict[str, Any] = {}
+
     def inspect_document() -> tuple[dict[str, Any] | None, list[str]]:
         if not document.strip():
-            return None, ["metric_protocol.json is empty"]
+            return None, [f"{document_name} is empty"]
+        candidate_document = document
+        if source_acceptance_mode:
+            if not latest_submission_metadata:
+                return None, [
+                    "metric protocol commit metadata has not been submitted"
+                ]
+            candidate_document = json.dumps(
+                {
+                    **latest_submission_metadata,
+                    "acceptance_protocol": document,
+                },
+                ensure_ascii=False,
+            )
         try:
-            packet, errors = build_validated_packet(document)
+            packet, errors = build_validated_packet(candidate_document)
         except Exception as exc:
             return None, [
-                "metric_protocol.json invalid: "
+                f"{document_name} invalid: "
                 f"{type(exc).__name__}: {str(exc)[:500]}"
             ]
         return packet, [str(error) for error in errors if str(error).strip()]
@@ -628,15 +690,17 @@ def _run_metric_protocol_workspace(
             else {}
         )
 
-    tools = _metric_protocol_workspace_tools()
+    tools = _metric_protocol_workspace_tools(
+        source_acceptance_mode=source_acceptance_mode
+    )
     messages = [deepcopy(dict(message)) for message in prior_messages]
     messages.append({"role": "user", "content": normalized_user_message})
     request = ClientToolTurnRequest(
         system_prompt=(
             "You are the pre-outcome acceptance-protocol source owner inside the "
             "AI Statistician. "
-            "Work on one persistent external metric_protocol.json through exact read, "
-            "atomic literal edits, and hash-only commit tools. Read the current "
+            f"Work on one persistent external {document_name} through exact read, "
+            "atomic literal edits, and hash-bound commit tools. Read the current "
             "scaffold or "
             "document before editing. You may replace the whole file or make smaller "
             "exact edits; group independent corrections against one parent version "
@@ -648,7 +712,14 @@ def _run_metric_protocol_workspace(
             "stable acceptance_passed ABI, validates identity and safety, and "
             "invokes an isolated pre-outcome reviewer. SimulationEngineer later "
             "implements your frozen protocol in ordinary Python or R. "
-            "Read exact reviewer observations, revise your own document, and commit "
+            + (
+                "Keep this Markdown focused on executable measurements, scenarios, "
+                "decision formulas, and retained diagnostics. Cite the accepted theory "
+                "rather than copying its derivation into the protocol. "
+                if source_acceptance_mode
+                else ""
+            )
+            + "Read exact reviewer observations, revise your own document, and commit "
             "its exact current hash. Never place document content in the commit call. "
             "Do not ask Architect or runtime to repair "
             "content, claim that execution occurred, or treat this as proof."
@@ -668,6 +739,7 @@ def _run_metric_protocol_workspace(
             "model_tier": config.model_tier,
             "revision_index": int(revision_index),
             "workspace_transport": METRIC_PROTOCOL_WORKSPACE_TRANSPORT,
+            "source_acceptance_mode": source_acceptance_mode,
             "full_packet_regeneration_required": False,
             "document_body_in_terminal_tool": False,
             "runtime_initialized_structural_scaffold": runtime_initialized_scaffold,
@@ -678,7 +750,7 @@ def _run_metric_protocol_workspace(
         call: ClientToolCall,
         _context: ClientToolExecutionContext,
     ) -> ClientToolExecutionResult:
-        nonlocal document
+        nonlocal document, latest_submission_metadata
         payload = dict(call.input)
 
         def require_fields(*names: str) -> None:
@@ -742,12 +814,30 @@ def _run_metric_protocol_workspace(
                 observation_key="metric-protocol-edited:" + current_sha256,
             )
         if call.name == METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL:
-            require_fields("expected_sha256")
+            if source_acceptance_mode:
+                require_fields(
+                    "expected_sha256",
+                    "required_runtime_replicates",
+                    "evaluator_id",
+                    "scientific_rationale",
+                )
+            else:
+                require_fields("expected_sha256")
             current_sha256 = _metric_protocol_document_sha256(document)
             if payload.get("expected_sha256") != current_sha256:
                 raise ClientToolInputError(
                     "commit_metric_protocol expected_sha256 is stale"
                 )
+            if source_acceptance_mode:
+                latest_submission_metadata = {
+                    "required_runtime_replicates": payload.get(
+                        "required_runtime_replicates"
+                    ),
+                    "evaluator_id": str(payload.get("evaluator_id", "") or ""),
+                    "scientific_rationale": str(
+                        payload.get("scientific_rationale", "") or ""
+                    ),
+                }
             packet, errors = inspect_document()
             if packet is None or errors:
                 rejection = {
@@ -2089,10 +2179,21 @@ def author_reviewed_architect_metric_requirements(
         )
         workspace_user_message = (
             (
-                "Author metric_protocol.json from the following pre-execution "
+                "Author "
+                + (
+                    "metric_protocol.json"
+                    if frozen_rebinding
+                    else "metric_protocol.md"
+                )
+                + " from the following pre-execution "
                 "scientific context. Read the runtime-owned structural scaffold, "
-                "edit its external bytes, and commit only the exact resulting "
-                "SHA-256.\n\n"
+                "edit its external bytes, and commit the exact resulting SHA-256"
+                + (
+                    " plus the compact evaluator metadata"
+                    if not frozen_rebinding
+                    else ""
+                )
+                + ".\n\n"
             )
             if not metric_workspace_messages
             else (
@@ -2481,11 +2582,12 @@ def author_reviewed_architect_metric_requirements(
                 initial_document_content=(
                     METRIC_PROTOCOL_WORKSPACE_FROZEN_INITIAL_DOCUMENT
                     if frozen_rebinding
-                    else METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT
+                    else METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT
                 ),
                 workspace_dir=metric_workspace_dir,
                 session_id=metric_workspace_session_id,
                 revision_index=revision_index,
+                source_acceptance_mode=not bool(frozen_rebinding),
             )
         loop = workspace_result.loop
         metric_workspace_messages = loop.messages

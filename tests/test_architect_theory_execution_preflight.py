@@ -19,6 +19,7 @@ from ai_statistician.architect_metric_contract_authoring import (
     METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
     METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
     METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
+    METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT,
     _materialize_source_acceptance_protocol,
     _run_metric_protocol_workspace,
     author_reviewed_architect_metric_requirements,
@@ -4337,6 +4338,14 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert request.metadata["full_packet_regeneration_required"] is False
     assert request.metadata["document_body_in_terminal_tool"] is False
     assert request.metadata["runtime_initialized_structural_scaffold"] is True
+    assert request.metadata["source_acceptance_mode"] is True
+    assert "metric_protocol.md" in request.system_prompt
+    assert request.tools[2].input_schema["required"] == [
+        "expected_sha256",
+        "required_runtime_replicates",
+        "evaluator_id",
+        "scientific_rationale",
+    ]
     assert request.max_tokens == 8000
     assert "required_runtime_replicates" in prompt
 
@@ -4419,6 +4428,167 @@ def test_metric_protocol_atomic_batch_rejects_partial_then_commits(
     assert (tmp_path / "metric_protocol.json").read_text(
         encoding="utf-8"
     ) == revised_document
+
+
+def test_fresh_metric_protocol_keeps_science_in_markdown_and_commits_metadata(
+    tmp_path: Path,
+) -> None:
+    draft_protocol = (
+        "# Confirmatory protocol\n\n"
+        "Measure $P(p \\leq 0.1)$ in each frozen scenario.\n"
+    )
+    protocol = (
+        "# Confirmatory protocol\n\n"
+        "Measure $P(p \\leq 0.1)$ in each frozen scenario.\n\n"
+        "Accept exactly when every upper confidence bound is at most 0.1.\n"
+    )
+    initial_sha256 = hashlib.sha256(
+        METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT.encode("utf-8")
+    ).hexdigest()
+    draft_sha256 = hashlib.sha256(draft_protocol.encode("utf-8")).hexdigest()
+    protocol_sha256 = hashlib.sha256(protocol.encode("utf-8")).hexdigest()
+    observed_payloads: list[dict[str, object]] = []
+
+    def build_validated_packet(
+        content: str,
+    ) -> tuple[dict[str, object] | None, list[str]]:
+        value = json.loads(content)
+        observed_payloads.append(value)
+        if "every upper confidence bound" not in value["acceptance_protocol"]:
+            return None, ["decision rule is incomplete"]
+        return {
+            "packet_id": "metric-authoring:markdown",
+            "empirical_metric_requirement_set_id": "metric-set:markdown",
+            **value,
+        }, []
+
+    class MarkdownProtocolBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "read-markdown-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_READ_TOOL,
+                        {},
+                    )
+                )
+            if len(self.requests) == 2:
+                return _tool_response(
+                    ClientToolCall(
+                        "write-markdown-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+                        {
+                            "expected_parent_sha256": initial_sha256,
+                            "edits": [
+                                {
+                                    "old_text": (
+                                        METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT
+                                    ),
+                                    "new_text": draft_protocol,
+                                }
+                            ],
+                        },
+                    )
+                )
+            if len(self.requests) == 3:
+                return _tool_response(
+                    ClientToolCall(
+                        "commit-incomplete-markdown-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+                        {
+                            "expected_sha256": draft_sha256,
+                            "required_runtime_replicates": 2000,
+                            "evaluator_id": "finite_sample_calibration",
+                            "scientific_rationale": (
+                                "The replicate count targets the declared Monte Carlo "
+                                "uncertainty before outcomes."
+                            ),
+                        },
+                    )
+                )
+            if len(self.requests) == 4:
+                return _tool_response(
+                    ClientToolCall(
+                        "complete-markdown-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
+                        {
+                            "expected_parent_sha256": draft_sha256,
+                            "edits": [
+                                {
+                                    "old_text": draft_protocol,
+                                    "new_text": protocol,
+                                }
+                            ],
+                        },
+                    )
+                )
+            if len(self.requests) == 5:
+                return _tool_response(
+                    ClientToolCall(
+                        "commit-markdown-protocol",
+                        METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
+                        {
+                            "expected_sha256": protocol_sha256,
+                            "required_runtime_replicates": 2000,
+                            "evaluator_id": "finite_sample_calibration",
+                            "scientific_rationale": (
+                                "The replicate count targets the declared Monte Carlo "
+                                "uncertainty before outcomes."
+                            ),
+                        },
+                    )
+                )
+            raise AssertionError("metric protocol workspace exceeded expected turns")
+
+    backend = MarkdownProtocolBackend()
+    result = _run_metric_protocol_workspace(
+        provider=backend,  # type: ignore[arg-type]
+        config=ArchitectMetricContractAuthoringConfig(
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+        request_model=TEST_HAIKU_MODEL,
+        user_message="Author one confirmatory protocol.",
+        build_validated_packet=build_validated_packet,
+        initial_document_content=METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT,
+        workspace_dir=tmp_path,
+        session_id="metric-protocol-markdown",
+        source_acceptance_mode=True,
+    )
+
+    assert result.document_content == protocol
+    assert result.relative_document_path == "metric_protocol.md"
+    assert (tmp_path / "metric_protocol.md").read_text(encoding="utf-8") == protocol
+    assert not (tmp_path / "metric_protocol.json").exists()
+    expected_payload = {
+        "required_runtime_replicates": 2000,
+        "evaluator_id": "finite_sample_calibration",
+        "scientific_rationale": (
+            "The replicate count targets the declared Monte Carlo uncertainty "
+            "before outcomes."
+        ),
+    }
+    assert observed_payloads == [
+        {**expected_payload, "acceptance_protocol": draft_protocol},
+        {**expected_payload, "acceptance_protocol": protocol},
+    ]
+    rejected_commit = result.loop.history[2]["tool_calls"][0]
+    assert rejected_commit["is_error"] is True
+    assert "decision rule is incomplete" in rejected_commit["result_excerpt"]
+    commit_schema = backend.requests[0].tools[2].input_schema
+    assert commit_schema["required"] == [
+        "expected_sha256",
+        "required_runtime_replicates",
+        "evaluator_id",
+        "scientific_rationale",
+    ]
+    assert backend.requests[0].metadata["source_acceptance_mode"] is True
 
 
 def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
