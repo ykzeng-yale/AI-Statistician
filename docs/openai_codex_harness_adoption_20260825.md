@@ -2766,3 +2766,49 @@ every task despite the current task-intent-driven optional-formalization contrac
 The complete repository passes `983/983`; production Python is `149638` lines, 359
 fewer than before this mechanism. No formula, parser, repair worker, retry, extra
 reviewer, scheduler, provider runtime, Sonnet, or Opus call was added.
+
+## One model-owned loop, without a terminal-repair state machine
+
+Official Codex `main` was refreshed through
+[`f6494dc8`](https://github.com/openai/codex/commit/f6494dc8f5969e8576a8a0945a674f2a15ac4de6).
+Its canonical
+[`run_turn`](https://github.com/openai/codex/blob/f6494dc8f5969e8576a8a0945a674f2a15ac4de6/codex-rs/core/src/session/turn.rs)
+continues one model session across tool calls and observations. Relevant upstream
+commit
+[`0182ff34`](https://github.com/openai/codex/commit/0182ff34)
+also finalizes the tool plan against the explicit model selected for the issuing
+step. This reinforces a stable, caller-owned tool surface and exact turn identity;
+it does not justify a second scheduler or a task-specific repair controller.
+
+Before commit `e282aeb1`, AI Statistician's shared client-tool loop had accumulated a
+separate terminal-decision phase, reserved terminal retries, forced recovery-action
+turns, and terminal-specific routing metadata. A rejected checkpoint or verdict
+could therefore change the harness phase even though the correct owner was still the
+same Theory, scientific-code, Lean, or reviewer model. That was unnecessary control
+logic and made nominal workspace budgets differ from the actual number of model
+turns.
+
+Commit `e282aeb1` removes that state machine. A terminal submission is now an
+ordinary model-selected tool call. Rejection is returned as a raw error observation
+to the same transcript, after which the model may choose any still-authorized tool.
+Every action and resubmission remains inside one explicit total-turn budget; ordinary
+workspace actions retain their separate caller-owned budget. Callers that already
+expose a validation-retry setting translate it only into additional ordinary model
+turns. There is no forced terminal mode, hidden recovery allowance, content patch,
+repair agent, or automatic outer reroute.
+
+The same primitive now governs Theory checkpoints, Python/R workspaces, Lean source
+iteration, metric authoring, independent semantic review, preflight review, and the
+final Critic. Their domain tools and verifier authorities remain distinct; only the
+interaction principle is shared. Codex Core, App Server, SDK threads, OpenAI model
+transport, thread storage, and shared-working-directory subagents remain excluded
+because importing them would duplicate AgentRuntime and violate the Claude-only
+provider boundary. The [Codex SDK](https://learn.chatgpt.com/docs/codex-sdk) remains
+useful reference material, not a runtime dependency.
+
+Focused workspace regressions passed `250/250`; the complete repository passed
+`983/983` in 84.88 seconds. Compileall and diff checks passed. The change is a net
+reduction of 262 lines and leaves top-level production Python at 149,430 lines. No
+live model was called. Task 70's visible Fieller benchmark remains unconsumed: no
+product call, semantic activation call, hidden evaluator call, retry, rerun, score,
+or runtime feedback occurred.

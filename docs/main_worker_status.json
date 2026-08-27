@@ -1,13 +1,24 @@
 {
-  "schema_version": 225,
+  "schema_version": 226,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "6d751fb601ffa6688f14a98e28ad6db2ee3c13c4",
+  "validated_code_head": "e282aeb1afd16ec1a754c09ce240710e01b88e7a",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty-nine consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/69 and exact development Lean closure remains 0/2. Shared evaluator commit 6d751fb6 adds schema-4 candidate-mode semantic activation: before any product call, exact Haiku must pass the frozen full reference and reject every hash-bound long-form near miss through the same integrated document-and-claim schema later used for the product candidate. The negative labels and expectations never enter model context, and failure creates no runtime feedback. The isolated, unused FreshStartCrossTaskE2E strict-formal side audit was removed because it required Lean closure for every task and contradicted task-intent-driven optional formalization. Keep one AgentRuntime and model-owned Theory, Python/R, Simulation, and optional Lean workspaces; do not add formulas, parsers, deterministic mathematics repair, retries, extra reviewers, schedulers, Codex runtime embedding, or model escalation. Select a new unrelated schema-4 authority next. Production may use Sonnet, all evaluations remain exact Haiku, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty-nine consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/69 and exact development Lean closure remains 0/2. Task 70's visible Fieller known-result benchmark is staged at eab32906 but remains completely unconsumed. Shared harness commit e282aeb1 adopts the useful OpenAI Codex principle directly: one persistent model-tool-observation loop with a stable caller-owned tool surface and raw environment feedback. It removes the separate terminal-decision and recovery state machine; a rejected submission is an ordinary observation to the same source-owning model, and every action stays inside explicit generic budgets. Keep one AgentRuntime and model-owned Theory, Python/R, Simulation, and optional Lean workspaces; do not import Codex Core/App Server/SDK threads, add formulas, parsers, deterministic content repair, extra agents, schedulers, provider fallback, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "latest_codex_single_loop_harness_change": {
+    "shared_mechanism_head": "e282aeb1afd16ec1a754c09ce240710e01b88e7a",
+    "upstream_codex_head": "f6494dc8f5969e8576a8a0945a674f2a15ac4de6",
+    "relevant_upstream_change": "0182ff34 finalizes model-specific tool plans against the explicit selected model, reinforcing exact issuing-step identity and a stable caller-owned tool surface.",
+    "adopted_principle": "Theory, scientific-code, Lean, metric, review, preflight, and Critic workspaces now share one direct model -> tool -> raw observation loop. Terminal submission is a normal model-selected tool call, and rejection remains in the same transcript as an ordinary error observation.",
+    "removed_control_layer": "Deleted reserved terminal-decision turns, forced terminal mode, terminal-recovery action phases, recovery routing metadata, and hidden turn allowances. Explicit validation retry settings only enlarge the ordinary total model-turn budget; they do not activate a repair state machine.",
+    "runtime_boundary": "One AI Statistician AgentRuntime remains authoritative. Codex Core, App Server, SDK threads, OpenAI transport, thread storage, Guardian, and shared-cwd subagents are not embedded because they would introduce a second orchestration plane and violate the Claude-only transport boundary.",
+    "verification": "Focused shared-workspace regressions passed 250/250. The complete repository passed 983/983 in 84.88 seconds; compileall and diff checks passed. The change removed 262 net lines and leaves top-level production Python at 149430 lines.",
+    "model_policy": "No live model call occurred. Future tests and evaluations remain exact claude-haiku-4-5-20251001; production remains Sonnet or below; Opus and automatic model escalation remain prohibited.",
+    "task_boundary": "Task 70 remains unconsumed. No product call, candidate-mode semantic activation call, hidden evaluator call, rerun, retry, score, or runtime feedback occurred. Tasks 1 through 69 remain immutable."
+  },
   "latest_candidate_mode_semantic_activation": {
     "shared_mechanism_head": "6d751fb601ffa6688f14a98e28ad6db2ee3c13c4",
     "semantic_protocol_version": 5,
