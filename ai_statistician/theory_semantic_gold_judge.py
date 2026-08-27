@@ -22,7 +22,7 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 3
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 4
 
 
 def _theory_semantic_gold_judge_schema(
@@ -214,8 +214,12 @@ def _generate_semantic_assessment_batch(
             "outside the listed rubric claims, while claim_statuses separately assess every "
             "required claim. Reconstruct decisive transitions from definitions or the reference "
             "and search the whole candidate for contradictions before selecting evidence. "
-            "Calibration cases are unlabeled, and the candidate phase contains no "
-            "calibration cases. Follow the keyed response schema exactly. During "
+            "Use PASS only when every required rubric claim is established and no material "
+            "falsehood appears; use FAIL for a material active contradiction or invalid asserted "
+            "derivation; use INCONCLUSIVE only when no material contradiction is established but "
+            "required support is missing or indeterminate. Calibration cases are unlabeled, and "
+            "the candidate phase contains no calibration cases. Follow the keyed response schema "
+            "exactly. During "
             "calibration, each assessment contains only overall status. During candidate "
             "adjudication, return document_status and one document_decisive_evidence_ref, then "
             "claim_statuses and decisive_evidence_refs keyed by every claim ID in "
@@ -270,9 +274,7 @@ def _generate_semantic_assessment_batch(
     ):
         errors.append("document status needs a valid decisive candidate evidence ref")
     if errors:
-        raise ValueError(
-            f"invalid hidden {phase} semantic judgment: " + "; ".join(errors)
-        )
+        raise ValueError(f"invalid hidden {phase} semantic judgment: " + "; ".join(errors))
     return packet, response
 
 
@@ -366,10 +368,7 @@ def run_theory_semantic_gold_judge(
         required_case_ids=["candidate"],
     )
     if candidate_errors:
-        raise ValueError(
-            "invalid combined hidden candidate semantic judgment: "
-            + "; ".join(candidate_errors)
-        )
+        raise ValueError("invalid combined hidden candidate semantic judgment: " + "; ".join(candidate_errors))
     candidate_status = str(candidate_assessment["status"])
     passed = bool(calibrated and candidate_status == "PASS")
     candidate_provider = next(

@@ -175,7 +175,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 3
+    assert result["protocol_version"] == 4
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -210,6 +210,15 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         for request in provider.requests
     )
     assert "expected_status" not in provider.requests[0].user_prompt
+    assert "Use PASS only when every required rubric claim is established" in (
+        provider.requests[0].system_prompt
+    )
+    assert "use FAIL for a material active contradiction" in (
+        provider.requests[0].system_prompt
+    )
+    assert "use INCONCLUSIVE only when no material contradiction" in (
+        provider.requests[0].system_prompt
+    )
     assert all(case_id not in provider.requests[0].user_prompt for case_id in CASE_IDS)
     assert "reference_complete.md" not in provider.requests[0].user_prompt
     assert "wrong_limit.md" not in provider.requests[0].user_prompt
