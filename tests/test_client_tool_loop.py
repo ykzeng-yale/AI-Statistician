@@ -811,6 +811,111 @@ def test_rejected_terminal_disposition_can_edit_before_reserved_commit() -> None
     )
 
 
+def test_forced_terminal_rejection_can_inspect_edit_and_recommit() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit-initial", "edit", {"value": 1})),
+            _response(ClientToolCall("call-submit-invalid", "submit", {})),
+            _response(ClientToolCall("call-check-recovery", "check", {})),
+            _response(ClientToolCall("call-edit-recovery", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit-valid", "submit", {})),
+        ]
+    )
+    submissions = 0
+    executed_tools: list[str] = []
+
+    def execute(call, _context):
+        nonlocal submissions
+        executed_tools.append(call.name)
+        if call.name == "check":
+            return ClientToolExecutionResult(
+                content={"ok": True, "current_value": 1},
+                observation_key="checked:1",
+            )
+        if call.name == "edit":
+            return ClientToolExecutionResult(
+                content={"ok": True, "value": call.input["value"]},
+                state_changed=True,
+                observation_key=f"edit:{call.input['value']}",
+            )
+        submissions += 1
+        if submissions == 1:
+            return ClientToolExecutionResult(
+                content={
+                    "ok": False,
+                    "error": "validator rejected the forced commit",
+                },
+                is_error=True,
+                observation_key="forced-commit-rejected",
+            )
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"submitted": True},
+            observation_key="submitted",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=1,
+        max_tool_calls=1,
+        max_no_progress_turns=2,
+        max_terminal_recovery_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 5
+    assert executed_tools == ["edit", "submit", "check", "edit", "submit"]
+    assert backend.requests[2].metadata[
+        "client_tool_loop_terminal_recovery_action_allowed"
+    ] is True
+    assert backend.requests[3].metadata[
+        "client_tool_loop_terminal_recovery_action_allowed"
+    ] is True
+    assert backend.requests[4].metadata[
+        "client_tool_loop_terminal_recovery_action_allowed"
+    ] is False
+    assert "validator rejected the forced commit" in str(
+        backend.requests[2].messages[-1]["content"]
+    )
+
+
+def test_duplicate_forced_terminal_rejection_does_not_reopen_recovery() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-submit-standard", "submit", {})),
+            _response(ClientToolCall("call-submit-recovery", "submit", {})),
+            _response(ClientToolCall("call-submit-final", "submit", {})),
+        ]
+    )
+
+    with pytest.raises(ClientToolLoopError) as raised:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=lambda _call, _context: ClientToolExecutionResult(
+                content={"ok": False, "error": "same validator rejection"},
+                is_error=True,
+                observation_key="same-validator-rejection",
+            ),
+            max_turns=1,
+            max_tool_calls=1,
+            max_no_progress_turns=1,
+            max_terminal_recovery_turns=1,
+        )
+
+    assert "accepted payload" in raised.value.reason
+    assert len(backend.requests) == 3
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_recovery_action_allowed"
+    ] is True
+    assert backend.requests[2].metadata[
+        "client_tool_loop_terminal_recovery_action_allowed"
+    ] is False
+
+
 def test_bounded_client_tool_loop_requests_terminal_decision_at_standard_budget() -> None:
     backend = ScriptedToolTurnBackend(
         [
