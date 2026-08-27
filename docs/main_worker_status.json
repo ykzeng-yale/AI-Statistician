@@ -1,13 +1,24 @@
 {
-  "schema_version": 212,
+  "schema_version": 213,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f",
+  "validated_code_head": "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty-two consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/62 and exact development Lean closure remains 0/2. Task 62 confirms that persistent Markdown/LaTeX Theory, direct Algorithm source execution, and same-session reviewer probes work mechanically, but exact Haiku author and referee both retained a false fixed-rate large-shape Poisson-limit claim and runtime stopped before Simulation when metric-review corrections erased earlier fields under complete-packet replacement. Commit ccaca8d7 is future-task-only shared harness evidence: one isolated reviewer session now owns an incrementally updated persistent draft, receives raw validator observations, and still passes through the unchanged fail-closed validator. AgentRuntime owns only intent, identity, blinding, lineage, structural validation, execution, and evidence authority. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample Task 62. Improve scientific judgment inside the existing model workspaces without Gamma-Poisson formulas, deterministic mathematical parsers, extra votes, retries, routes, or another scheduler; then freeze a disjoint known-result task before any new exact-Haiku product call. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty-two consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/62 and exact development Lean closure remains 0/2. Task 62 confirms that persistent Markdown/LaTeX Theory, direct Algorithm source execution, and same-session reviewer probes work mechanically, but exact Haiku author and referee retained a false fixed-rate large-shape Poisson-limit claim and runtime stopped before Simulation. Commit ccaca8d7 fixes only future same-session metric-review draft lifecycle. Commit 2696ebb5 fixes a separate future evaluator flaw: hidden candidate semantics now use one integrated document context with both document-wide and per-claim status, replacing one isolated call per claim so an extra active falsehood has an authority path and cross-claim contradictions remain visible. Neither change rescored Task 62. AgentRuntime still owns only intent, identity, blinding, lineage, structural validation, execution, and evidence authority. Improve scientific judgment without Gamma-Poisson formulas, deterministic mathematical parsers, extra votes, retries, routes, or another scheduler; then freeze a disjoint known-result task before any new exact-Haiku product call. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
+  "latest_integrated_semantic_gold_judge_change": {
+    "implementation_commit": "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
+    "change": "Future hidden theory and source-report candidates are adjudicated once in a complete document context. The same structured response carries an independent document_status plus keyed statuses for every frozen rubric claim. Overall status fails when either the whole-document judgment or a required claim fails.",
+    "retired_path": "One candidate-model call per isolated rubric claim, followed by a status derived only from those claim rows.",
+    "scientific_reason": "Claim-isolated calls repeated the same documents, removed cross-claim context, and had no explicit authority for a material active falsehood outside the frozen claim list. The integrated call preserves the candidate as a conjunction of all active assertions while still reporting atomic required-claim evidence.",
+    "efficiency": "Candidate semantic calls are reduced from the number of rubric claims to exactly one; calibration remains one separate candidate-isolated call. Total evaluator calls therefore become two rather than one plus the claim count.",
+    "authority_boundary": "This runs only under evaluator authority after AgentRuntime termination. It cannot revise a candidate, enter RAG, route a task, become proof evidence, or retroactively rescore any consumed draw.",
+    "model_policy": "No live model call occurred. Deterministic fixtures preserve exact Haiku identities; no Sonnet, Opus, retry, escalation, or alternate provider was introduced.",
+    "regression_evidence": "Focused semantic-gold and research-gold panel 53/53; complete repository 967/967 in 78.15 seconds. Compileall, diff hygiene, architecture budget, and changed-file secret scan passed; top-level production Python is 149230 lines under the unchanged 150000-line budget.",
+    "consumed_task_boundary": "Task 62 and every earlier draw remain immutable. The trustworthy aggregate remains 4/62 and exact development theorem closure remains 0/2."
+  },
   "latest_gamma_poisson_negative_binomial_l0_evaluation": {
     "task_id": "gamma_poisson_negative_binomial_known_result",
     "family": "compound_count_models",
@@ -1085,10 +1096,10 @@
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
     "latest_rechecked_upstream_commit": "e9a446d79dc2b40549186ac69f665794ad52cdd5",
     "latest_incremental_finding": "The one-commit Codex delta from 89650c66 through e9a446d adds low-cardinality Guardian V2 classification and fast-decision reason metrics, including explicit deferred reasons for missing, stale, failed, out-of-scope, or elevated-risk scores. It does not alter the same-session model/tool/observation loop. The applicable principle is to keep lifecycle decision telemetry compact and reason-coded while never treating it as scientific evidence; embedding Guardian, Codex core, App Server, Responses transport, or its SDK would still add the wrong authority and scheduler boundaries.",
-    "latest_incremental_adoption": "Task 62 exposed complete-packet regeneration inside an otherwise Codex-shaped reviewer loop: later correction calls erased valid earlier fields. Commit ccaca8d7 keeps one isolated reviewer session and a persistent model-authored draft, applies generic partial updates, returns raw validator observations to that same history, and leaves the complete fail-closed validator unchanged. Runtime does not author scientific content or add a repair agent, Architect route, provider retry, model escalation, or scheduler.",
+    "latest_incremental_adoption": "Commit 2696ebb5 applies the same context-coherence principle to evaluator work: one hidden semantic candidate remains in one complete document context instead of fragmenting the same artifact across one call per claim. The model returns document-wide and per-claim judgments together; deterministic code only validates evidence identities and combines statuses. Candidate calls drop from the claim count to one, with no new agent, vote, repair path, Architect route, provider retry, model escalation, or scheduler.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f",
+    "implementation_commit": "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -1137,7 +1148,8 @@
       "53ef1ec62fd6a00a0ba547df1886c2ce9366f9f6",
       "f44fcd21cee441f0a2f9bf90a29083c09157422d",
       "5d5125607c58bc5830ac11a27c6c64ce6764e344",
-      "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
+      "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f",
+      "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -1174,13 +1186,14 @@
     },
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable bounded tool surface, external artifact state, credential-safe persisted metadata, terminal-error pending-input preservation, sparse ownership, owner-scoped tool permissions, paginated-history principle, and telemetry boundaries. Do not embed codex exec, app-server, thread store, worktree manager, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime. Treat standalone Codex sandboxing as a future pinned native execution provider only after cross-platform isolation calibration.",
     "implemented_changes": [
+      "Future hidden semantic candidates remain in one integrated complete-document model context. One response supplies document-wide and per-claim status, so cross-claim contradictions and extra active falsehoods retain an authority path while candidate calls no longer scale with rubric-claim count.",
       "ArchitectMetricSemanticReviewer now owns one persistent draft across same-session terminal corrections. Generic recursive updates preserve omitted mapping fields, arrays replace only when supplied, raw validator observations stay in the same history, and the unchanged complete validator remains fail-closed.",
       "Theory preflight keeps mathematical judgment in a persistent model-authored Markdown report and returns a compact hash-bound disposition instead of duplicating a scientific checklist packet.",
       "The isolated Theory referee chooses its own reads, searches, scratch work, and edits in one hash-bound Markdown workspace. That report is the sole mathematical judgment artifact; the terminal envelope contains only report identity, inspected references, disposition, actual blockers, and immutable prior-finding statuses. Runtime-expanded claim/target components and report spans are absent.",
       "Theory, scientific-code, and Lean workspaces open a fresh context window only at a verified durable checkpoint while preserving exact parent transcript and artifact lineage.",
       "GeneratedCodeSemanticReviewer submits through the existing native client-tool loop; model-actionable validation failures return as error tool observations to the same isolated reviewer session, while repeated invalid submission fails closed.",
       "Metric author and independent reviewer prompts require uncertainty arithmetic on the actual comparison scale and distinguish absolute, relative, MCSE, and standardized errors without adding a numeric detector or statistical formula.",
-      "Future hidden semantic judgments retain their compact per-claim status map but bind every verdict to one exact decisive excerpt from the candidate document. The same Haiku model scans for contradictions; runtime validates only excerpt identity and stores its hash.",
+      "Future hidden semantic judgments keep one complete candidate in one model context. The same Haiku response supplies document-wide status plus compact per-claim status and exact decisive excerpts; evaluator code validates identities, stores hashes, and combines statuses without interpreting mathematics.",
       "Terminal provider errors seal exact pending client-tool history and enter the existing workspace checkpoint path; internal tool failures remain secret-free and non-model-actionable while preserving the same lineage.",
       "AgentRuntime and Formalizer no longer perform whole-subsystem provider retries. Provider-local retries may repeat only the identical unanswered request; any later workspace continuation must be explicit and hash-bound.",
       "MetricProtocolSourceOwner keeps one persistent external protocol and a stable three-tool surface: exact read, exact parent-hash-bound edits, and compact hash-bound commit. Fresh scientific content lives in metric_protocol.md and its terminal envelope carries only evaluator identity, replicate count, rationale, and exact document hash. Frozen rebinding retains metric_protocol.json. Mechanical failures and independent pre-outcome findings return to the same source-owner transcript; runtime never patches scientific content or automatically retries.",
@@ -2693,10 +2706,11 @@
     "agent_runtime_lines": 1248,
     "cli_lines": 7036,
     "top_level_python_modules": 137,
-    "top_level_package_lines": 149144,
+    "top_level_package_lines": 149230,
     "latest_runtime_manifest_bytes": 55795
   },
   "next_gates": [
+    "Treat commit 2696ebb5 only as future-task evaluator evidence. On the next independently justified, disjoint, pre-frozen theory or source-report task, require the one integrated candidate call to return both document-wide and per-claim status and calibrate it before the product draw. Never replay or rescore Task 62 or any prior candidate to manufacture evidence for this change, and do not restore per-claim calls, add a second vote, or expose hidden findings to source owners.",
     "Preserve Gamma-Poisson negative-binomial Task 62 at immutable 0/1. Its hidden core theory mechanics passed 7/7, required semantic claims passed 7/7, algorithm passed 12/12, and evaluator-only empirical checks passed 11/11, but runtime stopped before Simulation and active documents falsely claim that r to infinity with fixed beta and t removes overdispersion and yields a Poisson limit. Treat commit ccaca8d7 only as future-task shared harness evidence for same-session persistent reviewer drafts. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a Gamma-Poisson formula, deterministic asymptotic parser, reviewer vote, agent, route, or scheduler.",
     "Preserve Nadaraya-Watson L0 v1 as one consumed automated 1/1 with trustworthy capability 0/1. Its authoritative derivation drops the change-of-variables factor in unscaled-kernel moments, contradicts the asserted sqrt(nh) limit through a 1/n variance claim, and uses an insufficient asymptotic comparison; both product review and hidden semantics false-accepted it. Treat commit 08242464 only as future-task shared mechanism evidence. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or add a kernel formula, Jacobian parser, deterministic equation checker, reviewer vote, agent, or scheduler.",
     "Preserve weighted-isotonic PAVA Task 58 at immutable 0/1. Its one exact-Haiku draw stopped inside Theory; no accepted handoff, independent review, code, simulation, hidden harness, or Formalizer ran, and operator audit found fatal mathematical defects. Treat commit f56db3a7 only as future-task evidence for compact document handoff and exact nested ABI feedback; never rerun, patch, hidden-evaluate, rescore, or add a PAVA rule.",

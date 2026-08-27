@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
+LATEST_SHARED_MECHANISM_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
 TASK_62_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
 TASK_61_SHARED_MECHANISM_HEAD = "f44fcd21cee441f0a2f9bf90a29083c09157422d"
 TASK_60_SHARED_MECHANISM_HEAD = "24de629178cb2c8214dcefe5c553ef1015378052"
@@ -802,6 +802,9 @@ def test_gamma_poisson_l0_records_one_consumed_operator_invalidated_draw() -> No
     assert Path(consumed["operator_audit"]).is_file()
     assert consumed["post_run_shared_mechanism_commit"] == (
         TASK_62_SHARED_MECHANISM_HEAD
+    )
+    assert consumed["post_run_integrated_semantic_evaluator_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
     )
     assert consumed["model_draw_resampling_blocked"] is True
     assert consumed["formalization_requirement"] == "not_applicable"

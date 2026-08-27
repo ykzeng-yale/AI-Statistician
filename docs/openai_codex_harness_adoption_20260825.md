@@ -10,6 +10,9 @@ Latest incremental recheck:
 
 Latest selective-adoption implementation commits:
 
+- `2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60`: keep one complete hidden
+  candidate in one semantic context and return document-wide plus per-claim
+  judgments together instead of fragmenting it across one call per claim;
 - `ccaca8d7ffcc9cecd0380c0cb07879bcc395647f`: preserve one isolated
   metric-reviewer's incrementally updated draft across validator corrections
   instead of requiring complete-packet regeneration;
@@ -2353,3 +2356,33 @@ panel passed `44/44`; research-eval passed `23/23`; and the complete repository
 passed `965/965` in 78.25 seconds. Task 62 was not rerun, resumed, repaired,
 hidden-evaluated again, rescored, or resampled. Trustworthy capability remains
 `4/62`, and exact development theorem closure remains `0/2`.
+
+## One candidate, one semantic context
+
+Task 62 also exposed an evaluator-level context error. The hidden semantic judge
+reopened the same candidate once per frozen rubric claim. Each call saw only one
+criterion, and overall PASS was derived solely from those isolated rows. That design
+repeated the complete documents, scaled calls with rubric size, removed cross-claim
+context, and provided no explicit authority for an additional active false statement
+outside the listed claims.
+
+Commit `2696ebb5` replaces that path for future draws with one integrated candidate
+adjudication. The exact-Haiku evaluator sees the complete candidate, reference, and
+all frozen rubric claims together. One structured response contains an independent
+`document_status`, one grounded document excerpt, and keyed status plus grounded
+evidence for every required claim. Deterministic aggregation fails when either the
+whole-document judgment or a required claim fails. Thus a document can fail while
+all listed claims are satisfied.
+
+This is the same context-coherence principle used in a Codex coding session: keep one
+artifact and its interacting constraints in one model context instead of spawning
+independent fragments and combining their votes. It does not import Codex runtime,
+add a reviewer, or let evaluator output enter AgentRuntime. Calibration remains one
+separate candidate-isolated call; candidate work drops from one call per claim to one
+call total. No live model was called while implementing the change.
+
+The semantic-gold and research-gold panel passed `53/53`; the complete repository
+passed `967/967` in 78.15 seconds. Compileall, diff hygiene, the unchanged 150,000-line
+architecture budget, and changed-file secret hygiene passed. Task 62 and every earlier
+draw remain immutable, trustworthy capability remains `4/62`, and exact development
+theorem closure remains `0/2`.
