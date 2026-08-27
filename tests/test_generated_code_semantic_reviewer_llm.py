@@ -1007,6 +1007,12 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert "does not cover an omitted input boundary" in str(
         backend.requests[0].messages[0]["content"]
     )
+    assert "never a scientific finding or cross-artifact conflict" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "return a non-accepting judgment" not in str(
+        backend.requests[0].messages[0]["content"]
+    )
     assert "do not infer coverage from test count alone" in str(
         backend.requests[0].messages[0]["content"]
     )
@@ -1022,7 +1028,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
-def test_reviewer_must_repair_its_failed_probe_before_accepting(
+def test_failed_optional_reviewer_probe_is_error_not_acceptance_gate(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1042,14 +1048,6 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
         "seed": 17,
         "replicates": 4,
     }
-    corrected_probe = {
-        **failed_probe,
-        "code": (
-            "def run_sandbox(seed, replicates, estimators):\n"
-            "    result = estimators['candidate']({'value': 2.0})\n"
-            "    return {'estimate_is_two': result['estimate'] == 2.0}\n"
-        ),
-    }
     submission = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
@@ -1062,7 +1060,7 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
         },
     }
 
-    class FailedProbeThenRepairBackend:
+    class FailedProbeThenStaticDecisionBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -1070,13 +1068,11 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            sequence = (
-                ("run_exact_estimator_review_probe", failed_probe),
-                ("submit_generated_code_semantic_review", submission),
-                ("run_exact_estimator_review_probe", corrected_probe),
-                ("submit_generated_code_semantic_review", submission),
+            name, payload = (
+                ("run_exact_estimator_review_probe", failed_probe)
+                if len(self.requests) == 1
+                else ("submit_generated_code_semantic_review", submission)
             )
-            name, payload = sequence[len(self.requests) - 1]
             call_id = f"review-call-{len(self.requests)}"
             return ClientToolTurnResponse(
                 content_blocks=(
@@ -1091,23 +1087,19 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
                 metadata={"provider_stop_reason": "tool_use"},
             )
 
-    executions = []
-
     def fake_execute_scientific_sandbox(**kwargs):
-        executions.append(kwargs)
-        succeeded = len(executions) == 2
         return SimpleNamespace(
-            status="EXECUTED" if succeeded else "FAILED",
-            metrics={"estimate_is_two": True} if succeeded else {},
-            errors=() if succeeded else ("run_sandbox signature mismatch",),
+            status="FAILED",
+            metrics={},
+            errors=("run_sandbox signature mismatch",),
             stdout_summary="",
-            stderr_summary="" if succeeded else "run_sandbox signature mismatch",
-            estimator_invocation_counts={"candidate": 1} if succeeded else {},
+            stderr_summary="run_sandbox signature mismatch",
+            estimator_invocation_counts={},
             estimator_runtime_errors=(),
-            request_hash=f"request-hash-{len(executions)}",
-            result_hash=f"result-hash-{len(executions)}" if succeeded else "",
-            code_path=str(tmp_path / f"probe-source-{len(executions)}"),
-            result_path=str(tmp_path / f"probe-result-{len(executions)}"),
+            request_hash="request-hash",
+            result_hash="",
+            code_path=str(tmp_path / "probe-source"),
+            result_path=str(tmp_path / "probe-result"),
         )
 
     monkeypatch.setattr(
@@ -1115,7 +1107,7 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
         "execute_scientific_sandbox",
         fake_execute_scientific_sandbox,
     )
-    backend = FailedProbeThenRepairBackend()
+    backend = FailedProbeThenStaticDecisionBackend()
     packet = LLMGeneratedCodeSemanticReviewerAgent(
         provider=backend,
         config=GeneratedCodeSemanticReviewerConfig(
@@ -1130,21 +1122,20 @@ def test_reviewer_must_repair_its_failed_probe_before_accepting(
         probe_sandbox_dir=tmp_path,
     )
 
-    assert len(backend.requests) == 4
-    assert "run_sandbox signature mismatch" in str(backend.requests[1].messages[-1])
-    assert "no probe executed successfully" in str(backend.requests[2].messages[-1])
+    assert len(backend.requests) == 2
+    failed_observation = backend.requests[1].messages[-1]["content"][0]
+    assert failed_observation["type"] == "tool_result"
+    assert failed_observation["is_error"] is True
+    assert "run_sandbox signature mismatch" in str(failed_observation)
     assert packet["overall_verdict"] == "ACCEPT"
     loop = packet["client_tool_loop"]
-    assert loop["validation_submissions"] == 2
-    assert loop["validation_feedback_observed"] is True
-    assert [row["status"] for row in loop["review_probe_executions"]] == [
-        "FAILED",
-        "EXECUTED",
-    ]
+    assert loop["validation_submissions"] == 1
+    assert loop["validation_feedback_observed"] is False
+    assert [row["status"] for row in loop["review_probe_executions"]] == ["FAILED"]
     assert [
         row["successful_exact_invocation"]
         for row in loop["review_probe_executions"]
-    ] == [False, True]
+    ] == [False]
     failed_record = loop["review_probe_executions"][0]
     assert failed_record["originating_tool_call_id"] == "review-call-1"
     assert failed_record["failure_origin"] == (

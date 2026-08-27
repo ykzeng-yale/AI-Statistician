@@ -53,7 +53,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "statistical acceptance or theorem proof evidence."
 )
 GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = (
-    "model_authored_markdown_review_with_optional_exact_probe_v5"
+    "model_authored_markdown_review_with_optional_exact_probe_v6"
 )
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
@@ -798,9 +798,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "estimators[artifact_id](request) in Python or "
                 "estimators[[artifact_id]](request) in R, never a run_estimator "
                 "attribute. This executes the reviewer's run_sandbox, not the "
-                "target's. Failure before target invocation is reviewer error. It can "
-                "falsify source claims but cannot edit source, inspect confirmatory "
-                "outcomes, or confer empirical acceptance."
+                "target's. Failure before target invocation is a reviewer tool error. "
+                "Only an observation that reaches the target can falsify source claims; "
+                "the probe cannot edit source, inspect confirmatory outcomes, or confer "
+                "empirical acceptance."
             ),
             input_schema={
                 "type": "object",
@@ -859,12 +860,14 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             + " to actively test an exact current estimator. When useful, "
                             "prefer one broad model-authored probe that covers multiple "
                             "load-bearing public boundary cases; choose the cases and "
-                            "interpretation yourself. Correct a failed probe in this session "
-                            "before ACCEPT; it is not evidence about the estimator. Re-read every "
+                            "interpretation yourself. A probe failure before exact target invocation "
+                            "is your own tool error, never a scientific finding or cross-artifact "
+                            "conflict. Repair and rerun it when execution is needed, or ignore that "
+                            "invalid probe and judge the immutable source independently. Re-read every "
                             "public request field, response field, invariant, and stated edge case. "
                             "A broad numerical probe does not cover an omitted input boundary; a probe "
-                            "that failed before exact target invocation covers nothing. Probe unresolved "
-                            "behavior or return a non-accepting judgment; do not infer coverage from test count alone."
+                            "that failed before exact target invocation covers nothing; do not infer "
+                            "coverage from test count alone."
                             if probe_targets
                             else ""
                         )
@@ -1015,6 +1018,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 probe_executions.append(record)
                 return ClientToolExecutionResult(
                     content=record,
+                    is_error=failure_origin.startswith("REVIEWER_PROBE_SOURCE_"),
                     observation_key="generated-code-review-probe:" + stable_hash(record),
                 )
             if call.name != GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL:
@@ -1030,12 +1034,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
-            if packet.get("overall_verdict") == "ACCEPT" and probe_executions and not any(row["successful_exact_invocation"] for row in probe_executions):
-                errors.append(
-                    "ACCEPT is inconsistent with the reviewer's own probe history: "
-                    "no probe executed successfully and invoked the exact estimator; "
-                    "repair and rerun the probe or submit a non-accepting judgment"
-                )
             validation_history.append(
                 {
                     "attempt_index": len(validation_history),
