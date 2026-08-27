@@ -28,6 +28,9 @@ Latest selective-adoption implementation commits:
 - `3408012fd9305de3202effbcd12c1d452cf38bb2`: externalize accepted Theory
   documents from the canonical Formalizer opening prompt while preserving exact
   hash-bound reads and searches in the same model-owned Lean session.
+- `8f5d6295019100dedfa566d01c3b5dee204ead7c`: add model-owned independent
+  Lean scratch execution to the existing Formalizer session without mutating or
+  promoting the active candidate source.
 
 Primary references:
 
@@ -1800,3 +1803,33 @@ unchanged 150,000-line architecture limit, with `research_agent_runtime.py`
 unchanged at 24,986 lines. No consumed task was rerun, resumed, repaired,
 reevaluated, rescored, or granted capability credit. Exact statistical theorem
 closure therefore remains `0/2`.
+
+## Lean scratch is environment feedback, not candidate source
+
+The immutable Statlib uniform-consistency formal task exposed one generic tool
+gap. Across 24 model-authored candidate checks and 10 RAG calls, the Formalizer
+once placed `#print` inside a theorem body because it had no independent Lean
+scratch action. That consumed task remains untouched at `0/1`; its admitted
+elaboration and post-run diagnostics are not proof evidence.
+
+Commit `8f5d6295` adds one `run_lean_scratch` action to the existing Formalizer
+model/tool loop. The model supplies a complete self-contained Lean snippet and
+receives the raw result from the already pinned local checker in the same
+session. The active candidate bytes, declaration identity, source-update count,
+and candidate-check count remain unchanged; scratch checks have a separate
+counter and compact observations also reach the independent semantic reviewer.
+
+This adopts the environment-feedback pattern of `lean-lsp-mcp`'s
+`lean_run_code` and EmpericalProcessLEAN's `symbolic_check`, but does not call or
+embed either runtime. It reuses AI Statistician's existing checker and adds no
+provider, MCP server, agent, scheduler, retry, Lean grammar, tactic, proof
+template, statistical rule, or model-tier change. The model remains responsible
+for every import, query, example, source revision, and stopping decision.
+
+A successful scratch check is explicitly non-proof. Only the exact target
+candidate, independent statement-semantic review, axiom audit, and kernel gate
+can promote a theorem. The complete repository passes `948/948` in 78.59
+seconds; production Python is 149,998 lines and `research_agent_runtime.py`
+remains 24,986 lines. No model was called and no consumed task was rerun,
+resumed, repaired, reevaluated, rescored, or credited. Trustworthy capability
+therefore remains `4/55` and exact statistical theorem closure remains `0/2`.

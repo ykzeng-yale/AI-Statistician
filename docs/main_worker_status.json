@@ -1,13 +1,13 @@
 {
-  "schema_version": 198,
+  "schema_version": 199,
   "updated_at": "2026-08-26",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "3408012fd9305de3202effbcd12c1d452cf38bb2",
+  "validated_code_head": "8f5d6295019100dedfa566d01c3b5dee204ead7c",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all fifty-five consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/55 and exact development Lean closure remains 0/2. Task 55 completed exact source execution and received a frozen automated 1/1, but its Markdown report contains material statistical and source-identity errors that both the document-session Critic and hidden semantic judge false-accepted; trustworthy credit is 0/1. The Codex-style model-owned read/search loop worked mechanically, so another prompt checklist, reviewer, repair path, task rule, or scheduler is not justified. Commit 3408012f extends the same external-state principle to canonical Formalizer Theory context: compact hash-bound catalogs open the session, exact reads and searches return to the same Lean source owner, and document inspection remains non-proof evidence. Frozen research and capability tests still pin every role to exact Haiku and Opus remains prohibited. Long-horizon theory, independent referee reliability, source replication breadth, and exact theorem closure remain incomplete.",
+  "current_goal_focus": "Preserve all fifty-five consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/55 and exact development Lean closure remains 0/2. Task 55 completed exact source execution and received a frozen automated 1/1, but its Markdown report contains material statistical and source-identity errors that both the document-session Critic and hidden semantic judge false-accepted; trustworthy credit is 0/1. The Codex-style model-owned read/search loop worked mechanically, so another prompt checklist, reviewer, repair path, task rule, or scheduler is not justified. Commits 3408012f and 8f5d6295 extend the same external-state principle to canonical Formalizer Theory context and independent Lean scratch: exact hash-bound observations return to the same Lean source owner while document and scratch inspection remain non-proof evidence. Frozen research and capability tests still pin every role to exact Haiku and Opus remains prohibited. A future unrelated pre-frozen formal target, not a consumed-task replay, must establish whether the model can use this mechanism to reach exact kernel closure. Long-horizon theory, independent referee reliability, source replication breadth, and exact theorem closure remain incomplete.",
   "latest_statsmodels_adf_kpss_l1_evaluation": {
     "task_id": "statsmodels_adf_kpss_sunspots_public_replication",
     "family": "time_series_stationarity_source_replication",
@@ -840,10 +840,10 @@
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
     "latest_rechecked_upstream_commit": "b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46",
     "latest_incremental_finding": "The four-commit delta after f374188 adds named standalone tool outputs as durable turn inputs, makes filesystem policy matching URI-native, attaches verified access context to eligible plugin MCP calls, and adjusts Guardian trust for explicitly invoked user skills. Only standalone tool-output persistence is adjacent to the scientific inner loop; it reinforces exact named environment observations. None supplies a provider-neutral Claude research harness or justifies importing Codex core, app-server, Responses transport, Guardian, provider, thread storage, or another scheduler.",
-    "latest_incremental_adoption": "Commit 3408012f externalizes accepted Theory documents from the canonical Formalizer opening prompt. The same Lean source-owning session receives exact hash-verified document reads and searches on demand; checkpoint identity freezes the document set, persisted evidence redacts exact bodies, and Theory inspection remains explicitly non-proof. The shared executor is reused by Theory, scientific Python/R, and Lean without a new agent, scheduler, retry, grammar rule, or model call.",
+    "latest_incremental_adoption": "Commit 8f5d6295 adds one model-owned run_lean_scratch action to the existing Formalizer session. A complete self-contained snippet executes through the pinned local checker and its raw observation returns to the same source owner without changing the active candidate; scratch and candidate checks remain separate and non-proof. This reuses the lean-lsp-mcp lean_run_code and EmpericalProcessLEAN symbolic_check design pattern without importing their runtime or adding an agent, scheduler, retry, grammar rule, tactic policy, or model call.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "3408012fd9305de3202effbcd12c1d452cf38bb2",
+    "implementation_commit": "8f5d6295019100dedfa566d01c3b5dee204ead7c",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -880,7 +880,8 @@
     "de531ad8d4173cc406593edb76606cb10be158b7",
     "54e5ca52eca6192885a8a11775f7728997610ac7",
     "3f0ee0131d2b298bbb668e53afc132cae0ff562a",
-    "3408012fd9305de3202effbcd12c1d452cf38bb2"
+    "3408012fd9305de3202effbcd12c1d452cf38bb2",
+    "8f5d6295019100dedfa566d01c3b5dee204ead7c"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -943,7 +944,8 @@
     "Question-supplied frozen estimator ID, request and response field names and order, and request bindings are now compared at initial, revised, reused, and final Theory checkpoints. Meanings, formulas, documents, and source remain model-owned. Generated-code review reserves one same-reviewer correction only after runtime rejects a terminal verdict.",
     "Accepted Theory document manifests resolve to content-addressed checkpoint files, canonical accepted context takes precedence over stale deferred top-level IDs, valid reviewer backedges return before outer evidence topology, and estimator-bound Python results use the existing recursive JSON-native transport normalization.",
     "Commit 3f0ee013 gives the existing scientific Python/R source owner a model-authored exact-edit action beside complete submission. Both execute the resulting complete bytes immediately and return raw sandbox observations to the same session. Theory documents, metric protocol, scientific source, and Lean source now share one content-agnostic exact-edit materializer; runtime chooses no edit and adds no language grammar, statistical rule, RepairAgent, retry, scheduler, or model call.",
-    "Commit 3408012f replaces complete accepted Theory bodies in the canonical Formalizer opening prompt with a hash-bound document catalog and the existing same-session read/search tools. Exact content stays available to the model but is redacted from persisted telemetry; document reads remain non-proof and cannot replace Lean/compiler feedback, semantic review, axiom audit, or kernel closure."
+    "Commit 3408012f replaces complete accepted Theory bodies in the canonical Formalizer opening prompt with a hash-bound document catalog and the existing same-session read/search tools. Exact content stays available to the model but is redacted from persisted telemetry; document reads remain non-proof and cannot replace Lean/compiler feedback, semantic review, axiom audit, or kernel closure.",
+    "Commit 8f5d6295 gives the same Formalizer session one model-owned independent Lean scratch action. Exact self-contained snippets run through the existing pinned local checker, raw observations return to the source owner and semantic reviewer, and candidate bytes and counters remain unchanged. Scratch is non-proof and adds no repair agent, provider, scheduler, retry, grammar rule, tactic policy, or theorem template."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -953,7 +955,7 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-  "verification": "The official Codex checkout is rechecked through b68acc4. The Formalizer Theory-document panel passes 105/105 and the complete repository passes 947/947 in 78.24 seconds. Compile-all, diff hygiene, architecture budget, model policy, and secret checks pass; production Python is 149,972 lines. No consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted capability credit, and no Codex transport, provider, thread storage, Guardian, or scheduler was imported.",
+  "verification": "The official Codex checkout is rechecked through b68acc4. The complete repository passes 948/948 in 78.59 seconds; the broader Lean scratch panel passes 165/165. Compile-all, diff hygiene, architecture budget, model policy, and secret checks pass; production Python is 149,998 lines and research_agent_runtime.py remains 24,986 lines. No consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted capability credit, and no Codex or lean-lsp-mcp transport, provider, thread storage, Guardian, or scheduler was imported.",
   "live_validation_runs": 19,
   "fresh_live_client_tool_model_turns": 918,
     "capability_credit": true,
@@ -2215,6 +2217,7 @@
       "generated-code semantic review declaring an interface valid without a dedicated dimension that traces every public field and rejection clause through actual source-language behavior",
       "evaluator-only reports persisting anonymous ordered booleans and aggregate semantic counts without privacy-preserving check or claim references for one-draw audit",
       "Formalizer requiring a complete Lean source blob after every compiler observation even when the source-owning model selected one localized exact edit",
+      "Formalizer having to mutate the active target source merely to run an independent model-authored #check, #print, or example experiment",
       "large evaluator or scientific input artifacts being embedded into generated Python/R source and rejected or duplicated as executable code instead of remaining separate hash-bound data",
       "operator-fixed source working directories and argument vectors being hidden from the same model asked to interpret the exact execution",
       "TheoryDeveloper being limited to line sampling of large exact source outputs instead of using its existing model-authored Python/R scratch loop over selected immutable result artifacts",
@@ -2363,7 +2366,7 @@
       "live Crossref/GitHub scouting and model-visible frozen snapshots support bounded public discovery, exact local paper/code reading, one scored immutable rerun, and one disjoint real-sandbox author-script calibration with declared file outputs; they still do not provide full paper/code/data acquisition, durable snapshot curation, or a passing report-semantic L1 task",
       "ordinary source errors stay local, callback semantics are transparent, and cross-workspace dependency transfer is model-selected and hash-validated; generic global lineage and stagnation semantics remain incomplete",
       "scientific execution now has one integrated exact-Haiku R/WebR theory-code-simulation trajectory with 10,000 confirmatory replicates, but broad R package support and a passing full-task R result remain unestablished",
-      "Formalizer has real RAG, local Lean, same-session complete replacement and exact localized source editing, proof-state feedback, and semantic review but still lacks reliable exact statistical theorem closure; cb70e09c is deterministic harness evidence only",
+      "Formalizer has real RAG, local Lean, same-session complete replacement, exact localized source editing, independent model-owned Lean scratch, proof-state feedback, and semantic review but still lacks reliable exact statistical theorem closure; 8f5d6295 is regression-only mechanism evidence",
       "the atomic active-project declaration context has exact-Haiku component evidence but still needs a fresh integrated Formalizer run and cross-task ablation",
       "the research-capability ladder now has fifty-four consumed focused tasks and four trusted full-task passes. Task 54 executed an immutable official rdrobust illustration exactly and received a frozen automated 1/1, but operator audit found material report errors that both semantic reviewers false-accepted, so it retains mechanical execution evidence and receives 0/1 trustworthy credit. Beta-Binomial has complete hidden theory, algorithm, and empirical closure; PyMLE has exact source-replication closure with an operator-recorded semantic false positive; Aitken GLS and Hoeffding U-statistics retain caveated credit. Cross-family generalization and exact formal closure remain unestablished",
       "the SRSWOR exact-code reviewer authored two malformed probes, never invoked the bound estimator, and still returned ACCEPT. Commit 3b28df58 is future-task mechanism evidence only: a reviewer that chooses to probe must now complete one successful exact-estimator invocation before ACCEPT, with raw failures returned to the same model session. The consumed 0/1 task remains unchanged",
@@ -2400,7 +2403,7 @@
     "agent_runtime_lines": 1248,
     "cli_lines": 7052,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149972,
+    "top_level_package_lines": 149998,
     "latest_runtime_manifest_bytes": 54582
   },
   "next_gates": [
@@ -2425,7 +2428,7 @@
     "Preserve Huber location L0 v1 at immutable 0/1. Treat commits 82083807, f5822f58, and a73be809 plus the one generic Haiku transport calibration as future-task harness evidence only; never rerun, resume, repair, or rescore Huber.",
     "Keep generated-code review model-owned in one isolated same-session tool loop: exact source plus raw execution enter the reviewer, substantive analysis lives in hashed Markdown, and runtime validates identity, evidence references, independence, and promotion. Return model-actionable terminal validation to that reviewer, but do not restore ordered dimensions, full-packet regeneration, a RepairAgent, Architect rerouting, or another scheduler.",
     "Preserve Uniform endpoint L0 v1 at immutable 0/1. Do not rerun, resume, repair, rescore, or feed hidden findings back to its source owners. Keep hidden empirical 8/8 as component evidence only; use commits b49a8f5a and 778b2aac solely as future-task regression evidence for full visible-ABI probing, executable-interface review, risk-directed theory review, canonical artifact parity, and auditable evaluator references.",
-    "Preserve research_l0_statlib_uniform_consistency_formal_v1 at immutable 0/1. Do not rerun, resume, repair, rescore, increase turns, or count its 24 Lean checks, 10 RAG calls, sorryAx elaboration, model gap report, or post-run regression as proof. A future unrelated formal task must freeze and push a new target and hidden authority before its first exact-Haiku call.",
+    "Preserve research_l0_statlib_uniform_consistency_formal_v1 at immutable 0/1. Do not rerun, resume, repair, rescore, increase turns, or count its 24 candidate checks, 10 RAG calls, sorryAx elaboration, model gap report, or post-run scratch regression as proof. A future unrelated formal task must freeze and push a new target and hidden authority before its first exact-Haiku call; record any model-selected scratch use without requiring it, keep candidate and scratch lineage separate, and require exact kernel closure for proof credit.",
     "Preserve Trimmed Match L1 v1 at raw 0/1 without rerun, resume, report repair, hidden rescore, or component promotion. Treat separate hash-bound scientific input artifacts, exact source-command visibility, and model-authored Python/R queries over selected results as future-task regression evidence only; do not infer that the consumed report would have passed.",
     "Keep the specialist collaboration rule small: one persistent source owner per Theory, Python/R, Simulation, or Lean workspace; direct environment feedback stays with that owner; independent reviewers receive artifact-only context; Architect handles only initial intent, cross-workspace conflicts, and stopping. Do not import Codex app-server, provider transport, thread manager, or another scheduler.",
     "Preserve ITS-Time L1 v1 at raw 0/1 without rerun, resume, output repair, hidden rescore, or component promotion. Treat the source-replication intent topology and exact specialist-session persistence as future-task regression evidence only; before any new disjoint draw, freeze and push its visible task, source/data authority, hidden evaluator, and model policy.",
