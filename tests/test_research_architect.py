@@ -2129,7 +2129,11 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     final_evidence = packet["llm_client_tool_loop"]
     assert final_evidence["workspace_id"] == checkpoint["workspace_id"]
     assert final_evidence["changed_document_paths"] == [document_path]
-    assert final_evidence["n_model_document_writes"] == 0
+    assert final_evidence["n_model_document_writes"] == 1
+    assert final_evidence["cumulative_tool_state_restored"] is True
+    assert final_evidence["resumed_from_progress_checkpoint_id"] == (
+        checkpoint["checkpoint_id"]
+    )
     manifest_row = packet["theory_workspace_manifest"]["documents"][0]
     assert Path(manifest_row["path"]).read_text(encoding="utf-8") == (
         document_content
@@ -2144,6 +2148,9 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     assert "Continue the existing document-backed" in continuation_prompt
     assert "prior_theory_progress_checkpoint" in continuation_prompt
     assert checkpoint["progress"]["next_step"] in str(
+        second_provider.tool_requests[1].messages
+    )
+    assert "cumulative_tool_state" in str(
         second_provider.tool_requests[1].messages
     )
     assert document_content.splitlines()[0] in str(
@@ -2553,6 +2560,9 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert checkpoint["progress"]["next_step"] in str(
         second_provider.tool_requests[1].messages
     )
+    assert "cumulative_tool_state" in str(
+        second_provider.tool_requests[1].messages
+    )
     assert "bounded_outcome_moment_control" in str(
         second_provider.tool_requests[2].messages
     )
@@ -2582,9 +2592,13 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     workspace_evidence = packet["llm_client_tool_loop"]
     assert workspace_evidence["model_owned_theory"] is True
     assert workspace_evidence["runtime_edited_theory"] is False
-    assert workspace_evidence["reads"] == 3
-    assert workspace_evidence["submissions"] == 1
-    assert workspace_evidence["n_model_document_writes"] == 0
+    assert workspace_evidence["reads"] == 4
+    assert workspace_evidence["submissions"] == 2
+    assert workspace_evidence["n_model_document_writes"] == 1
+    assert workspace_evidence["cumulative_tool_state_restored"] is True
+    assert workspace_evidence["resumed_from_progress_checkpoint_id"] == (
+        checkpoint["checkpoint_id"]
+    )
     final_document = packet["theory_workspace_manifest"]["documents"][0]
     assert Path(final_document["path"]).read_text(encoding="utf-8") == (
         revised_document

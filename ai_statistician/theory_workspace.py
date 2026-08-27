@@ -306,6 +306,94 @@ def execute_theory_scratchpad_tool(
     return result, execution_ref
 
 
+_THEORY_PROGRESS_COUNTER_FIELDS = (
+    "reads",
+    "submissions",
+    "scratch_runs",
+    "source_replication_runs",
+)
+_THEORY_PROGRESS_ROW_FIELDS = (
+    "model_artifact_writes",
+    "model_document_writes",
+    "document_inspection_refs",
+    "scratch_execution_refs",
+    "source_search_refs",
+    "source_read_refs",
+    "source_discovery_search_refs",
+    "source_discovery_read_refs",
+    "source_replication_manifests",
+    "source_result_read_refs",
+)
+
+
+def _theory_progress_workspace_state(
+    checkpoint: Mapping[str, Any] | None,
+    *,
+    workspace_id: str,
+    question_id: str,
+    authoring_binding_id: str,
+    workspace_operation: str,
+) -> dict[str, Any]:
+    """Restore cumulative environment state from one verified progress checkpoint."""
+
+    state: dict[str, Any] = {
+        field: 0 for field in _THEORY_PROGRESS_COUNTER_FIELDS
+    }
+    state.update({field: [] for field in _THEORY_PROGRESS_ROW_FIELDS})
+    if not checkpoint:
+        return state
+    if not isinstance(checkpoint, Mapping):
+        raise ValueError("prior theory progress checkpoint must be an object")
+    expected_identity = {
+        "artifact_kind": THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
+        "workspace_id": workspace_id,
+        "question_id": question_id,
+        "authoring_binding_id": authoring_binding_id,
+        "workspace_operation": workspace_operation,
+    }
+    for field, expected in expected_identity.items():
+        if checkpoint.get(field) != expected:
+            raise ValueError(
+                f"prior theory progress checkpoint {field} mismatch"
+            )
+    for field in _THEORY_PROGRESS_COUNTER_FIELDS:
+        value = checkpoint.get(field, 0)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(
+                f"prior theory progress checkpoint {field} is invalid"
+            )
+        state[field] = value
+    for field in _THEORY_PROGRESS_ROW_FIELDS:
+        rows = checkpoint.get(field, [])
+        if not isinstance(rows, list) or any(
+            not isinstance(row, Mapping) for row in rows
+        ):
+            raise ValueError(
+                f"prior theory progress checkpoint {field} is invalid"
+            )
+        state[field] = [deepcopy(dict(row)) for row in rows]
+    if state["scratch_runs"] != len(state["scratch_execution_refs"]):
+        raise ValueError(
+            "prior theory progress scratch count does not match executions"
+        )
+    for index, ref in enumerate(state["scratch_execution_refs"], start=1):
+        if ref.get("scratch_run") != index:
+            raise ValueError(
+                "prior theory progress scratch execution order is invalid"
+            )
+    if state["source_replication_runs"] != len(
+        state["source_replication_manifests"]
+    ):
+        raise ValueError(
+            "prior theory progress source-run count does not match manifests"
+        )
+    if state["source_replication_runs"] > 1:
+        raise ValueError(
+            "prior theory progress contains repeated immutable source execution"
+        )
+    return state
+
+
 def run_theory_artifact_workspace(
     *,
     provider: Any,
@@ -340,6 +428,7 @@ def run_theory_artifact_workspace(
     prior_changed_artifact_names: Sequence[str] = (),
     prior_changed_document_paths: Sequence[str] = (),
     prior_client_tool_session_ref: Mapping[str, Any] | None = None,
+    prior_workspace_checkpoint: Mapping[str, Any] | None = None,
 ) -> TheoryWorkspaceResult:
     """Let one model author text mathematics and a structured handoff in place."""
 
@@ -378,6 +467,20 @@ def run_theory_artifact_workspace(
     if allow_source_replication_checkpoint and research_source_execution is None:
         raise ValueError(
             "source replication checkpoint requires source execution"
+        )
+    restored_tool_state = _theory_progress_workspace_state(
+        prior_workspace_checkpoint,
+        workspace_id=workspace_id,
+        question_id=question_id,
+        authoring_binding_id=authoring_binding_id,
+        workspace_operation=workspace_operation,
+    )
+    if (
+        restored_tool_state["source_replication_runs"]
+        and research_source_execution is None
+    ):
+        raise ValueError(
+            "continued source-replication state requires source execution"
         )
     parent = {
         str(name): deepcopy(value)
@@ -477,22 +580,9 @@ def run_theory_artifact_workspace(
     state: dict[str, Any] = {
         "artifacts": deepcopy(parent),
         "documents": deepcopy(parent_documents),
-        "reads": 0,
-        "submissions": 0,
+        **restored_tool_state,
         "last_validation_errors": [],
         "last_candidate": {},
-        "model_artifact_writes": [],
-        "model_document_writes": [],
-        "document_inspection_refs": [],
-        "scratch_runs": 0,
-        "scratch_execution_refs": [],
-        "source_search_refs": [],
-        "source_read_refs": [],
-        "source_discovery_search_refs": [],
-        "source_discovery_read_refs": [],
-        "source_replication_runs": 0,
-        "source_replication_manifests": [],
-        "source_result_read_refs": [],
     }
     tools = _theory_workspace_tools(
         scratchpad_enabled=scratchpad is not None,
@@ -1940,6 +2030,13 @@ def run_theory_artifact_workspace(
             "question_id": question_id,
             "authoring_binding_id": authoring_binding_id,
             "workspace_operation": workspace_operation,
+            "resumed_from_progress_checkpoint_id": str(
+                (prior_workspace_checkpoint or {}).get("checkpoint_id", "")
+                or ""
+            ),
+            "cumulative_tool_state_restored": bool(
+                prior_workspace_checkpoint
+            ),
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "parent_workspace_hash": parent_hash,
         },
@@ -2439,6 +2536,10 @@ def run_theory_artifact_workspace(
         "question_id": question_id,
         "authoring_binding_id": authoring_binding_id,
         "workspace_operation": workspace_operation,
+        "resumed_from_progress_checkpoint_id": str(
+            (prior_workspace_checkpoint or {}).get("checkpoint_id", "") or ""
+        ),
+        "cumulative_tool_state_restored": bool(prior_workspace_checkpoint),
         "transport": "native_client_tools",
         "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
         "parent_workspace_hash": parent_hash,
@@ -3605,6 +3706,17 @@ def load_theory_progress_checkpoint_state(
         or not set(phase_documents).issubset(changed_documents)
     ):
         raise ValueError("theory progress checkpoint evidence is incomplete")
+    _theory_progress_workspace_state(
+        checkpoint,
+        workspace_id=str(checkpoint.get("workspace_id", "") or ""),
+        question_id=str(checkpoint.get("question_id", "") or ""),
+        authoring_binding_id=str(
+            checkpoint.get("authoring_binding_id", "") or ""
+        ),
+        workspace_operation=str(
+            checkpoint.get("workspace_operation", "") or ""
+        ),
+    )
     return deepcopy(dict(artifacts)), documents
 
 

@@ -1285,6 +1285,7 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
         prior_changed_artifact_names=checkpoint["changed_artifact_names"],
         prior_changed_document_paths=checkpoint["changed_document_paths"],
         prior_client_tool_session_ref=session_ref,
+        prior_workspace_checkpoint=checkpoint,
     )
 
     assert result.evidence["client_tool_session_lineage_continued"] is True
@@ -1297,6 +1298,13 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     )
     assert window["prior_transcript_replayed"] is True
     assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
+    assert result.evidence["cumulative_tool_state_restored"] is True
+    assert result.evidence["resumed_from_progress_checkpoint_id"] == (
+        checkpoint["checkpoint_id"]
+    )
+    assert result.evidence["reads"] == 1
+    assert result.evidence["n_model_artifact_writes"] == 3
+    assert result.evidence["n_model_document_writes"] == 1
     continued_messages = continuation.requests[0].messages
     assert len(continued_messages) >= 3
     assert continued_messages[0]["role"] == "user"
@@ -1608,6 +1616,162 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
         THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
     )
     assert "not confirmatory simulation" in observation["boundary"]
+
+
+def test_theory_progress_restores_cumulative_scratch_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'small_case_gap': 0.125, 'seed': seed}\n"
+    )
+    executions: list[dict[str, object]] = []
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        executions.append(dict(kwargs))
+        metrics = {"small_case_gap": 0.125, "seed": 23}
+        return ScientificSandboxExecution(
+            status="EXECUTED",
+            language="python",
+            execution_profile="scientific_wasm",
+            backend="pyodide",
+            isolation_provider="test-isolation",
+            dependencies=("numpy",),
+            execution_attempted=True,
+            returncode=0,
+            metrics=metrics,
+            errors=(),
+            stdout_summary="",
+            stderr_summary="",
+            result_parse_error="",
+            code_path=str(tmp_path / "scratch.py"),
+            request_path=str(tmp_path / "request.json"),
+            result_path=str(tmp_path / "result.json"),
+            code_hash=stable_hash(source),
+            request_hash="scratch-request-hash",
+            result_hash=stable_hash(metrics),
+            subprocess_environment_keys=("HOME", "PATH"),
+            resource_limits={"cpu_seconds": 9},
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    scratchpad = TheoryScratchpadConfig(
+        sandbox_dir=tmp_path / "theory-scratch",
+        seed=23,
+        replicates=8,
+        timeout_s=9,
+        max_runs=1,
+    )
+    markdown = "# Partial derivation\n\nThe smallest case remains decisive.\n"
+    first = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="run-small-case",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": ["numpy"],
+                        "entrypoint": "run_sandbox",
+                        "code": source,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-partial-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/progress.md",
+                        "content": markdown,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="checkpoint-after-small-case",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "Computed the smallest case.",
+                        "evidence_refs": ["scratch-run:1", "derivations/progress.md"],
+                        "next_step": "Reconcile it with the general derivation.",
+                    },
+                )
+            ),
+        ]
+    )
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        _run_workspace(
+            first,
+            workspace_dir=tmp_path / "theory",
+            require_document_authority=True,
+            scratchpad=scratchpad,
+        )
+    checkpoint = exc_info.value.progress_checkpoint
+    artifacts, documents = load_theory_progress_checkpoint_state(
+        checkpoint,
+        question_id="q1",
+    )
+    assert checkpoint["scratch_runs"] == 1
+    assert len(checkpoint["scratch_execution_refs"]) == 1
+
+    continued = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="attempt-duplicate-small-case",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": ["numpy"],
+                        "entrypoint": "run_sandbox",
+                        "code": source,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="finish-after-prior-observation",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "small-case-qualified"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint("commit-after-progress")),
+        ]
+    )
+    result = _run_workspace(
+        continued,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        scratchpad=scratchpad,
+        initial_artifacts=artifacts,
+        initial_documents=documents,
+        prior_changed_artifact_names=checkpoint["changed_artifact_names"],
+        prior_changed_document_paths=checkpoint["changed_document_paths"],
+        prior_client_tool_session_ref=checkpoint["client_tool_session_ref"],
+        prior_workspace_checkpoint=checkpoint,
+    )
+
+    assert len(executions) == 1
+    assert "scratchpad run budget is exhausted" in str(
+        continued.requests[1].messages[-1]
+    )
+    assert result.evidence["scratch_runs"] == 1
+    assert result.evidence["scratch_execution_refs"] == (
+        checkpoint["scratch_execution_refs"]
+    )
+    assert result.evidence["cumulative_tool_state_restored"] is True
 
 
 def test_targeted_revision_retains_valid_edits_across_raw_validator_feedback() -> None:

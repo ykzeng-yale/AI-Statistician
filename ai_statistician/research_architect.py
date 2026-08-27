@@ -652,6 +652,30 @@ def _theory_progress_prompt_artifact(
 ) -> dict[str, Any]:
     progress = checkpoint.get("progress", {})
     progress = dict(progress) if isinstance(progress, Mapping) else {}
+    scratch_keys = (
+        "scratch_run",
+        "status",
+        "language",
+        "execution_attempted",
+        "returncode",
+        "errors",
+        "code_hash",
+        "request_hash",
+        "result_hash",
+        "metrics_hash",
+        "proof_evidence_status",
+    )
+    source_run_keys = (
+        "artifact_id",
+        "execution_status",
+        "execution_attempted",
+        "returncode",
+        "errors",
+        "stdout_sha256",
+        "stderr_sha256",
+        "manifest_hash",
+        "proof_evidence_status",
+    )
     return {
         "checkpoint_id": checkpoint.get("checkpoint_id", ""),
         "summary": progress.get("summary", ""),
@@ -664,6 +688,53 @@ def _theory_progress_prompt_artifact(
         "changed_document_paths": list(
             checkpoint.get("changed_document_paths", []) or []
         ),
+        "cumulative_tool_state": {
+            "scratch_runs": int(checkpoint.get("scratch_runs", 0) or 0),
+            "scratch_executions": [
+                {
+                    key: deepcopy(row[key])
+                    for key in scratch_keys
+                    if key in row
+                }
+                for row in checkpoint.get("scratch_execution_refs", []) or []
+                if isinstance(row, Mapping)
+            ],
+            "source_searches": len(
+                checkpoint.get("source_search_refs", []) or []
+            ),
+            "source_reads": len(
+                checkpoint.get("source_read_refs", []) or []
+            ),
+            "public_source_searches": len(
+                checkpoint.get("source_discovery_search_refs", []) or []
+            ),
+            "public_source_reads": len(
+                checkpoint.get("source_discovery_read_refs", []) or []
+            ),
+            "source_replication_runs": int(
+                checkpoint.get("source_replication_runs", 0) or 0
+            ),
+            "source_replication_executions": [
+                {
+                    key: deepcopy(row[key])
+                    for key in source_run_keys
+                    if key in row
+                }
+                for row in checkpoint.get(
+                    "source_replication_manifests", []
+                )
+                or []
+                if isinstance(row, Mapping)
+            ],
+            "source_result_reads": len(
+                checkpoint.get("source_result_read_refs", []) or []
+            ),
+            "boundary": (
+                "These are exact cumulative environment identities from the "
+                "same source-owning workspace. They are observations, not "
+                "mathematical acceptance, confirmatory evidence, or proof."
+            ),
+        },
         "proof_evidence_status": (
             "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
         ),
@@ -2636,7 +2707,10 @@ def _initial_theory_workspace_prompt(
         f"for question {question.id!r} in mode {theory_prompt_mode!r}. First read "
         "prior_theory_progress_checkpoint, inspect its next step, and read the exact "
         "current documents or handoff artifacts needed to continue. The original "
-        "initial_authoring_context remains available. "
+        "initial_authoring_context remains available. Tool observations and "
+        "execution counts are cumulative across context windows; inspect the "
+        "checkpoint state rather than repeating a prior scratch or immutable "
+        "source execution as if this were a fresh workspace. "
         if continuing_from_progress
         else (
             "Author the initial TheoryDeveloper research workspace for the supplied "
@@ -2774,7 +2848,9 @@ def _theory_workspace_revision_prompt(
             (
                 "First read prior_theory_progress_checkpoint, inspect its exact next "
                 "step, then read only the current documents and handoff artifacts "
-                "needed to continue the same revision lineage."
+                "needed to continue the same revision lineage. Its tool "
+                "observations and execution counts are cumulative; do not treat "
+                "this context window as a fresh research workspace."
                 if continuing_from_progress
                 else (
                     "First read reviewer_observations by itself. Do not request every "
@@ -3281,6 +3357,9 @@ def _generate_initial_theory_artifact_workspace(
             if progress_checkpoint
             else None
         ),
+        prior_workspace_checkpoint=(
+            progress_checkpoint if progress_checkpoint else None
+        ),
         request_metadata={
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
@@ -3585,6 +3664,9 @@ def _generate_theory_workspace_revision(
         ),
         prior_client_tool_session_ref=(
             parent_client_tool_session_ref or None
+        ),
+        prior_workspace_checkpoint=(
+            progress_checkpoint if progress_checkpoint else None
         ),
         request_metadata={
             "subsystem": "TheoryDeveloper",
