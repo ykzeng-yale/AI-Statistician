@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46`.
+`5af6979986a23fcd6bbeb1ef7b206cbc96e9a0a2`.
 
 Latest selective-adoption implementation commits:
 
@@ -39,6 +39,9 @@ Latest selective-adoption implementation commits:
   checkpoints restore cumulative model-observed tool state instead of silently
   resetting scratch, source-replication, read, write, and provenance state at a
   fresh context window.
+- `0824246428d4695bf273e578372cf0fae3d469de`: focus future independent
+  Theory review on reconstruction from original definitions and isolate each
+  evaluator-only frozen claim in its own exact-Haiku adjudication call.
 
 Primary references:
 
@@ -1969,3 +1972,48 @@ with absent later fields were read successfully under empty-state defaults. No
 model was called and no consumed task was rerun, resumed, repaired, reevaluated,
 rescored, or granted capability credit. Trustworthy capability remains `4/56`,
 and exact development theorem closure remains `0/2`.
+
+## Scientific judgment needs focused model work
+
+The disjoint Nadaraya-Watson Theory draw validated the Codex-style mechanics but
+not the mathematics. One persistent exact-Haiku Theory session authored and
+revised Markdown, ordinary tool failures returned directly to that session, two
+isolated referee passes inspected hash-bound files, and the final Critic used a
+separate document session. No repair worker or second scheduler participated.
+
+The final manuscript nevertheless omitted the transformed measure in every
+unscaled kernel integral. It claimed variance of order `1/n` while asserting a
+`sqrt(nh)` CLT. The referee, Critic, and pre-frozen broad semantic judge all
+accepted the contradiction. This is not a tool-routing or artifact-transport
+failure. It is a model-focus failure: each reviewer inherited the candidate's
+already-transformed expression and then verified downstream algebra.
+
+Commit `08242464` keeps the Codex inner-loop boundary and changes one scientific
+judgment principle for future tasks:
+
+1. A Theory referee reconstructs load-bearing substitutions and asymptotic
+   normalizations from original definitions, including transformed measure,
+   domain, constants, variance order, and limit scale.
+2. Evaluator-only semantic adjudication gives each frozen claim an isolated
+   exact-Haiku candidate call. Calibration remains separate, the whole candidate
+   remains visible for contradiction search, and runtime combines only the
+   model-authored claim dispositions.
+
+No task formula, symbolic parser, deterministic mathematical verdict, output
+repair, retry, scheduler, model escalation, Sonnet call, or Opus call was added.
+The consumed task remains immutable automated `1/1` and trustworthy `0/1`.
+
+The official Codex checkout was incrementally rechecked from `b68acc4` through
+`5af6979`. Invocation-lifetime extension capabilities strengthen turn-scoped
+authority; gRPC trace propagation preserves one execution lineage; Guardian
+turn/tool analytics remain content-free lifecycle telemetry; skill path aliases
+reduce repeated prompt payload. These are useful confirmations of existing
+boundaries, not missing scientific agents. AI Statistician should continue to
+reuse Codex's simple model/tool/observation loop, external artifacts, scoped
+capabilities, and trace identity without embedding Codex core, App Server,
+Responses transport, thread storage, Guardian, or another scheduler.
+
+The focused future-task mechanism panel passed `142/142`; the complete
+repository passed `953/953` in 79.47 seconds. Task 57 was not rerun, resumed,
+repaired, hidden-evaluated again, rescored, or resampled. Trustworthy capability
+is `4/57`, and exact development theorem closure remains `0/2`.
