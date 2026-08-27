@@ -52,6 +52,9 @@ Latest selective-adoption implementation commits:
   with a compact preregistration artifact and ordinary Simulation Python/R source.
 - `53ef1ec62fd6a00a0ba547df1886c2ce9366f9f6`: remove the runtime-expanded Theory
   review checklist so the referee's hash-bound Markdown report owns mathematics.
+- `f44fcd21cee441f0a2f9bf90a29083c09157422d`: keep fresh scientific acceptance
+  protocols in model-owned Markdown and reduce the terminal commit to compact,
+  hash-bound metadata while retaining the frozen JSON rebinding path.
 
 Primary references:
 
@@ -2215,3 +2218,38 @@ retain their separate reconstruction path. No model was called and no consumed t
 was rerun, resumed, repaired, hidden-evaluated, rescored, or resampled. The complete
 repository passed `959/959` in 78.40 seconds. Task 60 remains `0/1`, trustworthy
 capability remains `4/60`, and exact development theorem closure remains `0/2`.
+
+## Markdown protocol authority and Task 61
+
+Task 61 supplied a disjoint live check of the adopted inner-loop design. One
+exact-Haiku TheoryDeveloper maintained Markdown/LaTeX across 18 model/tool turns;
+AlgorithmEngineer iterated directly on raw Python execution; and an isolated code
+reviewer kept invalid probes in its own session. No repair worker or routine
+Architect error route was needed. The task still finished `0/1`: Theory, its
+referee, and the hidden semantic judge false-accepted active mathematical errors;
+the code reviewer false-accepted explicit input-boundary and exact-comparison
+defects; and runtime blocked before Simulation.
+
+The metric failure was a harness defect rather than a reason for more retries. A
+long Markdown-like scientific protocol had to be escaped inside
+`metric_protocol.json`; malformed escaping and ambiguous exact replacements then
+consumed the ordinary action budget. Commit `f44fcd21` moves fresh substantive
+protocol content into authoritative `metric_protocol.md`. The same source owner
+reads and edits those exact bytes, while its terminal call carries only the
+document SHA-256, evaluator identity, required replicate count, and short
+rationale. Runtime binds the exact Markdown into the existing acceptance
+transport. Frozen protocol rebinding remains JSON because it has a different,
+already-sealed authority contract.
+
+This is selective Codex reuse: external files own substantive state; a stable
+generic tool surface returns raw observations to the same model history; and the
+harness validates identity, hashes, execution, blinding, and authority. Codex
+core, App Server, Responses transport, thread storage, and its scheduler remain
+excluded because they would create a second conversation owner without improving
+Claude's scientific judgment. No permutation rule, mathematical parser, source
+patch, RepairAgent, extra model call, retry, route, provider, or model escalation
+was added. Task 61 remains immutable `0/1`; trustworthy capability is `4/61`, and
+exact development theorem closure remains `0/2`. The exact-Haiku/model-policy,
+metric workspace, reviewer, sandbox, backend, and ladder panel passed `215/215`;
+the complete repository passed `961/961` in 79.71 seconds. No live model call or
+consumed-task execution occurred during this regression validation.
