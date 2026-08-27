@@ -52,7 +52,7 @@
             "shape": "an array of 3 through 2000 rows, each exactly [x_i,y_i]",
             "units": "the first and second coordinates may have different physical units",
             "indexing": "pairs[i][0] is X_i and pairs[i][1] is Y_i",
-            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, coordinate magnitudes above 1e50, malformed rows, fewer than three or more than 2000 rows, or a sample covariance matrix that is not strictly positive definite under the declared divisor. Do not coerce, drop, truncate, regularize, or jitter inputs.",
+            "edge_cases": "Reject booleans, strings, nulls, nonfinite values, coordinate magnitudes above 1e50, malformed rows, fewer than three or more than 2000 rows, a sample covariance matrix that is not strictly positive definite under the declared divisor, or data for which any declared finite coefficient, discriminant, or boundary is not representable as a finite JSON number. Do not coerce, drop, truncate, regularize, or jitter inputs.",
             "binding": "per_replicate_data"
           },
           {
