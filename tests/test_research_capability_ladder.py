@@ -5191,8 +5191,10 @@ def test_two_period_panel_did_l0_is_frozen_before_one_product_draw() -> None:
     )
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["authority_binding_commit"] == "PENDING"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["authority_binding_commit"] == (
+        "a8d193f806af81e5000e1227e3e29c5792df3a8b"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["activation_schema_version"] == 3
     assert evidence["activation_reference_tasks_passed"] == 1
     assert evidence["activation_negative_controls_rejected"] == 6
