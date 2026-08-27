@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "weighted_isotonic_regression_pava_known_result",
+      "title": "Weighted isotonic regression and the pool-adjacent-violators algorithm",
+      "description": "Focused L0 known-result evaluation grounded in Miriam Ayer, H. D. Brunk, G. M. Ewing, W. T. Reid, and Edward Silverman, An Empirical Distribution Function for Sampling with Incomplete Information, The Annals of Mathematical Statistics 26(4) (1955), 641-647, DOI 10.1214/aoms/1177728423, and the open-source SciPy isotonic_regression implementation. For observations y_1,...,y_n in R and finite weights w_i>0, derive the unique minimizer of sum_i w_i(y_i-theta_i)^2 over theta_1<=...<=theta_n. In one authoritative Markdown/LaTeX Theory workspace, derive weighted PAVA from singleton blocks, prove termination and the weighted block-mean property, and prove global optimality rather than stopping at monotonicity. Give a coherent KKT or projection argument with the correct sign for cumulative weighted residuals, complementary slackness at strict fitted jumps, and total weighted residual zero. Derive a max-min characterization or an equivalent independently checkable characterization from the same definitions. Explain fixed points, translation and positive-scale equivariance, common weight scaling, and why projection contracts weighted squared error relative to any monotone truth vector. Keep active derivations, rejected calculations, assumptions, and unresolved gaps visibly distinct. The required model-authored Python artifact is est_weighted_isotonic_pava and must implement run_estimator(request) exactly for the frozen public contract. Reusing a mature scientific library is allowed when the exact ABI, source identity, and evidence boundaries are preserved. Exploratory Python or R may check KKT conditions and adversarial arrays. A separately frozen confirmatory assessment uses predeclared monotone signals, positive weights, and Gaussian noise to compare fitted and raw weighted squared error, reporting Monte Carlo uncertainty for average improvement. Simulation and library execution are implementation evidence, not proof. Source-code replication, novelty, asymptotic distribution theory, extrapolation to partial orders, and Lean formalization are not applicable.",
+      "tags": [
+        "shape_constrained_regression",
+        "weighted_isotonic_regression",
+        "pool_adjacent_violators",
+        "convex_projection",
+        "known_result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "An Empirical Distribution Function for Sampling with Incomplete Information",
+          "authors": [
+            "Miriam Ayer",
+            "H. D. Brunk",
+            "G. M. Ewing",
+            "W. T. Reid",
+            "Edward Silverman"
+          ],
+          "journal": "The Annals of Mathematical Statistics",
+          "year": 1955,
+          "volume": 26,
+          "issue": 4,
+          "pages": "641-647",
+          "doi": "10.1214/aoms/1177728423",
+          "url": "https://doi.org/10.1214/aoms/1177728423"
+        },
+        "open_source_implementation": {
+          "project": "SciPy",
+          "api": "scipy.optimize.isotonic_regression",
+          "url": "https://github.com/scipy/scipy/blob/main/scipy/optimize/_isotonic.py"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_weighted_isotonic_pava",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.values",
+            "name": "values",
+            "meaning": "Observed responses y_i in their fixed linear order.",
+            "json_type": "array[number]",
+            "shape": "one nonempty finite numeric array of length n",
+            "units": "common response units",
+            "indexing": "array order is the isotonic order and must be preserved",
+            "edge_cases": "A one-element array is valid. Reject nonarrays, empty arrays, booleans, strings, nonnumeric values, nonfinite values, and silently coerced or dropped entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.weights",
+            "name": "weights",
+            "meaning": "Strictly positive case weights w_i paired positionally with values.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric array with the same length as values and every entry strictly positive",
+            "units": "relative loss weights",
+            "indexing": "weights[i] belongs to values[i]",
+            "edge_cases": "Reject nonarrays, length mismatch, booleans, strings, nonnumeric or nonfinite values, zero, negative values, and silently coerced or dropped entries.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.fitted_values",
+            "name": "fitted_values",
+            "meaning": "The unique weighted least-squares projection onto the nondecreasing cone.",
+            "json_type": "array[number]",
+            "shape": "one finite numeric array with the same length as values and nondecreasing entries",
+            "units": "response units",
+            "indexing": "fitted_values[i] corresponds to values[i]",
+            "edge_cases": "For n=1 or already nondecreasing values, equal the input values exactly up to ordinary floating arithmetic.",
+            "normalization": "Each maximal constant fitted block equals the weighted mean of the observations in that block."
+          },
+          {
+            "clause_id": "response.weighted_sse",
+            "name": "weighted_sse",
+            "meaning": "The minimized weighted residual sum of squares at fitted_values.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "weight times squared response units",
+            "indexing": "current values and weights request",
+            "edge_cases": "Equals zero for a one-element or already nondecreasing values array.",
+            "normalization": "sum_i weights[i]*(values[i]-fitted_values[i])^2 without division by n or total weight."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly values and weights, and the response contains exactly fitted_values and weighted_sse. Missing or extra fields and invalid values are rejected rather than ignored, repaired, or coerced."
+          },
+          {
+            "clause_id": "invariant.projection_kkt",
+            "meaning": "The response is the unique weighted L2 projection: it is nondecreasing, has zero total weighted residual, has nonnegative cumulative weighted residual sum_{i<=k} w_i(y_i-fitted_i), and that cumulative residual is zero at every strict fitted jump."
+          },
+          {
+            "clause_id": "invariant.monotone_fixed_point",
+            "meaning": "If values is already nondecreasing, fitted_values equals values and weighted_sse equals zero."
+          },
+          {
+            "clause_id": "invariant.positive_affine_equivariance",
+            "meaning": "For finite a and b>0, replacing values by a+b*values replaces fitted_values by a+b*fitted_values and multiplies weighted_sse by b^2 whenever transformed inputs remain finite."
+          },
+          {
+            "clause_id": "invariant.common_weight_scaling",
+            "meaning": "Multiplying every weight by the same finite c>0 leaves fitted_values unchanged and multiplies weighted_sse by c whenever transformed weights remain finite."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each monotone truth vector, positive weight vector, Gaussian noise scale, seed, replicate count, comparison statistic, and Monte Carlo decision rule; invoke the accepted estimator on every realized values and weights request."
+          },
+          {
+            "clause_id": "claim.empirical.pointwise_risk_contraction",
+            "meaning": "For every realized response vector and every frozen monotone truth vector, the fitted weighted squared error relative to truth is no larger than the raw weighted squared error, up to declared floating tolerance, as implied by convex projection geometry."
+          },
+          {
+            "clause_id": "claim.empirical.average_risk_improvement",
+            "meaning": "For each nondegenerate frozen noisy design, report the mean raw-minus-fitted weighted squared-error improvement and its Monte Carlo standard error, and require a predeclared positive lower confidence bound rather than selecting a favorable replicate count after outcomes."
+          },
+          {
+            "clause_id": "claim.empirical.evidence_boundary",
+            "meaning": "The confirmatory assessment checks implementation and finite-design risk behavior only. It does not prove PAVA optimality, establish an asymptotic law, cover a nonmonotone truth, or extend the result to partial orders or nonquadratic losses."
+          }
+        ]
+      }
+    }
+  ]
+}
