@@ -107,29 +107,23 @@ def formalizer_proof_construction_strategy_contract() -> dict[str, Any]:
         "schema_version": 16,
         "target_identity": (
             "Preserve the exact task-bound theorem, assumptions, declaration identity, "
-            "and parent artifact lineage. Never weaken or silently replace the target."
+            "and parent artifact lineage. Never weaken or replace the target."
         ),
         "model_ownership": (
-            "Each iteration gives the model the complete current Lean source, exact "
-            "target, raw verifier output, reviewer findings, proof state, and retrieved "
-            "signatures. The model chooses every import, definition, decomposition, tactic, "
-            "search query, and source change, then supplies the complete next source."
+            "The model receives the complete current Lean source, exact target, raw verifier output, "
+            "review, and retrieval; it chooses every import, query, scratch experiment, and source change."
         ),
         "environment_loop": (
-            "Search the active formal environment when context is missing, compile the "
-            "exact current source, inspect the returned observations, and regenerate. "
-            "AgentRuntime enforces budgets and identities but never edits Lean or maps an "
-            "error class to a prescribed fix."
+            "Search or run scratch when needed, compile the exact current source, and revise "
+            "from observations. AgentRuntime enforces budgets and identity but never edits Lean."
         ),
         "library_context": (
-            "Infer naming, namespace, module, and theorem-organization conventions from "
-            "retrieved declarations in the active Statlib/Mathlib/project environment; "
-            "recheck every reused declaration in that environment."
+            "Infer APIs from the active Statlib/Mathlib/project environment and recheck "
+            "every reused declaration there."
         ),
         "evidence_boundary": (
-            "Generated code, retrieval, reviewer acceptance, and successful elaboration "
-            "remain observations. Only the configured exact local Lean/kernel gate may "
-            "promote the unchanged target artifact to proof evidence."
+            "Source, scratch, retrieval, review, and elaboration are observations. Only "
+            "the exact local Lean/kernel gate may promote the unchanged target."
         ),
     }
 
@@ -314,8 +308,8 @@ class LLMFormalizerProofEngineerAgent:
                 FORMALIZER_SYSTEM_PROMPT
                 + "\nOwn the complete Lean source and every search query for this "
                 "unchanged hash-bound target; do not answer with prose or JSON. Use "
-                "the tools to read Theory context on demand, inspect the active Lean "
-                "environment, and compile early. Retrieval and review are observations, "
+                "the tools to read Theory context, run independent Lean scratch, inspect "
+                "the active environment, and compile early. Retrieval and review are observations, "
                 "not proof. A diagnostic caused by your own submitted source is revision "
                 "feedback, not a foundation gap. Treat inspected declaration source as "
                 "the executable API, including its importable module and lexical context. "
@@ -1507,25 +1501,13 @@ def build_formalizer_prompt(
 
 
 FORMALIZER_SYSTEM_PROMPT = """\
-You are the LLM Formalizer/ProofEngineer inside an AI Statistician AgentRuntime.
-
-Your job is to own one complete Lean source for one unchanged task-bound target at
-a time. Use active-project retrieval when it resolves a concrete environment or API
-question, and use early source submission plus raw compiler feedback as the primary
-grounding loop when you can already formulate the target. Use the supplied theory,
-independent-review findings, current source, and raw verifier observations to choose
-every definition, import, declaration, decomposition, tactic, query, and source
-revision. Do not weaken the target, replace
-a mathematical assumption with a vacuous placeholder, or present an admitted proof
-as completed evidence. A temporary admitted body, #check, or #print command may be
-used only as model-authored diagnostic source so Lean can elaborate a declaration or
-expose its exact API and proof state. Such a source is nonterminal and non-proof; the
-same model must replace it with a complete proof before semantic review or promotion.
-When the active libraries lack a required primitive, report the precise formal gap
-instead of inventing an API or proving a weaker statement. AgentRuntime executes
-tools and preserves identity, budgets, and evidence; it never writes Lean for you.
-Do not report a proof as checked unless the exact source has matching local
-Lean/kernel evidence.
+You own one complete Lean source for one unchanged task-bound target. Choose every
+import, definition, tactic, query, scratch experiment, and source revision from the
+supplied theory, review findings, active-project tools, and raw Lean observations.
+Compile early; use retrieval or scratch for concrete unresolved API and proof questions.
+Never weaken the target or present admitted or diagnostic source as proof. Report a
+precise active-environment gap instead of inventing an API. AgentRuntime preserves
+identity, budgets, review, and kernel authority but never writes Lean for you.
 """
 
 

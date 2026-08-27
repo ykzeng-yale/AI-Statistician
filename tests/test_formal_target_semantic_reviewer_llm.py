@@ -503,6 +503,7 @@ def test_revision_review_receives_prior_findings_and_formalizer_grounding(
         "lean_declaration_inspections": 1,
         "formal_environment_searches": 0,
         "lean_state_inspections": 1,
+        "lean_scratch_checks": 1,
         "history": [
             {
                 "tool_calls": [
@@ -515,6 +516,11 @@ def test_revision_review_receives_prior_findings_and_formalizer_grounding(
                         "name": "inspect_lean_state",
                         "observation_key": "lean-state:unused",
                         "result_excerpt": "unused variable h_assumption",
+                    },
+                    {
+                        "name": "run_lean_scratch",
+                        "observation_key": "lean-scratch:api-shape",
+                        "result_excerpt": "#check exact reused declaration",
                     },
                     {
                         "name": "submit_lean_source",
@@ -555,7 +561,9 @@ def test_revision_review_receives_prior_findings_and_formalizer_grounding(
     assert [row["tool_name"] for row in grounding["tool_observations"]] == [
         "inspect_lean_declaration",
         "inspect_lean_state",
+        "run_lean_scratch",
     ]
+    assert grounding["lean_scratch_checks"] == 1
     assert "source-shaped certificate" in grounding["tool_observations"][0][
         "result_excerpt"
     ]

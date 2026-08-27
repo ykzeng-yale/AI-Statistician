@@ -98,6 +98,7 @@ def _compact_formalizer_grounding_observations(
             if tool_name not in {
                 "inspect_lean_declaration",
                 "inspect_lean_state",
+                "run_lean_scratch",
                 "search_formal_environment",
             }:
                 continue
@@ -131,6 +132,9 @@ def _compact_formalizer_grounding_observations(
         ),
         "lean_state_inspections": _nonnegative_int(
             evidence.get("lean_state_inspections", 0)
+        ),
+        "lean_scratch_checks": _nonnegative_int(
+            evidence.get("lean_scratch_checks", 0)
         ),
         "tool_observations": observations[-6:],
         "boundary": (

@@ -32,6 +32,7 @@ LeanDeclarationInspection = Callable[
 ]
 LEAN_SOURCE_SUBMISSION_TOOL = "submit_lean_source"
 LEAN_SOURCE_EDIT_TOOL = "edit_current_lean_source"
+LEAN_SCRATCH_TOOL = "run_lean_scratch"
 LEAN_FORMAL_GAP_TOOL = "report_formal_gap"
 LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND = (
     "LeanCandidateWorkspaceRecoveryCheckpoint"
@@ -43,6 +44,7 @@ _LEAN_WORKSPACE_COUNTER_FIELDS = (
     "proof_searches",
     "state_inspections",
     "declaration_inspections",
+    "scratch_checks",
     "checks",
 )
 _LEAN_WORKSPACE_OBSERVATION_FIELDS = (
@@ -396,7 +398,7 @@ def lean_candidate_workspace_continuation_errors(
             errors.append("Lean workspace continuation observation boundary is stale")
         starts = checkpoint.get("segment_start_counters", {})
         if not isinstance(starts, Mapping) or any(
-            starts.get(field) != predecessor.get(field)
+            starts.get(field, 0) != predecessor.get(field, 0)
             for field in _LEAN_WORKSPACE_COUNTER_FIELDS
         ):
             errors.append("Lean workspace continuation counter boundary is stale")
@@ -523,6 +525,7 @@ def run_lean_candidate_revision_tool_loop(
         "proof_searches": 0,
         "state_inspections": 0,
         "declaration_inspections": 0,
+        "scratch_checks": 0,
         "checks": 0,
         "last_check": {},
         "latest_check_observation": {},
@@ -770,6 +773,43 @@ def run_lean_candidate_revision_tool_loop(
                 edit_metadata=edit_metadata,
             )
 
+        if call.name == LEAN_SCRATCH_TOOL:
+            if set(tool_input) != {"lean_source"}:
+                raise ClientToolInputError("run_lean_scratch requires exactly lean_source")
+            source = tool_input.get("lean_source")
+            if not isinstance(source, str) or not source.strip():
+                raise ClientToolInputError("scratch Lean source must be nonempty")
+            if len(source) > 20_000:
+                raise ClientToolInputError("scratch Lean source exceeds size boundary")
+            raw_result = check_candidate(source, "")
+            if not isinstance(raw_result, Mapping):
+                raise ClientToolInputError("Lean scratch checker returned a non-object")
+            observation = deepcopy(dict(raw_result))
+            source_hash = stable_hash(source)
+            if str(observation.get("source_hash", "") or "") != source_hash:
+                raise ClientToolInputError("Lean scratch result has a stale source hash")
+            compiled = bool(observation.get(
+                "local_lean_source_compiled", observation.get("compiled", False)
+            ))
+            state["scratch_checks"] += 1
+            content = {
+                "ok": compiled,
+                "scratch_source_hash": source_hash,
+                "scratch_source_compiled": compiled,
+                "observation": observation,
+                "scratch_checks": state["scratch_checks"],
+                **current_workspace_observation(),
+                "candidate_source_unchanged": True,
+                "proof_evidence_status": "LEAN_SCRATCH_NOT_PROOF_EVIDENCE",
+            }
+            observation_key = "lean-scratch:" + stable_hash(content)
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=content,
+                is_error=not compiled,
+                observation_key=observation_key,
+            )
+
         if call.name == LEAN_FORMAL_GAP_TOOL:
             if not allow_formal_gap:
                 raise ClientToolInputError("formal-gap reporting is unavailable")
@@ -805,6 +845,7 @@ def run_lean_candidate_revision_tool_loop(
                 int(state[key] or 0)
                 for key in (
                     "checks",
+                    "scratch_checks",
                     "searches",
                     "proof_searches",
                     "state_inspections",
@@ -1514,6 +1555,7 @@ def _lean_candidate_revision_success_result(
         "lean_state_inspections": state["state_inspections"],
         "lean_state_provider_tools": list(state_provider_tools),
         "lean_declaration_inspections": state["declaration_inspections"],
+        "lean_scratch_checks": state["scratch_checks"],
         "lean_declaration_provider_tools": list(
             declaration_provider_tools
         ),
@@ -1678,16 +1720,10 @@ def _lean_candidate_revision_tools(
         ClientToolDefinition(
             name=LEAN_SOURCE_SUBMISSION_TOOL,
             description=(
-                "Submit one complete model-authored Lean source and identify the exact "
-                "globally resolvable declaration name to check on every submission. "
-                "candidate_declaration_name is only the fully qualified Lean identifier "
-                "introduced or checked by the source, not a theorem header or type. The "
-                "runtime stores and immediately checks those exact bytes in the "
-                "configured Lean project, then returns raw diagnostics to this same model. "
-                "A model-authored diagnostic source may temporarily use Lean #check, "
-                "#print, or an admitted body to learn declaration elaboration and proof "
-                "state, but it remains a failed non-proof artifact until the exact "
-                "declaration passes the axiom audit with a complete proof."
+                "Submit one complete model-authored Lean source and its fully qualified "
+                "declaration identifier. The configured project immediately checks the "
+                "exact bytes and returns raw diagnostics; only a complete axiom-clean "
+                "declaration can leave this source-owning workspace."
             ),
             input_schema={
                 "type": "object",
@@ -1703,13 +1739,9 @@ def _lean_candidate_revision_tools(
         ClientToolDefinition(
             name=LEAN_SOURCE_EDIT_TOOL,
             description=(
-                "Apply one model-authored exact-text edit to the current Lean source, "
-                "then immediately check the complete resulting bytes in the configured "
-                "Lean project. old_text must identify one exact unique substring; "
-                "replacement may contain any model-chosen text or be empty. The runtime "
-                "does not parse Lean, choose a tactic, or alter the edit. Use complete "
-                "submit_lean_source instead when authoring the first source, changing "
-                "the declaration identity, or replacing unrelated regions at once."
+                "Apply one model-authored exact unique-text edit and immediately check "
+                "the complete result. Runtime never parses or alters the edit. Use "
+                "submit_lean_source for initial source, identity changes, or replacement."
             ),
             input_schema={
                 "type": "object",
@@ -1721,6 +1753,21 @@ def _lean_candidate_revision_tools(
                 },
             },
             terminal=True,
+        ),
+        ClientToolDefinition(
+            name=LEAN_SCRATCH_TOOL,
+            description=(
+                "Compile one self-contained model-authored Lean scratch file, including "
+                "its imports, in the active project. Raw #check, #print, example, or "
+                "diagnostic output returns here without changing the current candidate. "
+                "Scratch execution is never proof or promotion evidence."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["lean_source"],
+                "properties": {"lean_source": {"type": "string"}},
+            },
         ),
         ClientToolDefinition(
             name="search_formal_environment",
@@ -1749,17 +1796,10 @@ def _lean_candidate_revision_tools(
             ClientToolDefinition(
                 name=LEAN_FORMAL_GAP_TOOL,
                 description=(
-                    "Report that the unchanged task-bound target cannot currently be "
-                    "formalized in the active Lean environment. Use only after concrete "
-                    "search or compiler observations identify a real missing primitive "
-                    "or foundation blocker required by that target. Errors caused by "
-                    "imports, identifiers, types, or proof terms chosen in the current "
-                    "model-authored source are feedback to edit or replace that source, "
-                    "not by themselves formal gaps. If a current source exists, its "
-                    "task-bound statement must first elaborate locally before a missing "
-                    "proof primitive can be reported. Do not claim an attempted revision "
-                    "without a corresponding tool observation. This is a non-proof "
-                    "terminal result."
+                    "Report a concrete active-environment blocker for the unchanged "
+                    "target after search, scratch, inspection, or compiler evidence. "
+                    "Errors in model-authored source are revision feedback; an existing "
+                    "target statement must elaborate first. This terminal result is not proof."
                 ),
                 input_schema={
                     "type": "object",

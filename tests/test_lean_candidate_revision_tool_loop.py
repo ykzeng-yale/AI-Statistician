@@ -19,6 +19,7 @@ from ai_statistician.agent_runtime import (
 from ai_statistician.lean_candidate_revision_tool_loop import (
     LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
     LEAN_FORMAL_GAP_TOOL,
+    LEAN_SCRATCH_TOOL,
     LEAN_SOURCE_EDIT_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
     lean_candidate_workspace_continuation_errors,
@@ -291,10 +292,9 @@ def test_identity_probe_separates_elaboration_from_untrusted_proof(
     assert result["candidate_axiom_audit_clean"] is False
 
 
-def test_formalizer_prompt_exposes_lean_owned_diagnostic_scaffolds() -> None:
-    assert "temporary admitted body" in formalizer_module.FORMALIZER_SYSTEM_PROMPT
-    assert "#check" in formalizer_module.FORMALIZER_SYSTEM_PROMPT
-    assert "same model must replace it with a complete proof" in (
+def test_formalizer_prompt_exposes_model_owned_scratch_without_proof_promotion() -> None:
+    assert "scratch experiment" in formalizer_module.FORMALIZER_SYSTEM_PROMPT
+    assert "admitted or diagnostic source as proof" in (
         formalizer_module.FORMALIZER_SYSTEM_PROMPT
     )
     submit_tool = next(
@@ -302,8 +302,15 @@ def test_formalizer_prompt_exposes_lean_owned_diagnostic_scaffolds() -> None:
         for tool in lean_candidate_tool_loop_module._lean_candidate_revision_tools()
         if tool.name == LEAN_SOURCE_SUBMISSION_TOOL
     )
-    assert "diagnostic source" in submit_tool.description
-    assert "failed non-proof artifact" in submit_tool.description
+    scratch_tool = next(
+        tool
+        for tool in lean_candidate_tool_loop_module._lean_candidate_revision_tools()
+        if tool.name == LEAN_SCRATCH_TOOL
+    )
+    assert "#check" in scratch_tool.description
+    assert "without changing the current candidate" in scratch_tool.description
+    assert "never proof" in scratch_tool.description
+    assert "complete axiom-clean declaration" in submit_tool.description
 
 
 def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() -> None:
@@ -389,6 +396,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     assert all(request.enable_prompt_caching for request in backend.requests)
     assert set(tool.name for tool in backend.requests[0].tools) == {
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SCRATCH_TOOL,
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
     }
@@ -472,7 +480,7 @@ def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_sourc
     )
     assert edit_tool.terminal is True
     assert edit_tool.input_schema["required"] == ["old_text", "replacement"]
-    assert "does not parse Lean" in edit_tool.description
+    assert "never parses or alters" in edit_tool.description
 
 
 def test_lean_candidate_tool_loop_returns_ambiguous_edit_error_to_same_model() -> None:
@@ -750,10 +758,9 @@ def test_formal_gap_tool_keeps_model_authored_errors_in_source_revision_loop() -
         include_formal_gap=True,
     )
     gap_tool = next(tool for tool in tools if tool.name == LEAN_FORMAL_GAP_TOOL)
-    assert "current model-authored source" in gap_tool.description
-    assert "edit or replace that source" in gap_tool.description
-    assert "statement must first elaborate locally" in gap_tool.description
-    assert "corresponding tool observation" in gap_tool.description
+    assert "model-authored source are revision feedback" in gap_tool.description
+    assert "existing target statement must elaborate first" in gap_tool.description
+    assert "terminal result is not proof" in gap_tool.description
 
     backend = ScriptedLeanToolBackend(
         [
@@ -1434,6 +1441,75 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
     )
 
 
+def test_model_runs_lean_scratch_without_changing_candidate_source() -> None:
+    scratch = "import Mathlib\n#check Missing.symbol\n"
+    authored = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "scratch-1",
+                    LEAN_SCRATCH_TOOL,
+                    {"lean_source": scratch},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-after-scratch",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": authored,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    checked: list[tuple[str, str]] = []
+
+    def check(source: str, declaration: str):
+        checked.append((source, declaration))
+        scratch_run = not declaration
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": not scratch_run,
+            "local_lean_source_compiled": not scratch_run,
+            "local_lean_stdout": "unknown constant Missing.symbol"
+            if scratch_run
+            else "",
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Run a scratch experiment, then author the target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="",
+        initial_source="",
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+    )
+
+    assert checked == [(scratch, ""), (authored, "target")]
+    assert result.lean_source == authored
+    assert result.evidence["lean_scratch_checks"] == 1
+    assert result.evidence["local_lean_checks"] == 1
+    assert result.evidence["source_updates"] == 1
+    history = json.dumps(result.evidence["history"], sort_keys=True)
+    assert "LEAN_SCRATCH_NOT_PROOF_EVIDENCE" in history
+    assert "candidate_source_unchanged" in history
+    assert all(
+        LEAN_SCRATCH_TOOL in {tool.name for tool in request.tools}
+        for request in backend.requests
+    )
+
+
 def test_model_selects_exact_declaration_inspection_inside_same_source_loop() -> None:
     initial = (
         "import Project.Library\n"
@@ -1657,6 +1733,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     assert [tool.name for tool in backend.requests[1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL,
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SCRATCH_TOOL,
         "search_formal_environment",
     ]
     assert backend.requests[1].tool_choice == "any"
@@ -1718,6 +1795,7 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> Non
 
     expected_tools = {
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SCRATCH_TOOL,
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
     }
@@ -1797,6 +1875,7 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
     assert [tool.name for tool in backend.requests[1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL,
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SCRATCH_TOOL,
         "search_formal_environment",
     ]
     assert backend.requests[1].tool_choice == "any"
@@ -1884,6 +1963,7 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
             == [
                 LEAN_SOURCE_SUBMISSION_TOOL,
                 LEAN_SOURCE_EDIT_TOOL,
+                LEAN_SCRATCH_TOOL,
                 "search_formal_environment",
                 LEAN_FORMAL_GAP_TOOL,
         ]
