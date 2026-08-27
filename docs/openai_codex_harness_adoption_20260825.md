@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`f3741880f6dbc706252f4c5bb93f061dba18950d`.
+`b68acc4d4b56fdfa1d5b6a2c36102c66876e0c46`.
 
 Latest selective-adoption implementation commits:
 
@@ -25,6 +25,9 @@ Latest selective-adoption implementation commits:
 - `e5cccbb276bb1ef66bb5f387b1bc992b4dfaa74c`: assign production scientific
   Critic work to Sonnet after a disjoint document-session test isolated model
   judgment, rather than evidence transport, as the remaining blocker.
+- `3408012fd9305de3202effbcd12c1d452cf38bb2`: externalize accepted Theory
+  documents from the canonical Formalizer opening prompt while preserving exact
+  hash-bound reads and searches in the same model-owned Lean session.
 
 Primary references:
 
@@ -1753,3 +1756,47 @@ Server, Responses transport, thread storage, or another scheduler.
 Task 55 remains immutable automated `1/1` and trustworthy `0/1`. It cannot be
 rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled; the
 model-tier correction is future-task mechanism evidence only.
+
+## Formalizer Theory context is external state
+
+The canonical direct-Lean path was re-audited before changing it. It already
+starts one persistent Formalizer model/tool session and sends local Lean,
+declaration-search, proof-state, compilation, and source-edit observations back
+to that same model. The remaining mismatch was narrower: accepted
+Markdown/LaTeX Theory documents were copied in full into the opening Lean prompt,
+even though Algorithm and Simulation already accessed those documents through
+the shared scoped document tools.
+
+One accepted live Theory artifact measured 16,085 document bytes and 17,234
+serialized prompt characters. Commit `3408012f` replaces that duplicate body in
+the canonical Lean opening request with a compact path, SHA-256, line-count, and
+byte-count catalog. The measured opening prompt is now 7,404 characters and does
+not contain the document body. `read_theory_document` and
+`search_theory_documents` return exact hash-verified ranges to the same
+Formalizer session when the model asks for them. A checkpoint freezes the whole
+document-set hash, so changed Theory context is rejected before another model
+call.
+
+Theory, scientific Python/R, and Lean now share one content-agnostic document
+externalizer and tool executor. Exact document text remains available in the
+active model transcript, but persisted telemetry stores only hashes and range
+references. Theory reads are explicitly non-proof observations and cannot
+satisfy an active Lean/compiler/environment evidence requirement. Formalizer
+semantic review, axiom audit, exact target identity, and kernel promotion are
+unchanged.
+
+This adopts Codex's external-state and same-turn tool-observation principles,
+not its product runtime. No Codex core, App Server, Responses transport, thread
+store, provider, subagent scheduler, second outer loop, RepairAgent, task rule,
+Lean grammar rule, retry, model call, or model-tier change was added. The
+official checkout was also rechecked through `b68acc4`; the adjacent
+`e56e492` standalone tool-output change further supports durable named
+environment observations, while the URI policy, plugin access, and Guardian
+changes do not alter this scientific workspace topology.
+
+The focused mechanism panel passed `105/105`; the complete repository passed
+`947/947` in 78.24 seconds. Production Python is 149,972 lines under the
+unchanged 150,000-line architecture limit, with `research_agent_runtime.py`
+unchanged at 24,986 lines. No consumed task was rerun, resumed, repaired,
+reevaluated, rescored, or granted capability credit. Exact statistical theorem
+closure therefore remains `0/2`.
