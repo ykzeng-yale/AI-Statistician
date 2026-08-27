@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "nadaraya_watson_pointwise_asymptotics_known_result",
+      "title": "Pointwise bias, variance, and limit law of Nadaraya-Watson regression",
+      "description": "Focused known-result theory evaluation grounded in E. A. Nadaraya, On Estimating Regression, Theory of Probability and Its Applications 9(1) (1964), pages 141-142, DOI 10.1137/1109020, and G. S. Watson, Smooth Regression Analysis, Sankhya Series A 26(4) (1964), pages 359-372. Let (X_i,Y_i), i=1,...,n, be iid, let m(x)=E[Y|X=x], let sigma^2(x)=Var(Y|X=x), and let f be the density of X. At a fixed interior point x with f(x)>0, study the local-constant estimator hat m_h(x)=sum_i K((X_i-x)/h)Y_i / sum_i K((X_i-x)/h). State sufficient local smoothness, moment, kernel, and bandwidth assumptions rather than silently using them. In one authoritative Markdown/LaTeX Theory workspace, derive the numerator and denominator expectation expansions by change of variables, and use their ratio to obtain the leading interior smoothing bias h^2 mu_2(K)[m''(x)+2m'(x)f'(x)/f(x)]/2. Distinguish this deterministic ratio-of-expectations target from the finite-sample expectation of the random ratio; justify any stochastic-ratio remainder and any additional rate condition used before calling the displayed h^2 expression the complete leading estimator bias. Then linearize the random ratio, derive the leading variance sigma^2(x)R(K)/[n h f(x)], and prove a pointwise central limit statement. Explain both undersmoothing n h^5 -> 0 and the nonzero mean shift when n h^5 -> lambda in [0,infinity), with the centering and scaling made unambiguous. Treat denominator positivity in probability, kernel normalization, and the contribution of conditional noise explicitly. Finally, explain why the symmetric interior expansion does not automatically apply at or within O(h) of a support boundary, and do not claim a boundary result without separate assumptions or correction. Keep active derivations, rejected calculations, assumptions, and unresolved gaps visibly distinct. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Nadaraya-Watson estimator",
+        "kernel regression",
+        "nonparametric regression",
+        "bias expansion",
+        "asymptotic normality",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "On Estimating Regression",
+          "author": "E. A. Nadaraya",
+          "journal": "Theory of Probability and Its Applications",
+          "year": 1964,
+          "volume": 9,
+          "issue": 1,
+          "pages": "141-142",
+          "doi": "10.1137/1109020",
+          "url": "https://doi.org/10.1137/1109020"
+        },
+        "companion_paper": {
+          "title": "Smooth Regression Analysis",
+          "author": "G. S. Watson",
+          "journal": "Sankhya: The Indian Journal of Statistics, Series A",
+          "year": 1964,
+          "volume": 26,
+          "issue": 4,
+          "pages": "359-372"
+        }
+      }
+    }
+  ]
+}
