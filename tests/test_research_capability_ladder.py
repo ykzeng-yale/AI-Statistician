@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "e4d97ee62a4c6dcda6970e583770d2563afa3898"
+LATEST_SHARED_MECHANISM_HEAD = "e3255046ccfe33b463160bb5fd8f53b619eb59d9"
 
 
 def _load_ladder() -> dict:
@@ -4328,9 +4328,9 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 56
+    assert readiness["active_scored_tasks"] == 57
     assert readiness["consumed_scored_tasks"] == 56
-    assert readiness["fully_gold_configured_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4463,9 +4463,9 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 56
+    assert readiness["active_scored_tasks"] == 57
     assert readiness["consumed_scored_tasks"] == 56
-    assert readiness["fully_gold_configured_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 6
     assert readiness["source_replication_components_passed"] == 1
@@ -4568,9 +4568,9 @@ def test_weighted_partial_regression_l0_records_its_only_consumed_failed_draw() 
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 56
+    assert readiness["active_scored_tasks"] == 57
     assert readiness["consumed_scored_tasks"] == 56
-    assert readiness["fully_gold_configured_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4685,9 +4685,9 @@ def test_clopper_pearson_l0_single_draw_is_consumed_and_scored() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 56
+    assert readiness["active_scored_tasks"] == 57
     assert readiness["consumed_scored_tasks"] == 56
-    assert readiness["fully_gold_configured_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4799,9 +4799,9 @@ def test_ols_press_l0_consumed_draw_preserves_component_evidence() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 56
+    assert readiness["active_scored_tasks"] == 57
     assert readiness["consumed_scored_tasks"] == 56
-    assert readiness["fully_gold_configured_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -4933,9 +4933,9 @@ def test_rdrobust_senate_l1_records_consumed_operator_false_acceptance() -> None
     assert evidence["ladder_score_after_consumption"] == "4/54"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 56
+    assert readiness["active_scored_tasks"] == 57
     assert readiness["consumed_scored_tasks"] == 56
-    assert readiness["fully_gold_configured_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 6
     assert readiness["source_replication_components_passed"] == 1
@@ -5061,9 +5061,9 @@ def test_statsmodels_adf_kpss_l1_records_consumed_operator_false_acceptance() ->
     assert evidence["ladder_score_after_consumption"] == "4/55"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 56
+    assert readiness["active_scored_tasks"] == 57
     assert readiness["consumed_scored_tasks"] == 56
-    assert readiness["fully_gold_configured_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == 6
     assert readiness["source_replication_components_passed"] == 1
@@ -5092,6 +5092,80 @@ def test_statsmodels_adf_kpss_l1_records_consumed_operator_false_acceptance() ->
     for hidden_name in (
         "gold_manifest.json",
         "hidden_source_replication_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_nadaraya_watson_l0_is_frozen_before_its_first_product_call() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "nadaraya_watson_pointwise_asymptotics_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == "nonparametric_kernel_regression"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == "frozen_ready_v1_no_product_call"
+    assert candidate["gold_bundle_id"] == (
+        "research-l0-nadaraya-watson-20260826-v1"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "1fef351c7409bc9c17b3b78d8f118ee9ea5bf5e52b03901a803fc731f59d76e9"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "1a4d813eab81952aac493a2099e4858d742cdfaf8dd74398e6fa84cdc1f4a13a"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["preactivation_evaluator_model_calls"] == 2
+    assert evidence["mechanical_reference_checks"] == "7/7"
+    assert evidence["mechanical_negative_variants_rejected"] == 7
+    assert evidence["semantic_calibration_attempts"] == 1
+    assert evidence["semantic_calibration_total_model_calls"] == 2
+    assert evidence["semantic_calibration_cases_correct"] == 12
+    assert evidence["semantic_reference_claims"] == 8
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == 57
+    assert readiness["consumed_scored_tasks"] == 56
+    assert readiness["fully_gold_configured_tasks"] == 57
+    assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["primary_paper"]["doi"] == "10.1137/1109020"
+    assert question["task_intent"]["formal"] == "not_applicable"
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
         "semantic_reference.md",
         "semantic_rubric.json",
         "semantic_calibration_cases.json",
