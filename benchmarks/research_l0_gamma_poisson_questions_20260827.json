@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "gamma_poisson_negative_binomial_known_result",
+      "title": "Negative-binomial law of a Gamma-Poisson mixture",
+      "description": "Focused L0 known-result evaluation grounded in M. Greenwood and G. Udny Yule, An Inquiry into the Nature of Frequency Distributions Representative of Multiple Happenings, Journal of the Royal Statistical Society 83(2) (1920), 255-279, DOI 10.1111/j.2397-2335.1920.tb00606.x, with scipy.stats.nbinom as public computational context. Let Lambda have a Gamma distribution with arbitrary real shape r>0 and rate beta>0, so its density is beta^r lambda^(r-1) exp(-beta lambda)/Gamma(r). Conditional on Lambda=lambda, let Y be Poisson with mean exposure*lambda for exposure t>0. In one authoritative Markdown/LaTeX Theory workspace, integrate out Lambda and derive the complete marginal mass function for every integer y>=0. Map it unambiguously to the negative-binomial failure-count parameterization with success probability p=beta/(beta+t), including support and normalization. Derive E[Y]=rt/beta and Var(Y)=rt/beta+rt^2/beta^2 using conditional expectation and conditional variance, and explain why the extra term is mixing-induced overdispersion. Do not assume r is an integer, confuse Gamma rate with scale, omit the exposure factor, replace the mixture by a plug-in Poisson at E[Lambda], or use simulation or a library call as proof. The required model-authored Python artifact is est_gamma_poisson_mixture and must implement run_estimator(request) exactly for the frozen public closed contract, returning the requested mass and moments stably on its declared numerical domain. Exploratory Python or R may check integrals, moments, and parameterizations. A separately frozen confirmatory assessment draws latent rates and counts under multiple predeclared noninteger-shape settings, invokes the estimator, and compares empirical means, variances, and selected count frequencies with the derived marginal law using Monte Carlo standard errors. That assessment is implementation and calibration evidence, not proof of the mixture identity. Source-code replication, regression fitting, estimation from observed data, zero inflation, asymptotic inference, novelty, and Lean formalization are not applicable.",
+      "tags": [
+        "Gamma-Poisson mixture",
+        "negative binomial",
+        "mixed Poisson",
+        "count distribution",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "An Inquiry into the Nature of Frequency Distributions Representative of Multiple Happenings with Particular Reference to the Occurrence of Multiple Attacks of Disease or of Repeated Accidents",
+          "authors": [
+            "Major Greenwood",
+            "G. Udny Yule"
+          ],
+          "journal": "Journal of the Royal Statistical Society",
+          "year": 1920,
+          "volume": 83,
+          "issue": 2,
+          "pages": "255-279",
+          "doi": "10.1111/j.2397-2335.1920.tb00606.x",
+          "url": "https://academic.oup.com/jrsssa/article/83/2/255/7014440"
+        },
+        "public_computational_context": [
+          {
+            "project": "SciPy",
+            "api": "scipy.stats.nbinom",
+            "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.nbinom.html"
+          }
+        ]
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_gamma_poisson_mixture",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.shape",
+            "name": "shape",
+            "meaning": "Gamma shape r, which may be noninteger.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0.1,100]",
+            "units": "dimensionless",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonnumeric values, nonfinite values, and values outside the closed numerical domain.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.rate",
+            "name": "rate",
+            "meaning": "Gamma rate beta, not its reciprocal scale.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0.05,100]",
+            "units": "inverse latent-rate units",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonnumeric values, nonfinite values, and values outside the closed numerical domain.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.exposure",
+            "name": "exposure",
+            "meaning": "Positive multiplier t in the conditional Poisson mean t*Lambda.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0.01,50]",
+            "units": "exposure units",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonnumeric values, nonfinite values, zero, and values outside the closed numerical domain.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.count",
+            "name": "count",
+            "meaning": "Nonnegative integer y at which to evaluate the marginal mass.",
+            "json_type": "integer",
+            "shape": "one integer in [0,10000]",
+            "units": "events",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, floats including integer-valued floats, strings, negative integers, and integers outside the closed numerical domain.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.success_probability",
+            "name": "success_probability",
+            "meaning": "Negative-binomial success probability p=beta/(beta+t).",
+            "json_type": "number",
+            "shape": "one finite scalar strictly between zero and one",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Uses the failure-count parameterization for arbitrary positive real shape.",
+            "normalization": "rate/(rate+exposure)."
+          },
+          {
+            "clause_id": "response.log_pmf",
+            "name": "log_pmf",
+            "meaning": "Natural logarithm of the marginal probability at count.",
+            "json_type": "number",
+            "shape": "one finite nonpositive scalar",
+            "units": "log probability",
+            "indexing": "evaluated at request.count",
+            "edge_cases": "Must be computed stably using log-gamma identities rather than factorials restricted to integer shape.",
+            "normalization": "lgamma(count+shape)-lgamma(shape)-lgamma(count+1)+shape*log(p)+count*log(1-p)."
+          },
+          {
+            "clause_id": "response.pmf",
+            "name": "pmf",
+            "meaning": "Marginal probability at count.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "evaluated at request.count",
+            "edge_cases": "Numerical underflow to zero is allowed only when exp(log_pmf) underflows on the declared domain.",
+            "normalization": "exp(log_pmf) under ordinary floating arithmetic."
+          },
+          {
+            "clause_id": "response.mean",
+            "name": "mean",
+            "meaning": "Marginal expectation E[Y].",
+            "json_type": "number",
+            "shape": "one positive finite scalar",
+            "units": "events",
+            "indexing": "not applicable",
+            "edge_cases": "Uses rate rather than scale.",
+            "normalization": "shape*exposure/rate."
+          },
+          {
+            "clause_id": "response.variance",
+            "name": "variance",
+            "meaning": "Marginal variance Var(Y), including latent-rate mixing variation.",
+            "json_type": "number",
+            "shape": "one positive finite scalar",
+            "units": "squared events",
+            "indexing": "not applicable",
+            "edge_cases": "Must exceed mean for every request in the positive-exposure domain.",
+            "normalization": "mean+mean^2/shape."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly shape, rate, exposure, and count and the response contains exactly success_probability, log_pmf, pmf, mean, and variance. Missing or extra fields and invalid values are rejected rather than ignored, repaired, clipped, or coerced."
+          },
+          {
+            "clause_id": "invariant.gamma_poisson_identity",
+            "meaning": "For arbitrary real shape in the declared domain, the returned mass equals the Gamma-rate mixture integral and the negative-binomial failure-count mass with p=rate/(rate+exposure)."
+          },
+          {
+            "clause_id": "invariant.common_rate_exposure_scale",
+            "meaning": "Multiplying rate and exposure by the same positive finite factor leaves every response field unchanged whenever both requests remain inside the declared numerical domain."
+          },
+          {
+            "clause_id": "invariant.moment_overdispersion_identity",
+            "meaning": "variance equals mean+mean^2/shape and is therefore strictly greater than mean throughout the positive-exposure domain."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze each noninteger-or-integer shape, rate, exposure, seed, replicate count, estimator invocation, selected count frequencies, and Monte Carlo decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.mixture_calibration",
+            "meaning": "For multiple predeclared settings, draw Lambda from the stated Gamma shape-rate law and then Y conditionally from Poisson(exposure*Lambda); compare empirical mean, variance, and selected count frequencies with the estimator and derived negative-binomial law using Monte Carlo standard errors."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks the executable mass, moment map, and frozen Gamma-Poisson generators only. It does not prove the mixture integral, fit a count regression, estimate parameters from observed data, establish a zero-inflation model, provide asymptotic inference, reproduce source code, establish novelty, or provide formal proof evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
