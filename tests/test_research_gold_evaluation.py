@@ -1921,12 +1921,15 @@ def test_schema_v4_activation_fails_when_candidate_mode_negative_is_accepted(
     with pytest.raises(
         ValueError,
         match="candidate-mode negative control failed exact candidate adjudication",
-    ):
+    ) as exc_info:
         validate_research_gold_benchmark_activation(
             path,
             visible_questions={QUESTION_ID: visible_question},
             run_theory_semantic_judge=semantic_runner,
         )
+    assert "candidate_mode_negative=0/1" in str(exc_info.value)
+    assert "reference_status=PASS" in str(exc_info.value)
+    assert "calibrated=False" in str(exc_info.value)
 
 
 def test_schema_v4_requires_hash_bound_candidate_mode_negative_cases(

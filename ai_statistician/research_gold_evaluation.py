@@ -1563,7 +1563,8 @@ def _run_semantic_candidate_mode_activation(
     if error or judgment is None:
         raise ValueError(
             "schema_version 4 semantic reference or candidate-mode negative "
-            "control failed exact candidate adjudication"
+            "control failed exact candidate adjudication: "
+            f"{error or 'missing evaluator judgment'}"
         )
     negative_count = int(
         judgment.get("n_candidate_mode_negative_cases", 0) or 0
@@ -1583,7 +1584,16 @@ def _run_semantic_candidate_mode_activation(
     if not activation_passed:
         raise ValueError(
             "schema_version 4 semantic reference or candidate-mode negative "
-            "control failed exact candidate adjudication"
+            "control failed exact candidate adjudication: "
+            f"calibration={int(judgment.get('n_calibration_cases_correct', 0) or 0)}/"
+            f"{int(judgment.get('n_calibration_cases', 0) or 0)}; "
+            "candidate_mode_negative="
+            f"{int(judgment.get('n_candidate_mode_negative_cases_correct', 0) or 0)}/"
+            f"{negative_count}; "
+            f"reference_status={str(judgment.get('candidate_status', '') or '')}; "
+            "reference_document_status="
+            f"{str(judgment.get('candidate_document_status', '') or '')}; "
+            f"calibrated={judgment.get('semantic_judge_calibrated') is True}"
         )
     return {
         "task_id_hash": stable_hash(task_id),
