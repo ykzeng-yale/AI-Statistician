@@ -11867,7 +11867,10 @@ class AlgorithmEngineerRuntimeSubsystem:
                 proposal_id_field="llm_algorithm_engineer_proposal_id",
                 row_id_field="estimator_id",
                 expected_source_ids=expected_estimator_ids,
-                source_accepted=lambda row: row.get("smoke_passed") is True,
+                source_accepted=lambda row: _scientific_source_candidate_accepted(
+                    row,
+                    confirmatory_result_blind=False,
+                ),
             )
         )
         scientific_progress_mode = bool(scientific_progress)
@@ -12645,7 +12648,10 @@ class AlgorithmEngineerRuntimeSubsystem:
             passed_ids = {
                 str(row.get("estimator_id", "") or "").strip()
                 for row in prototype_rows
-                if row.get("smoke_passed") is True
+                if _scientific_source_candidate_accepted(
+                    row,
+                    confirmatory_result_blind=False,
+                )
                 and str(row.get("estimator_id", "") or "").strip()
             }
             if passed_ids == set(expected_estimator_ids):
@@ -12742,7 +12748,10 @@ class AlgorithmEngineerRuntimeSubsystem:
         passed_estimator_ids = {
             str(row.get("estimator_id", "") or "").strip()
             for row in prototype_rows
-            if row.get("smoke_passed") is True
+            if _scientific_source_candidate_accepted(
+                row,
+                confirmatory_result_blind=False,
+            )
             and str(row.get("estimator_id", "") or "").strip()
         }
         incomplete_estimator_ids = tuple(
@@ -12753,7 +12762,10 @@ class AlgorithmEngineerRuntimeSubsystem:
             for row in prototype_rows
             if str(row.get("estimator_id", "") or "")
             in source_revision_artifact_ids
-            and row.get("smoke_passed") is True
+            and _scientific_source_candidate_accepted(
+                row,
+                confirmatory_result_blind=False,
+            )
             and str(row.get("script_hash", "") or "")
             == str(
                 consumer_source_rows_by_id.get(
@@ -12768,7 +12780,10 @@ class AlgorithmEngineerRuntimeSubsystem:
             for row in prototype_rows
             if str(row.get("estimator_id", "") or "")
             in source_revision_artifact_ids
-            and row.get("smoke_passed") is True
+            and _scientific_source_candidate_accepted(
+                row,
+                confirmatory_result_blind=False,
+            )
             and str(row.get("script_hash", "") or "")
             != str(
                 consumer_source_rows_by_id.get(
@@ -12883,7 +12898,14 @@ class AlgorithmEngineerRuntimeSubsystem:
                 for row in prototype_rows
                 if row.get("prototype_status") in {"EXECUTED", "FAILED_METRIC_GATE"}
             ),
-            "n_passed": sum(1 for row in prototype_rows if row.get("smoke_passed") is True),
+            "n_passed": sum(
+                1
+                for row in prototype_rows
+                if _scientific_source_candidate_accepted(
+                    row,
+                    confirmatory_result_blind=False,
+                )
+            ),
             "n_metric_gate_failed": sum(
                 1
                 for row in prototype_rows
@@ -12899,7 +12921,10 @@ class AlgorithmEngineerRuntimeSubsystem:
                 1
                 for row in prototype_rows
                 if row.get("executor") == "generated_python_sandbox"
-                and row.get("smoke_passed") is True
+                and _scientific_source_candidate_accepted(
+                    row,
+                    confirmatory_result_blind=False,
+                )
             ),
             "n_live_generated_code_executed": sum(
                 1

@@ -530,6 +530,129 @@ def test_algorithm_source_workspace_owns_planning_and_source(
     )
 
 
+def test_uncommitted_smoke_pass_resumes_same_algorithm_workspace(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="algorithm-uncommitted-progress",
+        title="Uncommitted algorithm progress",
+        description="Preserve an executed draft until its source model commits it.",
+    )
+    theory_packet_id = "theory:algorithm-uncommitted-progress"
+    source_id = "estimator"
+    checkpoint = _checkpoint(question_id=question.id, source_id=source_id)
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "estimator_specs": [{"id": source_id}],
+    }
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source workspace owns model turns")
+
+    class SourceAgent:
+        provider = Provider()
+
+        @staticmethod
+        def source_workspace_owns_planning():
+            return True
+
+    def run_source_workspace(**_kwargs):
+        source = str(checkpoint["current_code_draft"]["code"])
+        return {
+            "estimator_id": source_id,
+            "prototype_status": "EXECUTED",
+            "executor": "generated_python_sandbox",
+            "source_code": source,
+            "script_hash": stable_hash(source),
+            "execution_attempted": True,
+            "execution_smoke_passed": True,
+            "smoke_passed": True,
+            "scientific_code_workspace_failure": {
+                "validation_errors": [
+                    "client-tool turn budget exhausted before a terminal disposition"
+                ],
+                "recovery_checkpoint": checkpoint,
+                "runtime_edited_source": False,
+            },
+        }, []
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        run_source_workspace,
+    )
+    context = _research_context(question.id, theory_packet_id)
+    deferred_task = AgentTask(
+        task_id="simulation:evaluator-after-uncommitted-source",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author the executable evaluator after source review.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": context,
+            "empirical_evaluation_phase": (
+                runtime_module.EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
+            ),
+            "evaluator_source_authoring": True,
+            "n_runs": 100_000,
+            "seed": 7,
+        },
+    )
+    result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=2,
+        seed=7,
+        proposal_agent=SourceAgent(),
+        semantic_reviewer_available=False,
+    ).run(
+        AgentTask(
+            task_id="algorithm:uncommitted-progress",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Continue until the source model explicitly commits.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": context,
+                "implementation_gaps": [{"estimator_id": source_id}],
+                "implementation_before_metric_freeze": True,
+                "deferred_metric_protocol_task": asdict(deferred_task),
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "n_runs": 2,
+                "seed": 7,
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert result.status == "REVISE", result
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert result.failure_classification == (
+        "algorithm_source_workspace_progress_checkpoint"
+    )
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeAlgorithmSandboxManifest"
+    )
+    assert manifest["n_executed"] == 1
+    assert manifest["n_passed"] == 0
+    assert manifest["n_generated_code_passed"] == 0
+    assert manifest["llm_algorithm_engineer_proposal_id"] == ""
+    assert manifest["prototypes"][0]["smoke_passed"] is True
+    assert manifest["prototypes"][0]["scientific_code_workspace_failure"]
+
+
 def test_exploratory_simulation_source_workspace_owns_planning_and_source(
     monkeypatch,
     tmp_path,

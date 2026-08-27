@@ -1907,10 +1907,9 @@ def run_scientific_code_workspace(
             )
 
         if call.name == SCIENTIFIC_SOURCE_EDIT_TOOL:
-            if set(tool_input) != {"old_text", "replacement"}:
+            if set(tool_input) != {"edits"}:
                 raise ClientToolInputError(
-                    "edit_current_scientific_source requires exactly old_text and "
-                    "replacement"
+                    "edit_current_scientific_source requires exactly one edits array"
                 )
             current = deepcopy(dict(state["code_draft"]))
             if not current:
@@ -1918,15 +1917,18 @@ def run_scientific_code_workspace(
                     "edit_current_scientific_source requires existing source; use "
                     "submit_scientific_source for initial authoring"
                 )
-            current["code"], edit_metadata = apply_model_exact_text_edits(
+            current["code"], edit_records = apply_model_exact_text_edits(
                 str(current["code"]),
-                edits=[tool_input],
+                edits=tool_input["edits"],
                 replacement_key="replacement",
             )
             return store_model_source(
                 current,
-                source_action="exact_text_edit",
-                edit_metadata=edit_metadata[0],
+                source_action="atomic_exact_text_patch",
+                edit_metadata={
+                    "edit_count": len(edit_records),
+                    "edits": edit_records,
+                },
             )
 
         if call.name == SCIENTIFIC_SOURCE_COMMIT_TOOL:
@@ -2451,18 +2453,34 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_EDIT_TOOL,
             description=(
-                "Apply one model-authored exact-text edit to current Python/R source "
-                "without executing it. old_text must match once; runtime does not "
-                "interpret or repair source. Make as many coherent edits as needed, "
-                "then explicitly run the current complete source."
+                "Atomically apply one or more ordered model-authored exact-text edits "
+                "to the current Python/R source without executing it. Each old_text "
+                "must match the declared number of times; runtime validates the patch "
+                "but does not interpret or repair source. Put coherent multi-hunk "
+                "changes in one call, then explicitly run the complete source."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["old_text", "replacement"],
+                "required": ["edits"],
                 "properties": {
-                    "old_text": {"type": "string", "minLength": 1},
-                    "replacement": {"type": "string"},
+                    "edits": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["old_text", "replacement"],
+                            "properties": {
+                                "old_text": {"type": "string", "minLength": 1},
+                                "replacement": {"type": "string"},
+                                "expected_occurrences": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                },
+                            },
+                        },
+                    },
                 },
             },
             terminal=False,

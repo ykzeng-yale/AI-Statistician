@@ -306,7 +306,11 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
                 ClientToolCall(
                     "ambiguous-edit",
                     SCIENTIFIC_SOURCE_EDIT_TOOL,
-                    {"old_text": "missing_name", "replacement": "1"},
+                    {
+                        "edits": [
+                            {"old_text": "missing_name", "replacement": "1"}
+                        ]
+                    },
                 )
             ),
             _response(
@@ -314,11 +318,16 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
                     "exact-edit",
                     SCIENTIFIC_SOURCE_EDIT_TOOL,
                     {
-                        "old_text": (
-                            "    value = missing_name\n"
-                            "    return value + missing_name"
-                        ),
-                        "replacement": "    value = 1\n    return value",
+                        "edits": [
+                            {
+                                "old_text": "    value = missing_name\n",
+                                "replacement": "    value = 1\n",
+                            },
+                            {
+                                "old_text": "    return value + missing_name\n",
+                                "replacement": "    return value\n",
+                            },
+                        ]
                     },
                 )
             ),
@@ -361,6 +370,17 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
     assert result.evidence["source_updates"] == 1
     assert result.evidence["runtime_edited_source"] is False
     assert "observed 2 matches" in str(backend.requests[1].messages)
+    applied = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert applied["source_action"] == "atomic_exact_text_patch"
+    assert applied["edit_metadata"]["edit_count"] == 2
+    edit_schema = next(
+        tool.input_schema
+        for tool in backend.requests[0].tools
+        if tool.name == SCIENTIFIC_SOURCE_EDIT_TOOL
+    )
+    assert edit_schema["required"] == ["edits"]
 
 
 def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
