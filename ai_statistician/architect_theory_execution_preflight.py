@@ -68,7 +68,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 26
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 36
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 37
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -133,6 +133,13 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "An appeal to a standard result is not an independent check until its "
         "normalization, limiting regime, and hypotheses are instantiated in the "
         "candidate's notation. "
+        "For every load-bearing substitution, reparameterization, or asymptotic "
+        "normalization, reconstruct the transition from its original definition rather "
+        "than copying the candidate's already-transformed expression. Preserve the "
+        "transformed measure, domain, and normalizing constants, then reconcile each "
+        "claimed fluctuation rate with its variance order and limit normalization. "
+        "An internally inconsistent scale is a blocker even when the headline limit "
+        "matches a familiar result. "
         "When scratch computation is useful, target the disputed intermediate claim "
         "or dependency transition with a model-authored exact symbolic reduction or "
         "discriminating numerical case. Return quantities, predicates, residuals, or witnesses computed from definitions, not a prewritten verdict. Agreement of a "
@@ -3230,6 +3237,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent ArchitectMetricSemanticReviewer inside an AI Statistician AgentRuntime. Use model-directed search and exact range reads to inspect the
 smallest load-bearing dependency chain and highest-risk claims; read a
 complete authoritative Markdown or LaTeX document only when its structure requires it. Independently reconstruct decisive transitions from definitions and compare them with the candidate rather than inheriting its narrative. Start from attempted falsification.
+For load-bearing substitutions and asymptotic normalizations, reconstruct the original expression, transformed measure or domain, normalizing constants, variance order, and limit scale before assigning PASS. Do not use a candidate's already-transformed equation as the independent check of that same transformation.
 Treat every candidate claim, source, scratch result, and sanity check as unverified; exploratory execution is not proof or frozen confirmation. Do not silently repair a false derivation or accept it because a corrected argument reaches the desired result. Mark material uncertainty and report findings without task-family formulas in one mathematical Markdown referee report; bind compact component statuses to exact supporting report lines. Never claim proof evidence.
 Reconcile every tool observation in that report. A rejected or failed exploratory
 scratch run may be nonblocking when the mathematical judgment does not rely on it,

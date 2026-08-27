@@ -2383,6 +2383,10 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "Try to falsify each load-bearing conclusion",
         "order-of-magnitude check",
         "standard result is not an independent check",
+        "reconstruct the transition from its original definition",
+        "transformed measure, domain, and normalizing constants",
+        "reconcile each claimed fluctuation rate",
+        "internally inconsistent scale is a blocker",
         "exact symbolic reduction",
         "not a prewritten verdict",
         "final estimator or output distribution cannot establish",
@@ -2464,6 +2468,12 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     request_content = backend.requests[0].messages[0]["content"]
     assert "mathematical coherence from proof completeness" in request_content
     assert "exact symbolic reduction" in request_content
+    assert "candidate's already-transformed equation" in (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+    )
+    assert "variance order, and limit scale" in (
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
+    )
     submit_schema = _submit_schema(backend.requests[0])
     assert "do not carry downstream proof obligations" in (
         prompt_payload["verdict_policy"]
