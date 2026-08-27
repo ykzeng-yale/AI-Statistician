@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`57e2edc6e97474448f1fb634224471448bc09d40`.
+`b592a0bfed439386fadc69327bd49eccb074cdc6`.
 
 Latest selective-adoption implementation commits:
 
@@ -48,12 +48,17 @@ Latest selective-adoption implementation commits:
 - `24de629178cb2c8214dcefe5c553ef1015378052`: make active Markdown authority
   explicit and let model-owned exact edits safely replace a declared number of
   repeated literals without regenerating a large file.
+- `5fb0711a2852568fe884cb7bdf6cc6a492ed3732`: replace the fresh metric mini-language
+  with a compact preregistration artifact and ordinary Simulation Python/R source.
+- `53ef1ec62fd6a00a0ba547df1886c2ce9366f9f6`: remove the runtime-expanded Theory
+  review checklist so the referee's hash-bound Markdown report owns mathematics.
 
 Primary references:
 
-- [`run_turn`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tools/router.rs)
-- [`ToolOrchestrator`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tools/orchestrator.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/b592a0bfed439386fadc69327bd49eccb074cdc6/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter`](https://github.com/openai/codex/blob/b592a0bfed439386fadc69327bd49eccb074cdc6/codex-rs/core/src/tools/router.rs)
+- [tool-call continuation](https://github.com/openai/codex/blob/b592a0bfed439386fadc69327bd49eccb074cdc6/codex-rs/core/src/stream_events_utils.rs)
+- [`ToolOrchestrator`](https://github.com/openai/codex/blob/b592a0bfed439386fadc69327bd49eccb074cdc6/codex-rs/core/src/tools/orchestrator.rs)
 - [`TurnContext`](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/turn_context.rs)
 - [`apply_patch` runtime](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/tools/runtimes/apply_patch.rs)
 - [atomic step activation](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/core/src/session/step_activation.rs)
@@ -83,6 +88,12 @@ Haiku or Sonnet. Embedding `codex exec`, app-server, or the Python Codex SDK
 would introduce a second conversation owner, a second tool router, and an
 OpenAI-model dependency. The existing prohibition on treating Codex, Claude
 Code, Cursor, or similar agents as a pure `GeneratorBackend` remains correct.
+
+At the current recheck pin, `run_turn` keeps one `ModelClientSession` across the
+turn, `ToolRouter` maps model items to generic calls, and completed tool calls set
+`needs_follow_up` so their observations re-enter the same ordered history. None
+of those layers defines what code, mathematics, simulation result, or Lean proof
+should say. That separation is the reusable harness contract.
 
 ## Adopted principles
 
@@ -142,10 +153,11 @@ frozen task intent requires formal evidence.
 ## Correction made from this audit
 
 The independent Theory referee already owned a persistent Markdown report, but
-its terminal tool also required one PASS/FAIL/UNCERTAIN value for every claim,
-fixed review dimension, and estimator. That duplicated the report, enlarged a
-dynamic tool schema, encouraged shallow checklist completion, and made runtime
-derive scientific judgment from model-self-reported rows.
+its terminal tool also required PASS/FAIL/UNCERTAIN rows for runtime-expanded
+claims, estimator handoffs, and downstream simulation or formal targets, each
+bound to report spans. That duplicated the report, enlarged a dynamic tool schema,
+encouraged shallow checklist completion, and made runtime derive scientific
+judgment from model-self-reported rows.
 
 The live referee contract now carries only:
 
@@ -1178,15 +1190,13 @@ can commit or report a gap earlier, and the harness makes no extra call merely
 because capacity remains.
 
 The same run also showed that one global referee acceptance can coexist with a
-false intermediate equation. Future review material therefore contains a small
-identity-only component map derived from the active research question, model-
-authored claim index, estimator handoff, and task-selected simulation or formal
-targets. The referee still writes the complete mathematics in one Markdown
-report and assigns each component `PASS`, `FAIL`, or `UNCERTAIN`. Runtime binds
-ordered identities, report hash, prior-finding lineage, and acceptance
-consistency; it does not derive a formula, parse Lean grammar, prescribe a proof,
-or repair content. Exploratory `OPEN` or `UNCERTAIN` claims remain nonblocking
-unless the task contract requires them.
+false intermediate equation. At that stage, commit `39d42c18` introduced an
+identity-only component map derived from the question, model-authored claim
+index, estimator handoff, and downstream targets. Later immutable evidence
+showed that this map became a model agenda and encouraged checklist-shaped false
+acceptance. Commit `53ef1ec6` therefore removes the map while retaining the
+independent Markdown report, exact reads, blocker findings, identity checks, and
+prior-finding lineage.
 
 Commit `39d42c18b09c34221f6b09dc6f5f49991b9540f6` implements these changes and
 deletes thirteen unreferenced legacy helpers to keep the canonical production
@@ -1196,9 +1206,9 @@ second scheduler, RepairAgent, Opus execution, task formula, or mandatory formal
 lane was added. This is selective Codex harness reuse, not embedding Codex as a
 second research runtime.
 
-## Component verdicts reference the model-owned report
+## Superseded component-to-report spans
 
-The Normal-normal, Neyman, Fisher-z, and Kendall audits share a narrower failure:
+The Normal-normal, Neyman, Fisher-z, and Kendall audits shared a narrower failure:
 an isolated reviewer can reconstruct useful mathematics and still return an
 unlocalizable `PASS` for a contradictory candidate step. More reviewer prose,
 another vote, or a runtime algebra parser would move scientific judgment into the
@@ -1215,6 +1225,11 @@ same Codex-shaped artifact principle already used for source and tool output:
 4. Runtime still cannot determine whether the selected mathematics is correct.
    A hash-bound `PASS` is review traceability, not theorem, empirical, hidden-gold,
    or kernel evidence.
+
+This span design is historical and was removed by `53ef1ec6` after Task 60 showed
+that runtime-expanded components could steer the referee away from contradictions
+in the authoritative document. No replacement checklist or mathematical parser
+was added.
 
 No model call, agent, scheduler, retry, formula rule, equation parser, scratch
 requirement, or fixed review checklist was added. Five unreferenced helpers were

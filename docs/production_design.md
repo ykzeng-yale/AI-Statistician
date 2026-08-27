@@ -140,9 +140,9 @@ workspace; required review and genuine conflicts retain their authority paths.
 When prior work is permitted, the same TheoryDeveloper session can inspect a frozen
 snapshot or model-selected public paper/repository text without a LiteratureAgent.
 An independent referee gets a separate opaque-handle session and chooses its own
-queries and writes one authoritative Markdown report. Compact component verdicts point
-to exact hash-bound report spans, which may be shared; Runtime checks identity and
-traceability, not mathematics. Spans are not proof or referee correctness; evaluator gold remains excluded from all live discovery.
+queries and writes one authoritative Markdown report. Its compact envelope contains
+only the report hash, inspected references, disposition, actual blockers, and prior-
+finding statuses. Runtime checks identity and traceability, not mathematics; evaluator gold remains excluded from all live discovery.
 
 ## Scientific coding workspace
 
@@ -237,10 +237,10 @@ The authoritative `metric_protocol.json` is external workspace state, not a stru
 A rejected `metric_contract_review` returns exact findings to the same metric owner. A still-rejected revision blocks with full lineage; only a separately evidenced cross-workspace inconsistency reaches Architect.
 
 A rejected theory preflight returns exact observations to the parent-bound theory
-workspace. Before candidate-document inspection, the same referee writes an independent
-reconstruction from the task contract and model-selected source or scratch observations; runtime retains that version by hash. After inspection, the referee revises the same
-Markdown report by explicit comparison. Runtime validates chronology, bytes, hashes,
-and lineage only, never selecting mathematics or judging correctness.
+workspace. Inside the isolated referee session, model-actionable tool or envelope errors
+return to that same referee. It chooses document reads, source search, scratch work, and
+edits to one authoritative Markdown report in whatever order supports its judgment.
+Runtime validates task intent, bytes, hashes, references, disposition, and lineage only; it creates no claim checklist and never selects mathematics or judges correctness.
 
 The reviewer may query task-bound literature or formal RAG, and every cited source
 is snapshot-verified. It may also author an isolated Python/R/SymPy countercheck and
