@@ -6,10 +6,13 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`b592a0bfed439386fadc69327bd49eccb074cdc6`.
+`89650c66f2f3ff0d028d3f5d6d0b187b2ed49be5`.
 
 Latest selective-adoption implementation commits:
 
+- `5d5125607c58bc5830ac11a27c6c64ce6764e344`: separate Algorithm
+  developer diagnostics from independently preregistered confirmatory
+  Simulation evidence without adding a content judge or another loop;
 - `5fd585b8e9b6f00435a7ca796aaad651b2f5378f`: separate same-owner
   workspace continuations from outer research-graph iterations;
 - `6f588ff13cb2adf4ab01d1ec61eaecdd8842c594`: remove the mandatory
@@ -2253,3 +2256,43 @@ exact development theorem closure remains `0/2`. The exact-Haiku/model-policy,
 metric workspace, reviewer, sandbox, backend, and ladder panel passed `215/215`;
 the complete repository passed `961/961` in 79.71 seconds. No live model call or
 consumed-task execution occurred during this regression validation.
+
+## Estimator diagnostics are not confirmation
+
+The immutable Task 61 source exposed a separate evidence-ownership error. Its
+Algorithm artifact combined ordinary estimator unit checks with a section labeled
+as confirmatory assessment, including model-authored DGPs, thresholds, and outcome
+interpretation. The code-owner loop itself behaved correctly, but the artifact
+surface invited one model to author the estimator and its purported independent
+confirmation in the same workspace.
+
+Commit `5d512560` keeps the existing direct Algorithm model/tool/observation loop
+and narrows only its authority. `run_sandbox` remains available for model-authored
+unit, boundary, and metamorphic diagnostics of `run_estimator`; it is explicitly
+developer-only. Algorithm execution artifacts now persist
+`execution_phase=estimator_developer_diagnostic` and
+`empirical_evidence_status=ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE`.
+Only SimulationEngineer's separately preregistered, blinded source and execution
+can create confirmatory empirical evidence.
+
+This is an evidence boundary, not a statistical rule. Runtime does not inspect
+test content, recognize a DGP, rewrite source, prescribe cases, or decide whether
+an estimator is correct. The source-owning model still sees raw execution and may
+revise directly. No tool, agent, repair path, Architect route, retry, provider,
+model escalation, or scheduler was added.
+
+The upstream Codex checkout was also rechecked from `b592a0bf` through
+[`89650c66`](https://github.com/openai/codex/commit/89650c66f2f3ff0d028d3f5d6d0b187b2ed49be5).
+The two-commit delta adds per-response usage metadata and synchronous review for
+sensitive MCP actions. It does not alter the core same-session model/tool loop.
+Both changes reinforce existing local boundaries: telemetry is not scientific
+authority, and authority-sensitive actions need an explicit owning gate. They do
+not justify embedding Codex core, App Server, Responses transport, Guardian, or a
+second scheduler in the Claude-first runtime.
+
+The final focused assertions passed `3/3`; the adjacent scientific workspace,
+sandbox, reviewer, research runtime, evaluation, and model-policy panel passed
+`195/195`; and the complete repository passed `961/961`. No model was called and
+Task 61 was not rerun, resumed, repaired, hidden-evaluated again, rescored, or
+resampled. Trustworthy capability remains `4/61`, and exact development theorem
+closure remains `0/2`.

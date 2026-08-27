@@ -1,13 +1,13 @@
 {
-  "schema_version": 210,
+  "schema_version": 211,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "f44fcd21cee441f0a2f9bf90a29083c09157422d",
+  "validated_code_head": "5d5125607c58bc5830ac11a27c6c64ce6764e344",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all sixty-one consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/61 and exact development Lean closure remains 0/2. Task 61 confirms that Codex-shaped same-session Theory and Algorithm tool loops work mechanically, but it also exposes three capability gaps: the Theory author/referee/hidden judge false-accepted active mathematical errors, the code reviewer false-accepted explicit ABI and exact-comparison defects, and the fresh metric lane used the wrong JSON-in-JSON content medium. Commit f44fcd21 is future-task-only shared harness evidence: fresh scientific protocols are model-owned Markdown with a compact hash-bound commit envelope, while frozen rebinding remains JSON. AgentRuntime still owns only intent, identity, blinding, lineage, structural validation, execution, and evidence authority. Do not rerun, resume, repair, hidden-evaluate again, rescore, or resample Task 61. Improve scientific judgment inside the existing model workspaces and separate estimator self-tests from confirmatory Simulation without task formulas, deterministic mathematical parsers, retries, routes, or another scheduler. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all sixty-one consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/61 and exact development Lean closure remains 0/2. Task 61 confirms that Codex-shaped same-session Theory and Algorithm tool loops work mechanically, but the Theory author/referee/hidden judge false-accepted active mathematical errors, the code reviewer false-accepted explicit ABI and exact-comparison defects, and runtime never reached Simulation. Commits f44fcd21 and 5d512560 are future-task-only shared harness evidence: fresh scientific protocols are model-owned Markdown with compact hash-bound commits, Algorithm run_sandbox is developer diagnostic rather than empirical evidence, and only separately preregistered blinded Simulation execution can be confirmatory. AgentRuntime still owns only intent, identity, blinding, lineage, structural validation, execution, and evidence authority. Do not rerun, resume, repair, hidden-evaluate again, rescore, or resample Task 61. Improve scientific judgment inside the existing model workspaces without task formulas, deterministic mathematical parsers, retries, routes, or another scheduler; then freeze a disjoint known-result task before any new exact-Haiku product call. Frozen evaluations remain exact Haiku, production may use Sonnet, and Opus remains prohibited.",
   "latest_exact_two_sample_permutation_l0_evaluation": {
     "task_id": "exact_two_sample_permutation_known_result",
     "family": "finite_randomization_inference",
@@ -43,7 +43,9 @@
     "operator_audit": "docs/operator_audits/exact_two_sample_permutation_l0_v1.md",
     "post_run_shared_mechanism_commit": "f44fcd21cee441f0a2f9bf90a29083c09157422d",
     "post_run_shared_change": "Future fresh acceptance protocols are model-owned Markdown files. Their commit tool carries only the exact document hash, evaluator identity, replicate count, and short rationale; runtime binds the bytes into the existing acceptance ABI. Frozen rebinding keeps JSON. No task content, model call, retry, route, RepairAgent, provider, or scheduler was added.",
-    "verification": "Fresh Markdown protocol persistence, raw same-session commit rejection, compact metadata materialization, frozen JSON compatibility, exact-Haiku/model policy, backend, and ladder accounting passed in a 215/215 focused panel; the complete repository passed 961/961 in 79.71 seconds. No model call or consumed-task execution occurred.",
+    "post_run_algorithm_phase_boundary_commit": "5d5125607c58bc5830ac11a27c6c64ce6764e344",
+    "post_run_algorithm_phase_boundary_change": "Future Algorithm run_sandbox source remains freely model-authored but is explicitly developer-only unit, boundary, and metamorphic diagnosis of run_estimator. Its raw observation persists execution_phase and a non-confirmatory evidence status. Only separately preregistered blinded SimulationEngineer execution can create confirmatory empirical evidence. Runtime parses no test content and adds no tool, agent, retry, route, provider, model escalation, or scheduler.",
+    "verification": "Fresh Markdown protocol persistence, raw same-session commit rejection, compact metadata materialization, frozen JSON compatibility, exact-Haiku/model policy, backend, and ladder accounting passed in a 215/215 focused panel. The Algorithm phase-boundary assertions passed 3/3, the adjacent scientific and runtime panel passed 195/195, and the complete repository passed 961/961. No model call or consumed-task execution occurred.",
     "full_task_score": "0/1 under the pre-frozen protocol",
     "ladder_score_after_consumption": "4/61",
     "boundary": "The sole product draw and sole post-runtime hidden evaluation are consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, or resample Task 61. Commit f44fcd21 is future-task shared mechanism evidence only."
@@ -1048,12 +1050,12 @@
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "b592a0bfed439386fadc69327bd49eccb074cdc6",
-    "latest_incremental_finding": "A targeted recheck of upstream Codex at b592a0bf confirms the durable core: run_turn reuses one turn-scoped ModelClientSession, ToolRouter turns model output into generic calls, tool results set needs_follow_up and return to the same ordered history, and sandbox/approval/lifecycle code remains separate from content judgment. The Python SDK and App Server still assume the Codex/OpenAI conversation owner. Embedding them in the Claude-first scientific runtime would add a second model loop, tool router, and scheduler rather than improve Theory, Python/R, Simulation, or Lean judgment.",
-    "latest_incremental_adoption": "Task 61 provided fresh live evidence that the Codex-shaped same-session Theory and Algorithm loops work, while the fresh metric content medium did not: a long scientific protocol embedded inside JSON failed on escaping and exact-literal edits. Commit f44fcd21 moves fresh protocol content to an authoritative Markdown file and keeps only evaluator identity, replicate count, rationale, and document hash in the terminal envelope. Frozen rebinding remains JSON. Codex core is still excluded because it would add a second conversation owner, tool router, and scheduler. No task rule, source patch, model call, retry, route, RepairAgent, provider, or model escalation was added.",
+    "latest_rechecked_upstream_commit": "89650c66f2f3ff0d028d3f5d6d0b187b2ed49be5",
+    "latest_incremental_finding": "The two-commit Codex delta from b592a0bf through 89650c66 adds per-response usage metadata and requires synchronous Guardian review for sensitive MCP actions. It leaves the core same-session model/tool/observation loop unchanged. The applicable boundaries are that lifecycle and cost telemetry are not scientific evidence, and authority-sensitive actions need an explicit owning gate. Embedding Codex core, App Server, Responses transport, Guardian, or its SDK would still add a second conversation owner, tool router, and scheduler to the Claude-first scientific runtime.",
+    "latest_incremental_adoption": "Task 61 exposed an evidence-ownership coupling after its direct Codex-shaped Algorithm loop worked: model-authored estimator self-tests and confirmatory-simulation language occupied the same artifact. Commit 5d512560 keeps run_sandbox as unrestricted developer diagnostics but persists its non-confirmatory execution phase; only separately preregistered blinded SimulationEngineer execution can promote empirical evidence. Runtime does not parse test content or add a tool, agent, repair path, Architect route, retry, provider, model escalation, or scheduler.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "f44fcd21cee441f0a2f9bf90a29083c09157422d",
+    "implementation_commit": "5d5125607c58bc5830ac11a27c6c64ce6764e344",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -1100,7 +1102,8 @@
       "7b07d9e7c183cd5a11fcbe4959f058e7386cfdca",
       "5fb0711a2852568fe884cb7bdf6cc6a492ed3732",
       "53ef1ec62fd6a00a0ba547df1886c2ce9366f9f6",
-      "f44fcd21cee441f0a2f9bf90a29083c09157422d"
+      "f44fcd21cee441f0a2f9bf90a29083c09157422d",
+      "5d5125607c58bc5830ac11a27c6c64ce6764e344"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -1125,10 +1128,12 @@
       "codex-rs/exec-server/README.md": "fdaeead379463e87a10d989c82d04558973cc8d4fcc9a8b3a7b783824977605b"
     },
     "latest_rechecked_core_source_hashes": {
-      "codex-rs/core/src/session/turn.rs": "d25b1337ab8cb931d9f11953c30f8caf823284bcd26ff9a2a70f4582642e582b",
+      "codex-rs/core/src/session/turn.rs": "26925aa16876caf2b9d69ff1e4bcf34d9b431ebbf249c730f299b18206a68d91",
       "codex-rs/core/src/tools/router.rs": "bdd1767bda52be77d3fe21768ffb80260c3abfe311b87f6f2124ba1ef3e64ab2",
       "codex-rs/core/src/stream_events_utils.rs": "7919187dae414aded83bc48adaa189c057f6f7ccd71d51e55f57216dce5b5a34",
       "codex-rs/core/src/tasks/regular.rs": "2fbf0923507f84322d8623c4bca018f2f1deeee6c46bf4f241b320f00b6e1f7a",
+      "codex-rs/core/src/session/mcp.rs": "c8a08e81531619527624cfdabfff2e707cb1bc6d6d951bf87bb1e9c554029fbd",
+      "codex-rs/protocol/src/response_usage.rs": "0e59149bfc41168543d127ee0e8a4e1add368e54962ad69d15f6d4a3603104d1",
       "sdk/python/docs/api-reference.md": "cd9948e7d014c52ba826e86517bb502b8f97044d2e677bf7aec197252e7ab495"
     },
     "decision": "Reuse Codex's persistent model-tool-observation loop, stable bounded tool surface, external artifact state, credential-safe persisted metadata, terminal-error pending-input preservation, sparse ownership, owner-scoped tool permissions, paginated-history principle, and telemetry boundaries. Do not embed codex exec, app-server, thread store, worktree manager, or the Codex SDK as another scheduler or generator backend in the Claude-first canonical runtime. Treat standalone Codex sandboxing as a future pinned native execution provider only after cross-platform isolation calibration.",
