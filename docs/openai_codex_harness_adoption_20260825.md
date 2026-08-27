@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`daa3eaf10fda93ad8949b926c059dd8cc399f76a`.
+`f3741880f6dbc706252f4c5bb93f061dba18950d`.
 
 Latest selective-adoption implementation commits:
 
@@ -22,6 +22,9 @@ Latest selective-adoption implementation commits:
 - `3f0ee0131d2b298bbb668e53afc132cae0ff562a`: give Python/R source owners
   the same model-authored exact-edit and immediate-execution loop as Theory and
   Lean while consolidating duplicate edit machinery.
+- `e5cccbb276bb1ef66bb5f387b1bc992b4dfaa74c`: assign production scientific
+  Critic work to Sonnet after a disjoint document-session test isolated model
+  judgment, rather than evidence transport, as the remaining blocker.
 
 Primary references:
 
@@ -41,6 +44,7 @@ Primary references:
 - [standalone sandbox implementation](https://github.com/openai/codex/tree/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/sandboxing)
 - [credential-safe Git metadata](https://github.com/openai/codex/blob/4213b38f3c555049bf6f494065698a3dfe587c16/codex-rs/protocol/src/sanitized_git_url.rs)
 - [tool-schema sanitization](https://github.com/openai/codex/blob/daa3eaf10fda93ad8949b926c059dd8cc399f76a/codex-rs/tools/src/json_schema.rs)
+- [standalone function-output turn routing](https://github.com/openai/codex/commit/b9c4b9a0cfe8544c823a5dbf6ea61fc3974500ba)
 - [OpenAI's agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [OpenAI's App Server harness explanation](https://openai.com/index/unlocking-the-codex-harness/)
 - [OpenAI's harness-engineering principles](https://openai.com/index/harness-engineering/)
@@ -1700,3 +1704,52 @@ Lean verification.
 
 The mechanism applies only to future tasks. Task 54 is consumed and immutable: no
 report edit, rerun, resume, hidden reevaluation, rescore, or model call is authorized.
+
+## Document tools are not a substitute for scientific judgment
+
+The disjoint Statsmodels ADF/KPSS Task 55 tested the new Critic document session
+without changing it. The source owner used 22 exact-Haiku turns and 28 generic
+tools to inspect the frozen source, run it once, write one 436-line Markdown
+report, and commit a hash-bound checkpoint. The Critic then used 15 turns and 15
+tools, made 14 exact accesses, and inspected all 12 externalized evidence
+documents before returning `SUPPORTED`.
+
+The transport mechanism therefore worked. Nevertheless, the report attributed
+the sole KPSS warning to the wrong invocation and reversed its inequality,
+converted failures to reject into substantive conclusions, defended a trend-
+stationarity claim not tested by `regression="c"`, conflated differencing with
+detrending, misdefined strict stationarity, and omitted required article and
+snapshot identity. The Critic repeated several of those errors. A separately
+calibrated exact-Haiku hidden judge also marked all ten explicit claims satisfied.
+
+This result narrows the Codex lesson. Stable files, model-selected tools, raw
+same-session observations, and terminal actions are necessary for long-context
+review, but they do not manufacture scientific reasoning capacity. Adding
+another read tool, synonymous prompt checklist, reviewer vote, stationarity
+parser, or report-repair layer would not address the measured failure.
+
+Commit `e5cccbb2` changes only future production model allocation: scientific
+Critic work now defaults to Sonnet, matching the Theory, scientific-code,
+simulation, and semantic-review tiers. Frozen `research_eval` and
+`capability_eval` runs still pin every enabled role to exact
+`claude-haiku-4-5-20251001`; Opus remains prohibited. The prompt, tool surface,
+schema, agent graph, number of review stages, and evidence authority are
+unchanged. The final focused panel passed `186/186`; the complete repository
+passed `945/945` in 82.62 seconds; compile-all, JSON, diff, model-policy,
+secret, and architecture-budget checks passed. Production Python remains below
+the unchanged limit at 149,868 lines, with `research_agent_runtime.py` still
+24,986 lines.
+
+The official Codex checkout was incrementally rechecked from `daa3eaf` through
+`f374188`. The relevant new `b9c4b9a` change allows named standalone
+function-call outputs to start or steer a turn while preserving them as passive
+conversation items. AI Statistician already returns exact client-tool
+observations to the same source-owning session. The remaining upstream changes
+concern permission context, MCP provenance, browser cleanup, retained-image
+budgeting, Guardian, proxy hardening, and platform telemetry. None supplies a
+provider-neutral Claude research harness or justifies embedding Codex core, App
+Server, Responses transport, thread storage, or another scheduler.
+
+Task 55 remains immutable automated `1/1` and trustworthy `0/1`. It cannot be
+rerun, resumed, repaired, hidden-evaluated again, rescored, or resampled; the
+model-tier correction is future-task mechanism evidence only.
