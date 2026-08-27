@@ -2744,3 +2744,25 @@ contradiction. That negative remains evaluator-only, is frozen before the first
 product call, and never becomes runtime feedback. Task 69 remains immutable `0/1`,
 trustworthy capability remains `4/69`, and exact development theorem closure remains
 `0/2`.
+
+## Candidate-mode activation without another runtime
+
+Commit `6d751fb6` turns the Task 69 evaluator lesson into one bounded shared
+mechanism. New schema-4 authorities must provide at least one hash-bound long-form
+near miss. Protocol v5 sends each near miss through the exact integrated candidate
+schema in its own exact-Haiku call, with private identity and expected status omitted,
+then sends the frozen full reference as the activation candidate. A false-accepted
+negative fails activation before AgentRuntime makes its first product-model call.
+
+Activation and post-runtime hidden evaluation call the same semantic execution
+function. The result cannot edit a workspace, route a task, retry a candidate, or
+enter runtime feedback. This follows Codex's useful principle of one owner loop plus
+exact current observations while keeping evaluator authority isolated from the
+source-owning session.
+
+The change also removes the 671-line `fresh_start_cross_task_e2e.py` side audit and
+its isolated tests. No product or CLI path used it, and it required Lean closure for
+every task despite the current task-intent-driven optional-formalization contract.
+The complete repository passes `983/983`; production Python is `149638` lines, 359
+fewer than before this mechanism. No formula, parser, repair worker, retry, extra
+reviewer, scheduler, provider runtime, Sonnet, or Opus call was added.

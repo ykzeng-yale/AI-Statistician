@@ -99,6 +99,14 @@ contradiction, so keyword or final-answer matching cannot pass it. Its source,
 judgment, model identity, and hashes remain evaluator-only. This is a benchmark
 negative control, not a product formula, prompt answer, repair rule, or post-run retry.
 
+Commit `6d751fb6` makes this executable for new schema-4 authorities. Each
+hash-bound near miss is submitted in a separate call under the same integrated
+document-status, claim-status, and evidence-reference schema as the eventual
+candidate. The frozen full reference is then submitted as the activation candidate.
+Private case identities and expected statuses are withheld from every model request;
+any false-accepted negative prevents activation before the first product call.
+Historical schema-1 through schema-3 draws retain their immutable results.
+
 That audit is performed at the granularity of one hidden behavior, not one
 aggregate boolean. Every hidden test vector must be entailed by at least one
 explicit visible clause, including missing-field, extra-field, coercion, and

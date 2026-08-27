@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "c6bee50a52fee837797a1a14f95a92985ef612e6"
+LATEST_SHARED_MECHANISM_HEAD = "6d751fb601ffa6688f14a98e28ad6db2ee3c13c4"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 69
 CURRENT_CONSUMED_TASKS = 69
@@ -6614,7 +6614,7 @@ def test_welch_satterthwaite_l0_consumed_draw_is_operator_invalidated() -> None:
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
-    assert "long-form candidate" in readiness["latest_shared_mechanism_summary"]
+    assert "long-form near miss" in readiness["latest_shared_mechanism_summary"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -6732,7 +6732,7 @@ def test_neyman_scott_l0_automated_pass_is_operator_invalidated() -> None:
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
-    assert "long-form candidate" in readiness["latest_shared_mechanism_summary"]
+    assert "long-form near miss" in readiness["latest_shared_mechanism_summary"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
