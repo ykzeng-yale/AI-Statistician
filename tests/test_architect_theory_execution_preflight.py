@@ -124,6 +124,9 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "special case" in protocol
     assert "counterexample" in protocol
     assert "correct final statement" in protocol
+    assert "Every unmarked paragraph and equation" in protocol
+    assert "narrative chronology or a later correction" in prompt
+    assert "clearly delimited as REJECTED or SCRATCH" in protocol
     assert "record it as uncertain" in protocol
     assert "scratch results" in protocol
     assert "frozen confirmatory" in protocol

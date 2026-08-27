@@ -124,42 +124,66 @@ def apply_model_exact_text_edits(
         raise ClientToolInputError("exact edits must be a nonempty array")
     revised, records = text, []
     for index, edit in enumerate(edits):
-        if not isinstance(edit, Mapping) or set(edit) != {
-            "old_text", replacement_key
-        }:
+        required_fields = {"old_text", replacement_key}
+        optional_fields = {"expected_occurrences"}
+        if (
+            not isinstance(edit, Mapping)
+            or not required_fields.issubset(edit)
+            or set(edit) - required_fields - optional_fields
+        ):
             raise ClientToolInputError(
-                f"exact edit index {index} requires old_text and {replacement_key}"
+                f"exact edit index {index} requires old_text and {replacement_key}; "
+                "expected_occurrences is the only optional field"
             )
         old_text, replacement = edit["old_text"], edit[replacement_key]
         if not isinstance(old_text, str) or not old_text:
             raise ClientToolInputError(f"exact edit index {index} old_text is empty")
         if not isinstance(replacement, str):
             raise ClientToolInputError(f"exact edit index {index} replacement is not text")
+        expected_occurrences = edit.get("expected_occurrences", 1)
+        if (
+            isinstance(expected_occurrences, bool)
+            or not isinstance(expected_occurrences, int)
+            or expected_occurrences < 1
+        ):
+            raise ClientToolInputError(
+                f"exact edit index {index} expected_occurrences must be a positive integer"
+            )
         positions = [
             i for i in range(len(revised)) if revised.startswith(old_text, i)
         ]
-        if len(positions) != 1:
+        observed_occurrences = len(positions)
+        if observed_occurrences != expected_occurrences:
+            if "expected_occurrences" not in edit:
+                raise ClientToolInputError(
+                    "old_text must match the exact current artifact once; observed "
+                    f"{observed_occurrences} matches at edit index {index}"
+                )
             raise ClientToolInputError(
-                "old_text must match the exact current artifact once; observed "
-                f"{len(positions)} matches at edit index {index}"
+                "old_text must match the exact current artifact the declared number "
+                f"of times; expected {expected_occurrences}, observed "
+                f"{observed_occurrences} at edit index {index}"
             )
-        position = positions[0]
-        updated = (
-            revised[:position]
-            + replacement
-            + revised[position + len(old_text) :]
-        )
+        if any(
+            right - left < len(old_text)
+            for left, right in zip(positions, positions[1:])
+        ):
+            raise ClientToolInputError(
+                f"exact edit index {index} has overlapping matches"
+            )
+        updated = revised.replace(old_text, replacement)
         if updated == revised:
             raise ClientToolInputError(f"exact edit index {index} makes no byte change")
         revised = updated
-        records.append(
-            {
-                "old_text_hash": stable_hash(old_text),
-                "replacement_hash": stable_hash(replacement),
-                "old_text_chars": len(old_text),
-                "replacement_chars": len(replacement),
-            }
-        )
+        record = {
+            "old_text_hash": stable_hash(old_text),
+            "replacement_hash": stable_hash(replacement),
+            "old_text_chars": len(old_text),
+            "replacement_chars": len(replacement),
+        }
+        if "expected_occurrences" in edit:
+            record["occurrences_replaced"] = expected_occurrences
+        records.append(record)
     return revised, records
 
 

@@ -2070,6 +2070,10 @@ def test_document_authority_persists_exact_math_and_small_handoff(
     )
 
     assert backend.requests[0].disable_parallel_tool_use is False
+    author_prompt = str(backend.requests[0].messages[0]["content"])
+    assert "Every unmarked paragraph and equation" in author_prompt
+    assert "narrative chronology or a later correction" in author_prompt
+    assert "clearly delimited REJECTED or SCRATCH" in author_prompt
     assert (tmp_path / "theory" / "derivations" / "C1.md").read_text() == markdown
     assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
     assert result.evidence["n_model_document_writes"] == 1

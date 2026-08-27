@@ -14,6 +14,7 @@ from ai_statistician.client_tool_loop import (
     ClientToolInputError,
     ClientToolLoopError,
     ClientToolRuntimeError,
+    apply_model_exact_text_edits,
     load_client_tool_session,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
@@ -108,6 +109,35 @@ def _request() -> ClientToolTurnRequest:
         model="claude-haiku-4-5-20251001",
         metadata={"model_tier": "haiku"},
     )
+
+
+def test_exact_text_edits_support_count_checked_repeated_literals() -> None:
+    revised, records = apply_model_exact_text_edits(
+        '{"lower":"-2.0","upper":"2.0","copy":"-2.0"}',
+        edits=[
+            {
+                "old_text": '"-2.0"',
+                "new_text": "-2.0",
+                "expected_occurrences": 2,
+            },
+            {"old_text": '"2.0"', "new_text": "2.0"},
+        ],
+        replacement_key="new_text",
+    )
+
+    assert revised == '{"lower":-2.0,"upper":2.0,"copy":-2.0}'
+    assert records[0]["occurrences_replaced"] == 2
+    assert "occurrences_replaced" not in records[1]
+    with pytest.raises(ClientToolInputError, match="expected 3, observed 2"):
+        apply_model_exact_text_edits(
+            '"x" "x"',
+            edits=[{
+                "old_text": '"x"',
+                "new_text": '"y"',
+                "expected_occurrences": 3,
+            }],
+            replacement_key="new_text",
+        )
 
 
 def test_client_tool_session_roundtrips_exact_transcript(tmp_path) -> None:

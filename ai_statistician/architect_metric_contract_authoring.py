@@ -506,8 +506,9 @@ def _metric_protocol_workspace_tools() -> tuple[ClientToolDefinition, ...]:
             (
                 "Atomically apply an ordered batch of exact model-authored text "
                 "replacements to the external metric_protocol.json. Bind the batch "
-                "to the current SHA-256; each old_text must occur exactly once in "
-                "the progressively revised bytes. Runtime validates the whole batch "
+                "to the current SHA-256. Each old_text must occur exactly once unless "
+                "expected_occurrences declares its exact positive count, in which case "
+                "all occurrences are replaced. Runtime validates the whole batch "
                 "before updating bytes and does not interpret or author scientific "
                 "content."
             ),
@@ -522,6 +523,10 @@ def _metric_protocol_workspace_tools() -> tuple[ClientToolDefinition, ...]:
                         "properties": {
                             "old_text": {"type": "string", "minLength": 1},
                             "new_text": {"type": "string"},
+                            "expected_occurrences": {
+                                "type": "integer",
+                                "minimum": 1,
+                            },
                         },
                         "required": ["old_text", "new_text"],
                     },
@@ -633,7 +638,9 @@ def _run_metric_protocol_workspace(
             "scaffold or "
             "document before editing. You may replace the whole file or make smaller "
             "exact edits; group independent corrections against one parent version "
-            "into one ordered atomic batch. Keep incomplete work in the file until "
+            "into one ordered atomic batch. For a repeated literal, use one "
+            "expected_occurrences edit instead of regenerating the file. Keep incomplete "
+            "work in the file until "
             "it is ready. Scientific "
             "measurement semantics, numeric gates, replicate design, and their "
             "rationales are yours. Runtime only parses the declared ABI, validates "
@@ -879,7 +886,7 @@ def _metric_authoring_model_requirement_prompt_schema() -> dict[str, Any]:
         "gate_fields": {
             "<unique field key: threshold|lower|upper|tolerance|"
             "minimum_pass_count|minimum_pass_fraction>": {
-                "value": "the substantive numeric value, stated exactly once",
+                "value": 0.0,
                 "source_anchors": [
                     "field-specific exact acceptance_authority_catalog anchor_id; "
                     "predicate_authority anchors are inherited automatically"
@@ -1787,7 +1794,9 @@ def author_reviewed_architect_metric_requirements(
                 "active gate_fields, values, anchors, and rationales according to the "
                 "declared schema. Boolean predicates use == without numeric gate "
                 "fields; all/any use no quorum; only at_least_count/fraction use their "
-                "matching quorum. Runtime materializes this ABI without choosing it."
+                "matching quorum. Replace the illustrative 0.0 with an unquoted finite "
+                "JSON number for every active numeric gate; a numeric-looking string is "
+                "invalid. Runtime materializes this ABI without choosing it."
             ),
             (
                 "Keep every gate in the same numeric coordinates as the declared "

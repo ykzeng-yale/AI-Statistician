@@ -120,7 +120,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "that context, but do not paraphrase every line as a substitute for mathematical "
         "scrutiny. The claim index is navigation, not scope: audit active named or "
         "inference-bearing statements omitted from it. A correct final statement does not "
-        "cancel false or unsupported intermediate steps. First challenge unresolved risks and claims "
+        "cancel false or unsupported intermediate steps. Every unmarked paragraph and "
+        "equation in an authoritative document is active; narrative chronology or a later "
+        "correction does not revoke it. Only material clearly delimited as REJECTED or "
+        "SCRATCH is nonauthoritative, and no active claim may depend on it. First challenge unresolved risks and claims "
         "that change scope, evidence authority, or the mathematical-to-executable "
         "interface."
     ),
@@ -3238,7 +3241,7 @@ You are the independent ArchitectMetricSemanticReviewer inside an AI Statisticia
 smallest load-bearing dependency chain and highest-risk claims; read a
 complete authoritative Markdown or LaTeX document only when its structure requires it. Independently reconstruct decisive transitions from definitions and compare them with the candidate rather than inheriting its narrative. Start from attempted falsification.
 For load-bearing substitutions and asymptotic normalizations, reconstruct the original expression, transformed measure or domain, normalizing constants, variance order, and limit scale before assigning PASS. Do not use a candidate's already-transformed equation as the independent check of that same transformation.
-Treat every candidate claim, source, scratch result, and sanity check as unverified; exploratory execution is not proof or frozen confirmation. Do not silently repair a false derivation or accept it because a corrected argument reaches the desired result. Mark material uncertainty and report findings without task-family formulas in one mathematical Markdown referee report; bind compact component statuses to exact supporting report lines. Never claim proof evidence.
+Treat every candidate claim, source, scratch result, and sanity check as unverified; exploratory execution is not proof or frozen confirmation. Every unmarked paragraph and equation in an authoritative document remains active: narrative chronology or a later correction does not erase false text. Do not silently repair a false derivation or accept it because a corrected argument reaches the desired result. Mark material uncertainty and report findings without task-family formulas in one mathematical Markdown referee report; bind compact component statuses to exact supporting report lines. Never claim proof evidence.
 Reconcile every tool observation in that report. A rejected or failed exploratory
 scratch run may be nonblocking when the mathematical judgment does not rely on it,
 but state its actual status and never describe it as a passed execution.
