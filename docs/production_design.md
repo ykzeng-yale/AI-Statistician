@@ -34,11 +34,11 @@ Goal, source policy, and task-intent evidence contract
   -> final critic with a per-dimension evidence vector
 ```
 
-Frozen intent that names one workspace starts its source owner directly. Otherwise
-the Architect creates the initial plan, resolves independently evidenced conflicts,
-and decides when to stop. Exhausting a source-workspace budget produces a typed block;
-it does not by itself trigger another routing call. Routine syntax, ABI, compiler,
-simulation, or Lean failures stay with the model that owns the source.
+Frozen source-only or theory-only intent starts TheoryDeveloper directly; exact
+formal-only intent starts its RAG/Formalizer path. Otherwise the Architect creates
+the initial plan, resolves cross-workspace conflicts, and decides when to stop. A
+source-workspace budget block does not trigger another route. Routine syntax, ABI,
+compiler, simulation, or Lean failures stay with the model that owns the source.
 
 Every source-owning workspace uses the same loop:
 

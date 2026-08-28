@@ -1,13 +1,23 @@
 {
-  "schema_version": 260,
+  "schema_version": 261,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "421afa00",
+  "validated_code_head": "6103b0e8",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-three consumed draws and immutable artifacts at trustworthy full-task credit 4/83, with exact development Lean closure still 0/2. Task 83 remains consumed 0/1 and cannot be rerun. Commit 421afa00 now starts a frozen single-workspace task with its source owner directly, while mixed-lane and resumed work retain Architect or pending-task ownership. Continue with one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; direct raw scientific feedback to the same source owner, preserve isolated hash-bound reviewer identity, keep Formalizer task-intent driven, use exact claude-haiku-4-5-20251001 for all tests and evaluations, and prohibit Opus.",
+  "current_goal_focus": "Preserve all eighty-three consumed draws and immutable artifacts at trustworthy full-task credit 4/83, with exact development Lean closure still 0/2. Task 83 remains consumed 0/1 and cannot be rerun. Commit 6103b0e8 extends sparse initial ownership to explicit theory-only work, preserves runtime-requested serious Theory mode without an Architect packet, and keeps the independent referee plus Critic path. Continue with one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; direct raw scientific feedback to the same source owner, preserve isolated hash-bound reviewer identity, keep Formalizer task-intent driven, use exact claude-haiku-4-5-20251001 for all tests and evaluations, and prohibit Opus.",
+  "latest_frozen_theory_workspace_startup": {
+    "commit": "6103b0e87975e82e1ed4690b1093e10780804a0b",
+    "finding": "Explicit theory-only tasks still began with an Architect model call even though frozen intent left no initial workspace choice. Simply bypassing it would also have downgraded research_eval and capability_eval TheoryDeveloper sessions to compact mode because prompt selection read only architect_runtime_plan.evidence_contract.",
+    "change": "A data-driven single-substantive-lane selector now starts explicit source_replication-only and theory-only tasks in the existing TheoryDeveloper workspace, while exact formal-only retains its RAG path and mixed lanes retain Architect. Theory prompt mode honors the immutable runtime-requested evidence contract as well as any Architect plan, so Architect cannot accidentally be required merely to preserve serious capability mode.",
+    "review_topology": "Theory-only authoring still routes the exact committed Markdown/LaTeX artifact to the existing isolated theory preflight and then to Critic. No independent review, checkpoint, source, or final evidence gate was removed.",
+    "provenance_correction": "When accepted theory review follows a direct frozen-intent start, route evidence now records owner_selection_source=operator_frozen_task_intent and frozen_task_intent_workspace_transition instead of falsely claiming a model-authored Architect plan. runtime_authored_research_route remains false.",
+    "official_codex_recheck": "Official openai/codex main remains 3ae4225b1761c135c6d3bbc1ea0cfcfc95752cdc. This adopts its same-owner and sparse-handoff principle only; no Codex runtime component was imported.",
+    "verification": "Focused topology checks passed 7/7, the affected Architect/Theory/runtime panel passed 222/222, and the final complete repository passed 1021/1021 in 80.11 seconds. Compileall, diff, model-policy, secret, and architecture checks passed. research_agent_runtime.py decreased to 24947 lines and top-level production Python decreased to 149995 lines.",
+    "model_and_evidence_boundary": "No product or evaluator model call, benchmark activation, consumed-task action, theory claim, statistical formula, Lean grammar rule, repair agent, retry, fallback, provider, scheduler, hidden feedback, score, or capability credit changed."
+  },
   "latest_frozen_single_workspace_startup": {
     "commit": "421afa0086bb95fd93bf83eb2b08894f5ada98b8",
     "official_codex_basis": "Reuse Codex's same-owner model/tool/observation loop and sparse-handoff principle, not its App Server, Responses transport, thread store, Guardian, worktrees, provider state, or scheduler.",

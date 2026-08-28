@@ -3704,3 +3704,33 @@ content parser, model call, or evidence promotion was added. Focused control reg
 passed 142/142 and the final complete repository passed 1020/1020 in 80.51 seconds. Central
 runtime shrank to 24,951 lines; production Python remains at the strict 149,999-line
 budget. All consumed tasks and the aggregate `4/83` capability record remain unchanged.
+
+## 2026-08-28 direct long-horizon Theory ownership
+
+Commit `6103b0e87975e82e1ed4690b1093e10780804a0b` closes the next sparse-handoff
+gap. Explicit theory-only tasks had no initial scientific routing choice, yet still
+spent their first model call and outer iteration on Architect. A naive bypass was not
+enough: TheoryDeveloper selected serious capability mode only from an Architect packet,
+so direct research-eval work would silently fall back to compact theory discovery.
+
+The existing direct-task adapter now identifies a single substantive required lane
+from frozen task intent. Source-replication-only and theory-only tasks start the same
+TheoryDeveloper workspace directly; exact formal-only work retains RAG-to-Formalizer.
+Mixed theory/code/empirical/formal work, novelty decisions, and ambiguous optional lanes
+still begin with Architect. Runtime-requested `research_eval` or `capability_eval` now
+preserves the serious Markdown/LaTeX Theory workspace even when no Architect packet
+exists.
+
+This removes only mechanical initial routing. After a theory checkpoint, the exact
+artifact still enters the isolated theory preflight; rejection returns findings to the
+same TheoryDeveloper lineage, and acceptance compiles the frozen path to Critic for a
+theory-only task. Route evidence distinguishes `operator_frozen_task_intent` from a
+`model_authored_architect_plan`, while both remain non-scientific control provenance.
+Runtime does not author the route semantics, mathematics, review verdict, or evidence.
+
+Official Codex `main` remains `3ae4225b1761c135c6d3bbc1ea0cfcfc95752cdc`.
+No Codex Core/App Server/Responses/thread/Guardian/scheduler component, new agent,
+repair path, retry, fallback, model, or model call was added. Focused topology checks
+passed 7/7, the affected panel passed 222/222, and the complete repository passed
+1021/1021 in 80.11 seconds. Central runtime shrank to 24,947 lines and production
+Python to 149,995 lines. All 83 consumed draws remain immutable at aggregate `4/83`.
