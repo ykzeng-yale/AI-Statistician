@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "debiased_lasso_known_precision_paper_to_code",
+      "title": "One-coordinate de-biased Lasso inference from paper to code",
+      "description": "Focused L2 paper-to-code rederivation based on Javanmard and Montanari (2014). The model-visible source snapshot contains the JMLR paper text and the authors' official algorithm overview. The authors' R implementation and all gold outcomes are withheld from runtime. In the centered Gaussian linear model y=X beta+epsilon with epsilon conditional on X distributed N(0,sigma^2 I), let beta_hat minimize ||y-Xb||_2^2/(2n)+lambda||b||_1. For one target coordinate j, this benchmark supplies a fixed row m_j^T of a de-biasing matrix rather than asking the product to reproduce the paper's separate convex program for constructing all of M. Define beta_tilde_j=beta_hat_j+m_j^T X^T(y-X beta_hat)/n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact decomposition of sqrt(n)(beta_tilde_j-beta_j) into its conditional Gaussian score and remainder; derive the conditional variance and standard error; bound the remainder using ||e_j-Sigma_hat m_j||_infinity and ||beta_hat-beta||_1; state assumptions under which the remainder is o_p(1); derive the two-sided normal interval; and reconcile every factor of n, row/column orientation, and KKT sign from the declared Lasso objective. Distinguish this known-sigma, supplied-row benchmark from the paper's data-driven construction of M and sigma, and do not claim exact finite-sample coverage or universal validity. The required model-authored Python artifact is est_debiased_lasso_coordinate and must implement run_estimator(request) under the closed contract below without author or reference code. Exploratory Python or R may test derivations. A separately frozen confirmatory assessment uses three p>n Gaussian designs with n=256, p=320, target index 8, sigma=1, confidence 0.95, lambda=0.8*sqrt(2*log(p)/n), two nuisance coefficients beta_0=1 and beta_1=-0.8, and at least 1000 fresh replicates per design: an independent design with beta_8=0, an AR(1) Toeplitz design with rho=0.3 and beta_8=0, and the same correlated design with beta_8=0.45. Each request receives the exact target row of the population precision matrix. For each design report interval coverage, Monte Carlo standard error, mean interval length, and the mean and standard deviation of (beta_tilde_8-beta_8)/standard_error. The sole confirmatory performance gate is coverage at least 0.90 in every design using a one-sided two-Monte-Carlo-standard-error lower margin. These finite designs test implementation and a declared asymptotic regime; they do not prove the theorem, reproduce the paper's full simulation table or riboflavin analysis, validate estimated precision rows or unknown-noise inference, establish novelty, or imply performance under arbitrary covariance, sparsity, or errors. Lean formalization is not applicable, and unresolved optimization, asymptotic, numerical, or scope gaps must remain explicit.",
+      "tags": [
+        "de-biased Lasso",
+        "high-dimensional inference",
+        "confidence interval",
+        "paper to code",
+        "Gaussian linear model",
+        "L2"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Confidence Intervals and Hypothesis Testing for High-Dimensional Regression",
+          "authors": [
+            "Adel Javanmard",
+            "Andrea Montanari"
+          ],
+          "venue": "Journal of Machine Learning Research",
+          "year": 2014,
+          "identifier": "JMLR 15:2869-2909",
+          "url": "https://jmlr.org/papers/volume15/javanmard14a/javanmard14a.pdf"
+        },
+        "official_algorithm_url": "https://web.stanford.edu/~montanar/sslasso/algorithm.html",
+        "research_source_snapshot_id": "debiased-lasso-jmlr-paper-2014-v1",
+        "research_source_snapshot_hash": "af1b16fe9d7208dfc7281659d95c0dd5b2e777d2a039c24cc96189b4270fd702",
+        "research_source_manifest_sha256": "c78d8ce1601c0c75a055c93853607c9203d672cdcac2b0f9f77b1faa00764cd4",
+        "reference_implementation_visibility": "evaluator_only_hidden_for_l2"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_debiased_lasso_coordinate",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.design",
+            "name": "design",
+            "meaning": "Centered fixed design matrix X; no intercept is fitted.",
+            "json_type": "array[array[number]]",
+            "shape": "20 through 256 rows and 2 through 384 columns, with every row having the same positive column count",
+            "units": "predictor scale",
+            "indexing": "design[i][k] is X_{i+1,k+1}",
+            "edge_cases": "Reject booleans, strings, nulls, nested non-scalars, nonfinite values, ragged rows, or dimensions outside the declared domain. Do not center, standardize, add an intercept, coerce, drop, pad, or truncate values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.response",
+            "name": "response",
+            "meaning": "Centered response vector y aligned with the design rows.",
+            "json_type": "array[number]",
+            "shape": "exactly one finite scalar per design row",
+            "units": "response scale",
+            "indexing": "response[i] is y_{i+1}",
+            "edge_cases": "Reject booleans, strings, nulls, arrays, nonfinite values, or a length different from the design row count. Do not center, coerce, drop, pad, or truncate values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.penalty_lambda",
+            "name": "penalty_lambda",
+            "meaning": "Positive lambda in ||y-Xb||_2^2/(2n)+lambda||b||_1.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar in (0,1000]",
+            "units": "objective gradient scale",
+            "indexing": "one value applies to every coefficient",
+            "edge_cases": "Reject nonpositive, above-domain, nonfinite, Boolean, string, null, array, or object values rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.noise_sd",
+            "name": "noise_sd",
+            "meaning": "Known conditional Gaussian noise standard deviation sigma for this focused benchmark.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar in (0,1000000]",
+            "units": "response scale",
+            "indexing": "one value applies to every row",
+            "edge_cases": "Reject nonpositive, above-domain, nonfinite, Boolean, string, null, array, or object values rather than estimating, clipping, or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.precision_row",
+            "name": "precision_row",
+            "meaning": "Supplied de-biasing row m_j^T, aligned with design columns.",
+            "json_type": "array[number]",
+            "shape": "exactly one finite scalar per design column and positive empirical quadratic form m_j^T Sigma_hat m_j",
+            "units": "inverse predictor covariance scale",
+            "indexing": "precision_row[k] is component k of the row used for target_index j",
+            "edge_cases": "Reject booleans, strings, nulls, arrays, nonfinite values, wrong length, or a row with nonpositive empirical quadratic form. Do not estimate, transpose, normalize, coerce, drop, pad, or truncate it.",
+            "binding": "derived_once_from_frozen_design"
+          },
+          {
+            "clause_id": "request.target_index",
+            "name": "target_index",
+            "meaning": "Zero-based coordinate j to report and de-bias.",
+            "json_type": "integer",
+            "shape": "one non-Boolean integer from 0 through p-1",
+            "units": "zero-based column index",
+            "indexing": "zero denotes the first design column",
+            "edge_cases": "Reject booleans, floats, strings, nulls, arrays, objects, negative values, or values at least p rather than wrapping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.confidence_level",
+            "name": "confidence_level",
+            "meaning": "Central two-sided normal confidence level 1-alpha.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar strictly between 0.5 and 1",
+            "units": "probability",
+            "indexing": "the interval uses Phi^{-1}((1+confidence_level)/2)",
+            "edge_cases": "Reject boundary, out-of-range, nonfinite, Boolean, string, null, array, or object values rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.lasso_coefficients",
+            "name": "lasso_coefficients",
+            "meaning": "A finite minimizer of the declared no-intercept Lasso objective to the declared KKT tolerance.",
+            "json_type": "array[number]",
+            "shape": "exactly p finite scalars",
+            "units": "coefficient scale",
+            "indexing": "entry k corresponds to design column k",
+            "edge_cases": "The coefficients must satisfy the declared KKT conditions with maximum violation at most 1e-6; no intercept or standardized-scale coefficients are returned.",
+            "normalization": "Objective is divided by n exactly as declared in penalty_lambda."
+          },
+          {
+            "clause_id": "response.debiased_estimate",
+            "name": "debiased_estimate",
+            "meaning": "beta_hat_j+precision_row^T X^T(y-X beta_hat)/n.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "target coefficient scale",
+            "indexing": "uses target_index and the supplied row without transposition or re-estimation",
+            "edge_cases": "Must be recomputable from the returned coefficients and exact request within 1e-8 relative tolerance.",
+            "normalization": "The score correction is divided by n, not sqrt(n), n-1, or a column norm."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "noise_sd*sqrt(precision_row^T (X^T X/n) precision_row/n).",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "target coefficient scale",
+            "indexing": "uses the supplied target row and all design rows",
+            "edge_cases": "Must be recomputable from the exact request within 1e-8 relative tolerance.",
+            "normalization": "Includes both the sample covariance division by n and the estimator variance division by n."
+          },
+          {
+            "clause_id": "response.ci_lower",
+            "name": "ci_lower",
+            "meaning": "Lower endpoint debiased_estimate-z*standard_error.",
+            "json_type": "number",
+            "shape": "one finite scalar strictly below ci_upper",
+            "units": "target coefficient scale",
+            "indexing": "z=Phi^{-1}((1+confidence_level)/2)",
+            "edge_cases": "Must match the declared central normal interval within 1e-8 relative tolerance.",
+            "normalization": "Uses standard error, not variance."
+          },
+          {
+            "clause_id": "response.ci_upper",
+            "name": "ci_upper",
+            "meaning": "Upper endpoint debiased_estimate+z*standard_error.",
+            "json_type": "number",
+            "shape": "one finite scalar strictly above ci_lower",
+            "units": "target coefficient scale",
+            "indexing": "z=Phi^{-1}((1+confidence_level)/2)",
+            "edge_cases": "Must match the declared central normal interval within 1e-8 relative tolerance.",
+            "normalization": "Uses standard error, not variance."
+          },
+          {
+            "clause_id": "response.kkt_max_violation",
+            "name": "kkt_max_violation",
+            "meaning": "Maximum coordinatewise violation of X^T(X beta_hat-y)/n+lambda*z=0 with z in the L1 subgradient.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1e-6]",
+            "units": "objective gradient scale",
+            "indexing": "maximum over all p coefficients",
+            "edge_cases": "Must be independently recomputable from the returned coefficients; reporting a small value cannot replace satisfying KKT.",
+            "normalization": "Uses the objective gradient divided by n."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the seven declared fields and the response contains exactly the six declared fields. Missing, extra, malformed, nonfinite, or out-of-domain values are rejected rather than ignored, coerced, standardized, clipped, padded, or truncated."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, access files, invoke subprocesses, or use the network."
+          },
+          {
+            "clause_id": "invariant.lasso_kkt",
+            "meaning": "For g=X^T(X beta_hat-y)/n, a positive coefficient has g_k=-lambda, a negative coefficient has g_k=lambda, and a zero coefficient has |g_k|<=lambda, all within maximum violation 1e-6."
+          },
+          {
+            "clause_id": "invariant.one_step_identity",
+            "meaning": "The de-biased estimate, conditional standard error, and interval are exact deterministic functions of the returned Lasso coefficients and supplied design, response, precision row, target, noise scale, and confidence level under the displayed formulas."
+          },
+          {
+            "clause_id": "invariant.scope",
+            "meaning": "Supplying one population-precision row and known noise scale isolates the one-step inference mechanism. It does not implement or validate the paper's estimated M, scaled-Lasso noise estimate, multiple testing, real-data analysis, or arbitrary-design theorem assumptions."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze the three declared p>n Gaussian designs, n=256, p=320, target index 8, sigma=1, confidence 0.95, lambda=0.8*sqrt(2*log(p)/n), coefficient vectors, exact population-precision rows, fresh seeds, at least 1000 replicates per design, estimator invocation, coverage event, interval length, studentized error, Monte Carlo standard error, and one-sided two-standard-error decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.coverage",
+            "meaning": "For each of the independent-null, AR(1) rho=0.3 null, and AR(1) rho=0.3 beta_8=0.45 designs with beta_0=1 and beta_1=-0.8, the lower one-sided two-Monte-Carlo-standard-error bound for interval coverage is at least 0.90. Mean interval length and studentized-error mean and standard deviation are descriptive."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment tests exact source execution and finite-design behavior only. It is not theorem proof, full paper replication, evidence for estimated precision rows or unknown sigma, a riboflavin analysis, novelty evidence, or a guarantee under arbitrary covariance, sparsity, or errors."
+          }
+        ],
+        "termination_guarantee": "For every valid request, run_estimator performs finite deterministic numerical optimization and linear algebra over the bounded matrix, reaches maximum Lasso KKT violation at most 1e-6 or raises an error, and returns exactly one response without randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
