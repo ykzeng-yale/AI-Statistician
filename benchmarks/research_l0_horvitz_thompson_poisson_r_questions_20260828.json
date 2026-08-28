@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "horvitz_thompson_poisson_total_r_known_result",
+      "title": "Horvitz-Thompson total and variance under independent Poisson sampling in R",
+      "description": "Focused L0 known-result evaluation grounded in Horvitz and Thompson (1952), the public Statistics Canada variance derivation, and the pinned open-source svrep documentation. A finite population has fixed real values y_1,...,y_N and independently selected inclusion indicators I_i distributed Bernoulli(pi_i), with known pi_i in (0,1]. For the fixed total T=sum_i y_i, develop one authoritative Markdown/LaTeX Theory workspace deriving the Horvitz-Thompson estimator T_hat=sum_i I_i y_i/pi_i, exact unbiasedness, exact design variance V=sum_i (1-pi_i)y_i^2/pi_i, and the unbiased observable variance estimator V_hat=sum_i I_i(1-pi_i)y_i^2/pi_i^2. Derive each identity from independence and Bernoulli moments, handle certainty units pi_i=1 and mixed-sign or zero values, distinguish fixed-population design randomness from a superpopulation model, and state why no pairwise covariance terms remain. Do not claim fixed-size sampling, without-replacement dependence, a central limit theorem, confidence-interval validity, arbitrary missingness validity, or novelty. The required model-authored artifact is est_horvitz_thompson_poisson_total and must implement the frozen run_estimator(request) contract as R source using language=r, execution_profile=scientific_wasm, and only declared base/stats dependencies. Do not substitute Python or a survey package. Exploratory R may diagnose identities. A separately frozen confirmatory R assessment uses at least 4000 fresh independent replicates for each of three fully public designs: A has values c(-5,-2,0,1,3,7,11,-4) and inclusion probabilities c(0.20,0.35,0.50,0.65,0.80,1.00,0.45,0.90); B has values c(1,2,4,8,16,32,-3,-6,5,10) and probabilities c(1.00,0.90,0.70,0.50,0.30,0.15,0.25,0.60,0.95,0.40); C has values c(0.25,-0.5,1.5,-3,6,-12,24,2,-1,5,-7,9) and probabilities c(0.05,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00,1.00). Before outcomes, freeze one seed per design, exact estimator invocation, total and variance formulas, and the replicate count. For each design, the absolute empirical bias of T_hat must be at most four Monte Carlo standard errors of its mean; the absolute bias of mean(V_hat) must be at most four Monte Carlo standard errors of that mean; and the absolute difference between the empirical second central moment of T_hat and V must be at most four Monte Carlo standard errors estimated from its empirical second and fourth central moments. These checks are finite implementation evidence, not mathematical proof. Source replication, novelty, and Lean formalization are not applicable, and unresolved theory, ABI, R execution, or empirical gaps must remain explicit.",
+      "tags": [
+        "survey_sampling",
+        "horvitz_thompson",
+        "poisson_sampling",
+        "design_unbiasedness",
+        "r_language",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "A Generalization of Sampling Without Replacement From a Finite Universe",
+          "authors": [
+            "D. G. Horvitz",
+            "D. J. Thompson"
+          ],
+          "venue": "Journal of the American Statistical Association",
+          "year": 1952,
+          "identifier": "47(260):663-685; DOI 10.1080/01621459.1952.10483446; JSTOR 2280784",
+          "url": "https://www.stat.cmu.edu/~brian/905-2008/papers/Horvitz-Thompson-1952-jasa.pdf"
+        },
+        "official_methodology_url": "https://www150.statcan.gc.ca/n1/pub/12-001-x/2013001/article/11831/section2-eng.htm",
+        "open_source_repository": "https://github.com/bschneidr/svrep",
+        "open_source_commit": "c1362229538f3441a5132ccc94f4d37496c88604",
+        "research_source_snapshot_id": "horvitz-thompson-poisson-l0-v1",
+        "research_source_snapshot_hash": "5c28bc64004b480f13aaab9de389c3cddf3662ce12616258aedb9b5335779874",
+        "research_source_manifest_sha256": "1e6da6068bde47a9ecdde57203789fb705033f31e79d51afce194902dc164800",
+        "reference_implementation_visibility": "evaluator_only_hidden_for_l0"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_horvitz_thompson_poisson_total",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.values",
+            "name": "values",
+            "meaning": "The fixed finite-population values y_i.",
+            "json_type": "array[number]",
+            "shape": "one unnamed finite numeric R vector of length N from 2 through 512",
+            "units": "population-value units",
+            "indexing": "unit order shared with inclusion_probabilities and sample_indicators",
+            "edge_cases": "Reject logical, character, list, named, nonnumeric, nonfinite, shorter-than-two, or longer-than-512 vectors rather than coercing, dropping, padding, or truncating them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.inclusion_probabilities",
+            "name": "inclusion_probabilities",
+            "meaning": "The known first-order inclusion probabilities pi_i for independent Poisson sampling.",
+            "json_type": "array[number]",
+            "shape": "one unnamed finite numeric R vector with exactly the same length N as values",
+            "units": "probability",
+            "indexing": "unit order shared with values and sample_indicators",
+            "edge_cases": "Reject logical, character, list, named, nonnumeric, nonfinite, length-mismatched, nonpositive, or above-one entries rather than coercing or clipping them. Probability one is valid.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.sample_indicators",
+            "name": "sample_indicators",
+            "meaning": "The realized inclusion indicators I_i for one independent Poisson sample.",
+            "json_type": "array[boolean]",
+            "shape": "one unnamed logical R vector with exactly the same length N as values",
+            "units": "inclusion indicators",
+            "indexing": "unit order shared with values and inclusion_probabilities",
+            "edge_cases": "Reject numeric 0/1, character, list, named, missing, length-mismatched, or NA logical vectors rather than coercing them.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.total_estimate",
+            "name": "total_estimate",
+            "meaning": "The Horvitz-Thompson estimate of the fixed population total.",
+            "json_type": "number",
+            "shape": "one finite nonlogical numeric scalar",
+            "units": "population-value units",
+            "indexing": "all N population units",
+            "edge_cases": "Mixed signs, zeros, an empty realized sample, and certainty units are valid; the empty realized sample returns zero.",
+            "normalization": "sum(sample_indicators*values/inclusion_probabilities)"
+          },
+          {
+            "clause_id": "response.variance_estimate",
+            "name": "variance_estimate",
+            "meaning": "The observable unbiased estimator of the independent-Poisson design variance.",
+            "json_type": "number",
+            "shape": "one finite nonnegative nonlogical numeric scalar",
+            "units": "squared population-value units",
+            "indexing": "all N population units",
+            "edge_cases": "An empty realized sample or all-certainty design returns zero; zero values and certainty units contribute zero.",
+            "normalization": "sum(sample_indicators*(1-inclusion_probabilities)*values^2/inclusion_probabilities^2)"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request is a named R list containing exactly values, inclusion_probabilities, and sample_indicators, and the response is a named R list containing exactly total_estimate and variance_estimate. Missing, extra, malformed, nonfinite, named-vector, or out-of-domain values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same result and do not mutate the request, use random state, access files, invoke subprocesses, call the network, or depend on packages beyond the declared R environment."
+          },
+          {
+            "clause_id": "invariant.formula_identity",
+            "meaning": "Both response fields equal the displayed Horvitz-Thompson and Poisson variance-estimator formulas for the exact request, including when no unit is selected."
+          },
+          {
+            "clause_id": "invariant.unit_permutation",
+            "meaning": "Applying one permutation to all three request vectors leaves both scalar responses unchanged."
+          },
+          {
+            "clause_id": "invariant.value_scale",
+            "meaning": "Multiplying every value by one finite scalar c multiplies total_estimate by c and variance_estimate by c^2 while probabilities and indicators remain fixed."
+          },
+          {
+            "clause_id": "invariant.certainty_and_zero_units",
+            "meaning": "A certainty unit with pi_i=1 contributes its selected value to total_estimate and zero to variance_estimate; appending a zero-valued unit with any valid probability and indicator leaves both responses unchanged."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each of the three fully specified public finite populations, freeze a fresh seed, at least 4000 independent Bernoulli-vector replicates, exact estimator invocation once per replicate, target total, exact design variance, empirical second and fourth central moments, and all three four-MCSE decisions before confirmatory outcomes are revealed."
+          },
+          {
+            "clause_id": "claim.empirical.design_moments",
+            "meaning": "In every frozen design, empirical mean(T_hat) agrees with the fixed total within four estimated Monte Carlo standard errors, empirical mean(V_hat) agrees with the exact design variance within four estimated Monte Carlo standard errors, and the empirical second central moment of T_hat agrees with that variance within four Monte Carlo standard errors estimated from its empirical second and fourth central moments."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The assessment checks exact R source execution and finite-design behavior only. It is not a proof, a fixed-size or dependent-sampling result, a central limit theorem, an interval-calibration claim, a superpopulation analysis, or novelty evidence."
+          }
+        ],
+        "termination_guarantee": "For every valid request, run_estimator performs finite deterministic vector operations over at most 512 units and returns exactly one response without randomization, file access, network access, subprocesses, package installation, or request mutation."
+      }
+    }
+  ]
+}
