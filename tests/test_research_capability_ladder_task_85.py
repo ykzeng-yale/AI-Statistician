@@ -61,7 +61,10 @@ def test_statlib_qmd_l0_formal_task_is_frozen_before_product_draw() -> None:
     assert evidence["generated_simulation_executed"] is False
     assert evidence["second_kernel_or_statement_verifier_added"] is False
     assert evidence["model_draw_resampling_blocked"] is True
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "d10c8ec28803a32e1b2d87606c4ed761ec0238fe"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
