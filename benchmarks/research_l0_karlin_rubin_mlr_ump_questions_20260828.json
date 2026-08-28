@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "karlin_rubin_mlr_ump_known_result",
+      "title": "Monotone likelihood ratio and a uniformly most powerful one-sided test",
+      "description": "Focused known-result theory evaluation grounded in Samuel Karlin and Herman Rubin, The Theory of Decision Procedures for Distributions with Monotone Likelihood Ratio, The Annals of Mathematical Statistics 27(2) (1956), pages 272-299, DOI 10.1214/aoms/1177728259. Let {P_theta : theta in Theta} be a scalar-parameter family dominated by a sigma-finite measure, with a common support and strictly positive densities p_theta on that support. Let T be a real-valued statistic. Assume the family has monotone likelihood ratio in T: whenever theta_2 > theta_1, there is a nonnegative measurable nondecreasing function h_{theta_2,theta_1} such that p_{theta_2}(x) / p_{theta_1}(x) = h_{theta_2,theta_1}(T(x)) almost everywhere. Fix an interior theta_0 and alpha in (0,1). In one authoritative Markdown/LaTeX theory workspace, construct an upper-tail test phi(T)=1{T>c}+gamma 1{T=c}, including a rigorous quantile argument that c and gamma in [0,1] can be chosen so E_{theta_0}[phi]=alpha even when T has atoms. Prove from the likelihood-ratio assumption that the power of every bounded nondecreasing function of T, and hence phi, is nondecreasing in theta. Use this to prove the composite-null level bound for H_0: theta <= theta_0. Then compare phi with an arbitrary randomized level-alpha test psi for each fixed theta_1 > theta_0 and prove the full uniformly most powerful conclusion for H_1: theta > theta_0; a slogan or monotonicity of phi's own power is not enough, so supply the load-bearing likelihood-ratio or Neyman-Pearson comparison. Treat flat likelihood-ratio regions and boundary randomization correctly. State the almost-everywhere and integrability scope actually used, and explain what the result does not establish: in particular, do not infer uniqueness without extra assumptions, do not extend it automatically to two-sided alternatives, and do not present MLR as necessary for a UMP test. Keep active and rejected calculations visibly distinct and disclose unresolved scope gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Karlin-Rubin theorem",
+        "monotone likelihood ratio",
+        "uniformly most powerful test",
+        "composite hypothesis",
+        "randomized test",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "The Theory of Decision Procedures for Distributions with Monotone Likelihood Ratio",
+        "authors": [
+          "Samuel Karlin",
+          "Herman Rubin"
+        ],
+        "journal": "The Annals of Mathematical Statistics",
+        "year": 1956,
+        "volume": 27,
+        "issue": 2,
+        "pages": "272-299",
+        "doi": "10.1214/aoms/1177728259",
+        "url": "https://doi.org/10.1214/aoms/1177728259"
+      }
+    }
+  ]
+}
