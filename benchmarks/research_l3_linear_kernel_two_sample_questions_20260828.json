@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "linear_kernel_two_sample_known_theory_rederivation",
+      "title": "Paired-kernel two-sample inference from assumptions",
+      "description": "Focused L3 known-theory rederivation evaluation. The target publication identity, theorem statement, proof, author code, and reference outcomes are withheld from runtime. Let X_1,...,X_n be iid from P and Y_1,...,Y_n be iid from Q, with the two samples independent, n even, and n at least four. Use the fixed Gaussian kernel k_b(u,v)=exp(-(u-v)^2/(2b^2)), where b>0 is chosen independently of these samples, and the unit ball of its RKHS. In one authoritative Markdown/LaTeX Theory workspace, start from the RKHS witness-function supremum and derive the population squared discrepancy in mean-embedding and kernel-expectation forms. For the adjacent disjoint pairs specified by the frozen execution contract, derive the estimator's exact expectation and finite-sample variance, prove its central-limit scaling under a finite positive second moment, justify a consistent studentization, and state the resulting one-sided asymptotic level and fixed-alternative power conclusions. Explain why the Gaussian kernel makes zero population discrepancy equivalent to P=Q, why sample-dependent bandwidth selection is outside the argument, and why the paired linear statistic is not the quadratic U-statistic and does not inherit its null law or variance. State every independence, moment, nondegeneracy, fixed-bandwidth, and asymptotic qualification, and keep finite-sample simulation evidence separate from theorem evidence. The required model-authored artifact is est_paired_kernel_discrepancy and must implement the exact frozen run_estimator(request) contract as Python source. Exploratory Python or R may check formulas and limiting behavior. A separately frozen confirmatory assessment uses n=800, bandwidth 1, alpha 0.05, at least 2000 fresh replicates per design, and one seed per design frozen before outcomes. The null design is P=N(0,1), Q=N(0,1); the location design is P=N(0,1), Q=N(0.8,1); and the scale design is P=N(0,1), Q=N(0,4). The null rejection rate plus two Monte Carlo standard errors must be at most 0.08. The location rejection rate minus two Monte Carlo standard errors must be at least 0.95, and the scale rejection rate minus two Monte Carlo standard errors must be at least 0.88. These finite designs assess executable calibration and power only; they do not prove asymptotic validity, consistency, characteristicness, optimal bandwidth, or performance for other distributions, dimensions, kernels, pairings, or adaptive tuning. Source replication, novelty, and Lean formalization are not applicable. Unresolved mathematical, ABI, execution, calibration, or scope gaps must remain explicit.",
+      "tags": [
+        "kernel_two_sample",
+        "RKHS",
+        "linear_time_statistic",
+        "known_theory_rederivation",
+        "python_language",
+        "L3"
+      ],
+      "source": {
+        "benchmark_mode": "known_theory_rederivation",
+        "model_visible_context": "problem_assumptions_and_closed_execution_contract_only",
+        "target_publication_identity": "evaluator_only_hidden",
+        "target_theorem_proof_code_and_outcomes": "evaluator_only_hidden",
+        "public_source_discovery": "disabled_for_this_blind_draw"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_paired_kernel_discrepancy",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "The first real-valued sample in its fixed input order.",
+            "json_type": "array[number]",
+            "shape": "One even-length vector with 4 through 4096 finite non-Boolean entries, each in [-1e6, 1e6].",
+            "units": "sample units",
+            "indexing": "Zero-based adjacent blocks are (x[0],x[1]), (x[2],x[3]), and so on.",
+            "edge_cases": "Reject Boolean, string, null, object, nested, empty, odd-length, nonfinite, below-domain, or above-domain values rather than coercing, dropping, flattening, sorting, clipping, or truncating them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "The second real-valued sample in its fixed input order.",
+            "json_type": "array[number]",
+            "shape": "One vector with exactly the same valid even length as x and finite non-Boolean entries in [-1e6, 1e6].",
+            "units": "the same sample units as x",
+            "indexing": "Zero-based adjacent blocks are paired by position with the adjacent blocks of x.",
+            "edge_cases": "Apply the same strict validation as x and reject unequal lengths rather than coercing, recycling, sorting, clipping, or truncating either sample.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.bandwidth",
+            "name": "bandwidth",
+            "meaning": "The fixed positive b in k_b(u,v)=exp(-(u-v)^2/(2b^2)).",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [1e-6, 1e6].",
+            "units": "sample units",
+            "indexing": "One value shared by every kernel evaluation in the request.",
+            "edge_cases": "Reject Boolean, string, null, object, array, nonfinite, zero, negative, below-domain, or above-domain values rather than coercing, taking an absolute value, clipping, or substituting a default.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.alpha",
+            "name": "alpha",
+            "meaning": "The one-sided asymptotic rejection level.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar strictly between 0 and 0.5.",
+            "units": "probability",
+            "indexing": "One value shared by the complete request.",
+            "edge_cases": "Reject Boolean, string, null, object, array, nonfinite, zero, negative, 0.5, or larger values rather than coercing, clipping, or substituting a default.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.statistic",
+            "name": "statistic",
+            "meaning": "The arithmetic mean of the declared adjacent-pair kernel contrasts.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar, which may be negative.",
+            "units": "squared RKHS mean-embedding units",
+            "indexing": "One value for the complete pair of samples.",
+            "edge_cases": "Return the unrounded arithmetic mean; do not truncate negative values or replace it by a quadratic statistic.",
+            "normalization": "With L=n/2 and h_i=k_b(x[2i],x[2i+1])+k_b(y[2i],y[2i+1])-k_b(x[2i],y[2i+1])-k_b(x[2i+1],y[2i]), statistic=sum_i h_i/L."
+          },
+          {
+            "clause_id": "response.contrast_variance",
+            "name": "contrast_variance",
+            "meaning": "The ordinary unbiased sample variance of the L adjacent-pair contrasts h_i.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean nonnegative scalar.",
+            "units": "squared contrast units",
+            "indexing": "Use denominator L-1 around the returned statistic.",
+            "edge_cases": "Return zero when all h_i are identical; do not divide this quantity by L.",
+            "normalization": "contrast_variance=sum_i (h_i-statistic)^2/(L-1)."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The plug-in standard error of the mean of the L independent adjacent-pair contrasts.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean nonnegative scalar.",
+            "units": "contrast units",
+            "indexing": "One value for the complete pair of samples.",
+            "edge_cases": "Return exactly zero when contrast_variance is zero.",
+            "normalization": "standard_error=sqrt(contrast_variance/L)."
+          },
+          {
+            "clause_id": "response.p_value",
+            "name": "p_value",
+            "meaning": "The one-sided standard-normal upper-tail approximation for positive discrepancy.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [0,1].",
+            "units": "probability",
+            "indexing": "One value for the complete pair of samples.",
+            "edge_cases": "If standard_error is zero, return 0 when statistic is strictly positive and 1 otherwise.",
+            "normalization": "When standard_error>0, p_value=1-Phi(statistic/standard_error), where Phi is the standard-normal CDF."
+          },
+          {
+            "clause_id": "response.reject",
+            "name": "reject",
+            "meaning": "The declared one-sided asymptotic decision.",
+            "json_type": "boolean",
+            "shape": "One JSON Boolean.",
+            "units": "decision",
+            "indexing": "One value for the complete pair of samples.",
+            "edge_cases": "Return p_value<=alpha exactly; do not use a two-sided threshold, permutation calibration, or data-dependent alpha.",
+            "normalization": "reject=(p_value<=alpha)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly x, y, bandwidth, and alpha, and the response contains exactly statistic, contrast_variance, standard_error, p_value, and reject. Missing, extra, malformed, nonfinite, or out-of-domain values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.exact_adjacent_pair_statistic",
+            "meaning": "Use the fixed adjacent disjoint-pair Gaussian-kernel contrast and normal plug-in calibration declared by the response normalizations. Do not substitute the quadratic U-statistic, all-pairs statistic, bootstrap, permutation test, Gamma approximation, random pairing, median-bandwidth heuristic, or another kernel."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, access files, invoke subprocesses, or use the network."
+          },
+          {
+            "clause_id": "invariant.block_symmetries",
+            "meaning": "The response is unchanged when x and y are swapped, when the common sequence of adjacent two-observation blocks is permuted, or when both samples are reversed within any same adjacent block."
+          },
+          {
+            "clause_id": "invariant.location_scale_equivariance",
+            "meaning": "Adding one common constant to both samples leaves the response unchanged. Multiplying both samples and bandwidth by the same finite positive factor leaves the response unchanged."
+          },
+          {
+            "clause_id": "invariant.complexity_scope",
+            "meaning": "The implementation uses O(n) Gaussian-kernel evaluations and O(1) auxiliary streaming storage beyond the request and fixed-size response. The report must distinguish this paired statistic from the more statistically efficient quadratic all-pairs statistic and must not claim exact finite-sample normal calibration."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze n=800, bandwidth=1, alpha=0.05, the three declared Gaussian designs, at least 2000 fresh replicates per design, one fresh seed per design, exact estimator invocation, rejection indicators, Monte Carlo standard errors, and the declared one-sided two-standard-error decision rules."
+          },
+          {
+            "clause_id": "claim.empirical.null_calibration",
+            "meaning": "For independent P=N(0,1) and Q=N(0,1) samples, the rejection rate plus two Monte Carlo standard errors is at most 0.08."
+          },
+          {
+            "clause_id": "claim.empirical.location_power",
+            "meaning": "For independent P=N(0,1) and Q=N(0.8,1) samples, the rejection rate minus two Monte Carlo standard errors is at least 0.95."
+          },
+          {
+            "clause_id": "claim.empirical.scale_power",
+            "meaning": "For independent P=N(0,1) and Q=N(0,4) samples, the rejection rate minus two Monte Carlo standard errors is at least 0.88."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment tests finite executable calibration and power under one fixed bandwidth and three one-dimensional Gaussian designs only. It is not theorem proof or evidence for arbitrary distributions, dimensions, kernels, pairing schemes, adaptive bandwidths, or exact finite-sample level."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs one finite pass over adjacent pairs and returns exactly one response without randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
