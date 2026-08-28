@@ -3462,3 +3462,48 @@ The reviewer suite passed 36/36, the adjacent workspace/reviewer panel passed
 passed 1009/1009 in 81.04 seconds. Production Python remains within the
 unchanged budget at 149,998 lines. No product or hidden-evaluator call, consumed
 task mutation, Codex provider import, or scheduler change occurred.
+
+## 2026-08-28 fourth upstream refresh and Task 80
+
+Official Codex `main` was fetched again at
+[`868c9edb`](https://github.com/openai/codex/commit/868c9edb0da913a5fc699a71664e65f44f6058b0),
+two commits after the prior `76253439` pin. Commit `92f887e` refreshes MCP tool
+caches during binding capture, and `868c9edb` assigns stable IDs to generated
+Responses input items. Neither commit supplies a scientific planner,
+mathematical workspace, simulator policy, Lean prover, or provider-neutral
+inner-loop library that should replace AI Statistician's existing runtime.
+
+The useful invariants remain stable identity for model-visible items, current
+tool state at the point of use, one retained source-owner session, typed raw
+observations, and sparse ownership transfer. Task 80 exposed exactly where AI
+Statistician violated those invariants. The first Algorithm review received all
+eleven public contract clause IDs and rejected the source. The subsequent
+producer-revision task rebuilt a four-field question summary, dropping the
+frozen estimator contract and task intent. The second Algorithm review and both
+Simulation reviews consequently operated without the public clause identities
+that should have remained attached to the work lineage.
+
+Task 80 also exposed one same-session terminal-feedback defect. The Critic
+correctly identified that the product confirmatory source used 128 replicates
+instead of the visible minimum 1,000, but submitted an internally inconsistent
+terminal packet. Runtime returned the raw rejection observation. Because that
+submission occurred in the automatic terminal-only continuation after ordinary
+actions were exhausted, the same Critic received no bounded follow-up turn to
+correct its terminal disposition.
+
+The future-task correction is therefore deliberately smaller than importing
+Codex. Preserve the canonical public question payload through source revision;
+require Algorithm review attention to public source clauses and executable
+Simulation review attention to public empirical clauses; permit exactly one
+same-session terminal-only resubmission after a rejected final continuation;
+and keep formal-pending metadata false when formalization is not applicable.
+Runtime validates identity, applicability, and bounded turn semantics only. The
+same LLM owners still choose source, probes, interpretation, revisions, and
+terminal scientific disposition.
+
+Codex Core, App Server, Responses transport, OpenAI provider state, thread
+storage, worktrees, Guardian, and multi-agent scheduling remain excluded. They
+would duplicate the sole `AgentRuntime`, add a second provider/control plane,
+and violate the exact-Haiku evaluation boundary. No PELT rule, pruning formula,
+replicate special case, repair agent, outer retry, fallback, or task branch is
+justified by this audit.

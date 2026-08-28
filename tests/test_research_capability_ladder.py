@@ -15,7 +15,7 @@ TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 80
-CURRENT_CONSUMED_TASKS = 79
+CURRENT_CONSUMED_TASKS = 80
 CURRENT_OPERATOR_INVALID_TASKS = 16
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -7946,7 +7946,7 @@ def test_distance_correlation_l2_only_product_draw_is_consumed_and_immutable() -
     )
 
 
-def test_pelt_gaussian_mean_l2_is_frozen_before_any_product_draw() -> None:
+def test_pelt_gaussian_mean_l2_only_product_draw_is_consumed_and_immutable() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -7957,9 +7957,10 @@ def test_pelt_gaussian_mean_l2_is_frozen_before_any_product_draw() -> None:
 
     assert candidate["level"] == "L2"
     assert candidate["family"] == "offline_gaussian_mean_changepoint_pelt"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_v1_exact_haiku_gold_qualified_before_product_runtime"
+        "fresh_live_v1_consumed_runtime_blocked_hidden_scientific_code_and_"
+        "unresolved_gaps_failed_theory_and_empirical_passed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l2-pelt-gaussian-mean-20260828-v1"
@@ -7975,8 +7976,8 @@ def test_pelt_gaussian_mean_l2_is_frozen_before_any_product_draw() -> None:
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
@@ -8011,13 +8012,58 @@ def test_pelt_gaussian_mean_l2_is_frozen_before_any_product_draw() -> None:
     assert evidence["reference_empirical_invocation_failures"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["generated_algorithm_executed"] is False
-    assert evidence["generated_simulation_executed"] is False
+    assert evidence["generated_algorithm_executed"] is True
+    assert evidence["generated_simulation_executed"] is True
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "critic_packet_validation_failed"
+    )
+    assert evidence["runtime_research_loop_complete"] == "0/1"
+    assert evidence["runtime_mode_conformant"] == "1/1"
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_claims"] == "8/8 SATISFIED"
+    assert evidence["hidden_algorithm_checks"] == "7/11"
+    assert evidence["hidden_algorithm_estimator_invocations"] == 46
+    assert evidence["hidden_empirical_checks"] == "9/9"
+    assert evidence["hidden_empirical_estimator_invocations"] == 3000
+    assert evidence["enabled_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["enabled_sonnet_calls"] == 0
+    assert evidence["enabled_opus_calls"] == 0
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_consumption"] == "4/79"
-    assert "before any product-model call" in evidence["boundary"]
+    assert evidence["ladder_score_after_consumption"] == "4/80"
+    assert evidence["post_run_score_changed"] is False
+    assert "consumed and immutable" in evidence["boundary"]
+
+    run_path = Path(evidence["immutable_run_path"])
+    assert run_path.is_dir()
+    for filename, field in (
+        ("research_agent_runtime_manifest.json", "runtime_manifest_sha256"),
+        (
+            "pelt_gaussian_mean_paper_to_code_runtime_result.json",
+            "runtime_result_sha256",
+        ),
+        (
+            "research_capability_gold_evaluation.json",
+            "hidden_gold_evaluation_sha256",
+        ),
+        ("runtime_completion_summary.json", "runtime_completion_summary_sha256"),
+        ("runtime_failure_summary.json", "runtime_failure_summary_sha256"),
+        ("runtime_llm_topology.json", "runtime_llm_topology_sha256"),
+        ("runtime_evidence_ledger.jsonl", "runtime_evidence_ledger_sha256"),
+        ("runtime_progress.jsonl", "runtime_progress_sha256"),
+        ("runtime_tool_calls.jsonl", "runtime_tool_calls_sha256"),
+        ("runtime_traces.jsonl", "runtime_traces_sha256"),
+        ("runtime_task_handoffs.jsonl", "runtime_task_handoffs_sha256"),
+        ("runtime_observations.jsonl", "runtime_observations_sha256"),
+    ):
+        assert hashlib.sha256((run_path / filename).read_bytes()).hexdigest() == (
+            evidence[field]
+        )
+    assert Path(evidence["operator_audit_path"]).is_file()
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (

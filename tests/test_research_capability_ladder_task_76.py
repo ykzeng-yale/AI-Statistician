@@ -122,7 +122,7 @@ def test_bocd_gamma_poisson_l2_is_frozen_and_consumed_once() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == 80
-    assert readiness["consumed_scored_tasks"] == 79
+    assert readiness["consumed_scored_tasks"] == 80
     assert readiness["fully_gold_configured_tasks"] == 80
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
