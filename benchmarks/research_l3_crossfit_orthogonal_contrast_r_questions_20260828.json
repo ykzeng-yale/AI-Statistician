@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "crossfit_orthogonal_contrast_r_known_theory_rederivation",
+      "title": "Cross-fitted orthogonal contrast for a binary action",
+      "description": "Focused L3 known-theory rederivation evaluation. The target publication identity, theorem statement, proof, author code, and reference outcomes are withheld from runtime. Let O=(X,A,Y) be iid observations, with binary action A, potential outcomes Y(1) and Y(0), and average contrast tau=E[Y(1)-Y(0)]. In one authoritative Markdown/LaTeX Theory workspace, state consistency, conditional exchangeability, positivity, and moment assumptions; identify tau; derive the displayed orthogonal score from the observed-data law; derive its exact conditional bias under working nuisance functions; establish double-robust consistency and Neyman orthogonality; and give explicit cross-fitting, L2 product-rate, positivity, and moment conditions sufficient for root-n asymptotic linearity, asymptotic normality, consistent score-variance estimation, and a Wald interval. Distinguish double-robust consistency from universally valid inference under arbitrary misspecification, and claim semiparametric efficiency only when the nuisance limits are the true functions. The required model-authored artifact is est_crossfit_orthogonal_contrast and must implement the exact frozen run_estimator(request) contract as R source using language=r, execution_profile=scientific_wasm, and only declared base/stats dependencies. The supplied nuisance vectors are externally generated and aligned out-of-fold predictions; the estimator must not fit, clip, reorder, or otherwise modify them. Exploratory R or Python may diagnose identities. A separately frozen confirmatory R assessment uses n=800, alpha=0.05, exactly 2000 fresh replicates per design, and one seed per design frozen before outcomes. In every design X is Uniform(-1,1), the true propensity is expit(0.2+0.8X), m0(X)=0.5X+X^2, m1(X)=m0(X)+1+0.5X, A is Bernoulli with the true propensity, and Y=m_A(X)+epsilon with independent epsilon distributed N(0,1), so tau=1. The four supplied-nuisance designs are: both correct; outcome regressions correct with working propensity 0.5; propensity correct with both working outcome regressions zero; and neither correct, with working propensity 0.5 and both working outcome regressions zero. In each of the first three designs, absolute empirical mean bias must be at most four Monte Carlo standard errors of the mean and 95% Wald coverage minus two binomial Monte Carlo standard errors must be at least 0.92. In the neither-correct design, absolute empirical mean bias minus four Monte Carlo standard errors must be at least 0.20. These finite designs assess executable behavior only; they do not prove identification, orthogonality, asymptotic validity, efficiency, finite-sample coverage, or performance for other laws, nuisance learners, overlap regimes, fold construction, or sample sizes. The externally supplied arrays do not by themselves certify cross-fitting or causal assumptions. Source replication, novelty, and Lean formalization are not applicable. Unresolved mathematical, ABI, R execution, calibration, or scope gaps must remain explicit.",
+      "tags": [
+        "causal_inference",
+        "orthogonal_score",
+        "double_robustness",
+        "cross_fitting",
+        "known_theory_rederivation",
+        "r_language",
+        "L3"
+      ],
+      "source": {
+        "benchmark_mode": "known_theory_rederivation",
+        "model_visible_context": "problem_assumptions_and_closed_execution_contract_only",
+        "target_publication_identity": "evaluator_only_hidden",
+        "target_theorem_proof_code_and_outcomes": "evaluator_only_hidden",
+        "public_source_discovery": "disabled_for_this_blind_draw"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_crossfit_orthogonal_contrast",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.outcomes",
+            "name": "outcomes",
+            "meaning": "The observed outcomes Y_i in fixed row order.",
+            "json_type": "array[number]",
+            "shape": "One unnamed finite numeric R vector of length n from 2 through 4096, with entries in [-1e6,1e6].",
+            "units": "outcome units",
+            "indexing": "Row order shared by every request vector.",
+            "edge_cases": "Reject logical, character, list, named, dimensional, nonfinite, shorter-than-two, longer-than-4096, below-domain, or above-domain values rather than coercing, dropping, flattening, sorting, clipping, or truncating them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.assignments",
+            "name": "assignments",
+            "meaning": "The realized binary actions A_i, encoded as a strict logical R vector.",
+            "json_type": "array[boolean]",
+            "shape": "One unnamed nonmissing logical R vector with exactly the same length n as outcomes.",
+            "units": "action indicators",
+            "indexing": "Row order shared by every request vector; TRUE denotes action one.",
+            "edge_cases": "Reject numeric 0/1, character, list, named, dimensional, missing, or length-mismatched values rather than coercing them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.treated_means",
+            "name": "treated_means",
+            "meaning": "Externally generated aligned out-of-fold predictions of m1(X_i)=E[Y|A=1,X_i].",
+            "json_type": "array[number]",
+            "shape": "One unnamed finite numeric R vector with exactly length n and entries in [-1e6,1e6].",
+            "units": "outcome units",
+            "indexing": "Row order shared by every request vector.",
+            "edge_cases": "Apply the same strict numeric-vector validation as outcomes and reject length mismatch rather than recycling, fitting, clipping, or substituting values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.control_means",
+            "name": "control_means",
+            "meaning": "Externally generated aligned out-of-fold predictions of m0(X_i)=E[Y|A=0,X_i].",
+            "json_type": "array[number]",
+            "shape": "One unnamed finite numeric R vector with exactly length n and entries in [-1e6,1e6].",
+            "units": "outcome units",
+            "indexing": "Row order shared by every request vector.",
+            "edge_cases": "Apply the same strict numeric-vector validation as outcomes and reject length mismatch rather than recycling, fitting, clipping, or substituting values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.propensities",
+            "name": "propensities",
+            "meaning": "Externally generated aligned out-of-fold predictions of e(X_i)=P(A=1|X_i).",
+            "json_type": "array[number]",
+            "shape": "One unnamed finite numeric R vector with exactly length n and every entry in [1e-6,1-1e-6].",
+            "units": "probability",
+            "indexing": "Row order shared by every request vector.",
+            "edge_cases": "Reject logical, character, list, named, dimensional, nonfinite, length-mismatched, below-domain, or above-domain values rather than coercing, clipping, fitting, or substituting them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.alpha",
+            "name": "alpha",
+            "meaning": "The two-sided Wald noncoverage probability.",
+            "json_type": "number",
+            "shape": "One finite nonlogical numeric scalar strictly between 0 and 0.5.",
+            "units": "probability",
+            "indexing": "One value shared by the complete request.",
+            "edge_cases": "Reject logical, character, list, array, nonfinite, zero, negative, 0.5, or larger values rather than coercing, clipping, or substituting a default.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.effect_estimate",
+            "name": "effect_estimate",
+            "meaning": "The arithmetic mean of the declared orthogonal pseudo-outcomes.",
+            "json_type": "number",
+            "shape": "One finite nonlogical numeric scalar.",
+            "units": "outcome units",
+            "indexing": "All n aligned rows.",
+            "edge_cases": "Return the unrounded arithmetic mean, including negative values.",
+            "normalization": "With a_i=1 for TRUE and 0 for FALSE, phi_i=treated_means_i-control_means_i+a_i*(outcomes_i-treated_means_i)/propensities_i-(1-a_i)*(outcomes_i-control_means_i)/(1-propensities_i), and effect_estimate=sum_i phi_i/n."
+          },
+          {
+            "clause_id": "response.score_variance",
+            "name": "score_variance",
+            "meaning": "The ordinary unbiased sample variance of the n orthogonal pseudo-outcomes.",
+            "json_type": "number",
+            "shape": "One finite nonnegative nonlogical numeric scalar.",
+            "units": "squared outcome units",
+            "indexing": "Use denominator n-1 around effect_estimate.",
+            "edge_cases": "Return zero when all pseudo-outcomes are identical; do not divide this quantity by n.",
+            "normalization": "score_variance=sum_i (phi_i-effect_estimate)^2/(n-1)."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The plug-in standard error of the mean pseudo-outcome.",
+            "json_type": "number",
+            "shape": "One finite nonnegative nonlogical numeric scalar.",
+            "units": "outcome units",
+            "indexing": "One value for the complete request.",
+            "edge_cases": "Return exactly zero when score_variance is zero.",
+            "normalization": "standard_error=sqrt(score_variance/n)."
+          },
+          {
+            "clause_id": "response.ci_lower",
+            "name": "ci_lower",
+            "meaning": "The lower endpoint of the declared two-sided Wald interval.",
+            "json_type": "number",
+            "shape": "One finite nonlogical numeric scalar no larger than ci_upper.",
+            "units": "outcome units",
+            "indexing": "One value for the complete request.",
+            "edge_cases": "When standard_error is zero, return effect_estimate.",
+            "normalization": "ci_lower=effect_estimate-qnorm(1-alpha/2)*standard_error."
+          },
+          {
+            "clause_id": "response.ci_upper",
+            "name": "ci_upper",
+            "meaning": "The upper endpoint of the declared two-sided Wald interval.",
+            "json_type": "number",
+            "shape": "One finite nonlogical numeric scalar no smaller than ci_lower.",
+            "units": "outcome units",
+            "indexing": "One value for the complete request.",
+            "edge_cases": "When standard_error is zero, return effect_estimate.",
+            "normalization": "ci_upper=effect_estimate+qnorm(1-alpha/2)*standard_error."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request is a plain named R list containing exactly outcomes, assignments, treated_means, control_means, propensities, and alpha, and the response is a plain named R list containing exactly effect_estimate, score_variance, standard_error, ci_lower, and ci_upper. Missing, extra, malformed, nonfinite, named-vector, dimensional, or out-of-domain values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.exact_orthogonal_score",
+            "meaning": "Every response field uses exactly the displayed rowwise pseudo-outcome, sample variance, standard error, and normal quantile. The estimator does not fit nuisances, clip propensities, reorder rows, trim observations, or substitute another score or interval."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same R value and do not mutate the request, use random state, access files, invoke subprocesses, call the network, install packages, or depend on undeclared packages."
+          },
+          {
+            "clause_id": "invariant.simultaneous_permutation",
+            "meaning": "Applying one permutation to all five row-indexed request vectors leaves every scalar response unchanged."
+          },
+          {
+            "clause_id": "invariant.outcome_translation",
+            "meaning": "Adding one common finite constant to outcomes, treated_means, and control_means leaves every response unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_outcome_scale",
+            "meaning": "Multiplying outcomes, treated_means, and control_means by one finite positive scalar c multiplies effect_estimate, standard_error, ci_lower, and ci_upper by c and score_variance by c^2."
+          },
+          {
+            "clause_id": "invariant.action_relabeling",
+            "meaning": "Complementing assignments, swapping treated_means with control_means, and replacing every propensity by one minus itself negates effect_estimate and exchanges interval endpoints after negation, while leaving score_variance and standard_error unchanged."
+          },
+          {
+            "clause_id": "invariant.complexity_scope",
+            "meaning": "The implementation performs O(n) deterministic vector work and uses O(n) pseudo-outcome storage or less. It reports only the supplied-score calculation and cannot certify that nuisance predictions are truly out of fold or that causal identification assumptions hold."
+          }
+        ],
+        "theory_claims": [
+          {
+            "clause_id": "claim.theory.identification",
+            "meaning": "Under iid sampling, consistency, conditional exchangeability, positivity bounded away from zero and one, and integrability, derive tau=E[m1(X)-m0(X)]."
+          },
+          {
+            "clause_id": "claim.theory.score_and_remainder",
+            "meaning": "For true e,m1,m0 and working tilde e,tilde m1,tilde m0, derive the displayed pseudo-outcome and E[phi(tilde eta)]-tau=E[(e-tilde e){(m1-tilde m1)/tilde e+(m0-tilde m0)/(1-tilde e)}], or an algebraically equivalent identity with all signs and denominators correct."
+          },
+          {
+            "clause_id": "claim.theory.double_robustness",
+            "meaning": "Use the exact remainder to establish consistency when the propensity limit is correct or when both outcome-regression limits are correct, while explaining why arbitrary simultaneous misspecification need not be unbiased."
+          },
+          {
+            "clause_id": "claim.theory.orthogonality",
+            "meaning": "Show that the first Gateaux derivative of the population moment with respect to nuisance perturbations vanishes at the truth."
+          },
+          {
+            "clause_id": "claim.theory.crossfit_asymptotics",
+            "meaning": "State explicit cross-fitting, positivity, L2 consistency, product-rate, and moment conditions sufficient for a remainder o_p(n^-1/2), root-n asymptotic linearity with the true influence function, asymptotic normality, consistent score-variance estimation, and Wald coverage."
+          },
+          {
+            "clause_id": "claim.theory.scope",
+            "meaning": "Distinguish double-robust consistency from valid root-n inference under unrestricted misspecification; claim the efficiency bound only at the true nuisance functions; do not claim finite-sample coverage; and state that aligned arrays alone do not verify cross-fitting, positivity of the true law, consistency, or exchangeability."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze n=800, alpha=0.05, exactly 2000 independent replicates per design, one fresh seed per design, X~Uniform(-1,1), e(X)=expit(0.2+0.8X), m0(X)=0.5X+X^2, m1(X)=m0(X)+1+0.5X, A~Bernoulli(e(X)), Y=m_A(X)+N(0,1), tau=1, exact estimator invocation, the four supplied-nuisance designs, bias and coverage summaries, and all four- or two-MCSE decisions."
+          },
+          {
+            "clause_id": "claim.empirical.robust_designs",
+            "meaning": "For each of both-correct, outcome-only-correct with tilde e=0.5, and propensity-only-correct with tilde m0=tilde m1=0, absolute empirical mean bias is at most four estimated Monte Carlo standard errors of the mean and 95% Wald coverage minus two binomial Monte Carlo standard errors is at least 0.92."
+          },
+          {
+            "clause_id": "claim.empirical.neither_correct",
+            "meaning": "With tilde e=0.5 and tilde m0=tilde m1=0, absolute empirical mean bias minus four estimated Monte Carlo standard errors is at least 0.20."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment checks exact R execution in four finite public designs only. It is not theorem proof, causal-assumption verification, nuisance-learning validation, finite-sample coverage proof, general robustness evidence, source replication, novelty, or formal proof."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite deterministic vector operations over at most 4096 rows and returns exactly one response without nuisance fitting, randomization, request mutation, file access, network access, subprocesses, package installation, or undeclared dependencies."
+      }
+    }
+  ]
+}
