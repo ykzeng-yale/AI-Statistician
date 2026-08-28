@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "glmnet_gaussian_elastic_net_paper_to_code",
+      "title": "Gaussian elastic-net coordinate descent from paper to code",
+      "description": "Focused L2 paper-to-code evaluation based on Friedman, Hastie, and Tibshirani, Regularization Paths for Generalized Linear Models via Coordinate Descent, Journal of Statistical Software 33(1), 2010. Runtime may inspect the frozen article text and diabetes predictors, target, and documentation, but not the author glmnet source or evaluator outputs. Develop an authoritative Markdown/LaTeX theory workspace for the unpenalized-intercept Gaussian elastic-net objective (2n)^-1 sum_i (y_i-b0-x_i^T b)^2 + lambda[alpha||b||_1+(1-alpha)||b||_2^2/2]. Derive centering, the general unstandardized cyclic soft-threshold update, residual maintenance, active and inactive KKT conditions, the alpha>0 zero-solution threshold, and the alpha=0 ridge and alpha=1 lasso endpoints. Distinguish the paper's standardized-column formula from the visible raw-data ABI and distinguish numerical convergence from statistical consistency or universal complexity. Author Python artifact est_glmnet_gaussian with run_estimator(request), execute and independently review its exact source, and use the accepted source unchanged in exploratory and confirmatory simulation. The frozen confirmatory protocol has two Gaussian designs with n_train=120, n_test=240, p=10, beta=(2,-1.5,1,0,...,0), unit noise, alpha=0.8, lambda=0.15, and Toeplitz predictor correlation rho=0 or rho=0.5. Use at least 1000 fresh replicates per design and one seed per design frozen before outcomes. Report mean test MSE, prediction-MSE ratio to an intercept-only predictor, all-three-signal selection frequency, and their Monte Carlo standard errors. The one-sided two-MCSE MSE upper bounds must be at most 1.18 for rho=0 and 1.28 for rho=0.5; the ratio upper bound must be at most 0.29 and the all-signal lower bound at least 0.99 in both designs. These finite results do not prove model-selection consistency, oracle properties, optimal tuning, universal runtime, other GLM families, or superiority to other methods. Exact author-source replication, cross-validation, sparse-matrix acceleration, novelty, and Lean formalization are not applicable. Preserve every unresolved mathematical, source, ABI, execution, or empirical gap.",
+      "tags": [
+        "elastic_net",
+        "coordinate_descent",
+        "gaussian_regression",
+        "paper_to_code",
+        "diabetes_data",
+        "python_language",
+        "L2"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Regularization Paths for Generalized Linear Models via Coordinate Descent",
+          "authors": [
+            "Jerome Friedman",
+            "Trevor Hastie",
+            "Robert Tibshirani"
+          ],
+          "venue": "Journal of Statistical Software",
+          "year": 2010,
+          "volume": 33,
+          "issue": 1,
+          "pages": "1-22",
+          "identifier": "DOI 10.18637/jss.v033.i01; PMCID PMC2929880",
+          "url": "https://www.jstatsoft.org/article/view/v033i01"
+        },
+        "research_source_snapshot_id": "glmnet-gaussian-paper-diabetes-20100302-v1",
+        "research_source_snapshot_hash": "e0fc962da5417a3cb22832f21b79c9a1bae8d8136be549bd75bc38b3ec714779",
+        "research_source_manifest_sha256": "497f54bed7709d57f5c68142df2922c3a16a6ffed5e4aaaaf801b6c346e75c19",
+        "reference_implementation_visibility": "evaluator_only_hidden_for_l2"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_glmnet_gaussian",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "Finite raw predictor matrix; the estimator performs any centering needed by the declared objective.",
+            "json_type": "array[array[number]]",
+            "shape": "Rectangular n by p matrix with 8<=n<=512 and 2<=p<=64; every entry is finite, non-Boolean, and in [-1e6,1e6].",
+            "units": "arbitrary predictor units",
+            "indexing": "x[i][j] is predictor j for observation i.",
+            "edge_cases": "Reject missing, extra, ragged, nested beyond rank two, Boolean, null, string, nonfinite, or out-of-domain values rather than coercing or clipping.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "Finite Gaussian-response vector aligned row-for-row with x.",
+            "json_type": "array[number]",
+            "shape": "Length n, with every entry finite, non-Boolean, and in [-1e6,1e6].",
+            "units": "response units",
+            "indexing": "y[i] is the response paired with x[i].",
+            "edge_cases": "Reject length mismatch, Boolean, null, string, nonfinite, nested, or out-of-domain values rather than coercing or dropping rows.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.alpha",
+            "name": "alpha",
+            "meaning": "Elastic-net mixing fraction: zero is ridge and one is lasso.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [0,1].",
+            "units": "dimensionless",
+            "indexing": "One value for all coefficients.",
+            "edge_cases": "Reject arrays, Boolean, null, string, nonfinite, below-zero, or above-one values.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.lambda",
+            "name": "lambda",
+            "meaning": "The exact positive multiplier of the declared elastic-net penalty; it is not divided by n inside the already averaged objective.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in (0,1e6].",
+            "units": "objective-dependent penalty units",
+            "indexing": "One value for one fit.",
+            "edge_cases": "Reject arrays, Boolean, null, string, nonfinite, zero, negative, or above-domain values rather than rescaling or substituting a default.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.intercept",
+            "name": "intercept",
+            "meaning": "Unpenalized intercept minimizing the declared objective at the returned coefficients.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "response units",
+            "indexing": "One value for the complete fit.",
+            "edge_cases": "Return the unrounded original-scale value.",
+            "normalization": "intercept=mean(y)-mean(x)^T coefficients"
+          },
+          {
+            "clause_id": "response.coefficients",
+            "name": "coefficients",
+            "meaning": "A minimizing coefficient vector for the declared raw-predictor objective.",
+            "json_type": "array[number]",
+            "shape": "Exactly p finite non-Boolean values in predictor-column order.",
+            "units": "response units per predictor unit",
+            "indexing": "coefficients[j] multiplies x[i][j].",
+            "edge_cases": "Do not omit zero coefficients, reorder columns, or return standardized-scale coefficients.",
+            "normalization": "original predictor order and units"
+          },
+          {
+            "clause_id": "response.objective",
+            "name": "objective",
+            "meaning": "The nonnegative declared objective recomputed at the returned intercept and coefficients.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "squared-response objective units",
+            "indexing": "One value for the complete fit.",
+            "edge_cases": "Include the exact averaged loss and both penalty terms without rounding or penalizing the intercept.",
+            "normalization": "exact declared objective with 1/(2n) loss scaling"
+          },
+          {
+            "clause_id": "response.max_kkt_violation",
+            "name": "max_kkt_violation",
+            "meaning": "Maximum intercept, active-coordinate, or inactive-coordinate KKT violation recomputed for the returned fit.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean nonnegative scalar no larger than 2e-6 for an accepted fit.",
+            "units": "objective-gradient units",
+            "indexing": "Maximum across intercept and all p coordinates.",
+            "edge_cases": "Do not report an iteration delta or a constant success value in place of a KKT calculation.",
+            "normalization": "maximum absolute violation across the intercept and p subgradient conditions"
+          },
+          {
+            "clause_id": "response.converged",
+            "name": "converged",
+            "meaning": "Whether the returned fit met the source's convergence condition and the declared KKT tolerance.",
+            "json_type": "boolean",
+            "shape": "Exactly true for a successful response.",
+            "units": "not applicable",
+            "indexing": "One value for the fit.",
+            "edge_cases": "A true label does not replace objective and KKT validation.",
+            "normalization": "true only after the source convergence rule and KKT tolerance both hold"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly x, y, alpha, and lambda, and the response contains exactly intercept, coefficients, objective, max_kkt_violation, and converged. Invalid values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.elastic_net_optimality",
+            "meaning": "Minimize (2n)^-1||y-b0-Xb||^2+lambda[alpha||b||_1+(1-alpha)||b||_2^2/2] with an unpenalized intercept. Cyclic soft-threshold updates use centered-column second moments and the declared lambda without another division by n."
+          },
+          {
+            "clause_id": "invariant.kkt_and_endpoints",
+            "meaning": "The returned fit satisfies active and inactive subgradient KKT conditions and mean residual zero. It covers ridge alpha=0, lasso alpha=1, intermediate elastic net, and the alpha>0 zero-solution threshold without swapping endpoints."
+          },
+          {
+            "clause_id": "invariant.translation_permutation",
+            "meaning": "Joint row permutation leaves the result unchanged; shifting y changes only the intercept by that shift; shifting predictor columns leaves coefficients and objective unchanged and adjusts the intercept by minus the shift dot coefficients, up to numerical tolerance."
+          },
+          {
+            "clause_id": "invariant.deterministic_scope",
+            "meaning": "Repeated valid calls are deterministic and nonmutating and terminate finitely. Numerical optimization and finite experiments are not evidence for universal runtime, tuning optimality, selection consistency, oracle properties, or unsupported GLM families."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze the accepted estimator hash, two Toeplitz Gaussian designs, beta=(2,-1.5,1,0,...,0), n_train=120, n_test=240, p=10, unit noise, alpha=0.8, lambda=0.15, at least 1000 fresh replicates per design, one seed per design, the declared metrics, and one-sided two-MCSE rules."
+          },
+          {
+            "clause_id": "claim.empirical.independent_design",
+            "meaning": "For rho=0, mean test MSE plus two MCSE is at most 1.18, mean MSE ratio plus two MCSE is at most 0.29, and all-three-signal frequency minus two MCSE is at least 0.99."
+          },
+          {
+            "clause_id": "claim.empirical.correlated_design",
+            "meaning": "For rho=0.5, mean test MSE plus two MCSE is at most 1.28, mean MSE ratio plus two MCSE is at most 0.29, and all-three-signal frequency minus two MCSE is at least 0.99."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The two frozen finite designs assess executable prediction and signal retention only. Exploratory outcomes cannot alter confirmatory source, seeds, metrics, thresholds, or replication count and do not establish general statistical or computational claims."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite deterministic numerical operations and returns exactly one response or raises an explicit error; it does not access files, network, subprocesses, secrets, or mutable global randomness."
+      }
+    }
+  ]
+}
