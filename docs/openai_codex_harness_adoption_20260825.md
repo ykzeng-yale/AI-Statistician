@@ -3050,3 +3050,26 @@ client-tool, and architecture tests passed `153/153`; the complete repository pa
 `990/990` in 81.77 seconds. No live model call occurred. Task 72 was not rerun,
 resumed, repaired, re-evaluated, rescored, or resampled and remains immutable `0/1`;
 trusted aggregate credit remains `4/72`.
+
+## Review prose is not a token gate
+
+The same audit found one deterministic content proxy in executable-evaluator review.
+For `ACCEPT`, runtime required the model-authored Markdown to contain the literal
+public entrypoint and every authority-output field. Mentioning those tokens did not
+prove that the reviewer traced the implemented decision, and a correct explanation
+could describe the dependency path without copying identifier spellings. The rule
+therefore tested prose serialization rather than scientific-code semantics.
+
+Commit `d3597ae7` deletes the 23-line token parser. The reviewer still receives the
+exact source, current-target role, entrypoint, outputs, runtime arguments, and the
+general instruction to trace the returned decision backward through every
+load-bearing computed check. Its Markdown content and SHA-256 remain immutable review
+evidence; its findings and verdict remain model-authored. Runtime continues to verify
+document identity, source identity, review-input fingerprint, independent invocation,
+finding-ledger consistency, parent lineage, empirical blinding, and promotion status.
+
+The focused reviewer, AgentRuntime, and architecture panel passed `128/128`; the full
+repository passed `990/990` in 81.38 seconds. The change is a net deletion of 27 lines.
+No model call, task activation, retry, content repair, acceptance default, parser
+replacement, or scheduler was added. All consumed tasks remain immutable and trusted
+aggregate credit remains `4/72`.
