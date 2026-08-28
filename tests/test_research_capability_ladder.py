@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "3b079a58617dad198f95e1f84ad25a5c69b4832a"
+LATEST_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 74
 CURRENT_CONSUMED_TASKS = 74
@@ -7368,6 +7368,12 @@ def test_sandwich_jss_r_l1_is_consumed_and_operator_invalidated() -> None:
     assert evidence["product_model_calls"] == 18
     assert evidence["architect_model_calls"] == 2
     assert evidence["architect_full_packet_regenerations"] == 1
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+    assert evidence["post_run_shared_mechanism_change"].startswith(
+        "Future tasks only:"
+    )
     assert evidence["hidden_source_execution_checks"] == "12/12"
     assert evidence["hidden_source_semantic_claims"] == "10/10 SATISFIED"
     assert evidence["enabled_model"] == "claude-haiku-4-5-20251001"

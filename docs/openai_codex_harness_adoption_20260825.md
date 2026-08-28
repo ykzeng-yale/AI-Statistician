@@ -3278,3 +3278,14 @@ The research-ladder ledger passed `72/72`; the complete repository passed `997/9
 in 82.49 seconds. Compileall, JSON, diff hygiene, secret scanning, and the unchanged
 production architecture budget passed at 149,991 lines. No post-run product or hidden
 evaluator model call occurred.
+
+Commit `7d9278b769be47b2c119c08d5b63832974940afb` removes the measured Architect
+regeneration dependency for future tasks. Frozen task intent now owns whether formal
+or empirical evidence is applicable, so model-emitted targets outside an inactive
+lane are discarded during the existing normalization step. Targets in every active
+lane remain model-authored. This is control-envelope normalization, not scientific
+content repair: it adds no agent, retry, fallback, task rule, or second scheduler.
+Task 74's historical two Architect calls, one regeneration, automated `1/1`, and
+trustworthy `0/1` remain unchanged. Architect routing passed `26/26`, Architect plus
+core passed `34/34`, and the complete repository passed `997/997` in 81.39 seconds at
+149,997 production Python lines. No product or evaluator model call occurred.

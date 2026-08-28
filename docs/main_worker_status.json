@@ -1,9 +1,9 @@
 {
-  "schema_version": 240,
+  "schema_version": 241,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "3b079a58",
+  "validated_code_head": "7d9278b7",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -32,11 +32,25 @@
     "runtime_result_sha256": "682edc9c92a598da45f3de3da0114ac85dc5d21428c5434649be54a153b0c46a",
     "hidden_gold_evaluation_sha256": "8962c540bfc4036ee28408bfe962aebdf967869b5280b28e7e25eb47b9dd9406",
     "model_authored_report_sha256": "73d555669b3bbc2eb818b2c8b4c57d3a784235361e998a9b6eb33443880aecb7",
+    "post_run_shared_mechanism_commit": "7d9278b769be47b2c119c08d5b63832974940afb",
+    "post_run_shared_mechanism_change": "Future tasks only: frozen task intent owns lane applicability. Architect targets for not-applicable formal or empirical lanes are discarded during ordinary packet normalization, while targets for applicable lanes remain model-authored. This removes Task 74's measured reason for whole-packet regeneration without repairing or changing Task 74.",
+    "post_run_shared_mechanism_verification": "Architect route 26/26; Architect plus core 34/34; complete repository 997/997 in 81.39 seconds; compileall and diff hygiene passed at 149997 production Python lines. No product or evaluator model call occurred.",
     "verification": "Research ladder 72/72; complete repository 997/997 in 82.49 seconds; compileall, JSON, diff hygiene, secret scan, and production Python 149991 lines passed. No post-run product or hidden-evaluator model call occurred.",
     "formalization_requirement": "not_applicable",
     "formalizer_executed": false,
     "trusted_capability_credit": "0/1; aggregate remains 4/74 consumed",
     "boundary": "The sole product draw and sole post-runtime hidden evaluation are consumed and immutable. Hidden and operator findings generated no runtime feedback. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed those findings to Task 74 source owners."
+  },
+  "latest_codex_frozen_lane_ownership_change": {
+    "shared_mechanism_head": "7d9278b769be47b2c119c08d5b63832974940afb",
+    "upstream_codex_audit_head": "6be2a6ca952ac9f70676ce4dd07fda27175aa9dd",
+    "observed_design_contradiction": "Task 74's frozen intent marked empirical and formal evidence not applicable, but Architect duplicated those runtime-owned fields and echoed a simulation target. Validation then regenerated the entire structured packet, spending a second model call before the source workspace could begin.",
+    "implemented_boundary": "The existing Architect normalization step computes the runtime-owned contract once and clears formal or simulation targets only when the corresponding frozen dimension is not applicable. Targets in applicable lanes are unchanged and remain model-owned.",
+    "codex_harness_principle": "Keep a narrow harness-owned control envelope around a persistent model-tool-observation workspace. The harness owns task intent and tool authority; the model owns substantive plans, scientific content, and revisions from raw observations.",
+    "excluded_changes": "No packet repair agent, retry, fallback, extra scheduler, task-family rule, content parser, prompt-selected answer, model escalation, embedded Codex Core/App Server, or product/evaluator model call was added.",
+    "verification": "Architect route 26/26; Architect plus core 34/34; complete repository 997/997 in 81.39 seconds; compileall and diff hygiene passed. Production Python remains below the fixed 150000-line architecture budget at 149997 lines.",
+    "model_policy": "No live model call occurred. Future tests and evaluations remain exact claude-haiku-4-5-20251001; production remains Sonnet or below; Opus and automatic model escalation remain prohibited.",
+    "task_boundary": "Task 74 and all earlier draws remain immutable. Its historical two Architect calls and one whole-packet regeneration remain recorded, its trustworthy result remains 0/1, and aggregate credit remains 4/74."
   },
   "latest_canonical_authority_process_boundary": {
     "shared_mechanism_head": "af085faa",
