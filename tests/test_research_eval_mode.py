@@ -390,6 +390,12 @@ def test_research_eval_keeps_serious_theory_and_independent_review_gate(
         )
         == THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
     )
+    assert (
+        _theory_developer_prompt_mode(
+            {"runtime_requested_evidence_contract": contract}
+        )
+        == THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
+    )
 
     with pytest.raises(ValueError, match="GeneratedCodeSemanticReviewer"):
         run_research_agent_runtime(

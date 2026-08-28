@@ -885,6 +885,11 @@ def _architect_theory_preflight_accepted_result(
             failure_classification="architect_theory_preflight_acceptance_invalid",
         )
 
+    owner_source, routing_source = (
+        ("model_authored_architect_plan", "architect_plan_workspace_transition")
+        if isinstance(context.get("architect_runtime_plan"), Mapping)
+        else ("operator_frozen_task_intent", "frozen_task_intent_workspace_transition")
+    )
     preflight_packet_id = str(preflight_packet.get("packet_id", "") or "")
     preflight_packet_hash = stable_hash(preflight_packet)
     acceptance = {
@@ -917,10 +922,8 @@ def _architect_theory_preflight_accepted_result(
             "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_ACCEPTANCE_NOT_PROOF_EVIDENCE"
         ),
         "boundary": (
-            "Independent source-grounded preflight accepted the current theory "
-            "artifact for downstream use selected by the existing Architect plan. "
-            "It does not select a worker, freeze empirical metrics, authorize "
-            "execution, accept statistical performance, or prove a theorem."
+            "Independent review accepted current theory for the frozen research "
+            "path. This neither authorizes empirical execution nor proves a theorem."
         ),
     }
     acceptance_identity_payload = deepcopy(acceptance)
@@ -1021,14 +1024,12 @@ def _architect_theory_preflight_accepted_result(
         "metric_authoring_deferred": metric_protocol_required,
         "confirmatory_simulation_authorized": False,
         "compiled_next_owner": next_workspace_owner,
-        "owner_selection_source": "model_authored_architect_plan",
+        "owner_selection_source": owner_source,
         "runtime_authored_research_route": False,
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
         "boundary": (
-            "This observation records independent review of an exact theory artifact "
-            "and the next workspace compiled from the existing model-authored "
-            "Architect plan. Runtime does not make a new research decision or "
-            "author theory, implementation, simulation, or proof content."
+            "This records independent theory review and the next workspace compiled "
+            "from the frozen research path. Runtime authors no scientific content."
         ),
     }
     route_feedback_id = (
@@ -1067,7 +1068,7 @@ def _architect_theory_preflight_accepted_result(
         runtime_config=runtime_config,
         blackboard=blackboard,
         requested_subsystem_override=next_workspace_owner,
-        routing_source_override="architect_plan_workspace_transition",
+        routing_source_override=routing_source,
     )
     next_task = routing_decision["task"]
     evidence = EvidenceLedgerEntry(
@@ -1090,7 +1091,7 @@ def _architect_theory_preflight_accepted_result(
             ),
             "confirmatory_simulation_authorized": False,
             "compiled_next_owner": next_task.owner_subsystem,
-            "owner_selection_source": "model_authored_architect_plan",
+            "owner_selection_source": owner_source,
             "runtime_authored_research_route": False,
             "proof_evidence_status": acceptance["proof_evidence_status"],
         },
@@ -1098,10 +1099,8 @@ def _architect_theory_preflight_accepted_result(
     return AgentStepResult(
         status="REROUTE",
         rationale=(
-            "Independent theory preflight accepted. AgentRuntime recorded the "
-            "immutable acceptance and compiled the existing Architect research path "
-            f"into the {next_task.owner_subsystem} workspace without another model "
-            "routing call."
+            "Independent theory preflight accepted. AgentRuntime compiled the frozen "
+            f"research path into {next_task.owner_subsystem} without another model call."
         ),
         produced_artifacts={
             preflight_packet_id: dict(preflight_packet),
@@ -1111,15 +1110,12 @@ def _architect_theory_preflight_accepted_result(
         observations=(
             EnvironmentObservation(
                 observation_type="architect_theory_preflight_accepted",
-                summary=(
-                    "preflight accepted; existing Architect plan compiled directly "
-                    "to the next workspace"
-                ),
+                summary="preflight accepted; frozen research path compiled",
                 payload={
                     "acceptance_id": acceptance_id,
                     "preflight_packet_id": preflight_packet_id,
                     "next_owner_subsystem": next_task.owner_subsystem,
-                    "owner_selection_source": "model_authored_architect_plan",
+                    "owner_selection_source": owner_source,
                     "runtime_authored_research_route": False,
                     "execution_results_observed": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",

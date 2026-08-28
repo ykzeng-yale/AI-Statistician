@@ -46,21 +46,27 @@ def frozen_direct_initial_task(
     question: OpenResearchQuestion,
     architect_context: Mapping[str, Any],
 ) -> AgentTask | None:
-    requirements = research_dimension_requirements(question.task_intent)
-    required = {key for key, value in question.task_intent.items() if value == "required"}
+    intent = question.task_intent
+    requirements = research_dimension_requirements(intent)
+    lanes = {key for key, value in intent.items() if value == "required"} - {"unresolved_gaps"}
+    direct_lane = next(iter(lanes), "") if len(lanes) == 1 else ""
     if bool(
         requirements
-        and all(value == "not_applicable" for value in requirements.values())
-        and required <= {"source_replication", "unresolved_gaps"}
+        and direct_lane in {"source_replication", "theory"}
+        and all(
+            value == ("required" if key == direct_lane else "not_applicable")
+            for key, value in requirements.items()
+        )
         and research_task_intent_requirement(question.task_intent, "source_replication")
-        == "required"
+        == ("required" if direct_lane == "source_replication" else "not_applicable")
         and research_task_intent_requirement(question.task_intent, "novelty")
         == "not_applicable"
     ):
+        objective = {"source_replication": "Replicate.", "theory": "Develop theory."}[direct_lane]
         return AgentTask(
-            task_id=f"source-replication:{question.id}",
+            task_id=f"{direct_lane.replace('_', '-')}:{question.id}",
             owner_subsystem="TheoryDeveloper",
-            objective="Run the frozen source and commit its model-authored replication report.",
+            objective=objective,
             inputs={
                 "question": research_question_payload(question, include_task_intent=True),
                 "architect_context": dict(architect_context),
@@ -79,10 +85,7 @@ def frozen_direct_initial_task(
     return AgentTask(
         task_id=f"retrieve-formal-target:{question.id}:{contract_hash[:8]}",
         owner_subsystem="RetrievalMemory",
-        objective=(
-            "Retrieve active-project declarations for the frozen exact Lean target, "
-            "then return directly to the model-owned Formalizer workspace."
-        ),
+        objective="Retrieve the frozen Lean target, then enter Formalizer.",
         inputs={
             "question": research_question_payload(question, include_task_intent=True),
             "architect_context": dict(architect_context),
@@ -106,10 +109,7 @@ def frozen_direct_initial_task(
                     "id": target_id,
                     "title": question.title,
                     "informal_statement": str(contract["lean_source_prefix"]),
-                    "proof_strategy": (
-                        "Use active-project retrieval and raw Lean feedback while "
-                        "preserving the exact frozen declaration."
-                    ),
+                    "proof_strategy": "Use Lean feedback without changing the declaration.",
                     "status": "FORMAL_GAP",
                     "required_primitives": list(contract.get("required_primitives", [])),
                     "proof_obligations": [
@@ -121,10 +121,7 @@ def frozen_direct_initial_task(
         },
         allowed_tools=("formal_source_retriever", "model_backend", "local_lean"),
         expected_artifacts=("formalization_manifest", "proof_feedback"),
-        acceptance_gate=(
-            "the unchanged frozen target receives independent semantic review and "
-            "exact local kernel evidence"
-        ),
+        acceptance_gate="semantic review plus exact kernel evidence for the unchanged target",
         stop_condition="kernel promotion or a precise Formalizer blocker",
     )
 

@@ -520,10 +520,13 @@ def _theory_developer_prompt_mode(
         if isinstance(architect_plan, Mapping)
         else {}
     )
-    if (
-        isinstance(evidence_contract, Mapping)
-        and evidence_contract.get("evaluation_mode")
-        in {"research_eval", "capability_eval"}
+    requested_contract = architect_context.get(
+        "runtime_requested_evidence_contract", {}
+    )
+    if any(
+        isinstance(contract, Mapping)
+        and contract.get("evaluation_mode") in {"research_eval", "capability_eval"}
+        for contract in (evidence_contract, requested_contract)
     ):
         return THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
     return THEORY_PROMPT_MODE_COMPACT

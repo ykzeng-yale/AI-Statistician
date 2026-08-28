@@ -460,15 +460,6 @@ def test_accepted_theory_only_preflight_compiles_without_empirical_gate() -> Non
         task_intent=question.task_intent,
     )
     context = {
-        "architect_coordinator_proposal_id": "architect:theory-only",
-        "architect_runtime_plan": {
-            "packet_id": "architect:theory-only",
-            "evidence_contract": contract,
-            "subsystem_execution_plan": [
-                {"subsystem": "TheoryDeveloper"},
-                {"subsystem": "CriticEvaluator"},
-            ],
-        },
         "runtime_requested_evidence_contract": contract,
         "architect_metric_protocol_theory_material": {
             "source_theory_packet_id": theory_packet_id,
@@ -522,6 +513,8 @@ def test_accepted_theory_only_preflight_compiles_without_empirical_gate() -> Non
         == "RuntimeArchitectTheoryExecutionPreflightAcceptedObservation"
     )
     assert observation["metric_authoring_deferred"] is False
+    assert observation["owner_selection_source"] == "operator_frozen_task_intent"
+    assert observation["runtime_authored_research_route"] is False
 
 
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
@@ -1065,6 +1058,34 @@ def test_multi_lane_intent_keeps_architect_initial_ownership() -> None:
         question=question,
         architect_context={},
     ) is None
+
+
+def test_theory_only_intent_starts_theory_workspace_without_architect() -> None:
+    question = OpenResearchQuestion(
+        id="theory-only-runtime",
+        title="Theory-only runtime",
+        description="Develop and review one mathematical result.",
+        task_intent={
+            "source_replication": "not_applicable",
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "novelty": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    context = {"runtime_requested_evidence_contract": {"evaluation_mode": "research_eval"}}
+
+    task = runtime_module._frozen_direct_initial_task(
+        question=question,
+        architect_context=context,
+    )
+
+    assert task is not None
+    assert task.owner_subsystem == "TheoryDeveloper"
+    assert task.task_id == "theory:theory-only-runtime"
+    assert task.inputs["architect_context"] == context
 
 
 def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
