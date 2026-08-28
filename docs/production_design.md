@@ -350,24 +350,24 @@ tool-turn count.
 
 ## Evaluation authority
 
-Unit tests validate mechanisms, not research capability. Product research uses
-`benchmarks/research_capability_ladder_20260814.json` and reports separate theory,
-empirical, formal, novelty, replication, and unresolved-gap dimensions. A task
-passes only the dimensions required by its frozen intent; no aggregate score hides
-a required failure.
+Unit tests validate mechanisms, not research capability. The capability ladder reports
+theory, empirical, formal, novelty, replication, and unresolved-gap dimensions; frozen
+task intent decides which must pass, and no aggregate score hides a required failure.
 
-The frozen `autonomous_cross_family_e2e_protocol_20260713.json` remains the strict
-integrated formal-capability gate. Its development and held-out tasks require exact
-source-theorem kernel closure and stay sealed under their existing rules. That gate
-measures S13 formal integration, not universal product completion. Optional product
-formalization does not weaken S13, and S13 failure does not invalidate independently
-accepted non-formal research evidence.
+For formal-only gold, the visible `formal_target_contract` is the exact statement. The
+canonical evaluator already binds it to unchanged model source, independent semantic
+acceptance, clean axiom audit, and fresh Lean kernel promotion; gold consumes that typed
+closure instead of adding a hidden proof, model judge, or second verifier.
 
-Benchmark progression starts with reproducible published results and immutable
-code/data snapshots, then paper-to-code reproduction, hidden known-theory
-rederivation, historical rediscovery, near-frontier extension, and finally true
-open problems. Only levels with hidden gold can measure correctness. Open-problem
-runs report evidence and remaining gaps, never “success” from model agreement.
+The frozen cross-family protocol remains the strict integrated formal gate and requires
+exact source-theorem closure. It measures S13, not universal product completion:
+optional formalization cannot weaken S13, and S13 failure cannot erase accepted
+non-formal evidence.
+
+Benchmarks progress from reproducible published results through paper-to-code, hidden
+rederivation, historical rediscovery, near-frontier extension, and true open problems.
+Only hidden-gold levels measure correctness; open problems report evidence and gaps,
+never success from model agreement.
 
 ## Structural constraints
 

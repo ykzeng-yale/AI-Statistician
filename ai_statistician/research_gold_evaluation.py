@@ -245,19 +245,23 @@ def evaluate_research_gold_benchmark(
         "benchmark_authority_location_disclosed": False,
         "gold_visibility": "evaluator_only_after_runtime_termination",
         "n_active_tasks": len(task_rows),
-        "n_tasks_evaluated": sum(
-            any(
-                row.get(field) is True
-                for field in (
-                    "hidden_harness_execution_attempted",
-                    "hidden_theory_execution_attempted",
-                    "hidden_theory_semantic_execution_attempted",
-                    "hidden_empirical_execution_attempted",
-                    "hidden_source_replication_execution_attempted",
-                    "hidden_source_report_semantic_execution_attempted",
+            "n_tasks_evaluated": sum(
+                (
+                    any(
+                        row.get(field) is True
+                        for field in (
+                            "hidden_harness_execution_attempted",
+                            "hidden_theory_execution_attempted",
+                            "hidden_theory_semantic_execution_attempted",
+                            "hidden_empirical_execution_attempted",
+                            "hidden_source_replication_execution_attempted",
+                            "hidden_source_report_semantic_execution_attempted",
+                        )
+                    )
+                    or (row.get("runtime_result_observed") is True
+                        and row.get("dimension_status", {}).get("formal", {}).get("requirement") == "required")
                 )
-            )
-            for row in task_rows
+                for row in task_rows
         ),
         "n_tasks_passed": sum(row["task_passed"] is True for row in task_rows),
         "n_full_task_gold_configured": sum(
@@ -1225,7 +1229,7 @@ def _dimension_status(
             and runtime_requirements.get("simulation_semantic_review_accepted")
             is True
         ),
-        "formal": False,
+        "formal": runtime_result_observed and runtime_requirements.get("exact_formal_target_kernel_closed") is True,
         "novelty": False,
         "unresolved_gaps": bool(
             source_replication_gap_disclosure_present
@@ -1287,6 +1291,7 @@ def _dimension_status(
                         and hidden_algorithm_passed
                     )
                     or (dimension == "empirical" and hidden_empirical_passed)
+                    or (dimension == "formal" and observed[dimension])
                 )
             ),
             "evidence_authority": (
@@ -1307,6 +1312,7 @@ def _dimension_status(
                     "source_replication": (
                         "evaluator_only_hidden_source_replication_harness"
                     ),
+                    "formal": "operator_frozen_exact_target_plus_runtime_lean_kernel",
                     "unresolved_gaps": (
                         "source_replication_checkpoint"
                         if source_replication_gap_disclosure_present
@@ -1789,10 +1795,7 @@ def _full_task_gold_configured(task: Mapping[str, Any]) -> bool:
         and task.get("hidden_source_replication_evaluator")
     ):
         return False
-    return not any(
-        str(intent.get(dimension, "not_applicable")) == "required"
-        for dimension in ("formal", "novelty")
-    )
+    return str(intent.get("novelty", "not_applicable")) != "required"
 
 
 def _hidden_execution_summary(
@@ -2443,10 +2446,9 @@ def _validate_benchmark_manifest(
         errors.extend(
             frozen_formal_target_contract_errors(
                 visible_question.get("formal_target_contract", {}),
-                label=(
-                    f"active task {index} model-visible formal_target_contract"
-                ),
-                required="formal_target_contract" in visible_question,
+                label=f"active task {index} model-visible formal_target_contract",
+                required=(isinstance(intent, Mapping) and str(intent.get("formal", "not_applicable")) == "required"
+                    or "formal_target_contract" in visible_question),
             )
         )
         contract_clause_ids = (
