@@ -1581,29 +1581,6 @@ def validate_generated_code_semantic_review_packet(
             )
             if not document_consistent:
                 errors.append("semantic review document artifact is inconsistent")
-            if (
-                requested_verdict == "ACCEPT"
-                and str(material.get("empirical_evaluation_phase", "") or "")
-                == "executable_evaluator_authoring"
-            ):
-                role = _current_target_role(material)
-                required_terms = [
-                    str(role.get("public_entrypoint", "") or ""),
-                    *[
-                        str(value)
-                        for value in role.get("authority_output_fields", []) or []
-                        if str(value)
-                    ],
-                ]
-                missing_terms = [
-                    term for term in required_terms if term and term not in content
-                ]
-                if missing_terms:
-                    errors.append(
-                        "accepted executable-evaluator review document does not "
-                        "analyze the current target ABI: "
-                        + ", ".join(missing_terms)
-                    )
     assessment = packet.get("source_revision_assessment", {})
     if not isinstance(assessment, Mapping):
         errors.append("source_revision_assessment must be an object")

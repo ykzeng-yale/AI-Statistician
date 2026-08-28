@@ -718,7 +718,7 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
     ] is True
 
 
-def test_executable_evaluator_acceptance_must_review_current_authority_abi() -> None:
+def test_executable_evaluator_decision_path_review_is_model_owned() -> None:
     material = _review_material()
     source = (
         "def run_sandbox(seed, replicates):\n"
@@ -753,7 +753,11 @@ def test_executable_evaluator_acceptance_must_review_current_authority_abi() -> 
     response = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
-        "review_document": "# Review\n\nThe upstream estimator is aligned.",
+        "review_document": (
+            "# Review\n\nI traced the current evaluator's returned pass flag to "
+            "the conjunction of its computed checks and verified that the requested "
+            "replication commitment is carried through unchanged."
+        ),
         "findings": [],
         "source_revision_assessment": {
             "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
@@ -761,18 +765,6 @@ def test_executable_evaluator_acceptance_must_review_current_authority_abi() -> 
         },
     }
 
-    with pytest.raises(PacketValidationError, match="current target ABI"):
-        _agent(response).review(
-            question=_question(),
-            review_material=material,
-            trusted_lineage=_trusted_lineage(),
-        )
-
-    response["review_document"] = (
-        "# Review\n\nI reviewed the current `run_sandbox` source. Its "
-        "`acceptance_passed` decision and `requested_runtime_replicates` "
-        "commitment are the evaluator authority outputs."
-    )
     packet = _agent(response).review(
         question=_question(),
         review_material=material,
@@ -780,6 +772,10 @@ def test_executable_evaluator_acceptance_must_review_current_authority_abi() -> 
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
+    review_content = packet["_review_document_artifact"]["content"]
+    assert "run_sandbox" not in review_content
+    assert "acceptance_passed" not in review_content
+    assert "requested_runtime_replicates" not in review_content
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(),
         review_material=material,
