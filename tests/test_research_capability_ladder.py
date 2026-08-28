@@ -9,8 +9,8 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 LATEST_SHARED_MECHANISM_HEAD = "02ce1ae3cf73c73bc41f3744f3a7f9d160cef1f8"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 72
-CURRENT_CONSUMED_TASKS = 71
-CURRENT_OPERATOR_INVALID_TASKS = 11
+CURRENT_CONSUMED_TASKS = 72
+CURRENT_OPERATOR_INVALID_TASKS = 12
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
 TASK_62_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
@@ -6985,7 +6985,7 @@ def test_randomized_distributional_transform_l0_consumption_is_immutable() -> No
         assert hidden_name not in runtime_visible
 
 
-def test_fisher_exact_greater_l0_is_frozen_before_product_draw() -> None:
+def test_fisher_exact_greater_l0_records_one_consumed_operator_invalid_draw() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -6998,9 +6998,10 @@ def test_fisher_exact_greater_l0_is_frozen_before_product_draw() -> None:
     assert candidate["family"] == (
         "conditional_exact_contingency_table_inference"
     )
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_schema_v4_exact_haiku_product_not_started"
+        "fresh_live_v1_consumed_runtime_blocked_code_review_"
+        "operator_invalidated_theory_code_and_empirical_protocol"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-fisher-exact-greater-20260827-v1"
@@ -7045,18 +7046,77 @@ def test_fisher_exact_greater_l0_is_frozen_before_product_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["product_code_head"] == (
+        "6eb66dc973bc0a6fa2f67ac26d64df5cc993a8ec"
+    )
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "generated_code_semantic_review_packet_invalid"
+    )
+    assert evidence["runtime_research_eval_complete"] == "0/1"
+    assert evidence["hidden_full_task_result"] == "0/1"
+    assert evidence["runtime_outer_graph_iterations"] == 5
+    assert evidence["runtime_same_owner_workspace_continuations"] == 0
+    assert evidence["runtime_tool_calls"] == 3
+    assert evidence["workspace_model_turns"] == {
+        "TheoryDeveloper": 11,
+        "independent_theory_referee": 7,
+        "AlgorithmEngineer": 10,
+        "GeneratedCodeSemanticReviewer": 6,
+    }
+    assert evidence["enabled_llm_roles"] == 7
+    assert evidence["enabled_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["enabled_sonnet_calls"] == 0
+    assert evidence["enabled_opus_calls"] == 0
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_candidate_status"] == "INCONCLUSIVE"
+    assert evidence["hidden_theory_semantic_document_status"] == "PASS"
+    assert evidence["hidden_theory_semantic_claims"] == (
+        "7 SATISFIED, 1 INCONCLUSIVE"
+    )
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
+    assert evidence["operator_disposition"] == (
+        "OPERATOR_INVALIDATED_PUBLIC_DOMAIN_CLOSED_ABI_AND_EMPIRICAL_PROTOCOL"
+    )
+    assert evidence["operator_audit_path"] == (
+        "docs/operator_audits/fisher_exact_greater_l0_v1.md"
+    )
+    assert Path(evidence["operator_audit_path"]).is_file()
+    assert evidence["runtime_manifest_sha256"] == (
+        "78c31e44adc88ebb3b1d6bbd84b59042b45cdd91a69979eb79e91ed64a31b662"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "970298a28387be9291cb9e1d5b2e71307331d2885388cf37eb5d83118baaf9a7"
+    )
+    assert evidence["hidden_gold_evaluation_sha256"] == (
+        "b7c64ffc3d3c97d0d59740a0b1c623852ad79d3ff97131ec9d637765d5cf8aec"
+    )
+    assert evidence["accepted_theory_packet_hash"] == (
+        "1da324fd5a0e9b4fd0fe65f40668c4cee88d38ba2049a9902beef82e9569b1cf"
+    )
+    assert evidence["accepted_theory_document_set_hash"] == (
+        "afbf5bffa4879c078cfc9b089c2575b03db090e955054752733610395adb645e"
+    )
+    assert evidence["committed_estimator_source_hash"] == (
+        "2e230efa71e8a4bd21d5ad27da1d3f2bf7fe1d64ebba4f28bbafedefab91edf2"
+    )
+    assert evidence["post_run_shared_mechanism_commit"] == ""
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/72"
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
     )

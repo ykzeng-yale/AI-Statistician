@@ -1,5 +1,5 @@
 {
-  "schema_version": 231,
+  "schema_version": 232,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,7 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy-one consumed draws and immutable artifacts at trustworthy full-task credit 4/71, with exact development Lean closure still 0/2. Task 72 is a new disjoint L0 Fisher exact-test known-result evaluation. Its visible closed contract is committed and pushed; schema-4 hidden theory, code, and empirical authority is hash-bound outside the repository and model workspace; exact executable activation accepted one reference and rejected five negative-validator obligations; and protocol-v10 exact-Haiku qualification passed 4/4 calibration cases, 1/1 integrated long-form false-equality proof, and all eight reference claims. Activation ledger f33d6bc333afac8292abc0dfca19767d4c49d59a is confirmed on both remote branches, while no product-model call or live run has started. Next consume exactly one fresh exact-Haiku AgentRuntime draw and one post-termination hidden evaluation. Keep one AgentRuntime and model-owned Markdown/LaTeX Theory, Python/R, Simulation, and optional Lean workspaces; never expose hidden authority to runtime, rerun a consumed task, import Codex Core/App Server/SDK threads, add formulas, parsers, deterministic content repair, extra agents, schedulers, provider fallback, retries, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy-two consumed draws and immutable artifacts at trustworthy full-task credit 4/72, with exact development Lean closure still 0/2. Task 72 consumed exactly one exact-Haiku product draw and one post-runtime hidden evaluation at immutable 0/1. Runtime blocked fail-closed in generated-code semantic review; hidden theory mechanics passed 7/7 but semantic status was INCONCLUSIVE; hidden code and empirical execution were ineligible; and operator audit invalidated the model-authored positive-margin domain, closed request ABI, tail identity, and empirical preregistration. The direct Theory and Algorithm owner loops worked, raw reviewer probe errors returned to the same reviewer, and the validator correctly refused two unsupported ACCEPT submissions. No shared mechanism change is justified: do not hide Haiku capability failure behind wrappers, fallbacks, retries, repair agents, content rules, or a second scheduler. Keep one AgentRuntime and model-owned Markdown/LaTeX Theory, Python/R, Simulation, and optional Lean workspaces; never expose hidden authority to runtime or rerun a consumed task. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
   "latest_codex_single_loop_harness_change": {
     "shared_mechanism_head": "e282aeb1afd16ec1a754c09ce240710e01b88e7a",
     "upstream_codex_head": "f6494dc8f5969e8576a8a0945a674f2a15ac4de6",
@@ -126,7 +126,7 @@
   "latest_fisher_exact_greater_l0_activation": {
     "task_id": "fisher_exact_greater_fixed_margins_known_result",
     "family": "conditional_exact_contingency_table_inference",
-    "status": "frozen_ready_schema_v4_exact_haiku_product_not_started",
+    "status": "fresh_live_v1_consumed_runtime_blocked_code_review_operator_invalidated_theory_code_and_empirical_protocol",
     "public_reference": "R. A. Fisher, On the Interpretation of chi-square from Contingency Tables, and the Calculation of P, Journal of the Royal Statistical Society 85(1), 1922, pages 87-94, DOI 10.1111/j.2397-2335.1922.tb00768.x",
     "visible_question_activation_commit": "0a6e2fc32499ff1d0560891f474fdb7b50dda2ad",
     "preactivation_code_head": "0a6e2fc32499ff1d0560891f474fdb7b50dda2ad",
@@ -148,11 +148,67 @@
       "novelty": "not_applicable",
       "unresolved_gaps": "required"
     },
-    "product_model_calls": 0,
-    "fresh_live_runs": 0,
+    "product_draws": 1,
+    "fresh_live_runs": 1,
     "formalizer_executed": false,
-    "trusted_capability_credit": "not_scored; aggregate remains 4/71 consumed",
-    "boundary": "All authority is evaluator-only and hash-bound outside the repository/model workspace. Activation commit f33d6bc333afac8292abc0dfca19767d4c49d59a is confirmed on both remote branches before the sole product draw; no qualification result may become runtime feedback."
+    "trusted_capability_credit": "0/1; aggregate remains 4/72 consumed",
+    "boundary": "All authority was evaluator-only and hash-bound outside the repository/model workspace before the sole product draw. The draw and post-runtime hidden evaluation are now consumed; no hidden or operator finding became runtime feedback, and no rerun, resume, repair, re-evaluation, rescore, or resample is permitted."
+  },
+  "latest_fisher_exact_greater_l0_evaluation": {
+    "task_id": "fisher_exact_greater_fixed_margins_known_result",
+    "family": "conditional_exact_contingency_table_inference",
+    "status": "immutable_0_of_1_operator_invalidated_public_domain_closed_abi_and_empirical_protocol",
+    "run_path": "runs/main_worker_research_l0_fisher_exact_greater_20260827_v1_codex_single_loop_exact_haiku",
+    "runtime_head": "6eb66dc973bc0a6fa2f67ac26d64df5cc993a8ec",
+    "runtime_model": "claude-haiku-4-5-20251001",
+    "runtime_enabled_model_tiers": {
+      "haiku": 7
+    },
+    "runtime_sonnet_or_opus_calls": 0,
+    "runtime_status": "BLOCKED",
+    "runtime_terminal_classification": "generated_code_semantic_review_packet_invalid",
+    "runtime_outer_iterations": 5,
+    "runtime_same_owner_workspace_continuations": 0,
+    "runtime_tool_calls": 3,
+    "workspace_model_turns": {
+      "TheoryDeveloper": 11,
+      "independent_theory_referee": 7,
+      "AlgorithmEngineer": 10,
+      "GeneratedCodeSemanticReviewer": 6
+    },
+    "runtime_research_evaluation": "0/1 complete; 1/1 mode-conformant",
+    "automated_hidden_evaluation": "0/1",
+    "theory_result": "The accepted Markdown derives the conditional hypergeometric law, support, greater tail, and super-uniformity, and hidden mechanics passed 7/7. The calibrated semantic evaluator returned document PASS but combined INCONCLUSIVE with 7/8 claims satisfied because the empirical design never froze actual scenarios, alphas, seeds, replicate counts, or one MC rule. Operator audit additionally found that the accepted theory permits K=0 and K=N despite the public positive-column-margin domain and omits the required one-step tail-mass derivation; the independent referee false-accepted those mismatches.",
+    "algorithm_result": "The source-owning model directly revised and executed one committed Python source. The smoke execution passed, but operator audit found that run_estimator silently accepts extra request fields and zero column margins despite the public closed positive-margin ABI; its source states the tail decrement with the wrong mass index and skips that check. No independently accepted Algorithm handoff exists, so hidden algorithm execution was correctly not attempted.",
+    "code_review_result": "The independent reviewer made four probe-tool calls and two ACCEPT submissions. No probe reached the exact estimator: executed probes used estimators or run_estimator at undefined module scope despite the advertised run_sandbox(seed, replicates, estimators) interface. Raw errors returned to the same session, and the validator correctly rejected both unsupported ACCEPT attempts.",
+    "empirical_result": "SimulationEngineer never ran. The hidden empirical evaluator was ineligible without an independently accepted Algorithm handoff and was not attempted.",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "kernel_verified_subclaims": 0,
+    "operator_audit": "docs/operator_audits/fisher_exact_greater_l0_v1.md",
+    "operator_disposition": "OPERATOR_INVALIDATED_PUBLIC_DOMAIN_CLOSED_ABI_AND_EMPIRICAL_PROTOCOL",
+    "post_run_shared_mechanism_commit": "none",
+    "post_run_shared_mechanism_change": "None. The direct same-owner workspaces, raw observations, explicit commit, independent-review isolation, hidden-authority boundary, and fail-closed validator behaved as designed. Adding a wrapper, fallback, retry, deterministic content rule, or second scheduler would conceal model-capability failure rather than improve the harness.",
+    "verification": "The complete ladder panel passed 70/70, the exact generated-code reviewer loop panel passed 33/33, and the complete repository passed 989/989 in 85.41 seconds. No model or hidden-evaluator call occurred during verification.",
+    "evidence_hashes": {
+      "runtime_manifest": "78c31e44adc88ebb3b1d6bbd84b59042b45cdd91a69979eb79e91ed64a31b662",
+      "runtime_result": "970298a28387be9291cb9e1d5b2e71307331d2885388cf37eb5d83118baaf9a7",
+      "hidden_gold_evaluation": "b7c64ffc3d3c97d0d59740a0b1c623852ad79d3ff97131ec9d637765d5cf8aec",
+      "runtime_llm_topology": "6bdc62213fc5a80faebac43bb92e7cb45e2ae115830c1dac095eb889d1909202",
+      "runtime_evidence_ledger": "878352b6f6d0c07c8ae4418f2185d9b1bf4dc94161d9934187e8f7d97491a058",
+      "runtime_failure_summary": "8a7ac3aadf669407f5154dba50200776485c58bc332a2a6bf4816562bc9e5b45",
+      "accepted_theory_packet": "1da324fd5a0e9b4fd0fe65f40668c4cee88d38ba2049a9902beef82e9569b1cf",
+      "accepted_theory_document_set": "afbf5bffa4879c078cfc9b089c2575b03db090e955054752733610395adb645e",
+      "theory_document": "112eb360cde2511c558d9da85a320fbbccbbfcbda5c5bc209b5fcb094adbb95d",
+      "estimator_document": "7a4ed9fb309521411c863adb99b3ceb9d31b0c2efa0c3bf4f54c67d8e1bcd899",
+      "theory_referee_report": "36c34454ff32689c4b7a33118944fb21018193942e7f3fa52324b321ac246e9c",
+      "committed_estimator_source": "2e230efa71e8a4bd21d5ad27da1d3f2bf7fe1d64ebba4f28bbafedefab91edf2",
+      "code_review_validation_failure": "403b3e3cd8d25e4130dca5539f2b5737a25639a7ff977430bf0d97b2f1113116",
+      "hidden_theory_result": "2448162397b7703a7f48b7085f566f96c6179c7bac3eeaf4f72af86fd45a11b6",
+      "hidden_theory_semantic_result": "f2797d8fa841544310c77170c1dd6fe21910d162bae09eed471584504eab387d"
+    },
+    "immutability_boundary": "Exactly one product draw and one post-runtime hidden evaluation were consumed. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed hidden/operator findings to Task 72 source owners.",
+    "trusted_capability_credit": "0/1; aggregate remains 4/72"
   },
   "latest_fieller_ratio_l0_evaluation": {
     "task_id": "fieller_bivariate_normal_ratio_confidence_set_known_result",
@@ -3278,7 +3334,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/71 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Tasks 69 through 71 add component diagnostics but no full-task credit. Task 72 is fully configured and frozen but unconsumed, so it is excluded from both numerator and denominator. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
+    "fully_gold_covered_research_tasks": "4/72 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Tasks 69 through 72 add component diagnostics but no full-task credit. Task 72 is immutable 0/1 after runtime blocked in code review, hidden theory semantics remained inconclusive, and operator audit invalidated public-domain, closed-ABI, tail-identity, and empirical-protocol claims. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -3298,10 +3354,10 @@
     "cli_lines": 7036,
     "top_level_python_modules": 136,
     "top_level_package_lines": 149965,
-    "latest_runtime_manifest_bytes": 56421
+    "latest_runtime_manifest_bytes": 53205
   },
   "next_gates": [
-    "Consume exactly one fresh Task 72 AgentRuntime draw with exact claude-haiku-4-5-20251001 and one post-termination hidden evaluation now that activation commit f33d6bc333afac8292abc0dfca19767d4c49d59a is confirmed on both remote branches. Formalization is not applicable and must not run or block theory, code, or empirical evidence. Never expose hidden authority to runtime, retry the product draw, or change the task, evaluator, prompt, runtime, or model after activation.",
+    "Preserve Fisher exact-test Task 72 at immutable 0/1. Runtime correctly blocked two unsupported code-review ACCEPT submissions after four model-authored probes failed to invoke the target; hidden theory mechanics passed 7/7 but semantic status remained INCONCLUSIVE; hidden code and empirical execution were ineligible; and operator audit invalidated positive-margin scope, closed ABI, tail identity, and empirical preregistration. Do not rerun, resume, repair, hidden-evaluate again, rescore, resample, add a Fisher formula or ABI parser, wrap the reviewer tool, add retries, or feed hidden/operator findings to its source owners.",
     "Preserve randomized-distributional-transform Task 71 at immutable 0/1. Visible runtime ACCEPTED and hidden Algorithm 8/8 plus Empirical 7/7 are component evidence, but the active arbitrary-CDF theorem is supported only by a finite-discrete proof and the Theory referee plus hidden semantic judge false-accepted the scope contraction. Treat commit 02ce1ae3 only as future-task shared protocol evidence; never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed hidden/operator findings to its source owners.",
     "Preserve Fieller ratio Task 70 at immutable 0/1. Its long-horizon Markdown/LaTeX Theory passed frozen mechanical and calibrated semantic authority, but no Algorithm source was explicitly committed, so hidden code and empirical evaluators correctly did not run. Treat ecfc2403 only as future-task shared harness evidence for atomic multi-hunk source edits and commit-aware same-owner checkpoint continuation. Never rerun, resume, repair, hidden-evaluate again, rescore, manually commit its draft, or add a Fieller formula, diagnostic parser, auto-commit, recovery phase, agent, route, or scheduler.",
     "Preserve pinball-loss quantile Task 63 at immutable 0/1. Automated theory mechanics and hidden semantic judgment passed, but operator audit invalidated the active subgradient, atom/uniqueness, and empirical-minimizer reasoning; hidden code authority found a boolean closed-contract defect; and runtime Critic correctly refused empirical completion after Simulation weakened the frozen design. Treat commit b567aaa6 only as future-task shared action-boundary evidence. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or add a quantile formula, Python-bool rule, replicate-count check, deterministic math parser, reviewer vote, agent, route, or scheduler.",
