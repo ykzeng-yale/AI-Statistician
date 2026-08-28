@@ -7,6 +7,7 @@ from pathlib import Path
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 LATEST_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
+TASK_79_ACTIVATION_LEDGER_HEAD = "a6745543c662200fb39806cea5bb970532357cf0"
 TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
@@ -7762,6 +7763,107 @@ def test_horvitz_thompson_l0_draw_is_consumed_and_immutable() -> None:
         "hidden_algorithm_harness.R",
         "hidden_empirical_harness.R",
         "semantic_reference.md",
+    ):
+        assert hidden_name not in runtime_visible
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["latest_shared_mechanism_head"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+
+
+def test_distance_correlation_l2_is_frozen_before_its_only_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "distance_correlation_chisquare_paper_to_code"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L2"
+    assert candidate["family"] == (
+        "nonlinear_independence_testing_distance_correlation"
+    )
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_exact_haiku_product_draw_not_started"
+    )
+    assert candidate["gold_bundle_id"] == (
+        "research-l2-distance-correlation-chisquare-20260828-v1"
+    )
+    assert evidence["activation_ledger_commit"] == (
+        TASK_79_ACTIVATION_LEDGER_HEAD
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["semantic_final_calibration_cases_correct"] == 5
+    assert evidence["semantic_candidate_mode_negative_cases_correct"] == 1
+    assert evidence["semantic_reference_claims"] == 8
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["activation_reference_tasks_passed"] == 1
+    assert evidence["activation_negative_controls_rejected"] == 4
+    assert evidence["activation_semantic_reference_documents_passed"] == 1
+    assert (
+        evidence[
+            "activation_semantic_candidate_mode_negative_controls_rejected"
+        ]
+        == 1
+    )
+    assert evidence["activation_semantic_model_calls"] == 0
+    assert evidence["activation_semantic_qualification_model_calls"] == 7
+    assert evidence["activation_semantic_qualification_reused"] is True
+    assert evidence["reference_algorithm_contract_checks_passed"] is True
+    assert evidence["reference_algorithm_estimator_invocations"] == 18
+    assert evidence["reference_algorithm_maximum_relative_error"] == 0.0
+    assert evidence["reference_empirical_designs_passed"] == 4
+    assert evidence["reference_empirical_replicates_per_design"] == 2000
+    assert evidence["reference_empirical_estimator_invocations"] == 8000
+    assert evidence["reference_empirical_invocation_failures"] == 0
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_before_consumption"] == "4/78"
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["task_intent"]["formal"] == "not_applicable"
+    assert question["source"]["research_source_snapshot_hash"] == (
+        evidence["source_snapshot_hash"]
+    )
+    assert question["estimator_execution_contract"]["estimator_id"] == (
+        "est_distance_correlation_chisquare"
+    )
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "hidden_algorithm_harness.py",
+        "hidden_empirical_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
     ):
         assert hidden_name not in runtime_visible
 
