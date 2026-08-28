@@ -123,6 +123,9 @@ def test_statlib_qmd_l0_formal_task_records_sole_kernel_closed_draw() -> None:
     assert evidence["gold_evaluation_sha256"] == (
         "678af48b252651cd5ab4890dde1d9d51cc14004d920956d97f901f07d49f7352"
     )
+    assert evidence["closeout_evidence_commit"] == (
+        "b3c3036654dd137ef0ba229a1ebb9cda27a593b4"
+    )
     assert evidence["automated_full_task_passed"] is True
     assert evidence["full_task_passed"] is True
     assert evidence["trusted_capability_credit"] is True

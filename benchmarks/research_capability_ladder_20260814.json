@@ -9243,6 +9243,7 @@
         "runtime_source_snapshot_sha256": "d50a076404a473281ba40760905b4d9e398619b0c01d93faed0bf22c8955f239",
         "candidate_identity_probe_sha256": "42316179268e874d5210f5cff6ca1e92a324ac63b0302f2151350798ec8861ca",
         "operator_audit_path": "docs/operator_audits/statlib_qmd_score_mean_zero_formal_l0_v1.md",
+        "closeout_evidence_commit": "b3c3036654dd137ef0ba229a1ebb9cda27a593b4",
         "automated_full_task_passed": true,
         "full_task_passed": true,
         "trusted_capability_credit": true,
