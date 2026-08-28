@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "randomized_distributional_transform_known_result",
+      "title": "Randomized distributional transform for an arbitrary CDF",
+      "description": "Focused L0 known-result evaluation grounded in Rosenblatt (1952) and Brockwell (2007). Let X be a real random variable with arbitrary CDF F, let F(x-) be its left limit, and let U be Uniform[0,1], independent of X. In one authoritative Markdown/LaTeX Theory workspace, derive rigorously that Z=F(X-)+U(F(X)-F(X-)) is Uniform[0,1]. Make the role of every jump interval and the continuous component auditable, prove the continuous-CDF specialization Z=F(X), and show with an explicit nondegenerate discrete example why the ordinary transform F(X) is generally not uniform. Distinguish exact marginal uniformity under the correctly specified fixed distribution from independence across observations, parameter-estimation effects, model goodness of fit, and a proof supplied by simulation. The required model-authored Python artifact is est_randomized_distributional_transform and must implement run_estimator(request) exactly for the frozen finite-discrete closed contract. It computes the left CDF, point mass, CDF, and randomized transform at one supplied support value and auxiliary uniform number. Exploratory Python or R may check identities. A separately frozen confirmatory assessment samples from several predeclared finite discrete laws, supplies independent uniforms, evaluates randomized-transform uniformity with Monte Carlo uncertainty, and demonstrates the visible nonuniformity of the ordinary CDF transform for an atom-heavy law. This assessment is implementation and finite-design evidence, not proof, source replication, novelty, validation after fitting unknown parameters, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "probability integral transform",
+        "distributional transform",
+        "randomized residual",
+        "discrete distribution",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Universal Residuals: A Multivariate Transformation",
+          "authors": [
+            "A. E. Brockwell"
+          ],
+          "journal": "Statistics & Probability Letters",
+          "year": 2007,
+          "volume": 77,
+          "issue": 14,
+          "pages": "1473-1478",
+          "doi": "10.1016/j.spl.2007.02.008",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2211730/"
+        },
+        "foundational_paper": {
+          "title": "Remarks on a Multivariate Transformation",
+          "authors": [
+            "Murray Rosenblatt"
+          ],
+          "journal": "The Annals of Mathematical Statistics",
+          "year": 1952,
+          "volume": 23,
+          "issue": 3,
+          "pages": "470-472",
+          "doi": "10.1214/aoms/1177729394"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_randomized_distributional_transform",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.support",
+            "name": "support",
+            "meaning": "Finite support values in strictly increasing numeric order.",
+            "json_type": "array[number]",
+            "shape": "an array of 1 through 256 distinct finite non-Boolean numbers",
+            "units": "arbitrary common units for the random variable",
+            "indexing": "support[j] is the j-th ordered support point",
+            "edge_cases": "Reject empty, oversized, non-array, Boolean, string, null, nonfinite, duplicate, or non-increasing support rather than sorting, coercing, dropping, or deduplicating values.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.probabilities",
+            "name": "probabilities",
+            "meaning": "Strictly positive point masses paired positionally with support.",
+            "json_type": "array[number]",
+            "shape": "an array with exactly len(support) finite non-Boolean entries",
+            "units": "probability mass",
+            "indexing": "probabilities[j] is P(X=support[j])",
+            "edge_cases": "Every entry must be strictly positive and math.fsum(probabilities) must equal 1.0 exactly in the execution environment. Reject zero, negative, nonfinite, Boolean, string, null, wrong-length, or misnormalized arrays rather than clipping, coercing, padding, renormalizing, or dropping entries.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.value",
+            "name": "value",
+            "meaning": "The realized support value at which the transform is evaluated.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar numerically equal to exactly one support entry",
+            "units": "the same units as support",
+            "indexing": "its unique support position determines support_index",
+            "edge_cases": "Reject a value outside support, Boolean, string, null, array, object, or nonfinite value rather than coercing, snapping, or choosing a nearest support point.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.auxiliary_uniform",
+            "name": "auxiliary_uniform",
+            "meaning": "The supplied realization of the independent auxiliary Uniform[0,1] variable.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar in the closed interval [0,1]",
+            "units": "dimensionless",
+            "indexing": "not applicable",
+            "edge_cases": "Both endpoints are accepted. Reject out-of-range, nonfinite, Boolean, string, null, array, or object values rather than clipping or coercing them.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.support_index",
+            "name": "support_index",
+            "meaning": "Zero-based index of value in the ordered support.",
+            "json_type": "integer",
+            "shape": "one exact integer from zero through len(support)-1",
+            "units": "index",
+            "indexing": "zero based",
+            "edge_cases": "It identifies the unique exact numeric support match and is never inferred by rounding.",
+            "normalization": "the unique j satisfying value == support[j]."
+          },
+          {
+            "clause_id": "response.left_cdf",
+            "name": "left_cdf",
+            "meaning": "CDF left limit immediately below the realized support value.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1)",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "It is zero at the smallest support point.",
+            "normalization": "math.fsum(probabilities[:support_index])."
+          },
+          {
+            "clause_id": "response.point_mass",
+            "name": "point_mass",
+            "meaning": "Probability jump at the realized support value.",
+            "json_type": "number",
+            "shape": "one finite strictly positive scalar",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "It is the declared mass at the exact support index and is not estimated from data.",
+            "normalization": "probabilities[support_index]."
+          },
+          {
+            "clause_id": "response.cdf",
+            "name": "cdf",
+            "meaning": "CDF value at the realized support value.",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "It equals one at the largest support point under the exact declared probability-sum rule.",
+            "normalization": "left_cdf + point_mass."
+          },
+          {
+            "clause_id": "response.randomized_pit",
+            "name": "randomized_pit",
+            "meaning": "Randomized distributional transform at the supplied value and auxiliary uniform realization.",
+            "json_type": "number",
+            "shape": "one finite scalar between left_cdf and cdf inclusive",
+            "units": "dimensionless",
+            "indexing": "not applicable",
+            "edge_cases": "At auxiliary_uniform zero it equals left_cdf, and at one it equals cdf.",
+            "normalization": "left_cdf + auxiliary_uniform * point_mass."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly support, probabilities, value, and auxiliary_uniform, and the response contains exactly support_index, left_cdf, point_mass, cdf, and randomized_pit. Missing, extra, malformed, nonfinite, or out-of-domain values are rejected without mutation or coercion."
+          },
+          {
+            "clause_id": "invariant.cdf_partition",
+            "meaning": "For every accepted request, cdf-left_cdf equals point_mass and randomized_pit lies in the closed jump interval [left_cdf,cdf]."
+          },
+          {
+            "clause_id": "invariant.auxiliary_endpoints",
+            "meaning": "Holding support, probabilities, and value fixed, auxiliary_uniform=0 returns randomized_pit=left_cdf and auxiliary_uniform=1 returns randomized_pit=cdf."
+          },
+          {
+            "clause_id": "invariant.positive_affine_support",
+            "meaning": "Replacing every support value and value by a+b times that value for finite a and finite b>0, while remaining in the input domain, leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with equal requests return equal responses and do not mutate the caller's request."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every finite discrete law, seed, replicate count, binning or discrepancy statistic, Monte Carlo precision rule, and acceptance decision; use fresh independent auxiliary uniforms and invoke the exact accepted estimator for each replicate."
+          },
+          {
+            "clause_id": "claim.empirical.randomized_uniformity",
+            "meaning": "Across the frozen finite-discrete laws, assess whether randomized_pit has Uniform[0,1] mean, variance, and bin probabilities within the preregistered Monte Carlo uncertainty rule."
+          },
+          {
+            "clause_id": "claim.empirical.ordinary_nonuniformity",
+            "meaning": "For at least one predeclared atom-heavy nondegenerate law, demonstrate that the ordinary cdf response takes only the finite CDF support values and fails the preregistered uniformity diagnostic while randomized_pit satisfies it."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The assessment is finite-design implementation evidence only; it is not a proof, an independence result after shared parameter fitting, a general goodness-of-fit validation, source replication, novelty, or formal evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
