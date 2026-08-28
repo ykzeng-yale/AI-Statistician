@@ -54,6 +54,8 @@
     "semantic_activation_record_sha256": "e3887c7039929b681041c572867686c2347d4a4ff896d6e5140451cf7daa9c91",
     "semantic_qualification": "Final exact-Haiku qualification passed 4/4 calibration cases, 1/1 integrated long-form candidate-mode negative, and the eight-claim reference. Two earlier evaluator-only attempts are retained as failed qualification evidence; all eighteen preactivation model calls were exact Haiku and none entered runtime.",
     "executable_activation": "The frozen reference passed the exact algorithm and empirical validators. Three predeclared negative-evaluator obligations were rejected through those same validators. Semantic activation validation reused the frozen qualification and made zero new model calls.",
+    "activation_ledger_commit": "b8b79fc2cc416ec3c6e1308c945fb2d80860675c",
+    "activation_push_confirmed_on_work_branch_and_main": true,
     "task_intent": {
       "source_replication": "not_applicable",
       "theory": "required",
@@ -67,7 +69,7 @@
     "fresh_live_runs": 0,
     "formalizer_executed": false,
     "trusted_capability_credit": "not_scored; aggregate remains 4/70 consumed",
-    "boundary": "All authority is evaluator-only and hash-bound outside the repository/model workspace. The activation ledger must be pushed before the sole product draw; no qualification result may become runtime feedback."
+    "boundary": "All authority is evaluator-only and hash-bound outside the repository/model workspace. The activation ledger is confirmed on both remote branches before the sole product draw; no qualification result may become runtime feedback."
   },
   "latest_fieller_ratio_l0_evaluation": {
     "task_id": "fieller_bivariate_normal_ratio_confidence_set_known_result",

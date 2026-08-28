@@ -7430,6 +7430,8 @@
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
         "activation_candidate_validator_path": "same_hidden_evaluator_path",
+        "activation_ledger_commit": "b8b79fc2cc416ec3c6e1308c945fb2d80860675c",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_product_model_calls": 0,
         "preactivation_evaluator_model_calls": 18,
         "first_runtime_model_call_occurred": false,
