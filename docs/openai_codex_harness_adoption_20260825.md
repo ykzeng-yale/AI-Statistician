@@ -3097,3 +3097,37 @@ keyword heuristics from entering the live product dependency graph accidentally.
 AgentRuntime, research-evaluation, and core panel passed `120/120`; the complete
 repository passed `991/991` in 86.60 seconds. No task was activated and trusted
 aggregate credit remains `4/72`.
+
+## Actual CLI startup and hidden authority are outside AgentRuntime
+
+The prior import fix covered a direct `research_agent_runtime` import but not the
+real product command. Importing `cli.py` still loaded `research_lab.py` through a
+shared question-file loader and several legacy audit modules. In addition,
+`run_research_agent_runtime` accepted an evaluator-only gold manifest, activated its
+hidden authority before the product loop, scored it after termination, and embedded
+the score in the canonical runtime manifest. The model never received those values,
+but the ownership boundary was weaker than the documented design.
+
+Commit `af085faa` moves unchanged JSON/Markdown question loading into
+`research_schema.py`; `research_lab.py` re-exports it for compatibility. Legacy
+benchmark and audit implementations now load only inside their explicit commands.
+Fresh processes importing either the direct runtime or the actual CLI leave both
+`research_lab` and `research_gold_evaluation` absent from `sys.modules`, while an
+explicit old seed evaluation still loads and completes on demand.
+
+The same commit removes hidden gold from the AgentRuntime signature, imports,
+artifacts, and manifest. Evaluator-facing CLI code validates frozen task scope before
+product execution and, only after the product loop returns, loads the persisted
+per-question results. Content-addressed artifacts are rehydrated only when artifact
+identity, declared kind, and stable content hash match. A tampered blob fails closed.
+The separate gold evaluator then writes its existing evaluator artifact and controls
+the evaluation command's exit status; nothing is returned to a model, blackboard,
+retriever, continuation, or source-revision loop.
+
+This follows Codex's useful authority split: the product turn owns its tools and
+observations, while external evaluation observes completed artifacts rather than
+becoming a tool of the turn. No agent, retry, fallback, repair path, content rule,
+task-family branch, second scheduler, model call, or Codex runtime dependency was
+added. Focused boundary tests passed `78/78`, the AgentRuntime and question-contract
+panel passed `113/113`, and the complete repository passed `992/992` in 83.43
+seconds. All 72 consumed draws remain immutable at trusted aggregate `4/72`.
