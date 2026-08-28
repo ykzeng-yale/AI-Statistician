@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "fisher_exact_greater_fixed_margins_known_result",
+      "title": "Fisher one-sided exact test under fixed 2x2 margins",
+      "description": "Focused L0 known-result evaluation grounded in Fisher (1922). Consider two independent binomial groups with fixed row totals n1 and n2 and a common unknown success probability under the null. For the 2x2 table [[a,b],[c,d]], condition on the total number K=a+c of successes, so both row and column margins are fixed. In one authoritative Markdown/LaTeX Theory workspace, derive from the conditional binomial law that A=a has support max(0,K-n2) through min(n1,K) and the central hypergeometric PMF choose(n1,x) choose(n2,K-x) / choose(n1+n2,K). Derive the one-sided greater-tail p-value P(A' >= a | margins) and prove carefully that this discrete p-value is super-uniform under the conditional null for every alpha in [0,1]. Make the cancellation of the nuisance probability, support boundaries, Vandermonde normalization, monotonic tail argument, and conditioning scope auditable. Do not substitute a lower tail, a probability-ordering two-sided test, an unconditional binomial test, an asymptotic chi-square test, or a claim of exact level equality where discreteness makes the test conservative. The required model-authored Python artifact is est_fisher_exact_greater and must implement run_estimator(request) exactly for the frozen closed integer contract. It returns the observed-cell support, exact table probability, and one-sided greater-tail p-value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment samples from several predeclared fixed-margin hypergeometric null laws, invokes the exact accepted estimator, compares simulated rejection rates to the exact conditional rejection probability with Monte Carlo uncertainty, and verifies that exact conditional size does not exceed each preregistered alpha. This assessment is finite-design implementation evidence, not proof, unconditional size or power optimality, source replication, novelty, a two-sided test, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "Fisher exact test",
+        "contingency table",
+        "hypergeometric distribution",
+        "conditional inference",
+        "discrete p-value",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "On the Interpretation of chi-square from Contingency Tables, and the Calculation of P",
+          "authors": [
+            "R. A. Fisher"
+          ],
+          "journal": "Journal of the Royal Statistical Society",
+          "year": 1922,
+          "volume": 85,
+          "issue": 1,
+          "pages": "87-94",
+          "doi": "10.1111/j.2397-2335.1922.tb00768.x",
+          "url": "https://rss.onlinelibrary.wiley.com/doi/10.1111/j.2397-2335.1922.tb00768.x"
+        },
+        "official_implementation_note": {
+          "title": "Fisher's Exact Test for Count Data",
+          "publisher": "R Core Team",
+          "url": "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_fisher_exact_greater",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.group1_success",
+            "name": "group1_success",
+            "meaning": "Observed successes in the first fixed-size group; this is cell a.",
+            "json_type": "integer",
+            "shape": "one nonnegative Python integer that is not Boolean",
+            "units": "count",
+            "indexing": "top-left cell of [[a,b],[c,d]]",
+            "edge_cases": "Reject Boolean, float, string, null, array, object, or negative values rather than coercing or rounding them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.group1_failure",
+            "name": "group1_failure",
+            "meaning": "Observed failures in the first fixed-size group; this is cell b.",
+            "json_type": "integer",
+            "shape": "one nonnegative Python integer that is not Boolean",
+            "units": "count",
+            "indexing": "top-right cell of [[a,b],[c,d]]",
+            "edge_cases": "Reject Boolean, float, string, null, array, object, or negative values rather than coercing or rounding them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.group2_success",
+            "name": "group2_success",
+            "meaning": "Observed successes in the second fixed-size group; this is cell c.",
+            "json_type": "integer",
+            "shape": "one nonnegative Python integer that is not Boolean",
+            "units": "count",
+            "indexing": "bottom-left cell of [[a,b],[c,d]]",
+            "edge_cases": "Reject Boolean, float, string, null, array, object, or negative values rather than coercing or rounding them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.group2_failure",
+            "name": "group2_failure",
+            "meaning": "Observed failures in the second fixed-size group; this is cell d.",
+            "json_type": "integer",
+            "shape": "one nonnegative Python integer that is not Boolean",
+            "units": "count",
+            "indexing": "bottom-right cell of [[a,b],[c,d]]",
+            "edge_cases": "Reject Boolean, float, string, null, array, object, or negative values rather than coercing or rounding them.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "request_constraints": [
+          {
+            "clause_id": "request.fixed_margin_domain",
+            "meaning": "The request contains exactly the four named count fields. Their total is from 1 through 200 inclusive, and both row totals and both column totals are strictly positive. Reject missing, extra, degenerate-margin, oversized, or malformed requests without mutation or coercion. Zero individual cells are allowed."
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.observed_a",
+            "name": "observed_a",
+            "meaning": "The observed top-left success count.",
+            "json_type": "integer",
+            "shape": "one nonnegative exact integer within the returned support",
+            "units": "count",
+            "indexing": "not applicable",
+            "edge_cases": "It exactly equals group1_success.",
+            "normalization": "group1_success."
+          },
+          {
+            "clause_id": "response.support_min",
+            "name": "support_min",
+            "meaning": "Smallest feasible top-left count with all four fixed margins unchanged.",
+            "json_type": "integer",
+            "shape": "one nonnegative exact integer no larger than observed_a",
+            "units": "count",
+            "indexing": "inclusive lower endpoint",
+            "edge_cases": "It remains valid when one feasible endpoint table contains a zero cell.",
+            "normalization": "max(0, group1_success + group2_success - (group2_success + group2_failure))."
+          },
+          {
+            "clause_id": "response.support_max",
+            "name": "support_max",
+            "meaning": "Largest feasible top-left count with all four fixed margins unchanged.",
+            "json_type": "integer",
+            "shape": "one exact integer no smaller than observed_a",
+            "units": "count",
+            "indexing": "inclusive upper endpoint",
+            "edge_cases": "It remains valid when one feasible endpoint table contains a zero cell.",
+            "normalization": "min(group1_success + group1_failure, group1_success + group2_success)."
+          },
+          {
+            "clause_id": "response.table_probability",
+            "name": "table_probability",
+            "meaning": "Conditional null probability of the observed table given its row and column margins.",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "It is evaluated at observed_a and is never an unconditional binomial probability.",
+            "normalization": "choose(n1, observed_a) * choose(n2, K-observed_a) / choose(n1+n2, K), where n1 is the first row total, n2 is the second row total, and K is the first column total."
+          },
+          {
+            "clause_id": "response.pvalue_greater",
+            "name": "pvalue_greater",
+            "meaning": "One-sided conditional p-value against a larger success odds in group 1.",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "At support_min it equals one. It is not a lower tail, doubled tail, mid-p value, or probability-ordering two-sided p-value.",
+            "normalization": "sum of the conditional hypergeometric probabilities from observed_a through support_max inclusive."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the four named count fields and the response contains exactly observed_a, support_min, support_max, table_probability, and pvalue_greater. Invalid requests are rejected without mutation or coercion."
+          },
+          {
+            "clause_id": "invariant.fixed_margin_support",
+            "meaning": "For every accepted table, support_min and support_max are the inclusive feasible endpoints for the top-left count under the unchanged row and column margins, and support_min <= observed_a <= support_max."
+          },
+          {
+            "clause_id": "invariant.hypergeometric_normalization",
+            "meaning": "Across every feasible top-left count with the same margins, table_probability is positive and sums to one up to floating-point error."
+          },
+          {
+            "clause_id": "invariant.greater_tail",
+            "meaning": "Across feasible top-left counts with the same margins, pvalue_greater is the inclusive upper tail, equals one at support_min, is nonincreasing, and decreases by the preceding table probability between consecutive support points up to floating-point error."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with equal requests return equal responses and do not mutate the caller's request."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every positive-margin scenario, seed, replicate count, alpha level, exact conditional rejection calculation, Monte Carlo precision rule, and joint acceptance decision; sample only from the fixed-margin hypergeometric null and invoke the exact accepted estimator for every replicate."
+          },
+          {
+            "clause_id": "claim.empirical.conditional_size",
+            "meaning": "For every frozen margin scenario and alpha, compute the exact conditional rejection probability of pvalue_greater <= alpha and verify it is no larger than alpha; compare the simulated rejection rate to that exact discrete probability using the preregistered Monte Carlo uncertainty rule."
+          },
+          {
+            "clause_id": "claim.empirical.discrete_calibration",
+            "meaning": "Retain the exact support, PMF normalization, p-value monotonicity, exact size, simulated rejection count, and Monte Carlo uncertainty diagnostics rather than reporting only a pass Boolean."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The assessment is finite-design conditional implementation evidence only; it is not proof, unconditional exactness, equality of size to alpha, power optimality, a two-sided test, source replication, novelty, or formal evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
