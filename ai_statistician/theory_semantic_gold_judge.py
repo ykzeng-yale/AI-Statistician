@@ -22,7 +22,7 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 8
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 9
 
 
 def _theory_semantic_gold_judge_schema(
@@ -217,7 +217,10 @@ def _generate_semantic_assessment_batch(
             "Use PASS only when every required rubric claim is established and no material "
             "falsehood appears; use FAIL for a material active contradiction or invalid asserted "
             "derivation; use INCONCLUSIVE only when no material contradiction is established but "
-            "required support is missing or indeterminate. Calibration cases are unlabeled, and "
+            "required support is missing or indeterminate. For an omitted claim, an explicit "
+            "statement of noncoverage, or material outside the document's stated scope, use "
+            "INCONCLUSIVE rather than VIOLATED unless the document actively asserts something "
+            "false about that claim. Calibration cases are unlabeled, and "
             "the candidate phase contains no calibration cases. Follow the keyed response schema "
             "exactly. During calibration, candidate-mode negative control, and candidate "
             "adjudication, use the same claim-level assessment: return document_status and one "
