@@ -15,7 +15,7 @@ TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
-CURRENT_ACTIVE_TASKS = 80
+CURRENT_ACTIVE_TASKS = 81
 CURRENT_CONSUMED_TASKS = 80
 CURRENT_OPERATOR_INVALID_TASKS = 16
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
@@ -118,7 +118,10 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
         "reference_code",
     }
     assert all(forbidden_keys.isdisjoint(candidate) for candidate in candidates)
-    assert all(candidate["level"] in {"L0", "L1", "L2"} for candidate in candidates)
+    assert all(
+        candidate["level"] in {"L0", "L1", "L2", "L3"}
+        for candidate in candidates
+    )
 
 
 def test_ladder_live_evaluation_policy_is_exact_haiku() -> None:
