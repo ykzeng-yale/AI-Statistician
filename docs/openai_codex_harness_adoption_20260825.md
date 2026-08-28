@@ -3533,3 +3533,52 @@ control-plane budget passed; production Python decreased from 149,998 to 149,993
 lines. No product or hidden-evaluator model was called. Codex Core, App Server,
 Responses transport, provider state, thread/worktree management, and multi-agent
 scheduling remain excluded from the single AI Statistician `AgentRuntime`.
+
+## 2026-08-28 fifth upstream refresh and Task 81
+
+Official Codex `main` was refreshed through
+[`8bcac28f`](https://github.com/openai/codex/commit/8bcac28f93f78b70d1159d97dbf11254bfb56a49).
+The newest relevant shared-rollout change makes compressed lineage seekable while
+preserving logical offsets and immutable prefix identity. That reinforces a narrow
+harness invariant: a tool observation already committed to one session cannot become
+optional merely because later reasoning continues from a compact representation.
+
+Task 81 exposed the analogous scientific-review defect. The independent Algorithm
+reviewer authored and ran a successful exact-estimator probe. Its returned metrics
+contradicted the reviewer's claimed source equivalence, yet the same reviewer ignored
+that observation and accepted. In the Simulation lane, a reviewer also conflated the
+harness-supplied blinded authoring diagnostic count with the source-authored future
+confirmatory commitment and instructed the source owner to reject the next diagnostic.
+These are collaboration failures, not missing statistical formulas or reasons to add a
+repair agent.
+
+Commit `8ddbf749585f2d97dae08c300d7c05bf1deb74e2` applies the minimum shared correction.
+Every successful optional probe already has an immutable `result_hash`; that hash must
+now appear in the same model-authored Markdown review, where the reviewer reconciles
+the raw metrics with its verdict. Omission returns as ordinary validation feedback to
+the retained reviewer session. Runtime does not classify a Boolean, metric, formula,
+source line, or scientific conclusion. The model still chooses whether to probe, what
+oracle to encode, how to interpret every observation, what finding to report, and
+whether to accept or revise.
+
+Executable-evaluator review now also states that
+`actual_runtime_arguments.replicates` is blinded diagnostic capacity, not the
+source-authored future commitment or a minimum accepted call size. The returned future
+request is reviewed separately. No replicate value, task family, DGP, formula, packet
+field, assessment taxonomy, source patch, agent, outer retry, fallback, scheduler,
+provider, or model escalation was added.
+
+The first structured implementation was rejected during development because it added
+about 180 production lines and crossed the existing control-plane budget. The final
+implementation adds six production lines and reuses existing Markdown, `result_hash`,
+validation feedback, and same-session continuation. Focused reviewer/runtime
+regressions passed 45/45, and the complete repository passed 1014/1014 in 80.64
+seconds with 149,999 production Python lines. Task 81 remains consumed and immutable
+at 0/1; aggregate trusted full-task capability remains 4/81.
+
+This remains selective invariant reuse. Theory, Python/R, Simulation, and Lean keep
+their provider-neutral AI Statistician workspaces and one outer `AgentRuntime`. Codex
+Core, App Server, Responses transport, OpenAI provider state, thread storage,
+worktrees, Guardian, and multi-agent scheduling remain excluded because importing them
+would create a second control plane without adding mathematical, empirical, or kernel
+authority.

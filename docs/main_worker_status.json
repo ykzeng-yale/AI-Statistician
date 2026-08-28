@@ -1,13 +1,13 @@
 {
-  "schema_version": 254,
+  "schema_version": 255,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "0399034c",
+  "validated_code_head": "8ddbf749",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-one consumed draws and immutable artifacts at trustworthy full-task credit 4/81, with exact development Lean closure still 0/2. Task 81 remains consumed 0/1. Its hidden Theory and empirical components passed, but accepted Algorithm source contradicted its public ABI and the evaluator-authoring reviewer confused a blinded diagnostic count with the future confirmatory commitment. Correct only these shared existing workspace contracts: make reviewer-authored executable contradictions explicit before terminal ACCEPT and distinguish authoring diagnostics from future confirmation without a task rule, RepairAgent, second scheduler, retry layer, or hidden feedback. Keep one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; selectively reuse Codex turn-loop and immutable-lineage invariants, but do not embed Codex Core, App Server, Responses transport, thread storage, provider state, worktrees, or multi-agent scheduling. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all eighty-one consumed draws and immutable artifacts at trustworthy full-task credit 4/81, with exact development Lean closure still 0/2. Task 81 remains consumed 0/1. Commit 8ddbf749 applies only its future-task shared lesson: every successful reviewer-authored probe keeps immutable result identity and must be reconciled in the same model-authored Markdown judgment, while executable-evaluator review distinguishes the blinded authoring diagnostic from the source-authored future confirmatory commitment. The correction adds six production lines and no packet field, assessment taxonomy, task formula, RepairAgent, second scheduler, outer retry, fallback, hidden feedback, or model escalation. Keep one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; selectively reuse Codex turn-loop and immutable-lineage invariants without embedding Codex Core, App Server, Responses transport, thread storage, provider state, worktrees, or multi-agent scheduling. Next select an independently justified disjoint frozen task rather than rerunning consumed evidence. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
   "latest_distance_correlation_chisquare_l2_evaluation": {
     "task_id": "distance_correlation_chisquare_paper_to_code",
     "family": "nonlinear_independence_testing_distance_correlation",
@@ -92,6 +92,9 @@
     "accepted_theory_document_set_hash": "1820f6dcb6c4d052211b7c9eb5bb4d2dd091c10031fdd865488c2f530fed3da3",
     "evaluated_estimator_source_hash": "9b4c7a2cfe3f41099aaf48a154b81ebd1fc9061629022ef37ec62c259afd35a6",
     "operator_audit": "docs/operator_audits/linear_kernel_two_sample_l3_v1.md",
+    "post_run_shared_mechanism_commit": "8ddbf749585f2d97dae08c300d7c05bf1deb74e2",
+    "post_run_shared_mechanism_change": "For future reviews, each successful exact-estimator probe result_hash must appear in and be reconciled by the same model-authored Markdown review before terminal acceptance. Missing reconciliation returns as raw validation to that retained reviewer session. Executable-evaluator review now names actual_runtime_arguments.replicates as blinded diagnostic capacity rather than a future commitment or minimum call size. Runtime interprets no metric, formula, or verdict.",
+    "post_run_shared_mechanism_evidence": "Reviewer and adjacent runtime regressions passed 45/45; the complete repository passed 1014/1014 in 80.64 seconds. Compileall, diff hygiene, changed-file secret and hidden-identity scanning, and the unchanged control-plane budget passed with 149,999 production Python lines. No product or hidden-evaluator model call and no consumed-task mutation occurred.",
     "formalization_requirement": "not_applicable",
     "formalizer_executed": false,
     "trusted_capability_credit": "0/1; aggregate remains 4/81 consumed",
@@ -2180,13 +2183,14 @@
     "upstream_repository": "https://github.com/openai/codex",
     "official_platform_article": "https://developers.openai.com/blog/codex-as-a-platform",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "868c9edb0da913a5fc699a71664e65f44f6058b0",
+    "latest_rechecked_upstream_commit": "8bcac28f93f78b70d1159d97dbf11254bfb56a49",
     "corrected_prior_upstream_commit": "31d338a1ea89cd65a48d8ac07f50bb3917009806",
-    "latest_incremental_finding": "Current Codex still centers one session owner on model-selected tool calls, execution, typed raw observation return, stable item identity, and continued reasoning in accumulated history. The two commits after 76253439 refresh MCP tool caches during binding capture and assign stable IDs to generated Responses input items. They add no scientific planner, mathematical workspace, simulator policy, Lean prover, or provider-neutral inner-loop library. App Server, Responses transport, thread store, provider state, worktree manager, Guardian, and multi-agent scheduling remain orthogonal product services whose import would duplicate the Claude-backed scientific control plane.",
-    "latest_incremental_adoption": "Commit 1ebed16d implements Task 80's future-task selective adoption without importing Codex: producer revision preserves canonical public question identity; Algorithm and executable Simulation reviewers record attention to applicable public clauses; raw terminal validation feedback can drive exactly one bounded terminal-only correction after a rejected final continuation; and formal-pending metadata respects not-applicable task intent. Runtime checks identity, applicability, and bounded turn semantics only. No PELT rule, formula, source patch, provider, agent, outer retry, fallback, scheduler, runtime gate, or model escalation was added.",
+    "latest_incremental_finding": "Current Codex still centers one session owner on model-selected tool calls, execution, typed raw observation return, stable item identity, and continued reasoning in accumulated history. The latest relevant shared-rollout compression change preserves immutable logical offsets and prefix identity under seekable replay. It adds no scientific planner, mathematical workspace, simulator policy, Lean prover, or provider-neutral inner-loop library. App Server, Responses transport, thread store, provider state, worktree manager, Guardian, and multi-agent scheduling remain orthogonal product services whose import would duplicate the Claude-backed scientific control plane.",
+    "latest_incremental_adoption": "Commit 8ddbf749 applies the committed-observation invariant inside the existing generated-code reviewer: a successful model-authored probe's existing result_hash must be cited and reconciled in the same Markdown judgment, and a missing citation returns as raw validation in the retained session. The executable-evaluator prompt separates authoring diagnostic capacity from the source-authored future confirmation request. Runtime chooses no probe, interpretation, formula, edit, or verdict; no schema field, assessment taxonomy, agent, outer retry, fallback, scheduler, provider, or model escalation was added.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "1ebed16db58f8edb8e3658eb94f693ce1a14223a",
+    "implementation_commit": "8ddbf749585f2d97dae08c300d7c05bf1deb74e2",
+    "latest_verification": "Focused reviewer/runtime regressions passed 45/45 and the complete repository passed 1014/1014 in 80.64 seconds; production Python is 149,999 lines. No model call or consumed-task mutation occurred.",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -2244,7 +2248,8 @@
       "b9297aef7574ab4670914ecb18e169ac251b85ef",
       "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2",
       "492d11120fbae8b630fa01af8bb11d6da131f5b9",
-      "1ebed16db58f8edb8e3658eb94f693ce1a14223a"
+      "1ebed16db58f8edb8e3658eb94f693ce1a14223a",
+      "8ddbf749585f2d97dae08c300d7c05bf1deb74e2"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -2332,7 +2337,8 @@
     "Commit 89a82b28 preserves both the beginning and terminal diagnostic of oversized shared tool observations through one size-marked middle truncation. Every source owner keeps the same tool loop and receives no extra call, parser, retry, or interpretation.",
     "Commit b9297aef makes a semantic-review rejection supersede stale scientific-progress and replay continuation markers before exact reviewed source and raw findings return to the existing source owner. The existing reviewer prompt names its stable probe ABI and asks the model for a discriminating oracle; runtime chooses no scientific case, formula, edit, or verdict.",
     "Commit 492d1112 keeps public Algorithm request, response, and invariant clause IDs in the existing reviewer terminal schema as a model-authored attention record. Runtime checks IDs and completeness only; the same reviewer owns reads, probes, analysis, findings, and verdict. Empirical claims remain with Simulation, and no edge-case implementation, content parser, agent, retry, fallback, scheduler, provider, or model escalation is added.",
-    "Commit 1ebed16d preserves canonical question identity through source revision, extends clause-attention identity to executable Simulation's public empirical claims, permits one terminal-only same-session correction after a rejected final continuation, and suppresses false pending-proof metadata for explicit formal-not-applicable tasks. It adds no scientific rule, source edit, RepairAgent, outer retry, fallback, scheduler, provider, or model escalation."
+    "Commit 1ebed16d preserves canonical question identity through source revision, extends clause-attention identity to executable Simulation's public empirical claims, permits one terminal-only same-session correction after a rejected final continuation, and suppresses false pending-proof metadata for explicit formal-not-applicable tasks. It adds no scientific rule, source edit, RepairAgent, outer retry, fallback, scheduler, provider, or model escalation.",
+    "Commit 8ddbf749 reuses each successful exact-probe result_hash as committed observation identity. The same reviewer must cite and reconcile it in Markdown before submission can terminate; raw rejection stays in that session. Executable-evaluator review separately names diagnostic capacity and future confirmation commitment. Six production lines were added, with no packet field, assessment taxonomy, content rule, agent, scheduler, retry, fallback, or model escalation."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
