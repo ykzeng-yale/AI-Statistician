@@ -1015,26 +1015,17 @@ def run_bounded_client_tool_loop(
 
 
 def _client_tool_result_text(
-    value: Any,
-    *,
-    max_chars: int = CLIENT_TOOL_RESULT_MAX_CHARS,
+    value: Any, *, max_chars: int = CLIENT_TOOL_RESULT_MAX_CHARS
 ) -> str:
     if isinstance(value, str):
         text = value
     else:
-        text = json.dumps(
-            value,
-            sort_keys=True,
-            separators=(",", ":"),
-            default=str,
-            ensure_ascii=False,
-        )
+        text = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str,
+                          ensure_ascii=False)
     if len(text) <= max_chars:
         return text
-    marker = (
-        "\n[tool result truncated in middle by runtime; "
-        f"original_chars={len(text)}; original_lines={len(text.splitlines())}]\n"
-    )
+    marker = ("\n[tool result truncated in middle by runtime; "
+              f"original_chars={len(text)}; original_lines={len(text.splitlines())}]\n")
     if max_chars <= len(marker):
         return marker[:max_chars]
     remaining = max_chars - len(marker)

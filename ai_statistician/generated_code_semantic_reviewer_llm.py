@@ -869,9 +869,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         probe_tool = ClientToolDefinition(
             name=GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL,
             description=(
-                "Run reviewer-authored Python or R diagnostic source against one "
-                "exact immutable estimator. Define run_sandbox(seed, replicates, "
-                "estimators) exactly; for Python the declaration begins "
+                "Run reviewer-authored Python or R diagnostic source against one exact "
+                "immutable estimator. Define run_sandbox(seed, replicates, estimators) "
+                "exactly; for Python the declaration begins "
                 "`def run_sandbox(seed, replicates, estimators):`. Then call the "
                 "target run_estimator directly with "
                 "estimators[artifact_id](request) in Python or "
@@ -944,9 +944,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             " You may first call "
                             + GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL
                             + " for a model-authored multi-case Python or R test. When useful, "
-                            "prefer one broad model-authored probe that covers multiple "
-                            "load-bearing public boundary cases; choose the cases and "
-                            "interpretation yourself. A probe failure before exact target invocation "
+                            "prefer one broad model-authored probe that covers multiple load-bearing "
+                            "public boundary cases; choose the cases and interpretation yourself. "
+                            "A probe failure before exact target invocation "
                             "is your own tool error, never a scientific finding or cross-artifact "
                             "conflict. Repair and rerun it when execution is needed, or ignore that "
                             "invalid probe and judge the immutable source independently. Re-read every "

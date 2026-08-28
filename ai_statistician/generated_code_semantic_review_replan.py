@@ -12,9 +12,8 @@ from .research_schema import OpenResearchQuestion
 
 
 GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
-GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY = (
+GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY = \
     "runtime_generated_code_semantic_review_lineage_ledger"
-)
 
 
 def advance_generated_code_semantic_review_lineage_budget(
@@ -27,18 +26,14 @@ def advance_generated_code_semantic_review_lineage_budget(
 ) -> dict[str, Any]:
     """Bound repeated producer regenerations for one reviewed source lineage."""
 
-    finding_signature = {
-        "findings": sorted(
-            (
-                _normalized_text(row.get("finding_id")),
-                _normalized_text(row.get("severity")),
-                _normalized_text(row.get("category")),
-                _normalized_text(row.get("summary")),
-            )
-            for row in review_packet.get("findings", []) or []
-            if isinstance(row, Mapping)
-        ),
-    }
+    finding_signature = {"findings": sorted(
+        (_normalized_text(row.get("finding_id")),
+         _normalized_text(row.get("severity")),
+         _normalized_text(row.get("category")),
+         _normalized_text(row.get("summary")))
+        for row in review_packet.get("findings", []) or []
+        if isinstance(row, Mapping)
+    )}
     finding_fingerprint = stable_hash(finding_signature)
     source_lineage_identity = (
         str(work_order.get("question_id", "") or ""),
@@ -47,21 +42,12 @@ def advance_generated_code_semantic_review_lineage_budget(
     )
     source_lineage_key = stable_hash(source_lineage_identity)
     lineage_key = stable_hash([*source_lineage_identity, finding_fingerprint])
-    raw_ledger = architect_context.get(
-        GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
-        {},
-    )
-    ledger = {
-        str(key): dict(value)
-        for key, value in (
-            raw_ledger.items() if isinstance(raw_ledger, Mapping) else []
-        )
-        if isinstance(value, Mapping)
-    }
+    raw_ledger = architect_context.get(GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY, {})
+    ledger = {str(key): dict(value) for key, value in (
+        raw_ledger.items() if isinstance(raw_ledger, Mapping) else []
+    ) if isinstance(value, Mapping)}
     prior = dict(ledger.get(lineage_key, {}))
-    migrated_regenerations = (
-        max(0, int(prior_local_revisions or 0)) if not ledger else 0
-    )
+    migrated_regenerations = max(0, int(prior_local_revisions or 0)) if not ledger else 0
     max_candidate_regenerations = max(0, int(max_local_revisions or 0))
     row = {
         "lineage_key": lineage_key,
@@ -221,17 +207,14 @@ def build_generated_code_semantic_review_producer_revision_task(
         ),
     }
     replan["revision_context_id"] = (
-        "generated_code_semantic_review_revision_context:"
-        + stable_hash(replan)[:20]
-    )
+        "generated_code_semantic_review_revision_context:" + stable_hash(replan)[:20])
     replan_context["runtime_generated_code_semantic_review_replan"] = replan
     task_id = (
         f"semantic-review-producer-regenerate:{question.id}:"
         f"{stable_hash([review_execution_id, replan['revision_context_id']])[:8]}"
     )
     revision_inputs = deepcopy(source_inputs)
-    # Semantic review starts a new hash-bound continuation from the reviewed
-    # source. Older progress/replay continuations are mutually exclusive with it.
+    # A semantic revision supersedes older progress/replay continuations.
     revision_inputs.pop("scientific_code_workspace_progress_manifest", None)
     revision_inputs.pop("scientific_code_workspace_continuation_count", None)
     revision_inputs.pop("consumer_resume_manifest", None)
