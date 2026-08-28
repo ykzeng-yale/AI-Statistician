@@ -3766,3 +3766,47 @@ hidden evaluation remain immutable at `0/1`; aggregate trusted capability is `4/
 Closeout regressions passed 128/128 for the ladder and hidden-evaluation surface;
 the complete repository passed 1022/1022 in 81.91 seconds. This is regression and
 evidence-accounting support only, not additional scientific capability evidence.
+
+## 2026-08-28 current upstream and exact formal closure
+
+Official Codex `main` was refreshed through
+[`f9cdc90c`](https://github.com/openai/codex/commit/f9cdc90c2c4d38cd557deb933e592f0032a5ea6e).
+The harness-relevant delta after `3ae4225b` adds per-tool MCP output limits, shared
+role/tool-attributed Guardian transcript collection, and preservation of full
+world-state baselines across nested forks. These changes sharpen three reusable
+invariants: tool observations need source-aware presentation budgets; independent
+review needs correctly attributed evidence; and continuation must retain an exact
+causal context baseline even when a parent task message is absent.
+
+AI Statistician should adopt those invariants, not Codex's product runtime. Full
+scientific outputs remain immutable external artifacts with hashes; only bounded,
+tool-specific observations enter a model context. Source owner, reviewer, task, and
+root-question identities remain distinct and hash-bound. A continuation may inherit
+an unambiguous checkpoint baseline but may not invent ancestry or silently replay an
+execution. Codex Core, App Server, Responses transport, Guardian, thread/worktree
+management, and Codex multi-agent scheduling still do not supply statistical planning,
+mathematical judgment, Simulation authority, or Lean kernel authority and remain
+outside the canonical Anthropic-backed runtime.
+
+Task 85 provides the cleanest live validation yet. One exact-Haiku Formalizer session
+received Statlib-centered retrieval, selected two declaration inspections and two Lean
+scratch checks, read the raw results, authored source distinct from the hidden proof,
+and explicitly submitted it. An isolated exact-Haiku semantic reviewer accepted the
+unchanged source; the existing runtime then reran that exact hash through Lean identity
+and axiom gates and promoted one full theorem. The terminal Critic accepted the formal
+contract. Retrieval, Formalizer, reviewer, kernel promotion, and Critic crossed four
+sparse handoffs in one `AgentRuntime`; Architect made zero calls.
+
+The run finished `ACCEPTED`, research evaluation `1/1`, and gold evaluation `1/1`.
+The candidate was axiom-clean apart from `propext`, `Classical.choice`, and
+`Quot.sound`; the hidden evaluator made zero model calls and did not feed back into
+runtime. There was no Theory, Python/R, Simulation, repair, fallback, duplicate
+verifier, task rule, or model escalation. All six product calls used exact
+`claude-haiku-4-5-20251001`; Opus remained prohibited.
+
+This validates the minimal harness for one formal-only known result. It does not turn
+Codex into the product scheduler, validate other scientific workspaces, or establish
+full-lab readiness. Task 85 is consumed at `1/1`; aggregate trustworthy capability is
+`5/85`, and no post-run product mechanism change is justified. Focused ladder and
+formal-authority regressions passed `89/89`; the complete repository passed
+`1029/1029` in 81.66 seconds without another product or evaluator model call.

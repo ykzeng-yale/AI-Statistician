@@ -9,7 +9,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "statlib_qmd_score_mean_zero_univ_formal_known_result"
 
 
-def test_statlib_qmd_l0_formal_task_is_frozen_before_product_draw() -> None:
+def test_statlib_qmd_l0_formal_task_records_sole_kernel_closed_draw() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -20,9 +20,9 @@ def test_statlib_qmd_l0_formal_task_is_frozen_before_product_draw() -> None:
     assert candidate["family"] == (
         "quadratic_mean_differentiability_score_formalization"
     )
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_haiku_product_draw_not_started"
+        "fresh_live_v1_consumed_exact_haiku_kernel_closed_gold_passed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-statlib-qmd-score-mean-zero-formal-20260828-v1"
@@ -48,14 +48,14 @@ def test_statlib_qmd_l0_formal_task_is_frozen_before_product_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "required"
-    assert evidence["formalizer_executed"] is False
+    assert evidence["formalizer_executed"] is True
     assert evidence["theory_developer_executed"] is False
     assert evidence["generated_algorithm_executed"] is False
     assert evidence["generated_simulation_executed"] is False
@@ -65,6 +65,71 @@ def test_statlib_qmd_l0_formal_task_is_frozen_before_product_draw() -> None:
         "d10c8ec28803a32e1b2d87606c4ed761ec0238fe"
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["product_code_head"] == (
+        "b277cdd9b7ed2ec8e8522900569642347f544936"
+    )
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_research_eval_result"] == "1/1"
+    assert evidence["post_runtime_gold_result"] == "1/1"
+    assert evidence["post_runtime_gold_assessments"] == 1
+    assert evidence["post_runtime_evaluator_model_calls"] == 0
+    assert evidence["product_model_calls"] == 6
+    assert evidence["formalizer_workspace_model_turns"] == 4
+    assert evidence["formalizer_workspace_tool_calls"] == 5
+    assert evidence["formalizer_declaration_inspections"] == 2
+    assert evidence["formalizer_lean_scratch_checks"] == 2
+    assert evidence["formalizer_source_submissions"] == 1
+    assert evidence["formal_target_semantic_reviewer_model_calls"] == 1
+    assert evidence["critic_model_calls"] == 1
+    assert evidence["architect_model_calls"] == 0
+    assert evidence["runtime_outer_graph_iterations"] == 5
+    assert evidence["runtime_traces"] == 5
+    assert evidence["runtime_task_handoffs"] == 4
+    assert evidence["initial_formal_rag_provider_calls"] == 2
+    assert evidence["initial_formal_rag_provider_failures"] == 0
+    assert evidence["initial_formal_rag_fused_hits"] == 4
+    assert evidence["retrieved_closing_declaration"] == (
+        "QMD.integral_score_eq_zero_of_mem_nhds"
+    )
+    assert (
+        evidence["retrieved_closing_declaration_disclosed_in_visible_question"]
+        is False
+    )
+    assert evidence["model_authored_candidate_source_hash"] == (
+        "d695c50d32f4ef6766eb5cf106d98300b0a136d2a46a4571336ad109dd96fef3"
+    )
+    assert evidence["model_candidate_differs_from_hidden_gold_bytes"] is True
+    assert evidence["formal_target_semantic_review_accepted"] is True
+    assert evidence["formal_target_semantic_review_findings"] == 0
+    assert evidence["source_theorem_kernel_verified"] is True
+    assert evidence["full_frontier_theorems_proved"] == 1
+    assert evidence["kernel_verified_subclaims"] == 0
+    assert evidence["formal_gaps"] == 0
+    assert evidence["lean_axiom_audit_clean"] is True
+    assert evidence["lean_trusted_axioms"] == [
+        "propext",
+        "Classical.choice",
+        "Quot.sound",
+    ]
+    assert evidence["proof_evidence_status"] == (
+        "EXACT_MODEL_SOURCE_KERNEL_VERIFIED"
+    )
+    assert evidence["runtime_formal_status"] == (
+        "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+    )
+    assert evidence["runtime_manifest_sha256"] == (
+        "e725916416ebac9909a999e08f73048086804cd6ffed6ac091c396589a539f27"
+    )
+    assert evidence["gold_evaluation_sha256"] == (
+        "678af48b252651cd5ab4890dde1d9d51cc14004d920956d97f901f07d49f7352"
+    )
+    assert evidence["automated_full_task_passed"] is True
+    assert evidence["full_task_passed"] is True
+    assert evidence["trusted_capability_credit"] is True
+    assert evidence["ladder_score_after_consumption"] == "5/85"
+    assert evidence["post_run_shared_mechanism_change"].startswith("none;")
+    for forbidden in ("rerun", "resume", "repair", "rescore", "resample"):
+        assert forbidden in evidence["boundary"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -110,10 +175,10 @@ def test_statlib_qmd_l0_formal_task_is_frozen_before_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 85
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 84
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 85
     assert readiness["fully_gold_configured_tasks"] == 85
-    assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["fully_gold_passed_tasks"] == 5
     assert readiness["latest_shared_mechanism_head"] == (
         "f34f4f04d34c5986224f77edb5dacc52c8f2207a"
     )
