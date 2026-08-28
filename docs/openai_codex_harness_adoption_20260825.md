@@ -3507,3 +3507,29 @@ would duplicate the sole `AgentRuntime`, add a second provider/control plane,
 and violate the exact-Haiku evaluation boundary. No PELT rule, pruning formula,
 replicate special case, repair agent, outer retry, fallback, or task branch is
 justified by this audit.
+
+## Task 80 future-task mechanism implementation
+
+Commit `1ebed16db58f8edb8e3658eb94f693ce1a14223a` implements the four shared
+invariants above without changing the consumed Task 80 artifacts or score. A
+producer revision now carries the canonical public question payload rather than a
+four-field reconstruction. The existing independent reviewer records attention to
+Algorithm request/response/invariant clauses or, only while reviewing executable
+Simulation authoring, the public empirical clauses. These IDs are an attention
+record, not evidence; the model still chooses reads, probes, analysis, findings,
+and verdict.
+
+The shared client-tool loop keeps one stable tool-definition surface and raw
+observations. If the automatic terminal-only continuation is executed and its
+terminal submission is rejected, the same model receives exactly one further
+terminal-only correction turn. It cannot edit the workspace, invoke Architect,
+start a repair phase, or repeat indefinitely. Explicit `formal=not_applicable`
+task intent also suppresses false pending-proof metadata while legacy and formal
+tasks retain the kernel boundary.
+
+Focused regressions passed 68/68 and the complete repository passed 1013/1013 in
+80.42 seconds. Compileall, diff/JSON hygiene, secret scanning, and the unchanged
+control-plane budget passed; production Python decreased from 149,998 to 149,993
+lines. No product or hidden-evaluator model was called. Codex Core, App Server,
+Responses transport, provider state, thread/worktree management, and multi-agent
+scheduling remain excluded from the single AI Statistician `AgentRuntime`.

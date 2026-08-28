@@ -6,8 +6,9 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "492d11120fbae8b630fa01af8bb11d6da131f5b9"
+LATEST_SHARED_MECHANISM_HEAD = "1ebed16db58f8edb8e3658eb94f693ce1a14223a"
 TASK_79_ACTIVATION_LEDGER_HEAD = "a6745543c662200fb39806cea5bb970532357cf0"
+TASK_79_SHARED_MECHANISM_HEAD = "492d11120fbae8b630fa01af8bb11d6da131f5b9"
 TASK_80_ACTIVATION_LEDGER_HEAD = "eb6ddd325f7d8969c1f446c97ceb56860b9a4add"
 TASK_78_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
 TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
@@ -7858,7 +7859,7 @@ def test_distance_correlation_l2_only_product_draw_is_consumed_and_immutable() -
     assert evidence["hidden_empirical_checks"] == "9/9"
     assert evidence["hidden_empirical_estimator_invocations"] == 8000
     assert evidence["post_run_shared_mechanism_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        TASK_79_SHARED_MECHANISM_HEAD
     )
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
@@ -8036,6 +8037,12 @@ def test_pelt_gaussian_mean_l2_only_product_draw_is_consumed_and_immutable() -> 
     assert evidence["ladder_score_before_consumption"] == "4/79"
     assert evidence["ladder_score_after_consumption"] == "4/80"
     assert evidence["post_run_score_changed"] is False
+    assert evidence["future_shared_mechanism_pending"] is False
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+    assert "1013/1013" in evidence["post_run_shared_mechanism_evidence"]
+    assert "future tasks only" in evidence["post_run_shared_mechanism_change"].lower()
     assert "consumed and immutable" in evidence["boundary"]
 
     run_path = Path(evidence["immutable_run_path"])
