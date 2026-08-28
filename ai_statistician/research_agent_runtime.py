@@ -162,10 +162,6 @@ from .research_evaluation import (
     build_research_evaluation_summary,
     theory_preexecution_review_accepted,
 )
-from .research_gold_evaluation import (
-    evaluate_research_gold_benchmark,
-    validate_research_gold_benchmark_activation,
-)
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     LLMFormalTargetSemanticReviewerAgent,
@@ -19874,34 +19870,11 @@ def run_research_agent_runtime(
     formal_source_retriever: Any | None = None,
     proof_search_provider: LeanProofSearchProvider | None = None,
     config: ResearchAgentRuntimeConfig = ResearchAgentRuntimeConfig(),
-    research_gold_manifest: Path | None = None,
     architect_context: Mapping[str, Any] | None = None,
     initial_task_overrides: Mapping[str, AgentTask] | None = None,
     initial_blackboard_artifacts: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     config = _normalized_runtime_evaluation_model_config(config)
-    if research_gold_manifest is not None and config.evaluation_mode != "research_eval":
-        raise ValueError(
-            "research_gold_manifest is evaluator-only and requires "
-            "evaluation_mode=research_eval"
-        )
-    if research_gold_manifest is not None:
-        gold_descriptor = validate_research_gold_benchmark_activation(
-            research_gold_manifest,
-            visible_questions={
-                question.id: _question_to_payload(question)
-                for question in questions
-            },
-        )
-        missing_gold_questions = sorted(
-            set(gold_descriptor["active_task_ids"])
-            - {question.id for question in questions}
-        )
-        if missing_gold_questions:
-            raise ValueError(
-                "research gold tasks are absent from the selected question set: "
-                + ", ".join(missing_gold_questions)
-            )
     if (
         _is_runtime_research_evaluation_mode(config.evaluation_mode)
         and (
@@ -20662,26 +20635,6 @@ def run_research_agent_runtime(
         evaluation_mode=config.evaluation_mode,
         schema_version=RUNTIME_SCHEMA_VERSION,
     )
-    research_gold_evaluation = (
-        evaluate_research_gold_benchmark(
-            results,
-            research_evaluation_summary=research_evaluation_summary,
-            benchmark_manifest_path=research_gold_manifest,
-            out_dir=out_dir,
-        )
-        if research_gold_manifest is not None
-        else {
-            "configured": False,
-            "artifact_kind": "ResearchCapabilityGoldEvaluation",
-            "boundary": (
-                "No evaluator-only gold benchmark was configured for this run."
-            ),
-        }
-    )
-    if research_gold_evaluation.get("artifact_path"):
-        artifacts["research_capability_gold_evaluation_json"] = str(
-            research_gold_evaluation["artifact_path"]
-        )
 
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -20726,7 +20679,6 @@ def run_research_agent_runtime(
         "runtime_failure_summary": failure_summary,
         "runtime_terminal_kind": failure_summary["terminal_kind"],
         "research_evaluation_summary": research_evaluation_summary,
-        "research_gold_evaluation": research_gold_evaluation,
         "n_runtime_traces": len(trace_rows),
         "n_runtime_outer_graph_iterations": sum(
             int(row.get("outer_graph_iterations_consumed", 0) or 0)
@@ -20805,7 +20757,8 @@ def run_research_agent_runtime(
         "manifest_boundary": (
             "This compact manifest indexes runtime traces, observations, tool "
             "calls, and evidence. It does not infer capability or prescribe a "
-            "repair; the independent audit reads the referenced primary records."
+            "repair; hidden authority and post-runtime gold scoring are outside "
+            "this runtime and its manifest."
         ),
         "artifacts": artifacts,
     }

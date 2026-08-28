@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from .research_intake_audit import UNSUPPORTED_PROBLEM_CLASS
-from .research_lab import ProblemFormalizer, build_research_provenance
 from .research_schema import OpenResearchQuestion
 
 
@@ -119,6 +118,8 @@ def audit_frontier_coverage(
     benchmark_file: Path = Path("docs/frontier_stat_theory_benchmark.md"),
 ) -> dict[str, object]:
     """Measure deterministic research-lab coverage over the frontier benchmark document."""
+
+    from .research_lab import ProblemFormalizer, build_research_provenance
 
     questions = load_frontier_benchmark_questions(benchmark_file)
     formalizer = ProblemFormalizer()

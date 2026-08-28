@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .research_lab import ProblemFormalizer, build_research_provenance, load_open_research_questions
+from .research_schema import load_open_research_questions
 
 
 UNSUPPORTED_PROBLEM_CLASS = "unsupported_frontier_question"
@@ -29,6 +29,8 @@ def audit_research_question_intake(
     unsupported_files: tuple[Path, ...] | None = None,
 ) -> dict[str, object]:
     """Audit paper-style research-question normalization and rejection behavior."""
+
+    from .research_lab import ProblemFormalizer, build_research_provenance
 
     supported_files = supported_files or (
         Path("examples/research_questions.json"),

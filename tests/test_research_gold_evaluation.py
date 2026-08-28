@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import ai_statistician.research_gold_evaluation as gold_evaluation_module
+from ai_statistician.cli import _post_runtime_gold_evaluation_results
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_id,
@@ -54,6 +56,9 @@ def test_gold_authority_is_not_part_of_agent_runtime_config() -> None:
     assert "research_gold_manifest" not in (
         ResearchAgentRuntimeConfig.__dataclass_fields__
     )
+    assert "research_gold_manifest" not in inspect.signature(
+        run_research_agent_runtime
+    ).parameters
 
 
 def test_hc0_visible_statement_distinguishes_finite_and_limit_covariance() -> None:
@@ -80,22 +85,63 @@ def test_gold_preflight_descriptor_exposes_no_hidden_evaluator_payload() -> None
     assert "1e-08" not in serialized
 
 
-def test_gold_preflight_rejects_missing_selected_task_before_runtime_output(
+def test_gold_preflight_rejects_missing_selected_task_before_product_output(
     tmp_path: Path,
 ) -> None:
     out_dir = tmp_path / "must-not-exist"
     manifest = _schema_v3_gold_manifest(tmp_path)
 
     with pytest.raises(ValueError, match="absent from the selected question set"):
-        run_research_agent_runtime(
-            [],
-            out_dir,
-            theory_developer=None,
-            config=ResearchAgentRuntimeConfig(evaluation_mode="research_eval"),
-            research_gold_manifest=manifest,
+        validate_research_gold_benchmark_activation(
+            manifest,
+            visible_questions={},
         )
 
     assert not out_dir.exists()
+
+
+def test_post_runtime_gold_loader_rehydrates_exact_artifact_hashes(
+    tmp_path: Path,
+) -> None:
+    artifact = {
+        "artifact_kind": "RuntimeQuestionMetadata",
+        "question": {"id": QUESTION_ID},
+    }
+    artifact_hash = stable_hash(artifact)
+    blob_path = tmp_path / "artifact.json"
+    blob_path.write_text(json.dumps(artifact), encoding="utf-8")
+    result_path = tmp_path / "runtime_result.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "blackboard_artifact_payload_policy": "content_addressed_refs",
+                "blackboard": {
+                    "artifacts": {
+                        "question:1": {
+                            "artifact_kind": "RuntimeArtifactRef",
+                            "artifact_id": "question:1",
+                            "content_hash": artifact_hash,
+                            "payload_kind": "RuntimeQuestionMetadata",
+                            "path": str(blob_path),
+                        }
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    results = _post_runtime_gold_evaluation_results(
+        {"artifacts": {"per_question_results": [str(result_path)]}}
+    )
+
+    assert results[0]["blackboard"]["artifacts"] == {"question:1": artifact}
+
+    blob_path.write_text(json.dumps({**artifact, "tampered": True}), encoding="utf-8")
+    with pytest.raises(ValueError, match="artifact payload hash mismatch"):
+        _post_runtime_gold_evaluation_results(
+            {"artifacts": {"per_question_results": [str(result_path)]}}
+        )
 
 
 def _model_source() -> str:

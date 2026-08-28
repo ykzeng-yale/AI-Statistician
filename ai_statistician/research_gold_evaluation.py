@@ -96,6 +96,14 @@ def validate_research_gold_benchmark_activation(
     """Execute future-task calibration through the frozen candidate validators."""
 
     descriptor = validate_research_gold_benchmark_manifest(path)
+    if visible_questions is not None:
+        visible_task_ids = {str(task_id) for task_id in visible_questions}
+        missing_task_ids = sorted(set(descriptor["active_task_ids"]) - visible_task_ids)
+        if missing_task_ids:
+            raise ValueError(
+                "research gold tasks are absent from the selected question set: "
+                + ", ".join(missing_task_ids)
+            )
     benchmark = _load_benchmark_manifest(path.resolve())
     schema_version = int(benchmark.get("schema_version", 0) or 0)
     if schema_version not in {3, 4}:

@@ -23,14 +23,11 @@ from .doctor import build_doctor_report, write_doctor_manifest
 from .evaluation import EvalConfig, run_seed_eval
 from .autoform_target_export import export_autoform_targets
 from .frontier_backlog_audit import audit_frontier_backlog
-from .frontier_coverage_audit import audit_frontier_coverage
 from .frontier_discover_and_prove_prompt_packets import (
     export_frontier_discover_and_prove_prompt_packets,
 )
 from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_precision_audit import audit_frontier_precision
-from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
-from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
 from .fingerprint import stable_hash
 from .frontier_theory_revision_formalization_audit import audit_frontier_theory_revision_formalization
 from .frontier_theory_revision_queue import export_frontier_theory_revision_queue
@@ -94,14 +91,9 @@ from .proof_search_retrieval_ablation import run_proof_search_retrieval_ablation
 from .proof_search_training_export import export_proof_search_process_dataset
 from .proof_search_value_model import train_proof_search_value_model
 from .proof_training_export import export_proof_training_dataset
-from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .release import ReleaseBundleConfig, build_release_bundle
 from .research_evaluation import ResearchEvalConfig, run_research_seed_eval
 from .research_gap_audit import audit_research_gap_backlog
-from .research_intake_audit import audit_research_question_intake
-from .research_knowledge_audit import audit_research_knowledge
-from .research_lab import audit_research_algorithm_registry, load_open_research_questions, run_research_benchmark
-from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
 from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
 from .research_source_library import (
@@ -112,6 +104,7 @@ from .research_source_discovery import (
     PublicResearchSourceDiscovery,
     PublicResearchSourceDiscoveryConfig,
 )
+from .research_schema import load_open_research_questions, research_question_payload
 from .research_architect import (
     AnthropicArchitectLLMProvider,
     LLMTheoryDeveloperAgent,
@@ -1833,6 +1826,8 @@ def _proof_search_value_train(args: argparse.Namespace) -> int:
 
 
 def _research_algorithm_audit(args: argparse.Namespace) -> int:
+    from .research_lab import audit_research_algorithm_registry
+
     payload = audit_research_algorithm_registry(Path(args.out))
     print("\nAI Statistical Theory Lab Algorithm Audit")
     print("=" * 72)
@@ -1850,6 +1845,8 @@ def _research_algorithm_audit(args: argparse.Namespace) -> int:
 
 
 def _research_intake_audit(args: argparse.Namespace) -> int:
+    from .research_intake_audit import audit_research_question_intake
+
     supported_files = tuple(Path(path) for path in args.supported_file) if args.supported_file else None
     unsupported_files = tuple(Path(path) for path in args.unsupported_file) if args.unsupported_file else None
     payload = audit_research_question_intake(
@@ -1880,6 +1877,8 @@ def _research_intake_audit(args: argparse.Namespace) -> int:
 
 
 def _frontier_coverage_audit(args: argparse.Namespace) -> int:
+    from .frontier_coverage_audit import audit_frontier_coverage
+
     payload = audit_frontier_coverage(Path(args.out), benchmark_file=Path(args.benchmark_file))
     print("\nAI Statistical Theory Lab Frontier Coverage Audit")
     print("=" * 72)
@@ -2047,6 +2046,8 @@ def _frontier_evaluation_triage(args: argparse.Namespace) -> int:
 
 
 def _frontier_simulation_rerun_audit(args: argparse.Namespace) -> int:
+    from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
+
     payload = audit_frontier_simulation_reruns(
         Path(args.triage_manifest),
         Path(args.out),
@@ -2126,6 +2127,8 @@ def _frontier_theory_revision_formalization_audit(args: argparse.Namespace) -> i
 
 
 def _research_knowledge_audit(args: argparse.Namespace) -> int:
+    from .research_knowledge_audit import audit_research_knowledge
+
     payload = audit_research_knowledge(Path(args.out), question_file=Path(args.question_file))
     print("\nAI Statistical Theory Lab Knowledge Audit")
     print("=" * 72)
@@ -2179,6 +2182,8 @@ def _lean_blueprint_knowledge(args: argparse.Namespace) -> int:
 
 
 async def _frontier_smoke_benchmark(args: argparse.Namespace) -> int:
+    from .frontier_smoke_benchmark import FrontierSmokeConfig, run_frontier_smoke_benchmark
+
     _load_dotenv(Path(args.env_file))
     verifier = _proof_verifier_from_args(args)
     payload = await run_frontier_smoke_benchmark(
@@ -3153,6 +3158,8 @@ def _capability_audit(args: argparse.Namespace) -> int:
 
 
 def _research_capability_audit(args: argparse.Namespace) -> int:
+    from .research_capability_audit import build_research_capability_audit, write_research_capability_audit
+
     report = build_research_capability_audit(
         root=Path(args.root),
         question_file=Path(args.question_file),
@@ -3189,6 +3196,8 @@ def _research_capability_audit(args: argparse.Namespace) -> int:
 
 
 def _prover_component_audit(args: argparse.Namespace) -> int:
+    from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
+
     payload = build_prover_component_audit(
         root=Path(args.root),
         question_file=Path(args.question_file),
@@ -3284,6 +3293,8 @@ async def _release_bundle(args: argparse.Namespace) -> int:
 
 
 async def _research_benchmark(args: argparse.Namespace) -> int:
+    from .research_lab import run_research_benchmark
+
     _load_dotenv(Path(args.env_file))
     verifier = _proof_verifier_from_args(args)
     questions = load_open_research_questions(Path(args.question_file))
@@ -3675,6 +3686,27 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             f"{resume_question_id}"
         )
         return 2
+    if research_gold_manifest:
+        from .research_gold_evaluation import (
+            validate_research_gold_benchmark_activation,
+        )
+
+        try:
+            validate_research_gold_benchmark_activation(
+                Path(research_gold_manifest),
+                visible_questions={
+                    question.id: research_question_payload(
+                        question,
+                        include_task_intent=True,
+                    )
+                    for question in questions
+                },
+            )
+        except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+            print("\nAI Statistician Agent Runtime rejected gold evaluation scope")
+            print("=" * 72)
+            print(f"- {exc}")
+            return 2
     provider, provider_name = _build_theory_generator_backend(
         provider_name=args.provider,
         static_response_file=args.static_response_file,
@@ -3841,9 +3873,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         proof_state_provider=proof_state_provider,
         formal_source_retriever=formal_source_retriever,
         proof_search_provider=proof_search_provider,
-        research_gold_manifest=(
-            Path(research_gold_manifest) if research_gold_manifest else None
-        ),
         architect_context=context,
         initial_task_overrides=resume_initial_tasks,
         initial_blackboard_artifacts=resume_blackboard_artifacts,
@@ -3942,7 +3971,16 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     )
     if getattr(args, "research_eval", False):
         summary = manifest.get("research_evaluation_summary", {})
-        gold = manifest.get("research_gold_evaluation", {})
+        gold: Mapping[str, Any] = {"configured": False}
+        if research_gold_manifest:
+            from .research_gold_evaluation import evaluate_research_gold_benchmark
+
+            gold = evaluate_research_gold_benchmark(
+                _post_runtime_gold_evaluation_results(manifest),
+                research_evaluation_summary=summary,
+                benchmark_manifest_path=Path(research_gold_manifest),
+                out_dir=Path(args.out),
+            )
         print(
             "research_evaluation="
             f"{summary.get('n_questions_research_eval_complete', 0)}/"
@@ -3997,6 +4035,49 @@ def _research_agent_runtime_research_eval_ready(
     if research_gold_manifest:
         return gold.get("all_active_tasks_passed") is True
     return summary.get("all_questions_research_eval_complete") is True
+
+
+def _post_runtime_gold_evaluation_results(
+    runtime_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Hydrate exact runtime artifacts only after the product loop has ended."""
+
+    artifacts = runtime_manifest.get("artifacts", {})
+    result_paths = (
+        artifacts.get("per_question_results", [])
+        if isinstance(artifacts, Mapping)
+        else []
+    )
+    if not isinstance(result_paths, list):
+        raise ValueError("runtime manifest per-question result paths are invalid")
+    results: list[dict[str, Any]] = []
+    for raw_path in result_paths:
+        result_path = Path(str(raw_path)).resolve()
+        try:
+            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"post-runtime result is unreadable: {result_path}"
+            ) from exc
+        if not isinstance(result_payload, dict):
+            raise ValueError(
+                f"post-runtime result must be an object: {result_path}"
+            )
+        blackboard = result_payload.get("blackboard", {})
+        if not isinstance(blackboard, Mapping):
+            raise ValueError(
+                f"post-runtime result has no blackboard: {result_path}"
+            )
+        hydrated = _load_runtime_blackboard_artifact_payloads(
+            result_payload=result_payload,
+            result_path=result_path,
+        )
+        result_payload["blackboard"] = {
+            **dict(blackboard),
+            "artifacts": hydrated,
+        }
+        results.append(result_payload)
+    return results
 
 
 def _selected_research_eval_requires_formal_lane(

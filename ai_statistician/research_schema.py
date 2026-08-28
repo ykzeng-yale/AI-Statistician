@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Literal, Mapping
+
+from .estimator_interface_contract import frozen_estimator_execution_contract_errors
 
 
 RESEARCH_EVIDENCE_DIMENSIONS = (
@@ -178,6 +183,157 @@ def research_question_payload(
             question.formal_target_contract
         )
     return payload
+
+
+def load_open_research_questions(path: Path) -> list[OpenResearchQuestion]:
+    """Load public research intent without importing legacy task registries."""
+
+    if path.suffix.lower() in {".md", ".markdown", ".txt"}:
+        return _load_text_research_questions(path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload["questions"] if isinstance(payload, dict) and "questions" in payload else payload
+    questions: list[OpenResearchQuestion] = []
+    for row in rows:
+        raw_task_intent = row.get("task_intent", {})
+        if not isinstance(raw_task_intent, dict):
+            raise ValueError("research question task_intent must be an object")
+        task_intent = {
+            str(dimension): str(requirement)
+            for dimension, requirement in raw_task_intent.items()
+        }
+        if any(
+            requirement not in TASK_INTENT_REQUIREMENTS
+            for requirement in task_intent.values()
+        ):
+            raise ValueError(
+                "research question task_intent requirements must be required, "
+                "optional, or not_applicable"
+            )
+        estimator_execution_contract = row.get(
+            "estimator_execution_contract", {}
+        )
+        contract_errors = frozen_estimator_execution_contract_errors(
+            estimator_execution_contract,
+            label="research question estimator_execution_contract",
+            required="estimator_execution_contract" in row,
+        )
+        if contract_errors:
+            raise ValueError("; ".join(contract_errors))
+        formal_target_contract = row.get("formal_target_contract", {})
+        formal_contract_errors = frozen_formal_target_contract_errors(
+            formal_target_contract,
+            label="research question formal_target_contract",
+            required="formal_target_contract" in row,
+        )
+        if formal_contract_errors:
+            raise ValueError("; ".join(formal_contract_errors))
+        if (
+            formal_target_contract
+            and task_intent.get("formal") == "not_applicable"
+        ):
+            raise ValueError(
+                "research question formal_target_contract conflicts with "
+                "task_intent.formal=not_applicable"
+            )
+        questions.append(
+            OpenResearchQuestion(
+                id=str(row["id"]),
+                title=str(row.get("title", row["id"])),
+                description=str(row["description"]),
+                tags=tuple(str(tag) for tag in row.get("tags", ())),
+                task_intent=task_intent,
+                estimator_execution_contract=(
+                    deepcopy(dict(estimator_execution_contract))
+                    if isinstance(estimator_execution_contract, dict)
+                    else {}
+                ),
+                formal_target_contract=(
+                    deepcopy(dict(formal_target_contract))
+                    if isinstance(formal_target_contract, dict)
+                    else {}
+                ),
+            )
+        )
+    return questions
+
+
+def _load_text_research_questions(path: Path) -> list[OpenResearchQuestion]:
+    text = path.read_text(encoding="utf-8")
+    heading_re = re.compile(r"^#{1,3}\s+([A-Za-z0-9_.-]+)\s*:\s*(.+?)\s*$")
+    sections: list[tuple[str, str, list[str]]] = []
+    current_id: str | None = None
+    current_title: str | None = None
+    current_lines: list[str] = []
+    for raw_line in text.splitlines():
+        match = heading_re.match(raw_line.strip())
+        if match:
+            if current_id and current_title:
+                sections.append((current_id, current_title, current_lines))
+            current_id = match.group(1)
+            current_title = match.group(2).strip()
+            current_lines = []
+        elif current_id:
+            current_lines.append(raw_line)
+    if current_id and current_title:
+        sections.append((current_id, current_title, current_lines))
+    if not sections:
+        return [_single_text_question(path, text)]
+
+    questions: list[OpenResearchQuestion] = []
+    for question_id, title, lines in sections:
+        tags: tuple[str, ...] = ()
+        body_lines: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.lower().startswith("tags:"):
+                tags = _parse_tags(stripped.split(":", 1)[1])
+            else:
+                body_lines.append(line)
+        description = "\n".join(body_lines).strip()
+        if not description:
+            description = title
+        questions.append(
+            OpenResearchQuestion(
+                id=_safe_question_id(question_id),
+                title=title,
+                description=description,
+                tags=tags,
+            )
+        )
+    return questions
+
+
+def _single_text_question(path: Path, text: str) -> OpenResearchQuestion:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if lines and lines[0].startswith("#"):
+        title = lines[0].lstrip("#").strip()
+        description = "\n".join(lines[1:]).strip() or title
+    elif lines:
+        title = lines[0]
+        description = "\n".join(lines[1:]).strip() or title
+    else:
+        title = path.stem.replace("_", " ").title()
+        description = title
+    return OpenResearchQuestion(
+        id=_safe_question_id(path.stem),
+        title=title,
+        description=description,
+        tags=(),
+    )
+
+
+def _parse_tags(raw: str) -> tuple[str, ...]:
+    return tuple(
+        tag.strip().lower().replace(" ", "_")
+        for tag in raw.split(",")
+        if tag.strip()
+    )
+
+
+def _safe_question_id(raw: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", raw.strip())
+    slug = slug.strip("_.-")
+    return slug or "open_research_question"
 
 
 @dataclass(frozen=True)

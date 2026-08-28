@@ -106,25 +106,31 @@ def test_canonical_runtime_does_not_restore_retired_routing_surfaces() -> None:
     assert not {needle for needle in forbidden if needle in runtime_source}
 
 
-def test_canonical_runtime_does_not_import_legacy_research_lab() -> None:
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            (
-                "import sys; "
-                "import ai_statistician.research_agent_runtime; "
-                "print('loaded' if 'ai_statistician.research_lab' in sys.modules "
-                "else 'not-loaded')"
-            ),
-        ],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+def test_canonical_entrypoints_do_not_import_legacy_or_hidden_authority() -> None:
+    for module_name in (
+        "ai_statistician.research_agent_runtime",
+        "ai_statistician.cli",
+    ):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import importlib, sys; "
+                    f"importlib.import_module({module_name!r}); "
+                    "print(sorted(name for name in ("
+                    "'ai_statistician.research_lab', "
+                    "'ai_statistician.research_gold_evaluation') "
+                    "if name in sys.modules))"
+                ),
+            ],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
-    assert completed.stdout.strip() == "not-loaded"
+        assert completed.stdout.strip() == "[]"
 
 
 def test_live_model_policy_forbids_opus_and_pins_evaluation_to_haiku() -> None:
