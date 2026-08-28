@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "pelt_gaussian_mean_paper_to_code",
+      "title": "PELT Gaussian mean-shift segmentation from paper to code",
+      "description": "Focused L2 paper-to-code evaluation based on Killick, Fearnhead, and Eckley, Optimal detection of changepoints with a linear computational cost, JASA 107(500), 2012. The model-visible snapshot contains the exact arXiv v1 LaTeX source and bibliography; package implementations and gold outcomes are withheld from runtime. For a finite univariate signal, develop one authoritative Markdown/LaTeX Theory workspace that defines the additive penalized segmentation objective, Gaussian mean-shift residual-sum-of-squares segment cost, dynamic-programming recursion, backtracking, and PELT pruning theorem. Derive O(1) segment costs from prefix sums. State the cost condition and pruning constant needed for exactness, distinguish global optimality from binary-segmentation heuristics, and distinguish the paper's conditional expected-linear result from a universal worst-case linear-time claim. Explain the minimum-segment-length feasible set, including why a pruning witness at endpoint t cannot remove an earlier candidate for a future endpoint until a segment beginning at t is itself feasible. Explain the F(0)=-beta convention that charges beta per changepoint rather than per segment, deterministic tie handling, and the location-shift, joint-rescaling, and time-reversal equivariances. The required model-authored artifact is est_pelt_gaussian_mean and must implement the frozen run_estimator(request) contract as Python source using the paper's exact pruned dynamic program. Exploratory Python may test recursions and compare exhaustive small-n partitions. A separately frozen confirmatory assessment uses n=240, minimum segment length 10, penalty 3*log(240), at least 1000 fresh replicates per design, and one seed per design frozen before outcomes. The null design is iid N(0,1). The one-change design has means 0 and 2.5 on two consecutive length-120 segments with unit variance. The three-change design has means 0, 2, -2, and 1.5 on four consecutive length-60 segments with unit variance. Null success means no changepoint; one-change success means exactly one changepoint within five observations of 120; three-change success means exactly three changepoints, each within five observations of 60, 120, and 180. The lower two-Monte-Carlo-standard-error success bound must be at least 0.95 for the null and one-change designs and at least 0.90 for the three-change design. These finite simulations assess executable behavior under one public penalty and three public Gaussian designs only; they do not prove universal consistency, optimal penalty selection, expected-linear complexity, or performance under other costs, variances, dimensions, or dependence. Exact source-code replication, unknown-variance likelihood calibration, alternative cost models, online detection, novelty, and Lean formalization are not applicable. Unresolved mathematical, ABI, execution, complexity, or empirical gaps must remain explicit.",
+      "tags": [
+        "changepoint_detection",
+        "PELT",
+        "dynamic_programming",
+        "gaussian_mean_shift",
+        "paper_to_code",
+        "python_language",
+        "L2"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Optimal detection of changepoints with a linear computational cost",
+          "authors": [
+            "Rebecca Killick",
+            "Paul Fearnhead",
+            "Idris A. Eckley"
+          ],
+          "venue": "Journal of the American Statistical Association",
+          "year": 2012,
+          "volume": 107,
+          "issue": 500,
+          "pages": "1590-1598",
+          "identifier": "arXiv:1101.1438v1; DOI 10.1080/01621459.2012.737745",
+          "url": "https://arxiv.org/abs/1101.1438v1"
+        },
+        "research_source_snapshot_id": "pelt-gaussian-mean-paper-20110107-v1",
+        "research_source_snapshot_hash": "ba625ba0c27368a36cdad71f8d1900ca2349ab6effc3a62e3046ab3f8d37e0df",
+        "research_source_manifest_sha256": "9a570fd6f58f6ee5dba75ca8e68dfa7d603bed49df0c3e77b226a0756c3c4dc2",
+        "reference_implementation_visibility": "evaluator_only_hidden_for_l2"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_pelt_gaussian_mean",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.signal",
+            "name": "signal",
+            "meaning": "The univariate observations in time order.",
+            "json_type": "array[number]",
+            "shape": "One vector with 4 through 512 finite non-Boolean entries, each in [-1e6, 1e6].",
+            "units": "arbitrary signal units",
+            "indexing": "signal[i] is observation i in zero-based Python order; a changepoint k separates signal[0:k] from signal[k:n].",
+            "edge_cases": "Reject Boolean, string, null, object, nested, empty, nonfinite, below-domain, or above-domain values rather than coercing, dropping, flattening, clipping, or truncating them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.penalty",
+            "name": "penalty",
+            "meaning": "The strictly positive beta charged for every reported changepoint.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in (0, 1e12].",
+            "units": "squared signal units",
+            "indexing": "One value shared by all candidate segments in the request.",
+            "edge_cases": "Reject Boolean, string, null, object, array, nonfinite, zero, negative, or above-domain values rather than coercing, taking an absolute value, clipping, or substituting a default.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.min_segment_length",
+            "name": "min_segment_length",
+            "meaning": "The minimum number of observations in every segment, including the first and last.",
+            "json_type": "integer",
+            "shape": "One finite non-Boolean integer from 1 through floor(n/2).",
+            "units": "observations",
+            "indexing": "A boundary sequence is feasible only when each successive segment length is at least this value.",
+            "edge_cases": "Reject Boolean, string, null, object, array, noninteger, nonfinite, below-domain, or infeasible values rather than coercing, rounding, clipping, or substituting a default.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.changepoints",
+            "name": "changepoints",
+            "meaning": "The exact globally minimizing internal segment boundaries.",
+            "json_type": "array[integer]",
+            "shape": "A possibly empty strictly increasing array of finite non-Boolean integers.",
+            "units": "zero-based half-open sequence offsets",
+            "indexing": "Each k denotes a split between signal[k-1] and signal[k]; 0 and n are excluded, and the terminal n is not returned.",
+            "edge_cases": "Every implied segment must satisfy min_segment_length. Among partitions with exactly equal computed objective, return the lexicographically smallest changepoint array.",
+            "normalization": "Minimize the declared residual-sum-of-squares plus penalty-times-number-of-changepoints objective over the complete feasible partition set."
+          },
+          {
+            "clause_id": "response.objective",
+            "name": "objective",
+            "meaning": "The penalized objective attained by the returned changepoints.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean nonnegative scalar.",
+            "units": "squared signal units",
+            "indexing": "One value for the complete signal and returned partition.",
+            "edge_cases": "Return the unrounded finite value; do not omit the changepoint penalty, charge the first segment, normalize by segment length, estimate a variance, or return an information criterion.",
+            "normalization": "objective=sum over segments of sum_{i in segment}(signal_i-segment_mean)^2 + penalty*len(changepoints)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly signal, penalty, and min_segment_length, and the response contains exactly changepoints and objective. Missing, extra, malformed, nonfinite, or out-of-domain values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.exact_pelt_optimality",
+            "meaning": "Use the paper's additive dynamic-programming recursion with F(0)=-penalty and valid PELT pruning for the Gaussian residual-sum-of-squares cost. With a positive minimum segment length, do not remove a candidate using a pruning witness until the witness can begin a feasible following segment. The returned feasible partition is a global minimizer; greedy, binary-segmentation, local-search, thresholding, and approximate-grid substitutes are out of scope."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, access files, invoke subprocesses, or use the network."
+          },
+          {
+            "clause_id": "invariant.signal_equivariance",
+            "meaning": "Adding one constant to every signal value leaves changepoints and objective unchanged up to floating roundoff. Multiplying every signal value by a finite nonzero factor a while multiplying penalty by a^2 leaves changepoints unchanged and multiplies objective by a^2."
+          },
+          {
+            "clause_id": "invariant.time_reversal",
+            "meaning": "Reversing a length-n signal maps each changepoint k to n-k, sorted increasingly, and leaves the objective unchanged up to floating roundoff."
+          },
+          {
+            "clause_id": "invariant.complexity_scope",
+            "meaning": "Prefix sums provide O(1) Gaussian segment costs and PELT prunes candidate last changepoints without changing the exact optimum. The implementation and report must not turn the paper's conditional expected-linear result into a universal worst-case linear guarantee."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze n=240, min_segment_length=10, penalty=3*log(240), the three declared unit-variance Gaussian designs, at least 1000 fresh replicates per design, one fresh seed per design, exact estimator invocation, success indicators, Monte Carlo standard errors, and one-sided lower two-standard-error decision rules."
+          },
+          {
+            "clause_id": "claim.empirical.null_specificity",
+            "meaning": "For iid N(0,1), success is an empty changepoint array and the success rate minus two Monte Carlo standard errors is at least 0.95."
+          },
+          {
+            "clause_id": "claim.empirical.one_change_localization",
+            "meaning": "For consecutive length-120 segments with means 0 and 2.5, success is exactly one changepoint within five observations of 120 and the success rate minus two Monte Carlo standard errors is at least 0.95."
+          },
+          {
+            "clause_id": "claim.empirical.three_change_localization",
+            "meaning": "For consecutive length-60 segments with means 0, 2, -2, and 1.5, success is exactly three changepoints, respectively within five observations of 60, 120, and 180, and the success rate minus two Monte Carlo standard errors is at least 0.90."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment tests executable behavior under one finite protocol only. It is not proof of global optimality, universal consistency, penalty optimality, expected-linear complexity, or performance outside the three declared Gaussian designs."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite prefix-sum, dynamic-programming, PELT-pruning, and backtracking operations and returns exactly one response without randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
