@@ -7209,6 +7209,10 @@ def test_exponential_maximum_gumbel_l0_is_frozen_before_product_draw() -> None:
     )
     assert evidence["activation_semantic_model_calls"] == 0
     assert evidence["qualified_semantic_model_calls_before_activation"] == 6
+    assert evidence["activation_ledger_commit"] == (
+        "63d1d53e586a815848ef16725d49554551253af6"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 12
     assert evidence["first_runtime_model_call_occurred"] is False
