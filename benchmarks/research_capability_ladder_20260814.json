@@ -53,7 +53,7 @@
     {
       "id": "unresolved_gaps",
       "meaning": "Explicit evidence-bound defects and unclosed claims.",
-      "allowed_requirements": ["required"]
+      "allowed_requirements": ["required", "optional", "not_applicable"]
     }
   ],
   "progressive_workflow": [
@@ -9124,6 +9124,80 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "statlib_qmd_score_mean_zero_univ_formal_known_result",
+      "level": "L0",
+      "family": "quadratic_mean_differentiability_score_formalization",
+      "status": "active_scored",
+      "visible_questions_path": "benchmarks/research_l0_statlib_qmd_score_mean_zero_formal_questions_20260828.json",
+      "source_authority": "Statlib_QMD_commit_6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+      "source_snapshot_id": "statlib-qmd-mathlib-lean430-active-project-20260828-v1",
+      "source_snapshot_hash": "e268b9279f500ff2c09fe76ed1c8284478e98f0c5518b33968ba29c39ef7877e",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l0-statlib-qmd-score-mean-zero-formal-20260828-v1",
+      "gold_manifest_sha256": "12144b70d037f36de48a6606fc0fe43b484f64d2681f0503dd71fa3f7d0cb746",
+      "gold_descriptor_hash": "950706fb4efd1a4712baf8cea2f2f4768855b9686201ab5224dc2566c0148b66",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "frozen_ready_exact_haiku_product_draw_not_started",
+      "activation_evidence": {
+        "public_reference": "stat-lib/statlib, Statlib.QMD at commit 6575d611b5d32ef6013e9560d30b1a82a1972fb6, Apache-2.0",
+        "shared_formal_gold_mechanism_commit": "f34f4f04d34c5986224f77edb5dacc52c8f2207a",
+        "preselection_code_head": "092f4b6366a1b2ad2d2f4e75a46202976c1a538b",
+        "visible_question_activation_commit": "092f4b6366a1b2ad2d2f4e75a46202976c1a538b",
+        "visible_questions_sha256": "8350375b1117a0fb0d5c41f546c357b02891804abec686503d6169f4ef2944b8",
+        "runtime_visible_question_hash": "6cfa50c3a1552be2093860f768376ab0a1d5b1460ecc2002022f4ce1095a7413",
+        "lean_source_prefix_sha256": "9de233f67bf34d7d5875c069d7f14c30bd9a0e7dd019228ba852f31883411b83",
+        "gold_manifest_file_sha256": "12144b70d037f36de48a6606fc0fe43b484f64d2681f0503dd71fa3f7d0cb746",
+        "gold_manifest_stable_hash": "950706fb4efd1a4712baf8cea2f2f4768855b9686201ab5224dc2566c0148b66",
+        "evaluator_authority_manifest_sha256": "6a74bf9b60439c1540565deddfbe0c833071726eeaa15a97362bd5e9a18cd110",
+        "formal_authority_calibration_sha256": "5542c5f0bb4d08fdb97836494f49cf53621e9964a65243150ceddece9e8aed96",
+        "activation_schema_version": 4,
+        "formal_authority_calibration_cases": 5,
+        "formal_authority_calibration_cases_correct": 5,
+        "positive_control_kernel_and_axiom_clean": true,
+        "sorry_and_custom_axiom_negatives_rejected": true,
+        "weakened_statement_and_extra_assumption_negatives_rejected": true,
+        "activation_reference_tasks_passed": 0,
+        "activation_negative_controls_rejected": 0,
+        "activation_semantic_reference_documents_passed": 0,
+        "activation_semantic_candidate_mode_negative_controls_rejected": 0,
+        "activation_semantic_model_calls": 0,
+        "activation_semantic_qualification_model_calls": 0,
+        "hidden_gold_manifest_validated": true,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "preactivation_product_model_calls": 0,
+        "preactivation_evaluator_model_calls": 0,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "runtime_invocations": 0,
+        "runtime_model": "claude-haiku-4-5-20251001",
+        "sonnet_product_calls": 0,
+        "opus_product_calls": 0,
+        "formalization_requirement": "required",
+        "formalizer_executed": false,
+        "theory_developer_executed": false,
+        "generated_algorithm_executed": false,
+        "generated_simulation_executed": false,
+        "second_kernel_or_statement_verifier_added": false,
+        "activation_push_required_before_first_runtime_model_call": true,
+        "activation_push_confirmed_on_work_branch_and_main": false,
+        "model_draw_resampling_blocked": true,
+        "full_task_passed": false,
+        "trusted_capability_credit": false,
+        "ladder_score_before_activation": "4/84",
+        "ladder_score_after_activation": "4/85",
+        "boundary": "The visible exact target, Statlib/Mathlib/Lean environment, hidden positive proof, four negative controls, and evaluator manifest are frozen before the sole exact-Haiku product draw. Hidden proof and calibration artifacts remain outside repository, runtime RAG, and model workspaces. This task permits one fresh invocation and one post-runtime gold assessment only; no rerun, resume, repair, reevaluation, rescore, resample, fallback, model escalation, or task-specific rule is allowed."
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "required",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "not_applicable"
+      }
     }
   ],
   "activation_requirements": [
@@ -9138,21 +9212,21 @@
     "no task-specific runtime or prompt change after held-out activation"
   ],
   "current_readiness": {
-    "scored_tasks_total": 84,
-    "unconsumed_scored_tasks": 0,
+    "scored_tasks_total": 85,
+    "unconsumed_scored_tasks": 1,
     "consumed_scored_tasks": 84,
-    "fully_gold_configured_tasks": 84,
+    "fully_gold_configured_tasks": 85,
     "fully_gold_passed_tasks": 4,
     "runtime_source_replication_components_ready": 8,
     "source_replication_components_passed": 1,
     "source_replication_full_tasks_passed": 1,
     "candidate_queue_is_capability_evidence": false,
     "operator_invalid_tasks": 16,
-    "latest_shared_mechanism_head": "05d64366ede9186b466e11b84d413b6e6788bf7a",
-    "latest_shared_mechanism_summary": "One AgentRuntime and the existing persistent Theory, Python/R, Simulation, and Lean source-owner workspaces remain canonical. Commit 05d64366 validates the primary Anthropic SDK and credential in the existing CLI startup preflight before any AgentTask or output directory, while generation and native client-tool turns reuse the same SDK loader. Commit 8ddbf749's reviewer-probe identity and earlier canonical-question, public-clause-attention, terminal-only feedback, and formal-not-applicable invariants remain active. Runtime validates environment, identity, applicability, observation citation, and bounds only. Codex Core, App Server, Responses transport, provider state, thread/worktree management, Guardian, and multi-agent scheduling remain excluded; no task rule, source patch, repair phase, fallback, outer retry, extra agent, or model escalation was added.",
+    "latest_shared_mechanism_head": "f34f4f04d34c5986224f77edb5dacc52c8f2207a",
+    "latest_shared_mechanism_summary": "One AgentRuntime and the existing persistent Theory, Python/R, Simulation, and Lean source-owner workspaces remain canonical. Commit f34f4f04 lets gold evaluation consume the canonical exact-target Lean kernel result as formal authority without adding a second verifier. Commit 05d64366's Anthropic environment preflight and earlier candidate identity, direct raw-feedback, canonical-question, public-clause-attention, terminal-only feedback, and formal-not-applicable invariants remain active. The selective OpenAI Codex adoption remains one model-owned tool loop per workspace, stable environment tools, raw observations returned to the same session, external hash-bound state, and sparse evidence handoffs; Codex Core, App Server, provider state, thread/worktree management, Guardian, and multi-agent scheduling remain excluded. No task rule, source patch, repair phase, fallback, outer retry, extra agent, or model escalation was added.",
     "canonical_live_gold_activation_schema": 4,
     "executable_activation_gate": "Frozen executable references and behavioral negatives must run through their exact hidden candidate validators, and every configured semantic evaluator must pass its full reference plus reject at least one realistic hash-bound long-form near miss through the exact integrated document-and-claim candidate path before any product-model call. No activation result may enter runtime feedback.",
-    "latest_diagnostic": "Four of eighty-four consumed tasks receive trustworthy full-task capability credit. Task 84 used the frozen direct TheoryDeveloper lane with no Architect planning call: 18 model-owned theory turns, isolated artifact-grounded review, and terminal Critic all used exact Haiku. Runtime accepted the checkpoint, but hidden mechanics 7/7 and semantics 7/8 yielded 0/1 because the proof did not establish the required arbitrary-competitor comparison and both product reviewers false-accepted it. Formalization, scientific code, simulation, source replication, and novelty were not applicable.",
-    "next_step": "Preserve Task 84 and all source artifacts as immutable 0/1 evidence. Select and freeze a disjoint future benchmark before any product call; do not rerun or patch Task 84, expose its hidden finding to its source owners, add a Karlin-Rubin rule or proof sketch to runtime, require Formalizer, or add another agent, scheduler, retry, fallback, repair layer, Sonnet evaluation call, or Opus call."
+    "latest_diagnostic": "Four of eighty-four consumed tasks receive trustworthy full-task capability credit. Task 85 is frozen and unconsumed as a disjoint formal-only Statlib QMD known result. Its exact statement and foundation are model-visible, while the proof and five-case authority calibration are evaluator-only. The existing frozen-prefix plus Lean declaration/axiom gates accepted the positive control and rejected sorry, custom-axiom, weakened-statement, and extra-assumption negatives without a second verifier or evaluator-model call.",
+    "next_step": "Push the Task 85 activation ledger to both canonical refs, record that immutable activation identity, then run exactly one fresh product invocation with every enabled role fixed to claude-haiku-4-5-20251001 and exactly one post-runtime gold assessment. Do not expose the hidden proof, rerun, resume, repair, rescore, resample, add a QMD rule or proof hint, add another agent or scheduler, or use Sonnet or Opus."
   }
 }
