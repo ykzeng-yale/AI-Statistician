@@ -3354,23 +3354,28 @@ made substantive KKT and remainder errors, and the estimator violated its visibl
 closed ABI despite accurate core numerics and 5/5 hidden empirical checks. Those are
 model capability failures, not reasons to embed another orchestrator.
 
-The trace did identify two responsibilities that belong in a Codex-like harness.
-An immutable operator-owned contract must remain byte- and hash-identical across
-specialist handoffs. A model can author a readable interface note, but that note
-cannot replace the frozen contract or become downstream authority. This is analogous
-to Codex keeping tool schemas and sandbox policy outside the model's editable source.
+Read-only trace inspection refined both responsibilities. The complete frozen
+contract already reached the Algorithm source owner and reviewer as
+`question.estimator_execution_contract`; a compact Theory interface summary was also
+described as executable authority. The Codex-like invariant is explicit precedence:
+runtime-owned tool and question contracts control, while editable model summaries are
+context only. No new handoff format is needed.
 
-Likewise, a client tool reports whether execution completed and whether its output
-matched the tool schema. A returned scientific result such as
-`acceptance_passed=false` is still a successful observation. It must not be converted
-into transport failure, automatic retry, or a demand that the model make the
-experiment pass. Frozen confirmatory promotion evaluates that result separately.
+The authoring gate also already permits `acceptance_passed=false` after valid
+execution. The later source instead returned early at the 128-replicate diagnostic,
+called the required estimator zero times, and reused 128 as its future confirmatory
+request. The source owner therefore needs an unambiguous tool contract: a small
+diagnostic still exercises every required dependency, its scientific result may be
+false, and `requested_runtime_replicates` names a future count chosen independently of
+diagnostic outcomes.
 
 This is the maximum useful reuse from the current OpenAI Codex harness for these
 workspaces: centralized immutable tool authority, persistent source ownership, raw
 observations, content-addressed artifacts, and clean terminal semantics. Importing
 Codex Core, App Server, Responses transport, thread state, provider state, worktrees,
 or its multi-agent scheduler would duplicate AI Statistician's AgentRuntime and break
-provider-neutral exact-Haiku evaluation. The implementation response stays narrow:
-fix the two shared invariants in the existing loop, then test them deterministically
-on synthetic cross-domain fixtures without rerunning Task 77.
+provider-neutral exact-Haiku evaluation. Commit
+`a2aa8428bc623d3dfb2bbc850e60088ec34f93d2` changes only the existing Algorithm,
+Simulation, and independent-review prompts; AgentRuntime receives no new branch or
+gate. Focused regression passed 145/145 and the complete repository passed 1002/1002
+without rerunning Task 77.

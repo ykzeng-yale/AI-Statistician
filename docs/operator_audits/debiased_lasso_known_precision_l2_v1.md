@@ -64,21 +64,24 @@ and strict JSON types. The hidden aggregate public-contract check correctly
 failed. Hidden algorithm authority therefore passed only 2/3 top-level checks
 over 22 calls, and scientific-code capability receives no credit.
 
-## Confirmatory-authoring deadlock
+## Confirmatory-authoring finding
 
-The initial confirmatory source ran with the runtime's 128-replicate authoring
-diagnostic. Independent review correctly rejected applying the frozen scientific
-acceptance gate below the visible minimum of 1,000 replicates. The same
-Simulation source owner then revised its code to refuse or withhold acceptance
-at 128 replicates.
+The initial source used the runtime's 128-replicate authoring diagnostic, invoked
+the bound estimator 384 times, and returned `acceptance_passed=false` with
+`requested_runtime_replicates=128`. Independent review correctly rejected those
+bytes because the requested future confirmatory count was below the visible
+minimum of 1,000; it did not reject the observed false scientific result.
 
-The harness repeatedly executed the same 128-replicate authoring diagnostic and
-treated `metrics.acceptance_passed=false` as a tool failure. The source owner
-could not simultaneously honor the frozen minimum and make that diagnostic
-scientifically pass. Eight later diagnostic executions therefore produced no
-promotable manifest, and the runtime blocked. This is a shared harness defect:
-successful execution and valid output shape are tool outcomes; scientific
-acceptance is a separate frozen gate.
+Later model-authored revisions returned early at the diagnostic count, continued
+to report 128 as the requested future count, and invoked the bound estimator zero
+times. The runtime's existing authoring gate already permits
+`acceptance_passed=false` when execution and the measurement interface are valid.
+Those submissions failed because `execution_smoke_passed=false` after the bound
+estimator was not invoked, not because their scientific result was false. The
+shared issue was ambiguous source-owner context: diagnostic replicates are a
+small tool input, while `requested_runtime_replicates` declares a separately
+chosen future confirmatory precision, and the diagnostic must still exercise the
+complete source and every required estimator.
 
 ## Codex-harness lesson
 
@@ -89,15 +92,21 @@ same session. The harness should centrally preserve exact frozen authority,
 content hashes, permissions, tool lifecycle, and clean termination. Independent
 review remains an artifact boundary, not another scheduler.
 
-Two future-only shared corrections are justified:
+Two future-only shared clarifications are justified:
 
-1. A frozen execution contract must cross Theory and Algorithm handoffs by exact
-   immutable reference and hash. A model-authored explanatory summary may be
-   added, but it cannot replace or weaken the authoritative contract.
-2. An authoring tool call succeeds when the source executes and returns a valid
-   result envelope. `acceptance_passed=false` is a scientific observation, not
-   a transport or execution error. Confirmatory promotion still requires the
-   separately frozen scientific gate.
+1. The complete frozen contract already reached the Algorithm source owner and
+   reviewer as `question.estimator_execution_contract`, while a compact Theory
+   interface summary was also described as executable authority. Existing prompts
+   must state that the frozen question field controls every conflict; the editable
+   summary is derivation context only.
+2. A source-authoring diagnostic is not the future confirmatory request. It must
+   exercise every required dependency even at the smaller diagnostic count, may
+   return a false scientific result without execution failure, and must report a
+   future confirmatory count chosen independently of diagnostic outcomes.
+
+Commit `a2aa8428bc623d3dfb2bbc850e60088ec34f93d2` applies only those prompt-level
+clarifications to the existing Algorithm, Simulation, and independent-review
+workspaces. It adds no AgentRuntime branch or gate.
 
 No de-biased-Lasso formula, source patch, hidden case, deterministic math parser,
 new agent, retry, fallback, scheduler, or model escalation is justified.

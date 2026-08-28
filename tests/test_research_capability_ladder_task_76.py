@@ -7,7 +7,8 @@ from pathlib import Path
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "bayesian_online_changepoint_gamma_poisson_paper_to_code"
-LATEST_SHARED_MECHANISM_HEAD = "b9297aef7574ab4670914ecb18e169ac251b85ef"
+TASK_76_SHARED_MECHANISM_HEAD = "b9297aef7574ab4670914ecb18e169ac251b85ef"
+LATEST_SHARED_MECHANISM_HEAD = "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2"
 
 
 def test_bocd_gamma_poisson_l2_is_frozen_and_consumed_once() -> None:
@@ -54,7 +55,7 @@ def test_bocd_gamma_poisson_l2_is_frozen_and_consumed_once() -> None:
     assert evidence["hidden_algorithm_checks"] == "4/8"
     assert evidence["hidden_empirical_checks"] == "5/8"
     assert evidence["post_run_shared_mechanism_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        TASK_76_SHARED_MECHANISM_HEAD
     )
     assert "1001/1001" in evidence["post_run_regression_evidence"]
     assert evidence["formalization_requirement"] == "not_applicable"

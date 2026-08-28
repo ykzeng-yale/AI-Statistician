@@ -1,13 +1,13 @@
 {
-  "schema_version": 248,
+  "schema_version": 249,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "3777a0cd",
+  "validated_code_head": "a2aa8428",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy-seven consumed draws and immutable artifacts at trustworthy full-task credit 4/77, with exact development Lean closure still 0/2. Task 77 is consumed 0/1: persistent Markdown/LaTeX Theory, direct Python and Simulation source-owner loops, independent reviews, hidden code and empirical execution, and optional Formalizer topology all ran as designed, but theory/referee KKT and remainder reasoning is invalid, the estimator violates the frozen closed ABI, and Simulation authoring deadlocked because the harness confused successful execution with scientific acceptance. Apply only two future shared Codex-style invariants: carry frozen contracts by exact immutable reference rather than lossy model restatement, and separate tool execution outcome from scientific result. Keep one AI Statistician AgentRuntime and same-owner model/tool loop; do not embed Codex Core, App Server, Responses transport, thread storage, provider state, another scheduler, RepairAgent, formula rule, or hidden feedback. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy-seven consumed draws and immutable artifacts at trustworthy full-task credit 4/77, with exact development Lean closure still 0/2. Task 77 is consumed 0/1: persistent Markdown/LaTeX Theory, direct Python and Simulation source-owner loops, independent reviews, hidden code and empirical execution, and optional Formalizer topology all ran, but theory/referee KKT and remainder reasoning is invalid and the estimator violates the frozen closed ABI. Read-only trace correction shows the full frozen contract already reached the source owner and reviewer; compact Theory summaries had ambiguous authority labels. Runtime also already permits acceptance_passed=false after valid authoring execution; later Simulation sources instead skipped the required estimator and confused the 128-run diagnostic with the future confirmatory request. Commit a2aa8428 clarifies only those existing prompts. Keep one AI Statistician AgentRuntime and same-owner model/tool loop; do not embed Codex Core, App Server, Responses transport, thread storage, provider state, another scheduler, RepairAgent, formula rule, runtime gate, or hidden feedback. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
   "latest_bocd_gamma_poisson_l2_activation": {
     "task_id": "bayesian_online_changepoint_gamma_poisson_paper_to_code",
     "family": "bayesian_online_changepoint_gamma_poisson",
@@ -83,8 +83,10 @@
     "automated_hidden_result": "0/1; theory mechanics 7/7 passed but combined semantics failed at 7/8, algorithm passed 2/3 top-level checks over 22 estimator calls, and empirical passed 5/5 over 3000 estimator calls",
     "operator_theory_finding": "The authoritative Markdown gives opposite KKT signs in active sections, uses the infinity norm instead of the L1 Lasso error in its remainder bound, derives an incompatible log^(3/2) rate, and overstates the complete estimator as exactly conditionally Gaussian. The independent referee repeats the sign error and false-accepts.",
     "operator_code_finding": "The exact estimator passes hidden numerical recomputation, determinism, and all empirical checks, but violates the visible frozen closed ABI through missing exact-key, strict-type, no-coercion, boolean, numeric-string, and declared-dimension enforcement.",
-    "simulation_finding": "Independent review correctly rejects scientific acceptance below 1000 replicates. The same Simulation owner then withholds acceptance at the fixed 128-replicate authoring diagnostic, but runtime treats acceptance_passed=false as a tool failure and repeats the diagnostic. Execution validity and scientific acceptance are incorrectly conflated.",
-    "future_shared_mechanism_scope": "Preserve frozen execution authority through exact hash-bound references across Theory and Algorithm handoffs, and treat a valid false scientific result as a successful tool observation. No task formula, hidden case, source patch, agent, retry, fallback, scheduler, provider change, or model escalation is allowed.",
+    "contract_authority_finding": "The complete question.estimator_execution_contract reached both Algorithm source owner and independent reviewer. A compact Theory interface summary was also described as executable authority, so the defect was ambiguous precedence rather than lost transport.",
+    "simulation_finding": "The initial 128-replicate diagnostic invoked the bound estimator 384 times and validly returned acceptance_passed=false while incorrectly requesting 128 future confirmatory replicates. Later source revisions returned early, invoked the required estimator zero times, and retained the same request. Runtime already accepts false scientific outcomes after valid execution; those candidates failed execution smoke because the estimator was not invoked.",
+    "future_shared_mechanism_scope": "Commit a2aa8428bc623d3dfb2bbc850e60088ec34f93d2 changes only existing Algorithm, Simulation, and independent-review prompts: the full frozen question contract outranks compact Theory summaries; authoring diagnostics remain small but exercise required dependencies; and requested_runtime_replicates denotes a future count independent of diagnostics. AgentRuntime and its gates are unchanged.",
+    "post_run_regression_evidence": "Focused prompt/workspace/core/ladder tests passed 145/145 after final wording; complete repository passed 1002/1002 in 80.49 seconds; production package is 149997 lines. No model, hidden evaluator, or Task 77 runtime call occurred.",
     "runtime_manifest_sha256": "23a85c3fab4832dbf6a668b855fc65382554d2681a6428d31d8b39cd224c3cb2",
     "runtime_result_sha256": "1eb834dbb27f3f0dfe4bdc73147fd0e982b46ddcf6b037fa75b857ee6f76cc09",
     "hidden_gold_evaluation_sha256": "bed81b1f7d18b13dde50f7065386c24697693bc9d6c16c494ee0c8fc73b455a7",
@@ -2052,10 +2054,10 @@
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
     "latest_rechecked_upstream_commit": "94311d447587411789533c47601fd8bc9d81eb48",
     "latest_incremental_finding": "Current Codex still centers one session owner on model-selected tool calls, execution, raw observation return, and continued reasoning in the accumulated history. Its App Server, Responses transport, thread store, provider state, worktree manager, and multi-agent scheduler are orthogonal product services; importing them would duplicate this Claude-backed scientific control plane. Since the prior audit, only TUI keymap handling and history-note image forwarding changed, so no new core runtime component is adopted.",
-    "latest_incremental_adoption": "Commits 89a82b28 and b9297aef apply two measured Codex-shaped invariants without importing Codex: long shared observations preserve both initial context and terminal diagnostics, and a semantic rejection returns exact source plus raw findings to the existing source owner under one superseding continuation mode. Commit 8211a2e1 keeps the resulting production package below its existing line budget. No provider, agent, retry, fallback, scheduler, formula, source patch, or model escalation was added.",
+    "latest_incremental_adoption": "Commit a2aa8428 applies the newest measured Codex-shaped clarification without importing Codex: existing Algorithm, Simulation, and independent-review prompts give the complete frozen question contract precedence over editable summaries and distinguish non-confirmatory authoring diagnostics from future confirmatory requests. AgentRuntime and its gates are unchanged; the production package remains below its existing line budget. No provider, agent, retry, fallback, scheduler, formula, source patch, runtime gate, or model escalation was added.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "b9297aef7574ab4670914ecb18e169ac251b85ef",
+    "implementation_commit": "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -2110,7 +2112,8 @@
       "11ee99bd630cca6d5d5647e7050b7c2f2259badc",
       "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec",
       "89a82b282f56a395437b0f3703fb72416d7ecec6",
-      "b9297aef7574ab4670914ecb18e169ac251b85ef"
+      "b9297aef7574ab4670914ecb18e169ac251b85ef",
+      "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -3670,11 +3673,11 @@
     "agent_runtime_lines": 1248,
     "cli_lines": 7117,
     "top_level_python_modules": 136,
-    "top_level_package_lines": 149993,
+    "top_level_package_lines": 149997,
     "latest_runtime_manifest_bytes": 41917
   },
   "next_gates": [
-    "Preserve de-biased-Lasso Task 77 at immutable 0/1 and aggregate 4/77. Its Markdown/LaTeX theory and independent referee contain contradictory KKT signs and an invalid remainder argument; its numerically accurate estimator violates the visible frozen closed ABI; hidden empirical authority passed only as component evidence; and confirmatory authoring exposed a shared execution-versus-acceptance deadlock. Correct only future exact contract-reference authority and tool-result semantics. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, add a de-biased-Lasso formula, hidden case, math parser, ABI case, agent, retry, scheduler, fallback, or model escalation.",
+    "Preserve de-biased-Lasso Task 77 at immutable 0/1 and aggregate 4/77. Its Markdown/LaTeX theory and independent referee contain contradictory KKT signs and an invalid remainder argument; its numerically accurate estimator violates the visible frozen closed ABI; hidden empirical authority passed only as component evidence. Read-only trace correction shows the full frozen contract reached the models and runtime already accepted false scientific outcomes after valid execution; the remaining shared ambiguity was authority precedence plus diagnostic-versus-future-count semantics. Validate commit a2aa8428 only on a newly frozen disjoint task. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, add a de-biased-Lasso formula, hidden case, math parser, ABI case, agent, retry, scheduler, fallback, runtime gate, or model escalation.",
     "Preserve BOCD Gamma-Poisson Task 76 at immutable 0/1. Its persistent Markdown/LaTeX theory and exact estimator reverse the shape-rate conjugate update, the independent referee and code reviewer false-accept, hidden algorithm and empirical authority fail, and the terminal Critic remains inconclusive. Treat commit b9297aef only as future-task evidence for singular continuation ownership and model-owned discriminating review. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a BOCD formula, deterministic equation parser, hidden case, reviewer vote, agent, scheduler, fallback, or model escalation.",
     "Preserve Task 74 at immutable automated 1/1 and trustworthy 0/1. Its exact R source execution passed 12/12 and is scoped component evidence; its false 5% significance claim and unsupported robustness, power, historical, and visual claims were accepted by both runtime Critic and the hidden semantic judge. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a sandwich-statistics parser, or feed hidden/operator findings to its source owners.",
     "Preserve Fisher exact-test Task 72 at immutable 0/1. Runtime correctly blocked two unsupported code-review ACCEPT submissions after four model-authored probes failed to invoke the target; hidden theory mechanics passed 7/7 but semantic status remained INCONCLUSIVE; hidden code and empirical execution were ineligible; and operator audit invalidated positive-margin scope, closed ABI, tail identity, and empirical preregistration. Do not rerun, resume, repair, hidden-evaluate again, rescore, resample, add a Fisher formula or ABI parser, wrap the reviewer tool, add retries, or feed hidden/operator findings to its source owners.",

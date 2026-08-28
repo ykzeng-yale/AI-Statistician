@@ -935,18 +935,23 @@ enforcing declared dimensions. Hidden algorithm authority correctly failed its
 aggregate public-contract check. Numerical success and empirical component evidence
 therefore do not become scientific-code capability credit.
 
-The run exposed two future-only shared harness defects. First, TheoryDeveloper
-re-authored a lossy interface summary even though the visible question carried a rich
-frozen execution contract. Frozen authority must travel by exact immutable reference
-and hash; model-authored explanatory notes may supplement but never replace it.
-Second, a 128-replicate authoring diagnostic treated
-`acceptance_passed=false` as a tool error. After independent review required at least
-1,000 replicates, the same Simulation owner could not both honor that protocol and
-make the diagnostic scientifically pass. Tool execution validity and scientific
-acceptance must be separate observations.
+Read-only trace inspection corrected the initial harness diagnosis. The complete
+frozen contract already reached the Algorithm source owner and reviewer through
+`question.estimator_execution_contract`; the ambiguity was that a compact
+TheoryDeveloper interface summary was also described as executable authority. The
+frozen question field must explicitly outrank that editable derivation summary.
 
-These are Codex-style harness invariants, not content repairs: stable tools, exact
-inputs, raw observations, one persistent source owner, and clean termination. No
+Likewise, the existing authoring gate already permits a valid execution whose
+`acceptance_passed` value was false. Later Simulation revisions instead returned
+early at 128 diagnostic replicates, invoked the required estimator zero times, and
+reported 128 as the future confirmatory request. Diagnostic count, scientific result,
+and future confirmatory precision therefore need clearer source-owner semantics, not
+another runtime gate.
+
+Commit `a2aa8428bc623d3dfb2bbc850e60088ec34f93d2` changes only the three existing
+source-owner/reviewer prompts and keeps AgentRuntime unchanged. These are Codex-style
+harness invariants, not content repairs: stable tools, exact inputs, raw observations,
+one persistent source owner, and clean termination. No
 de-biased-Lasso formula, hidden case, deterministic equation parser, new agent,
 retry, fallback, scheduler, or model escalation should enter product runtime.
 Task 77 remains immutable and must never be rerun, resumed, repaired,
