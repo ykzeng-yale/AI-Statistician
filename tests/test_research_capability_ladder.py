@@ -6,13 +6,13 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2"
+LATEST_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
 TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 78
-CURRENT_CONSUMED_TASKS = 77
+CURRENT_CONSUMED_TASKS = 78
 CURRENT_OPERATOR_INVALID_TASKS = 16
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -7639,7 +7639,7 @@ def test_debiased_lasso_l2_only_product_draw_is_consumed_and_immutable() -> None
     )
 
 
-def test_horvitz_thompson_l0_is_frozen_before_its_only_product_draw() -> None:
+def test_horvitz_thompson_l0_draw_is_consumed_and_immutable() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -7650,9 +7650,9 @@ def test_horvitz_thompson_l0_is_frozen_before_its_only_product_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "finite_population_independent_poisson_sampling"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_haiku_product_draw_not_started"
+        "fresh_live_v1_consumed_runtime_blocked_hidden_full_task_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-horvitz-thompson-poisson-r-20260828-v1"
@@ -7660,8 +7660,12 @@ def test_horvitz_thompson_l0_is_frozen_before_its_only_product_draw() -> None:
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["activation_ledger_commit"] == (
+        "09eb4bf4244f2f548914442cbf6781ef9766f5b8"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
@@ -7681,7 +7685,58 @@ def test_horvitz_thompson_l0_is_frozen_before_its_only_product_draw() -> None:
     assert evidence["activation_semantic_qualification_reused"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "critic_scientific_inconclusive"
+    )
+    assert evidence["runtime_research_loop_complete"] == "0/1"
+    assert evidence["runtime_mode_conformant"] == "1/1"
+    assert evidence["runtime_traces"] == 26
+    assert evidence["runtime_outer_graph_iterations"] == 9
+    assert evidence["runtime_same_owner_workspace_continuations"] == 17
+    assert evidence["runtime_tool_calls"] == 71
+    assert evidence["runtime_observations"] == 88
+    assert evidence["runtime_task_handoffs"] == 25
+    assert "claude-haiku-4-5-20251001" in evidence["runtime_model_policy"]
+    assert "zero Sonnet and Opus calls" in evidence["runtime_model_policy"]
+    assert evidence["runtime_manifest_sha256"] == (
+        "bf532c487a37518896ee255be71a18fa3d718afe34d45e2bbbb9587602302be7"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "75147633d5ce37cbafa242856c17050cf76174cde8ab2bed236ce464283caf54"
+    )
+    assert evidence["hidden_gold_evaluation_sha256"] == (
+        "21c495275ea40e339ef56a5a2f168515f1c3cb58963bbb9a24e13ef4ba6a3455"
+    )
+    assert evidence["hidden_theory_result_hash"] == (
+        "2448162397b7703a7f48b7085f566f96c6179c7bac3eeaf4f72af86fd45a11b6"
+    )
+    assert evidence["hidden_theory_semantic_result_hash"] == (
+        "eeba4fc3234bf973c81da08ec5a0ea4d814ffaa4c5c5191cda5dff2c4e4d644b"
+    )
+    assert evidence["hidden_algorithm_result_hash"] == (
+        "223a94bb9b66e27197f42615b15616730539e8bb07ef1b2fa7561fb6b6c00edf"
+    )
+    assert evidence["hidden_empirical_result_hash"] == (
+        "fe40d323e8b41acbf8076b7f16c4493650a713b36af4fff761dfde0fd521833a"
+    )
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+    assert "1006/1006" in evidence["post_run_regression_evidence"]
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_consumption"] == "4/77"
+    assert evidence["ladder_score_after_consumption"] == "4/78"
+    assert "consumed and immutable" in evidence["boundary"]
+
+    operator_audit = Path(evidence["operator_audit"])
+    assert operator_audit.exists()
+    assert hashlib.sha256(operator_audit.read_bytes()).hexdigest() == (
+        evidence["operator_audit_sha256"]
+    )
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -7715,3 +7770,6 @@ def test_horvitz_thompson_l0_is_frozen_before_its_only_product_draw() -> None:
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["latest_shared_mechanism_head"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
