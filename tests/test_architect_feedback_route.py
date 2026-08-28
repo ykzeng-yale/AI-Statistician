@@ -368,7 +368,7 @@ def test_architect_provider_schema_is_compact_and_has_one_action() -> None:
     ] == 1
 
 
-def test_architect_accepts_empty_targets_for_not_applicable_dimensions() -> None:
+def test_architect_discards_targets_outside_frozen_task_intent() -> None:
     question = OpenResearchQuestion(
         id="theory-only-architect",
         title="Theory only",
@@ -396,8 +396,8 @@ def test_architect_accepts_empty_targets_for_not_applicable_dimensions() -> None
         },
         "evidence_contract": {
             "recommended_research_path": "simulation_first",
-            "formal_targets": [],
-            "simulation_targets": [],
+            "formal_targets": ["A model-authored target outside the frozen intent."],
+            "simulation_targets": ["A model-authored target outside the frozen intent."],
         },
         "retrieval_strategy": {
             "paper_queries": ["target theorem"],

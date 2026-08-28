@@ -2888,11 +2888,17 @@ def _normalize_architect_packet(
         normalized_contract = dict(evidence_contract)
     else:
         normalized_contract = {}
-    for key, value in _architect_runtime_owned_evidence_contract(
+    runtime_owned_contract = _architect_runtime_owned_evidence_contract(
         architect_context=architect_context,
         runtime_config=runtime_config,
-    ).items():
-        normalized_contract[key] = value
+    )
+    normalized_contract.update(runtime_owned_contract)
+    dimension_requirements = runtime_owned_contract.get("dimension_requirements")
+    if isinstance(dimension_requirements, Mapping):
+        if dimension_requirements.get("formal") == "not_applicable":
+            normalized_contract["formal_targets"] = []
+        if dimension_requirements.get("empirical") == "not_applicable":
+            normalized_contract["simulation_targets"] = []
     requirements = normalized_contract.get("empirical_metric_requirements", [])
     if isinstance(requirements, list) and requirements:
         normalized_contract["empirical_metric_requirement_set_id"] = (
