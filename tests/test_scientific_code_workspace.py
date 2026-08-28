@@ -1499,6 +1499,195 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
         )
 
 
+def test_scientific_workspace_commits_resumed_accepted_observation_without_rerun(
+    tmp_path,
+) -> None:
+    source = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'value': 1.0}\n",
+    }
+    first_backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=source,
+                )
+            ),
+            _run_response(),
+            _response(),
+        ]
+    )
+    checked: list[dict] = []
+
+    def check(candidate):
+        checked.append(dict(candidate))
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": True,
+            "stdout": "accepted exact source",
+        }
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        run_scientific_code_workspace(
+            provider=first_backend,
+            system_prompt="Use tools.",
+            user_prompt="Author and inspect exact source.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=2,
+            max_no_progress_turns=2,
+            artifact_id="question:resumed-accepted-source",
+            initial_code_draft=None,
+            initial_check_result={"accepted": False},
+            check_candidate=check,
+            workspace_operation="initial_authoring",
+            session_dir=tmp_path / "accepted-session",
+        )
+
+    checkpoint = exc_info.value.recovery_checkpoint
+    checkpoint_draft, checkpoint_observation = (
+        load_scientific_code_workspace_checkpoint(
+            checkpoint,
+            artifact_id="question:resumed-accepted-source",
+        )
+    )
+    assert checkpoint_observation["accepted"] is True
+    assert checkpoint["current_source_executed"] is True
+
+    result = run_scientific_code_workspace(
+        provider=ScriptedScientificBackend([_commit_response()]),
+        system_prompt="Use tools.",
+        user_prompt="Continue exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=1,
+        max_no_progress_turns=1,
+        artifact_id="question:resumed-accepted-source",
+        initial_code_draft=checkpoint_draft,
+        initial_check_result=checkpoint_observation,
+        check_candidate=lambda _candidate: pytest.fail(
+            "resumed accepted source must not rerun"
+        ),
+        recovery_checkpoint=checkpoint,
+        session_dir=tmp_path / "accepted-session",
+    )
+
+    assert checked == [source]
+    assert dict(result.code_draft) == source
+    assert result.evidence["model_commit_after_observation"] is True
+    assert result.evidence["sandbox_checks"] == 1
+
+
+def test_scientific_workspace_does_not_reexecute_checkpoint_in_same_environment(
+    tmp_path,
+) -> None:
+    source = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'value': 0.0}\n",
+    }
+    revised = {
+        **source,
+        "code": "def run_sandbox(seed, replicates): return {'value': 1.0}\n",
+    }
+    checked: list[dict] = []
+
+    def check(candidate):
+        candidate = dict(candidate)
+        checked.append(candidate)
+        return {
+            "code_draft_hash": stable_hash(candidate),
+            "accepted": candidate == revised,
+            "stderr": "assertion failed" if candidate != revised else "",
+        }
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        run_scientific_code_workspace(
+            provider=ScriptedScientificBackend(
+                [
+                    _run_response(),
+                    _response(),
+                ]
+            ),
+            system_prompt="Use tools.",
+            user_prompt="Author and inspect exact source.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=1,
+            max_no_progress_turns=2,
+            artifact_id="question:no-resumed-reexecution",
+            initial_code_draft=source,
+            initial_check_result={
+                "code_draft_hash": stable_hash(source),
+                "accepted": False,
+                "stderr": "dependency environment changed",
+            },
+            check_candidate=check,
+            workspace_operation="targeted_revision",
+            allow_current_source_run=True,
+            session_dir=tmp_path / "failed-session",
+        )
+
+    checkpoint = exc_info.value.recovery_checkpoint
+    checkpoint_draft, checkpoint_observation = (
+        load_scientific_code_workspace_checkpoint(
+            checkpoint,
+            artifact_id="question:no-resumed-reexecution",
+        )
+    )
+    backend = ScriptedScientificBackend(
+        [
+            _run_response("rejected-rerun"),
+            _response(
+                ClientToolCall(
+                    call_id="submit-revision",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=revised,
+                )
+            ),
+            _run_response("run-revision"),
+            _commit_response(),
+        ]
+    )
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Continue exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_no_progress_turns=2,
+        artifact_id="question:no-resumed-reexecution",
+        initial_code_draft=checkpoint_draft,
+        initial_check_result=checkpoint_observation,
+        check_candidate=check,
+        allow_current_source_run=True,
+        recovery_checkpoint=checkpoint,
+        session_dir=tmp_path / "failed-session",
+    )
+
+    assert checked == [source, revised]
+    rejected = result.evidence["history"][0]["tool_calls"][0]
+    assert rejected["is_error"] is True
+    assert "already executed" in rejected["result_excerpt"]
+    assert dict(result.code_draft) == revised
+
+
 def test_execution_observation_omits_stale_callback_samples_after_binding_passes() -> None:
     prototype = {
         "execution_phase": "estimator_developer_diagnostic",

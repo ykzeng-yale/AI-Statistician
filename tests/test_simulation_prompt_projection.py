@@ -200,6 +200,8 @@ def test_executable_evaluator_prompt_makes_source_the_preregistration() -> None:
     assert "small non-confirmatory tool" in workspace_prompt
     assert "never reject or" in workspace_prompt
     assert "acceptance_passed may be false" in workspace_prompt
+    assert "top-level" in workspace_prompt
+    assert "run_sandbox result, not an input-validation name" in workspace_prompt
     assert (
         "compact Theory or handoff summaries cannot weaken it"
         in workspace_prompt

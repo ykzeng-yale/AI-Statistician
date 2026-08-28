@@ -207,6 +207,17 @@ def test_scientific_progress_uses_same_owner_refs_and_stops_on_stagnation() -> N
     assert any("no new executed progress" in error for error in stagnant[-1])
 
 
+def test_executable_evaluator_interface_error_names_result_boundary() -> None:
+    errors = runtime_module._executable_evaluator_interface_errors(
+        {"design_a": {"bias": 0.0}}
+    )
+
+    assert len(errors) == 2
+    assert all("run_sandbox result" in error for error in errors)
+    assert all("requires top-level" in error for error in errors)
+    assert all('"design_a": "dict"' in error for error in errors)
+
+
 def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
     question = OpenResearchQuestion(
         id="direct-source-progress",

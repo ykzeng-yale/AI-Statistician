@@ -2011,6 +2011,7 @@ def run_scientific_code_workspace(
                 )
             dependency_reexecution = bool(
                 allow_current_source_run
+                and not resumed_checkpoint_id
                 and parent_hash
                 and draft_hash == parent_hash
                 and not state["dependency_parent_reexecuted"]
@@ -2342,7 +2343,7 @@ def run_scientific_code_workspace(
         "source_mutation_and_execution_separated": True,
         "explicit_model_commit_required": True,
         "model_commit_after_observation": bool(
-            state["commit_turn_index"] > state["last_check_turn_index"] >= 0
+            state["commit_turn_index"] >= 0 and (state["last_check_turn_index"] >= 0 or initial_check_hash == parent_hash)
         ),
         "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
         "turns": loop.turns,

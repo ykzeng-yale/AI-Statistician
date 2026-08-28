@@ -827,8 +827,8 @@ boolean together with raw measurements and per-check diagnostics. Runtime checks
 only that stable interface; it does not implement or repair the scientific decision.
 When executable_evaluator_source_authority is true, exact source is the preregistration:
 choose the DGP, measurements, decision, precision, and a future confirmatory
-requested_runtime_replicates fixed independently of diagnostic outcomes. During
-evaluator_source_authoring, the supplied replicates is a small non-confirmatory tool
+requested_runtime_replicates fixed independently of diagnostic outcomes as the top-level
+run_sandbox result, not an input-validation name. During evaluator_source_authoring, the supplied replicates is a small non-confirmatory tool
 diagnostic. Exercise the complete source and every required estimator; never reject or
 return early merely because that diagnostic is small. acceptance_passed may be false
 and still be a successful tool observation; never tune source to make it favorable.

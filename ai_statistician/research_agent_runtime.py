@@ -24081,21 +24081,21 @@ def _executable_evaluator_interface_errors(
     expected_runtime_replicates: int | None = None,
 ) -> list[str]:
     errors: list[str] = []
+    result_shape = json.dumps({str(key): type(value).__name__ for key, value in metrics.items()}, sort_keys=True)
     if type(metrics.get("acceptance_passed")) is not bool:
-        errors.append("acceptance_passed must be a boolean")
+        errors.append(f"run_sandbox result requires top-level 'acceptance_passed' as a JSON boolean; observed result shape: {result_shape}")
     requested = metrics.get("requested_runtime_replicates")
     if isinstance(requested, bool) or not isinstance(requested, int):
-        errors.append("requested_runtime_replicates must be a positive integer")
+        errors.append(f"run_sandbox result requires top-level 'requested_runtime_replicates' as a positive JSON integer; observed result shape: {result_shape}")
     elif requested <= 0 or requested > GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES:
-        errors.append(
-            "requested_runtime_replicates exceeds the executable sandbox capacity"
-        )
+        errors.append(f"run_sandbox result top-level 'requested_runtime_replicates' must be between 1 and {GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES}; observed: {requested}")
     elif (
         expected_runtime_replicates is not None
         and requested != expected_runtime_replicates
     ):
         errors.append(
-            "requested_runtime_replicates changed after source review"
+            "run_sandbox result top-level 'requested_runtime_replicates' changed "
+            f"after source review; expected {expected_runtime_replicates}, observed {requested}"
         )
     return errors
 
