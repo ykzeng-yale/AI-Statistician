@@ -1,13 +1,43 @@
 {
-  "schema_version": 250,
+  "schema_version": 251,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "81349094",
+  "validated_code_head": "492d1112",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy-eight consumed draws and immutable artifacts at trustworthy full-task credit 4/78, with exact development Lean closure still 0/2. Task 78 is consumed 0/1: its Markdown/LaTeX Theory correctly derives the core Horvitz-Thompson identities and hidden empirical authority passed 8/8 over 12,000 estimator calls, but integrated hidden theory remained INCONCLUSIVE, the exact R estimator violated the frozen vector ABI, metric protocol authoring never reached acceptance, and the terminal Critic blocked. Commit 81349094 applies only a future-task generic harness correction: raw run_sandbox result-boundary diagnostics return to the same source owner and a resumed checkpoint cannot silently rerun executed source. Keep one AI Statistician AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; selectively reuse Codex turn-loop invariants, but do not embed Codex Core, App Server, Responses transport, thread storage, provider state, another scheduler, RepairAgent, formula rule, runtime gate, or hidden feedback. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy-nine consumed draws and immutable artifacts at trustworthy full-task credit 4/79, with exact development Lean closure still 0/2. Task 79 is consumed 0/1: runtime completed 1/1, its persistent Markdown/LaTeX Theory passed hidden mechanics 7/7 and semantics 8/8, and hidden empirical authority passed 9/9 over 8,000 estimator calls; the exact Python estimator nevertheless failed 2 of 8 public-ABI checks while its independent reviewer false-accepted after omitting those clauses from a 22-call model-authored probe. Commit 492d1112 applies only a future-task generic harness correction: the existing Algorithm reviewer terminal schema records model attention to every public request, response, and invariant clause ID without interpreting semantics or choosing probes. Keep one AI Statistician AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; selectively reuse Codex turn-loop invariants, but do not embed Codex Core, App Server, Responses transport, thread storage, provider state, another scheduler, RepairAgent, formula rule, runtime gate, or hidden feedback. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "latest_distance_correlation_chisquare_l2_evaluation": {
+    "task_id": "distance_correlation_chisquare_paper_to_code",
+    "family": "nonlinear_independence_testing_distance_correlation",
+    "level": "L2",
+    "status": "fresh_live_v1_consumed_runtime_accepted_hidden_scientific_code_failed_theory_and_empirical_passed",
+    "product_head": "2214fdf61d5536f672c3afc8b6681c5aed93510c",
+    "run_path": "runs/main_worker_research_l2_distance_correlation_chisquare_20260828_v1_codex_same_owner_exact_haiku",
+    "runtime_model_policy": "All seven enabled roles used exact claude-haiku-4-5-20251001; zero Sonnet and Opus calls, no provider fallback, and no automatic escalation.",
+    "runtime_status": "ACCEPTED after 11 traces and 11 outer graph iterations with no same-owner checkpoint continuation; runtime research completion and mode conformance were both 1/1.",
+    "automated_hidden_result": "0/1; theory mechanics passed 7/7, integrated theory semantics passed 8/8, scientific code passed 6/8 over 18 calls, and empirical authority passed 9/9 over 8,000 calls.",
+    "theory_finding": "The 397-line Markdown/LaTeX theory correctly derives the U-centering, unbiased distance covariance, bias-corrected correlation, centered chi-square test, asymptotic qualifications, fixed-alternative consistency, and finite-sample scope. It is strong component evidence, not Lean proof evidence.",
+    "scientific_code_finding": "The exact estimator implements the core numerics correctly but accepts an extra request key and Python Boolean coordinates although the visible closed ABI explicitly rejects both. These two failures keep the required scientific-code dimension at failed.",
+    "independent_review_finding": "The isolated reviewer received the full public contract and ran one broad 22-call model-authored probe, but did not inspect exact request-key closure or strict Boolean rejection before false-accepting. This is the third disjoint visible-clause attention failure across Tasks 77-79.",
+    "post_run_shared_mechanism_commit": "492d11120fbae8b630fa01af8bb11d6da131f5b9",
+    "post_run_shared_mechanism_change": "For future Algorithm reviews, the existing terminal schema requires a model-authored attention record covering every public request, response, and invariant clause ID exactly once. Runtime checks IDs only; the same model owns reads, probes, analysis, findings, and verdict. Empirical claims remain with Simulation. No formula, edge-case rule, hidden test, parser, agent, retry, fallback, scheduler, provider, or model escalation was added.",
+    "upstream_codex_recheck": "Official openai/codex main was inspected at 7625343977154efed8c0dadba956374992a1580b. The earlier stored full expansion for short hash 31d338a1 was corrected to 31d338a1ea89cd65a48d8ac07f50bb3917009806.",
+    "runtime_manifest_sha256": "22da6812ee238df38138b8000951b688fae7042a00406b6a34e62e45413f83f6",
+    "runtime_result_sha256": "fbced55a62367b69e01fd74bbea71e15766579cfa21f4ef0d3f80338fb31c972",
+    "hidden_gold_evaluation_sha256": "f20dee162f49330f5716c43f7960a9888a7b331bed43944f5601035553d334b5",
+    "runtime_llm_topology_sha256": "cdad6ff3b463ae4fa198c1c3ca614b5c02221e700c508b129c67ff10eca54906",
+    "theory_document_sha256": "c4227ce30eedb654429feded37496c185824c72b0ad40ee40d21f62fe26dda4d",
+    "theory_review_sha256": "8ab9d2440c3f33bfbdf785ee69a7e38d0336bf2377de1198f64ed9933fdae600",
+    "evaluated_estimator_source_hash": "df5377739be3187c42fd1d72335a4e6128097060fa270a4bf5c2a624ff7d097a",
+    "operator_audit": "docs/operator_audits/distance_correlation_chisquare_l2_v1.md",
+    "evidence_closeout_verification": "Generated-code reviewer 36/36, adjacent workspace/reviewer panel 215/215, ladder panel 77/77, and complete repository 1009/1009 in 81.04 seconds. Compileall, JSON, diff hygiene, changed-file secret scan, and the 149,998-line production budget passed. No model or hidden-evaluator call and no consumed-task mutation occurred.",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "trusted_capability_credit": "0/1; aggregate remains 4/79 consumed",
+    "boundary": "The sole product draw and sole post-runtime hidden evaluation are immutable. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, or feed hidden/operator findings to Task 79 source owners."
+  },
   "latest_bocd_gamma_poisson_l2_activation": {
     "task_id": "bayesian_online_changepoint_gamma_poisson_paper_to_code",
     "family": "bayesian_online_changepoint_gamma_poisson",
@@ -131,7 +161,7 @@
   },
   "latest_scientific_workspace_result_feedback_change": {
     "implementation_commit": "81349094a4d8b67dbc1e744c7b45aba6a7c448b4",
-    "upstream_codex_audit_head": "31d338a1af4f79b106f01f2f3a43ac4617ea19bb",
+    "upstream_codex_audit_head": "31d338a1ea89cd65a48d8ac07f50bb3917009806",
     "adopted_codex_invariant": "One model-owned turn loop chooses tools, receives raw execution observations, reasons in accumulated session state, and commits externally stored artifacts under stable identities.",
     "implemented_boundary": "Generic executable-evaluator feedback now names the run_sandbox result boundary, exact missing top-level key or type, and observed result shape. The initial or resumed observation is hash-bound, and checkpoint continuation does not create permission to rerun an already executed source.",
     "non_adoption": "Codex Core, App Server, Responses transport, SDK thread state, provider state, Guardian, worktree management, and multi-agent scheduling remain excluded because they would duplicate the canonical scientific control plane.",
@@ -2091,12 +2121,13 @@
     "upstream_repository": "https://github.com/openai/codex",
     "official_platform_article": "https://developers.openai.com/blog/codex-as-a-platform",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "31d338a1af4f79b106f01f2f3a43ac4617ea19bb",
-    "latest_incremental_finding": "Current Codex still centers one session owner on model-selected tool calls, execution, raw observation return, and continued reasoning in the accumulated history. Its App Server, Responses transport, thread store, provider state, worktree manager, Guardian, and multi-agent scheduler are orthogonal product services; importing them would duplicate this Claude-backed scientific control plane. Since the prior audit, the only collaboration-relevant delta makes spawned Codex agents inherit the root service tier. AI Statistician already normalizes one exact frozen-evaluation model policy at the root and fails closed if any enabled specialist differs; production intentionally retains role-level Haiku/Sonnet selection under a Sonnet-or-below ceiling. No new core runtime component is adopted.",
-    "latest_incremental_adoption": "Commit a2aa8428 applies the newest measured Codex-shaped clarification without importing Codex: existing Algorithm, Simulation, and independent-review prompts give the complete frozen question contract precedence over editable summaries and distinguish non-confirmatory authoring diagnostics from future confirmatory requests. AgentRuntime and its gates are unchanged; the production package remains below its existing line budget. No provider, agent, retry, fallback, scheduler, formula, source patch, runtime gate, or model escalation was added.",
+    "latest_rechecked_upstream_commit": "7625343977154efed8c0dadba956374992a1580b",
+    "corrected_prior_upstream_commit": "31d338a1ea89cd65a48d8ac07f50bb3917009806",
+    "latest_incremental_finding": "Current Codex still centers one session owner on model-selected tool calls, execution, typed raw observation return, and continued reasoning in accumulated history. The three commits after corrected pin 31d338a1ea89 preserve cached MCP tools during binding capture, classify clock tools as built-in controls, and review terminal input against retained permissions. Audited run_turn, ToolRouter, parallel-tool, and multi-agent source hashes are unchanged; protocol items remain typed. App Server, Responses transport, thread store, provider state, worktree manager, Guardian, and multi-agent scheduling remain orthogonal product services whose import would duplicate the Claude-backed scientific control plane.",
+    "latest_incremental_adoption": "Commit 492d1112 applies the measured Codex-shaped boundary without importing Codex. For future Algorithm reviews, the existing terminal schema exposes all public request, response, and invariant clause IDs and requires a model-authored attention record. Runtime checks identity and completeness only; the same reviewer owns source inspection, probes, analysis, findings, and verdict, while empirical claims remain with Simulation. No edge-case parser, formula, source patch, provider, agent, retry layer, fallback, scheduler, runtime gate, or model escalation was added.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2",
+    "implementation_commit": "492d11120fbae8b630fa01af8bb11d6da131f5b9",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -2152,7 +2183,8 @@
       "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec",
       "89a82b282f56a395437b0f3703fb72416d7ecec6",
       "b9297aef7574ab4670914ecb18e169ac251b85ef",
-      "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2"
+      "a2aa8428bc623d3dfb2bbc850e60088ec34f93d2",
+      "492d11120fbae8b630fa01af8bb11d6da131f5b9"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -2181,6 +2213,7 @@
       "codex-rs/core/src/tools/router.rs": "6f5b3e6fcc2473c85275e69d934faf3cb95b90e9c773a055944116d517986a90",
       "codex-rs/core/src/tools/parallel.rs": "4acd0393fb6e0ca844d03a1ab847c3e926b806e447d598c56b7da65f6507bd7e",
       "codex-rs/core/src/session/multi_agents.rs": "2ea650cdededf56c2a94425be7a3c5323f200f675acc543cd281a3d1d0ea0c80",
+      "codex-rs/protocol/src/items.rs": "124429e5639567c07038f91c9f9c9aa0758fd83131c299a3f9e66e8713678612",
       "codex-rs/core/src/agent/control/service_tier.rs": "c6bf9471845c2b3ab898607931f7b569f358814949863b097f47cb4b647798ab",
       "codex-rs/core/src/agent/control/spawn.rs": "3c850355c96fc4e5ecbf00c4402e7650bd976141524e610b7e48001c260c5efe",
       "sdk/python/src/openai_codex/client.py": "76bdb1e63c62987c3530ea763e9655a06b308cbc4e18cb51958e85b6c23aec3b",
@@ -2237,7 +2270,8 @@
     "Commit 7b07d9e7 returns a rejected forced-terminal submission to the same source-owning client-tool history under a separate bounded recovery-action budget, permitting inspect/read, exact edit, and recommit while duplicate rejection fails on no progress and successful termination remains final.",
     "Commit bfae4e13 preserves one final model-tool-observation-model continuation for a terminal disposition after the last ordinary action. The continuation keeps the same transcript and stable tool surface, allows only terminal tools, and cannot retry a terminal attempt or execute more research.",
     "Commit 89a82b28 preserves both the beginning and terminal diagnostic of oversized shared tool observations through one size-marked middle truncation. Every source owner keeps the same tool loop and receives no extra call, parser, retry, or interpretation.",
-    "Commit b9297aef makes a semantic-review rejection supersede stale scientific-progress and replay continuation markers before exact reviewed source and raw findings return to the existing source owner. The existing reviewer prompt names its stable probe ABI and asks the model for a discriminating oracle; runtime chooses no scientific case, formula, edit, or verdict."
+    "Commit b9297aef makes a semantic-review rejection supersede stale scientific-progress and replay continuation markers before exact reviewed source and raw findings return to the existing source owner. The existing reviewer prompt names its stable probe ABI and asks the model for a discriminating oracle; runtime chooses no scientific case, formula, edit, or verdict.",
+    "Commit 492d1112 keeps public Algorithm request, response, and invariant clause IDs in the existing reviewer terminal schema as a model-authored attention record. Runtime checks IDs and completeness only; the same reviewer owns reads, probes, analysis, findings, and verdict. Empirical claims remain with Simulation, and no edge-case implementation, content parser, agent, retry, fallback, scheduler, provider, or model escalation is added."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -2247,12 +2281,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The official Codex checkout is rechecked through 94311d44. The shared client-tool, semantic-review, scientific-workspace, and ladder panel passed 161/161; the complete repository passed 1001/1001 in 81.48 seconds. Compileall, JSON, diff hygiene, secret scanning, and the existing architecture line budget passed with production Python at 149993 lines. No post-run model or hidden-evaluator call occurred; no consumed task was rerun, resumed, repaired, re-evaluated, rescored, or granted new capability credit; no Codex transport, provider, goal extension, thread storage, Guardian, subagent system, or scheduler was imported.",
+    "verification": "The official Codex checkout is rechecked through 7625343977154efed8c0dadba956374992a1580b. Generated-code reviewer 36/36, adjacent workspace/reviewer panel 215/215, ladder panel 77/77, and complete repository 1009/1009 passed in 81.04 seconds. Compileall, JSON, diff hygiene, changed-file secret scanning, and the existing architecture line budget passed with production Python at 149998 lines. No post-run model or hidden-evaluator call occurred; no consumed task was rerun, resumed, repaired, re-evaluated, rescored, or granted new capability credit; no Codex transport, provider, goal extension, thread storage, Guardian, subagent system, or scheduler was imported.",
     "live_validation_runs": 22,
     "fresh_live_client_tool_model_turns": 1094,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "All seventy-six consumed draws remain immutable. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen protocols and recorded caveats; every other draw retains its recorded 0/1 or operator-invalid disposition. Task 74 contributes exact hash-bound R source-execution component evidence but no full-task credit. Task 75 contributes persistent Theory and direct revision evidence but no accepted theory. Task 76 contributes persistent Theory, exact Python, review, and 4,001-call empirical component evidence, but its theory, code, and automated semantic authority are operator-invalid. Trusted aggregate is 4/76 and exact Lean closure remains 0/2 and separate."
+    "boundary": "All seventy-nine consumed draws remain immutable. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen protocols and recorded caveats; every other draw retains its recorded 0/1 or operator-invalid disposition. Task 79 contributes accepted persistent Theory and 8,000-call hidden empirical component evidence, but its required scientific-code dimension failed two explicit public ABI checks. Trusted aggregate is 4/79 and exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -3698,7 +3732,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/78 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 74 remains immutable automated 1/1 and trustworthy 0/1 after operator invalidation. Tasks 75-77 retain their recorded immutable 0/1 outcomes. Task 78 remains immutable 0/1 after runtime block, integrated hidden-theory INCONCLUSIVE status, frozen-vector-ABI failure, and hidden empirical component success. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
+    "fully_gold_covered_research_tasks": "4/79 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 74 remains immutable automated 1/1 and trustworthy 0/1 after operator invalidation. Tasks 75-78 retain their recorded immutable 0/1 outcomes. Task 79 remains immutable 0/1 after runtime 1/1, hidden Theory 7/7 plus 8/8 semantic success, hidden empirical 9/9 success, and hidden scientific-code 6/8 public-ABI failure. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -3721,7 +3755,7 @@
     "latest_runtime_manifest_bytes": 41946
   },
   "next_gates": [
-    "Preserve Horvitz-Thompson Poisson R Task 78 at immutable 0/1 and aggregate 4/78. Its core theory identities and hidden empirical 8/8 are component evidence; integrated hidden theory remained INCONCLUSIVE, the exact R source violated the frozen vector ABI, metric protocol authoring never reached acceptance, and Critic blocked. Treat commit 81349094 only as future-task generic result-boundary and checkpoint evidence. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, add a Horvitz-Thompson formula or R matrix rule, or feed hidden/operator findings to its source owners.",
+    "Preserve distance-correlation Task 79 at immutable 0/1 and aggregate 4/79. Its persistent Theory and hidden empirical 9/9 are component evidence; the exact Python source failed 2 of 8 visible public-ABI checks while the independent reviewer omitted those clauses from its model-authored probe and false-accepted. Treat commit 492d1112 only as future-task generic reviewer-attention evidence. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, add distance-correlation formulas or Python Boolean/key rules, or feed hidden/operator findings to its source owners.",
     "Continue selective OpenAI Codex reuse at the invariant level: one persistent source owner, model-selected stable tools, raw observations, external hash-bound artifacts, committed observation identity, sparse handoffs, and no silent replay after terminal or checkpoint continuation. Do not embed Codex Core, App Server, Responses transport, provider state, SDK threads, Guardian, worktrees, or Codex multi-agent scheduling into the canonical Anthropic-backed AgentRuntime.",
     "Preserve de-biased-Lasso Task 77 at immutable 0/1 and aggregate 4/77. Its Markdown/LaTeX theory and independent referee contain contradictory KKT signs and an invalid remainder argument; its numerically accurate estimator violates the visible frozen closed ABI; hidden empirical authority passed only as component evidence. Read-only trace correction shows the full frozen contract reached the models and runtime already accepted false scientific outcomes after valid execution; the remaining shared ambiguity was authority precedence plus diagnostic-versus-future-count semantics. Validate commit a2aa8428 only on a newly frozen disjoint task. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, add a de-biased-Lasso formula, hidden case, math parser, ABI case, agent, retry, scheduler, fallback, runtime gate, or model escalation.",
     "Preserve BOCD Gamma-Poisson Task 76 at immutable 0/1. Its persistent Markdown/LaTeX theory and exact estimator reverse the shape-rate conjugate update, the independent referee and code reviewer false-accept, hidden algorithm and empirical authority fail, and the terminal Critic remains inconclusive. Treat commit b9297aef only as future-task evidence for singular continuation ownership and model-owned discriminating review. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a BOCD formula, deterministic equation parser, hidden case, reviewer vote, agent, scheduler, fallback, or model escalation.",

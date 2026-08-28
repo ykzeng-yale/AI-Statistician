@@ -6,14 +6,15 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
+LATEST_SHARED_MECHANISM_HEAD = "492d11120fbae8b630fa01af8bb11d6da131f5b9"
 TASK_79_ACTIVATION_LEDGER_HEAD = "a6745543c662200fb39806cea5bb970532357cf0"
+TASK_78_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
 TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 79
-CURRENT_CONSUMED_TASKS = 78
+CURRENT_CONSUMED_TASKS = 79
 CURRENT_OPERATOR_INVALID_TASKS = 16
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -7723,7 +7724,7 @@ def test_horvitz_thompson_l0_draw_is_consumed_and_immutable() -> None:
         "fe40d323e8b41acbf8076b7f16c4493650a713b36af4fff761dfde0fd521833a"
     )
     assert evidence["post_run_shared_mechanism_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        TASK_78_SHARED_MECHANISM_HEAD
     )
     assert "1006/1006" in evidence["post_run_regression_evidence"]
     assert evidence["automated_full_task_passed"] is False
@@ -7776,7 +7777,7 @@ def test_horvitz_thompson_l0_draw_is_consumed_and_immutable() -> None:
     )
 
 
-def test_distance_correlation_l2_is_frozen_before_its_only_product_draw() -> None:
+def test_distance_correlation_l2_only_product_draw_is_consumed_and_immutable() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -7789,9 +7790,10 @@ def test_distance_correlation_l2_is_frozen_before_its_only_product_draw() -> Non
     assert candidate["family"] == (
         "nonlinear_independence_testing_distance_correlation"
     )
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_haiku_product_draw_not_started"
+        "fresh_live_v1_consumed_runtime_accepted_hidden_scientific_code_"
+        "failed_theory_and_empirical_passed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l2-distance-correlation-chisquare-20260828-v1"
@@ -7803,8 +7805,8 @@ def test_distance_correlation_l2_is_frozen_before_its_only_product_draw() -> Non
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
@@ -7833,11 +7835,77 @@ def test_distance_correlation_l2_is_frozen_before_its_only_product_draw() -> Non
     assert evidence["reference_empirical_invocation_failures"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_research_loop_complete"] == "1/1"
+    assert evidence["runtime_mode_conformant"] == "1/1"
+    assert evidence["hidden_full_task_result"] == "0/1"
+    assert evidence["runtime_traces"] == 11
+    assert evidence["runtime_outer_graph_iterations"] == 11
+    assert evidence["runtime_same_owner_workspace_continuations"] == 0
+    assert evidence["runtime_tool_calls"] == 8
+    assert evidence["runtime_observations"] == 26
+    assert evidence["runtime_task_handoffs"] == 10
+    assert evidence["enabled_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["enabled_sonnet_calls"] == 0
+    assert evidence["enabled_opus_calls"] == 0
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_candidate_status"] == "PASS"
+    assert evidence["hidden_theory_semantic_claims"] == "8/8 SATISFIED"
+    assert evidence["hidden_algorithm_checks"] == "6/8"
+    assert evidence["hidden_algorithm_estimator_invocations"] == 18
+    assert evidence["hidden_empirical_checks"] == "9/9"
+    assert evidence["hidden_empirical_estimator_invocations"] == 8000
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_consumption"] == "4/78"
+    assert evidence["ladder_score_after_consumption"] == "4/79"
+    assert evidence["post_run_score_changed"] is False
+    assert "consumed and immutable" in evidence["boundary"]
+
+    run_path = Path(evidence["immutable_run_path"])
+    run_hashes = {
+        "research_agent_runtime_manifest.json": evidence[
+            "runtime_manifest_sha256"
+        ],
+        "distance_correlation_chisquare_paper_to_code_runtime_result.json": evidence[
+            "runtime_result_sha256"
+        ],
+        "research_capability_gold_evaluation.json": evidence[
+            "hidden_gold_evaluation_sha256"
+        ],
+        "runtime_llm_topology.json": evidence["runtime_llm_topology_sha256"],
+        "runtime_evidence_ledger.jsonl": evidence[
+            "runtime_evidence_ledger_sha256"
+        ],
+        "runtime_failure_summary.json": evidence[
+            "runtime_failure_summary_sha256"
+        ],
+        "runtime_completion_summary.json": evidence[
+            "runtime_completion_summary_sha256"
+        ],
+        "runtime_progress.jsonl": evidence["runtime_progress_sha256"],
+        "runtime_tool_calls.jsonl": evidence["runtime_tool_calls_sha256"],
+        "runtime_traces.jsonl": evidence["runtime_traces_sha256"],
+        "runtime_task_handoffs.jsonl": evidence[
+            "runtime_task_handoffs_sha256"
+        ],
+        "runtime_observations.jsonl": evidence["runtime_observations_sha256"],
+    }
+    for filename, expected_sha256 in run_hashes.items():
+        assert hashlib.sha256((run_path / filename).read_bytes()).hexdigest() == (
+            expected_sha256
+        )
+
+    operator_audit = Path(evidence["operator_audit_path"])
+    assert operator_audit.is_file()
+    assert hashlib.sha256(operator_audit.read_bytes()).hexdigest() == (
+        evidence["operator_audit_sha256"]
+    )
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (

@@ -8,7 +8,7 @@ from pathlib import Path
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "bayesian_online_changepoint_gamma_poisson_paper_to_code"
 TASK_76_SHARED_MECHANISM_HEAD = "b9297aef7574ab4670914ecb18e169ac251b85ef"
-LATEST_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
+LATEST_SHARED_MECHANISM_HEAD = "492d11120fbae8b630fa01af8bb11d6da131f5b9"
 
 
 def test_bocd_gamma_poisson_l2_is_frozen_and_consumed_once() -> None:
@@ -121,9 +121,9 @@ def test_bocd_gamma_poisson_l2_is_frozen_and_consumed_once() -> None:
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == 78
-    assert readiness["consumed_scored_tasks"] == 78
-    assert readiness["fully_gold_configured_tasks"] == 78
+    assert readiness["active_scored_tasks"] == 79
+    assert readiness["consumed_scored_tasks"] == 79
+    assert readiness["fully_gold_configured_tasks"] == 79
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD

@@ -6,7 +6,11 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`31d338a1af4f79b106f01f2f3a43ac4617ea19bb`.
+`7625343977154efed8c0dadba956374992a1580b`.
+
+The earlier expanded hash stored for short commit `31d338a1` was incorrect. The
+actual commit is `31d338a1ea89cd65a48d8ac07f50bb3917009806`; this audit and the
+current ladder use the corrected provenance identity.
 
 The cumulative audit through that head continues to support the same boundary:
 a delegated worker receives explicit authority-scoped tools and artifact context,
@@ -16,6 +20,10 @@ embed Codex's thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `492d1112`: keep exact public-contract clause identity in the existing
+  Algorithm review terminal schema as a model-authored attention record, while
+  leaving source analysis, probes, findings, and verdict to the same reviewer
+  session and excluding empirical claims owned by Simulation;
 - `dd8ae7f2`: keep semantic absence, explicit noncoverage, and unsupported
   claims `INCONCLUSIVE`, reserving `VIOLATED` for active contradiction or an
   invalid asserted derivation; the protocol change is confined to hidden
@@ -3383,7 +3391,7 @@ without rerunning Task 77.
 ## 2026-08-28 second upstream refresh
 
 Official Codex `main` was fetched again at
-[`31d338a1`](https://github.com/openai/codex/commit/31d338a1af4f79b106f01f2f3a43ac4617ea19bb),
+[`31d338a1`](https://github.com/openai/codex/commit/31d338a1ea89cd65a48d8ac07f50bb3917009806),
 four commits after the prior `94311d44` pin. Two commits concern Guardian score and
 approval-test behavior, one separates HTTP retry-backoff integration testing, and
 `dc2ccc68` makes spawned Codex agents inherit the root session's service tier.
@@ -3411,3 +3419,46 @@ collaboration preserves one-owner raw-feedback iteration and strict evidence
 boundaries. A failure may justify simplifying an existing shared interface, but cannot
 justify embedding Codex or adding another scheduler, repair agent, fallback, or
 task-specific rule.
+
+## 2026-08-28 third upstream refresh and Task 79
+
+Official Codex `main` was fetched again at
+[`76253439`](https://github.com/openai/codex/commit/7625343977154efed8c0dadba956374992a1580b).
+The three commits after corrected pin `31d338a1ea89` preserve cached MCP tools
+during binding capture, classify clock tools as built-in controls, and review
+terminal input against retained permissions. The audited `run_turn`,
+`ToolRouter`, parallel-tool gate, and multi-agent source hashes are unchanged.
+`protocol/src/items.rs` continues to provide typed turn items. This delta adds
+no scientific planner, mathematical workspace, simulator policy, Lean prover,
+or reason to import another runtime.
+
+Task 79 provides the useful system-level evidence. Its persistent Theory
+workspace passed hidden mechanics 7/7 and semantics 8/8, and its model-authored
+confirmatory source passed hidden empirical authority 9/9 over 8,000 estimator
+calls. The exact estimator nevertheless failed 2 of 8 hidden algorithm checks
+on explicit public closed-ABI clauses. The independent reviewer had the full
+contract and ran a broad 22-call probe, but did not inspect those two clauses
+before accepting.
+
+The correction remains Codex-shaped and narrow. Commit `492d1112` augments the
+existing Algorithm reviewer terminal schema with the public request, response,
+and invariant clause IDs. The reviewer reports which clauses it actually
+inspected exactly once. Runtime checks only identity and completeness; clause
+semantics are not interpreted, empirical claims remain with Simulation, and the
+same reviewer still chooses reads, executable probes, analysis, findings, and
+verdict. A rejected terminal submission returns as an ordinary validation
+observation in that retained session.
+
+This is not a checklist of Python edge cases and does not repair Task 79. It
+adds no Boolean rule, key-set rule, formula, source patch, content parser,
+agent, retry layer, fallback, Architect route, scheduler, provider, or model
+escalation. Codex Core, App Server, Responses transport, thread persistence,
+Guardian, worktree management, and multi-agent scheduling remain excluded.
+The one AI Statistician `AgentRuntime` and provider-neutral
+`client_tool_loop.py` remain canonical.
+
+The reviewer suite passed 36/36, the adjacent workspace/reviewer panel passed
+215/215, the immutable ladder panel passed 77/77, and the complete repository
+passed 1009/1009 in 81.04 seconds. Production Python remains within the
+unchanged budget at 149,998 lines. No product or hidden-evaluator call, consumed
+task mutation, Codex provider import, or scheduler change occurred.
