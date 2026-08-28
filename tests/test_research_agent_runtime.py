@@ -1855,7 +1855,7 @@ def test_source_workspace_prompts_give_tools_to_the_source_owner() -> None:
     assert "literal,\npunctuation-sensitive JSON key" in (
         SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     )
-    assert "measurement_interface_failure is a failed\nsource ABI" in (
+    assert "unresolved measurement_interface_failure is a source ABI failure" in (
         SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     )
 

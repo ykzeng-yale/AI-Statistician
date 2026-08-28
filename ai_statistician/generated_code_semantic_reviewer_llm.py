@@ -717,10 +717,10 @@ def build_generated_code_semantic_review_prompt(
     return (
         "Act as an independent senior scientific-code reviewer. Inspect the exact executed "
         "source against the research question, authoritative theory, public interface, actual "
-        "runtime arguments, and frozen measurement meanings. Choose the load-bearing checks "
-        "yourself; do not fill a fixed dimension checklist. Actively try to falsify explicit "
-        "public acceptance, rejection, and boundary behavior instead of checking only a happy "
-        "path. "
+        "runtime arguments and frozen measurement meanings. The complete question.estimator_execution_contract, "
+        "when present, outranks compact Theory interface summaries. Choose the load-bearing checks yourself; "
+        "do not fill a fixed dimension checklist. Actively try to falsify explicit public "
+        "acceptance, rejection, and boundary behavior instead of checking only a happy path. "
         + review_scope_instruction
         + "Return a compact JSON envelope matching the response schema. Put the actual scientific "
         "analysis in review_document as Markdown. Set overall_verdict to ACCEPT only when the "

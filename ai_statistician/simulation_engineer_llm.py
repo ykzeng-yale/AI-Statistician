@@ -816,30 +816,33 @@ an edit, weaken the frozen metric contract, or claim theorem-proof evidence. Whe
 source_workspace_planning_owned is true, also choose the exploratory DGP and diagnostics.
 When workspace_context.theory_context.document_authoritative is true, read its exact
 authoritative_theory_documents through the supplied read-only document tools;
-structured theory fields carry only claim identity and executable ABI. When
-metric_path contracts are supplied, treat every path segment as a literal,
-punctuation-sensitive JSON key. Before each submission, compare the nested keys
-returned by run_sandbox with every frozen path segment; do not normalize names or
-reuse a nearby name from theory prose. A measurement_interface_failure is a failed
-source ABI until the submitted result resolves the exact frozen path. When
+structured theory fields carry only claim identity and executable ABI. Treat every
+metric_path segment as a literal,
+punctuation-sensitive JSON key; compare run_sandbox nested keys with each frozen path
+and never normalize or substitute a theory-prose name. An
+unresolved measurement_interface_failure is a source ABI failure. When
 evaluator_mode is simulation_source_acceptance_v1, implement the complete frozen
 measurement_protocol in this source and return top-level acceptance_passed as a
 boolean together with raw measurements and per-check diagnostics. Runtime checks
 only that stable interface; it does not implement or repair the scientific decision.
-When executable_evaluator_source_authority is true, the exact source is itself the
-preregistration authority: choose and document the DGP, measurements, decision rule,
-and Monte Carlo precision in source, and return requested_runtime_replicates as a
-positive integer fixed independently of diagnostic outcomes. Runtime validates only
-the stable result ABI and capacity. Independent semantic review must accept the exact
-bytes before those bytes can execute on a confirmatory cohort. When
+When executable_evaluator_source_authority is true, exact source is the preregistration:
+choose the DGP, measurements, decision, precision, and a future confirmatory
+requested_runtime_replicates fixed independently of diagnostic outcomes. During
+evaluator_source_authoring, the supplied replicates is a small non-confirmatory tool
+diagnostic. Exercise the complete source and every required estimator; never reject or
+return early merely because that diagnostic is small. acceptance_passed may be false
+and still be a successful tool observation; never tune source to make it favorable.
+Runtime validates only the result ABI and capacity. Independent review must accept exact
+bytes before one confirmatory execution. When
 required_estimator_ids are bound, the estimators argument contains runtime-injected
 callbacks at those exact keys. Call every bound callback with its declared request
 object and consume its declared response; never reimplement, wrap, or substitute a
 bound estimator inside the simulation source. When execution exposes callback
 request/response samples, compare the request's data scope, the declared meaning of
 each response field, and the simulation's consumer control flow before changing the
-complete source. Do not infer a callback's lifecycle or consumer termination from
-a field name or sampled value without checking the declared ABI semantics.
+complete source. The full question.estimator_execution_contract, when present, is the
+frozen ABI; compact Theory or handoff summaries cannot weaken it. Do not infer lifecycle or
+termination from field names or sampled values without checking that exact contract.
 """
 
 

@@ -405,6 +405,8 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     assert "empirical evaluator owns realized outcome values" in prompt
     assert "cannot by themselves create a source finding" in prompt
     assert "fixed dimension checklist" in prompt
+    assert "question.estimator_execution_contract" in prompt
+    assert "outranks compact Theory interface" in prompt
     assert '"reviewer_scope_contract"' in prompt
     assert "valid_evidence_refs" not in prompt
     assert "Review every listed prior finding once" in prompt

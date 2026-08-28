@@ -5,7 +5,10 @@ import json
 from ai_statistician import research_agent_runtime as runtime_module
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_schema import OpenResearchQuestion
-from ai_statistician.simulation_engineer_llm import build_simulation_engineer_prompt
+from ai_statistician.simulation_engineer_llm import (
+    SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
+    build_simulation_engineer_prompt,
+)
 
 
 def _large_algorithm_handoff() -> dict[str, object]:
@@ -193,3 +196,11 @@ def test_executable_evaluator_prompt_makes_source_the_preregistration() -> None:
     assert "exact source the complete executable preregistration" in prompt
     assert "requested_runtime_replicates" in prompt
     assert "SimulationEngineer later implements" not in prompt
+    workspace_prompt = SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    assert "small non-confirmatory tool" in workspace_prompt
+    assert "never reject or" in workspace_prompt
+    assert "acceptance_passed may be false" in workspace_prompt
+    assert (
+        "compact Theory or handoff summaries cannot weaken it"
+        in workspace_prompt
+    )

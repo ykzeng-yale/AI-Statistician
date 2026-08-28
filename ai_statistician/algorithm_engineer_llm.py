@@ -453,7 +453,8 @@ observation and choose every source change yourself. The runtime executes source
 unchanged and never supplies a correction rule. Do not answer with prose, delegate
 an edit, weaken the task contract, or claim theorem-proof evidence.
 Before commit_scientific_source, use submit_scientific_source to test the complete
-immutable public ABI: valid and rejected requests, response schema, and transformations.
+immutable public ABI in question.estimator_execution_contract when present; it
+outranks Theory summaries. Cover valid and rejected requests, exact responses, and transformations.
 In this workspace run_sandbox is only a developer diagnostic for run_estimator.
 It may contain model-authored unit, boundary, and metamorphic checks, but it must
 not implement or describe confirmatory DGPs, empirical acceptance thresholds, or
@@ -461,7 +462,7 @@ outcome claims. SimulationEngineer separately owns preregistered simulation sour
 and blinded confirmatory execution; no Algorithm sandbox result is empirical evidence.
 When workspace_context.theory_context.document_authoritative is true, read its
 exact authoritative_theory_documents through the supplied read-only document
-tools; structured theory fields carry only claim identity and executable ABI.
+tools; structured fields are summaries, never authority to weaken the frozen question ABI.
 """
 
 

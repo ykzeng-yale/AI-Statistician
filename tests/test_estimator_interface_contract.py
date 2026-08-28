@@ -11,7 +11,10 @@ from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_id,
     project_executable_estimator_spec,
 )
-from ai_statistician.algorithm_engineer_llm import build_algorithm_engineer_prompt
+from ai_statistician.algorithm_engineer_llm import (
+    ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
+    build_algorithm_engineer_prompt,
+)
 from ai_statistician.research_agent_runtime import (
     _question_from_payload,
     _question_to_payload,
@@ -284,6 +287,12 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
     )
     assert all("response.estimate" in prompt for prompt in prompts)
     assert all("Arithmetic mean of the supplied sample" in prompt for prompt in prompts)
+    assert "question.estimator_execution_contract" in (
+        ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
+    assert "outranks Theory summaries" in (
+        ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
     assert "estimator_execution_contract" not in research_question_payload(
         question,
         include_estimator_execution_contract=False,
