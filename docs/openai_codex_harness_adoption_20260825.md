@@ -3537,11 +3537,16 @@ scheduling remain excluded from the single AI Statistician `AgentRuntime`.
 ## 2026-08-28 fifth upstream refresh and Task 81
 
 Official Codex `main` was refreshed through
-[`8bcac28f`](https://github.com/openai/codex/commit/8bcac28f93f78b70d1159d97dbf11254bfb56a49).
-The newest relevant shared-rollout change makes compressed lineage seekable while
-preserving logical offsets and immutable prefix identity. That reinforces a narrow
-harness invariant: a tool observation already committed to one session cannot become
-optional merely because later reasoning continues from a compact representation.
+[`4ee04c0a`](https://github.com/openai/codex/commit/4ee04c0aa5833ac39b1763f6ea44c7bc777c83dd).
+The relevant shared-rollout change through `8bcac28f` makes compressed lineage seekable
+while preserving logical offsets and immutable prefix identity. The sole later commit
+only strengthens proactive root/subagent delegation guidance while preserving user
+priority; `run_turn`, tool routing, history, and compression are unchanged. The lineage
+change reinforces a narrow harness invariant: a tool observation already committed to
+one session cannot become optional merely because later reasoning continues from a
+compact representation. The proactive delegation prompt is not adopted: ordinary
+scientific feedback belongs in the source-owner workspace, while independent review is
+already an explicit sparse handoff through the sole `AgentRuntime`.
 
 Task 81 exposed the analogous scientific-review defect. The independent Algorithm
 reviewer authored and ran a successful exact-estimator probe. Its returned metrics
