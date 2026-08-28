@@ -555,7 +555,7 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
     assert "evidence_refs" not in assessment_schema["properties"]
 
 
-def test_algorithm_review_schema_indexes_every_public_abi_clause_without_empirical_claims() -> None:
+def test_review_schema_keeps_runtime_owned_contract_ids_out_of_model_envelope() -> None:
     material = _algorithm_review_material(
         language="python",
         source="def run_estimator(request):\n    return {'estimate': request['value']}\n",
@@ -566,25 +566,14 @@ def test_algorithm_review_schema_indexes_every_public_abi_clause_without_empiric
         material,
         question=question,
     )
-    clause_schema = schema["properties"]["reviewed_public_contract_clause_ids"]
-
-    assert "reviewed_public_contract_clause_ids" in schema["required"]
-    assert clause_schema["minItems"] == 3
-    assert clause_schema["maxItems"] == 3
-    assert clause_schema["uniqueItems"] is True
-    assert clause_schema["items"]["enum"] == [
-        "invariant.closed_object",
-        "request.value",
-        "response.estimate",
-    ]
-    assert "claim.empirical.calibration" not in clause_schema["items"]["enum"]
+    assert "reviewed_public_contract_clause_ids" not in schema["required"]
+    assert "reviewed_public_contract_clause_ids" not in schema["properties"]
     prompt = build_generated_code_semantic_review_prompt(
         question=question,
         review_material=material,
     )
-    assert "reviewed_public_contract_clause_ids lists clauses actually inspected" in prompt
-    assert "records model attention, not evidence" in prompt
-    assert "does not replace analysis or probes" in prompt
+    assert "complete public contract is already bound into the review input" in prompt
+    assert "do not copy runtime-owned IDs into the verdict" in prompt
 
     simulation_schema = generated_code_semantic_review_json_schema(
         _review_material(),
@@ -601,19 +590,11 @@ def test_algorithm_review_schema_indexes_every_public_abi_clause_without_empiric
         confirmatory_material,
         question=question,
     )
-    empirical_clause_schema = confirmatory_schema["properties"][
-        "reviewed_public_contract_clause_ids"
-    ]
-    assert "reviewed_public_contract_clause_ids" in confirmatory_schema["required"]
-    assert empirical_clause_schema["minItems"] == 1
-    assert empirical_clause_schema["maxItems"] == 1
-    assert empirical_clause_schema["uniqueItems"] is True
-    assert empirical_clause_schema["items"]["enum"] == [
-        "claim.empirical.calibration"
-    ]
+    assert "reviewed_public_contract_clause_ids" not in confirmatory_schema["required"]
+    assert "reviewed_public_contract_clause_ids" not in confirmatory_schema["properties"]
 
 
-def test_missing_public_contract_clause_record_returns_to_same_reviewer_session() -> None:
+def test_public_contract_review_accepts_compact_model_verdict_without_id_copying() -> None:
     material = _algorithm_review_material(
         language="python",
         source="def run_estimator(request):\n    return {'estimate': request['value']}\n",
@@ -630,15 +611,6 @@ def test_missing_public_contract_clause_record_returns_to_same_reviewer_session(
             "rationale": "No current-source defect was found.",
         },
     }
-    corrected_submission = {
-        **base_submission,
-        "reviewed_public_contract_clause_ids": [
-            "request.value",
-            "response.estimate",
-            "invariant.closed_object",
-        ],
-    }
-
     class ContractCoverageBackend:
         provider_name = "anthropic"
 
@@ -647,11 +619,7 @@ def test_missing_public_contract_clause_record_returns_to_same_reviewer_session(
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            payload = (
-                base_submission
-                if len(self.requests) == 1
-                else corrected_submission
-            )
+            payload = base_submission
             call_id = f"contract-review-{len(self.requests)}"
             return ClientToolTurnResponse(
                 content_blocks=(
@@ -689,19 +657,11 @@ def test_missing_public_contract_clause_record_returns_to_same_reviewer_session(
         trusted_lineage=_algorithm_lineage(),
     )
 
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 1
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["reviewed_public_contract_clause_ids"] == [
-        "request.value",
-        "response.estimate",
-        "invariant.closed_object",
-    ]
-    assert packet["client_tool_loop"]["validation_submissions"] == 2
-    assert packet["client_tool_loop"]["validation_feedback_observed"] is True
-    assert (
-        "must cover every applicable public source contract clause exactly once"
-        in str(backend.requests[1].messages[-1])
-    )
+    assert "reviewed_public_contract_clause_ids" not in packet
+    assert packet["client_tool_loop"]["validation_submissions"] == 1
+    assert packet["client_tool_loop"]["validation_feedback_observed"] is False
     assert validate_generated_code_semantic_review_packet(
         packet,
         review_material=material,

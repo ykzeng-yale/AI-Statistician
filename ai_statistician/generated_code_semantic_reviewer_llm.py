@@ -18,10 +18,6 @@ from .client_tool_loop import (
 )
 from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .fingerprint import stable_hash
-from .estimator_interface_contract import (
-    frozen_estimator_execution_contract_clause_ids,
-    frozen_estimator_execution_contract_empirical_claim_ids,
-)
 from .structured_output_retry import PacketValidationError
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
@@ -48,11 +44,11 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 34
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 35
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.")
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_committed_probe_observations_v11"
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_committed_probe_observations_v12"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
@@ -480,25 +476,6 @@ def _question_context(question: OpenResearchQuestion) -> dict[str, Any]:
     return research_question_payload(question)
 
 
-def _public_review_contract_clause_ids(
-    question_context: Mapping[str, Any],
-    review_material: Mapping[str, Any],
-) -> tuple[str, ...]:
-    contract = question_context.get("estimator_execution_contract", {})
-    empirical_ids = frozen_estimator_execution_contract_empirical_claim_ids(contract)
-    source_subsystem = str(review_material.get("source_subsystem", "") or "")
-    if source_subsystem == "AlgorithmEngineer":
-        return tuple(sorted(
-            frozen_estimator_execution_contract_clause_ids(contract) - empirical_ids
-        ))
-    if (
-        source_subsystem == "SimulationEvaluator"
-        and review_material.get("empirical_evaluation_phase") == "executable_evaluator_authoring"
-    ):
-        return tuple(sorted(empirical_ids))
-    return ()
-
-
 def _reviewer_scope_contract(
     review_material: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -675,20 +652,6 @@ def generated_code_semantic_review_json_schema(
     prior_schema = schema["properties"]["prior_finding_reviews"]
     prior_schema["minItems"] = len(prior_ids)
     prior_schema["maxItems"] = len(prior_ids)
-    question_context = _question_context(question) if question is not None else {}
-    public_contract_clause_ids = _public_review_contract_clause_ids(
-        question_context,
-        review_material,
-    )
-    if public_contract_clause_ids:
-        schema["required"].append("reviewed_public_contract_clause_ids")
-        schema["properties"]["reviewed_public_contract_clause_ids"] = {
-            "type": "array",
-            "minItems": len(public_contract_clause_ids),
-            "maxItems": len(public_contract_clause_ids),
-            "uniqueItems": True,
-            "items": {"type": "string", "enum": list(public_contract_clause_ids)},
-        }
     return schema
 
 
@@ -731,9 +694,9 @@ def build_generated_code_semantic_review_prompt(
         + "Return compact JSON and put analysis with source lines in review_document Markdown. "
         "ACCEPT only a semantically fit artifact. The public contract is closed in both directions; "
         "do not invent conditions. Findings are unique active blockers with observed and expected "
-        "behavior; nonblockers stay in Markdown. Review each prior finding once. When required, "
-        "reviewed_public_contract_clause_ids lists clauses actually inspected; it records model "
-        "attention, not evidence, and does not replace analysis or probes. source_revision_assessment "
+        "behavior; nonblockers stay in Markdown. Review each prior finding once. The complete "
+        "public contract is already bound into the review input; do not copy runtime-owned IDs "
+        "into the verdict. source_revision_assessment "
         "asks only whether current-source rewrite can close findings without changing immutable "
         "parents. It is not a repair plan or route: write no code, owner, or tactic. Supporting "
         "context is historical; current_target_artifacts is authoritative. This review is neither "
@@ -1311,9 +1274,6 @@ def _normalize_generated_code_semantic_review_packet(
     source_revision_assessment = _normalize_source_revision_assessment(
         payload.get("source_revision_assessment", {})
     )
-    reviewed_public_contract_clause_ids = list(
-        payload.get("reviewed_public_contract_clause_ids", [])
-    )
     legacy_verdict = (
         "ACCEPT"
         if not findings
@@ -1385,7 +1345,6 @@ def _normalize_generated_code_semantic_review_packet(
         "source_subsystem": source_subsystem,
         "prior_finding_reviews": prior_reviews,
         "findings": findings,
-        "reviewed_public_contract_clause_ids": reviewed_public_contract_clause_ids,
         "source_revision_assessment": source_revision_assessment,
         "model_requested_overall_verdict": requested_verdict,
         "overall_verdict": verdict,
@@ -1486,29 +1445,6 @@ def validate_generated_code_semantic_review_packet(
     ):
         errors.append(
             "generated-code semantic review evidence document fingerprint mismatch"
-        )
-    expected_public_contract_clause_ids = _public_review_contract_clause_ids(
-        question_context,
-        material,
-    )
-    raw_reviewed_clause_ids = packet.get("reviewed_public_contract_clause_ids", [])
-    reviewed_public_contract_clause_ids = (
-        raw_reviewed_clause_ids if isinstance(raw_reviewed_clause_ids, list) else []
-    )
-    if expected_public_contract_clause_ids:
-        if (
-            len(reviewed_public_contract_clause_ids)
-            != len(expected_public_contract_clause_ids)
-            or set(reviewed_public_contract_clause_ids)
-            != set(expected_public_contract_clause_ids)
-        ):
-            errors.append(
-                "reviewed_public_contract_clause_ids must cover every applicable "
-                "public source contract clause exactly once"
-            )
-    elif reviewed_public_contract_clause_ids:
-        errors.append(
-            "reviewed_public_contract_clause_ids are not applicable to this review"
         )
     findings = packet.get("findings", [])
     finding_rows = [row for row in findings if isinstance(row, Mapping)] if isinstance(findings, list) else []
