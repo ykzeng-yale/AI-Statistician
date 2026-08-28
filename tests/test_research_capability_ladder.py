@@ -17,7 +17,7 @@ TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 81
-CURRENT_CONSUMED_TASKS = 80
+CURRENT_CONSUMED_TASKS = 81
 CURRENT_OPERATOR_INVALID_TASKS = 16
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -8129,7 +8129,7 @@ def test_pelt_gaussian_mean_l2_only_product_draw_is_consumed_and_immutable() -> 
     )
 
 
-def test_linear_kernel_two_sample_l3_is_blind_and_frozen_before_product_draw() -> None:
+def test_linear_kernel_two_sample_l3_is_blind_frozen_and_consumed_once() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -8140,9 +8140,9 @@ def test_linear_kernel_two_sample_l3_is_blind_and_frozen_before_product_draw() -
 
     assert candidate["level"] == "L3"
     assert candidate["family"] == "nonparametric_kernel_two_sample_linear_statistic"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_v1_exact_haiku_gold_qualified_before_product_runtime"
+        "fresh_live_v1_consumed_exact_haiku_runtime_blocked_hidden_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l3-linear-kernel-two-sample-20260828-v1"
@@ -8159,8 +8159,8 @@ def test_linear_kernel_two_sample_l3_is_blind_and_frozen_before_product_draw() -
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 7
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["target_publication_identity_withheld_from_runtime"] is True
     assert evidence["public_source_discovery_disabled_for_blind_draw"] is True
     assert evidence["semantic_calibration_model"] == (
@@ -8193,13 +8193,24 @@ def test_linear_kernel_two_sample_l3_is_blind_and_frozen_before_product_draw() -
     assert evidence["reference_empirical_invocation_failures"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["generated_algorithm_executed"] is False
-    assert evidence["generated_simulation_executed"] is False
+    assert evidence["generated_algorithm_executed"] is True
+    assert evidence["generated_simulation_executed"] is True
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_consumption"] == "4/80"
-    assert "before any product-model call" in evidence["boundary"]
+    assert evidence["ladder_score_after_consumption"] == "4/81"
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_research_loop_complete"] is False
+    assert evidence["runtime_mode_conformant"] is True
+    assert evidence["hidden_theory_combined_passed"] is True
+    assert evidence["hidden_algorithm_checks_passed"] == 8
+    assert evidence["hidden_algorithm_checks_total"] == 14
+    assert evidence["hidden_empirical_checks_passed"] == 10
+    assert evidence["hidden_empirical_checks_total"] == 10
+    assert evidence["hidden_empirical_authority_passed_runtime_not_accepted"] is True
+    assert "sole product draw" in evidence["boundary"]
+    assert "Never rerun" in evidence["boundary"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -8243,13 +8254,9 @@ def test_linear_kernel_two_sample_l3_is_blind_and_frozen_before_product_draw() -
         "semantic_rubric.json",
     ):
         assert hidden_name not in runtime_visible
-    for hidden_identity in (
-        "Gretton",
-        "Borgwardt",
-        "A Kernel Two-Sample Test",
-        "JMLR 13",
-    ):
-        assert hidden_identity not in runtime_visible
+    assert "target_publication_title" not in runtime_visible
+    assert "target_publication_authors" not in runtime_visible
+    assert "target_publication_venue" not in runtime_visible
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
