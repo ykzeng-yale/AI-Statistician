@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "good_turing_missing_mass_bias_theory_known_result",
+      "title": "Good-Turing singleton identities and exact missing-mass bias",
+      "description": "Focused known-result theory evaluation grounded in I. J. Good, The Population Frequencies of Species and the Estimation of Population Parameters, Biometrika 40(3-4) (1953), pages 237-264, DOI 10.1093/biomet/40.3-4.237, with modern occupancy-probability context in Amichai Painsky, Convergence Guarantees for the Good-Turing Estimator, JMLR 23(279) (2022), pages 1-37. Let A be a finite or countably infinite alphabet and let p=(p_x)_{x in A} be an arbitrary probability mass function. For n>=2, draw X_1,...,X_n i.i.d. from p, define N_x^(m)=sum_{j=1}^m 1{X_j=x}, K_{m,r}=sum_x 1{N_x^(m)=r}, and M_m=sum_x p_x 1{N_x^(m)=0}. In one authoritative Markdown/LaTeX theory workspace, derive from first principles the exact unconditional expectation of M_n, the exact sample-size-shifted relationship between that expectation and the expected singleton count in a sample of size n+1, and the exact unconditional expectation and bias of the usual same-sample Good-Turing estimator K_{n,1}/n for M_n. Determine the bias sign and the complete equality conditions for n>=2. Also derive the leave-one-out representation of K_{n,1}/n and use exchangeability to reconcile it with the direct occupancy calculation. Justify every interchange over a countable alphabet rather than silently assuming finite support. Keep the indices n-1, n, and n+1 distinct, and explicitly distinguish an equality of expectations from a samplewise identity, conditional unbiasedness, consistency, concentration, or risk control. Do not extend the i.i.d. conclusion to Markov, feature-allocation, or other dependent sampling models. Keep active and rejected calculations visibly distinct and disclose unresolved gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Good-Turing estimator",
+        "missing mass",
+        "occupancy counts",
+        "singleton identity",
+        "leave-one-out",
+        "countable alphabet",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "The Population Frequencies of Species and the Estimation of Population Parameters",
+        "authors": [
+          "I. J. Good"
+        ],
+        "journal": "Biometrika",
+        "year": 1953,
+        "volume": 40,
+        "issue": "3-4",
+        "pages": "237-264",
+        "doi": "10.1093/biomet/40.3-4.237",
+        "url": "https://doi.org/10.1093/biomet/40.3-4.237"
+      }
+    }
+  ]
+}
