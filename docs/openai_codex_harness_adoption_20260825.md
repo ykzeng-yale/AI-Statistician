@@ -3810,3 +3810,42 @@ full-lab readiness. Task 85 is consumed at `1/1`; aggregate trustworthy capabili
 `5/85`, and no post-run product mechanism change is justified. Focused ladder and
 formal-authority regressions passed `89/89`; the complete repository passed
 `1029/1029` in 81.66 seconds without another product or evaluator model call.
+
+## 2026-08-28 R workspace validation and verdict-envelope simplification
+
+Task 86 tested a disjoint mixed lane: long-form Markdown/LaTeX Theory, a real base-R
+estimator, and real R simulation, with formalization explicitly not applicable. The
+Codex-shaped workspace principle worked at the source level. TheoryDeveloper retained
+one model/tool session through document writes and R scratch; AlgorithmEngineer owned
+and executed its estimator; SimulationEngineer received raw R failures, edited its own
+source, reran it, and committed a confirmatory source. No RepairAgent, Architect source
+patch, Python substitution, fallback, Sonnet, or Opus call occurred.
+
+The frozen result is still `0/1`. Hidden algorithm and empirical authorities passed,
+but the hidden theory judge correctly rejected an active false expectation derivation
+that the runtime referee had accepted. This is evidence that persistent tools and
+inspectable state do not substitute for mathematical judgment. It does not justify a
+Chapman rule, equation parser, hidden-feedback repair, extra reviewer vote, more turns,
+or model escalation.
+
+The same run exposed one actual harness error. The final source reviewer wrote an
+ACCEPT report with no findings, yet runtime blocked because the compact tool envelope
+did not repeat every public-contract clause ID exactly once. That list was a model
+self-report of attention, not evidence; the exact public contract was already bound in
+the reviewer input fingerprint. Commit
+`9606ac34c19129ee7ec53808a8ccfb7b6b018374` removes the field, its schema,
+and the terminal coverage gate for future tasks. The change deletes 104 net lines.
+Exact source, contract, observations, reviewer identity, Markdown report, probes,
+findings, and verdict remain bound and independently owned.
+
+This is the useful boundary for OpenAI Codex reuse. Adopt stable model-owned tool loops,
+raw observations, external hash-bound state, and sparse handoffs. Do not import Codex
+Core, App Server, Responses transport, Guardian, thread/worktree orchestration, provider
+state, or multi-agent scheduling; and do not make the LLM reproduce runtime bookkeeping
+as proof that it paid attention. Task 86 remains immutable at `0/1`, and aggregate
+trusted capability remains `5/86`.
+
+Reviewer and AgentRuntime regressions passed `127/127`, ladder closeout checks passed
+`84/84`, and the complete repository passed `1030/1030` in 81.27 seconds without a
+product or evaluator model call. The reviewer simplification removes 104 net lines;
+top-level production Python is now 149,933 lines.

@@ -9,7 +9,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "chapman_capture_recapture_bias_r_known_result"
 
 
-def test_chapman_r_l0_task_is_frozen_before_product_draw() -> None:
+def test_chapman_r_l0_task_records_immutable_consumed_result() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -18,9 +18,9 @@ def test_chapman_r_l0_task_is_frozen_before_product_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "capture_recapture_hypergeometric_bias_r"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_haiku_product_draw_not_started"
+        "fresh_live_v1_consumed_runtime_blocked_hidden_theory_failed_code_and_empirical_passed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-chapman-capture-recapture-r-20260828-v1"
@@ -57,9 +57,9 @@ def test_chapman_r_l0_task_is_frozen_before_product_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 8
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
@@ -68,14 +68,29 @@ def test_chapman_r_l0_task_is_frozen_before_product_draw() -> None:
     assert evidence["scientific_execution_profile"] == "scientific_wasm"
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["theory_developer_executed"] is False
-    assert evidence["generated_algorithm_executed"] is False
-    assert evidence["generated_simulation_executed"] is False
+    assert evidence["theory_developer_executed"] is True
+    assert evidence["generated_algorithm_executed"] is True
+    assert evidence["generated_simulation_executed"] is True
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["activation_ledger_commit"] == (
         "60b0b731a266bdd34c0647b1588f7f4b7fdf802b"
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "generated_code_semantic_review_packet_invalid"
+    )
+    assert evidence["runtime_product_model_turns"] == 81
+    assert evidence["post_runtime_gold_model_calls"] == 1
+    assert evidence["hidden_algorithm_checks_passed"] is True
+    assert evidence["hidden_theory_mechanical_checks_passed"] is True
+    assert evidence["hidden_theory_semantic_passed"] is False
+    assert evidence["hidden_empirical_checks_passed"] is True
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "9606ac34c19129ee7ec53808a8ccfb7b6b018374"
+    )
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -125,7 +140,7 @@ def test_chapman_r_l0_task_is_frozen_before_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 86
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 85
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 86
     assert readiness["fully_gold_configured_tasks"] == 86
     assert readiness["fully_gold_passed_tasks"] == 5
