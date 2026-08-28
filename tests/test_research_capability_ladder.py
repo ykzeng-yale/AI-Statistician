@@ -11,6 +11,7 @@ TASK_79_ACTIVATION_LEDGER_HEAD = "a6745543c662200fb39806cea5bb970532357cf0"
 TASK_79_SHARED_MECHANISM_HEAD = "492d11120fbae8b630fa01af8bb11d6da131f5b9"
 TASK_80_ACTIVATION_LEDGER_HEAD = "eb6ddd325f7d8969c1f446c97ceb56860b9a4add"
 TASK_81_ACTIVATION_LEDGER_HEAD = "2c8478731c9e0472227342b1fd1f30ead752d9b8"
+TASK_82_ACTIVATION_LEDGER_HEAD = "6623cee3f6f4a1540c4c258fdb9181e740fecf7c"
 TASK_78_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
 TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
@@ -8257,6 +8258,143 @@ def test_linear_kernel_two_sample_l3_is_blind_frozen_and_consumed_once() -> None
     assert "target_publication_title" not in runtime_visible
     assert "target_publication_authors" not in runtime_visible
     assert "target_publication_venue" not in runtime_visible
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["latest_shared_mechanism_head"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+
+
+def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_unconsumed() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "crossfit_orthogonal_contrast_r_known_theory_rederivation"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L3"
+    assert candidate["family"] == (
+        "causal_binary_treatment_crossfit_orthogonal_contrast"
+    )
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_v1_exact_haiku_gold_qualified_before_product_runtime"
+    )
+    assert candidate["gold_bundle_id"] == (
+        "research-l3-crossfit-orthogonal-contrast-r-20260828-v1"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "04837881ed6f7d7e63104fac5bf7649efc2064da82eec7626fe68cac520cde4f"
+    )
+    assert candidate["gold_descriptor_hash"] == (
+        "9e19fc76fd7d03f4c19e37a2163c87786373c35da31fc088383ed8fd81dbf79d"
+    )
+    assert evidence["activation_ledger_commit"] == TASK_82_ACTIVATION_LEDGER_HEAD
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["preactivation_evaluator_model_calls"] == 7
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["target_publication_identity_withheld_from_runtime"] is True
+    assert evidence["public_source_discovery_disabled_for_blind_draw"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["semantic_activation_attempts"] == 1
+    assert evidence["semantic_calibration_total_model_calls"] == 7
+    assert evidence["semantic_final_calibration_cases_correct"] == 5
+    assert evidence["semantic_candidate_mode_negative_cases_correct"] == 1
+    assert evidence["semantic_reference_claims"] == 10
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["activation_reference_tasks_passed"] == 1
+    assert evidence["activation_negative_controls_rejected"] == 4
+    assert evidence["activation_semantic_reference_documents_passed"] == 1
+    assert (
+        evidence[
+            "activation_semantic_candidate_mode_negative_controls_rejected"
+        ]
+        == 1
+    )
+    assert evidence["activation_semantic_model_calls"] == 0
+    assert evidence["activation_semantic_qualification_model_calls"] == 7
+    assert evidence["activation_semantic_qualification_reused"] is True
+    assert evidence["reference_algorithm_contract_checks_passed"] is True
+    assert evidence["reference_algorithm_valid_cases"] == 20
+    assert evidence["reference_algorithm_invalid_cases"] == 43
+    assert evidence["reference_algorithm_maximum_length_case_passed"] is True
+    assert evidence["reference_empirical_designs_passed"] == 4
+    assert evidence["reference_empirical_replicates_per_design"] == 2000
+    assert evidence["reference_empirical_estimator_invocations"] == 8000
+    assert evidence["reference_empirical_invocation_failures"] == 0
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["generated_algorithm_executed"] is False
+    assert evidence["generated_simulation_executed"] is False
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_before_consumption"] == "4/81"
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["task_intent"]["formal"] == "not_applicable"
+    assert question["source"]["target_publication_identity"] == (
+        "evaluator_only_hidden"
+    )
+    assert question["source"]["public_source_discovery"] == (
+        "disabled_for_this_blind_draw"
+    )
+    contract = question["estimator_execution_contract"]
+    assert contract["estimator_id"] == "est_crossfit_orthogonal_contrast"
+    assert [row["name"] for row in contract["request_fields"]] == [
+        "outcomes",
+        "assignments",
+        "treated_means",
+        "control_means",
+        "propensities",
+        "alpha",
+    ]
+    assert [row["name"] for row in contract["response_fields"]] == [
+        "effect_estimate",
+        "score_variance",
+        "standard_error",
+        "ci_lower",
+        "ci_upper",
+    ]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "primary_article.xml",
+        "official_code.zip",
+        "reference_estimator.R",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+    ):
+        assert hidden_name not in runtime_visible
+    for hidden_identity in (
+        "Zhong",
+        "Kennedy",
+        "AIPW",
+        "10.1093/aje/kwab207",
+        "yqzhong7",
+    ):
+        assert hidden_identity not in runtime_visible
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
