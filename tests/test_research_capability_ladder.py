@@ -8,7 +8,7 @@ from pathlib import Path
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 LATEST_SHARED_MECHANISM_HEAD = "02ce1ae3cf73c73bc41f3744f3a7f9d160cef1f8"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
-CURRENT_ACTIVE_TASKS = 71
+CURRENT_ACTIVE_TASKS = 72
 CURRENT_CONSUMED_TASKS = 71
 CURRENT_OPERATOR_INVALID_TASKS = 11
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -6980,6 +6980,113 @@ def test_randomized_distributional_transform_l0_consumption_is_immutable() -> No
         "candidate_mode_near_miss.md",
         "reference_estimator.py",
         "negative_ordinary_pit.py",
+        "negative_permissive.py",
+    ):
+        assert hidden_name not in runtime_visible
+
+
+def test_fisher_exact_greater_l0_is_frozen_before_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "fisher_exact_greater_fixed_margins_known_result"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L0"
+    assert candidate["family"] == (
+        "conditional_exact_contingency_table_inference"
+    )
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_schema_v4_exact_haiku_product_not_started"
+    )
+    assert candidate["gold_bundle_id"] == (
+        "research-l0-fisher-exact-greater-20260827-v1"
+    )
+    assert candidate["gold_manifest_sha256"] == (
+        "e1d06b0875682119159f7833787566b1e37bdc03dc05f0fe9110346b71627b12"
+    )
+    assert evidence["gold_manifest_stable_hash"] == (
+        "893300d314f343a21bfd8fb5bfe799e5c0ec5477540806f90edbc3076bd7ef1a"
+    )
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_schema_version"] == 4
+    assert evidence["semantic_protocol_version"] == 10
+    assert evidence["semantic_activation_record_sha256"] == (
+        "1266acd5546c8ba9db4d709b6716ccaf29e2f302d811a4c6d9fd8bfd985fb77d"
+    )
+    assert evidence["semantic_calibration_attempts"] == 3
+    assert evidence["semantic_calibration_total_model_calls"] == 12
+    assert evidence["semantic_calibration_cases"] == 4
+    assert evidence["semantic_calibration_cases_correct"] == 4
+    assert evidence["semantic_candidate_mode_negative_cases"] == 1
+    assert evidence["semantic_candidate_mode_negative_cases_correct"] == 1
+    assert evidence["semantic_reference_claims"] == 8
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["activation_reference_tasks_passed"] == 1
+    assert evidence["activation_negative_controls_rejected"] == 5
+    assert evidence["activation_semantic_reference_documents_passed"] == 1
+    assert (
+        evidence[
+            "activation_semantic_candidate_mode_negative_controls_rejected"
+        ]
+        == 1
+    )
+    assert evidence["activation_semantic_model_calls"] == 0
+    assert evidence["qualified_semantic_model_calls_before_activation"] == 6
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["latest_shared_mechanism_head"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["source"]["primary_paper"]["doi"] == (
+        "10.1111/j.2397-2335.1922.tb00768.x"
+    )
+    assert question["estimator_execution_contract"]["estimator_id"] == (
+        "est_fisher_exact_greater"
+    )
+    assert question["task_intent"]["formal"] == "not_applicable"
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "hidden_theory_harness.py",
+        "hidden_algorithm_harness.py",
+        "hidden_empirical_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "semantic_calibration_cases.json",
+        "candidate_mode_near_miss.md",
+        "reference_estimator.py",
+        "negative_lower_tail.py",
+        "negative_unconditional_binomial.py",
         "negative_permissive.py",
     ):
         assert hidden_name not in runtime_visible
