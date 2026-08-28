@@ -61,6 +61,10 @@ def test_good_turing_l0_theory_task_is_frozen_before_product_draw() -> None:
     assert evidence["activation_semantic_qualification_reused"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_ledger_commit"] == (
+        "9bd948ab74ea4da67e048c6a7384c2fe8d6b7c3c"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 8
     assert evidence["first_runtime_model_call_occurred"] is False
