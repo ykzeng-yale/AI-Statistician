@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "chapman_capture_recapture_bias_r_known_result",
+      "title": "Chapman capture-recapture expectation and finite-sample bias in R",
+      "description": "Focused L0 known-result evaluation grounded in D. G. Chapman (1951) and the public CRAN recapr documentation. A closed population contains N labeled units. Conditional on fixed integer sample sizes 1<=n1,n2<=N, the first and second samples are independent uniformly chosen subsets without replacement, and M is their overlap. Thus M has the Hypergeometric(N,n1,n2) law. Develop one authoritative Markdown/LaTeX Theory workspace deriving the support and mass function of M and the Chapman estimator N_hat_C=(n1+1)(n2+1)/(M+1)-1. Starting from a shifted binomial-coefficient identity and Vandermonde's identity, derive an exact finite-N closed form for E[N_hat_C], its bias, and the condition under which the bias is exactly zero. Establish that the bias is never positive, explain why it is zero when n1+n2>=N and generally negative otherwise, derive P(M=0), and contrast the estimator's finite zero-overlap behavior with the undefined Lincoln-Petersen ratio n1*n2/M. Keep the finite-population sampling assumptions explicit and do not extend the claim to heterogeneous capture probabilities, mark loss, population change, dependent samples, confidence-interval validity, or novelty. The required model-authored artifact is est_chapman_capture_recapture and must implement the frozen run_estimator(request) contract as R source using language=r, execution_profile=scientific_wasm, and only base R. Do not substitute Python or call a capture-recapture package. Exploratory R may diagnose identities. A separately frozen confirmatory R assessment uses at least 12000 fresh hypergeometric replicates for each of three fully public designs: A=(N=60,n1=35,n2=30), B=(N=200,n1=40,n2=50), and C=(N=80,n1=8,n2=12). Before outcomes, freeze one seed per design, the exact estimator invocation, the exact expectation and exact variance obtained by summing the finite hypergeometric support, P(M=0), and all decisions. For every design, compare the empirical estimator mean with its exact expectation and the empirical zero-overlap frequency with its exact probability using four Monte Carlo standard errors. Confirm exact unbiasedness in A and downward bias in B and C. Simulation is implementation evidence, not proof. Source replication, novelty, and Lean formalization are not applicable, and unresolved theory, ABI, R execution, or empirical gaps must remain explicit.",
+      "tags": [
+        "capture_recapture",
+        "hypergeometric_distribution",
+        "finite_sample_bias",
+        "r_language",
+        "L0"
+      ],
+      "source": {
+        "primary_reference": {
+          "title": "Some Properties of the Hypergeometric Distribution with Applications to Zoological Sample Censuses",
+          "author": "D. G. Chapman",
+          "venue": "University of California Publications in Statistics",
+          "year": 1951,
+          "volume": 1,
+          "issue": 7,
+          "pages": "131-159",
+          "public_catalog_url": "https://onlinebooks.library.upenn.edu/webbin/book/lookupid?key=olbp67153",
+          "rights": "Public domain"
+        },
+        "official_r_documentation": {
+          "package": "recapr",
+          "topic": "NChapman",
+          "url": "https://search.r-project.org/CRAN/refmans/recapr/html/NChapman.html"
+        },
+        "reference_implementation_visibility": "evaluator_only_hidden_for_l0"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_chapman_capture_recapture",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.first_sample_size",
+            "name": "first_sample_size",
+            "meaning": "The fixed first-sample size n1.",
+            "json_type": "integer",
+            "shape": "one finite integer-valued nonlogical R numeric scalar from 1 through 10000000",
+            "units": "captured units",
+            "indexing": "first sample",
+            "edge_cases": "Reject logical, character, nonnumeric, nonfinite, fractional, zero, negative, nonscalar, or above-limit values rather than coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.second_sample_size",
+            "name": "second_sample_size",
+            "meaning": "The fixed second-sample size n2.",
+            "json_type": "integer",
+            "shape": "one finite integer-valued nonlogical R numeric scalar from 1 through 10000000",
+            "units": "captured units",
+            "indexing": "second sample",
+            "edge_cases": "Reject logical, character, nonnumeric, nonfinite, fractional, zero, negative, nonscalar, or above-limit values rather than coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.overlap",
+            "name": "overlap",
+            "meaning": "The observed overlap M between the two samples.",
+            "json_type": "integer",
+            "shape": "one finite integer-valued nonlogical R numeric scalar between zero and min(n1,n2)",
+            "units": "recaptured units",
+            "indexing": "intersection cardinality",
+            "edge_cases": "Zero is valid. Reject logical, character, nonnumeric, nonfinite, fractional, negative, nonscalar, or overlap larger than either sample size rather than coercing or clipping it.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.population_estimate",
+            "name": "population_estimate",
+            "meaning": "The Chapman estimate (n1+1)(n2+1)/(M+1)-1.",
+            "json_type": "number",
+            "shape": "one finite nonlogical numeric scalar",
+            "units": "population units",
+            "indexing": "one population-size estimate",
+            "edge_cases": "At zero overlap the estimate remains finite and equals (n1+1)(n2+1)-1.",
+            "normalization": "No rounding or truncation; return the real-valued Chapman expression exactly up to floating-point arithmetic."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request is a named R list containing exactly first_sample_size, second_sample_size, and overlap, and the response is a named R list containing exactly population_estimate. Missing, extra, malformed, or out-of-domain values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same result and do not mutate the request, use random state, access files, invoke subprocesses, call the network, or depend on packages."
+          },
+          {
+            "clause_id": "invariant.formula_identity",
+            "meaning": "The response equals (first_sample_size+1)*(second_sample_size+1)/(overlap+1)-1 without rounding, truncation, or replacement by the Lincoln-Petersen ratio."
+          },
+          {
+            "clause_id": "invariant.sample_exchange",
+            "meaning": "Swapping first_sample_size and second_sample_size while keeping overlap fixed leaves population_estimate unchanged."
+          },
+          {
+            "clause_id": "invariant.overlap_order",
+            "meaning": "For fixed sample sizes, population_estimate is strictly decreasing as an admitted overlap increases and is always at least max(first_sample_size,second_sample_size)."
+          },
+          {
+            "clause_id": "invariant.extreme_overlaps",
+            "meaning": "At overlap zero the estimate is (n1+1)(n2+1)-1; when n1=n2=overlap, it equals that common sample size."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For each public design A, B, and C, freeze a fresh seed, at least 12000 independent Hypergeometric(N,n1,n2) overlaps, exact estimator invocation, the finite-support exact mean and variance of the estimator, exact P(M=0), and both four-MCSE decisions before confirmatory outcomes are revealed."
+          },
+          {
+            "clause_id": "claim.empirical.mean_and_zero_overlap",
+            "meaning": "For every design, empirical mean(population_estimate) agrees with its exact finite-support expectation within four Monte Carlo standard errors of the mean, and the empirical zero-overlap frequency agrees with its exact hypergeometric probability within four binomial Monte Carlo standard errors."
+          },
+          {
+            "clause_id": "claim.empirical.bias_regimes",
+            "meaning": "The exact expectation equals N in design A because n1+n2>=N and is strictly below N in designs B and C; simulation must report these as exact-theory targets rather than infer the sign from noisy outcomes."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The assessment checks exact R source execution and finite-design behavior only. It is not a proof, a heterogeneous-capture result, an interval-calibration claim, a population-dynamics model, novelty evidence, or Lean evidence."
+          }
+        ],
+        "termination_guarantee": "For every valid request, run_estimator performs a fixed finite number of scalar base-R operations and returns exactly one response without randomization, file access, network access, subprocesses, package installation, or request mutation."
+      }
+    }
+  ]
+}
