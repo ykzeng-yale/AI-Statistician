@@ -720,6 +720,94 @@ def test_terminal_call_does_not_consume_workspace_action_budget() -> None:
     assert "client_tool_loop_terminal_decision_turn" not in backend.requests[1].metadata
 
 
+def test_last_workspace_action_gets_one_terminal_continuation() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+    executed_tools: list[str] = []
+
+    def execute(call, _context):
+        executed_tools.append(call.name)
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            state_changed=call.name == "edit",
+            terminal=call.name == "submit",
+            terminal_payload=(
+                {"submitted": True} if call.name == "submit" else None
+            ),
+            observation_key=call.name,
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=1,
+        max_tool_calls=4,
+        max_no_progress_turns=2,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 2
+    assert executed_tools == ["edit", "submit"]
+    terminal_request = backend.requests[1]
+    assert [tool.name for tool in terminal_request.tools] == [
+        "edit",
+        "check",
+        "submit",
+    ]
+    assert terminal_request.tool_choice == "submit"
+    assert terminal_request.disable_parallel_tool_use is True
+    assert terminal_request.metadata[
+        "client_tool_loop_terminal_only_turn"
+    ] is True
+    assert terminal_request.metadata[
+        "client_tool_loop_terminal_continuation"
+    ] is True
+    terminal_notice = terminal_request.messages[-1]["content"][-1]
+    assert terminal_notice["type"] == "text"
+    assert "Submit one terminal disposition" in terminal_notice["text"]
+
+
+def test_terminal_continuation_cannot_execute_another_workspace_action() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-check", "check", {})),
+        ]
+    )
+    executed_tools: list[str] = []
+
+    def execute(call, _context):
+        executed_tools.append(call.name)
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            state_changed=True,
+            observation_key=call.name,
+        )
+
+    with pytest.raises(ClientToolLoopError) as raised:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=execute,
+            max_turns=1,
+            max_tool_calls=4,
+            max_no_progress_turns=2,
+        )
+
+    assert "terminal disposition" in raised.value.reason
+    assert executed_tools == ["edit"]
+    rejected = raised.value.history[-1]["tool_calls"][0]
+    assert rejected["executed_by_runtime"] is False
+    assert "client_tool_unavailable_this_turn" in rejected["result_excerpt"]
+    assert '"allowed_tools":["submit"]' in rejected["result_excerpt"]
+    assert len(backend.requests) == 2
+
+
 def test_rejected_terminal_is_an_ordinary_same_model_observation() -> None:
     backend = ScriptedToolTurnBackend(
         [

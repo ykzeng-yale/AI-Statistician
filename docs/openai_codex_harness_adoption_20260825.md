@@ -3131,3 +3131,64 @@ task-family branch, second scheduler, model call, or Codex runtime dependency wa
 added. Focused boundary tests passed `78/78`, the AgentRuntime and question-contract
 panel passed `113/113`, and the complete repository passed `992/992` in 83.43
 seconds. All 72 consumed draws remain immutable at trusted aggregate `4/72`.
+
+## Current Codex source audit and terminal continuation
+
+Official Codex `main` was fetched and rechecked through
+[`6be2a6ca`](https://github.com/openai/codex/commit/6be2a6ca952ac9f70676ce4dd07fda27175aa9dd).
+The current [`run_turn`](https://github.com/openai/codex/blob/6be2a6ca952ac9f70676ce4dd07fda27175aa9dd/codex-rs/core/src/session/turn.rs)
+still states the reusable core directly: the model selects function calls, the
+harness executes them, their outputs return to the same accumulated model session,
+and an assistant response without another call completes the turn. OpenAI's
+[Codex as a platform](https://developers.openai.com/blog/codex-as-a-platform)
+describes the same product boundary: an application supplies its domain context and
+tools while the harness owns the action loop, execution boundaries, and continuation.
+
+That is the maximum useful reuse for AI Statistician. The scientific mapping is:
+
+| Research capability | Codex-shaped ownership in AI Statistician |
+| --- | --- |
+| Theory development | One persistent Markdown/LaTeX workspace; the same TheoryDeveloper reads, searches, edits, runs Python/R scratch work, receives observations, and commits or reports a gap. |
+| Scientific coding | One source-owning model edits Python/R source, executes it, reads raw interpreter and consumer observations, and revises in the same session. |
+| Simulation | The source owner implements and diagnoses exploratory or frozen confirmatory execution; independent review may block promotion but does not repair source. |
+| Lean formalization | One Formalizer session edits Lean, compiles, inspects goals/LSP output, retrieves declarations, and revises; the kernel remains final proof authority. |
+| Collaboration | One outer AgentRuntime allocates task intent and genuinely cross-workspace handoffs through immutable artifact references. Routine tool failures stay inside the issuing workspace. |
+
+The newer Codex context manager, history budgets, parallel tool runtime, agent
+registry, subagent lifecycle, app-server, and SDK are orthogonal product services,
+not a replacement scientific architecture. Codex's provider surface is OpenAI
+Responses-compatible, whereas this project deliberately uses native Anthropic
+Haiku for tests/evaluations and Sonnet or below for production. Embedding Codex Core
+or App Server would therefore add another conversation owner, provider boundary,
+tool router, scheduler, and persistence model. It would not improve statistical
+reasoning, simulation validity, theorem fidelity, or Lean proof search.
+
+Task 73 exposed one narrower lifecycle defect in the local shared loop. A Critic used
+its last ordinary turn to read another artifact and received the raw observation, but
+there was no subsequent sampling turn in which the same model could submit its
+terminal disposition. This violated the model -> tool -> observation -> model
+continuation invariant even though ordinary action accounting itself was correct.
+
+`run_bounded_client_tool_loop` now permits exactly one control-plane continuation
+when, and only when, the final normal turn requested an ordinary workspace tool and
+the session defines a terminal tool. The continuation:
+
+- retains the same model, transcript, provider session, and stable tool definitions;
+- can submit only a terminal disposition and executes no further research action;
+- is forced to the terminal tool when the workspace has exactly one terminal tool;
+- is not opened after a terminal attempt, so a rejected terminal submission receives
+  no hidden retry;
+- cannot route through Architect, another model, a repair agent, or a fallback.
+
+This is a lifecycle correction, not extra research budget. It applies equally to
+Theory checkpoints, scientific source submission, Lean gap/proof disposition, and
+Critic evaluation. Focused client-loop, Theory, scientific-code, Lean, and Critic
+regressions exercise the shared boundary. No task-specific formula, source patch,
+Lean grammar rule, reviewer verdict, or evaluator content enters runtime.
+
+Future Codex mechanisms remain evidence-triggered. Context compaction is appropriate
+only if durable artifact references plus recent observations no longer fit a model
+window; dynamic tool discovery is appropriate only if a measured tool-catalog cost
+appears; parallel tool execution is appropriate only for independent read-only
+actions. None justifies a second scheduler, nested Codex threads, routine subagent
+delegation, or another repair taxonomy.

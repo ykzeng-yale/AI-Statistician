@@ -1037,7 +1037,13 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert checkpoint["model_owned_theory"] is True
     assert checkpoint["runtime_edited_theory"] is False
     assert checkpoint["kernel_verified"] is False
-    assert len(backend.requests) == 1
+    assert len(backend.requests) == 2
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_continuation"
+    ] is True
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_only_turn"
+    ] is True
     assert "client_tool_loop_terminal_decision_turn" not in backend.requests[-1].metadata
 
 

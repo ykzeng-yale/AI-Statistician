@@ -548,8 +548,8 @@ def run_bounded_client_tool_loop(
     Terminal submission is a normal model-selected tool call. A rejected
     submission is returned to the same model like any other tool observation;
     the harness does not open a separate repair phase or reserve hidden retries.
-    Terminal calls do not consume the ordinary workspace-action budget, but every
-    model turn remains inside ``max_turns``.
+    Terminal calls do not consume the ordinary workspace-action budget. A final
+    ordinary action gets one terminal-only continuation in the same session.
     """
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
@@ -574,6 +574,7 @@ def run_bounded_client_tool_loop(
     last_response: ClientToolTurnResponse | None = None
     terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
     ordinary_tool_calls = 0
+    terminal_continuation_required = False
 
     def loop_error(
         reason: str,
@@ -599,14 +600,31 @@ def run_bounded_client_tool_loop(
             ),
         )
 
-    for turn_index in range(max_turns):
+    for turn_index in range(max_turns + bool(terminal_tools)):
+        terminal_continuation_turn = turn_index == max_turns
+        if terminal_continuation_turn and not terminal_continuation_required:
+            break
+        if terminal_continuation_turn:
+            messages[-1]["content"] = [
+                *_client_tool_content_blocks(messages[-1].get("content")),
+                {
+                    "type": "text",
+                    "text": (
+                        "Ordinary actions are complete. Submit one terminal "
+                        "disposition now; no further workspace action is available."
+                    ),
+                },
+            ]
         # Keep one stable tool definition surface across the whole transcript so
         # provider prompt caches retain the accumulated workspace prefix.
         turn_tools = request.tools
-        terminal_only_turn = bool(
+        terminal_only_turn = terminal_continuation_turn or bool(
             turn_tools and all(tool.terminal for tool in turn_tools)
         )
-        turn_allowed_tools = {tool.name for tool in turn_tools}
+        turn_allowed_tools = {
+            tool.name
+            for tool in (terminal_tools if terminal_continuation_turn else turn_tools)
+        }
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
@@ -623,7 +641,10 @@ def run_bounded_client_tool_loop(
                         messages=tuple(messages),
                         tools=turn_tools,
                         tool_choice=(
-                            turn_tools[0].name
+                            terminal_tools[0].name
+                            if terminal_continuation_turn
+                            and len(terminal_tools) == 1
+                            else turn_tools[0].name
                             if terminal_only_turn and len(turn_tools) == 1
                             else request.tool_choice
                         ),
@@ -637,6 +658,9 @@ def run_bounded_client_tool_loop(
                             "client_tool_loop_calls_before": total_calls,
                             "client_tool_loop_ordinary_calls_before": ordinary_tool_calls,
                             "client_tool_loop_terminal_only_turn": terminal_only_turn,
+                            "client_tool_loop_terminal_continuation": (
+                                terminal_continuation_turn
+                            ),
                         },
                     )
                 )
@@ -676,18 +700,12 @@ def run_bounded_client_tool_loop(
                     tool_calls=total_calls,
                 )
         if not isinstance(response, ClientToolTurnResponse):
-            raise TypeError(
-                "client-tool backend returned the wrong response type"
-            )
+            raise TypeError("client-tool backend returned the wrong response type")
         last_response = response
-        assistant_blocks = [
-            deepcopy(dict(block)) for block in response.content_blocks
-        ]
+        assistant_blocks = [deepcopy(dict(block)) for block in response.content_blocks]
         messages.append({"role": "assistant", "content": assistant_blocks})
         calls = list(response.tool_calls)
-        provider_stop_reason = str(
-            response.metadata.get("provider_stop_reason", "") or ""
-        )
+        provider_stop_reason = str(response.metadata.get("provider_stop_reason", "") or "")
         provider_output_truncated = provider_stop_reason == "max_tokens"
         turn_row: dict[str, Any] = {
             "turn_index": turn_index,
@@ -697,9 +715,7 @@ def run_bounded_client_tool_loop(
             "provider_output_truncated": provider_output_truncated,
             "n_tool_calls": len(calls),
             "tool_calls": [],
-            "response_metadata": _compact_tool_response_metadata(
-                response.metadata
-            ),
+            "response_metadata": _compact_tool_response_metadata(response.metadata),
         }
         history.append(turn_row)
 
@@ -711,29 +727,13 @@ def run_bounded_client_tool_loop(
             )
             new_observation = observation_key not in seen_observations
             seen_observations.add(observation_key)
-            no_progress_turns = (
-                0 if new_observation else no_progress_turns + 1
+            no_progress_turns = 0 if new_observation else no_progress_turns + 1
+            notice = (
+                "Provider output ended before a complete tool call; make a smaller complete call."
+                if provider_output_truncated
+                else "No client tool was called. Call a supplied tool; use a terminal tool when ready."
             )
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "The provider stopped at max_tokens before completing a "
-                        "client-tool call. Retry with a smaller complete tool input."
-                        if provider_output_truncated
-                        else (
-                            "No client tool was called. Continue by calling one of "
-                            "the supplied tools; prose alone cannot change the "
-                            "runtime artifact. Use a terminal tool when the current "
-                            "workspace is ready for its final disposition."
-                            if terminal_tools
-                            else "No client tool was called. Continue by calling one "
-                            "of the supplied tools; prose alone cannot change the "
-                            "runtime artifact."
-                        )
-                    ),
-                }
-            )
+            messages.append({"role": "user", "content": notice})
             if no_progress_turns >= max_no_progress_turns:
                 raise loop_error(
                     "repeated turns without a client tool call",
@@ -982,6 +982,14 @@ def run_bounded_client_tool_loop(
                 provider_usage=_provider_usage_totals(history),
                 final_response_metadata=deepcopy(dict(response.metadata)),
             )
+
+        if not terminal_continuation_turn:
+            requested_terminal_kinds = {
+                tool_definitions[call.name].terminal
+                for call in calls
+                if call.name in tool_definitions
+            }
+            terminal_continuation_required = requested_terminal_kinds == {False}
 
         if turn_state_changed or turn_new_observation:
             no_progress_turns = 0
