@@ -3849,3 +3849,14 @@ Reviewer and AgentRuntime regressions passed `127/127`, ladder closeout checks p
 `84/84`, and the complete repository passed `1030/1030` in 81.27 seconds without a
 product or evaluator model call. The reviewer simplification removes 104 net lines;
 top-level production Python is now 149,933 lines.
+
+After closeout, official Codex `main` advanced from `f9cdc90c` to
+[`0d226929`](https://github.com/openai/codex/commit/0d226929622ce177b56e35d09cf39dd001721466)
+through two commits. The relevant change retains the last `StepContext` actually
+selected for execution and prevents a speculative model-fallback capture from
+overwriting it. AI Statistician already applies the corresponding invariant through
+immutable task snapshots and content-addressed same-owner continuations; it has no
+speculative provider fallback whose state should be imported. The other commit filters
+image and audio payloads from App Server function-call notifications, a transport-only
+concern outside the text and artifact-reference scientific workspaces. No additional
+code, abstraction, provider, scheduler, or dependency is warranted.
