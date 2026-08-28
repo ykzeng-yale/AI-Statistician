@@ -1,0 +1,20 @@
+{
+  "artifact_kind": "RuntimeGeneratedCodeSemanticReviewMaterialization",
+  "created_at": "2026-08-28T03:53:28.380423+00:00",
+  "evidence_boundary": "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.",
+  "exact_algorithm_artifacts": [],
+  "full_review_material_persisted": false,
+  "materialization_id": "generated_code_semantic_review_materialization:c0b26a9ee3de414a7031",
+  "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE",
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "review_input_artifact_refs": {
+    "proposal_packet_id": "simulation_engineer_proposal:ac05a9651071b40fc4bd9f74",
+    "source_manifest_id": "simulation_manifest:54da8757bbec84815852",
+    "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+  },
+  "review_input_fingerprint": "d5dd36ddd7b2da4a013e75fda73248e3e0b5e6311ccdf9ea30b0a4ddee7f03b0",
+  "schema_version": 1,
+  "source_responsibility_contract_fingerprint": "95c4fbf63aba7cf681de5950545d23675b9ed72ec9e7960e9df5f4e2cc5820ab",
+  "work_order_hash": "baaed6e15a64bd00703db4d53e00765c698cf73202ebd4d2d5b9ac87ceafff4d",
+  "work_order_id": "generated_code_semantic_review_work_order:aad93ab3bc80761ff7b7"
+}

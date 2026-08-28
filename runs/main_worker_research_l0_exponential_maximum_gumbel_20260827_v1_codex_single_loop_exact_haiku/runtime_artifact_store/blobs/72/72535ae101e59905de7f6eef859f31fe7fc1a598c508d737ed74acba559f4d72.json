@@ -1,0 +1,692 @@
+{
+  "artifact_kind": "RuntimeAgentTaskInputMapping",
+  "mapping": {
+    "accepted_generated_code_semantic_reviews": [
+      {
+        "confirmatory_empirical_evidence_eligible": false,
+        "empirical_evaluation_phase": "",
+        "execution_id": "generated_code_semantic_review_execution:6f75a143205506dcbb69",
+        "overall_verdict": "ACCEPT",
+        "parent_artifact_ids": {
+          "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+        },
+        "review_packet_hash": "7ae0dcaf30cde7da5a5f32b6ceb3f608662348827a5577c51a1e0a7aaccd8492",
+        "review_packet_id": "generated_code_semantic_review:fb46530431564c8cd95c4467",
+        "source_manifest_hash": "19ac59a3a01a37ad6554c4da28ac0feb795256b283092ab54a7133006a644ac3",
+        "source_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+        "source_responsibility_contract_fingerprint": "62ca5cd4dadf7167dd76e61f69175f21be848447888b2f9b49bb88c6ee9e0760",
+        "source_subsystem": "AlgorithmEngineer"
+      }
+    ],
+    "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+    "architect_control": {
+      "AlgorithmEngineer": {
+        "acceptance_gate": "",
+        "architect_coordinator_proposal_id": "architect_coordinator_proposal:ff0cb2f99aefce8eaa6e3517",
+        "boundary": "LLM ArchitectCoordinator packets are orchestration proposals only. They can choose the research path, mathematical targets, retrieval priorities, iteration policy, and one next workspace action. Runtime owns mandatory evidence topology, budgets, lineage, and authority gates. Architect packets do not execute tools, validate simulations, or prove theorems; runtime validators and AXLE/local Lean remain the authority gates.",
+        "evidence_contract": {
+          "acceptance_modes": [
+            "research candidate may be reported with disclosed formal gaps"
+          ],
+          "dimension_requirements": {
+            "empirical": "required",
+            "formal": "not_applicable",
+            "scientific_code": "required",
+            "theory": "required"
+          },
+          "disclosure_requirements": [
+            "do not call LLM proposals, retrieval hits, simulations, or static rows proof evidence",
+            "report formal verification level as none, partial, or full"
+          ],
+          "empirical_metric_protocol_phase": "not_required",
+          "evaluation_mode": "research_eval",
+          "formal_evaluation_exposes_proof_search_tool": false,
+          "formal_evaluation_requires_formal_target_semantic_review": false,
+          "formal_evaluation_requires_formalizer_lean_candidate": false,
+          "formal_required_for_final": false,
+          "formal_target_authoring_required": false,
+          "formal_target_completion_policy": "formal gaps must remain explicit when the task-specific target is not kernel verified",
+          "formal_targets": [],
+          "formal_verification_policy": "advisory",
+          "generated_metric_contract_policy": "typed_artifact_bound_preferred",
+          "generated_metric_requirement_authority_policy": "architect_authored_coding_agent_bound_preferred",
+          "generated_sandbox_max_runtime_replicates": 100000,
+          "generated_sandbox_runtime_replicates": 100,
+          "generated_simulation_timeout_seconds": 60,
+          "independent_theory_review_required": true,
+          "metric_protocol_execution_authorized": true,
+          "recommended_research_path": "simulation_first",
+          "recommended_research_path_frozen": true,
+          "research_evaluation_requires_executable_evaluator_source": true,
+          "research_evaluation_requires_generated_algorithm_code": true,
+          "research_evaluation_requires_generated_code_semantic_review": true,
+          "research_evaluation_requires_generated_simulation_code": true,
+          "research_evaluation_requires_typed_metric_contracts": false,
+          "simulation_target_authoring_required": true,
+          "simulation_targets": [
+            "For each frozen sample size n \u2208 {10, 50, 100, 250, 500} and evaluation grid y \u2208 {-2, -1, 0, 1, 2}, generate M independent rate-one exponential samples of size n, compute centered maxima Y_n,i = max(sample_i) - log(n), and compare empirical CDF at each y to the exact finite-n CDF (1-exp(-y)/n)^n and standard Gumbel CDF exp(-exp(-y)) with preregistered Monte Carlo uncertainty bounds.",
+            "Verify that the Python estimator est_exponential_maximum_gumbel correctly computes sample_size, maximum, centered_maximum, exact_cdf_at_centered using the support-aware formula, and gumbel_cdf_at_centered = exp(-exp(-centered_maximum)) for all replicates.",
+            "Assess the approximation error (exact finite-n CDF minus Gumbel CDF) across the frozen grid as n increases, documenting per-design diagnostics without claiming uniform convergence or finite-n equality."
+          ],
+          "source_replication_requirement": "not_applicable"
+        },
+        "expected_artifacts": [],
+        "formal_required_for_final": false,
+        "formal_verification_policy": "advisory",
+        "iteration_policy": {
+          "max_revision_rounds": 2,
+          "stop_conditions": [
+            "Theory workspace produces auditable derivation of exact finite-n CDF with support branch and pointwise convergence proof to Gumbel CDF",
+            "AlgorithmEngineer delivers est_exponential_maximum_gumbel implementing the closed sample contract with correct exact and Gumbel CDF formulas",
+            "GeneratedCodeSemanticReviewer confirms the estimator correctly rejects invalid requests and computes all five response fields per contract",
+            "SimulationEvaluator executes frozen confirmatory protocol on preregistered sample sizes and evaluation grid, reports per-design diagnostics and Monte Carlo uncertainty without claiming proof or universal convergence",
+            "CriticEvaluator confirms theory is auditable, code is semantically correct, empirical assessment is properly scoped, and formal gaps are disclosed"
+          ]
+        },
+        "problem_analysis": {
+          "assumption_dimensions": [
+            "independence of X_1,...,X_n",
+            "rate-one exponential distribution (support [0,\u221e), CDF 1-exp(-x))",
+            "normalization by log(n) rather than linear centering or alternative scales",
+            "fixed-y pointwise convergence regime",
+            "distinction between exact finite-n law and asymptotic approximation"
+          ],
+          "key_obstacles": [
+            "exact finite-n CDF derivation must include support constraint y \u2265 -log(n) with explicit zero branch",
+            "pointwise convergence proof requires careful handling of the log(n) normalization and exponential support",
+            "distinguishing the exact law (1-exp(-y)/n)^n from Gumbel approximation exp(-exp(-y)) in finite samples",
+            "avoiding confusion between maximum and minimum, or between different centering schemes",
+            "ensuring empirical assessment does not claim finite-n equality or extrapolate beyond preregistered grid"
+          ],
+          "likely_analogy_classes": [
+            "Fisher-Tippett extreme value limit theorem for maxima",
+            "Gnedenko domain-of-attraction theory for exponential parent",
+            "support-aware finite-sample CDF branches in bounded/unbounded domains",
+            "weak convergence of normalized order statistics"
+          ],
+          "missing_information": [
+            "explicit derivation of the support-aware finite-n CDF formula with branch structure",
+            "pointwise limit proof showing P(Y_n \u2264 y) \u2192 exp(-exp(-y)) for each fixed y",
+            "verification that the Python estimator correctly implements the exact finite-n formula including the support branch",
+            "confirmation that the empirical assessment protocol is frozen before execution and does not claim proof or universal convergence"
+          ],
+          "statistical_objects": [
+            "sample maximum M_n of n i.i.d. rate-one exponential random variables",
+            "centered maximum Y_n = M_n - log(n)",
+            "finite-n CDF of Y_n with support branch below -log(n)",
+            "standard Gumbel CDF exp(-exp(-y))"
+          ],
+          "theorem_family": "Extreme value theory: weak convergence of normalized sample maximum to Gumbel distribution"
+        },
+        "recommended_research_path": "simulation_first",
+        "retrieval_strategy": {
+          "formal_source_queries": [
+            "Mathlib extreme_value_theory maximum distribution",
+            "Mathlib Gumbel distribution CDF definition",
+            "Mathlib exponential distribution support and CDF",
+            "Lean weak convergence pointwise limit"
+          ],
+          "lean_rag_priorities": [
+            "exact finite-n CDF formula with support constraint",
+            "Gumbel CDF definition exp(-exp(-y))",
+            "exponential distribution rate-one CDF 1-exp(-x)",
+            "pointwise convergence statement structure"
+          ],
+          "paper_queries": [
+            "Fisher Tippett 1928 extreme value limit maximum exponential",
+            "Gnedenko 1943 domain of attraction exponential distribution",
+            "Gumbel distribution weak convergence sample maximum normalization log n",
+            "finite-sample CDF maximum exponential support branch"
+          ]
+        },
+        "subsystem": "AlgorithmEngineer",
+        "subsystem_plan": {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "AlgorithmEngineer"
+        }
+      },
+      "SimulationEvaluator": {
+        "acceptance_gate": "",
+        "architect_coordinator_proposal_id": "architect_coordinator_proposal:ff0cb2f99aefce8eaa6e3517",
+        "boundary": "LLM ArchitectCoordinator packets are orchestration proposals only. They can choose the research path, mathematical targets, retrieval priorities, iteration policy, and one next workspace action. Runtime owns mandatory evidence topology, budgets, lineage, and authority gates. Architect packets do not execute tools, validate simulations, or prove theorems; runtime validators and AXLE/local Lean remain the authority gates.",
+        "evidence_contract": {
+          "acceptance_modes": [
+            "research candidate may be reported with disclosed formal gaps"
+          ],
+          "dimension_requirements": {
+            "empirical": "required",
+            "formal": "not_applicable",
+            "scientific_code": "required",
+            "theory": "required"
+          },
+          "disclosure_requirements": [
+            "do not call LLM proposals, retrieval hits, simulations, or static rows proof evidence",
+            "report formal verification level as none, partial, or full"
+          ],
+          "empirical_metric_protocol_phase": "not_required",
+          "evaluation_mode": "research_eval",
+          "formal_evaluation_exposes_proof_search_tool": false,
+          "formal_evaluation_requires_formal_target_semantic_review": false,
+          "formal_evaluation_requires_formalizer_lean_candidate": false,
+          "formal_required_for_final": false,
+          "formal_target_authoring_required": false,
+          "formal_target_completion_policy": "formal gaps must remain explicit when the task-specific target is not kernel verified",
+          "formal_targets": [],
+          "formal_verification_policy": "advisory",
+          "generated_metric_contract_policy": "typed_artifact_bound_preferred",
+          "generated_metric_requirement_authority_policy": "architect_authored_coding_agent_bound_preferred",
+          "generated_sandbox_max_runtime_replicates": 100000,
+          "generated_sandbox_runtime_replicates": 100,
+          "generated_simulation_timeout_seconds": 60,
+          "independent_theory_review_required": true,
+          "metric_protocol_execution_authorized": true,
+          "recommended_research_path": "simulation_first",
+          "recommended_research_path_frozen": true,
+          "research_evaluation_requires_executable_evaluator_source": true,
+          "research_evaluation_requires_generated_algorithm_code": true,
+          "research_evaluation_requires_generated_code_semantic_review": true,
+          "research_evaluation_requires_generated_simulation_code": true,
+          "research_evaluation_requires_typed_metric_contracts": false,
+          "simulation_target_authoring_required": true,
+          "simulation_targets": [
+            "For each frozen sample size n \u2208 {10, 50, 100, 250, 500} and evaluation grid y \u2208 {-2, -1, 0, 1, 2}, generate M independent rate-one exponential samples of size n, compute centered maxima Y_n,i = max(sample_i) - log(n), and compare empirical CDF at each y to the exact finite-n CDF (1-exp(-y)/n)^n and standard Gumbel CDF exp(-exp(-y)) with preregistered Monte Carlo uncertainty bounds.",
+            "Verify that the Python estimator est_exponential_maximum_gumbel correctly computes sample_size, maximum, centered_maximum, exact_cdf_at_centered using the support-aware formula, and gumbel_cdf_at_centered = exp(-exp(-centered_maximum)) for all replicates.",
+            "Assess the approximation error (exact finite-n CDF minus Gumbel CDF) across the frozen grid as n increases, documenting per-design diagnostics without claiming uniform convergence or finite-n equality."
+          ],
+          "source_replication_requirement": "not_applicable"
+        },
+        "expected_artifacts": [],
+        "formal_required_for_final": false,
+        "formal_verification_policy": "advisory",
+        "iteration_policy": {
+          "max_revision_rounds": 2,
+          "stop_conditions": [
+            "Theory workspace produces auditable derivation of exact finite-n CDF with support branch and pointwise convergence proof to Gumbel CDF",
+            "AlgorithmEngineer delivers est_exponential_maximum_gumbel implementing the closed sample contract with correct exact and Gumbel CDF formulas",
+            "GeneratedCodeSemanticReviewer confirms the estimator correctly rejects invalid requests and computes all five response fields per contract",
+            "SimulationEvaluator executes frozen confirmatory protocol on preregistered sample sizes and evaluation grid, reports per-design diagnostics and Monte Carlo uncertainty without claiming proof or universal convergence",
+            "CriticEvaluator confirms theory is auditable, code is semantically correct, empirical assessment is properly scoped, and formal gaps are disclosed"
+          ]
+        },
+        "problem_analysis": {
+          "assumption_dimensions": [
+            "independence of X_1,...,X_n",
+            "rate-one exponential distribution (support [0,\u221e), CDF 1-exp(-x))",
+            "normalization by log(n) rather than linear centering or alternative scales",
+            "fixed-y pointwise convergence regime",
+            "distinction between exact finite-n law and asymptotic approximation"
+          ],
+          "key_obstacles": [
+            "exact finite-n CDF derivation must include support constraint y \u2265 -log(n) with explicit zero branch",
+            "pointwise convergence proof requires careful handling of the log(n) normalization and exponential support",
+            "distinguishing the exact law (1-exp(-y)/n)^n from Gumbel approximation exp(-exp(-y)) in finite samples",
+            "avoiding confusion between maximum and minimum, or between different centering schemes",
+            "ensuring empirical assessment does not claim finite-n equality or extrapolate beyond preregistered grid"
+          ],
+          "likely_analogy_classes": [
+            "Fisher-Tippett extreme value limit theorem for maxima",
+            "Gnedenko domain-of-attraction theory for exponential parent",
+            "support-aware finite-sample CDF branches in bounded/unbounded domains",
+            "weak convergence of normalized order statistics"
+          ],
+          "missing_information": [
+            "explicit derivation of the support-aware finite-n CDF formula with branch structure",
+            "pointwise limit proof showing P(Y_n \u2264 y) \u2192 exp(-exp(-y)) for each fixed y",
+            "verification that the Python estimator correctly implements the exact finite-n formula including the support branch",
+            "confirmation that the empirical assessment protocol is frozen before execution and does not claim proof or universal convergence"
+          ],
+          "statistical_objects": [
+            "sample maximum M_n of n i.i.d. rate-one exponential random variables",
+            "centered maximum Y_n = M_n - log(n)",
+            "finite-n CDF of Y_n with support branch below -log(n)",
+            "standard Gumbel CDF exp(-exp(-y))"
+          ],
+          "theorem_family": "Extreme value theory: weak convergence of normalized sample maximum to Gumbel distribution"
+        },
+        "recommended_research_path": "simulation_first",
+        "retrieval_strategy": {
+          "formal_source_queries": [
+            "Mathlib extreme_value_theory maximum distribution",
+            "Mathlib Gumbel distribution CDF definition",
+            "Mathlib exponential distribution support and CDF",
+            "Lean weak convergence pointwise limit"
+          ],
+          "lean_rag_priorities": [
+            "exact finite-n CDF formula with support constraint",
+            "Gumbel CDF definition exp(-exp(-y))",
+            "exponential distribution rate-one CDF 1-exp(-x)",
+            "pointwise convergence statement structure"
+          ],
+          "paper_queries": [
+            "Fisher Tippett 1928 extreme value limit maximum exponential",
+            "Gnedenko 1943 domain of attraction exponential distribution",
+            "Gumbel distribution weak convergence sample maximum normalization log n",
+            "finite-sample CDF maximum exponential support branch"
+          ]
+        },
+        "subsystem": "SimulationEvaluator",
+        "subsystem_plan": {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "SimulationEvaluator"
+        }
+      }
+    },
+    "architect_coordinator_proposal_id": "architect_coordinator_proposal:ff0cb2f99aefce8eaa6e3517",
+    "architect_initial_routing": {
+      "architect_packet_id": "architect_coordinator_proposal:ff0cb2f99aefce8eaa6e3517",
+      "artifact_kind": "ArchitectInitialRoutingDecision",
+      "boundary": "Architect initial routing is orchestration control only. It does not execute tools, validate generated code or simulations, or prove a theorem.",
+      "model_route_honored_exactly": true,
+      "parent_artifact_ids": {
+        "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+        "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+      },
+      "proof_evidence_status": "ARCHITECT_INITIAL_ROUTING_NOT_PROOF_EVIDENCE",
+      "question_id": "exponential_maximum_gumbel_known_result",
+      "requested_subsystem": "SimulationEvaluator",
+      "requires_prerequisite_algorithm": false,
+      "requires_prerequisite_theory": false,
+      "selected_subsystem": "SimulationEvaluator",
+      "source": "runtime_required_evidence_topology"
+    },
+    "architect_metric_protocol_authority_invalidation": {
+      "artifact_kind": "RuntimeMetricProtocolTheoryLineageInvalidation",
+      "current_source_theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+      "current_source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+      "execution_authorized": false,
+      "prior_authoring_source_theory_packet_hash": "",
+      "prior_authoring_source_theory_packet_id": "",
+      "prior_contract_source_theory_packet_hash": "",
+      "prior_contract_source_theory_packet_id": "",
+      "proof_evidence_status": "METRIC_PROTOCOL_THEORY_LINEAGE_INVALIDATION_NOT_PROOF_EVIDENCE"
+    },
+    "architect_metric_protocol_theory_material": {
+      "artifact_id": "theory_metric_protocol_material:7c92d6734af5cdddd2c6",
+      "artifact_kind": "RuntimeArtifactRef",
+      "content_hash": "7c92d6734af5cdddd2c6a80297af4e8a8a82dc1323a4c655d921f8845285550d",
+      "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+      "payload_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+      "reference_scope": "runtime_blackboard"
+    },
+    "architect_runtime_plan": {
+      "boundary": "LLM ArchitectCoordinator packets are orchestration proposals only. They can choose the research path, mathematical targets, retrieval priorities, iteration policy, and one next workspace action. Runtime owns mandatory evidence topology, budgets, lineage, and authority gates. Architect packets do not execute tools, validate simulations, or prove theorems; runtime validators and AXLE/local Lean remain the authority gates.",
+      "evidence_contract": {
+        "acceptance_modes": [
+          "research candidate may be reported with disclosed formal gaps"
+        ],
+        "dimension_requirements": {
+          "empirical": "required",
+          "formal": "not_applicable",
+          "scientific_code": "required",
+          "theory": "required"
+        },
+        "disclosure_requirements": [
+          "do not call LLM proposals, retrieval hits, simulations, or static rows proof evidence",
+          "report formal verification level as none, partial, or full"
+        ],
+        "empirical_metric_protocol_phase": "theory_informed_authoring_required",
+        "empirical_metric_requirements": [],
+        "evaluation_mode": "research_eval",
+        "formal_evaluation_exposes_proof_search_tool": false,
+        "formal_evaluation_requires_formal_target_semantic_review": false,
+        "formal_evaluation_requires_formalizer_lean_candidate": false,
+        "formal_required_for_final": false,
+        "formal_target_authoring_required": false,
+        "formal_target_completion_policy": "formal gaps must remain explicit when the task-specific target is not kernel verified",
+        "formal_targets": [],
+        "formal_verification_policy": "advisory",
+        "generated_metric_contract_policy": "typed_artifact_bound_preferred",
+        "generated_metric_requirement_authority_policy": "architect_authored_coding_agent_bound_preferred",
+        "generated_sandbox_max_runtime_replicates": 100000,
+        "generated_sandbox_runtime_replicates": 100,
+        "generated_simulation_timeout_seconds": 60,
+        "independent_theory_review_required": true,
+        "metric_protocol_execution_authorized": false,
+        "recommended_research_path": "simulation_first",
+        "recommended_research_path_frozen": true,
+        "research_evaluation_requires_executable_evaluator_source": true,
+        "research_evaluation_requires_generated_algorithm_code": true,
+        "research_evaluation_requires_generated_code_semantic_review": true,
+        "research_evaluation_requires_generated_simulation_code": true,
+        "research_evaluation_requires_typed_metric_contracts": false,
+        "simulation_target_authoring_required": true,
+        "simulation_targets": [
+          "For each frozen sample size n \u2208 {10, 50, 100, 250, 500} and evaluation grid y \u2208 {-2, -1, 0, 1, 2}, generate M independent rate-one exponential samples of size n, compute centered maxima Y_n,i = max(sample_i) - log(n), and compare empirical CDF at each y to the exact finite-n CDF (1-exp(-y)/n)^n and standard Gumbel CDF exp(-exp(-y)) with preregistered Monte Carlo uncertainty bounds.",
+          "Verify that the Python estimator est_exponential_maximum_gumbel correctly computes sample_size, maximum, centered_maximum, exact_cdf_at_centered using the support-aware formula, and gumbel_cdf_at_centered = exp(-exp(-centered_maximum)) for all replicates.",
+          "Assess the approximation error (exact finite-n CDF minus Gumbel CDF) across the frozen grid as n increases, documenting per-design diagnostics without claiming uniform convergence or finite-n equality."
+        ],
+        "source_replication_requirement": "not_applicable"
+      },
+      "iteration_policy": {
+        "max_revision_rounds": 2,
+        "stop_conditions": [
+          "Theory workspace produces auditable derivation of exact finite-n CDF with support branch and pointwise convergence proof to Gumbel CDF",
+          "AlgorithmEngineer delivers est_exponential_maximum_gumbel implementing the closed sample contract with correct exact and Gumbel CDF formulas",
+          "GeneratedCodeSemanticReviewer confirms the estimator correctly rejects invalid requests and computes all five response fields per contract",
+          "SimulationEvaluator executes frozen confirmatory protocol on preregistered sample sizes and evaluation grid, reports per-design diagnostics and Monte Carlo uncertainty without claiming proof or universal convergence",
+          "CriticEvaluator confirms theory is auditable, code is semantically correct, empirical assessment is properly scoped, and formal gaps are disclosed"
+        ]
+      },
+      "next_actions": [
+        {
+          "acceptance_gate": "Theory artifact contains explicit derivation of support-aware finite-n CDF formula, pointwise convergence proof with fixed-y argument, and clear distinction between exact law and Gumbel approximation; no generalization to arbitrary parent distributions or finite-n Gumbel equality claims.",
+          "action": "Derive the exact finite-n CDF of Y_n = M_n - log(n) including the support-aware branch (0 when y < -log(n), otherwise (1-exp(-y)/n)^n). Prove pointwise convergence P(Y_n \u2264 y) \u2192 exp(-exp(-y)) for each fixed y \u2208 \u211d. Make independence, exponential support, log(n) normalization, and the distinction between exact finite-n law and asymptotic approximation auditable. Document source references to Fisher-Tippett (1928) and Gnedenko (1943).",
+          "owner_agent": "TheoryDeveloper"
+        }
+      ],
+      "problem_analysis": {
+        "assumption_dimensions": [
+          "independence of X_1,...,X_n",
+          "rate-one exponential distribution (support [0,\u221e), CDF 1-exp(-x))",
+          "normalization by log(n) rather than linear centering or alternative scales",
+          "fixed-y pointwise convergence regime",
+          "distinction between exact finite-n law and asymptotic approximation"
+        ],
+        "key_obstacles": [
+          "exact finite-n CDF derivation must include support constraint y \u2265 -log(n) with explicit zero branch",
+          "pointwise convergence proof requires careful handling of the log(n) normalization and exponential support",
+          "distinguishing the exact law (1-exp(-y)/n)^n from Gumbel approximation exp(-exp(-y)) in finite samples",
+          "avoiding confusion between maximum and minimum, or between different centering schemes",
+          "ensuring empirical assessment does not claim finite-n equality or extrapolate beyond preregistered grid"
+        ],
+        "likely_analogy_classes": [
+          "Fisher-Tippett extreme value limit theorem for maxima",
+          "Gnedenko domain-of-attraction theory for exponential parent",
+          "support-aware finite-sample CDF branches in bounded/unbounded domains",
+          "weak convergence of normalized order statistics"
+        ],
+        "missing_information": [
+          "explicit derivation of the support-aware finite-n CDF formula with branch structure",
+          "pointwise limit proof showing P(Y_n \u2264 y) \u2192 exp(-exp(-y)) for each fixed y",
+          "verification that the Python estimator correctly implements the exact finite-n formula including the support branch",
+          "confirmation that the empirical assessment protocol is frozen before execution and does not claim proof or universal convergence"
+        ],
+        "statistical_objects": [
+          "sample maximum M_n of n i.i.d. rate-one exponential random variables",
+          "centered maximum Y_n = M_n - log(n)",
+          "finite-n CDF of Y_n with support branch below -log(n)",
+          "standard Gumbel CDF exp(-exp(-y))"
+        ],
+        "theorem_family": "Extreme value theory: weak convergence of normalized sample maximum to Gumbel distribution"
+      },
+      "retrieval_strategy": {
+        "formal_source_queries": [
+          "Mathlib extreme_value_theory maximum distribution",
+          "Mathlib Gumbel distribution CDF definition",
+          "Mathlib exponential distribution support and CDF",
+          "Lean weak convergence pointwise limit"
+        ],
+        "lean_rag_priorities": [
+          "exact finite-n CDF formula with support constraint",
+          "Gumbel CDF definition exp(-exp(-y))",
+          "exponential distribution rate-one CDF 1-exp(-x)",
+          "pointwise convergence statement structure"
+        ],
+        "paper_queries": [
+          "Fisher Tippett 1928 extreme value limit maximum exponential",
+          "Gnedenko 1943 domain of attraction exponential distribution",
+          "Gumbel distribution weak convergence sample maximum normalization log n",
+          "finite-sample CDF maximum exponential support branch"
+        ]
+      },
+      "subsystem_execution_plan": [
+        {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "RetrievalMemory"
+        },
+        {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "TheoryDeveloper"
+        },
+        {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "AlgorithmEngineer"
+        },
+        {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "SimulationEvaluator"
+        },
+        {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "GeneratedCodeSemanticReviewer"
+        },
+        {
+          "acceptance_gate": "",
+          "expected_artifacts": [],
+          "inputs_needed": [],
+          "llm_authored": false,
+          "objective": "",
+          "plan_row_source": "runtime_required_evidence_contract",
+          "runtime_defaults_required": true,
+          "subsystem": "CriticEvaluator"
+        }
+      ],
+      "subsystem_execution_plan_provenance": {
+        "artifact_kind": "ArchitectSubsystemExecutionPlanProvenance",
+        "boundary": "Runtime elaboration records mandatory typed evidence topology only. It does not author statistical objectives, expected results, code, Lean declarations, proof steps, or evidence claims.",
+        "evidence_contract_fingerprint": "3403bc721a69300f12d5984ecb67ad848f5b6ff3319a97231ca248a709c649a9",
+        "llm_authored_subsystems": [],
+        "runtime_elaborated_subsystems": [
+          "RetrievalMemory",
+          "TheoryDeveloper",
+          "AlgorithmEngineer",
+          "SimulationEvaluator",
+          "GeneratedCodeSemanticReviewer",
+          "CriticEvaluator"
+        ],
+        "runtime_elaboration_may_generate_research_content": false,
+        "runtime_owns_required_workspace_topology": true
+      },
+      "validated_plan_reuse_metadata": {
+        "artifact_kind": "ArchitectValidatedPlanReuseMetadata",
+        "boundary": "This metadata permits reuse only of an already validated, hash-bound LLM Architect plan. Runtime may attach a separately authored and independently accepted metric protocol, but may not create or revise research semantics.",
+        "fresh_architect_plan_model_invocation_required_after_metric_review": false,
+        "proof_evidence_status": "ARCHITECT_VALIDATED_PLAN_REUSE_METADATA_NOT_PROOF_EVIDENCE",
+        "question_id": "exponential_maximum_gumbel_known_result",
+        "runtime_may_generate_research_content": false,
+        "source_architect_model": "claude-haiku-4-5-20251001",
+        "source_architect_model_tier": "haiku",
+        "source_architect_packet_hash": "cbcb24827079a72f82011041a573883d0abaa99a15cebfd31b00b877e5937527",
+        "source_architect_packet_id": "architect_coordinator_proposal:ff0cb2f99aefce8eaa6e3517",
+        "source_architect_provider": "anthropic",
+        "validated_plan_fingerprint": "90d8ade55004cb8d535e8b5d71171fade683d431aba12109313d003c61b768df"
+      }
+    },
+    "architect_theory_execution_preflight_acceptance": {
+      "artifact_id": "architect_theory_execution_preflight_acceptance:f1642659640a631f8b4c",
+      "artifact_kind": "RuntimeArtifactRef",
+      "content_hash": "19e43c7e60d7143cfdae5902cba675851c8b7745dd7718316ce5e8389e508052",
+      "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+      "payload_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+      "reference_scope": "runtime_blackboard"
+    },
+    "empirical_evaluation_phase": "executable_evaluator_authoring",
+    "evaluator_source_authoring": true,
+    "executable_evaluator_source_authority": true,
+    "exploratory_diagnostic_feedback": {
+      "simulation_manifest_hash": "1997d438defd63f4fde8739ce15014ea048ff3bd1c3935eb583228c78c1c1a63",
+      "simulation_manifest_id": "simulation_manifest:c7258a0cd230c4d742b8",
+      "status": "PASSED_NOT_CONFIRMATORY_EVIDENCE"
+    },
+    "implementation_gaps": [
+      {
+        "estimator_id": "est_exponential_maximum_gumbel",
+        "reason": "Agentic execution requires this LLM estimator spec to pass through generated code, sandbox execution, and independent semantic review. DGP-based statistical-performance gates belong to the downstream SimulationEngineer experiment. Task-family registries cannot satisfy this generated-artifact evidence gate.",
+        "status": "REQUIRES_GENERATED_ALGORITHM_ENGINEER_ADAPTER"
+      }
+    ],
+    "research_source_snapshot": {
+      "artifact_id": "runtime_research_source_snapshot:ddce057640a5e5914f2b",
+      "artifact_kind": "RuntimeArtifactRef",
+      "content_hash": "2e6834f385613a7e6fd6f1296f873fd1522005b26ceb7dca28adef214bc045b7",
+      "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+      "payload_kind": "ResearchSourceSnapshotDescriptor",
+      "reference_scope": "runtime_blackboard"
+    },
+    "runtime_evaluation_mode": "research_eval",
+    "runtime_feedback_loop": {
+      "compiled_next_owner": "AlgorithmEngineer",
+      "handoff": "accepted_theory_preflight_to_planned_workspace",
+      "preflight_acceptance_id": "architect_theory_execution_preflight_acceptance:f1642659640a631f8b4c",
+      "runtime_authored_research_route": false,
+      "source_subsystem": "ArchitectTheoryExecutionPreflightReviewer"
+    },
+    "runtime_generated_code_semantic_review_lineage_ledger": {
+      "e7159c2e5359089b0f7603a90fc791cf351836c4de60a59e787daba5b4fdc0f1": {
+        "candidate_regeneration_count": 1,
+        "finding_fingerprint": "9947e77da24d917c22472095ec8798502709cafc7276b1a6862fa32d32ac83a6",
+        "finding_seen_in_source_lineage": false,
+        "last_action": "producer_regeneration",
+        "lineage_key": "e7159c2e5359089b0f7603a90fc791cf351836c4de60a59e787daba5b4fdc0f1",
+        "max_candidate_regenerations": 1,
+        "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_BUDGET_NOT_PROOF_EVIDENCE",
+        "question_id": "exponential_maximum_gumbel_known_result",
+        "rejection_count": 1,
+        "source_candidate_regeneration_count": 0,
+        "source_lineage_key": "5e4fdfcb1c409dd96ebbe093a2ccb3a6ef35e15d87ba1ec41f559401c7f55928",
+        "source_rejection_count": 1,
+        "source_subsystem": "AlgorithmEngineer",
+        "theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+        "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+      }
+    },
+    "runtime_generated_code_semantic_review_replan_resolution": {
+      "accepted_review_execution_id": "generated_code_semantic_review_execution:6f75a143205506dcbb69",
+      "accepted_review_packet_id": "generated_code_semantic_review:fb46530431564c8cd95c4467",
+      "accepted_source_manifest_hash": "19ac59a3a01a37ad6554c4da28ac0feb795256b283092ab54a7133006a644ac3",
+      "accepted_source_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+      "accepted_source_subsystem": "AlgorithmEngineer",
+      "artifact_kind": "RuntimeGeneratedCodeSemanticReviewReplanResolution",
+      "next_subsystem_was_model_selected": true,
+      "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_REPLAN_RESOLUTION_NOT_PROOF_EVIDENCE",
+      "rejected_review_execution_id": "generated_code_semantic_review_execution:6a9d5c9867ef00604a70",
+      "rejected_source_manifest_id": "algorithm_sandbox_manifest:500cad9e36b63eb2256b",
+      "rejected_source_subsystem": "AlgorithmEngineer",
+      "resolution_id": "generated_code_semantic_review_replan_resolution:bb20294e12c2b4c7d4e8",
+      "resolution_status": "SUPERSEDED_BY_FRESH_ACCEPTED_ARTIFACT"
+    },
+    "runtime_outer_graph_workspace_outcomes": [
+      {
+        "artifact_kind": "RuntimeOuterGraphWorkspaceOutcome",
+        "failure_classification": "",
+        "local_status": "REROUTE",
+        "parent_artifact_ids": {},
+        "produced_artifact_ids": [
+          "generated_code_semantic_review_document:9a4e7d331dd251c9ebc8",
+          "generated_code_semantic_review_materialization:65751f1047dde4ad8cee",
+          "generated_code_semantic_review:fb46530431564c8cd95c4467",
+          "generated_code_semantic_review_execution:6f75a143205506dcbb69",
+          "accepted_algorithm_handoff:f7edaf168197ce939c63"
+        ],
+        "proof_evidence_status": "OUTER_GRAPH_WORKSPACE_OUTCOME_NOT_PROOF_EVIDENCE",
+        "rationale": "Independent semantic review accepted the exact executed generated artifacts and the runtime is resuming the deferred task.",
+        "runtime_authored_research_content": false,
+        "schema_version": 1,
+        "source_iteration": 7,
+        "source_subsystem": "GeneratedCodeSemanticReviewer",
+        "source_task_id": "semantic-review:exponential_maximum_gumbel_known_result:b4793d6dfd"
+      }
+    ],
+    "runtime_requested_evidence_contract": {
+      "acceptance_modes": [
+        "research candidate may be reported with disclosed formal gaps"
+      ],
+      "dimension_requirements": {
+        "empirical": "required",
+        "formal": "not_applicable",
+        "scientific_code": "required",
+        "theory": "required"
+      },
+      "disclosure_requirements": [
+        "do not call LLM proposals, retrieval hits, simulations, or static rows proof evidence",
+        "report formal verification level as none, partial, or full"
+      ],
+      "evaluation_mode": "research_eval",
+      "formal_evaluation_requires_formal_target_semantic_review": false,
+      "formal_evaluation_requires_formalizer_lean_candidate": false,
+      "formal_required_for_final": false,
+      "formal_target_authoring_required": false,
+      "formal_target_completion_policy": "formal gaps must remain explicit when the task-specific target is not kernel verified",
+      "formal_verification_policy": "advisory",
+      "independent_theory_review_required": true,
+      "recommended_research_path": "simulation_first",
+      "recommended_research_path_frozen": true,
+      "research_evaluation_requires_executable_evaluator_source": true,
+      "research_evaluation_requires_generated_algorithm_code": true,
+      "research_evaluation_requires_generated_code_semantic_review": true,
+      "research_evaluation_requires_generated_simulation_code": true,
+      "research_evaluation_requires_typed_metric_contracts": false,
+      "simulation_target_authoring_required": true,
+      "source_replication_requirement": "not_applicable"
+    },
+    "runtime_task": {
+      "acceptance_gate": "validated theory packet with proof boundary",
+      "allowed_tools": [
+        "model_backend",
+        "rag_memory",
+        "evidence_ledger"
+      ],
+      "expected_artifacts": [
+        "theory_derivation_packet"
+      ],
+      "objective": "Derive a statistical theory proposal or prerequisite repair needed by the Architect plan.",
+      "owner_subsystem": "TheoryDeveloper",
+      "stop_condition": "theory packet satisfies Architect routing prerequisite",
+      "task_id": "theory:exponential_maximum_gumbel_known_result:24b257aa"
+    },
+    "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+    "upstream_algorithm_handoff": {
+      "artifact_id": "accepted_algorithm_handoff:f7edaf168197ce939c63",
+      "artifact_kind": "RuntimeArtifactRef",
+      "content_hash": "96707883ada6d428b7e62d9257a32d163fbeb39e21a8afd008ecd585b5e18475",
+      "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+      "payload_kind": "RuntimeAcceptedAlgorithmHandoff",
+      "reference_scope": "runtime_blackboard"
+    }
+  },
+  "mapping_hash": "6b5a4f71d5b94a7a44bc8677115dfd1ad7155ba815df5865c33bdd862112b064",
+  "mapping_id": "agent_task_input_mapping:6b5a4f71d5b94a7a44bc",
+  "schema_version": 1
+}

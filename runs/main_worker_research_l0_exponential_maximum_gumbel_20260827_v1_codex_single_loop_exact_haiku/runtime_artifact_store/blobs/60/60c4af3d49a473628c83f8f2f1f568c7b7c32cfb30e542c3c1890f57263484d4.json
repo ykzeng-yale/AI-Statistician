@@ -1,0 +1,84 @@
+{
+  "artifact_kind": "RuntimeAgentTaskContinuation",
+  "continuation_id": "agent_task_continuation:f28d6bfabe5e0aca7e8e",
+  "original_task_hash": "f28d6bfabe5e0aca7e8e2a7e0f4c4c41d8ea3045ce654ca2f56efcb8c7ff3c5d",
+  "payload_policy": "content_addressed_input_refs",
+  "schema_version": 1,
+  "task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:b36418e982d1cfbd0fff",
+    "allowed_tools": [
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "confirmatory_simulation_manifest"
+    ],
+    "input_keys": [
+      "algorithm_sandbox_manifest_id",
+      "architect_context",
+      "consumer_resume_manifest",
+      "empirical_evaluation_phase",
+      "evaluator_source_confirmation",
+      "n_runs",
+      "question",
+      "seed",
+      "theory_packet_id",
+      "upstream_algorithm_handoff"
+    ],
+    "inputs_hash": "40aa5d21798e8ca3bae67afd1f6f78d562f520f4b8a4caa93e82c2011e98ad06",
+    "objective_ref": "task_objective:c5dbf5c0851ff10c6313",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition_ref": "task_stop_condition:0dd421f0103f4d405c1f",
+    "task_id": "evaluator-confirmation:exponential_maximum_gumbel_known_result:3d19b944",
+    "task_snapshot_hash": "74cb2303632f7f6774039777890416bbf04a7ea284e85c9ade6fd6be08d6a8e7"
+  },
+  "task_template": {
+    "acceptance_gate": "reviewed exact source hash executes once on the hidden cohort",
+    "allowed_tools": [
+      "python",
+      "filesystem_sandbox"
+    ],
+    "budget": {},
+    "expected_artifacts": [
+      "confirmatory_simulation_manifest"
+    ],
+    "inputs": {
+      "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+      "architect_context": {
+        "artifact_hash": "ec5fdedfaf0ecdad0c373236a00ca85eedab2e9837fd1f7eaea05c41b6f84aff",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "0b4d13f621981a912108638aab62d84fc97ab224fd35f9ea6b0d259063be3c45",
+        "mapping_id": "agent_task_input_mapping:0b4d13f621981a912108"
+      },
+      "consumer_resume_manifest": {
+        "artifact_hash": "a033ff5ab8b55b13be36f56e3b48f38437069801c06e5472441e200908175789",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "2e2e00c31916d3aec24494978345f2dcaf25943fe40ab9b96b08ecbb21c1e7d5",
+        "mapping_id": "agent_task_input_mapping:2e2e00c31916d3aec244"
+      },
+      "empirical_evaluation_phase": "confirmatory_evaluator_execution",
+      "evaluator_source_confirmation": true,
+      "n_runs": 128,
+      "question": {
+        "artifact_hash": "9e44f8aa1c3fb5d7b7320a4d7d0e4975640ea53d8667afc4a1d64c70c327c09a",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "5990a9155085e06a8f1f268a302e9d829166a7316bec49fa5d63f14f5f5b37cd",
+        "mapping_id": "agent_task_input_mapping:5990a9155085e06a8f1f"
+      },
+      "seed": 20260528,
+      "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+      "upstream_algorithm_handoff": {
+        "artifact_hash": "4fa44554f388d1215f38a39e834f692f56655cfff8f8fd44d85ca4ecdb2c3a58",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "e8038023f4a4d812f31f5261cd27d9fcf3a7042aec8bb36a880d7f7e8becb962",
+        "mapping_id": "agent_task_input_mapping:e8038023f4a4d812f31f"
+      }
+    },
+    "objective": "Replay the independently reviewed executable evaluator source unchanged on one hidden confirmatory cohort.",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition": "confirmatory evidence or an immutable execution blocker is recorded",
+    "task_id": "evaluator-confirmation:exponential_maximum_gumbel_known_result:3d19b944"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "RuntimeCompletionSummary",
+  "n_questions": 1,
+  "accepted": 0,
+  "failed": 0,
+  "blocked": 1,
+  "formal_required_blocked": 0,
+  "max_iterations_reached": 0,
+  "budget_exhausted_with_pending_next_task": 0,
+  "budget_exhausted_after_revision_request": 0,
+  "final_acceptance_status_counts": {
+    "REROUTE_REQUIRED_BEFORE_FINAL": 1
+  },
+  "rows": [
+    {
+      "question_id": "exponential_maximum_gumbel_known_result",
+      "question_title": "Gumbel limit for the maximum of exponential observations",
+      "status": "BLOCKED",
+      "terminal_kind": "blocked",
+      "n_iterations": 15,
+      "final_task_id": "critic:exponential_maximum_gumbel_known_result:244eb925",
+      "last_completed_task_id": "critic:exponential_maximum_gumbel_known_result:244eb925",
+      "last_completed_subsystem": "CriticEvaluator",
+      "last_completed_status": "BLOCKED",
+      "last_failure_classification": "critic_packet_validation_failed",
+      "final_acceptance_status": "REROUTE_REQUIRED_BEFORE_FINAL",
+      "formal_verification_policy": "advisory",
+      "formal_requirement": "not_applicable",
+      "recommended_research_path": "simulation_first",
+      "formal_satisfied": false,
+      "full_frontier_theorem_proved": false,
+      "formal_gaps": 0,
+      "pending_next_task_id": "",
+      "pending_next_task": {},
+      "pending_task_continuation_ref": {},
+      "pending_task_checkpoint_reason": "",
+      "max_iterations_reached": false,
+      "budget_exhausted_with_pending_next_task": false,
+      "budget_exhausted_after_revision_request": false
+    }
+  ],
+  "payload_policy": "content_addressed_task_continuations",
+  "boundary": "Runtime completion status describes orchestration progress and budget exhaustion only. final_acceptance_status records the Architect evidence-contract decision, not theorem proof evidence. Completion status is not simulation evidence or a claim that remaining formal gaps are closed."
+}

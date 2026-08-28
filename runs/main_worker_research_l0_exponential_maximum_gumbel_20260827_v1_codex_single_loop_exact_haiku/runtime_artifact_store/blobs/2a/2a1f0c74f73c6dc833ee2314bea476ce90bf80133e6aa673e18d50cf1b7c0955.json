@@ -1,0 +1,100 @@
+{
+  "active_unresolved_finding_ids": [],
+  "artifact_kind": "GeneratedCodeSemanticReviewPacket",
+  "client_tool_loop": {
+    "fresh_current_source_observation_required": false,
+    "full_packet_regeneration_used": false,
+    "provider_usage": {
+      "cache_creation_input_tokens": 55317,
+      "cache_read_input_tokens": 0,
+      "input_tokens": 30,
+      "output_tokens": 5598
+    },
+    "refreshed_current_source_artifact_ids": [],
+    "review_probe_execution_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "review_probe_executions": [],
+    "runtime_executed_tool_calls": 1,
+    "tool_calls": 1,
+    "transcript_fingerprint": "d2c95387da1f895818af52782cb8b4f8675e4a7c87e1e965fb6901db028d13fd",
+    "transport": "native_same_reviewer_session_v1",
+    "turns": 1,
+    "validation_feedback_observed": false,
+    "validation_submissions": 1
+  },
+  "created_at": "2026-08-28T03:54:24.669589+00:00",
+  "cumulative_finding_ledger": [],
+  "cumulative_finding_ledger_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "evidence_boundary": "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.",
+  "finding_ledger_review_event_id": "generated_code_semantic_review_event:0a3a25b11e74e58d2239",
+  "findings": [],
+  "kernel_verified": false,
+  "model": "claude-haiku-4-5-20251001",
+  "model_requested_overall_verdict": "ACCEPT",
+  "model_tier": "haiku",
+  "ok": true,
+  "overall_verdict": "ACCEPT",
+  "packet_id": "generated_code_semantic_review:2e8d859ac9a8970bee97a1a1",
+  "prior_finding_reviews": [],
+  "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE",
+  "proposal_packet_hash": "441345522283804864275231ac746818c441c6940b4726c92f4bce927b5cdcd7",
+  "proposal_packet_id": "simulation_engineer_proposal:ac05a9651071b40fc4bd9f74",
+  "provider": "anthropic",
+  "question_context": {
+    "description": "Focused L0 known-result evaluation grounded in Fisher and Tippett (1928) and Gnedenko (1943). Let X_1,...,X_n be independent rate-one exponential random variables, let M_n=max_i X_i, and let Y_n=M_n-log n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-n CDF of M_n and the support-aware finite-n CDF of Y_n, including the branch below -log n. Then prove pointwise for every real y that P(Y_n <= y) converges to the standard Gumbel CDF exp(-exp(-y)). Make independence, the exponential support, the normalization log n, the fixed-y limiting argument, and the distinction between an exact finite-n law and its asymptotic approximation auditable. Do not replace the maximum by the minimum, omit the finite-n support branch, center by n or log(n-1), reverse a CDF or survival function, claim finite-n equality with the Gumbel law, or generalize the result to arbitrary parent distributions without domain-of-attraction conditions. The required model-authored Python artifact is est_exponential_maximum_gumbel and must implement run_estimator(request) exactly for the frozen closed sample contract. It returns the sample size, maximum, centered maximum, exact finite-n CDF evaluated at that centered value, and standard Gumbel CDF evaluated at that value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment generates independent rate-one exponential samples at several predeclared sample sizes, invokes the exact accepted estimator, verifies the exact finite-n CDF empirically with Monte Carlo uncertainty, and assesses the Gumbel approximation over a preregistered finite grid as n grows. This assessment is distributional implementation evidence, not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, tail extrapolation beyond the frozen grid, or formal proof. Lean formalization is not applicable.",
+    "id": "exponential_maximum_gumbel_known_result",
+    "tags": [
+      "extreme value theory",
+      "exponential distribution",
+      "sample maximum",
+      "Gumbel distribution",
+      "weak convergence",
+      "known result",
+      "L0"
+    ],
+    "title": "Gumbel limit for the maximum of exponential observations"
+  },
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "raw_response_fingerprint": "311b9c7fa39f7a346916920009dbe20bd7a323203cc3530fee620d2803d5a981",
+  "review_document_ref": {
+    "byte_size": 16768,
+    "document_id": "generated_code_semantic_review_document:b187de1d81d8f8d11de2",
+    "format": "markdown",
+    "line_count": 451,
+    "sha256": "d276cb385e6d11abba957b49a06bea8d0c6a5968979779d926df8719d481e9e0"
+  },
+  "review_evidence_document_fingerprint": "5623f25ea311db9c2c76d4039f79fef4e3fda56a3f8a3010fe788605869b9349",
+  "review_input_fingerprint": "d5dd36ddd7b2da4a013e75fda73248e3e0b5e6311ccdf9ea30b0a4ddee7f03b0",
+  "reviewed_artifacts": [
+    {
+      "artifact_id": "confirmatory_simulation:245f60015b79b9948c4a",
+      "metric_contract_set_id": "",
+      "metric_requirement_set_id": "",
+      "result_hash": "75fff0378290bc816cc5991a5f348af73998e2a8512df749cab72521ba96b817",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/5042a190620f/authoring-diagnostic/confirmatory_simulation_245f60015b79b9948c4a_ac4e4d3cd81d54b1_scientific_metrics.json",
+      "row_hash": "4efc798e44573fd61f6a97a4ae7380083a160e77bab0a8a88aca18c11548ea79",
+      "runtime_replicates": 128,
+      "runtime_seed": 1939901687,
+      "script_hash": "d0a7011b1b6e5fdff9f6f45c4cfd53b7edded1e04091aab45014e6ddbaf936e8",
+      "script_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/5042a190620f/authoring-diagnostic/confirmatory_simulation_245f60015b79b9948c4a_ac4e4d3cd81d54b1_generated_draft.py"
+    }
+  ],
+  "schema_version": 32,
+  "source_agent": "LLMGeneratedCodeSemanticReviewerAgent",
+  "source_generator_agent": "LLMSimulationEngineerAgent",
+  "source_manifest_hash": "9508540fc6c619561c2403c071e622abfba5839a46e10959520ead4938460816",
+  "source_manifest_id": "simulation_manifest:54da8757bbec84815852",
+  "source_model": "claude-haiku-4-5-20251001",
+  "source_model_tier": "haiku",
+  "source_revision_assessment": {
+    "evidence_refs": [],
+    "rationale": "No defects identified. The source is semantically correct and fully compliant with the frozen protocol. All load-bearing checks are present and properly computed. The acceptance decision is derived from the checks, not constant or disconnected.",
+    "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT"
+  },
+  "source_subsystem": "SimulationEvaluator",
+  "source_task_id": "semantic-review-accepted:exponential_maximum_gumbel_known_result:3458a307",
+  "theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+  "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "validation_errors": [],
+  "work_order_hash": "baaed6e15a64bd00703db4d53e00765c698cf73202ebd4d2d5b9ac87ceafff4d",
+  "work_order_id": "generated_code_semantic_review_work_order:aad93ab3bc80761ff7b7"
+}

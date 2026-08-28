@@ -1,0 +1,342 @@
+{
+  "active_unresolved_finding_ids": [
+    "generated_code_semantic_finding:086d5d180e477f946c3c"
+  ],
+  "artifact_kind": "GeneratedCodeSemanticReviewPacket",
+  "client_tool_loop": {
+    "fresh_current_source_observation_required": false,
+    "full_packet_regeneration_used": false,
+    "provider_usage": {
+      "cache_creation_input_tokens": 60004,
+      "cache_read_input_tokens": 150163,
+      "input_tokens": 83,
+      "output_tokens": 12783
+    },
+    "refreshed_current_source_artifact_ids": [],
+    "review_probe_execution_fingerprint": "2c6470f96f218d4b94fee0df1ff0474bf284b3bd450cdbef5318163a5eb119b6",
+    "review_probe_executions": [
+      {
+        "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
+        "code_path": "",
+        "errors": [
+          "generated code declares unsupported dependencies: math",
+          "generated scientific Python draft must define run_sandbox"
+        ],
+        "estimator_invocation_counts": {},
+        "estimator_runtime_errors": [],
+        "failed_probe_is_target_source_evidence": false,
+        "failure_origin": "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION",
+        "metrics": {},
+        "metrics_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "originating_tool_call_id": "toolu_01NBQapNihf3bXkbVnBKD59Z",
+        "probe_index": 0,
+        "probe_source_hash": "632c1a0b3e7f3e5c2a5233ece440153b339d089d710e9986f7c2113a71af734a",
+        "request_hash": "",
+        "result_hash": "",
+        "result_path": "",
+        "status": "REJECTED_CONTRACT",
+        "stderr_summary": "generated code declares unsupported dependencies: math; generated scientific Python draft must define run_sandbox",
+        "stdout_summary": "",
+        "successful_exact_invocation": false,
+        "target_artifact_id": "est_exponential_maximum_gumbel",
+        "target_source_hash": "d1b7ef1b7c710d698848650269c3d1bb8cbb3da91403f3acc8a6363637da2338",
+        "target_source_invoked": false
+      },
+      {
+        "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
+        "code_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/e22911e0772abbb0bcab/probe-1/semantic-review-probe_49d1f30cbc01a14672e9_e69519d136df0fac_generated_draft.py",
+        "errors": [
+          "PythonError: Traceback (most recent call last):\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 597, in eval_code_async\n    await CodeRunner(\n    ...<9 lines>...\n    .run_async(globals, locals)\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 411, in run_async\n    coroutine = eval(self.code, globals, locals)\n  File \"<exec>\", line 111, in <module>\nTypeError: run_sandbox() got an unexpected keyword argument 'estimators'\n",
+          "bound estimator source was not invoked: est_exponential_maximum_gumbel"
+        ],
+        "estimator_invocation_counts": {},
+        "estimator_runtime_errors": [],
+        "failed_probe_is_target_source_evidence": false,
+        "failure_origin": "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION",
+        "metrics": {},
+        "metrics_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "originating_tool_call_id": "toolu_01HFvCvss2aVbifEVoVzuUSK",
+        "probe_index": 1,
+        "probe_source_hash": "6c4272d0a7e7aeb389557aa88f242133d24f73a1a3256ac96718d59241fa6300",
+        "request_hash": "03fc3dbb12ddd535af6902608c55d38557f2129ca4e9808852bb230ed9607476",
+        "result_hash": "",
+        "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/e22911e0772abbb0bcab/probe-1/semantic-review-probe_49d1f30cbc01a14672e9_e69519d136df0fac_scientific_result.json",
+        "status": "FAILED",
+        "stderr_summary": "PythonError: Traceback (most recent call last):\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 597, in eval_code_async\n    await CodeRunner(\n    ...<9 lines>...\n    .run_async(globals, locals)\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 411, in run_async\n    coroutine = eval(self.code, globals, locals)\n  File \"<exec>\", line 111, in <module>\nTypeError: run_sandbox() got an unexpected keyword argument 'estimators'\n\n    at new_error (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:569233)\n    at wasm://wasm/024a8c3a:wasm-function[276]:0x6581b\n    at wasm://wasm/024a8c3a:wasm-function[482]:0x6fada\n    at wasm://wasm/6a0cf496:wasm-function[0]:0x93\n    at wasm://wasm/024a8c3a:wasm-function[5207]:0x261f63\n    at wasm://wasm/024a8c3a:wasm-function[1201]:0xbdd74\n    at wasm://wasm/024a8c3a:wasm-function[4012]:0x1f2043\n    at wasm://wasm/024a8c3a:wasm-function[2348]:0x10cf53\n    at wasm://wasm/024a8c3a:wasm-function[1209]:0xbe46b\n    at wasm://wasm/024a8c3a:wasm-function[1211]:0xbe680\n    at wasm://wasm/024a8c3a:wasm-function[1212]:0xbe707\n    at wasm://wasm/024a8c3a:wasm-function[3790]:0x1c251f\n    at wasm://wasm/024a8c3a:wasm-function[3791]:0x1d1875\n    at wasm://wasm/024a8c3a:wasm-function[1214]:0xbe84b\n    at wasm://wasm/024a8c3a:wasm-function[1210]:0xbe5a6\n    at wasm://wasm/024a8c3a:wasm-function[469]:0x6f0fa\n    at callPyObjectKwargs (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:623946)\n    at Module.callPyObjectMaybePromising (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:625214)\n    at Immediate.wrapper (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:586781)\n    at process.processImmediate (node:internal/timers:504:21)",
+        "stdout_summary": "{\"schema_version\":1,\"artifact_kind\":\"ScientificSandboxExecutionEnvelope\",\"ok\":false,\"language\":\"python\",\"backend\":\"pyodide\",\"metrics\":{},\"error_type\":\"PythonError\",\"error_message\":\"Traceback (most recent call last):\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 597, in eval_code_async\\n    await CodeRunner(\\n    ...<9 lines>...\\n    .run_async(globals, locals)\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 411, in run_async\\n    coroutine = eval(self.code, globals, locals)\\n  File \\\"<exec>\\\", line 111, in <module>\\nTypeError: run_sandbox() got an unexpected keyword argument 'estimators'\\n\",\"error_stack\":\"PythonError: Traceback (most recent call last):\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 597, in eval_code_async\\n    await CodeRunner(\\n    ...<9 lines>...\\n    .run_async(globals, locals)\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 411, in run_async\\n    coroutine = eval(self.code, globals, locals)\\n  File \\\"<exec>\\\", line 111, in <module>\\nTypeError: run_sandbox() got an unexpected keyword argument 'estimators'\\n\\n    at new_error (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:569233)\\n    at wasm://wasm/024a8c3a:wasm-function[276]:0x6581b\\n    at wasm://wasm/024a8c3a:wasm-function[482]:0x6fada\\n    at wasm://wasm/6a0cf496:wasm-function[0]:0x93\\n    at wasm://wasm/024a8c3a:wasm-function[5207]:0x261f63\\n    at wasm://wasm/024a8c3a:wasm-function[1201]:0xbdd74\\n    at wasm://wasm/024a8c3a:wasm-function[4012]:0x1f2043\\n    at wasm://wasm/024a8c3a:wasm-function[2348]:0x10cf53\\n    at wasm://wasm/024a8c3a:wasm-function[1209]:0xbe46b\\n    at wasm://wasm/024a8c3a:wasm-function[1211]:0xbe680\\n    at wasm://wasm/024a8c3a:wasm-function[1212]:0xbe707\\n    at wasm://wasm/024a8c3a:wasm-function[3790]:0x1c251f\\n    at wasm://wasm/024a8c3a:wasm-function[3791]:0x1d1875\\n    at wasm://wasm/024a8c3a:wasm-function[1214]:0xbe84b\\n    at wasm://wasm/024a8c3a:wasm-function[1210]:0xbe5a6\\n    at wasm://wasm/024a8c3a:wasm-function[469]:0x6f0fa\\n    at callPyObjectKwargs (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:623946)\\n    at Module.callPyObjectMaybePromising (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:625214)\\n    at Immediate.wrapper (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:586781)\\n    at process.processImmediate (node:internal/timers:504:21)\",\"error_origin\":\"generated_source\",\"error_artifact_id\":\"\",\"started_at\":\"2026-08-28T03:47:01.926Z\",\"completed_at\":\"2026-08-28T03:47:02.702Z\"}",
+        "successful_exact_invocation": false,
+        "target_artifact_id": "est_exponential_maximum_gumbel",
+        "target_source_hash": "d1b7ef1b7c710d698848650269c3d1bb8cbb3da91403f3acc8a6363637da2338",
+        "target_source_invoked": false
+      },
+      {
+        "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
+        "code_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/e22911e0772abbb0bcab/probe-2/semantic-review-probe_9e4c44f6f32a4604a880_a2cb97e57c449e89_generated_draft.py",
+        "errors": [],
+        "estimator_invocation_counts": {
+          "est_exponential_maximum_gumbel": 54
+        },
+        "estimator_runtime_errors": [],
+        "failed_probe_is_target_source_evidence": false,
+        "failure_origin": "PROBE_COMPLETED",
+        "metrics": {
+          "failures": [
+            {
+              "error": "Did not raise ValueError",
+              "test": "reject_tuple"
+            }
+          ],
+          "tests_failed": 1,
+          "tests_passed": 15
+        },
+        "metrics_hash": "50c1b9fee2ade8d95b7e8cebe7fbed224ee2e17ef05ae7990c0a3bb0b7e92679",
+        "originating_tool_call_id": "toolu_01HMwhQZoT7VGvf6p6fADpux",
+        "probe_index": 2,
+        "probe_source_hash": "b1c466b2002020c40985eae83415e10da5d69ff023e19542081bce395532065c",
+        "request_hash": "3dd83222738264d4d74ee26231613a8ee1e0c647db79f3fc7e817e20b02a62ff",
+        "result_hash": "50c1b9fee2ade8d95b7e8cebe7fbed224ee2e17ef05ae7990c0a3bb0b7e92679",
+        "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/e22911e0772abbb0bcab/probe-2/semantic-review-probe_9e4c44f6f32a4604a880_a2cb97e57c449e89_scientific_metrics.json",
+        "status": "EXECUTED",
+        "stderr_summary": "",
+        "stdout_summary": "{\"schema_version\":1,\"artifact_kind\":\"ScientificSandboxExecutionEnvelope\",\"ok\":true,\"language\":\"python\",\"backend\":\"pyodide\",\"metrics\":{\"failures\":[{\"error\":\"Did not raise ValueError\",\"test\":\"reject_tuple\"}],\"tests_failed\":1,\"tests_passed\":15},\"estimator_invocation_counts\":{\"est_exponential_maximum_gumbel\":54},\"estimator_invocation_samples\":{\"est_exponential_maximum_gumbel\":[{\"error_type\":\"ValueError\",\"invocation_index\":31,\"request_shape\":{\"fields\":{\"sample\":{\"element_types\":[\"number\"],\"type\":\"array\"}},\"type\":\"object\"},\"response_status\":\"ERROR\"},{\"invocation_index\":32,\"request\":{\"sample\":{\"__preview__\":\"sequence\",\"head\":[0.11803051796399407,1.3530549610228748,0.2808942999955852,0.15028574161184702,0.10813678389487956],\"length\":83,\"tail\":[1.3744203832556883,0.5593750146891416]}},\"response\":{\"centered_maximum\":-0.20425735265719958,\"exact_cdf_at_centered\":0.2906115367378132,\"gumbel_cdf_at_centered\":0.29328402081824234,\"maximum\":4.214583255139399,\"sample_size\":83}},{\"invocation_index\":33,\"request\":{\"sample\":{\"__preview__\":\"sequence\",\"head\":[0.5098269644928634,0.24759091665041696,6.006621432598478,0.7123836072779167,0.09531053319556058],\"length\":76,\"tail\":[0.26151377860869074,0.24874009615682843]}},\"response\":{\"centered_maximum\":1.6758880923121469,\"exact_cdf_at_centered\":0.8291346654317074,\"gumbel_cdf_at_centered\":0.8293260413853426,\"maximum\":6.006621432598478,\"sample_size\":76}}]},\"started_at\":\"2026-08-28T03:47:28.955Z\",\"completed_at\":\"2026-08-28T03:47:29.733Z\"}",
+        "successful_exact_invocation": true,
+        "target_artifact_id": "est_exponential_maximum_gumbel",
+        "target_source_hash": "d1b7ef1b7c710d698848650269c3d1bb8cbb3da91403f3acc8a6363637da2338",
+        "target_source_invoked": true
+      }
+    ],
+    "runtime_executed_tool_calls": 4,
+    "tool_calls": 4,
+    "transcript_fingerprint": "97a72643f0b2ac85dc24766d93d98b783444481397663aef976d4c88fcca7e89",
+    "transport": "native_same_reviewer_session_v1",
+    "turns": 4,
+    "validation_feedback_observed": false,
+    "validation_submissions": 1
+  },
+  "created_at": "2026-08-28T03:47:57.640397+00:00",
+  "cumulative_finding_ledger": [
+    {
+      "finding": {
+        "category": "Input Validation / Closed Contract Violation",
+        "evidence_refs": [],
+        "expected_behavior": "Per the frozen contract clause request.closed_sample_contract, the estimator must reject tuple inputs without mutation or coercion. The contract explicitly states: 'Reject tuples, arrays, null, nested values, NaN, infinity, negative values, Boolean elements, or nonnumeric elements rather than coercing them.' The estimator must raise a ValueError when the sample field is a tuple.",
+        "finding_id": "generated_code_semantic_finding:086d5d180e477f946c3c",
+        "observed_behavior": "When invoked with request {\"sample\": (0.5, 1.5)}, the estimator returns a valid response with sample_size=2, maximum=1.5, centered_maximum, exact_cdf_at_centered, and gumbel_cdf_at_centered fields, instead of raising a ValueError.",
+        "severity": "high",
+        "summary": "Estimator accepts tuple inputs instead of rejecting them"
+      },
+      "finding_id": "generated_code_semantic_finding:086d5d180e477f946c3c",
+      "first_seen_revision_index": 0,
+      "latest_seen_revision_index": 0,
+      "source_review_packet_ids": [
+        "generated_code_semantic_review_event:ed905939283e18b05222"
+      ],
+      "status": "UNRESOLVED"
+    }
+  ],
+  "cumulative_finding_ledger_fingerprint": "d9be55da5a29d2be0d01ed0c7ad400c1b186a864b24c155aa2f13a2a3f432fe4",
+  "evidence_boundary": "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.",
+  "finding_ledger_review_event_id": "generated_code_semantic_review_event:ed905939283e18b05222",
+  "findings": [
+    {
+      "category": "Input Validation / Closed Contract Violation",
+      "evidence_refs": [],
+      "expected_behavior": "Per the frozen contract clause request.closed_sample_contract, the estimator must reject tuple inputs without mutation or coercion. The contract explicitly states: 'Reject tuples, arrays, null, nested values, NaN, infinity, negative values, Boolean elements, or nonnumeric elements rather than coercing them.' The estimator must raise a ValueError when the sample field is a tuple.",
+      "finding_id": "generated_code_semantic_finding:086d5d180e477f946c3c",
+      "observed_behavior": "When invoked with request {\"sample\": (0.5, 1.5)}, the estimator returns a valid response with sample_size=2, maximum=1.5, centered_maximum, exact_cdf_at_centered, and gumbel_cdf_at_centered fields, instead of raising a ValueError.",
+      "severity": "high",
+      "summary": "Estimator accepts tuple inputs instead of rejecting them"
+    }
+  ],
+  "kernel_verified": false,
+  "model": "claude-haiku-4-5-20251001",
+  "model_requested_overall_verdict": "REVISE",
+  "model_tier": "haiku",
+  "ok": true,
+  "overall_verdict": "REVISE",
+  "packet_id": "generated_code_semantic_review:e56e3d43f41fd7dd871d6ae2",
+  "prior_finding_reviews": [],
+  "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE",
+  "proposal_packet_hash": "03631212a0ca42bc28cad76ab63985ed55ffa4879a782817fe97dfe9f1b08c5e",
+  "proposal_packet_id": "algorithm_engineer_proposal:2a9c30bb7e759abc59c0b4f9",
+  "provider": "anthropic",
+  "question_context": {
+    "description": "Focused L0 known-result evaluation grounded in Fisher and Tippett (1928) and Gnedenko (1943). Let X_1,...,X_n be independent rate-one exponential random variables, let M_n=max_i X_i, and let Y_n=M_n-log n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-n CDF of M_n and the support-aware finite-n CDF of Y_n, including the branch below -log n. Then prove pointwise for every real y that P(Y_n <= y) converges to the standard Gumbel CDF exp(-exp(-y)). Make independence, the exponential support, the normalization log n, the fixed-y limiting argument, and the distinction between an exact finite-n law and its asymptotic approximation auditable. Do not replace the maximum by the minimum, omit the finite-n support branch, center by n or log(n-1), reverse a CDF or survival function, claim finite-n equality with the Gumbel law, or generalize the result to arbitrary parent distributions without domain-of-attraction conditions. The required model-authored Python artifact is est_exponential_maximum_gumbel and must implement run_estimator(request) exactly for the frozen closed sample contract. It returns the sample size, maximum, centered maximum, exact finite-n CDF evaluated at that centered value, and standard Gumbel CDF evaluated at that value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment generates independent rate-one exponential samples at several predeclared sample sizes, invokes the exact accepted estimator, verifies the exact finite-n CDF empirically with Monte Carlo uncertainty, and assesses the Gumbel approximation over a preregistered finite grid as n grows. This assessment is distributional implementation evidence, not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, tail extrapolation beyond the frozen grid, or formal proof. Lean formalization is not applicable.",
+    "estimator_execution_contract": {
+      "empirical_claims": [
+        {
+          "clause_id": "claim.empirical.protocol_identity",
+          "meaning": "Before outcomes, freeze every sample size, evaluation point, seed, replicate count, exact finite-n target, Gumbel target, Monte Carlo precision rule, and joint acceptance decision; generate only independent rate-one exponential observations and invoke the exact accepted estimator for every replicate."
+        },
+        {
+          "clause_id": "claim.empirical.finite_law",
+          "meaning": "For every frozen sample size and evaluation point, compare the empirical CDF of centered maxima to the exact support-aware finite-n CDF using the preregistered Monte Carlo uncertainty rule."
+        },
+        {
+          "clause_id": "claim.empirical.gumbel_approximation",
+          "meaning": "On the frozen finite evaluation grid, retain exact finite-n and Gumbel CDF errors across increasing sample sizes and assess the preregistered approximation pattern without claiming uniform convergence or finite-n equality."
+        },
+        {
+          "clause_id": "claim.empirical.diagnostics",
+          "meaning": "Retain per-design sample size, evaluation point, replicate count, empirical CDF, exact CDF, Gumbel CDF, Monte Carlo standard error, and estimator invocation failures rather than reporting only a pass Boolean."
+        },
+        {
+          "clause_id": "claim.empirical.scope",
+          "meaning": "The assessment is rate-one exponential distributional implementation evidence only; it is not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, extrapolation beyond the frozen grid, or formal evidence."
+        }
+      ],
+      "entrypoint": "run_estimator",
+      "estimator_id": "est_exponential_maximum_gumbel",
+      "invariants": [
+        {
+          "clause_id": "invariant.closed_object_contract",
+          "meaning": "The request contains exactly sample and the response contains exactly sample_size, maximum, centered_maximum, exact_cdf_at_centered, and gumbel_cdf_at_centered. Invalid requests are rejected without mutation or coercion."
+        },
+        {
+          "clause_id": "invariant.maximum_and_centering",
+          "meaning": "maximum equals the largest input value, sample_size equals its length, and centered_maximum equals maximum-log(sample_size) up to floating-point error."
+        },
+        {
+          "clause_id": "invariant.cdf_identities",
+          "meaning": "Both returned CDF values use the returned centered maximum; exact_cdf_at_centered uses the exact support-aware finite-n law and gumbel_cdf_at_centered uses exp(-exp(-y))."
+        },
+        {
+          "clause_id": "invariant.permutation_deterministic_nonmutating",
+          "meaning": "Permuting an equal sample leaves every response unchanged up to floating-point equality, repeated calls agree, and no call mutates the request."
+        }
+      ],
+      "request_constraints": [
+        {
+          "clause_id": "request.closed_sample_contract",
+          "meaning": "The request contains exactly the field sample. Reject missing, extra, malformed, shorter-than-two, or longer-than-500 requests without mutation or coercion."
+        }
+      ],
+      "request_fields": [
+        {
+          "binding": "per_replicate_data",
+          "clause_id": "request.sample",
+          "edge_cases": "Zero is allowed. Reject tuples, arrays, null, nested values, NaN, infinity, negative values, Boolean elements, or nonnumeric elements rather than coercing them.",
+          "indexing": "unordered observations",
+          "json_type": "array",
+          "meaning": "One observed independent sample whose maximum is evaluated.",
+          "name": "sample",
+          "shape": "a Python list of 2 through 500 finite nonnegative real numbers; Boolean values are not numbers",
+          "units": "rate-one exponential observation scale"
+        }
+      ],
+      "response_fields": [
+        {
+          "clause_id": "response.sample_size",
+          "edge_cases": "It is never Boolean or floating point.",
+          "indexing": "not applicable",
+          "json_type": "integer",
+          "meaning": "Number of observations in the accepted sample.",
+          "name": "sample_size",
+          "normalization": "len(sample).",
+          "shape": "one exact Python integer from 2 through 500",
+          "units": "observations"
+        },
+        {
+          "clause_id": "response.maximum",
+          "edge_cases": "Repeated maxima and an all-zero sample are allowed.",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Largest observed sample value.",
+          "name": "maximum",
+          "normalization": "max(sample).",
+          "shape": "one finite nonnegative scalar",
+          "units": "rate-one exponential observation scale"
+        },
+        {
+          "clause_id": "response.centered_maximum",
+          "edge_cases": "It may be negative and is always at least -log(sample_size).",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Maximum centered by the natural logarithm of sample size.",
+          "name": "centered_maximum",
+          "normalization": "maximum - log(sample_size), using the natural logarithm.",
+          "shape": "one finite real scalar",
+          "units": "dimensionless"
+        },
+        {
+          "clause_id": "response.exact_cdf_at_centered",
+          "edge_cases": "Use the support-aware finite-n law; at the returned sample maximum the supported branch applies.",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Exact finite-sample CDF of Y_n evaluated at the returned centered maximum.",
+          "name": "exact_cdf_at_centered",
+          "normalization": "For n=sample_size and y=centered_maximum, 0 when y < -log(n), otherwise (1-exp(-y)/n)^n.",
+          "shape": "one finite scalar in [0,1]",
+          "units": "probability"
+        },
+        {
+          "clause_id": "response.gumbel_cdf_at_centered",
+          "edge_cases": "This is an approximation target and must not replace the exact finite-n CDF.",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Standard Gumbel limiting CDF evaluated at the returned centered maximum.",
+          "name": "gumbel_cdf_at_centered",
+          "normalization": "exp(-exp(-centered_maximum)).",
+          "shape": "one finite scalar in (0,1)",
+          "units": "probability"
+        }
+      ],
+      "schema_version": 1
+    },
+    "id": "exponential_maximum_gumbel_known_result",
+    "tags": [
+      "extreme value theory",
+      "exponential distribution",
+      "sample maximum",
+      "Gumbel distribution",
+      "weak convergence",
+      "known result",
+      "L0"
+    ],
+    "title": "Gumbel limit for the maximum of exponential observations"
+  },
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "raw_response_fingerprint": "593c19a7ad02a1cc040c09846db660a0b88853f0b86befca4055e89b77e49d49",
+  "review_document_ref": {
+    "byte_size": 7687,
+    "document_id": "generated_code_semantic_review_document:002b913c06f848bc4996",
+    "format": "markdown",
+    "line_count": 123,
+    "sha256": "413305cd2682cd23382eb4ae3cab13e13a7095af3da6071bf8522afbfb82cb9d"
+  },
+  "review_evidence_document_fingerprint": "069bdd480ebb727167e4847acb4aad1faa7f50d45ecdd32db76cf38b64797ea5",
+  "review_input_fingerprint": "d3c0257e41f98a75679cdd8af9b98a591b7a5be904ef03f55c4fb3b840718c44",
+  "reviewed_artifacts": [
+    {
+      "artifact_id": "est_exponential_maximum_gumbel",
+      "metric_contract_set_id": "",
+      "metric_requirement_set_id": "",
+      "result_hash": "497c5890193d57543a2aae5939e3183744438bd7ef7b51b7d56e2a1255656384",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/a3915780624c/est_exponential_maximum_gumbel_0404574c326ece2f_scientific_metrics.json",
+      "row_hash": "c6f87a32b451b6d88940c092cca3c667fe153b58c0a387598873b80938a67e4c",
+      "runtime_replicates": 100,
+      "runtime_seed": 20260528,
+      "script_hash": "d1b7ef1b7c710d698848650269c3d1bb8cbb3da91403f3acc8a6363637da2338",
+      "script_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/a3915780624c/est_exponential_maximum_gumbel_0404574c326ece2f_generated_draft.py"
+    }
+  ],
+  "schema_version": 32,
+  "source_agent": "LLMGeneratedCodeSemanticReviewerAgent",
+  "source_generator_agent": "LLMAlgorithmEngineerAgent",
+  "source_manifest_hash": "a4054472a322fe2c702e5e4a21f98bad9aaca8577bc9d6aaf123d1444e538a05",
+  "source_manifest_id": "algorithm_sandbox_manifest:500cad9e36b63eb2256b",
+  "source_model": "claude-haiku-4-5-20251001",
+  "source_model_tier": "haiku",
+  "source_revision_assessment": {
+    "evidence_refs": [],
+    "rationale": "The defect is localized to the input validation logic in the run_estimator function. The type check at line 24 (`if not isinstance(sample, list)`) should correctly reject tuples, but the probe evidence shows it does not. The fix requires ensuring the validation logic correctly rejects tuple inputs. This can be resolved by rewriting the validation section without changing the mathematical formulas, response structure, or interface. The exact finite-n CDF formula, Gumbel CDF formula, and all other mathematical computations are correct and do not need revision. Only the input validation logic needs to be corrected to enforce the closed-contract requirement.",
+    "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT"
+  },
+  "source_subsystem": "AlgorithmEngineer",
+  "source_task_id": "algorithm:exponential_maximum_gumbel_known_result:52b626e3",
+  "theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+  "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "validation_errors": [],
+  "work_order_hash": "2e4982249fd1d73bf96c4a04dd5919521b7f5d0e85b38e9653bdc2b129ae5057",
+  "work_order_id": "generated_code_semantic_review_work_order:9cdb41926496cf497a50"
+}

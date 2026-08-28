@@ -1,0 +1,119 @@
+{
+  "artifact_kind": "RuntimeAgentTaskContinuation",
+  "continuation_id": "agent_task_continuation:13afb6421ca7a5620290",
+  "original_task_hash": "13afb6421ca7a5620290c3e8a2bba4b866eb1f099b5c9f01b33f7df4d5028a85",
+  "payload_policy": "content_addressed_input_refs",
+  "schema_version": 1,
+  "task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:ffda1975ff6feba32598",
+    "allowed_tools": [
+      "model_backend",
+      "research_simulator",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "simulation_manifest",
+      "implementation_gap_manifest"
+    ],
+    "input_keys": [
+      "accepted_generated_code_semantic_reviews",
+      "algorithm_sandbox_manifest_id",
+      "architect_context",
+      "empirical_evaluation_phase",
+      "evaluator_source_authoring",
+      "n_runs",
+      "question",
+      "seed",
+      "simulation_manifest_id",
+      "theory_packet_id",
+      "upstream_algorithm_handoff"
+    ],
+    "inputs_hash": "c564d0508f742a132ff36e0cc5b406bb466ece85aaa83730f3499ae3308d7552",
+    "objective_ref": "task_objective:7407ab33821555ffd1b9",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition_ref": "task_stop_condition:42f58febded770229e25",
+    "task_id": "semantic-review-accepted:exponential_maximum_gumbel_known_result:3458a307",
+    "task_snapshot_hash": "0094c92c943ecb743ee232a44c80de34ba9016affc56c13c6c250ae4eba19d55"
+  },
+  "task_template": {
+    "acceptance_gate": "a changed complete model-generated candidate executes and passes a new independent semantic review",
+    "allowed_tools": [
+      "model_backend",
+      "research_simulator",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "budget": {},
+    "expected_artifacts": [
+      "simulation_manifest",
+      "implementation_gap_manifest"
+    ],
+    "inputs": {
+      "accepted_generated_code_semantic_reviews": [
+        {
+          "confirmatory_empirical_evidence_eligible": false,
+          "empirical_evaluation_phase": "",
+          "execution_id": "generated_code_semantic_review_execution:6f75a143205506dcbb69",
+          "overall_verdict": "ACCEPT",
+          "parent_artifact_ids": {
+            "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+          },
+          "review_packet_hash": "7ae0dcaf30cde7da5a5f32b6ceb3f608662348827a5577c51a1e0a7aaccd8492",
+          "review_packet_id": "generated_code_semantic_review:fb46530431564c8cd95c4467",
+          "source_manifest_hash": "19ac59a3a01a37ad6554c4da28ac0feb795256b283092ab54a7133006a644ac3",
+          "source_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+          "source_responsibility_contract_fingerprint": "62ca5cd4dadf7167dd76e61f69175f21be848447888b2f9b49bb88c6ee9e0760",
+          "source_subsystem": "AlgorithmEngineer"
+        },
+        {
+          "confirmatory_empirical_evidence_eligible": false,
+          "empirical_evaluation_phase": "exploratory_diagnostic",
+          "execution_id": "generated_code_semantic_review_execution:a114d35f328c62e8a8da",
+          "overall_verdict": "ACCEPT",
+          "parent_artifact_ids": {
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+            "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+          },
+          "review_packet_hash": "7c29adbb06633a71e9e331e7fc24286fb0b0f8c248c337cca88dfc14421b794d",
+          "review_packet_id": "generated_code_semantic_review:d1c289581cebebd8b0ac5c69",
+          "source_manifest_hash": "4d4dd11a914cb7dded2209cfa8b6f68d84b3d6c94f91dcf51ebb2ce8f27ef781",
+          "source_manifest_id": "simulation_manifest:918cc850f617ef4f62ff",
+          "source_responsibility_contract_fingerprint": "95c4fbf63aba7cf681de5950545d23675b9ed72ec9e7960e9df5f4e2cc5820ab",
+          "source_subsystem": "SimulationEvaluator"
+        }
+      ],
+      "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+      "architect_context": {
+        "artifact_hash": "4d26a82515c54318cafc792634232ca7dbf4fc8134807ea5a79fc4f60691cc12",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "0be8bfb7f603b347a308b73fddea80d682179885afa2cb0420d18dae5ec1bc9a",
+        "mapping_id": "agent_task_input_mapping:0be8bfb7f603b347a308"
+      },
+      "empirical_evaluation_phase": "executable_evaluator_authoring",
+      "evaluator_source_authoring": true,
+      "n_runs": 100000,
+      "question": {
+        "artifact_hash": "9e44f8aa1c3fb5d7b7320a4d7d0e4975640ea53d8667afc4a1d64c70c327c09a",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "5990a9155085e06a8f1f268a302e9d829166a7316bec49fa5d63f14f5f5b37cd",
+        "mapping_id": "agent_task_input_mapping:5990a9155085e06a8f1f"
+      },
+      "seed": 20260528,
+      "simulation_manifest_id": "simulation_manifest:918cc850f617ef4f62ff",
+      "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+      "upstream_algorithm_handoff": {
+        "artifact_hash": "4fa44554f388d1215f38a39e834f692f56655cfff8f8fd44d85ca4ecdb2c3a58",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "e8038023f4a4d812f31f5261cd27d9fcf3a7042aec8bb36a880d7f7e8becb962",
+        "mapping_id": "agent_task_input_mapping:e8038023f4a4d812f31f"
+      }
+    },
+    "objective": "Author executable evaluator source and obtain independent review before confirmatory execution.",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition": "the source producer emits a complete replacement candidate or the bounded lineage records a blocker",
+    "task_id": "semantic-review-accepted:exponential_maximum_gumbel_known_result:3458a307"
+  }
+}

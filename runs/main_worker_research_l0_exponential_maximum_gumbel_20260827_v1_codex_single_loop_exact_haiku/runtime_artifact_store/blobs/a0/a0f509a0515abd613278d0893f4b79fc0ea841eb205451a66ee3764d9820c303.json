@@ -1,0 +1,26 @@
+{
+  "activated_for_selected_tasks": false,
+  "artifact_kind": "RuntimeLeanProviderTopology",
+  "formal_source_retriever": {
+    "activated_for_selected_tasks": false,
+    "activation_status": "all_selected_tasks_formal_not_applicable",
+    "configured": true,
+    "provider_instantiated": true
+  },
+  "manifest_id": "runtime_lean_provider_topology:0f97152d7ed11f967b01",
+  "proof_evidence_boundary": "External retrieval hits, generated proof bodies, verifier diagnostics, and OpenProver lemma assets are agent feedback. They do not prove the AI Statistician source theorem until its exact declaration passes the configured local Lean/AXLE gate.",
+  "proof_evidence_status": "LEAN_PROVIDER_TOPOLOGY_NOT_PROOF_EVIDENCE",
+  "proof_search_provider": {
+    "activated_for_selected_tasks": false,
+    "activation_status": "all_selected_tasks_formal_not_applicable",
+    "configured": false,
+    "provider_instantiated": false
+  },
+  "proof_state_retrieval": {
+    "activated_for_selected_tasks": false,
+    "activation_status": "all_selected_tasks_formal_not_applicable",
+    "configured": true,
+    "provider_instantiated": false
+  },
+  "schema_version": 1
+}

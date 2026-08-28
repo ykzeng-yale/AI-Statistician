@@ -1,0 +1,68 @@
+{
+  "artifact_kind": "RuntimeAgentTaskContinuation",
+  "continuation_id": "agent_task_continuation:5658d3188924e85afbe8",
+  "original_task_hash": "5658d3188924e85afbe8a5f38ff7354e97c7302a15c1000af4f4e25bfb9f6acf",
+  "payload_policy": "content_addressed_input_refs",
+  "schema_version": 1,
+  "task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:7a0d785a1e8431bd7f1c",
+    "allowed_tools": [
+      "model_backend",
+      "blackboard",
+      "evidence_ledger"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "critic_evaluator_manifest",
+      "critic_model_packet"
+    ],
+    "input_keys": [
+      "algorithm_sandbox_manifest_id",
+      "architect_context",
+      "question",
+      "simulation_manifest_id",
+      "theory_packet_id"
+    ],
+    "inputs_hash": "44462fb5823e6705df677778efdb6f8687f3ec2da2b73a0f841c4aa0b769e372",
+    "objective_ref": "task_objective:1bb77a17a0421f0dca77",
+    "owner_subsystem": "CriticEvaluator",
+    "stop_condition_ref": "task_stop_condition:b799c195e5863c3e33d0",
+    "task_id": "critic-research-eval:exponential_maximum_gumbel_known_result:b9305535",
+    "task_snapshot_hash": "1a10570216b2538faedacea625b4615a24ba439b7d7be95681895c93bbe26746"
+  },
+  "task_template": {
+    "acceptance_gate": "all required research artifacts are lineage-bound, independently reviewed, and accepted without promoting them to proof evidence",
+    "allowed_tools": [
+      "model_backend",
+      "blackboard",
+      "evidence_ledger"
+    ],
+    "budget": {},
+    "expected_artifacts": [
+      "critic_evaluator_manifest",
+      "critic_model_packet"
+    ],
+    "inputs": {
+      "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+      "architect_context": {
+        "artifact_hash": "0e88e751dcc463ae90fc8c09f7f61c2b8e91040c80f184c7164da29f9f1d605f",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "7f1e1e9845bb672d6c157026614ff46c1626096d655d6614d4685173d02b9c7f",
+        "mapping_id": "agent_task_input_mapping:7f1e1e9845bb672d6c15"
+      },
+      "question": {
+        "artifact_hash": "9e44f8aa1c3fb5d7b7320a4d7d0e4975640ea53d8667afc4a1d64c70c327c09a",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "5990a9155085e06a8f1f268a302e9d829166a7316bec49fa5d63f14f5f5b37cd",
+        "mapping_id": "agent_task_input_mapping:5990a9155085e06a8f1f"
+      },
+      "simulation_manifest_id": "",
+      "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+    },
+    "objective": "Evaluate the serious theory, generated algorithm, frozen empirical protocol, generated simulation, and independent semantic reviews. Report formalization status separately without requiring the strict formal lane in this research evaluation.",
+    "owner_subsystem": "CriticEvaluator",
+    "stop_condition": "critic records the research-evaluation decision and open formal debt",
+    "task_id": "critic-research-eval:exponential_maximum_gumbel_known_result:b9305535"
+  }
+}

@@ -6,11 +6,11 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "af085faa49c10d4be99eab67f8c2f7e3b12de134"
+LATEST_SHARED_MECHANISM_HEAD = "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 73
-CURRENT_CONSUMED_TASKS = 72
-CURRENT_OPERATOR_INVALID_TASKS = 12
+CURRENT_CONSUMED_TASKS = 73
+CURRENT_OPERATOR_INVALID_TASKS = 13
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
 TASK_62_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
@@ -7156,7 +7156,7 @@ def test_fisher_exact_greater_l0_records_one_consumed_operator_invalid_draw() ->
         assert hidden_name not in runtime_visible
 
 
-def test_exponential_maximum_gumbel_l0_is_frozen_before_product_draw() -> None:
+def test_exponential_maximum_gumbel_l0_is_consumed_and_immutable() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -7167,9 +7167,10 @@ def test_exponential_maximum_gumbel_l0_is_frozen_before_product_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "extreme_value_exponential_maxima"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_schema_v4_exact_haiku_product_not_started"
+        "fresh_live_v1_consumed_runtime_blocked_critic_lifecycle_"
+        "hidden_theory_inconclusive_operator_invalidated_contextual_theory"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-exponential-maximum-gumbel-20260827-v1"
@@ -7215,12 +7216,79 @@ def test_exponential_maximum_gumbel_l0_is_frozen_before_product_draw() -> None:
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 12
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["product_code_head"] == (
+        "49f6c45b567d7a3ff89b67a6eebb101ef6eb7736"
+    )
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "critic_packet_validation_failed"
+    )
+    assert evidence["runtime_research_eval_complete"] == "0/1"
+    assert evidence["hidden_full_task_result"] == "0/1"
+    assert evidence["runtime_outer_graph_iterations"] == 15
+    assert evidence["critic_workspace_model_turns"] == 25
+    assert evidence["enabled_llm_roles"] == 7
+    assert evidence["enabled_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["enabled_sonnet_calls"] == 0
+    assert evidence["enabled_opus_calls"] == 0
+    assert evidence["accepted_algorithm_handoff_hash"] == (
+        "96707883ada6d428b7e62d9257a32d163fbeb39e21a8afd008ecd585b5e18475"
+    )
+    assert evidence["committed_estimator_source_hash"] == (
+        "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062"
+    )
+    assert evidence["accepted_theory_packet_hash"] == (
+        "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6"
+    )
+    assert evidence["accepted_theory_document_set_hash"] == (
+        "44c0b81c87531c6874424efd2762e7fa210b2a09c7b58f2a37a9c2bb3a940327"
+    )
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_theory_semantic_candidate_status"] == (
+        "INCONCLUSIVE"
+    )
+    assert evidence["hidden_theory_semantic_claims"] == (
+        "6 SATISFIED, 2 INCONCLUSIVE"
+    )
+    assert evidence["hidden_algorithm_checks"] == "8/8"
+    assert evidence["hidden_algorithm_estimator_invocations"] == 27
+    assert evidence["hidden_empirical_checks"] == "10/10"
+    assert evidence["hidden_empirical_estimator_invocations"] == 16000
+    assert evidence["operator_disposition"] == (
+        "OPERATOR_INVALIDATED_CONTEXTUAL_THEORY_AND_RUNTIME_REFEREE_"
+        "FALSE_ACCEPTANCE"
+    )
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec"
+    )
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/73"
+
+    run_path = Path(evidence["immutable_run_path"])
+    assert run_path.is_dir()
+    for filename, field in (
+        ("research_agent_runtime_manifest.json", "runtime_manifest_sha256"),
+        (
+            "exponential_maximum_gumbel_known_result_runtime_result.json",
+            "runtime_result_sha256",
+        ),
+        (
+            "research_capability_gold_evaluation.json",
+            "hidden_gold_evaluation_sha256",
+        ),
+        ("runtime_completion_summary.json", "runtime_completion_summary_sha256"),
+        ("runtime_failure_summary.json", "runtime_failure_summary_sha256"),
+        ("runtime_llm_topology.json", "runtime_llm_topology_sha256"),
+    ):
+        assert hashlib.sha256((run_path / filename).read_bytes()).hexdigest() == (
+            evidence[field]
+        )
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS

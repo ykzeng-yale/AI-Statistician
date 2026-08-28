@@ -1,13 +1,13 @@
 {
-  "schema_version": 238,
-  "updated_at": "2026-08-27",
+  "schema_version": 239,
+  "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "af085faa",
+  "validated_code_head": "bfae4e13",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy-two consumed draws and immutable artifacts at trustworthy full-task credit 4/72, with exact development Lean closure still 0/2. Task 73 is a new disjoint L0 exponential-maximum/Gumbel known-result evaluation. Its visible closed contract is committed and pushed; schema-4 hidden theory, code, and empirical authority is hash-bound outside the repository and model workspace; exact executable activation accepted one reference and rejected five negative-validator obligations; and protocol-v10 exact-Haiku qualification passed 4/4 calibration cases, 1/1 integrated long-form near miss, and all eight reference claims. Activation ledger 63d1d53e586a815848ef16725d49554551253af6 is confirmed on both remote branches, while no product-model call or live run has started. Next consume exactly one fresh exact-Haiku AgentRuntime draw and one post-termination hidden evaluation. Keep one AgentRuntime and model-owned Markdown/LaTeX Theory, Python/R, Simulation, and optional Lean workspaces; never expose hidden authority to runtime, rerun a consumed task, import Codex Core/App Server/SDK threads, add formulas, parsers, deterministic content repair, extra agents, schedulers, provider fallback, retries, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy-three consumed draws and immutable artifacts at trustworthy full-task credit 4/73, with exact development Lean closure still 0/2. Task 73 is consumed 0/1: hidden algorithm 8/8 and empirical 10/10 remain scoped component evidence, hidden Theory semantics were inconclusive, Critic did not submit a terminal packet, and operator audit invalidates a false contextual extreme-value claim accepted by the runtime referee. Commit bfae4e13 selectively adopts the current open-source Codex model-tool-observation lifecycle by giving a final ordinary observation one same-session terminal-only continuation; it imports no Codex runtime, provider, scheduler, thread manager, subagent system, repair layer, task rule, or extra research action. Keep one AgentRuntime and model-owned Markdown/LaTeX Theory, Python/R, Simulation, and optional Lean workspaces. Next prioritize the broad capability gaps exposed across the ladder: long-horizon Theory quality, source replication and paper/code/data reuse, real R evidence, confirmatory simulation ownership, and proof-state-driven optional Lean work. Never expose hidden authority to runtime, rerun a consumed task, add formulas, parsers, deterministic content repair, extra agents, schedulers, provider fallback, retries, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
   "latest_canonical_authority_process_boundary": {
     "shared_mechanism_head": "af085faa",
     "observed_design_contradiction": "The direct AgentRuntime import had been cleaned, but the actual cli.py product entrypoint still eagerly loaded research_lab through shared question loading and legacy audit imports. AgentRuntime also accepted research_gold_manifest, activated hidden authority before its product loop, scored hidden gold afterward, and embedded that result in the canonical runtime manifest.",
@@ -19,10 +19,10 @@
     "model_policy": "No live model call occurred. All future tests and evaluations remain exact claude-haiku-4-5-20251001; production remains Sonnet or below; Opus and automatic model escalation remain prohibited.",
     "task_boundary": "All seventy-two consumed draws remain immutable. No task was run, resumed, repaired, re-evaluated, rescored, or resampled; trusted aggregate credit remains 4/72."
   },
-  "latest_exponential_maximum_gumbel_l0_activation": {
+  "latest_exponential_maximum_gumbel_l0_evaluation": {
     "task_id": "exponential_maximum_gumbel_known_result",
     "family": "extreme_value_exponential_maxima",
-    "status": "frozen_ready_schema_v4_exact_haiku_product_not_started",
+    "status": "fresh_live_v1_consumed_runtime_blocked_critic_lifecycle_hidden_theory_inconclusive_operator_invalidated_contextual_theory",
     "visible_question_path": "benchmarks/research_l0_exponential_maximum_gumbel_questions_20260827.json",
     "visible_question_activation_commit": "bf2d976f4db9e02f60225daeff186f91e42a0a30",
     "visible_question_sha256": "da3afdf1036660c19d3a0ceb44eb680df0f420ba1dfb77aaef7e199bb8c46c33",
@@ -45,11 +45,29 @@
     },
     "preactivation_product_model_calls": 0,
     "preactivation_evaluator_model_calls": 12,
-    "first_runtime_model_call_occurred": false,
-    "fresh_live_runs": 0,
+    "first_runtime_model_call_occurred": true,
+    "fresh_live_runs": 1,
+    "runtime_head": "49f6c45b567d7a3ff89b67a6eebb101ef6eb7736",
+    "run_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku",
+    "runtime_model_policy": "claude-haiku-4-5-20251001 for all seven enabled roles; no Sonnet, Opus, provider fallback, or automatic escalation",
+    "runtime_status": "BLOCKED after 15 outer traces; Critic ended critic_packet_validation_failed",
+    "runtime_research_evaluation": "0/1 complete; 1/1 mode-conformant",
+    "hidden_full_task_result": "0/1",
+    "component_evidence": "Hidden algorithm 8/8 over 27 estimator invocations; hidden empirical 10/10 over 16000 invocations; hidden mechanical Theory 7/7; hidden semantic document PASS with six SATISFIED and two INCONCLUSIVE claims.",
+    "operator_disposition": "OPERATOR_INVALIDATED_CONTEXTUAL_THEORY_AND_RUNTIME_REFEREE_FALSE_ACCEPTANCE",
+    "operator_finding": "The accepted rate-one exponential derivation is mostly correct, but the document falsely says right-unbounded support plus a regularly varying tail implies Gumbel attraction and that exponential tails are regularly varying. It also reverses the common a_n and b_n normalization convention. The independent referee read and accepted that passage.",
+    "evaluator_ownership_finding": "Two hidden semantic obligations assigned executed empirical validation to Theory despite a separate passing empirical lane. Future disjoint rubrics should separate derivation and empirical authority; the frozen outcome is unchanged.",
+    "critic_lifecycle_finding": "The Critic's final ordinary search was rejected after its action budget, but the same model received no following turn in which to submit its sole terminal disposition.",
+    "operator_audit": "docs/operator_audits/exponential_maximum_gumbel_l0_v1.md",
+    "runtime_manifest_sha256": "d431bab0e58410c885dbe980007b1ad9fe44ce8fbbb5c0bc5375f52c24c6b523",
+    "runtime_result_sha256": "bab966705af1b9eaecd2f0857289db8eb1f5c90dac80d791681adc179329624b",
+    "hidden_gold_evaluation_sha256": "e47a1b4e799ac8f39ac7a66303e21ec98ec8e8b587ad76efeca8c38664445278",
+    "post_run_shared_mechanism_commit": "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec",
+    "post_run_shared_mechanism_change": "Future tasks only: one final ordinary tool observation may receive exactly one terminal-only continuation in the same model session. It executes no ordinary action and is not available after a terminal attempt.",
+    "verification": "Shared client-loop, Theory, scientific-code, Lean, Critic, and architecture panel 137/137; complete repository 995/995 in 80.45 seconds; production Python 149998 lines under the unchanged budget; no post-run model or evaluator call.",
     "formalizer_executed": false,
-    "trusted_capability_credit": "not_scored; aggregate remains 4/72 consumed",
-    "boundary": "All authority is evaluator-only and hash-bound outside the repository/model workspace. Activation commit 63d1d53e586a815848ef16725d49554551253af6 is confirmed on both remote branches before the sole product draw; no qualification result may become runtime feedback."
+    "trusted_capability_credit": "0/1; aggregate remains 4/73 consumed",
+    "boundary": "The sole product draw and sole post-runtime hidden evaluation are consumed and immutable. Hidden and operator findings generated no runtime feedback. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed those findings to Task 73 source owners."
   },
   "latest_canonical_legacy_import_boundary": {
     "shared_mechanism_head": "32a04928",
@@ -1816,13 +1834,14 @@
   },
   "latest_openai_codex_harness_adoption": {
     "upstream_repository": "https://github.com/openai/codex",
+    "official_platform_article": "https://developers.openai.com/blog/codex-as-a-platform",
     "upstream_commit": "4213b38f3c555049bf6f494065698a3dfe587c16",
-    "latest_rechecked_upstream_commit": "8aea62b2d857e950cb84366602af79403b8ed545",
-    "latest_incremental_finding": "The Codex delta after 5f49aba8 adds descendant-token accounting for root goals, active-step model token budgets, response-usage metadata, explicit delegated-model override policy, and permission/plugin/test hardening. Its production run_turn, tool router, tool-output continuation, and multi-agent workspace semantics relevant here remain unchanged. Importing Codex goal, App Server, thread, provider, or shared-cwd subagent state would duplicate the Claude-first scientific control plane.",
-    "latest_incremental_adoption": "Commit 11ee99bd applies the existing Codex-shaped observation principle to TheoryDeveloper and its isolated referee: a scratch observation supports only the complete proposition its executable predicate actually tests. The same workspaces now emphasize types, domains, dimensions, explicit sides/residuals/witnesses, and countermodels while removing task-family examples; no tool, call, agent, or scheduler was added.",
+    "latest_rechecked_upstream_commit": "6be2a6ca952ac9f70676ce4dd07fda27175aa9dd",
+    "latest_incremental_finding": "Current Codex still centers run_turn on model-selected function calls, execution, return of tool output to the same accumulated session, and termination only after a response without another call. Newer history budgets, context management, parallel tool runtime, agent registry, subagent lifecycle, App Server, and SDK are orthogonal product services. They do not supply statistical semantics and would duplicate this Anthropic-backed scientific control plane.",
+    "latest_incremental_adoption": "Commit bfae4e13 fixes one measured local lifecycle mismatch without importing Codex: when the final normal turn produced an ordinary tool observation and made no terminal attempt, the same model session receives exactly one terminal-only continuation. It executes no further research action and offers no hidden retry after a rejected terminal submission.",
     "upstream_license": "Apache-2.0",
     "adoption_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "implementation_commit": "11ee99bd630cca6d5d5647e7050b7c2f2259badc",
+    "implementation_commit": "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec",
     "implementation_lineage": [
       "b490067967d20acafbc1f3e0eeebf38c62b5bdbf",
       "ddc66099bd5991310bb5280cccbe361edaa8355e",
@@ -1874,7 +1893,8 @@
       "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f",
       "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60",
       "3fe4bdb9fd3a63148078261e5efc10f76066ee98",
-      "11ee99bd630cca6d5d5647e7050b7c2f2259badc"
+      "11ee99bd630cca6d5d5647e7050b7c2f2259badc",
+      "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec"
     ],
     "upstream_core_source_hashes": {
       "codex-rs/core/src/session/turn.rs": "768c854c73787d9696719fd38ea8ff54afee57d12ceefb332beba0342f910eb1",
@@ -1899,15 +1919,9 @@
       "codex-rs/exec-server/README.md": "fdaeead379463e87a10d989c82d04558973cc8d4fcc9a8b3a7b783824977605b"
     },
     "latest_rechecked_core_source_hashes": {
-      "codex-rs/core/src/session/turn.rs": "26925aa16876caf2b9d69ff1e4bcf34d9b431ebbf249c730f299b18206a68d91",
-      "codex-rs/core/src/tools/router.rs": "bdd1767bda52be77d3fe21768ffb80260c3abfe311b87f6f2124ba1ef3e64ab2",
-      "codex-rs/core/src/stream_events_utils.rs": "7919187dae414aded83bc48adaa189c057f6f7ccd71d51e55f57216dce5b5a34",
-      "codex-rs/core/src/tasks/regular.rs": "2fbf0923507f84322d8623c4bca018f2f1deeee6c46bf4f241b320f00b6e1f7a",
-      "codex-rs/core/src/session/mcp.rs": "c8a08e81531619527624cfdabfff2e707cb1bc6d6d951bf87bb1e9c554029fbd",
-      "codex-rs/protocol/src/response_usage.rs": "0e59149bfc41168543d127ee0e8a4e1add368e54962ad69d15f6d4a3603104d1",
-      "codex-rs/ext/guardian-v2/src/async_scorer/extension.rs": "9e4c8613c1887442df189ced2c615f2a15bab5432c70fcaaeaae9a6ee63225c7",
-      "codex-rs/ext/guardian-v2/src/async_scorer/metrics.rs": "b3c1a87de570107de7017540950397836e69511760fed2c8e8a3785b495a1010",
-      "codex-rs/ext/guardian-v2/src/async_scorer/extension_tests.rs": "6b54a551bb007c936778142a0e31a552c9dd474cc4317ae05f6e5871fd735305",
+      "codex-rs/core/src/session/turn.rs": "e84eade7ed8390b79aecb180e0bdfa42a9a406720aec8a28108356324533488a",
+      "codex-rs/core/src/tools/router.rs": "6f5b3e6fcc2473c85275e69d934faf3cb95b90e9c773a055944116d517986a90",
+      "codex-rs/core/src/tools/parallel.rs": "4acd0393fb6e0ca844d03a1ab847c3e926b806e447d598c56b7da65f6507bd7e",
       "codex-rs/core/src/session/multi_agents.rs": "2ea650cdededf56c2a94425be7a3c5323f200f675acc543cd281a3d1d0ea0c80",
       "sdk/python/src/openai_codex/client.py": "76bdb1e63c62987c3530ea763e9655a06b308cbc4e18cb51958e85b6c23aec3b",
       "sdk/python/docs/api-reference.md": "cd9948e7d014c52ba826e86517bb502b8f97044d2e677bf7aec197252e7ab495"
@@ -1960,7 +1974,8 @@
     "Commit efe3017b removes the obsolete post-workspace Theory ABI generator, JSON prompt surface, stage checkpoint and recovery route, parent-interface binding payload, and dead retry configuration. One persistent model session now owns Markdown/LaTeX mathematics, executable ABI revisions, raw validator feedback, and checkpoint; runtime still supplies no scientific content or repair action.",
     "Commit e3255046 makes the same Theory owner's progress checkpoint restore cumulative reads, writes, document inspections, scratch executions, source observations, immutable source-run manifests, and result reads across context windows. Identity and count mismatches fail closed; runtime chooses no research action or mathematical interpretation and adds no tool, agent, reviewer, repair route, or scheduler.",
     "Commit f56db3a7 keeps document-authoritative estimator handoffs to id, name, and compact executable ABI while mathematical content remains in Markdown/LaTeX. Unsupported nested ABI metadata is named exactly in the raw same-session validation observation; runtime does not project, patch, or infer the desired payload.",
-    "Commit 7b07d9e7 returns a rejected forced-terminal submission to the same source-owning client-tool history under a separate bounded recovery-action budget, permitting inspect/read, exact edit, and recommit while duplicate rejection fails on no progress and successful termination remains final."
+    "Commit 7b07d9e7 returns a rejected forced-terminal submission to the same source-owning client-tool history under a separate bounded recovery-action budget, permitting inspect/read, exact edit, and recommit while duplicate rejection fails on no progress and successful termination remains final.",
+    "Commit bfae4e13 preserves one final model-tool-observation-model continuation for a terminal disposition after the last ordinary action. The continuation keeps the same transcript and stable tool surface, allows only terminal tools, and cannot retry a terminal attempt or execute more research."
     ],
     "preserved_boundaries": [
       "independent reviewer invocation",
@@ -1970,12 +1985,12 @@
       "same-session raw tool and validation feedback",
       "execution, semantic review, simulation, and Lean-kernel evidence remain separate"
     ],
-    "verification": "The official Codex checkout is rechecked through 8aea62b2. Focused Theory/referee tests passed 156/156 and the complete repository passed 988/988 in 78.68 seconds. Compileall, diff hygiene, and the unchanged architecture line budget passed with production Python at 149999 lines. No live model was called; no consumed task was rerun, resumed, repaired, hidden-evaluated again, rescored, or granted new capability credit; no Codex transport, provider, goal extension, thread storage, Guardian, shared-cwd subagent, or scheduler was imported.",
+    "verification": "The official Codex checkout is rechecked through 6be2a6ca. The shared client-loop, Theory, scientific-code, Lean, Critic, and architecture panel passed 137/137; the complete repository passed 995/995 in 80.45 seconds. Compileall, diff hygiene, and the unchanged architecture line budget passed with production Python at 149998 lines. No post-run model or hidden-evaluator call occurred; no consumed task was rerun, resumed, repaired, re-evaluated, rescored, or granted new capability credit; no Codex transport, provider, goal extension, thread storage, Guardian, subagent system, or scheduler was imported.",
     "live_validation_runs": 22,
     "fresh_live_client_tool_model_turns": 1094,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "No consumed task was rerun, resumed, repaired, hidden-evaluated again, or rescored. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen automated protocols and recorded caveats. Task 57's automated pass is operator-invalidated; Task 58 stopped before hidden evaluation and its unaccepted mathematics is operator-invalidated; Task 59 failed hidden Theory and code checks; Task 60 failed hidden Theory; Task 61 is operator-invalidated for active Theory and code defects after blocking before runtime Simulation; the variance-ratio benchmark remains operator-invalid; all other failed valid draws retain 0/1. The trusted aggregate is 4/61, and exact Lean closure remains 0/2 and separate."
+    "boundary": "All seventy-three consumed draws remain immutable. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen protocols and recorded caveats; every other draw retains its recorded 0/1 or operator-invalid disposition. Task 73's post-run mechanism is future-task evidence only. Trusted aggregate is 4/73 and exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -3419,7 +3434,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/72 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Tasks 69 through 72 add component diagnostics but no full-task credit. Task 72 is immutable 0/1 after runtime blocked in code review, hidden theory semantics remained inconclusive, and operator audit invalidated public-domain, closed-ABI, tail-identity, and empirical-protocol claims. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
+    "fully_gold_covered_research_tasks": "4/73 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 73 is immutable 0/1: hidden algorithm and empirical components passed, hidden Theory semantics were inconclusive, Critic did not submit its terminal packet, and operator audit invalidated a false contextual extreme-value claim accepted by the runtime referee. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -3530,6 +3545,9 @@
     "Keep the active Statlib pin as the only importable authority while indexing newer upstream Statlib snapshots under a separate non-importable discovery identity; migrate the project pin only after whole-project compile and declaration-compatibility checks.",
     "Use the existing same-task resumable document checkpoint on a future unrelated frozen task before extending memory further. Later add durable cross-task definition/assumption/equation/claim references without turning public discovery or independent contrary-source review into a memory service or literature-router hierarchy.",
     "Improve Formalizer through direct proof-state retrieval and source iteration, but keep it parallel or downstream for non-formal product tasks and mandatory only when frozen task intent requires proof.",
-    "Delete or extract existing central runtime responsibilities before adding any new outer control feature."
+    "Delete or extract existing central runtime responsibilities before adding any new outer control feature.",
+    "Preserve Task 73 at immutable 0/1. Its hidden algorithm 8/8 and empirical 10/10 are component evidence only; never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed hidden/operator findings to its source owners. Commit bfae4e13 is future-task lifecycle evidence only.",
+    "Use the next disjoint evaluation to measure an underrepresented capability such as source replication, R execution, long-horizon Theory revision, or optional proof-state-driven Lean work. Freeze visible scope and evaluator-only authority before any product call, and do not select another task merely to demonstrate the terminal-continuation mechanism.",
+    "Continue selective Codex reuse at the invariant level: one source owner, stable tools, raw observations, durable external artifacts, and clean termination. Do not embed Codex Core, App Server, Responses transport, SDK threads, worktree management, or multi-agent scheduling into the Anthropic-backed scientific runtime."
   ]
 }

@@ -1,0 +1,79 @@
+{
+  "artifact_kind": "RuntimeAgentTaskContinuation",
+  "continuation_id": "agent_task_continuation:f9cf0f8bdf2f91874f5b",
+  "original_task_hash": "f9cf0f8bdf2f91874f5bea06ff41efe7e7d7a45e25519a9907d7e17e20055403",
+  "payload_policy": "content_addressed_input_refs",
+  "schema_version": 1,
+  "task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:ffda1975ff6feba32598",
+    "allowed_tools": [
+      "model_backend",
+      "research_simulator",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "simulation_manifest",
+      "implementation_gap_manifest"
+    ],
+    "input_keys": [
+      "architect_context",
+      "environment_feedback",
+      "generated_code_semantic_review_revision_count",
+      "n_runs",
+      "question",
+      "seed",
+      "theory_packet_id"
+    ],
+    "inputs_hash": "10ef5ab35c104427ac894e85b22d0473b04f2d65ba19a243433a15f4d98c029c",
+    "objective_ref": "task_objective:767f0e9951342eba677e",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition_ref": "task_stop_condition:42f58febded770229e25",
+    "task_id": "semantic-review-producer-regenerate:exponential_maximum_gumbel_known_result:c77af622",
+    "task_snapshot_hash": "99cdb8ccf0f1d6410ee2b0940ed694728766a30a3b76a3f91e3453f48df0717a"
+  },
+  "task_template": {
+    "acceptance_gate": "a changed complete model-generated candidate executes and passes a new independent semantic review",
+    "allowed_tools": [
+      "model_backend",
+      "research_simulator",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "budget": {},
+    "expected_artifacts": [
+      "simulation_manifest",
+      "implementation_gap_manifest"
+    ],
+    "inputs": {
+      "architect_context": {
+        "artifact_hash": "4da8c9e54965af7a19a347e96487c8c609493c1038aee4e9c1dc7b77231192f3",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "a55854f3470a32761783162eee95790f529648798f769fe231d52f47ad41b038",
+        "mapping_id": "agent_task_input_mapping:a55854f3470a32761783"
+      },
+      "environment_feedback": {
+        "artifact_hash": "d2de3ac609cccd89df9aa02c4a1c91172e57ef1cd6e0e547e270ada27776379f",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "dd8da5cbad3f3ac795900605794f1e3e7536b3d2ddcadb4b7fd1f89575a3404c",
+        "mapping_id": "agent_task_input_mapping:dd8da5cbad3f3ac79590"
+      },
+      "generated_code_semantic_review_revision_count": 1,
+      "n_runs": 100,
+      "question": {
+        "artifact_hash": "9e44f8aa1c3fb5d7b7320a4d7d0e4975640ea53d8667afc4a1d64c70c327c09a",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "5990a9155085e06a8f1f268a302e9d829166a7316bec49fa5d63f14f5f5b37cd",
+        "mapping_id": "agent_task_input_mapping:5990a9155085e06a8f1f"
+      },
+      "seed": 20260528,
+      "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+    },
+    "objective": "Continue the exact source-owner workspace from its reviewed candidate, execution result, and independent semantic-review observations.",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition": "the source producer emits a complete replacement candidate or the bounded lineage records a blocker",
+    "task_id": "semantic-review-producer-regenerate:exponential_maximum_gumbel_known_result:c77af622"
+  }
+}

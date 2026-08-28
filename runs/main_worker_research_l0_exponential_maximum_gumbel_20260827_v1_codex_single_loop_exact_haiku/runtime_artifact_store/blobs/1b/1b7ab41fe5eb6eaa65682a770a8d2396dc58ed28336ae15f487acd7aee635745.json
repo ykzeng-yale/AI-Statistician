@@ -1,0 +1,76 @@
+{
+  "artifact_kind": "RuntimeAgentTaskContinuation",
+  "continuation_id": "agent_task_continuation:315345b1512bd83e6947",
+  "original_task_hash": "315345b1512bd83e69478120ba8fe0f2b78631889eb12bbc3d9ab223d8891063",
+  "payload_policy": "content_addressed_input_refs",
+  "schema_version": 1,
+  "task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:cc6734c23099e6648a4c",
+    "allowed_tools": [
+      "model_backend",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "algorithm_sandbox_manifest"
+    ],
+    "input_keys": [
+      "architect_context",
+      "implementation_gaps",
+      "n_runs",
+      "question",
+      "seed",
+      "simulation_manifest_id",
+      "theory_packet_id"
+    ],
+    "inputs_hash": "18e28a548152f755716b85a8654bcf0e4973a47343579da34c58ceccba74fdca",
+    "objective_ref": "task_objective:ca001a6f2a7a88c69cf8",
+    "owner_subsystem": "AlgorithmEngineer",
+    "stop_condition_ref": "task_stop_condition:99c42e054c7756291c5f",
+    "task_id": "algorithm:exponential_maximum_gumbel_known_result:52b626e3",
+    "task_snapshot_hash": "526baa3ecaefc2b7eb5c36574e5d2fb5b5019cc3a8da455515ecdac426e7e200"
+  },
+  "task_template": {
+    "acceptance_gate": "algorithm sandbox manifest plus generated-code capability evidence or an explicit blocker",
+    "allowed_tools": [
+      "model_backend",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "budget": {},
+    "expected_artifacts": [
+      "algorithm_sandbox_manifest"
+    ],
+    "inputs": {
+      "architect_context": {
+        "artifact_hash": "5eb914f2ce3dfb9be247007a75e642fa6bd50cd681699ec576c2b32f7e8ddfe0",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "ef33531655b73ff0d35f74e262daf967f2ad286e9a277f1f4e07c549cd8b1062",
+        "mapping_id": "agent_task_input_mapping:ef33531655b73ff0d35f"
+      },
+      "implementation_gaps": [
+        {
+          "estimator_id": "est_exponential_maximum_gumbel",
+          "reason": "Agentic execution requires this LLM estimator spec to pass through generated code, sandbox execution, and independent semantic review. DGP-based statistical-performance gates belong to the downstream SimulationEngineer experiment. Task-family registries cannot satisfy this generated-artifact evidence gate.",
+          "status": "REQUIRES_GENERATED_ALGORITHM_ENGINEER_ADAPTER"
+        }
+      ],
+      "n_runs": 100,
+      "question": {
+        "artifact_hash": "2a35933296889fca7380ccb22f3511c9bb45c9d8e60d2a8fa29d7b0b90d5fc12",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "de31381d3fe4b39520a245275d0e984c9ed6a6e10c61bc04a7781df34e348b5a",
+        "mapping_id": "agent_task_input_mapping:de31381d3fe4b39520a2"
+      },
+      "seed": 20260528,
+      "simulation_manifest_id": "",
+      "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+    },
+    "objective": "Execute algorithm sandbox and generated-code diagnostics requested by the Architect model plan.",
+    "owner_subsystem": "AlgorithmEngineer",
+    "stop_condition": "algorithm sandbox diagnostics recorded for the next typed task",
+    "task_id": "algorithm:exponential_maximum_gumbel_known_result:52b626e3"
+  }
+}

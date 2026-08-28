@@ -1,0 +1,43 @@
+{
+  "artifact_id": "confirmatory_simulation:245f60015b79b9948c4a",
+  "artifact_kind": "ScientificSandboxExecutionRequest",
+  "backend": "pyodide",
+  "code_hash": "d0a7011b1b6e5fdff9f6f45c4cfd53b7edded1e04091aab45014e6ddbaf936e8",
+  "code_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/b46e19d34192/confirmatory_simulation_245f60015b79b9948c4a_7eb8f3e646c3c8f0_generated_draft.py",
+  "dependencies": [
+    "numpy",
+    "scipy"
+  ],
+  "estimators": [
+    {
+      "artifact_id": "est_exponential_maximum_gumbel",
+      "code_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+      "code_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/b46e19d34192/confirmatory_simulation_245f60015b79b9948c4a_7eb8f3e646c3c8f0_estimator_0.py",
+      "dependencies": [],
+      "language": "python"
+    }
+  ],
+  "execution_profile": "scientific_wasm",
+  "host_filesystem_policy": "read pinned runtimes plus exact code/request artifacts; write exact result/log artifacts only",
+  "input_artifacts": [],
+  "invocation_mode": "estimator_bound",
+  "language": "python",
+  "network_access": false,
+  "proof_evidence_status": "SCIENTIFIC_SANDBOX_REQUEST_NOT_PROOF_EVIDENCE",
+  "replicates": 128,
+  "required_callable_exports": [],
+  "resource_limits": {
+    "cpu_seconds": 61,
+    "file_size_bytes": 16777216,
+    "node_heap_mb": 768,
+    "open_files": 64
+  },
+  "runtime": {
+    "pyodide_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.mjs",
+    "pyodide_root": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide",
+    "webr_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/webr/dist/webr.mjs"
+  },
+  "schema_version": 1,
+  "secret_environment_inherited": false,
+  "seed": 20260528
+}

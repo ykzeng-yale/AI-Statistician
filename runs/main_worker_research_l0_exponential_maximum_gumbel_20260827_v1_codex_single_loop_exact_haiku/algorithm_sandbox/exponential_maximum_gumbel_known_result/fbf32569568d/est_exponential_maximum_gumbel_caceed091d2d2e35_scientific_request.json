@@ -1,0 +1,34 @@
+{
+  "artifact_id": "est_exponential_maximum_gumbel",
+  "artifact_kind": "ScientificSandboxExecutionRequest",
+  "backend": "pyodide",
+  "code_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+  "code_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/fbf32569568d/est_exponential_maximum_gumbel_caceed091d2d2e35_generated_draft.py",
+  "dependencies": [],
+  "estimators": [],
+  "execution_profile": "scientific_wasm",
+  "host_filesystem_policy": "read pinned runtimes plus exact code/request artifacts; write exact result/log artifacts only",
+  "input_artifacts": [],
+  "invocation_mode": "standalone",
+  "language": "python",
+  "network_access": false,
+  "proof_evidence_status": "SCIENTIFIC_SANDBOX_REQUEST_NOT_PROOF_EVIDENCE",
+  "replicates": 100,
+  "required_callable_exports": [
+    "run_estimator"
+  ],
+  "resource_limits": {
+    "cpu_seconds": 61,
+    "file_size_bytes": 16777216,
+    "node_heap_mb": 768,
+    "open_files": 64
+  },
+  "runtime": {
+    "pyodide_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.mjs",
+    "pyodide_root": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide",
+    "webr_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/webr/dist/webr.mjs"
+  },
+  "schema_version": 1,
+  "secret_environment_inherited": false,
+  "seed": 20260528
+}

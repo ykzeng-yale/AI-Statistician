@@ -1,0 +1,40 @@
+{
+  "artifact_id": "semantic-review-probe:5a5b4bf09cbac1b345d6",
+  "artifact_kind": "ScientificSandboxExecutionRequest",
+  "backend": "pyodide",
+  "code_hash": "50fbfe4a77e699fabf3877c2939de25dd40c50c59a07d3b37d8bc23afd7bdeee",
+  "code_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/9dd7e36b86f44b323062/probe-2/semantic-review-probe_5a5b4bf09cbac1b345d6_d84a3516621942f6_generated_draft.py",
+  "dependencies": [],
+  "estimators": [
+    {
+      "artifact_id": "est_exponential_maximum_gumbel",
+      "code_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+      "code_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/9dd7e36b86f44b323062/probe-2/semantic-review-probe_5a5b4bf09cbac1b345d6_d84a3516621942f6_estimator_0.py",
+      "dependencies": [],
+      "language": "python"
+    }
+  ],
+  "execution_profile": "scientific_wasm",
+  "host_filesystem_policy": "read pinned runtimes plus exact code/request artifacts; write exact result/log artifacts only",
+  "input_artifacts": [],
+  "invocation_mode": "estimator_bound",
+  "language": "python",
+  "network_access": false,
+  "proof_evidence_status": "SCIENTIFIC_SANDBOX_REQUEST_NOT_PROOF_EVIDENCE",
+  "replicates": 1,
+  "required_callable_exports": [],
+  "resource_limits": {
+    "cpu_seconds": 61,
+    "file_size_bytes": 16777216,
+    "node_heap_mb": 768,
+    "open_files": 64
+  },
+  "runtime": {
+    "pyodide_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.mjs",
+    "pyodide_root": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide",
+    "webr_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/webr/dist/webr.mjs"
+  },
+  "schema_version": 1,
+  "secret_environment_inherited": false,
+  "seed": 42
+}

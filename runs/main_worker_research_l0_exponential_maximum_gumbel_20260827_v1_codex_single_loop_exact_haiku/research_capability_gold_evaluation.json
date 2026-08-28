@@ -1,0 +1,313 @@
+{
+  "schema_version": 4,
+  "artifact_kind": "ResearchCapabilityGoldEvaluation",
+  "configured": true,
+  "created_at": "2026-08-28T03:55:12.637367+00:00",
+  "benchmark_id": "research-l0-exponential-maximum-gumbel-20260827-v1",
+  "benchmark_manifest_hash": "1c27f187a1c61345dbeb07529fe7160c17831253bc8172fbf11bf5c1e24fd91a",
+  "benchmark_authority_location_disclosed": false,
+  "gold_visibility": "evaluator_only_after_runtime_termination",
+  "n_active_tasks": 1,
+  "n_tasks_evaluated": 1,
+  "n_tasks_passed": 0,
+  "n_full_task_gold_configured": 1,
+  "all_active_tasks_passed": false,
+  "tasks": [
+    {
+      "task_id": "exponential_maximum_gumbel_known_result",
+      "level": "L0",
+      "scoring_scope": "full_task",
+      "full_task_gold_configured": true,
+      "runtime_result_observed": true,
+      "runtime_research_eval_complete": false,
+      "runtime_visible_question_hash": "de31381d3fe4b39520a245275d0e984c9ed6a6e10c61bc04a7781df34e348b5a",
+      "accepted_algorithm_handoff_id": "accepted_algorithm_handoff:f7edaf168197ce939c63",
+      "accepted_algorithm_handoff_hash": "96707883ada6d428b7e62d9257a32d163fbeb39e21a8afd008ecd585b5e18475",
+      "required_estimator_id": "est_exponential_maximum_gumbel",
+      "estimator_execution_contract_id": "frozen_estimator_execution_contract:90997e9f719a153b4588",
+      "evaluated_source_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+      "hidden_evaluator_source_hash": "9c040ab8cd6d6f3238b3a656ccadb505bc5c4956ebf11f8c724ae68f6b25ccec",
+      "hidden_harness_execution_attempted": true,
+      "hidden_harness_execution_passed": true,
+      "hidden_checks_passed": true,
+      "hidden_check_results": [
+        {
+          "check_id_hash": "84f8677764d99083b5802fb641ac8dccdaf21a4d949df7be2cc6af856e43ade1",
+          "passed": true
+        },
+        {
+          "check_id_hash": "4553a6c865113d719dc04dc7a1d2319a26fd97d21a306fa0aa02f3cda2f902d6",
+          "passed": true
+        },
+        {
+          "check_id_hash": "4dc66f19a5558840b765a8cbb824e9e4223d2b48406a8dc2d80670082001590e",
+          "passed": true
+        },
+        {
+          "check_id_hash": "201ff98b1d682b30ad8f1970e7087d22535b49d0a45c4e71773971ff2afadf60",
+          "passed": true
+        },
+        {
+          "check_id_hash": "23243ca56d59f8cc4bd7e33aae53ba44eec0d93571adc8b96508d3d02e20ac36",
+          "passed": true
+        },
+        {
+          "check_id_hash": "e200c4eaead4caea8b5c55c98a5f32bc8c5a08afa3beb6696d9a0a720f8ef147",
+          "passed": true
+        },
+        {
+          "check_id_hash": "0848c5b65a16586696beea13ed1ba18aee9ad8ea2b99296b889314ccf6144174",
+          "passed": true
+        },
+        {
+          "check_id_hash": "a22ecc635614a136cccb72897aa5488248ea297f82f90984faa4568a651617a8",
+          "passed": true
+        }
+      ],
+      "accepted_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+      "accepted_theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+      "accepted_theory_document_count": 2,
+      "accepted_theory_document_set_hash": "44c0b81c87531c6874424efd2762e7fa210b2a09c7b58f2a37a9c2bb3a940327",
+      "hidden_theory_evaluation_configured": true,
+      "hidden_theory_evaluator_source_hash": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+      "hidden_theory_execution_attempted": true,
+      "hidden_theory_execution_passed": true,
+      "hidden_theory_checks_passed": true,
+      "hidden_theory_check_results": [
+        {
+          "check_id_hash": "68997f4d0e2e3ab06075d39a3acdc568bb625d1aeb494e25dc9097dc08952fbd",
+          "passed": true
+        },
+        {
+          "check_id_hash": "cda9b68934757b50ac404781a39bd894a9206a7c2713ac8ad903af4d32988fc9",
+          "passed": true
+        },
+        {
+          "check_id_hash": "42735da9cafbeec206ad2db34895ba42447453649b7ceda1ea398f244ebd35ac",
+          "passed": true
+        },
+        {
+          "check_id_hash": "089b4499fe197eee412bad5ae20e672d2c3465a697d186999fb42bb352019f5a",
+          "passed": true
+        },
+        {
+          "check_id_hash": "60196120305b8cfbd7c88c5d2bf343c44d62389fdddd73729807e3c1bfbc8189",
+          "passed": true
+        },
+        {
+          "check_id_hash": "6f761e007e8375c4e4716b28f4dab8054c1603219ff133e35fb62c4e5b4e77ea",
+          "passed": true
+        },
+        {
+          "check_id_hash": "b4acfcaa31cb1289b466eda6bbeb112da85e469cfbe89be7b12d41acd5e28367",
+          "passed": true
+        }
+      ],
+      "hidden_theory_semantic_evaluation_configured": true,
+      "hidden_theory_semantic_evaluator_hash": "1fb8278eca551d9e069a14540e716fc02ff66141d6bab579928a69c08eec1ad3",
+      "hidden_theory_semantic_execution_attempted": true,
+      "hidden_theory_semantic_judge_calibrated": true,
+      "hidden_theory_semantic_calibration_case_count": 4,
+      "hidden_theory_semantic_calibration_cases_correct": 4,
+      "hidden_theory_semantic_candidate_mode_negative_case_count": 1,
+      "hidden_theory_semantic_candidate_mode_negative_cases_correct": 1,
+      "hidden_theory_semantic_candidate_mode_negative_model_calls": 0,
+      "hidden_theory_semantic_candidate_mode_negative_controls_passed": true,
+      "hidden_theory_semantic_claim_count": 8,
+      "hidden_theory_semantic_candidate_status": "INCONCLUSIVE",
+      "hidden_theory_semantic_candidate_document_status": "PASS",
+      "hidden_theory_semantic_candidate_integrated_context": true,
+      "hidden_theory_semantic_candidate_model_calls": 1,
+      "hidden_theory_semantic_claim_assessments": [
+        {
+          "claim_id_hash": "5a39c644e66df9dfd21b127548886099552f976ba0971b5127849a412240913a",
+          "status": "SATISFIED",
+          "decisive_excerpt_hash": "77f15ac762dc07909b0ce789bb96980d34bd23ba2e057be8ad68cced41aa0546"
+        },
+        {
+          "claim_id_hash": "c057377b0e47a1b28186968db3730f0ac4a79894ecfc21f6ad04a8285e3c98cc",
+          "status": "SATISFIED",
+          "decisive_excerpt_hash": "08b8d1bfa2163d48124d2e808a8ddf565abc43ecee64c708c801d1a308b0f92d"
+        },
+        {
+          "claim_id_hash": "113623f520c4154ef2e755244d4992d76f186730500b087f9974886f101e7f98",
+          "status": "SATISFIED",
+          "decisive_excerpt_hash": "abfa27353db2d45a0798d35b38421134a845fea3f3da62750417a394b1b960d9"
+        },
+        {
+          "claim_id_hash": "91c3f2beff42159eacaee79433261fc9377f6fc20b666267b223807f6a673244",
+          "status": "SATISFIED",
+          "decisive_excerpt_hash": "d748c039f61b3132548a9376fca58ca744ddb863ad5dc0b35d9b917251c20a66"
+        },
+        {
+          "claim_id_hash": "00e34a1a4eb9b86fcb4c44dc2ac9515b4ce3c4741e505e424c73388e7ed24eda",
+          "status": "SATISFIED",
+          "decisive_excerpt_hash": "bf277cef5bd3ea9d94398ef9daf35d71f6d176d45fc25e626940ad383d33cfa9"
+        },
+        {
+          "claim_id_hash": "70b7cf5fca1ba213502d713443dd4896b51c94d805185a81934ad2f7d507141a",
+          "status": "SATISFIED",
+          "decisive_excerpt_hash": "48ef49c8f247a152f89aed2018bd29057c4ed0fb77a842f54559a28a6811277c"
+        },
+        {
+          "claim_id_hash": "7262d25970529f21be85a5e262d98e1cbf41e4efbd4c652494c98abf9b7521a2",
+          "status": "INCONCLUSIVE",
+          "decisive_excerpt_hash": "d927e24cdf005f6b9f8dc0240bf2639244aeb930cbaa769a074226285fc25c0e"
+        },
+        {
+          "claim_id_hash": "f3a1e1de81647d4e1c4ccfbde57ae58f7d36ff7e580a213e5d6e133736350e39",
+          "status": "INCONCLUSIVE",
+          "decisive_excerpt_hash": "c3d457de3bdb950d2b7cc68a523e4bc40e49c958552fe3c113c72afd308e83fa"
+        }
+      ],
+      "hidden_theory_semantic_passed": false,
+      "hidden_theory_combined_passed": false,
+      "hidden_empirical_evaluation_configured": true,
+      "hidden_empirical_evaluator_source_hash": "d43eb962d246ba1537f23e9881dedc7477c149fa7dfe5a3a4fc88f7e0b1a209a",
+      "hidden_empirical_execution_attempted": true,
+      "hidden_empirical_execution_passed": true,
+      "hidden_empirical_checks_passed": true,
+      "hidden_empirical_check_results": [
+        {
+          "check_id_hash": "13569d20f8d04840f5dc7cb514c0707005cac7057a9adc808db937a2b2c7a1ff",
+          "passed": true
+        },
+        {
+          "check_id_hash": "d16698ca3f65c3543584cedb64a80bebe513a37c24302e8a373a0743506aadd6",
+          "passed": true
+        },
+        {
+          "check_id_hash": "3ec2178385455bac41abfc1efc76378cc76ad8c7213573b555681aa00f2286a6",
+          "passed": true
+        },
+        {
+          "check_id_hash": "513e4b940dd55e4b9cde5e9d1b7acc6b165ad894e5272e64ad0705bc7c49609f",
+          "passed": true
+        },
+        {
+          "check_id_hash": "ad5776c8eb3987cd43c192ce13fdea8ab125f75e3d6ec52f9c08f3f8da4ca41a",
+          "passed": true
+        },
+        {
+          "check_id_hash": "8efaf639f71fa63f601332974fbdfa6b569604658b1dca6eb67bfe6a4fac5418",
+          "passed": true
+        },
+        {
+          "check_id_hash": "36bc7efd75b98ca89fee25d35fcac5659644b99be02bbda733e59338e2da3799",
+          "passed": true
+        },
+        {
+          "check_id_hash": "17c615792ecf9018d3a4a9c1c129662fedfc00bac16557ef83266aebe7dd5712",
+          "passed": true
+        },
+        {
+          "check_id_hash": "bf7c0662b46cbf17c0ff96c6a627a9b70771c5a6d67fc57921bb66e5dfb93b48",
+          "passed": true
+        },
+        {
+          "check_id_hash": "361599cfff86ac899bc0fb2d7529742b5988ed746327618a9f24536d6ff571cb",
+          "passed": true
+        }
+      ],
+      "source_replication_manifest_id": "",
+      "source_replication_manifest_hash": "",
+      "hidden_source_replication_evaluation_configured": false,
+      "hidden_source_replication_evaluator_source_hash": "",
+      "hidden_source_replication_execution_attempted": false,
+      "hidden_source_replication_execution_passed": false,
+      "hidden_source_replication_checks_passed": false,
+      "hidden_source_replication_check_results": [],
+      "hidden_source_replication_identity_passed": false,
+      "hidden_source_report_semantic_evaluation_configured": false,
+      "hidden_source_report_semantic_evaluator_hash": "",
+      "hidden_source_report_semantic_execution_attempted": false,
+      "hidden_source_report_semantic_judge_calibrated": false,
+      "hidden_source_report_semantic_calibration_case_count": 0,
+      "hidden_source_report_semantic_calibration_cases_correct": 0,
+      "hidden_source_report_semantic_candidate_mode_negative_case_count": 0,
+      "hidden_source_report_semantic_candidate_mode_negative_cases_correct": 0,
+      "hidden_source_report_semantic_candidate_mode_negative_model_calls": 0,
+      "hidden_source_report_semantic_candidate_mode_negative_controls_passed": false,
+      "hidden_source_report_semantic_claim_count": 0,
+      "hidden_source_report_semantic_candidate_status": "",
+      "hidden_source_report_semantic_candidate_document_status": "",
+      "hidden_source_report_semantic_candidate_integrated_context": false,
+      "hidden_source_report_semantic_candidate_model_calls": 0,
+      "hidden_source_report_semantic_claim_assessments": [],
+      "hidden_source_report_semantic_passed": false,
+      "hidden_source_replication_combined_passed": false,
+      "source_replication_report_document_hash": "",
+      "source_replication_checkpoint_valid": false,
+      "unresolved_gap_disclosure_present": false,
+      "dimension_status": {
+        "source_replication": {
+          "requirement": "not_applicable",
+          "status": "not_applicable",
+          "gold_validated": false,
+          "evidence_authority": "not_configured"
+        },
+        "theory": {
+          "requirement": "required",
+          "status": "runtime_reviewed_not_gold_validated",
+          "gold_validated": false,
+          "evidence_authority": "runtime_independent_review"
+        },
+        "scientific_code": {
+          "requirement": "required",
+          "status": "passed",
+          "gold_validated": true,
+          "evidence_authority": "evaluator_only_hidden_harness"
+        },
+        "empirical": {
+          "requirement": "required",
+          "status": "passed",
+          "gold_validated": true,
+          "evidence_authority": "evaluator_only_hidden_empirical_harness"
+        },
+        "formal": {
+          "requirement": "not_applicable",
+          "status": "not_applicable",
+          "gold_validated": false,
+          "evidence_authority": "not_configured"
+        },
+        "novelty": {
+          "requirement": "not_applicable",
+          "status": "not_applicable",
+          "gold_validated": false,
+          "evidence_authority": "not_configured"
+        },
+        "unresolved_gaps": {
+          "requirement": "required",
+          "status": "failed",
+          "gold_validated": false,
+          "evidence_authority": "runtime_critic_disclosure"
+        },
+        "overall_runtime_research_loop": {
+          "requirement": "required",
+          "status": "failed",
+          "gold_validated": false,
+          "evidence_authority": "runtime_completion_contract"
+        }
+      },
+      "task_passed": false,
+      "failure_reasons": [
+        "hidden theory acceptance checks did not all pass",
+        "required evidence dimension did not pass: theory",
+        "required evidence dimension did not pass: unresolved_gaps",
+        "required evidence dimension did not pass: overall_runtime_research_loop"
+      ],
+      "proof_evidence_status": "GOLD_EVALUATION_NOT_PROOF_EVIDENCE",
+      "boundary": "Evaluator-only gold runs after the AgentRuntime has terminated. Hidden harness source, expected values, and acceptance checks are never added to the blackboard, retrieval context, model prompt, or source-revision loop.",
+      "hidden_theory_result_hash": "2448162397b7703a7f48b7085f566f96c6179c7bac3eeaf4f72af86fd45a11b6",
+      "hidden_theory_semantic_result_hash": "a0d44bb2bdf9ae407a081750fa313f3a92c922e896a82ce608d2e0fd9d272fdf",
+      "hidden_harness_result_hash": "825fa3b015cc8e93eb8eb50cc5825c2a52b86746c3637f13d11f8467b00eb2d4",
+      "hidden_harness_estimator_invocation_count": 27,
+      "hidden_empirical_result_hash": "32f559c8175e07e118551d6f297c38f00c176ef3e9e1aefa1bd90bed778ed0ee",
+      "hidden_empirical_estimator_invocation_count": 16000
+    }
+  ],
+  "hidden_expected_values_disclosed": false,
+  "runtime_feedback_generated": false,
+  "proof_evidence_status": "GOLD_EVALUATION_NOT_PROOF_EVIDENCE",
+  "boundary": "Evaluator-only gold runs after the AgentRuntime has terminated. Hidden harness source, expected values, and acceptance checks are never added to the blackboard, retrieval context, model prompt, or source-revision loop."
+}

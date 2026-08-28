@@ -1,0 +1,30 @@
+{
+  "acceptance_id": "architect_theory_execution_preflight_acceptance:f1642659640a631f8b4c",
+  "algorithm_execution_authorized": false,
+  "algorithm_execution_available": true,
+  "artifact_kind": "RuntimeArchitectTheoryExecutionPreflightAcceptance",
+  "boundary": "Independent source-grounded preflight accepted the current theory artifact for downstream use selected by the existing Architect plan. It does not select a worker, freeze empirical metrics, authorize execution, accept statistical performance, or prove a theorem.",
+  "confirmatory_simulation_authorized": false,
+  "empirical_evaluation_available": true,
+  "execution_results_observed": false,
+  "formalization_evaluation_available": false,
+  "full_metric_authoring_completed": false,
+  "preflight_packet_hash": "056b7432e7109077804feace9e2680b7932001fa644a1c891d8726205a28adee",
+  "preflight_packet_id": "architect_theory_execution_preflight:cce4724daabf97881c3d",
+  "proof_evidence_status": "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_ACCEPTANCE_NOT_PROOF_EVIDENCE",
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "runtime_selected_next_owner": false,
+  "runtime_selected_semantics": false,
+  "schema_version": 1,
+  "source_task_id": "architect-metric-protocol:exponential_maximum_gumbel_known_result:d327e7cf",
+  "source_theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+  "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "theory_execution_preflight_packet": {
+    "artifact_id": "architect_theory_execution_preflight:cce4724daabf97881c3d",
+    "artifact_kind": "RuntimeArtifactRef",
+    "content_hash": "056b7432e7109077804feace9e2680b7932001fa644a1c891d8726205a28adee",
+    "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+    "payload_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+    "reference_scope": "runtime_blackboard"
+  }
+}

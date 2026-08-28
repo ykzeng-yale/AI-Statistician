@@ -1,0 +1,10 @@
+{
+  "failures": [
+    {
+      "error": "Did not raise ValueError",
+      "test": "reject_tuple"
+    }
+  ],
+  "tests_failed": 1,
+  "tests_passed": 15
+}

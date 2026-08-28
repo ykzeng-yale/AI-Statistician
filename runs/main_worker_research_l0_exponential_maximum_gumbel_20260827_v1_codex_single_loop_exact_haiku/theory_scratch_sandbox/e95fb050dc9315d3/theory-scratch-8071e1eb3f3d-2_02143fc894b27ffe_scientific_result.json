@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ScientificSandboxExecutionEnvelope",
+  "ok": true,
+  "language": "python",
+  "backend": "pyodide",
+  "metrics": {
+    "test_1_permutation_invariance": true,
+    "test_2_all_zeros_centered": -2.302585092994046,
+    "test_2_all_zeros_exact_cdf": 2.913414348125081e-157,
+    "test_2_all_zeros_is_zero": true,
+    "test_2_all_zeros_maximum": 0,
+    "test_3_y0_exact_cdf": 0.3584859224085419,
+    "test_3_y0_exact_error": 0,
+    "test_3_y0_exact_expected": 0.3584859224085419,
+    "test_3_y0_gumbel_cdf": 0.36787944117144233,
+    "test_3_y0_gumbel_error": 0,
+    "test_3_y0_gumbel_expected": 0.36787944117144233,
+    "test_4_large_sample_centered": 0.5733353542208697,
+    "test_4_large_sample_exact_cdf": 0.5689513867356508,
+    "test_4_large_sample_gumbel_cdf": 0.5691323031512118,
+    "test_4_large_sample_max": 6.787943452643061,
+    "test_4_large_sample_size": 500,
+    "test_5_all_cdfs_in_bounds": true,
+    "test_6_all_gumbel_in_bounds": true,
+    "test_7_all_support_satisfied": true
+  },
+  "estimator_invocation_counts": {},
+  "estimator_invocation_samples": {},
+  "started_at": "2026-08-28T03:43:32.002Z",
+  "completed_at": "2026-08-28T03:43:33.118Z"
+}

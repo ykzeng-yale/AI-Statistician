@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ScientificSandboxExecutionEnvelope",
+  "ok": true,
+  "language": "python",
+  "backend": "pyodide",
+  "metrics": {
+    "check_1_error_at_y0_n10": 0.019201001071442236,
+    "check_1_exact_cdf_at_y0_n10": 0.3486784401000001,
+    "check_1_gumbel_cdf_at_y0_n10": 0.36787944117144233,
+    "check_2_exact_cdf_at_boundary_n10": 2.913414348125081e-157,
+    "check_3_all_samples_satisfy_support": true,
+    "check_4_convergence_errors_at_y0": [
+      0.019201001071442236,
+      0.00370976108432558,
+      0.0018470998982131337,
+      0.00036818631428375825,
+      0.0001840164004786038
+    ],
+    "check_4_target_gumbel_cdf": 0.36787944117144233,
+    "check_5_cdf_values_sample": [
+      0,
+      0.00024329347941382212,
+      0.5275284128981373,
+      0.9503597690582861
+    ],
+    "check_5_exact_cdf_is_monotone": true,
+    "check_6_gumbel_cdf_in_unit_interval": true,
+    "check_6_gumbel_max": 0.9932847020678415,
+    "check_6_gumbel_min": 3.5073891964646352e-65,
+    "check_7_approximation_errors_at_y1": {
+      "10": 0.004785480939129005,
+      "50": 0.0009407723215537622,
+      "100": 0.00046938855282674385,
+      "500": 0.00009371879856290288
+    },
+    "check_8_centered_max": -1.4047647786749382,
+    "check_8_exact_cdf": 0.010500849069778814,
+    "check_8_gumbel_cdf": 0.016999553445106577,
+    "check_8_sample_max": 1.5909674948790526
+  },
+  "estimator_invocation_counts": {},
+  "estimator_invocation_samples": {},
+  "started_at": "2026-08-28T03:42:52.578Z",
+  "completed_at": "2026-08-28T03:42:55.733Z"
+}

@@ -1,0 +1,70 @@
+{
+  "artifact_kind": "RuntimeAgentTaskContinuation",
+  "continuation_id": "agent_task_continuation:6f1eb08d7799f40fe41b",
+  "original_task_hash": "6f1eb08d7799f40fe41b69e933e04818a213f3d4427af026196da1160b35ee9e",
+  "payload_policy": "content_addressed_input_refs",
+  "schema_version": 1,
+  "task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:568f1e850f5b62a94542",
+    "allowed_tools": [
+      "model_backend",
+      "research_simulator",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "simulation_manifest",
+      "implementation_gap_manifest"
+    ],
+    "input_keys": [
+      "architect_context",
+      "n_runs",
+      "question",
+      "seed",
+      "theory_packet_id"
+    ],
+    "inputs_hash": "fa5736ca2a39e08e195b3d3e251809ee5f4b50617ba00bf600bf5d3395069b28",
+    "objective_ref": "task_objective:a7c543ed60a33d10f440",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition_ref": "task_stop_condition:ad35cb476884372da962",
+    "task_id": "simulation:exponential_maximum_gumbel_known_result:01719d54",
+    "task_snapshot_hash": "8e3ace00b2fc90240e73614d36d34b648c903baca291331eaf47dadf36f4c802"
+  },
+  "task_template": {
+    "acceptance_gate": "simulation manifest plus generated-simulation capability evidence or an explicit blocker",
+    "allowed_tools": [
+      "model_backend",
+      "research_simulator",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "budget": {},
+    "expected_artifacts": [
+      "simulation_manifest",
+      "implementation_gap_manifest"
+    ],
+    "inputs": {
+      "architect_context": {
+        "artifact_hash": "f749b63ea2f76071eca2fd127bc089a61293d0d03e4de292893d833afc712bed",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "3ae431e34b95b7b0042f3717620a8c2e762a88392b330321a588ee6c12bc4e63",
+        "mapping_id": "agent_task_input_mapping:3ae431e34b95b7b0042f"
+      },
+      "n_runs": 100,
+      "question": {
+        "artifact_hash": "9e44f8aa1c3fb5d7b7320a4d7d0e4975640ea53d8667afc4a1d64c70c327c09a",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "5990a9155085e06a8f1f268a302e9d829166a7316bec49fa5d63f14f5f5b37cd",
+        "mapping_id": "agent_task_input_mapping:5990a9155085e06a8f1f"
+      },
+      "seed": 20260528,
+      "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+    },
+    "objective": "Execute simulation and generated-simulation diagnostics requested by the Architect model plan.",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition": "simulation diagnostics recorded for the next typed task",
+    "task_id": "simulation:exponential_maximum_gumbel_known_result:01719d54"
+  }
+}

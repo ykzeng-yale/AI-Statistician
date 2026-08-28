@@ -1,0 +1,194 @@
+{
+  "artifact_kind": "SimulationEngineerProposalPacket",
+  "backend_provider": "anthropic",
+  "candidate_model_seed_disclosure": "DISCLOSED",
+  "confirmatory_empirical_evidence_eligible": false,
+  "created_at": "2026-08-28T03:49:40.510277+00:00",
+  "empirical_evaluation_phase": "exploratory_diagnostic",
+  "empirical_metric_requirements": [],
+  "executable_evaluator_source_authority": false,
+  "metric_binding_mode": "model_bound_metric_path",
+  "metric_contract_boundary": "Typed generated-metric contracts are pre-execution empirical acceptance controls. Runtime evaluation of them is implementation or simulation evidence only; it is not theorem proof evidence.",
+  "metric_contract_proof_evidence_status": "GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE",
+  "metric_contract_set_id": "",
+  "metric_contracts": [],
+  "metric_requirement_authority_policy": "architect_authored_coding_agent_bound_preferred",
+  "metric_requirement_set_id": "",
+  "model": "claude-haiku-4-5-20251001",
+  "model_tier": "haiku",
+  "packet_id": "simulation_engineer_proposal:83fabb171bc5d666a005a7eb",
+  "planning_model_call_used": false,
+  "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+  "provider": "anthropic",
+  "question": {
+    "description": "Focused L0 known-result evaluation grounded in Fisher and Tippett (1928) and Gnedenko (1943). Let X_1,...,X_n be independent rate-one exponential random variables, let M_n=max_i X_i, and let Y_n=M_n-log n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-n CDF of M_n and the support-aware finite-n CDF of Y_n, including the branch below -log n. Then prove pointwise for every real y that P(Y_n <= y) converges to the standard Gumbel CDF exp(-exp(-y)). Make independence, the exponential support, the normalization log n, the fixed-y limiting argument, and the distinction between an exact finite-n law and its asymptotic approximation auditable. Do not replace the maximum by the minimum, omit the finite-n support branch, center by n or log(n-1), reverse a CDF or survival function, claim finite-n equality with the Gumbel law, or generalize the result to arbitrary parent distributions without domain-of-attraction conditions. The required model-authored Python artifact is est_exponential_maximum_gumbel and must implement run_estimator(request) exactly for the frozen closed sample contract. It returns the sample size, maximum, centered maximum, exact finite-n CDF evaluated at that centered value, and standard Gumbel CDF evaluated at that value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment generates independent rate-one exponential samples at several predeclared sample sizes, invokes the exact accepted estimator, verifies the exact finite-n CDF empirically with Monte Carlo uncertainty, and assesses the Gumbel approximation over a preregistered finite grid as n grows. This assessment is distributional implementation evidence, not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, tail extrapolation beyond the frozen grid, or formal proof. Lean formalization is not applicable.",
+    "id": "exponential_maximum_gumbel_known_result",
+    "tags": [
+      "extreme value theory",
+      "exponential distribution",
+      "sample maximum",
+      "Gumbel distribution",
+      "weak convergence",
+      "known result",
+      "L0"
+    ],
+    "title": "Gumbel limit for the maximum of exponential observations"
+  },
+  "raw_response_fingerprint": "b33d98d22158ddf6ed05863ba13d9bd4b409ebc270788c440a547144b86dd239",
+  "runtime_budget": {
+    "n_runs": 100,
+    "seed": 20260528
+  },
+  "runtime_execution_plan": {
+    "canonicalization_boundary": "AgentRuntime records the isolated execution interface; the model owns the complete source and receives its raw observations.",
+    "execution_interface": "submit_execute_observe_then_model_commit",
+    "execution_owner": "scientific_code_workspace",
+    "n_runs": 100,
+    "seed": 20260528
+  },
+  "schema_version": 1,
+  "scientific_source_transport": "native_client_tools",
+  "simulation_code_drafts": [
+    {
+      "required_estimator_ids": [
+        "est_exponential_maximum_gumbel"
+      ],
+      "simulation_id": "exploratory_simulation:299efad94024ea2d46fe"
+    }
+  ],
+  "simulation_evidence_boundary": "LLM SimulatorEngineer packets are simulation-design proposals only. They do not execute Monte Carlo code, do not validate an estimator empirically, and do not count as proof evidence. Executable simulation evidence requires AgentRuntime to execute the exact submitted source with recorded seed and metrics.",
+  "simulation_evidence_status": "LLM_SIMULATION_PROPOSAL_NOT_EXECUTION_EVIDENCE",
+  "simulation_targets": [
+    {
+      "procedure_id": "exploratory_simulation:299efad94024ea2d46fe"
+    }
+  ],
+  "simulations_executed": false,
+  "source_acceptance_binding_errors": [],
+  "source_agent": "LLMSimulationEngineerAgent",
+  "source_workspace_intent_id": "simulation_source_workspace_intent:299efad94024ea2d46fe",
+  "source_workspace_planning_owned": true,
+  "theory_trace_alignment_contract": {
+    "alignment_mode": "legacy_anchor_v1",
+    "artifact_kind": "TheoryTraceAlignmentContract",
+    "boundary": "Theory trace alignment records LLM proposal-to-trace provenance only. It does not count as code execution, simulation evidence, or Lean/kernel proof evidence.",
+    "claim_dependency_closure": [],
+    "consumer_subsystem": "SimulationEngineer",
+    "llm_alignment_claimed": false,
+    "n_supported_anchor_references": 0,
+    "n_unsupported_anchor_references": 0,
+    "rationale": "",
+    "referenced_assumptions": [],
+    "referenced_claim_ids": [],
+    "referenced_derivation_steps": [],
+    "referenced_equation_steps": [],
+    "referenced_formalization_targets": [],
+    "source_anchor_counts": {
+      "assumption_names": 0,
+      "claim_dependency_edges": 8,
+      "claim_ids": 7,
+      "derivation_step_ids": 7,
+      "equation_step_ids": 0,
+      "formalization_targets": 0
+    },
+    "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+    "structured_alignment_observed": false,
+    "supported_assumptions": [],
+    "supported_claim_ids": [],
+    "supported_derivation_steps": [],
+    "supported_equation_steps": [],
+    "supported_formalization_targets": [],
+    "unsupported_assumptions": [],
+    "unsupported_claim_ids": [],
+    "unsupported_derivation_steps": [],
+    "unsupported_equation_steps": [],
+    "unsupported_formalization_targets": []
+  },
+  "theory_trace_consumption_contract": {
+    "artifact_kind": "TheoryTraceConsumptionContract",
+    "boundary": "Theory trace consumption records proposal-context provenance only. It does not count as code execution, simulation evidence, or Lean/kernel proof evidence.",
+    "consumer_subsystem": "SimulationEngineer",
+    "has_formalization_handoff": false,
+    "n_assumption_ledger_rows_supplied": 0,
+    "n_authoritative_theory_documents_supplied": 2,
+    "n_claim_dependency_edges_supplied": 8,
+    "n_claim_index_rows_supplied": 7,
+    "n_derivation_steps_supplied": 0,
+    "n_equation_chain_steps_supplied": 0,
+    "n_sanity_check_index_rows_supplied": 3,
+    "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+    "theory_derivation_trace_supplied": true
+  },
+  "upstream_algorithm_handoff": {
+    "algorithm_sandbox_manifest_hash": "19ac59a3a01a37ad6554c4da28ac0feb795256b283092ab54a7133006a644ac3",
+    "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+    "boundary": "This is executable implementation lineage, not confirmatory statistical acceptance or theorem proof.",
+    "consumption_contract": "Confirmatory SimulationEngineer evaluates these exact reviewed implementations and may not silently substitute a new estimator.",
+    "exact_algorithm_artifacts": [
+      {
+        "dependencies": [],
+        "estimator_id": "est_exponential_maximum_gumbel",
+        "estimator_interface_contract": {
+          "request_fields": [
+            {
+              "binding": "per_replicate_data",
+              "meaning": "One observed independent sample of rate-one exponential observations whose maximum is evaluated.",
+              "name": "sample"
+            }
+          ],
+          "response_fields": [
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Number of observations in the accepted sample.",
+              "name": "sample_size",
+              "normalization": "len(sample)"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_M_n",
+              "meaning": "Largest observed sample value.",
+              "name": "maximum",
+              "normalization": "max(sample)"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Maximum centered by the natural logarithm of sample size.",
+              "name": "centered_maximum",
+              "normalization": "maximum - log(sample_size), using the natural logarithm"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Exact finite-sample CDF of Y_n evaluated at the returned centered maximum.",
+              "name": "exact_cdf_at_centered",
+              "normalization": "For n=sample_size and y=centered_maximum, 0 when y < -log(n), otherwise (1-exp(-y)/n)^n"
+            },
+            {
+              "derivation_ref": "def.gumbel_cdf",
+              "meaning": "Standard Gumbel limiting CDF evaluated at the returned centered maximum.",
+              "name": "gumbel_cdf_at_centered",
+              "normalization": "exp(-exp(-centered_maximum))"
+            }
+          ]
+        },
+        "estimator_interface_contract_authority": {
+          "owner_agent": "TheoryDeveloper",
+          "source_estimator_ref": "theory#/estimator_specs/0/estimator_interface_contract",
+          "source_theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+          "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+          "transport_status": "RUNTIME_BOUND_FROM_THEORY"
+        },
+        "estimator_interface_contract_id": "estimator_interface_contract:591f19f1eaaa42ca4760",
+        "exact_smoke_result_hash": "497c5890193d57543a2aae5939e3183744438bd7ef7b51b7d56e2a1255656384",
+        "exact_source_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+        "language": "python"
+      }
+    ],
+    "exact_source_included": false,
+    "execution_results_included": false,
+    "proof_evidence_status": "ACCEPTED_ALGORITHM_HANDOFF_NOT_PROOF_EVIDENCE",
+    "semantic_review_execution_id": "generated_code_semantic_review_execution:6f75a143205506dcbb69",
+    "semantic_review_packet_hash": "7ae0dcaf30cde7da5a5f32b6ceb3f608662348827a5577c51a1e0a7aaccd8492",
+    "semantic_review_packet_id": "generated_code_semantic_review:fb46530431564c8cd95c4467",
+    "source": "accepted_algorithm_semantic_review_materialization",
+    "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+  }
+}

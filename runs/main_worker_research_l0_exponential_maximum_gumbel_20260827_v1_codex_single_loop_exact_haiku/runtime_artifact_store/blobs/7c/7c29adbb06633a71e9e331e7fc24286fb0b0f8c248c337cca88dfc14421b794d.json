@@ -1,0 +1,134 @@
+{
+  "active_unresolved_finding_ids": [],
+  "artifact_kind": "GeneratedCodeSemanticReviewPacket",
+  "client_tool_loop": {
+    "fresh_current_source_observation_required": true,
+    "full_packet_regeneration_used": false,
+    "provider_usage": {
+      "cache_creation_input_tokens": 46209,
+      "cache_read_input_tokens": 41505,
+      "input_tokens": 39,
+      "output_tokens": 2801
+    },
+    "refreshed_current_source_artifact_ids": [
+      "exploratory_simulation:299efad94024ea2d46fe"
+    ],
+    "review_probe_execution_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "review_probe_executions": [],
+    "runtime_executed_tool_calls": 2,
+    "tool_calls": 2,
+    "transcript_fingerprint": "064451f7d8f3698eae9b4e0ea6c1b031659262403c75b7ae20cb3e7a28bd8554",
+    "transport": "native_same_reviewer_session_v1",
+    "turns": 2,
+    "validation_feedback_observed": false,
+    "validation_submissions": 1
+  },
+  "created_at": "2026-08-28T03:52:38.817290+00:00",
+  "cumulative_finding_ledger": [
+    {
+      "finding": {
+        "category": "frozen_measurement_protocol_alignment",
+        "evidence_refs": [],
+        "expected_behavior": "Architect evidence contract and theory packet simulation_ademp_spec both specify: 'For each frozen sample size n \u2208 {10, 50, 100, 250, 500}'. The simulation source must use this preregistered grid, not a different one. The frozen protocol is immutable and must be executed exactly as specified.",
+        "finding_id": "generated_code_semantic_finding:aed267c668208c00d2a4",
+        "observed_behavior": "Lines 127\u2013128 of exploratory_simulation_299efad94024ea2d46fe_b66dca2d98f7a136_generated_draft.py hardcode: sample_sizes = [10, 20, 50, 100, 200]. Execution proceeds with these five sizes, generating 500 total invocations (5 sizes \u00d7 100 replicates). Gumbel approximation assessment is conducted at n \u2208 {10, 20, 50, 100, 200}.",
+        "severity": "high",
+        "summary": "Simulation hardcodes sample sizes [10, 20, 50, 100, 200] instead of preregistered frozen grid [10, 50, 100, 250, 500]"
+      },
+      "finding_id": "generated_code_semantic_finding:aed267c668208c00d2a4",
+      "resolution": {
+        "evidence_refs": [],
+        "rationale": "The current source at line 119 now correctly specifies sample_sizes = [10, 50, 100, 250, 500], matching the preregistered frozen grid from the Architect evidence contract and theory packet simulation_ademp_spec. The prior finding claimed hardcoded sizes [10, 20, 50, 100, 200]; this has been corrected. The simulation now executes the exact frozen protocol.",
+        "review_packet_id": "generated_code_semantic_review_event:b15cb3e8a8e0ba33ff42",
+        "revision_index": 0,
+        "status": "RESOLVED_BY_CURRENT_ARTIFACT"
+      },
+      "source_finding_hash": "a37506f9ac11b289fe23ae7b66777df4f0d648d7402667a9671a7c06bc9b0b72",
+      "source_review_packet_ids": [
+        "generated_code_semantic_review_event:27dd61068193121716f3"
+      ],
+      "status": "RESOLVED_BY_CURRENT_ARTIFACT"
+    }
+  ],
+  "cumulative_finding_ledger_fingerprint": "6a264b891704c7d0e2f5b274bd395bfa9789cdbf7116d373d71c6004a010aea4",
+  "evidence_boundary": "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.",
+  "finding_ledger_review_event_id": "generated_code_semantic_review_event:b15cb3e8a8e0ba33ff42",
+  "findings": [],
+  "kernel_verified": false,
+  "model": "claude-haiku-4-5-20251001",
+  "model_requested_overall_verdict": "ACCEPT",
+  "model_tier": "haiku",
+  "ok": true,
+  "overall_verdict": "ACCEPT",
+  "packet_id": "generated_code_semantic_review:d1c289581cebebd8b0ac5c69",
+  "prior_finding_reviews": [
+    {
+      "evidence_refs": [],
+      "finding_id": "generated_code_semantic_finding:aed267c668208c00d2a4",
+      "rationale": "The current source at line 119 now correctly specifies sample_sizes = [10, 50, 100, 250, 500], matching the preregistered frozen grid from the Architect evidence contract and theory packet simulation_ademp_spec. The prior finding claimed hardcoded sizes [10, 20, 50, 100, 200]; this has been corrected. The simulation now executes the exact frozen protocol.",
+      "status": "RESOLVED_BY_CURRENT_ARTIFACT"
+    }
+  ],
+  "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE",
+  "proposal_packet_hash": "d663f7df927cd2bfd5d97748fc0746859c60b7e40866c70aa8f43565b9e040a1",
+  "proposal_packet_id": "simulation_engineer_proposal:83fabb171bc5d666a005a7eb",
+  "provider": "anthropic",
+  "question_context": {
+    "description": "Focused L0 known-result evaluation grounded in Fisher and Tippett (1928) and Gnedenko (1943). Let X_1,...,X_n be independent rate-one exponential random variables, let M_n=max_i X_i, and let Y_n=M_n-log n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-n CDF of M_n and the support-aware finite-n CDF of Y_n, including the branch below -log n. Then prove pointwise for every real y that P(Y_n <= y) converges to the standard Gumbel CDF exp(-exp(-y)). Make independence, the exponential support, the normalization log n, the fixed-y limiting argument, and the distinction between an exact finite-n law and its asymptotic approximation auditable. Do not replace the maximum by the minimum, omit the finite-n support branch, center by n or log(n-1), reverse a CDF or survival function, claim finite-n equality with the Gumbel law, or generalize the result to arbitrary parent distributions without domain-of-attraction conditions. The required model-authored Python artifact is est_exponential_maximum_gumbel and must implement run_estimator(request) exactly for the frozen closed sample contract. It returns the sample size, maximum, centered maximum, exact finite-n CDF evaluated at that centered value, and standard Gumbel CDF evaluated at that value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment generates independent rate-one exponential samples at several predeclared sample sizes, invokes the exact accepted estimator, verifies the exact finite-n CDF empirically with Monte Carlo uncertainty, and assesses the Gumbel approximation over a preregistered finite grid as n grows. This assessment is distributional implementation evidence, not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, tail extrapolation beyond the frozen grid, or formal proof. Lean formalization is not applicable.",
+    "id": "exponential_maximum_gumbel_known_result",
+    "tags": [
+      "extreme value theory",
+      "exponential distribution",
+      "sample maximum",
+      "Gumbel distribution",
+      "weak convergence",
+      "known result",
+      "L0"
+    ],
+    "title": "Gumbel limit for the maximum of exponential observations"
+  },
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "raw_response_fingerprint": "3e7f679cda79777cf4cfd0d0a5d66cbea8762835a7bc525f041c67e9a769b891",
+  "review_document_ref": {
+    "byte_size": 7908,
+    "document_id": "generated_code_semantic_review_document:5b803ab5404f84ecee5a",
+    "format": "markdown",
+    "line_count": 191,
+    "sha256": "e95ff8460c2c846ac2862a125ce2f63361ea72b955409e6df03cd798b744c8a6"
+  },
+  "review_evidence_document_fingerprint": "3220adae32af48ae72c230f36b8fbe9875dbfdaa9a46cdb9c3cb27836351d82c",
+  "review_input_fingerprint": "5f5deec5bca96b3e0c295b5e15f375ceed8896d78ff0bf7a8368683a367e92f0",
+  "reviewed_artifacts": [
+    {
+      "artifact_id": "exploratory_simulation:299efad94024ea2d46fe",
+      "metric_contract_set_id": "",
+      "metric_requirement_set_id": "",
+      "result_hash": "ec08268ed58e75ebabde401784624cd36840ff148e429d0a8e2a357ce04808e6",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/0b3892c891fe/exploratory_simulation_299efad94024ea2d46fe_d8522d9406c98442_scientific_metrics.json",
+      "row_hash": "afa99ee5ce76a25e5aa1ff7658018c33d6d3b7e8155848d8bb38496ac2f2f3b3",
+      "runtime_replicates": 100,
+      "runtime_seed": 20260528,
+      "script_hash": "6256d455ff7f89d4dec7ed8bf90c058284e27de4d2e0b7f1e4c9d7d0ddfb605f",
+      "script_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/0b3892c891fe/exploratory_simulation_299efad94024ea2d46fe_d8522d9406c98442_generated_draft.py"
+    }
+  ],
+  "schema_version": 32,
+  "source_agent": "LLMGeneratedCodeSemanticReviewerAgent",
+  "source_generator_agent": "LLMSimulationEngineerAgent",
+  "source_manifest_hash": "4d4dd11a914cb7dded2209cfa8b6f68d84b3d6c94f91dcf51ebb2ce8f27ef781",
+  "source_manifest_id": "simulation_manifest:918cc850f617ef4f62ff",
+  "source_model": "claude-haiku-4-5-20251001",
+  "source_model_tier": "haiku",
+  "source_revision_assessment": {
+    "evidence_refs": [],
+    "rationale": "The prior finding has been resolved by the current source revision. Line 119 now correctly specifies the preregistered frozen sample sizes [10, 50, 100, 250, 500]. No cross-artifact changes are required; the simulation source alone was sufficient to close the defect.",
+    "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT"
+  },
+  "source_subsystem": "SimulationEvaluator",
+  "source_task_id": "semantic-review-producer-regenerate:exponential_maximum_gumbel_known_result:c77af622",
+  "theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+  "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "validation_errors": [],
+  "work_order_hash": "aa1d2150b5f93a132a17f9526d17fab8fff6ec14a5fa3d37abfd13b3d350841a",
+  "work_order_id": "generated_code_semantic_review_work_order:2cb46142feb913caab7d"
+}

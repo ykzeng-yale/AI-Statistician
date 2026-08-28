@@ -1,0 +1,1251 @@
+{
+  "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+  "boundary": "Algorithm sandbox prototypes are executable engineering evidence. They are not registered production algorithms and are not theorem proof evidence.",
+  "confirmatory_empirical_evidence_eligible": false,
+  "consumer_parent_algorithm_manifest_hash": "",
+  "consumer_parent_algorithm_manifest_id": "",
+  "consumer_source_revision": false,
+  "consumer_source_revision_artifact_ids": [],
+  "consumer_source_revision_lineage_id": "",
+  "created_at": "2026-08-28T03:46:06.515838+00:00",
+  "empirical_evaluation_phase": "",
+  "full_metric_authoring_completed": false,
+  "generated_code_semantic_review_pending": true,
+  "generated_code_semantic_review_source_revision": false,
+  "generated_code_semantic_reviewer_available": true,
+  "implementation_before_metric_freeze": false,
+  "llm_algorithm_engineer_proposal_id": "algorithm_engineer_proposal:2a9c30bb7e759abc59c0b4f9",
+  "llm_algorithm_engineer_theory_trace_alignment_contract": {
+    "alignment_mode": "legacy_anchor_v1",
+    "artifact_kind": "TheoryTraceAlignmentContract",
+    "boundary": "Theory trace alignment records LLM proposal-to-trace provenance only. It does not count as code execution, simulation evidence, or Lean/kernel proof evidence.",
+    "claim_dependency_closure": [],
+    "consumer_subsystem": "AlgorithmEngineer",
+    "llm_alignment_claimed": false,
+    "n_supported_anchor_references": 0,
+    "n_unsupported_anchor_references": 0,
+    "rationale": "",
+    "referenced_assumptions": [],
+    "referenced_claim_ids": [],
+    "referenced_derivation_steps": [],
+    "referenced_equation_steps": [],
+    "referenced_formalization_targets": [],
+    "source_anchor_counts": {
+      "assumption_names": 0,
+      "claim_dependency_edges": 8,
+      "claim_ids": 7,
+      "derivation_step_ids": 7,
+      "equation_step_ids": 0,
+      "formalization_targets": 0
+    },
+    "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+    "structured_alignment_observed": false,
+    "supported_assumptions": [],
+    "supported_claim_ids": [],
+    "supported_derivation_steps": [],
+    "supported_equation_steps": [],
+    "supported_formalization_targets": [],
+    "unsupported_assumptions": [],
+    "unsupported_claim_ids": [],
+    "unsupported_derivation_steps": [],
+    "unsupported_equation_steps": [],
+    "unsupported_formalization_targets": []
+  },
+  "llm_algorithm_engineer_theory_trace_consumption_contract": {
+    "artifact_kind": "TheoryTraceConsumptionContract",
+    "boundary": "Theory trace consumption records proposal-context provenance only. It does not count as code execution, simulation evidence, or Lean/kernel proof evidence.",
+    "consumer_subsystem": "AlgorithmEngineer",
+    "has_formalization_handoff": false,
+    "n_assumption_ledger_rows_supplied": 0,
+    "n_authoritative_theory_documents_supplied": 2,
+    "n_claim_dependency_edges_supplied": 8,
+    "n_claim_index_rows_supplied": 7,
+    "n_derivation_steps_supplied": 0,
+    "n_equation_chain_steps_supplied": 0,
+    "n_sanity_check_index_rows_supplied": 3,
+    "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+    "theory_derivation_trace_supplied": true
+  },
+  "manifest_id": "algorithm_sandbox_manifest:500cad9e36b63eb2256b",
+  "n_consumer_source_artifacts_reused": 0,
+  "n_consumer_source_artifacts_revised": 0,
+  "n_executed": 1,
+  "n_generated_code_executed": 1,
+  "n_generated_code_execution_attempted": 1,
+  "n_generated_code_execution_failed": 0,
+  "n_generated_code_passed": 1,
+  "n_live_generated_code_executed": 1,
+  "n_live_generated_code_execution_attempted": 1,
+  "n_live_generated_code_execution_failed": 0,
+  "n_live_generated_code_metric_gate_failed": 0,
+  "n_live_unsafe_generated_code_rejected": 0,
+  "n_metric_gate_failed": 0,
+  "n_passed": 1,
+  "n_prototypes": 1,
+  "n_theory_revision_source_seeds_replayed": 0,
+  "n_typed_metric_contracts_declared": 0,
+  "n_typed_metric_contracts_evaluated": 0,
+  "n_typed_metric_contracts_failed": 0,
+  "n_typed_metric_contracts_passed": 0,
+  "n_unsafe_generated_code_rejected": 0,
+  "planning_model_call_used": false,
+  "promotion_ready": false,
+  "prototypes": [
+    {
+      "backend": "pyodide",
+      "bound_estimator_code_hashes": {},
+      "boundary": "Generated scientific code executes as untrusted WebAssembly in a separate secret-free, resource-bounded process with network denial and a host-filesystem allowlist. The host runtime supplies only pinned package names and execution artifacts. Successful execution is empirical engineering evidence, not production promotion and not theorem proof evidence.",
+      "code_excerpt": "import math\nimport json\n\n\ndef run_estimator(request):\n    \"\"\"\n    Compute the exact finite-sample and Gumbel CDFs for the centered maximum.\n    \n    Args:\n        request: dict with exactly one key \"sample\", a list of 2-500 nonnegative finite numbers.\n    \n    Returns:\n        dict with keys: sample_size, maximum, centered_maximum, exact_cdf_at_centered, gumbel_cdf_at_centered\n    \n    Raises:\n        ValueError: if the request is malformed or the sample is invalid.\n    \"\"\"\n    \n    # Validate request structure\n    if not isinstance(request, dict):\n        raise ValueError(\"Request must be a dictionary.\")\n    \n    if set(request.keys()) != {\"sample\"}:\n        raise ValueError(\"Request must contain exactly the key 'sample'.\")\n    \n    sample = request[\"sample\"]\n    \n    # Validate sample type and structure\n    if not isinstance(sample, list):\n        raise ValueError(\"sample must be a list.\")\n    \n    if len(sample) < 2 or len(sample) > 500:\n        raise ValueError(\"sample must have between 2 and 500 elements.\")\n    \n    # Validate each element\n    for i, x in enumerate(sample):\n        if not isinstance(x, (int, float)):\n            raise ValueError(f\"sample[{i}] is not a number: {x}\")\n        if isinstance(x, bool):\n            raise ValueError(f\"sample[{i}] is a Boolean, not a number.\")\n        if not math.isfinite(x):\n            raise ValueError(f\"sample[{i}] is not finite: {x}\")\n        if x < 0:\n            raise ValueError(f\"sample[{i}] is negative: {x}\")\n    \n    # Compute sample statistics\n    n = len(sample)\n    maximum = max(sample)\n    log_n = math.log(n)\n    centered_maximum = maximum - log_n\n    \n    # Compute exact finite-n CDF\n    # P(Y_n <= y) = 0 if y < -log(n), else (1 - exp(-y)/n)^n\n    if centered_maximum < -log_n:\n        # This should not happen since centered_maximum = maximum - log(n) >= 0 - log(n) = -log(n)\n        exact_cdf = 0.0\n    else:\n        # y >= -log(n), so use the formula (1 - exp(-y)/n)^n\n        exp_neg_y = math.exp(-centered_",
+      "dependencies": [],
+      "empirical_evidence_status": "ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE",
+      "estimator_binding_errors": [],
+      "estimator_binding_hash": "",
+      "estimator_id": "est_exponential_maximum_gumbel",
+      "estimator_invocation_counts": {},
+      "estimator_invocation_samples": {},
+      "estimator_runtime_errors": [],
+      "estimator_runtime_failure_ids": [],
+      "execution_attempted": true,
+      "execution_envelope_hash": "3c12aa11337a3c80b6dceb379583eef16116e193ddbee44bac1d3d9d7de1a5e0",
+      "execution_envelope_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/a3915780624c/est_exponential_maximum_gumbel_0404574c326ece2f_scientific_result.json",
+      "execution_phase": "estimator_developer_diagnostic",
+      "execution_smoke_passed": true,
+      "executor": "generated_python_sandbox",
+      "executor_family": "generated_algorithm_sandbox",
+      "executor_profile": "stdlib",
+      "isolation_provider": "macos_sandbox_exec+wasm",
+      "language": "python",
+      "llm_algorithm_engineer_target": {
+        "estimator_id": "est_exponential_maximum_gumbel",
+        "estimator_interface_contract": {
+          "request_fields": [
+            {
+              "binding": "per_replicate_data",
+              "meaning": "One observed independent sample of rate-one exponential observations whose maximum is evaluated.",
+              "name": "sample"
+            }
+          ],
+          "response_fields": [
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Number of observations in the accepted sample.",
+              "name": "sample_size",
+              "normalization": "len(sample)"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_M_n",
+              "meaning": "Largest observed sample value.",
+              "name": "maximum",
+              "normalization": "max(sample)"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Maximum centered by the natural logarithm of sample size.",
+              "name": "centered_maximum",
+              "normalization": "maximum - log(sample_size), using the natural logarithm"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Exact finite-sample CDF of Y_n evaluated at the returned centered maximum.",
+              "name": "exact_cdf_at_centered",
+              "normalization": "For n=sample_size and y=centered_maximum, 0 when y < -log(n), otherwise (1-exp(-y)/n)^n"
+            },
+            {
+              "derivation_ref": "def.gumbel_cdf",
+              "meaning": "Standard Gumbel limiting CDF evaluated at the returned centered maximum.",
+              "name": "gumbel_cdf_at_centered",
+              "normalization": "exp(-exp(-centered_maximum))"
+            }
+          ]
+        },
+        "estimator_interface_contract_authority": {
+          "owner_agent": "TheoryDeveloper",
+          "source_estimator_ref": "theory#/estimator_specs/0/estimator_interface_contract",
+          "source_theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+          "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+          "transport_status": "RUNTIME_BOUND_FROM_THEORY"
+        },
+        "estimator_interface_contract_id": "estimator_interface_contract:591f19f1eaaa42ca4760"
+      },
+      "mechanical_estimator_invocation_verified": false,
+      "metric_contract_boundary": "Typed generated-metric contracts are pre-execution empirical acceptance controls. Runtime evaluation of them is implementation or simulation evidence only; it is not theorem proof evidence.",
+      "metric_contract_evaluation": {},
+      "metric_contract_proof_evidence_status": "GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE",
+      "metric_contract_set_id": "",
+      "metric_contracts": [],
+      "metric_gate_errors": [],
+      "metric_gate_policy_mode": "execution_only_no_typed_contract",
+      "metric_gate_targets": {},
+      "metric_requirement_authority_policy": "",
+      "metric_requirement_authority_required": false,
+      "metric_requirement_authority_validated": false,
+      "metric_requirement_set_id": "",
+      "metrics": {
+        "errors": [],
+        "summary": {
+          "failed": 0,
+          "passed": 17,
+          "total_tests": 17
+        },
+        "test_results": [
+          {
+            "status": "PASS",
+            "test": "valid_small_sample"
+          },
+          {
+            "status": "PASS",
+            "test": "all_zeros"
+          },
+          {
+            "status": "PASS",
+            "test": "permutation_invariance"
+          },
+          {
+            "status": "PASS",
+            "test": "determinism"
+          },
+          {
+            "replicates": 100,
+            "status": "PASS",
+            "test": "cdf_range"
+          },
+          {
+            "replicates": 100,
+            "status": "PASS",
+            "test": "support_constraint"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_missing_key"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_extra_key"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_tuple"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_boolean"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_nan"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_infinity"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_negative"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_too_few"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_too_many"
+          },
+          {
+            "exact_cdf": 0.3486784401000001,
+            "gumbel_cdf": 0.36787944117144233,
+            "status": "PASS",
+            "test": "identity_at_y_zero"
+          },
+          {
+            "status": "PASS",
+            "test": "response_structure"
+          }
+        ]
+      },
+      "promotion_ready": false,
+      "prototype_artifact_id": "generated_sandbox_prototype:c424163fd731ca33d4c3",
+      "prototype_status": "EXECUTED",
+      "request_hash": "4e9422f83255d4d0bbd0ffd33c84af99cb30335676cabd47260c3f8828d4e5bc",
+      "request_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/a3915780624c/est_exponential_maximum_gumbel_0404574c326ece2f_scientific_request.json",
+      "requested_execution_profile": "stdlib",
+      "required_callable_exports": [
+        "run_estimator"
+      ],
+      "resource_limits": {
+        "cpu_seconds": 61,
+        "file_size_bytes": 16777216,
+        "node_heap_mb": 768,
+        "open_files": 64
+      },
+      "result_hash": "497c5890193d57543a2aae5939e3183744438bd7ef7b51b7d56e2a1255656384",
+      "result_parse_error": "",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/a3915780624c/est_exponential_maximum_gumbel_0404574c326ece2f_scientific_metrics.json",
+      "returncode": 0,
+      "runner_path": "",
+      "runtime_errors": [],
+      "runtime_replicates": 100,
+      "runtime_seed": 20260528,
+      "safety_errors": [],
+      "scientific_code_workspace": {
+        "accepted": true,
+        "artifact_id": "exponential_maximum_gumbel_known_result:est_exponential_maximum_gumbel",
+        "artifact_kind": "ScientificCodeWorkspaceResult",
+        "client_tool_checkpoint_window": {},
+        "client_tool_session_lineage_continued": false,
+        "client_tool_session_ref": {
+          "artifact_kind": "ClientToolWorkspaceSessionRef",
+          "message_count": 23,
+          "relative_path": ".client_tool_sessions/d49ac5bd372835acf477068c2a6ea82e2b38e81aaaf7876573175065cd352fdb.json",
+          "root_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/client_tool_sessions/4523d502d72e",
+          "schema_version": 2,
+          "session_contract_fingerprint": "0ba72b0e3c8a2c92aaabc60fc43f0789d3772412f36a1c24e1b37eae3ba7eade",
+          "session_id": "scientific:exponential_maximum_gumbel_known_result:est_exponential_maximum_gumbel",
+          "sha256": "d49ac5bd372835acf477068c2a6ea82e2b38e81aaaf7876573175065cd352fdb",
+          "transcript_fingerprint": "482560c27d837dd7c8b004105a854d6a94be1f2b865bbb548eb51402b5b540d3"
+        },
+        "current_source_run_requested": true,
+        "current_source_run_requests": 3,
+        "explicit_model_commit_required": true,
+        "history": [
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 5508
+                },
+                "cache_creation_input_tokens": 5508,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "not_available",
+                "input_tokens": 19,
+                "output_tokens": 80,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01L8cuU7NCyDZL54iSG8B2dV",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "983935a7fe5ad2da3d2cf98589eb9e8bbf62bba466a6316313ff2a546a6a238e",
+                "is_error": false,
+                "name": "read_theory_document",
+                "observation_key": "5bb46c368d11a9aad494bfbbd2dcaef40e3a8f8b3c03961f9bd80edfa7383311",
+                "result_excerpt": "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]",
+                "result_fingerprint": "c35b0644cc0f1781544fd7718ac8155a3c4ae022ea9fcef12577a6a030871fea",
+                "state_changed": false,
+                "terminal": false
+              }
+            ],
+            "turn_index": 0
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 4216
+                },
+                "cache_creation_input_tokens": 4216,
+                "cache_read_input_tokens": 5508,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 80,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01ASR8K5YVmhwEHLhNWsQuCF",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "ca9ba102dd3d6fa289c292a85ad50c50eab1d150b729f74fddd7fa4aeacf6098",
+                "is_error": false,
+                "name": "read_theory_document",
+                "observation_key": "1110b589a609b715967764b3ebcc227ca5701e30a84d35d3f1a27d607d9ada34",
+                "result_excerpt": "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]",
+                "result_fingerprint": "5c9a28e3a055b63df773a9ecfb28c64ff19e35626b4df1ece1e35567b58d74e6",
+                "state_changed": false,
+                "terminal": false
+              }
+            ],
+            "turn_index": 1
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 2005
+                },
+                "cache_creation_input_tokens": 2005,
+                "cache_read_input_tokens": 9724,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 4457,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01QMnMgiaeTtuB64e7Di5WRF",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "c89174b7411f4fba36ac3134cfd3d0af3c697cda0f0be5669bc470d7f4e0148b",
+                "is_error": false,
+                "name": "submit_scientific_source",
+                "observation_key": "scientific-source-update:858e4ced1eef9b8d81ae5e2b5496bb51fbe45993933de85f5d035fde10125674",
+                "result_excerpt": "{\"code_draft_hash\":\"c89174b7411f4fba36ac3134cfd3d0af3c697cda0f0be5669bc470d7f4e0148b\",\"execution_required\":true,\"instruction\":\"Continue editing if needed, then call run_current_scientific_source to execute these exact bytes.\",\"ok\":true,\"source_action\":\"complete_source_submission\",\"source_updated\":true,\"source_updates\":1}",
+                "result_fingerprint": "06af1c2d99a5227c5c14b097a5cf7274304f17609a2c60705aa93e2c2287e348",
+                "state_changed": true,
+                "terminal": false
+              }
+            ],
+            "turn_index": 2
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 4596
+                },
+                "cache_creation_input_tokens": 4596,
+                "cache_read_input_tokens": 11729,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 62,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01Je6H7RuQZV77VpxdT5cE85",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "0ba4115be4405991b79202fe0e1b4833e6cc1bd8e243abe044ae6cf2547ecb17",
+                "is_error": false,
+                "name": "run_current_scientific_source",
+                "observation_key": "scientific-submission:5a5288c914ac98581005e8e64a3945856381c53f96bb5674380bff768b1b7335",
+                "result_excerpt": "{\"accepted\":true,\"changed\":true,\"checks\":1,\"code_draft_hash\":\"c89174b7411f4fba36ac3134cfd3d0af3c697cda0f0be5669bc470d7f4e0148b\",\"current_source_reexecuted\":false,\"execution_evidence_status\":\"SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE\",\"ok\":true,\"prototype\":{\"artifact_kind\":\"ScientificSandboxWorkspaceObservation\",\"empirical_evidence_status\":\"ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE\",\"execution_attempted\":true,\"execution_phase\":\"estimator_developer_diagnostic\",\"execution_smoke_passed\":true,\"full_execution_artifact_persisted\":true,\"mechanical_estimator_invocation_verified\":false,\"metrics_preview\":{\"errors\":[{\"error\":\"\",\"test\":\"all_zeros\"}],\"summary\":{\"failed\":1,\"passed\":16,\"total_tests\":17},\"test_results\":{\"head\":[{\"status\":\"PASS\",\"test\":\"valid_small_sample\"},{\"status\":\"PASS\",\"test\":\"permutation_invariance\"},{\"status\":\"PASS\",\"test\":\"determinism\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"cdf_range\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"support_constraint\"},{\"status\":\"PASS\",\"test\":\"reject_missing_key\"},{\"status\":\"PASS\",\"test\":\"reject_extra_key\"},{\"status\":\"PASS\",\"test\":\"reject_tuple\"}],\"length\":16,\"preview\":\"sequence\",\"tail\":[{\"exact_cdf\":0.3486784401000001,\"gumbel_cdf\":0.36787944117144233,\"status\":\"PASS\",\"test\":\"identity_at_y_zero\"},{\"status\":\"PASS\",\"test\":\"response_structure\"}]}},\"proof_evidence_status\":\"SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE\",\"prototype_status\":\"EXECUTED\",\"result_hash\":\"3be8c7b56583f666932e35c766194c44be3543a66b3be2b393fcbe3314c0570c\",\"returncode\":0,\"runtime_replicates\":100,\"runtime_seed\":20260528,\"script_hash\":\"94f1734b402f39a1d17891fd45b182753fd8785d9b1ba305b4a0640256af665d\",\"smoke_passed\":true,\"source_replayed_to_model\":false,\"stdout_summary\":\"{\\\"schema_version\\\":1,\\\"artifact_kind\\\":\\\"ScientificSandboxExecutionEnvelope\\\",\\\"ok\\\":true,\\\"language\\\":\\\"python\\\",\\\"backend\\\":\\\"pyodide\\\",\\\"metrics\\\":{\\\"errors\\\":[{\\\"error\\\":\\\"\\\",\\\"test\\\":\\\"all_zeros\\\"}],\\\"summary\\\":{\\\"failed\\\":1,\\\"passed\\\":16,\\\"total_tests\\\":17},\\\"tes",
+                "result_fingerprint": "85d99545062d7be02e686806afcd6c818d042e24f89529f81a30fc0d3c26ee93",
+                "state_changed": true,
+                "terminal": false
+              }
+            ],
+            "turn_index": 3
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 1201
+                },
+                "cache_creation_input_tokens": 1201,
+                "cache_read_input_tokens": 16325,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 583,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01EWUiNgWZeCf2XCC8v4TULp",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "7aa579e1704390d43e5364d93b83c4e4b15de699714eb455a9b9bec8cec53ffb",
+                "is_error": true,
+                "name": "edit_current_scientific_source",
+                "observation_key": "client_tool_input_rejected:cf71591557975befa49110af3fe4bdea1dd1171bebbb38fb67ed2f02df435ba9",
+                "result_excerpt": "{\"detail\":\"exact edits must be a nonempty array\",\"error\":\"client_tool_input_rejected\",\"exception_type\":\"ClientToolInputError\",\"ok\":false}",
+                "result_fingerprint": "ac6602961a4512733a1ea8ac3c57ef068c4ec1dc57da0b6e24c3dee9a020815f",
+                "state_changed": false,
+                "terminal": false
+              }
+            ],
+            "turn_index": 4
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 661
+                },
+                "cache_creation_input_tokens": 661,
+                "cache_read_input_tokens": 17526,
+                "inference_geo": "not_available",
+                "input_tokens": 22,
+                "output_tokens": 169,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01SPLJKe8stdzJV7PixrJrbZ",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "97b582aa9f74902a466267c96207c6ba1f9f3f41a7f4def5c5885de755080b68",
+                "is_error": false,
+                "name": "edit_current_scientific_source",
+                "observation_key": "scientific-source-update:3679e521ce5d379b63845bb19cde172ad2bd60f24607885cbca89dee1590c84e",
+                "result_excerpt": "{\"code_draft_hash\":\"1f20f9afdd8bced82ce8ed80b693aaecd75cb99c67b11270355a79297020f6c1\",\"edit_metadata\":{\"edit_count\":1,\"edits\":[{\"old_text_chars\":103,\"old_text_hash\":\"af0ce9fa969130bc92582a34c52a840d4aeb5f71a497da1d92f3a92868ec892e\",\"replacement_chars\":189,\"replacement_hash\":\"2bf54871b26ab8456b0f95cfa7dfe29616aabb7fed41335b3ec8e27ff88d824f\"}]},\"execution_required\":true,\"instruction\":\"Continue editing if needed, then call run_current_scientific_source to execute these exact bytes.\",\"ok\":true,\"source_action\":\"atomic_exact_text_patch\",\"source_updated\":true,\"source_updates\":2}",
+                "result_fingerprint": "319ec906210762af62e040a43598f9c9eff51dfc1b985fa6f40b2e61fd9196b7",
+                "state_changed": true,
+                "terminal": false
+              }
+            ],
+            "turn_index": 5
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 428
+                },
+                "cache_creation_input_tokens": 428,
+                "cache_read_input_tokens": 18187,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 55,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01RtHVxAwHYTs7AJfLE9e6oG",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "074f1ebdd5d731e091c8639e75580173fe87503802262e9a92987cdce99f6bd7",
+                "is_error": false,
+                "name": "run_current_scientific_source",
+                "observation_key": "scientific-submission:3355efc0bb221ed6ff50cdd92d083043a3cf676e4276fe1828245783571365cd",
+                "result_excerpt": "{\"accepted\":true,\"changed\":true,\"checks\":2,\"code_draft_hash\":\"1f20f9afdd8bced82ce8ed80b693aaecd75cb99c67b11270355a79297020f6c1\",\"current_source_reexecuted\":false,\"execution_evidence_status\":\"SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE\",\"ok\":true,\"prototype\":{\"artifact_kind\":\"ScientificSandboxWorkspaceObservation\",\"empirical_evidence_status\":\"ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE\",\"execution_attempted\":true,\"execution_phase\":\"estimator_developer_diagnostic\",\"execution_smoke_passed\":true,\"full_execution_artifact_persisted\":true,\"mechanical_estimator_invocation_verified\":false,\"metrics_preview\":{\"errors\":[{\"error\":\"\",\"test\":\"all_zeros\"}],\"summary\":{\"failed\":1,\"passed\":16,\"total_tests\":17},\"test_results\":{\"head\":[{\"status\":\"PASS\",\"test\":\"valid_small_sample\"},{\"status\":\"PASS\",\"test\":\"permutation_invariance\"},{\"status\":\"PASS\",\"test\":\"determinism\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"cdf_range\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"support_constraint\"},{\"status\":\"PASS\",\"test\":\"reject_missing_key\"},{\"status\":\"PASS\",\"test\":\"reject_extra_key\"},{\"status\":\"PASS\",\"test\":\"reject_tuple\"}],\"length\":16,\"preview\":\"sequence\",\"tail\":[{\"exact_cdf\":0.3486784401000001,\"gumbel_cdf\":0.36787944117144233,\"status\":\"PASS\",\"test\":\"identity_at_y_zero\"},{\"status\":\"PASS\",\"test\":\"response_structure\"}]}},\"proof_evidence_status\":\"SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE\",\"prototype_status\":\"EXECUTED\",\"result_hash\":\"3be8c7b56583f666932e35c766194c44be3543a66b3be2b393fcbe3314c0570c\",\"returncode\":0,\"runtime_replicates\":100,\"runtime_seed\":20260528,\"script_hash\":\"ccfb2d1df148f55047f0ab538fe50d06ba255c2cf6dbb44f0a9ae54ae5bd20a1\",\"smoke_passed\":true,\"source_replayed_to_model\":false,\"stdout_summary\":\"{\\\"schema_version\\\":1,\\\"artifact_kind\\\":\\\"ScientificSandboxExecutionEnvelope\\\",\\\"ok\\\":true,\\\"language\\\":\\\"python\\\",\\\"backend\\\":\\\"pyodide\\\",\\\"metrics\\\":{\\\"errors\\\":[{\\\"error\\\":\\\"\\\",\\\"test\\\":\\\"all_zeros\\\"}],\\\"summary\\\":{\\\"failed\\\":1,\\\"passed\\\":16,\\\"total_tests\\\":17},\\\"tes",
+                "result_fingerprint": "1416fe2b1a7ff28a3bfe5c01da74e3988cb92f71688060fbd6bdb0aad7f7f048",
+                "state_changed": true,
+                "terminal": false
+              }
+            ],
+            "turn_index": 6
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 1194
+                },
+                "cache_creation_input_tokens": 1194,
+                "cache_read_input_tokens": 18615,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 675,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01FppH1TLY6m3LLCw9zatfJB",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "aa9f27621f9931f4994fc8f380897643b12e2a87904b59a6bd640ff068e58edd",
+                "is_error": true,
+                "name": "edit_current_scientific_source",
+                "observation_key": "client_tool_input_rejected:cf71591557975befa49110af3fe4bdea1dd1171bebbb38fb67ed2f02df435ba9",
+                "result_excerpt": "{\"detail\":\"exact edits must be a nonempty array\",\"error\":\"client_tool_input_rejected\",\"exception_type\":\"ClientToolInputError\",\"ok\":false}",
+                "result_fingerprint": "ac6602961a4512733a1ea8ac3c57ef068c4ec1dc57da0b6e24c3dee9a020815f",
+                "state_changed": false,
+                "terminal": false
+              }
+            ],
+            "turn_index": 7
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 753
+                },
+                "cache_creation_input_tokens": 753,
+                "cache_read_input_tokens": 19809,
+                "inference_geo": "not_available",
+                "input_tokens": 22,
+                "output_tokens": 89,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01VmEtPabgprnzorhKhpnzn8",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "c5c6fcfd52cb0e61b24e7d1442b969d1c291a46e9a72f27c5109752be6589d18",
+                "is_error": false,
+                "name": "edit_current_scientific_source",
+                "observation_key": "scientific-source-update:6790f52e213f08e1a003567135bb566507954cc68d626e71a78ca8ab8db5368f",
+                "result_excerpt": "{\"code_draft_hash\":\"41d68775fa84a64ab5cf362d1f97ce85e299bc0ff468cd0939b8de4f07922840\",\"edit_metadata\":{\"edit_count\":1,\"edits\":[{\"old_text_chars\":57,\"old_text_hash\":\"f15bfe4bdbf452f99de1d756fdbcc2853a7e0a0109f0ef51f4a60df462dd30e2\",\"replacement_chars\":56,\"replacement_hash\":\"3d14098a00c82b5d366035d836b93dfdf513181bdb239e4b7120e701d3a8ef68\"}]},\"execution_required\":true,\"instruction\":\"Continue editing if needed, then call run_current_scientific_source to execute these exact bytes.\",\"ok\":true,\"source_action\":\"atomic_exact_text_patch\",\"source_updated\":true,\"source_updates\":3}",
+                "result_fingerprint": "f85d0662efd6dc747dddb2e5013f36d4927e31cdc5010e09c29fc8e8e50f11f2",
+                "state_changed": true,
+                "terminal": false
+              }
+            ],
+            "turn_index": 8
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 348
+                },
+                "cache_creation_input_tokens": 348,
+                "cache_read_input_tokens": 20562,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 48,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_0163ZxWBgR7BEUMtpFVvAnPL",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "5a3960600750ab51fe23c8a185aba6dffc10e149be3f08579cc4fc1fe6e16a9b",
+                "is_error": false,
+                "name": "run_current_scientific_source",
+                "observation_key": "scientific-submission:27e7c6256b58dd595bb47149f9127f10220fcee1eac527874a1e1aec2877623f",
+                "result_excerpt": "{\"accepted\":true,\"changed\":true,\"checks\":3,\"code_draft_hash\":\"41d68775fa84a64ab5cf362d1f97ce85e299bc0ff468cd0939b8de4f07922840\",\"current_source_reexecuted\":false,\"execution_evidence_status\":\"SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE\",\"ok\":true,\"prototype\":{\"artifact_kind\":\"ScientificSandboxWorkspaceObservation\",\"empirical_evidence_status\":\"ALGORITHM_DEVELOPER_DIAGNOSTIC_NOT_CONFIRMATORY_EVIDENCE\",\"execution_attempted\":true,\"execution_phase\":\"estimator_developer_diagnostic\",\"execution_smoke_passed\":true,\"full_execution_artifact_persisted\":true,\"mechanical_estimator_invocation_verified\":false,\"metrics_preview\":{\"errors\":[],\"summary\":{\"failed\":0,\"passed\":17,\"total_tests\":17},\"test_results\":{\"head\":[{\"status\":\"PASS\",\"test\":\"valid_small_sample\"},{\"status\":\"PASS\",\"test\":\"all_zeros\"},{\"status\":\"PASS\",\"test\":\"permutation_invariance\"},{\"status\":\"PASS\",\"test\":\"determinism\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"cdf_range\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"support_constraint\"},{\"status\":\"PASS\",\"test\":\"reject_missing_key\"},{\"status\":\"PASS\",\"test\":\"reject_extra_key\"}],\"length\":17,\"preview\":\"sequence\",\"tail\":[{\"exact_cdf\":0.3486784401000001,\"gumbel_cdf\":0.36787944117144233,\"status\":\"PASS\",\"test\":\"identity_at_y_zero\"},{\"status\":\"PASS\",\"test\":\"response_structure\"}]}},\"proof_evidence_status\":\"SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE\",\"prototype_status\":\"EXECUTED\",\"result_hash\":\"497c5890193d57543a2aae5939e3183744438bd7ef7b51b7d56e2a1255656384\",\"returncode\":0,\"runtime_replicates\":100,\"runtime_seed\":20260528,\"script_hash\":\"d1b7ef1b7c710d698848650269c3d1bb8cbb3da91403f3acc8a6363637da2338\",\"smoke_passed\":true,\"source_replayed_to_model\":false,\"stdout_summary\":\"{\\\"schema_version\\\":1,\\\"artifact_kind\\\":\\\"ScientificSandboxExecutionEnvelope\\\",\\\"ok\\\":true,\\\"language\\\":\\\"python\\\",\\\"backend\\\":\\\"pyodide\\\",\\\"metrics\\\":{\\\"errors\\\":[],\\\"summary\\\":{\\\"failed\\\":0,\\\"passed\\\":17,\\\"total_tests\\\":17},\\\"test_results\\\":[{\\\"status\\\":\\\"PASS\\\",\\\"test\\\":\\\"valid_small_sample\\\"},{\\\"sta",
+                "result_fingerprint": "ab02fabbbb92833a5399a3137f47462722e3979d007b371f35c0bd1df4de371f",
+                "state_changed": true,
+                "terminal": false
+              }
+            ],
+            "turn_index": 9
+          },
+          {
+            "model": "claude-haiku-4-5-20251001",
+            "n_tool_calls": 1,
+            "provider": "anthropic",
+            "provider_output_truncated": false,
+            "response_metadata": {
+              "client_tool_transport": true,
+              "n_client_tool_calls": 1,
+              "prompt_caching_applied": true,
+              "prompt_caching_requested": true,
+              "provider_capability_fallback_count": 0,
+              "provider_reported_model": "claude-haiku-4-5-20251001",
+              "provider_reported_model_tier": "haiku",
+              "provider_stop_reason": "tool_use",
+              "provider_usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 1172
+                },
+                "cache_creation_input_tokens": 1172,
+                "cache_read_input_tokens": 20910,
+                "inference_geo": "not_available",
+                "input_tokens": 20,
+                "output_tokens": 14,
+                "service_tier": "standard"
+              },
+              "request_model_tier": "haiku",
+              "requested_model": "claude-haiku-4-5-20251001",
+              "retry_count": 0,
+              "tools_executed_by_backend": false
+            },
+            "stop_reason": "tool_use",
+            "tool_calls": [
+              {
+                "call_id": "toolu_01TTDYjvpaeHZpBzvqiKSW6K",
+                "call_index": 0,
+                "executed_by_runtime": true,
+                "input_fingerprint": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+                "is_error": false,
+                "name": "commit_scientific_source",
+                "observation_key": "scientific-commit:150f1dfbc65a86d88bc083a278b6cbefa39d30a7f6877c698288c9a025b71d43",
+                "result_excerpt": "{\"check_result_hash\":\"3739f209c7379dbef89eb9befe67874a8a9bbe161baf82084a49ea4c41741bb9\",\"code_draft_hash\":\"41d68775fa84a64ab5cf362d1f97ce85e299bc0ff468cd0939b8de4f07922840\",\"committed\":true,\"execution_evidence_status\":\"SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE\",\"ok\":true}",
+                "result_fingerprint": "344896a8b09e08baacea032f40a64f5881fbc716a2012f49a8be02285c666174",
+                "state_changed": false,
+                "terminal": true
+              }
+            ],
+            "turn_index": 10
+          }
+        ],
+        "initial_check_accepted": false,
+        "initial_check_result_hash": "4c8dcecc4f7391a72f5206c21db2ab77ce1f7f0a6a9f56f429efa5861b5ef91a",
+        "model": "claude-haiku-4-5-20251001",
+        "model_commit_after_observation": true,
+        "model_owned_source": true,
+        "model_tier": "haiku",
+        "parent_code_draft_hash": "",
+        "proof_evidence_status": "SCIENTIFIC_CODE_EXECUTION_NOT_PROOF_EVIDENCE",
+        "provider": "anthropic",
+        "provider_usage": {
+          "cache_creation_input_tokens": 22082,
+          "cache_read_input_tokens": 158895,
+          "input_tokens": 223,
+          "output_tokens": 6312
+        },
+        "resumed_from_checkpoint_id": "",
+        "resumed_from_client_tool_session_ref": {},
+        "runtime_edited_source": false,
+        "runtime_executed_tool_calls": 11,
+        "sandbox_checks": 3,
+        "schema_version": 1,
+        "source_changed": true,
+        "source_iteration_disposition": "accepted",
+        "source_mutation_and_execution_separated": true,
+        "source_owner": {},
+        "source_updates": 3,
+        "submit_and_execute_atomic": false,
+        "submitted_code_draft_hash": "41d68775fa84a64ab5cf362d1f97ce85e299bc0ff468cd0939b8de4f07922840",
+        "terminal_check_result_hash": "3739f209c7379dbef89eb9befe67874a8a9bbe161baf82084a49ea4c41741bb9",
+        "tool_calls": 11,
+        "transcript_fingerprint": "482560c27d837dd7c8b004105a854d6a94be1f2b865bbb548eb51402b5b540d3",
+        "transcript_policy": "linear_with_durable_recent_history_checkpoint_windows_v2",
+        "transport": "native_client_tools",
+        "turns": 11,
+        "workspace_operation": "initial_authoring"
+      },
+      "script_hash": "d1b7ef1b7c710d698848650269c3d1bb8cbb3da91403f3acc8a6363637da2338",
+      "script_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/a3915780624c/est_exponential_maximum_gumbel_0404574c326ece2f_generated_draft.py",
+      "smoke_passed": true,
+      "source_code": "import math\nimport json\n\n\ndef run_estimator(request):\n    \"\"\"\n    Compute the exact finite-sample and Gumbel CDFs for the centered maximum.\n    \n    Args:\n        request: dict with exactly one key \"sample\", a list of 2-500 nonnegative finite numbers.\n    \n    Returns:\n        dict with keys: sample_size, maximum, centered_maximum, exact_cdf_at_centered, gumbel_cdf_at_centered\n    \n    Raises:\n        ValueError: if the request is malformed or the sample is invalid.\n    \"\"\"\n    \n    # Validate request structure\n    if not isinstance(request, dict):\n        raise ValueError(\"Request must be a dictionary.\")\n    \n    if set(request.keys()) != {\"sample\"}:\n        raise ValueError(\"Request must contain exactly the key 'sample'.\")\n    \n    sample = request[\"sample\"]\n    \n    # Validate sample type and structure\n    if not isinstance(sample, list):\n        raise ValueError(\"sample must be a list.\")\n    \n    if len(sample) < 2 or len(sample) > 500:\n        raise ValueError(\"sample must have between 2 and 500 elements.\")\n    \n    # Validate each element\n    for i, x in enumerate(sample):\n        if not isinstance(x, (int, float)):\n            raise ValueError(f\"sample[{i}] is not a number: {x}\")\n        if isinstance(x, bool):\n            raise ValueError(f\"sample[{i}] is a Boolean, not a number.\")\n        if not math.isfinite(x):\n            raise ValueError(f\"sample[{i}] is not finite: {x}\")\n        if x < 0:\n            raise ValueError(f\"sample[{i}] is negative: {x}\")\n    \n    # Compute sample statistics\n    n = len(sample)\n    maximum = max(sample)\n    log_n = math.log(n)\n    centered_maximum = maximum - log_n\n    \n    # Compute exact finite-n CDF\n    # P(Y_n <= y) = 0 if y < -log(n), else (1 - exp(-y)/n)^n\n    if centered_maximum < -log_n:\n        # This should not happen since centered_maximum = maximum - log(n) >= 0 - log(n) = -log(n)\n        exact_cdf = 0.0\n    else:\n        # y >= -log(n), so use the formula (1 - exp(-y)/n)^n\n        exp_neg_y = math.exp(-centered_maximum)\n        exact_cdf = (1.0 - exp_neg_y / n) ** n\n    \n    # Compute Gumbel CDF\n    # G(y) = exp(-exp(-y))\n    exp_neg_y = math.exp(-centered_maximum)\n    gumbel_cdf = math.exp(-exp_neg_y)\n    \n    # Construct response\n    response = {\n        \"sample_size\": n,\n        \"maximum\": maximum,\n        \"centered_maximum\": centered_maximum,\n        \"exact_cdf_at_centered\": exact_cdf,\n        \"gumbel_cdf_at_centered\": gumbel_cdf\n    }\n    \n    return response\n\n\ndef run_sandbox(seed=42, replicates=10):\n    \"\"\"\n    Developer sandbox: unit, boundary, and metamorphic checks.\n    \n    This is NOT a confirmatory simulation or empirical gate.\n    It exercises run_estimator with various inputs and validates:\n    - Request validation (closed contract)\n    - Response structure and types\n    - Mathematical identities\n    - Permutation invariance\n    - Determinism\n    \n    Args:\n        seed: random seed for reproducibility\n        replicates: number of random samples to test\n    \n    Returns:\n        dict with diagnostic results\n    \"\"\"\n    \n    import random\n    random.seed(seed)\n    \n    diagnostics = {\n        \"test_results\": [],\n        \"errors\": []\n    }\n    \n    # Test 1: Valid request with small sample\n    try:\n        request = {\"sample\": [0.5, 1.5, 2.0]}\n        response = run_estimator(request)\n        assert response[\"sample_size\"] == 3\n        assert response[\"maximum\"] == 2.0\n        assert abs(response[\"centered_maximum\"] - (2.0 - math.log(3))) < 1e-10\n        diagnostics[\"test_results\"].append({\n            \"test\": \"valid_small_sample\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"valid_small_sample\", \"error\": str(e)})\n    \n    # Test 2: All zeros (boundary case)\n    try:\n        request = {\"sample\": [0.0, 0.0, 0.0, 0.0, 0.0]}\n        response = run_estimator(request)\n        n = 5\n        assert response[\"sample_size\"] == n\n        assert response[\"maximum\"] == 0.0\n        assert abs(response[\"centered_maximum\"] - (-math.log(n))) < 1e-10\n        # At y = -log(n), exact CDF should be 0 (or numerically very close)\n        # (1 - exp(log(n))/n)^n = (1 - n/n)^n = 0^n = 0\n        assert response[\"exact_cdf_at_centered\"] < 1e-50\n        diagnostics[\"test_results\"].append({\n            \"test\": \"all_zeros\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"all_zeros\", \"error\": str(e)})\n    \n    # Test 3: Permutation invariance\n    try:\n        sample = [0.1, 2.5, 1.3, 0.8, 3.2]\n        request1 = {\"sample\": sample}\n        response1 = run_estimator(request1)\n        \n        sample_permuted = [3.2, 0.1, 1.3, 2.5, 0.8]\n        request2 = {\"sample\": sample_permuted}\n        response2 = run_estimator(request2)\n        \n        assert response1[\"maximum\"] == response2[\"maximum\"]\n        assert abs(response1[\"centered_maximum\"] - response2[\"centered_maximum\"]) < 1e-10\n        assert abs(response1[\"exact_cdf_at_centered\"] - response2[\"exact_cdf_at_centered\"]) < 1e-10\n        assert abs(response1[\"gumbel_cdf_at_centered\"] - response2[\"gumbel_cdf_at_centered\"]) < 1e-10\n        diagnostics[\"test_results\"].append({\n            \"test\": \"permutation_invariance\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"permutation_invariance\", \"error\": str(e)})\n    \n    # Test 4: Determinism\n    try:\n        request = {\"sample\": [0.5, 1.5, 2.0, 0.3]}\n        response1 = run_estimator(request)\n        response2 = run_estimator(request)\n        \n        assert response1 == response2\n        diagnostics[\"test_results\"].append({\n            \"test\": \"determinism\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"determinism\", \"error\": str(e)})\n    \n    # Test 5: CDF monotonicity (exact CDF should be in [0, 1])\n    try:\n        for _ in range(replicates):\n            n = random.randint(2, 50)\n            sample = [random.expovariate(1.0) for _ in range(n)]\n            request = {\"sample\": sample}\n            response = run_estimator(request)\n            \n            assert 0.0 <= response[\"exact_cdf_at_centered\"] <= 1.0\n            assert 0.0 < response[\"gumbel_cdf_at_centered\"] < 1.0\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"cdf_range\",\n            \"status\": \"PASS\",\n            \"replicates\": replicates\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"cdf_range\", \"error\": str(e)})\n    \n    # Test 6: Support constraint (centered_maximum >= -log(n))\n    try:\n        for _ in range(replicates):\n            n = random.randint(2, 50)\n            sample = [random.expovariate(1.0) for _ in range(n)]\n            request = {\"sample\": sample}\n            response = run_estimator(request)\n            \n            log_n = math.log(n)\n            assert response[\"centered_maximum\"] >= -log_n - 1e-10\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"support_constraint\",\n            \"status\": \"PASS\",\n            \"replicates\": replicates\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"support_constraint\", \"error\": str(e)})\n    \n    # Test 7: Reject missing key\n    try:\n        request = {\"other_key\": [0.5, 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_missing_key\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_missing_key\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_missing_key\", \"error\": str(e)})\n    \n    # Test 8: Reject extra key\n    try:\n        request = {\"sample\": [0.5, 1.5], \"extra\": \"key\"}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_extra_key\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_extra_key\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_extra_key\", \"error\": str(e)})\n    \n    # Test 9: Reject non-list sample\n    try:\n        request = {\"sample\": (0.5, 1.5)}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_tuple\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_tuple\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_tuple\", \"error\": str(e)})\n    \n    # Test 10: Reject Boolean\n    try:\n        request = {\"sample\": [0.5, True, 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_boolean\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_boolean\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_boolean\", \"error\": str(e)})\n    \n    # Test 11: Reject NaN\n    try:\n        request = {\"sample\": [0.5, float('nan'), 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_nan\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_nan\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_nan\", \"error\": str(e)})\n    \n    # Test 12: Reject infinity\n    try:\n        request = {\"sample\": [0.5, float('inf'), 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_infinity\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_infinity\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_infinity\", \"error\": str(e)})\n    \n    # Test 13: Reject negative value\n    try:\n        request = {\"sample\": [0.5, -0.1, 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_negative\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_negative\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_negative\", \"error\": str(e)})\n    \n    # Test 14: Reject too few elements\n    try:\n        request = {\"sample\": [0.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_too_few\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_too_few\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_too_few\", \"error\": str(e)})\n    \n    # Test 15: Reject too many elements\n    try:\n        request = {\"sample\": [0.5] * 501}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_too_many\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_too_many\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_too_many\", \"error\": str(e)})\n    \n    # Test 16: Mathematical identity check at y=0\n    try:\n        # If maximum = log(n), then centered_maximum = 0\n        n = 10\n        maximum = math.log(n)\n        sample = [0.0] * (n - 1) + [maximum]\n        request = {\"sample\": sample}\n        response = run_estimator(request)\n        \n        # Exact CDF at y=0: (1 - 1/n)^n\n        expected_exact = (1.0 - 1.0 / n) ** n\n        # Gumbel CDF at y=0: exp(-1)\n        expected_gumbel = math.exp(-1.0)\n        \n        assert abs(response[\"centered_maximum\"] - 0.0) < 1e-10\n        assert abs(response[\"exact_cdf_at_centered\"] - expected_exact) < 1e-10\n        assert abs(response[\"gumbel_cdf_at_centered\"] - expected_gumbel) < 1e-10\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"identity_at_y_zero\",\n            \"status\": \"PASS\",\n            \"exact_cdf\": response[\"exact_cdf_at_centered\"],\n            \"gumbel_cdf\": response[\"gumbel_cdf_at_centered\"]\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"identity_at_y_zero\", \"error\": str(e)})\n    \n    # Test 17: Response structure\n    try:\n        request = {\"sample\": [0.5, 1.5, 2.0]}\n        response = run_estimator(request)\n        \n        expected_keys = {\"sample_size\", \"maximum\", \"centered_maximum\", \"exact_cdf_at_centered\", \"gumbel_cdf_at_centered\"}\n        assert set(response.keys()) == expected_keys\n        assert isinstance(response[\"sample_size\"], int)\n        assert isinstance(response[\"maximum\"], (int, float))\n        assert isinstance(response[\"centered_maximum\"], (int, float))\n        assert isinstance(response[\"exact_cdf_at_centered\"], (int, float))\n        assert isinstance(response[\"gumbel_cdf_at_centered\"], (int, float))\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"response_structure\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"response_structure\", \"error\": str(e)})\n    \n    # Summary\n    diagnostics[\"summary\"] = {\n        \"total_tests\": len(diagnostics[\"test_results\"]) + len(diagnostics[\"errors\"]),\n        \"passed\": len(diagnostics[\"test_results\"]),\n        \"failed\": len(diagnostics[\"errors\"])\n    }\n    \n    return diagnostics\n\n\nif __name__ == \"__main__\":\n    result = run_sandbox()\n    print(json.dumps(result, indent=2))\n",
+      "source_llm_proposal_agent": "LLMAlgorithmEngineerAgent",
+      "source_llm_proposal_backend_provider": "anthropic",
+      "source_llm_proposal_id": "algorithm_engineer_proposal:2a9c30bb7e759abc59c0b4f9",
+      "source_llm_proposal_live_generator": true,
+      "source_llm_proposal_model": "claude-haiku-4-5-20251001",
+      "source_llm_proposal_model_tier": "haiku",
+      "source_llm_proposal_provider": "anthropic",
+      "spec": {
+        "estimator_interface_contract": {
+          "request_fields": [
+            {
+              "binding": "per_replicate_data",
+              "meaning": "One observed independent sample of rate-one exponential observations whose maximum is evaluated.",
+              "name": "sample"
+            }
+          ],
+          "response_fields": [
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Number of observations in the accepted sample.",
+              "name": "sample_size",
+              "normalization": "len(sample)"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_M_n",
+              "meaning": "Largest observed sample value.",
+              "name": "maximum",
+              "normalization": "max(sample)"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Maximum centered by the natural logarithm of sample size.",
+              "name": "centered_maximum",
+              "normalization": "maximum - log(sample_size), using the natural logarithm"
+            },
+            {
+              "derivation_ref": "thm.exact_cdf_Y_n",
+              "meaning": "Exact finite-sample CDF of Y_n evaluated at the returned centered maximum.",
+              "name": "exact_cdf_at_centered",
+              "normalization": "For n=sample_size and y=centered_maximum, 0 when y < -log(n), otherwise (1-exp(-y)/n)^n"
+            },
+            {
+              "derivation_ref": "def.gumbel_cdf",
+              "meaning": "Standard Gumbel limiting CDF evaluated at the returned centered maximum.",
+              "name": "gumbel_cdf_at_centered",
+              "normalization": "exp(-exp(-centered_maximum))"
+            }
+          ]
+        },
+        "estimator_interface_contract_id": "estimator_interface_contract:591f19f1eaaa42ca4760",
+        "id": "est_exponential_maximum_gumbel",
+        "name": "Exact finite-sample and Gumbel CDF for centered exponential maximum"
+      },
+      "stderr_summary": "",
+      "stdout_summary": "{\"schema_version\":1,\"artifact_kind\":\"ScientificSandboxExecutionEnvelope\",\"ok\":true,\"language\":\"python\",\"backend\":\"pyodide\",\"metrics\":{\"errors\":[],\"summary\":{\"failed\":0,\"passed\":17,\"total_tests\":17},\"test_results\":[{\"status\":\"PASS\",\"test\":\"valid_small_sample\"},{\"status\":\"PASS\",\"test\":\"all_zeros\"},{\"status\":\"PASS\",\"test\":\"permutation_invariance\"},{\"status\":\"PASS\",\"test\":\"determinism\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"cdf_range\"},{\"replicates\":100,\"status\":\"PASS\",\"test\":\"support_constraint\"},{\"status\":\"PASS\",\"test\":\"reject_missing_key\"},{\"status\":\"PASS\",\"test\":\"reject_extra_key\"},{\"status\":\"PASS\",\"test\":\"reject_tuple\"},{\"status\":\"PASS\",\"test\":\"reject_boolean\"},{\"status\":\"PASS\",\"test\":\"reject_nan\"},{\"status\":\"PASS\",\"test\":\"reject_infinity\"},{\"status\":\"PASS\",\"test\":\"reject_negative\"},{\"status\":\"PASS\",\"test\":\"reject_too_few\"},{\"status\":\"PASS\",\"test\":\"reject_too_many\"},{\"exact_cdf\":0.3486784401000001,\"gumbel_cdf\":0.36787944117144233,\"status\":\"PASS\",\"test\":\"identity_at_y_zero\"},{\"status\":\"PASS\",\"test\":\"response_structure\"}]},\"estimator_invocation_counts\":{},\"estimator_invocation_samples\":{},\"started_at\":\"2026-08-28T03:46:04.607Z\",\"completed_at\":\"2026-08-28T03:46:05.381Z\"}",
+      "subprocess_environment_keys": [
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "PATH",
+        "TMPDIR",
+        "TZ"
+      ]
+    }
+  ],
+  "question": {
+    "description": "Focused L0 known-result evaluation grounded in Fisher and Tippett (1928) and Gnedenko (1943). Let X_1,...,X_n be independent rate-one exponential random variables, let M_n=max_i X_i, and let Y_n=M_n-log n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-n CDF of M_n and the support-aware finite-n CDF of Y_n, including the branch below -log n. Then prove pointwise for every real y that P(Y_n <= y) converges to the standard Gumbel CDF exp(-exp(-y)). Make independence, the exponential support, the normalization log n, the fixed-y limiting argument, and the distinction between an exact finite-n law and its asymptotic approximation auditable. Do not replace the maximum by the minimum, omit the finite-n support branch, center by n or log(n-1), reverse a CDF or survival function, claim finite-n equality with the Gumbel law, or generalize the result to arbitrary parent distributions without domain-of-attraction conditions. The required model-authored Python artifact is est_exponential_maximum_gumbel and must implement run_estimator(request) exactly for the frozen closed sample contract. It returns the sample size, maximum, centered maximum, exact finite-n CDF evaluated at that centered value, and standard Gumbel CDF evaluated at that value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment generates independent rate-one exponential samples at several predeclared sample sizes, invokes the exact accepted estimator, verifies the exact finite-n CDF empirically with Monte Carlo uncertainty, and assesses the Gumbel approximation over a preregistered finite grid as n grows. This assessment is distributional implementation evidence, not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, tail extrapolation beyond the frozen grid, or formal proof. Lean formalization is not applicable.",
+    "estimator_execution_contract": {
+      "empirical_claims": [
+        {
+          "clause_id": "claim.empirical.protocol_identity",
+          "meaning": "Before outcomes, freeze every sample size, evaluation point, seed, replicate count, exact finite-n target, Gumbel target, Monte Carlo precision rule, and joint acceptance decision; generate only independent rate-one exponential observations and invoke the exact accepted estimator for every replicate."
+        },
+        {
+          "clause_id": "claim.empirical.finite_law",
+          "meaning": "For every frozen sample size and evaluation point, compare the empirical CDF of centered maxima to the exact support-aware finite-n CDF using the preregistered Monte Carlo uncertainty rule."
+        },
+        {
+          "clause_id": "claim.empirical.gumbel_approximation",
+          "meaning": "On the frozen finite evaluation grid, retain exact finite-n and Gumbel CDF errors across increasing sample sizes and assess the preregistered approximation pattern without claiming uniform convergence or finite-n equality."
+        },
+        {
+          "clause_id": "claim.empirical.diagnostics",
+          "meaning": "Retain per-design sample size, evaluation point, replicate count, empirical CDF, exact CDF, Gumbel CDF, Monte Carlo standard error, and estimator invocation failures rather than reporting only a pass Boolean."
+        },
+        {
+          "clause_id": "claim.empirical.scope",
+          "meaning": "The assessment is rate-one exponential distributional implementation evidence only; it is not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, extrapolation beyond the frozen grid, or formal evidence."
+        }
+      ],
+      "entrypoint": "run_estimator",
+      "estimator_id": "est_exponential_maximum_gumbel",
+      "invariants": [
+        {
+          "clause_id": "invariant.closed_object_contract",
+          "meaning": "The request contains exactly sample and the response contains exactly sample_size, maximum, centered_maximum, exact_cdf_at_centered, and gumbel_cdf_at_centered. Invalid requests are rejected without mutation or coercion."
+        },
+        {
+          "clause_id": "invariant.maximum_and_centering",
+          "meaning": "maximum equals the largest input value, sample_size equals its length, and centered_maximum equals maximum-log(sample_size) up to floating-point error."
+        },
+        {
+          "clause_id": "invariant.cdf_identities",
+          "meaning": "Both returned CDF values use the returned centered maximum; exact_cdf_at_centered uses the exact support-aware finite-n law and gumbel_cdf_at_centered uses exp(-exp(-y))."
+        },
+        {
+          "clause_id": "invariant.permutation_deterministic_nonmutating",
+          "meaning": "Permuting an equal sample leaves every response unchanged up to floating-point equality, repeated calls agree, and no call mutates the request."
+        }
+      ],
+      "request_constraints": [
+        {
+          "clause_id": "request.closed_sample_contract",
+          "meaning": "The request contains exactly the field sample. Reject missing, extra, malformed, shorter-than-two, or longer-than-500 requests without mutation or coercion."
+        }
+      ],
+      "request_fields": [
+        {
+          "binding": "per_replicate_data",
+          "clause_id": "request.sample",
+          "edge_cases": "Zero is allowed. Reject tuples, arrays, null, nested values, NaN, infinity, negative values, Boolean elements, or nonnumeric elements rather than coercing them.",
+          "indexing": "unordered observations",
+          "json_type": "array",
+          "meaning": "One observed independent sample whose maximum is evaluated.",
+          "name": "sample",
+          "shape": "a Python list of 2 through 500 finite nonnegative real numbers; Boolean values are not numbers",
+          "units": "rate-one exponential observation scale"
+        }
+      ],
+      "response_fields": [
+        {
+          "clause_id": "response.sample_size",
+          "edge_cases": "It is never Boolean or floating point.",
+          "indexing": "not applicable",
+          "json_type": "integer",
+          "meaning": "Number of observations in the accepted sample.",
+          "name": "sample_size",
+          "normalization": "len(sample).",
+          "shape": "one exact Python integer from 2 through 500",
+          "units": "observations"
+        },
+        {
+          "clause_id": "response.maximum",
+          "edge_cases": "Repeated maxima and an all-zero sample are allowed.",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Largest observed sample value.",
+          "name": "maximum",
+          "normalization": "max(sample).",
+          "shape": "one finite nonnegative scalar",
+          "units": "rate-one exponential observation scale"
+        },
+        {
+          "clause_id": "response.centered_maximum",
+          "edge_cases": "It may be negative and is always at least -log(sample_size).",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Maximum centered by the natural logarithm of sample size.",
+          "name": "centered_maximum",
+          "normalization": "maximum - log(sample_size), using the natural logarithm.",
+          "shape": "one finite real scalar",
+          "units": "dimensionless"
+        },
+        {
+          "clause_id": "response.exact_cdf_at_centered",
+          "edge_cases": "Use the support-aware finite-n law; at the returned sample maximum the supported branch applies.",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Exact finite-sample CDF of Y_n evaluated at the returned centered maximum.",
+          "name": "exact_cdf_at_centered",
+          "normalization": "For n=sample_size and y=centered_maximum, 0 when y < -log(n), otherwise (1-exp(-y)/n)^n.",
+          "shape": "one finite scalar in [0,1]",
+          "units": "probability"
+        },
+        {
+          "clause_id": "response.gumbel_cdf_at_centered",
+          "edge_cases": "This is an approximation target and must not replace the exact finite-n CDF.",
+          "indexing": "not applicable",
+          "json_type": "number",
+          "meaning": "Standard Gumbel limiting CDF evaluated at the returned centered maximum.",
+          "name": "gumbel_cdf_at_centered",
+          "normalization": "exp(-exp(-centered_maximum)).",
+          "shape": "one finite scalar in (0,1)",
+          "units": "probability"
+        }
+      ],
+      "schema_version": 1
+    },
+    "id": "exponential_maximum_gumbel_known_result",
+    "tags": [
+      "extreme value theory",
+      "exponential distribution",
+      "sample maximum",
+      "Gumbel distribution",
+      "weak convergence",
+      "known result",
+      "L0"
+    ],
+    "task_intent": {
+      "empirical": "required",
+      "formal": "not_applicable",
+      "novelty": "not_applicable",
+      "scientific_code": "required",
+      "source_replication": "not_applicable",
+      "theory": "required",
+      "unresolved_gaps": "required"
+    },
+    "title": "Gumbel limit for the maximum of exponential observations"
+  },
+  "runtime_architect_control": {
+    "acceptance_gate": "",
+    "architect_coordinator_proposal_id": "architect_coordinator_proposal:ff0cb2f99aefce8eaa6e3517",
+    "boundary": "LLM ArchitectCoordinator packets are orchestration proposals only. They can choose the research path, mathematical targets, retrieval priorities, iteration policy, and one next workspace action. Runtime owns mandatory evidence topology, budgets, lineage, and authority gates. Architect packets do not execute tools, validate simulations, or prove theorems; runtime validators and AXLE/local Lean remain the authority gates.",
+    "evidence_contract": {
+      "acceptance_modes": [
+        "research candidate may be reported with disclosed formal gaps"
+      ],
+      "dimension_requirements": {
+        "empirical": "required",
+        "formal": "not_applicable",
+        "scientific_code": "required",
+        "theory": "required"
+      },
+      "disclosure_requirements": [
+        "do not call LLM proposals, retrieval hits, simulations, or static rows proof evidence",
+        "report formal verification level as none, partial, or full"
+      ],
+      "empirical_metric_protocol_phase": "not_required",
+      "evaluation_mode": "research_eval",
+      "formal_evaluation_exposes_proof_search_tool": false,
+      "formal_evaluation_requires_formal_target_semantic_review": false,
+      "formal_evaluation_requires_formalizer_lean_candidate": false,
+      "formal_required_for_final": false,
+      "formal_target_authoring_required": false,
+      "formal_target_completion_policy": "formal gaps must remain explicit when the task-specific target is not kernel verified",
+      "formal_targets": [],
+      "formal_verification_policy": "advisory",
+      "generated_metric_contract_policy": "typed_artifact_bound_preferred",
+      "generated_metric_requirement_authority_policy": "architect_authored_coding_agent_bound_preferred",
+      "generated_sandbox_max_runtime_replicates": 100000,
+      "generated_sandbox_runtime_replicates": 100,
+      "generated_simulation_timeout_seconds": 60,
+      "independent_theory_review_required": true,
+      "metric_protocol_execution_authorized": true,
+      "recommended_research_path": "simulation_first",
+      "recommended_research_path_frozen": true,
+      "research_evaluation_requires_executable_evaluator_source": true,
+      "research_evaluation_requires_generated_algorithm_code": true,
+      "research_evaluation_requires_generated_code_semantic_review": true,
+      "research_evaluation_requires_generated_simulation_code": true,
+      "research_evaluation_requires_typed_metric_contracts": false,
+      "simulation_target_authoring_required": true,
+      "simulation_targets": [
+        "For each frozen sample size n \u2208 {10, 50, 100, 250, 500} and evaluation grid y \u2208 {-2, -1, 0, 1, 2}, generate M independent rate-one exponential samples of size n, compute centered maxima Y_n,i = max(sample_i) - log(n), and compare empirical CDF at each y to the exact finite-n CDF (1-exp(-y)/n)^n and standard Gumbel CDF exp(-exp(-y)) with preregistered Monte Carlo uncertainty bounds.",
+        "Verify that the Python estimator est_exponential_maximum_gumbel correctly computes sample_size, maximum, centered_maximum, exact_cdf_at_centered using the support-aware formula, and gumbel_cdf_at_centered = exp(-exp(-centered_maximum)) for all replicates.",
+        "Assess the approximation error (exact finite-n CDF minus Gumbel CDF) across the frozen grid as n increases, documenting per-design diagnostics without claiming uniform convergence or finite-n equality."
+      ],
+      "source_replication_requirement": "not_applicable"
+    },
+    "expected_artifacts": [],
+    "formal_required_for_final": false,
+    "formal_verification_policy": "advisory",
+    "iteration_policy": {
+      "max_revision_rounds": 2,
+      "stop_conditions": [
+        "Theory workspace produces auditable derivation of exact finite-n CDF with support branch and pointwise convergence proof to Gumbel CDF",
+        "AlgorithmEngineer delivers est_exponential_maximum_gumbel implementing the closed sample contract with correct exact and Gumbel CDF formulas",
+        "GeneratedCodeSemanticReviewer confirms the estimator correctly rejects invalid requests and computes all five response fields per contract",
+        "SimulationEvaluator executes frozen confirmatory protocol on preregistered sample sizes and evaluation grid, reports per-design diagnostics and Monte Carlo uncertainty without claiming proof or universal convergence",
+        "CriticEvaluator confirms theory is auditable, code is semantically correct, empirical assessment is properly scoped, and formal gaps are disclosed"
+      ]
+    },
+    "problem_analysis": {
+      "assumption_dimensions": [
+        "independence of X_1,...,X_n",
+        "rate-one exponential distribution (support [0,\u221e), CDF 1-exp(-x))",
+        "normalization by log(n) rather than linear centering or alternative scales",
+        "fixed-y pointwise convergence regime",
+        "distinction between exact finite-n law and asymptotic approximation"
+      ],
+      "key_obstacles": [
+        "exact finite-n CDF derivation must include support constraint y \u2265 -log(n) with explicit zero branch",
+        "pointwise convergence proof requires careful handling of the log(n) normalization and exponential support",
+        "distinguishing the exact law (1-exp(-y)/n)^n from Gumbel approximation exp(-exp(-y)) in finite samples",
+        "avoiding confusion between maximum and minimum, or between different centering schemes",
+        "ensuring empirical assessment does not claim finite-n equality or extrapolate beyond preregistered grid"
+      ],
+      "likely_analogy_classes": [
+        "Fisher-Tippett extreme value limit theorem for maxima",
+        "Gnedenko domain-of-attraction theory for exponential parent",
+        "support-aware finite-sample CDF branches in bounded/unbounded domains",
+        "weak convergence of normalized order statistics"
+      ],
+      "missing_information": [
+        "explicit derivation of the support-aware finite-n CDF formula with branch structure",
+        "pointwise limit proof showing P(Y_n \u2264 y) \u2192 exp(-exp(-y)) for each fixed y",
+        "verification that the Python estimator correctly implements the exact finite-n formula including the support branch",
+        "confirmation that the empirical assessment protocol is frozen before execution and does not claim proof or universal convergence"
+      ],
+      "statistical_objects": [
+        "sample maximum M_n of n i.i.d. rate-one exponential random variables",
+        "centered maximum Y_n = M_n - log(n)",
+        "finite-n CDF of Y_n with support branch below -log(n)",
+        "standard Gumbel CDF exp(-exp(-y))"
+      ],
+      "theorem_family": "Extreme value theory: weak convergence of normalized sample maximum to Gumbel distribution"
+    },
+    "recommended_research_path": "simulation_first",
+    "retrieval_strategy": {
+      "formal_source_queries": [
+        "Mathlib extreme_value_theory maximum distribution",
+        "Mathlib Gumbel distribution CDF definition",
+        "Mathlib exponential distribution support and CDF",
+        "Lean weak convergence pointwise limit"
+      ],
+      "lean_rag_priorities": [
+        "exact finite-n CDF formula with support constraint",
+        "Gumbel CDF definition exp(-exp(-y))",
+        "exponential distribution rate-one CDF 1-exp(-x)",
+        "pointwise convergence statement structure"
+      ],
+      "paper_queries": [
+        "Fisher Tippett 1928 extreme value limit maximum exponential",
+        "Gnedenko 1943 domain of attraction exponential distribution",
+        "Gumbel distribution weak convergence sample maximum normalization log n",
+        "finite-sample CDF maximum exponential support branch"
+      ]
+    },
+    "subsystem": "AlgorithmEngineer",
+    "subsystem_plan": {
+      "acceptance_gate": "",
+      "expected_artifacts": [],
+      "inputs_needed": [],
+      "llm_authored": false,
+      "objective": "",
+      "plan_row_source": "runtime_required_evidence_contract",
+      "runtime_defaults_required": true,
+      "subsystem": "AlgorithmEngineer"
+    }
+  },
+  "schema_version": 1,
+  "scientific_source_workspace_intent_id": "algorithm_source_workspace_intent:db170b2a66eadc5eb8c9",
+  "scientific_source_workspace_owns_planning": true,
+  "simulation_manifest_id": "",
+  "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "theory_trace_consumption_contract": {
+    "artifact_kind": "TheoryTraceConsumptionContract",
+    "boundary": "Theory trace consumption records proposal-context provenance only. It does not count as code execution, simulation evidence, or Lean/kernel proof evidence.",
+    "consumer_subsystem": "AlgorithmEngineer",
+    "contract_source": "agent_runtime_handoff",
+    "has_formalization_handoff": false,
+    "n_assumption_ledger_rows_supplied": 0,
+    "n_derivation_steps_supplied": 0,
+    "n_equation_chain_steps_supplied": 0,
+    "proof_evidence_status": "THEORY_TRACE_CONSUMPTION_NOT_PROOF_EVIDENCE",
+    "schema_version": 1,
+    "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+    "target_ids": [],
+    "theory_derivation_trace_supplied": true
+  },
+  "typed_metric_contract_proof_evidence_status": "GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE"
+}

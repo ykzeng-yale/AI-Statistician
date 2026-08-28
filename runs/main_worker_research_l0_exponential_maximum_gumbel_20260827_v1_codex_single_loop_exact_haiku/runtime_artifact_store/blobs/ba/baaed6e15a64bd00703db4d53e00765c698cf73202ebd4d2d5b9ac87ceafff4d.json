@@ -1,0 +1,168 @@
+{
+  "architect_evidence_contract": {
+    "acceptance_modes": [
+      "research candidate may be reported with disclosed formal gaps"
+    ],
+    "dimension_requirements": {
+      "empirical": "required",
+      "formal": "not_applicable",
+      "scientific_code": "required",
+      "theory": "required"
+    },
+    "disclosure_requirements": [
+      "do not call LLM proposals, retrieval hits, simulations, or static rows proof evidence",
+      "report formal verification level as none, partial, or full"
+    ],
+    "empirical_metric_protocol_phase": "theory_informed_authoring_required",
+    "empirical_metric_requirements": [],
+    "evaluation_mode": "research_eval",
+    "formal_evaluation_exposes_proof_search_tool": false,
+    "formal_evaluation_requires_formal_target_semantic_review": false,
+    "formal_evaluation_requires_formalizer_lean_candidate": false,
+    "formal_required_for_final": false,
+    "formal_target_authoring_required": false,
+    "formal_target_completion_policy": "formal gaps must remain explicit when the task-specific target is not kernel verified",
+    "formal_targets": [],
+    "formal_verification_policy": "advisory",
+    "generated_metric_contract_policy": "typed_artifact_bound_preferred",
+    "generated_metric_requirement_authority_policy": "architect_authored_coding_agent_bound_preferred",
+    "generated_sandbox_max_runtime_replicates": 100000,
+    "generated_sandbox_runtime_replicates": 100,
+    "generated_simulation_timeout_seconds": 60,
+    "independent_theory_review_required": true,
+    "metric_protocol_execution_authorized": false,
+    "recommended_research_path": "simulation_first",
+    "recommended_research_path_frozen": true,
+    "research_evaluation_requires_executable_evaluator_source": true,
+    "research_evaluation_requires_generated_algorithm_code": true,
+    "research_evaluation_requires_generated_code_semantic_review": true,
+    "research_evaluation_requires_generated_simulation_code": true,
+    "research_evaluation_requires_typed_metric_contracts": false,
+    "simulation_target_authoring_required": true,
+    "simulation_targets": [
+      "For each frozen sample size n \u2208 {10, 50, 100, 250, 500} and evaluation grid y \u2208 {-2, -1, 0, 1, 2}, generate M independent rate-one exponential samples of size n, compute centered maxima Y_n,i = max(sample_i) - log(n), and compare empirical CDF at each y to the exact finite-n CDF (1-exp(-y)/n)^n and standard Gumbel CDF exp(-exp(-y)) with preregistered Monte Carlo uncertainty bounds.",
+      "Verify that the Python estimator est_exponential_maximum_gumbel correctly computes sample_size, maximum, centered_maximum, exact_cdf_at_centered using the support-aware formula, and gumbel_cdf_at_centered = exp(-exp(-centered_maximum)) for all replicates.",
+      "Assess the approximation error (exact finite-n CDF minus Gumbel CDF) across the frozen grid as n increases, documenting per-design diagnostics without claiming uniform convergence or finite-n equality."
+    ],
+    "source_replication_requirement": "not_applicable"
+  },
+  "artifact_kind": "RuntimeGeneratedCodeSemanticReviewWorkOrder",
+  "confirmatory_empirical_evidence_eligible": false,
+  "created_at": "2026-08-28T03:53:28.363041+00:00",
+  "deferred_next_task_continuation_hash": "60c4af3d49a473628c83f8f2f1f568c7b7c32cfb30e542c3c1890f57263484d4",
+  "deferred_next_task_continuation_id": "agent_task_continuation:f28d6bfabe5e0aca7e8e",
+  "deferred_next_task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:b36418e982d1cfbd0fff",
+    "allowed_tools": [
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "confirmatory_simulation_manifest"
+    ],
+    "input_keys": [
+      "algorithm_sandbox_manifest_id",
+      "architect_context",
+      "consumer_resume_manifest",
+      "empirical_evaluation_phase",
+      "evaluator_source_confirmation",
+      "n_runs",
+      "question",
+      "seed",
+      "theory_packet_id",
+      "upstream_algorithm_handoff"
+    ],
+    "inputs_hash": "40aa5d21798e8ca3bae67afd1f6f78d562f520f4b8a4caa93e82c2011e98ad06",
+    "objective_ref": "task_objective:c5dbf5c0851ff10c6313",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition_ref": "task_stop_condition:0dd421f0103f4d405c1f",
+    "task_id": "evaluator-confirmation:exponential_maximum_gumbel_known_result:3d19b944",
+    "task_snapshot_hash": "74cb2303632f7f6774039777890416bbf04a7ea284e85c9ade6fd6be08d6a8e7"
+  },
+  "empirical_evaluation_phase": "executable_evaluator_authoring",
+  "evidence_boundary": "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.",
+  "max_revisions": 1,
+  "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_WORK_ORDER_NOT_PROOF_EVIDENCE",
+  "proposal_packet_hash": "441345522283804864275231ac746818c441c6940b4726c92f4bce927b5cdcd7",
+  "proposal_packet_id": "simulation_engineer_proposal:ac05a9651071b40fc4bd9f74",
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "research_evaluation": true,
+  "review_revision_count": 0,
+  "reviewed_artifacts": [
+    {
+      "artifact_id": "confirmatory_simulation:245f60015b79b9948c4a",
+      "metric_contract_set_id": "",
+      "metric_requirement_set_id": "",
+      "result_hash": "75fff0378290bc816cc5991a5f348af73998e2a8512df749cab72521ba96b817",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/5042a190620f/authoring-diagnostic/confirmatory_simulation_245f60015b79b9948c4a_ac4e4d3cd81d54b1_scientific_metrics.json",
+      "row_hash": "4efc798e44573fd61f6a97a4ae7380083a160e77bab0a8a88aca18c11548ea79",
+      "runtime_replicates": 128,
+      "runtime_seed": 1939901687,
+      "script_hash": "d0a7011b1b6e5fdff9f6f45c4cfd53b7edded1e04091aab45014e6ddbaf936e8",
+      "script_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_simulation_sandbox/exponential_maximum_gumbel_known_result/5042a190620f/authoring-diagnostic/confirmatory_simulation_245f60015b79b9948c4a_ac4e4d3cd81d54b1_generated_draft.py"
+    }
+  ],
+  "schema_version": 1,
+  "source_agent": "LLMSimulationEngineerAgent",
+  "source_manifest_hash": "9508540fc6c619561c2403c071e622abfba5839a46e10959520ead4938460816",
+  "source_manifest_id": "simulation_manifest:54da8757bbec84815852",
+  "source_model": "claude-haiku-4-5-20251001",
+  "source_model_tier": "haiku",
+  "source_responsibility_contract": {
+    "artifact_review_rule": "Judge whether this artifact computes and emits the statistic assigned by its empirical requirements, source proposal, interface, and supplied theory premises. Do not adjudicate realized threshold pass or fail; the empirical evaluator owns that decision. Exact execution may expose source semantics, interface, argument, or non-vacuity defects. A theory premise is not automatically a requirement for finite-data code to test or prove that premise at runtime. Require an observable check only when an assigned protocol, interface precondition, or explicit source claim owns it. Do not require one artifact to implement requirements assigned only to a sibling generated-code author.",
+    "assigned_empirical_metric_requirements": [],
+    "assigned_requirement_ids": [],
+    "generated_code_author_subsystem": "SimulationEngineer",
+    "proof_evidence_status": "GENERATED_CODE_SOURCE_RESPONSIBILITY_CONTRACT_NOT_PROOF_EVIDENCE",
+    "runtime_source_subsystem": "SimulationEvaluator",
+    "schema_version": 1,
+    "sibling_only_requirement_refs": [],
+    "system_coverage_owner": "CriticEvaluator",
+    "system_coverage_rule": "Final cross-artifact question coverage is decided only after the separately reviewed sibling artifacts are assembled by AgentRuntime and audited by CriticEvaluator. This per-artifact review must still reject unsupported claims made by its own proposal."
+  },
+  "source_responsibility_contract_fingerprint": "95c4fbf63aba7cf681de5950545d23675b9ed72ec9e7960e9df5f4e2cc5820ab",
+  "source_subsystem": "SimulationEvaluator",
+  "source_task_continuation_hash": "490e9adf39cb1927c3cd6540b984376adb92f97075f7035551e59be5884bfe67",
+  "source_task_continuation_id": "agent_task_continuation:13afb6421ca7a5620290",
+  "source_task_id": "semantic-review-accepted:exponential_maximum_gumbel_known_result:3458a307",
+  "source_task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:ffda1975ff6feba32598",
+    "allowed_tools": [
+      "model_backend",
+      "research_simulator",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "simulation_manifest",
+      "implementation_gap_manifest"
+    ],
+    "input_keys": [
+      "accepted_generated_code_semantic_reviews",
+      "algorithm_sandbox_manifest_id",
+      "architect_context",
+      "empirical_evaluation_phase",
+      "evaluator_source_authoring",
+      "n_runs",
+      "question",
+      "seed",
+      "simulation_manifest_id",
+      "theory_packet_id",
+      "upstream_algorithm_handoff"
+    ],
+    "inputs_hash": "c564d0508f742a132ff36e0cc5b406bb466ece85aaa83730f3499ae3308d7552",
+    "objective_ref": "task_objective:7407ab33821555ffd1b9",
+    "owner_subsystem": "SimulationEvaluator",
+    "stop_condition_ref": "task_stop_condition:42f58febded770229e25",
+    "task_id": "semantic-review-accepted:exponential_maximum_gumbel_known_result:3458a307",
+    "task_snapshot_hash": "0094c92c943ecb743ee232a44c80de34ba9016affc56c13c6c250ae4eba19d55"
+  },
+  "target_subsystem": "GeneratedCodeSemanticReviewer",
+  "theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+  "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "work_order_id": "generated_code_semantic_review_work_order:aad93ab3bc80761ff7b7"
+}

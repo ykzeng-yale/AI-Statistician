@@ -1,0 +1,527 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "RuntimeLLMTopologyManifest",
+  "created_at": "2026-08-28T03:41:02.463161+00:00",
+  "policy": {
+    "default_live_provider": "anthropic",
+    "supported_live_generator_providers": [
+      "anthropic",
+      "openai"
+    ],
+    "supported_generator_providers": [
+      "anthropic",
+      "openai",
+      "static"
+    ],
+    "claude_model_selection": {
+      "source_checked_date": "2026-08-02",
+      "source_evidence": {
+        "source_checked_date": "2026-08-02",
+        "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",
+        "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+        "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+        "verified_latest_cost_tier_api_ids": {
+          "haiku": "claude-haiku-4-5-20251001",
+          "sonnet": "claude-sonnet-5"
+        },
+        "verified_api_aliases_by_tier": {
+          "haiku": "claude-haiku-4-5",
+          "sonnet": "claude-sonnet-5"
+        },
+        "claims": [
+          "The source-checked project allowlist uses Claude Sonnet 5 and the dated Claude Haiku 4.5 API snapshot.",
+          "Claude 4.6+ dateless model IDs are pinned snapshots, not evergreen aliases."
+        ]
+      },
+      "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+      "default_provider": "anthropic",
+      "default_model_tier": "sonnet",
+      "max_live_anthropic_model_tier": "sonnet",
+      "allowed_live_anthropic_model_tiers": [
+        "haiku",
+        "sonnet"
+      ],
+      "prohibited_live_anthropic_model_tiers": [
+        "opus"
+      ],
+      "models_by_tier": {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-5"
+      },
+      "api_aliases_by_tier": {
+        "haiku": "claude-haiku-4-5",
+        "sonnet": "claude-sonnet-5"
+      },
+      "subsystem_model_tier_policy": {
+        "ArchitectCoordinator": "sonnet",
+        "TheoryDeveloper": "sonnet",
+        "FormalizerProofEngineer": "sonnet",
+        "TheoryIntake": "haiku",
+        "SimulationEngineer": "sonnet",
+        "SimulatorEngineer": "sonnet",
+        "AlgorithmEngineer": "sonnet",
+        "ArchitectMetricSemanticReviewer": "sonnet",
+        "GeneratedCodeSemanticReviewer": "sonnet",
+        "FormalTargetSemanticReviewer": "sonnet",
+        "CriticEvaluator": "sonnet",
+        "bounded_route_triage": "haiku"
+      },
+      "contextual_model_tier_policy": {
+        "TheoryDeveloper:serious": "sonnet"
+      },
+      "runtime_model_id_policy": "AI Statistician resolves live runtime calls only for the Haiku and Sonnet tiers. No higher-tier model ID is stored in the configurable catalog; any other Claude family or tier is rejected before provider-client construction.",
+      "tier_specific_model_env_vars": {
+        "haiku": [
+          "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+          "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL"
+        ],
+        "sonnet": [
+          "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+          "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL"
+        ]
+      },
+      "global_model_override_policy": "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. They must not collapse live Haiku/Sonnet cost-aware routing; use the live tier-specific Claude env vars to override helper tiers.",
+      "model_id_versioning": "Claude model IDs are pinned snapshots. Starting with Claude 4.6, dateless IDs such as claude-sonnet-4-6 are canonical release IDs, not evergreen aliases; newer releases require explicit constant updates.",
+      "cost_split": {
+        "sonnet": [
+          "ArchitectCoordinator",
+          "TheoryDeveloper",
+          "SimulationEngineer",
+          "AlgorithmEngineer",
+          "FormalizerProofEngineer",
+          "CriticEvaluator"
+        ],
+        "haiku": [
+          "theory_intake",
+          "bounded_route_triage"
+        ]
+      }
+    },
+    "claude_tier_routing_contract": {
+      "contract_name": "anthropic_claude_tier_routing_contract",
+      "source_checked_date": "2026-08-02",
+      "source_evidence": {
+        "source_checked_date": "2026-08-02",
+        "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",
+        "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+        "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+        "verified_latest_cost_tier_api_ids": {
+          "haiku": "claude-haiku-4-5-20251001",
+          "sonnet": "claude-sonnet-5"
+        },
+        "verified_api_aliases_by_tier": {
+          "haiku": "claude-haiku-4-5",
+          "sonnet": "claude-sonnet-5"
+        },
+        "claims": [
+          "The source-checked project allowlist uses Claude Sonnet 5 and the dated Claude Haiku 4.5 API snapshot.",
+          "Claude 4.6+ dateless model IDs are pinned snapshots, not evergreen aliases."
+        ]
+      },
+      "default_live_generator_provider": "anthropic",
+      "effective_live_generator_provider": "anthropic",
+      "supported_live_generator_providers": [
+        "anthropic",
+        "openai"
+      ],
+      "supported_generator_providers": [
+        "anthropic",
+        "openai",
+        "static"
+      ],
+      "static_replay_generator_providers": [
+        "static"
+      ],
+      "prohibited_agent_generator_providers": [
+        "codex",
+        "codex_exec",
+        "claude_code",
+        "cursor",
+        "gemini_cli"
+      ],
+      "claude_model_selection": {
+        "source_checked_date": "2026-08-02",
+        "source_evidence": {
+          "source_checked_date": "2026-08-02",
+          "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",
+          "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+          "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+          "verified_latest_cost_tier_api_ids": {
+            "haiku": "claude-haiku-4-5-20251001",
+            "sonnet": "claude-sonnet-5"
+          },
+          "verified_api_aliases_by_tier": {
+            "haiku": "claude-haiku-4-5",
+            "sonnet": "claude-sonnet-5"
+          },
+          "claims": [
+            "The source-checked project allowlist uses Claude Sonnet 5 and the dated Claude Haiku 4.5 API snapshot.",
+            "Claude 4.6+ dateless model IDs are pinned snapshots, not evergreen aliases."
+          ]
+        },
+        "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+        "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+        "default_provider": "anthropic",
+        "default_model_tier": "sonnet",
+        "max_live_anthropic_model_tier": "sonnet",
+        "allowed_live_anthropic_model_tiers": [
+          "haiku",
+          "sonnet"
+        ],
+        "prohibited_live_anthropic_model_tiers": [
+          "opus"
+        ],
+        "models_by_tier": {
+          "haiku": "claude-haiku-4-5-20251001",
+          "sonnet": "claude-sonnet-5"
+        },
+        "api_aliases_by_tier": {
+          "haiku": "claude-haiku-4-5",
+          "sonnet": "claude-sonnet-5"
+        },
+        "subsystem_model_tier_policy": {
+          "ArchitectCoordinator": "sonnet",
+          "TheoryDeveloper": "sonnet",
+          "FormalizerProofEngineer": "sonnet",
+          "TheoryIntake": "haiku",
+          "SimulationEngineer": "sonnet",
+          "SimulatorEngineer": "sonnet",
+          "AlgorithmEngineer": "sonnet",
+          "ArchitectMetricSemanticReviewer": "sonnet",
+          "GeneratedCodeSemanticReviewer": "sonnet",
+          "FormalTargetSemanticReviewer": "sonnet",
+          "CriticEvaluator": "sonnet",
+          "bounded_route_triage": "haiku"
+        },
+        "contextual_model_tier_policy": {
+          "TheoryDeveloper:serious": "sonnet"
+        },
+        "runtime_model_id_policy": "AI Statistician resolves live runtime calls only for the Haiku and Sonnet tiers. No higher-tier model ID is stored in the configurable catalog; any other Claude family or tier is rejected before provider-client construction.",
+        "tier_specific_model_env_vars": {
+          "haiku": [
+            "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+            "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL"
+          ],
+          "sonnet": [
+            "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+            "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL"
+          ]
+        },
+        "global_model_override_policy": "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. They must not collapse live Haiku/Sonnet cost-aware routing; use the live tier-specific Claude env vars to override helper tiers.",
+        "model_id_versioning": "Claude model IDs are pinned snapshots. Starting with Claude 4.6, dateless IDs such as claude-sonnet-4-6 are canonical release IDs, not evergreen aliases; newer releases require explicit constant updates.",
+        "cost_split": {
+          "sonnet": [
+            "ArchitectCoordinator",
+            "TheoryDeveloper",
+            "SimulationEngineer",
+            "AlgorithmEngineer",
+            "FormalizerProofEngineer",
+            "CriticEvaluator"
+          ],
+          "haiku": [
+            "theory_intake",
+            "bounded_route_triage"
+          ]
+        }
+      },
+      "latest_claude_models_by_tier": {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-5"
+      },
+      "latest_claude_api_aliases_by_tier": {
+        "haiku": "claude-haiku-4-5",
+        "sonnet": "claude-sonnet-5"
+      },
+      "prohibited_live_anthropic_model_tiers": [
+        "opus"
+      ],
+      "resolved_claude_models_by_tier": {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-5"
+      },
+      "allowed_live_anthropic_model_tiers": [
+        "haiku",
+        "sonnet"
+      ],
+      "resolved_claude_model_tier_policy_status": "OK",
+      "resolved_claude_model_tier_policy_violations": [],
+      "resolved_claude_model_freshness_status": "CURRENT",
+      "resolved_claude_model_freshness_warnings": [],
+      "environment_override_status": "OK",
+      "provider_override_warnings": [],
+      "global_model_override_keys_present": [],
+      "tier_specific_model_override_keys_present": [],
+      "global_model_override_policy": "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. They must not collapse live Haiku/Sonnet cost-aware routing; use the live tier-specific Claude env vars to override helper tiers.",
+      "tier_specific_model_env_vars": {
+        "haiku": [
+          "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+          "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL"
+        ],
+        "sonnet": [
+          "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+          "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL"
+        ]
+      },
+      "subsystem_model_tier_policy": {
+        "ArchitectCoordinator": "sonnet",
+        "TheoryDeveloper": "sonnet",
+        "FormalizerProofEngineer": "sonnet",
+        "TheoryIntake": "haiku",
+        "SimulationEngineer": "sonnet",
+        "SimulatorEngineer": "sonnet",
+        "AlgorithmEngineer": "sonnet",
+        "ArchitectMetricSemanticReviewer": "sonnet",
+        "GeneratedCodeSemanticReviewer": "sonnet",
+        "FormalTargetSemanticReviewer": "sonnet",
+        "CriticEvaluator": "sonnet",
+        "bounded_route_triage": "haiku"
+      },
+      "contextual_model_tier_policy": {
+        "TheoryDeveloper:serious": "sonnet"
+      },
+      "all_ok": true
+    },
+    "resolved_claude_models_by_tier": {
+      "haiku": "claude-haiku-4-5-20251001",
+      "sonnet": "claude-sonnet-5"
+    },
+    "resolved_claude_model_tier_policy_status": "OK",
+    "resolved_claude_model_tier_policy_violations": [],
+    "resolved_claude_model_freshness_status": "CURRENT",
+    "resolved_claude_model_freshness_warnings": [],
+    "expected_subsystem_model_tiers": {
+      "ArchitectCoordinator": "sonnet",
+      "TheoryDeveloper": "sonnet",
+      "FormalizerProofEngineer": "sonnet",
+      "TheoryIntake": "haiku",
+      "SimulationEngineer": "sonnet",
+      "SimulatorEngineer": "sonnet",
+      "AlgorithmEngineer": "sonnet",
+      "ArchitectMetricSemanticReviewer": "sonnet",
+      "GeneratedCodeSemanticReviewer": "sonnet",
+      "FormalTargetSemanticReviewer": "sonnet",
+      "CriticEvaluator": "sonnet",
+      "bounded_route_triage": "haiku"
+    },
+    "expected_contextual_model_tiers": {
+      "TheoryDeveloper:serious": "sonnet"
+    },
+    "model_tier_assignment_policy": "centralized_subsystem_policy_from_model_backend",
+    "evaluation_claude_model_tier": "haiku",
+    "evaluation_claude_model": "claude-haiku-4-5-20251001",
+    "backend_boundary": "LLM backends generate structured proposals only. AgentRuntime owns tool use, filesystem changes, execution, tests, Lean checks, and evidence promotion."
+  },
+  "llm_agents": [
+    {
+      "subsystem": "ArchitectCoordinator",
+      "enabled": true,
+      "provider_name": "anthropic",
+      "backend_provider_name": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "configured_model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "expected_model_tier": "haiku",
+      "role": "top-level research plan, evidence gates, and subsystem routing",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "max_tokens": 3000,
+      "temperature": 0.1,
+      "production_expected_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "ArchitectMetricSemanticReviewer",
+      "enabled": true,
+      "provider_name": "anthropic",
+      "backend_provider_name": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "configured_model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "expected_model_tier": "haiku",
+      "role": "independent pre-execution semantic and mathematical review of Architect-authored typed empirical metric contracts",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "max_tokens": 16000,
+      "temperature": 0.0,
+      "production_expected_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "TheoryDeveloper",
+      "enabled": true,
+      "provider_name": "anthropic",
+      "backend_provider_name": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "configured_model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "expected_model_tier": "haiku",
+      "role": "deductive statistical theory discovery and theorem/procedure proposal",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "max_tokens": 4500,
+      "temperature": 0.2,
+      "serious_model": "claude-haiku-4-5-20251001",
+      "configured_serious_model": "claude-haiku-4-5-20251001",
+      "serious_model_tier": "haiku",
+      "expected_serious_model_tier": "haiku",
+      "serious_max_tokens": 16000,
+      "theory_workspace_max_turns": 24,
+      "theory_workspace_max_tool_calls": 48,
+      "theory_workspace_budget_policy": "one_shared_ordinary_tool_call_budget",
+      "production_expected_model_tier": "sonnet",
+      "production_expected_serious_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "SimulationEngineer",
+      "enabled": true,
+      "provider_name": "anthropic",
+      "backend_provider_name": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "configured_model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "expected_model_tier": "haiku",
+      "role": "simulation and falsifier proposal under runtime execution gates",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "max_tokens": 8000,
+      "temperature": 0.1,
+      "production_expected_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "AlgorithmEngineer",
+      "enabled": true,
+      "provider_name": "anthropic",
+      "backend_provider_name": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "configured_model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "expected_model_tier": "haiku",
+      "role": "algorithm prototype and stress-test implementation proposal",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "max_tokens": 5000,
+      "temperature": 0.1,
+      "production_expected_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "FormalizerProofEngineer",
+      "enabled": false,
+      "provider_name": "",
+      "backend_provider_name": "",
+      "model": "",
+      "model_tier": "sonnet",
+      "expected_model_tier": "haiku",
+      "role": "Lean/formal-target/proof-search proposal before kernel gates",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "production_expected_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "GeneratedCodeSemanticReviewer",
+      "enabled": true,
+      "provider_name": "anthropic",
+      "backend_provider_name": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "configured_model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "expected_model_tier": "haiku",
+      "role": "independent semantic review of exact executed generated code, runtime arguments, result schema, theory, and frozen protocols before confirmatory outcome release",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "max_tokens": 7000,
+      "temperature": 0.0,
+      "production_expected_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "FormalTargetSemanticReviewer",
+      "enabled": false,
+      "provider_name": "",
+      "backend_provider_name": "",
+      "model": "",
+      "model_tier": "sonnet",
+      "expected_model_tier": "haiku",
+      "role": "independent mathematical review of exact theorem statements against the question, derivation, assumptions, and constraints",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "production_expected_model_tier": "sonnet"
+    },
+    {
+      "subsystem": "CriticEvaluator",
+      "enabled": true,
+      "provider_name": "anthropic",
+      "backend_provider_name": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "configured_model": "claude-haiku-4-5-20251001",
+      "model_tier": "haiku",
+      "expected_model_tier": "haiku",
+      "role": "boundary audit, learning rows, and next-action triage",
+      "generator_only": true,
+      "acts_in_environment": false,
+      "max_tokens": 5000,
+      "temperature": 0.1,
+      "production_expected_model_tier": "sonnet"
+    }
+  ],
+  "provider_counts": {
+    "anthropic": 7
+  },
+  "model_tier_counts": {
+    "haiku": 7
+  },
+  "unsupported_provider_count": 0,
+  "generator_only_all_enabled": true,
+  "default_provider": "anthropic",
+  "architect_provider": "anthropic",
+  "architect_metric_semantic_reviewer_provider": "anthropic",
+  "theory_developer_provider": "anthropic",
+  "simulation_engineer_provider": "anthropic",
+  "algorithm_engineer_provider": "anthropic",
+  "formalizer_provider": "",
+  "critic_evaluator_provider": "anthropic",
+  "generated_code_semantic_reviewer_provider": "anthropic",
+  "formal_target_semantic_reviewer_provider": "",
+  "architect_model": "claude-haiku-4-5-20251001",
+  "architect_metric_semantic_reviewer_model": "claude-haiku-4-5-20251001",
+  "theory_developer_model": "claude-haiku-4-5-20251001",
+  "theory_developer_serious_model": "claude-haiku-4-5-20251001",
+  "simulation_engineer_model": "claude-haiku-4-5-20251001",
+  "algorithm_engineer_model": "claude-haiku-4-5-20251001",
+  "formalizer_model": "",
+  "critic_evaluator_model": "claude-haiku-4-5-20251001",
+  "generated_code_semantic_reviewer_model": "claude-haiku-4-5-20251001",
+  "formal_target_semantic_reviewer_model": "",
+  "architect_model_tier": "haiku",
+  "architect_metric_semantic_reviewer_model_tier": "haiku",
+  "theory_developer_model_tier": "haiku",
+  "theory_developer_serious_model_tier": "haiku",
+  "simulation_engineer_model_tier": "haiku",
+  "algorithm_engineer_model_tier": "haiku",
+  "formalizer_model_tier": "sonnet",
+  "critic_evaluator_model_tier": "haiku",
+  "generated_code_semantic_reviewer_model_tier": "haiku",
+  "formal_target_semantic_reviewer_model_tier": "sonnet",
+  "policy_status": "OK",
+  "policy_violations": [],
+  "non_llm_runtime_providers": {
+    "proof_state_provider": "",
+    "proof_state_feedback_is_proof_evidence": false
+  },
+  "counts": {
+    "llm_agents_total": 9,
+    "llm_agents_enabled": 7,
+    "llm_agents_disabled": 2,
+    "enabled_by_model_tier": {
+      "haiku": 7
+    },
+    "enabled_by_provider": {
+      "anthropic": 7
+    },
+    "unsupported_generator_backends_enabled": 0,
+    "anthropic_model_tier_mismatches": 0,
+    "anthropic_serious_model_tier_mismatches": 0,
+    "subsystem_model_tier_policy_mismatches": 0,
+    "contextual_model_tier_policy_mismatches": 0,
+    "resolved_claude_model_tier_policy_violations": 0
+  },
+  "boundary": "This manifest is runtime/model provenance and cost-control metadata. It is not proof, simulation, or implementation evidence.",
+  "manifest_id": "runtime_llm_topology:b8f4e69de83afc7bccaa"
+}

@@ -1,0 +1,1039 @@
+{
+  "accepted": true,
+  "artifact_id": "theory_workspace:7499d9ed09f7e67a22d2",
+  "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+  "authoring_binding_id": "initial_theory_authoring:4ae8153330123eea348d",
+  "changed_artifact_names": [
+    "estimator_specs",
+    "problem_card",
+    "simulation_ademp_spec",
+    "theory_derivation_packet"
+  ],
+  "changed_document_paths": [
+    "est_exponential_maximum_gumbel.md",
+    "exponential_maximum_gumbel_theory.md"
+  ],
+  "checkpoint_committed": true,
+  "checkpoint_readiness_rationale": "The theory workspace is mathematically coherent and ready for independent review. The authoritative Markdown document derives the exact finite-sample CDF of the centered maximum of exponential observations with explicit support-aware branching, proves pointwise convergence to the Gumbel distribution, and includes seven sanity checks (all PASS) verifying the formulas. The estimator specification implements the closed sample contract with exact field names and normalization rules. The simulation specification defines a preregistered assessment protocol with frozen sample sizes, evaluation points, and performance measures. All claims are indexed with dependencies, and the workspace is structurally valid. The derivations are grounded in the Fisher\u2013Tippett\u2013Gnedenko theorem and distinguish the exact finite-n law from the asymptotic Gumbel approximation. Exploratory Python checks confirm permutation invariance, support constraints, monotonicity, and error decay as O(1/n).",
+  "client_tool_checkpoint_window": {},
+  "client_tool_session_lineage_continued": false,
+  "client_tool_session_ref": {
+    "artifact_kind": "ClientToolWorkspaceSessionRef",
+    "message_count": 33,
+    "relative_path": ".client_tool_sessions/19a687d24c11387bd570334343731947ec3f283f31218907d161f9c6b497f3cd.json",
+    "root_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_workspaces/theory_workspace-8fedb0867fd73deeec93",
+    "schema_version": 2,
+    "session_contract_fingerprint": "b6efd56f517c26b0b3410f74639013a173ccbde4c2528e669657e9d5e0c7f0e4",
+    "session_id": "theory_workspace:8fedb0867fd73deeec93",
+    "sha256": "19a687d24c11387bd570334343731947ec3f283f31218907d161f9c6b497f3cd",
+    "transcript_fingerprint": "cabee6afeb11f22102c1c084d42c9199a6865a764d6553728c27c4455df129a1"
+  },
+  "cumulative_tool_state_restored": false,
+  "disposition": "THEORY_CHECKPOINT_COMMITTED",
+  "document_inspection_refs": [
+    {
+      "content_sha256": "b3f47893288d8659cfee8eb53023cc64aca3a7b79c99aebb0cecb88212e97f5a",
+      "document_sha256": "de3beab2fa550f6f80be93582cec86f335d56eaf02b69dd0b3fc1c69112d524c",
+      "line_end": 50,
+      "line_start": 1,
+      "path": "exponential_maximum_gumbel_theory.md",
+      "proof_evidence_status": "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE",
+      "tool": "read_theory_document"
+    },
+    {
+      "content_sha256": "c83e0cb5f64ca930a41a5eadbf94c92c12f24f18065cce635f700645b07c0926",
+      "document_sha256": "de3beab2fa550f6f80be93582cec86f335d56eaf02b69dd0b3fc1c69112d524c",
+      "line_end": 119,
+      "line_start": 100,
+      "path": "exponential_maximum_gumbel_theory.md",
+      "proof_evidence_status": "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE",
+      "tool": "read_theory_document"
+    }
+  ],
+  "history": [
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 5627
+          },
+          "cache_creation_input_tokens": 5627,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "not_available",
+          "input_tokens": 19,
+          "output_tokens": 49,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01FNd7dqRSRforQwSzYviLTv",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "b88c8ab71acf72e8b15a23ff87f80a967a5d0e57d4b3fd0f03ad1873d1879bf2",
+          "is_error": false,
+          "name": "read_theory_workspace",
+          "observation_key": "theory-workspace-read:90173073fb572fcc8bd34b26aa7cd3cab1e5ba211e2e22adfa71984a624a1fd1",
+          "result_excerpt": "[theory workspace content omitted from persisted evidence; use hash-bound artifact or document inspection refs]",
+          "result_fingerprint": "a717e62de3a1f09cc72b85c1c8150e64fa731bb461738bc2472295d807b5e42c",
+          "state_changed": false,
+          "terminal": false
+        }
+      ],
+      "turn_index": 0
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4184
+          },
+          "cache_creation_input_tokens": 4184,
+          "cache_read_input_tokens": 5627,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 2703,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01SGR1i2bXBHRKUCGoAYp4WX",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "d86b94ff7498e92d051d4f71229dcb79c8788c2b8e3628234a221e5d42d78e8e",
+          "is_error": false,
+          "name": "write_theory_document",
+          "observation_key": "theory-workspace-validation:1fdd56523c1450ab27b6bb580e632a2b9173a2aaac33c36d641ca4d29d55146a",
+          "result_excerpt": "{\"candidate_hash\":\"699f8f42c9856d93c9a631bfbf367b30c17aad9a1b99639d13d2a653b827d8d8\",\"changed_artifact_names\":[],\"changed_document_paths\":[\"exponential_maximum_gumbel_theory.md\"],\"model_artifact_writes_applied\":0,\"model_document_writes_applied\":1,\"ok\":true,\"omitted_artifacts_retained\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":1,\"validation_errors\":[\"estimator_specs must be a non-empty list\",\"missing or empty field: estimator_specs\",\"missing or empty field: problem_card\",\"missing or empty field: simulation_ademp_spec\",\"problem_card.assumptions must be a non-empty list\",\"problem_card.asymptotic_regime must be non-empty\",\"problem_card.desired_theorem_type must be non-empty\",\"problem_card.dgp must be non-empty\",\"problem_card.estimand must be non-empty\",\"problem_card.observed_data must be non-empty\",\"simulation_ademp_spec.aim must be non-empty\",\"simulation_ademp_spec.dgps must be a non-empty list\",\"simulation_ademp_spec.expected_theoretical_behavior must be a non-empty list\",\"simulation_ademp_spec.methods must be a non-empty list\",\"simulation_ademp_spec.performance_measures must be a non-empty list\",\"theory_derivation_packet.claim_index must be non-empty\",\"theory_derivation_packet.sanity_check_index must be non-empty\"],\"workspace_valid\":false,\"write_accepted\":true,\"write_transport\":\"model_owned_documents_and_handoff_v2\"}",
+          "result_fingerprint": "6f17937aa24af59a4a82e4549a43ceac79fa76ced7c5a1f9dc3e173b7e3b9188",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 1
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3161
+          },
+          "cache_creation_input_tokens": 3161,
+          "cache_read_input_tokens": 9811,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 1114,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01Xaj7uYsY6dY89PG64CCgMF",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "a742289b7564a1b9e82d2f1a80739e4f254e383a24baa16f2f93f561869d1851",
+          "is_error": false,
+          "name": "write_theory_workspace",
+          "observation_key": "theory-workspace-validation:9db5ded0d72d7623585ca421205719a64afccba4dd0e6065d6f8b192384add2a",
+          "result_excerpt": "{\"candidate_hash\":\"342eb3d149733c960bb7aa98e9f7b04d8374bd4b28923afb7b01c7676faf0ba4\",\"changed_artifact_names\":[\"problem_card\",\"simulation_ademp_spec\"],\"changed_document_paths\":[\"exponential_maximum_gumbel_theory.md\"],\"model_artifact_writes_applied\":2,\"model_document_writes_applied\":0,\"ok\":true,\"omitted_artifacts_retained\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":2,\"validation_errors\":[\"estimator_specs must be a non-empty list\",\"missing or empty field: estimator_specs\",\"theory_derivation_packet.claim_index must be non-empty\",\"theory_derivation_packet.sanity_check_index must be non-empty\"],\"workspace_valid\":false,\"write_accepted\":true,\"write_transport\":\"model_owned_documents_and_handoff_v2\"}",
+          "result_fingerprint": "03ab3924baaa779be3c56daf81471c8a552397349a7b80f3345da2ca14a26cf7",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 2
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1270
+          },
+          "cache_creation_input_tokens": 1270,
+          "cache_read_input_tokens": 12972,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 1902,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01U1RC49mnmW5BrBMVnvL5LH",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "1f511881ea27ff297141b80005d113f4a340b2780b191fa1a7a11b57e0a19c87",
+          "is_error": true,
+          "name": "write_theory_document",
+          "observation_key": "client_tool_input_rejected:5b2e6771727bafd626e918b0da27788c5567a16e4cf1b400612b10faf5a8cd02",
+          "result_excerpt": "{\"detail\":\"theory documents must use .md, .tex, or .bib\",\"error\":\"client_tool_input_rejected\",\"exception_type\":\"ClientToolInputError\",\"ok\":false}",
+          "result_fingerprint": "b68b164eb40eaf6e3395f1f8b656ab00321341cecf32f1d012794b65563e0ad2",
+          "state_changed": false,
+          "terminal": false
+        }
+      ],
+      "turn_index": 3
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1975
+          },
+          "cache_creation_input_tokens": 1975,
+          "cache_read_input_tokens": 14242,
+          "inference_geo": "not_available",
+          "input_tokens": 22,
+          "output_tokens": 1649,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01RiZKVPNe9VT2AdwPFY5ypH",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "4b2c66da61f3a2b828a4ea7193792557bbef4fac616f7a1a272e1f17a5bc70c5",
+          "is_error": false,
+          "name": "write_theory_document",
+          "observation_key": "theory-workspace-validation:0005cf9eb8895c3670f2e7c797a886e9eeb890566392bef6b967ac7835062fe1",
+          "result_excerpt": "{\"candidate_hash\":\"b174e583967e8a7195cbda9e14ba043ab4c6341132fc099c4190f0abb5a19a97\",\"changed_artifact_names\":[\"problem_card\",\"simulation_ademp_spec\"],\"changed_document_paths\":[\"est_exponential_maximum_gumbel.md\",\"exponential_maximum_gumbel_theory.md\"],\"model_artifact_writes_applied\":0,\"model_document_writes_applied\":1,\"ok\":true,\"omitted_artifacts_retained\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":3,\"validation_errors\":[\"estimator_specs must be a non-empty list\",\"missing or empty field: estimator_specs\",\"theory_derivation_packet.claim_index must be non-empty\",\"theory_derivation_packet.sanity_check_index must be non-empty\"],\"workspace_valid\":false,\"write_accepted\":true,\"write_transport\":\"model_owned_documents_and_handoff_v2\"}",
+          "result_fingerprint": "a0f6713f4393eefe02cbd0678c07fb0764e328786275cbba919d580c19d4c891",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 4
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1941
+          },
+          "cache_creation_input_tokens": 1941,
+          "cache_read_input_tokens": 16217,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 856,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01QbhkYZiJx4Kfi1cuaz6skx",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "fde07d429008f68135073b1d950bf40ee623cb857f3aa2ce64a6133606ee3916",
+          "is_error": false,
+          "name": "write_theory_workspace",
+          "observation_key": "theory-workspace-validation:dc8f2eccef93fa30d71e096b8b4ef112a508f25bc6bc49426e3ee3c04ecd965e",
+          "result_excerpt": "{\"candidate_hash\":\"39db7086037af30f60cfe51aa9fe22caa22c894abcc43fef3b672c25faa56bfe\",\"changed_artifact_names\":[\"estimator_specs\",\"problem_card\",\"simulation_ademp_spec\"],\"changed_document_paths\":[\"est_exponential_maximum_gumbel.md\",\"exponential_maximum_gumbel_theory.md\"],\"model_artifact_writes_applied\":1,\"model_document_writes_applied\":0,\"ok\":true,\"omitted_artifacts_retained\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":4,\"validation_errors\":[\"estimator_specs[0] estimator_interface_contract response field 0 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 2; choose exactly one allowed reference id from: <none>\",\"estimator_specs[0] estimator_interface_contract response field 1 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 1; choose exactly one allowed reference id from: <none>\",\"estimator_specs[0] estimator_interface_contract response field 2 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 2; choose exactly one allowed reference id from: <none>\",\"estimator_specs[0] estimator_interface_contract response field 3 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 2; choose exactly one allowed reference id from: <none>\",\"estimator_specs[0] estimator_interface_contract response field 4 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Definition (Standard Gumbel CDF); choose exactly one allowed reference id from: <none>\",\"estimator_specs[0].id is absent from claim_index\",\"theory_derivation_packet.claim_index must be non-empty\",\"theory_derivation_packet.sanity_check_index must be non-empty\",\"estimator_specs[0].estimator_interface_contract has unsupported fields: request_fields[0].edge_cases, request_fields[0].json_type, request_fields[0].shape, request_fields[0].units, response_fields[0].edge_cases, response_fields[0].json_type, response_fields[0].shap",
+          "result_fingerprint": "fc4d42f8754eeee5f6fd96df12a66b669333cb320090c151ac77c74e45fc7b72",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 5
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1703
+          },
+          "cache_creation_input_tokens": 1703,
+          "cache_read_input_tokens": 18158,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 697,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_019E8UwmWTuj8hicsQHJNR2a",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "c262d97955ff3eb56aec2deecc8918d233352b4709bde1b79b1731c03851e775",
+          "is_error": false,
+          "name": "write_theory_workspace",
+          "observation_key": "theory-workspace-validation:b8dca25e11f4537df6e134aaf6140a2f2bb8135a07dfe52eb4743b1cc4103346",
+          "result_excerpt": "{\"candidate_hash\":\"ad3a68f1e1dd39b5f91c3853287626e910c06c3bf95b87b38afb122e51f089c2\",\"changed_artifact_names\":[\"estimator_specs\",\"problem_card\",\"simulation_ademp_spec\",\"theory_derivation_packet\"],\"changed_document_paths\":[\"est_exponential_maximum_gumbel.md\",\"exponential_maximum_gumbel_theory.md\"],\"model_artifact_writes_applied\":1,\"model_document_writes_applied\":0,\"ok\":true,\"omitted_artifacts_retained\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":5,\"validation_errors\":[\"estimator_specs[0] estimator_interface_contract response field 0 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 2; choose exactly one allowed reference id from: check.example_n10_y0, check.gumbel_limit_y0, check.support_boundary, def.gumbel_cdf, eq.approximation_error, eq.support_constraint, est.exponential_maximum_gumbel, thm.exact_cdf_M_n, thm.exact_cdf_Y_n, thm.pointwise_convergence\",\"estimator_specs[0] estimator_interface_contract response field 1 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 1; choose exactly one allowed reference id from: check.example_n10_y0, check.gumbel_limit_y0, check.support_boundary, def.gumbel_cdf, eq.approximation_error, eq.support_constraint, est.exponential_maximum_gumbel, thm.exact_cdf_M_n, thm.exact_cdf_Y_n, thm.pointwise_convergence\",\"estimator_specs[0] estimator_interface_contract response field 2 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 2; choose exactly one allowed reference id from: check.example_n10_y0, check.gumbel_limit_y0, check.support_boundary, def.gumbel_cdf, eq.approximation_error, eq.support_constraint, est.exponential_maximum_gumbel, thm.exact_cdf_M_n, thm.exact_cdf_Y_n, thm.pointwise_convergence\",\"estimator_specs[0] estimator_interface_contract response field 3 has unresolved derivation_ref exponential_maximum_gumbel_theory.md: Theorem 2; choose exactly one allow",
+          "result_fingerprint": "4d285cf3184d333142a69b42d07c2e950ca7e1392f6e4a1b41b475f6550fec0d",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 6
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1965
+          },
+          "cache_creation_input_tokens": 1965,
+          "cache_read_input_tokens": 19861,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 474,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01UK3b5UtbVvP96W2u4GDMSG",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "47f00eef90f32539601aa94ed0d987b2742c434fb22c4a26962423c3ba6eec25",
+          "is_error": false,
+          "name": "write_theory_workspace",
+          "observation_key": "theory-workspace-validation:431ca5c5df607a0204453022eac2e0d9836e9c43bc27242d700c9fde4a4d1a5a",
+          "result_excerpt": "{\"candidate_hash\":\"1f5d7014190df031159495f103f9c9faa44492c8d6b2fddb993ea019be093ea5\",\"changed_artifact_names\":[\"estimator_specs\",\"problem_card\",\"simulation_ademp_spec\",\"theory_derivation_packet\"],\"changed_document_paths\":[\"est_exponential_maximum_gumbel.md\",\"exponential_maximum_gumbel_theory.md\"],\"model_artifact_writes_applied\":1,\"model_document_writes_applied\":0,\"ok\":true,\"omitted_artifacts_retained\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_VALIDATION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":6,\"validation_errors\":[\"theory packet estimator_specs must contain exact frozen estimator id 'est_exponential_maximum_gumbel'; observed: est.exponential_maximum_gumbel\"],\"workspace_valid\":false,\"write_accepted\":true,\"write_transport\":\"model_owned_documents_and_handoff_v2\"}",
+          "result_fingerprint": "1a6a020cc788262081ef87bb008595d6b8a5b415893375e342495f6751368148",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 7
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 757
+          },
+          "cache_creation_input_tokens": 757,
+          "cache_read_input_tokens": 21826,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 1131,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01JVz7ssr16ZqGLLEWxRvqTf",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "ace67acb1e07e5723d8b5653a88af702dda04fedde684f3cd586e7a3eba773a2",
+          "is_error": false,
+          "name": "write_theory_workspace",
+          "observation_key": "theory-workspace-valid:484ec08521114f075427f3221950765e1a1fe8e57096f826b8f79482f5a762a2",
+          "result_excerpt": "{\"candidate_hash\":\"484ec08521114f075427f3221950765e1a1fe8e57096f826b8f79482f5a762a2\",\"changed_artifact_names\":[\"estimator_specs\",\"problem_card\",\"simulation_ademp_spec\",\"theory_derivation_packet\"],\"changed_document_paths\":[\"est_exponential_maximum_gumbel.md\",\"exponential_maximum_gumbel_theory.md\"],\"checkpoint_blockers\":[],\"checkpoint_commit_ready\":true,\"checkpoint_committed\":false,\"model_artifact_writes_applied\":2,\"model_document_writes_applied\":0,\"ok\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_SUBMISSION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":7,\"validation_errors\":[],\"workspace_valid\":true,\"write_accepted\":true,\"write_transport\":\"model_owned_documents_and_handoff_v2\"}",
+          "result_fingerprint": "e6c0640088ba431bd1773d77abd4595d2ebbcbd6ebbe6f1b3fa70fe2ae965793",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 8
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1386
+          },
+          "cache_creation_input_tokens": 1386,
+          "cache_read_input_tokens": 22583,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 1747,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01WKhGrNBy8hH9fYnvD6hJDn",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "eb84efbb0e79dd1f65530f042d2e79547f0f26498112ae40ab0f7c43b4279dc4",
+          "is_error": false,
+          "name": "run_theory_scratchpad",
+          "observation_key": "theory-scratchpad:4bfc780ae49c1b808de7cf50572b1b44ee7b712a2d68c6e9173e1f481dd0f661",
+          "result_excerpt": "{\"backend\":\"pyodide\",\"boundary\":\"This is a model-authored exploratory calculation returned to the same TheoryDeveloper session. It may expose a counterexample or numerical inconsistency, but it is not confirmatory simulation evidence and not theorem proof evidence.\",\"code_hash\":\"7fc8517b028eb53ecff3392dc53162a9f459e8868676a2a8abea56c626886b5d\",\"code_path\":\"runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-1_ab50534153be02ce_generated_draft.py\",\"dependencies\":[\"numpy\",\"scipy\",\"sympy\"],\"errors\":[],\"estimator_binding_errors\":[],\"estimator_binding_hash\":\"\",\"estimator_code_hashes\":{},\"estimator_code_paths\":{},\"estimator_invocation_counts\":{},\"estimator_invocation_samples\":{},\"estimator_runtime_errors\":[],\"estimator_runtime_failure_ids\":[],\"execution_attempted\":true,\"execution_envelope_hash\":\"6a451c36dc0f4f0021f2fa0cae7103c90c10eaa39bad8114315f5da6c7b9bb3a\",\"execution_envelope_path\":\"runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-1_ab50534153be02ce_scientific_result.json\",\"execution_profile\":\"scientific_wasm\",\"input_artifact_binding_hash\":\"\",\"input_artifact_hashes\":{},\"input_artifact_paths\":{},\"invocation_mode\":\"standalone\",\"isolation_provider\":\"macos_sandbox_exec+wasm\",\"language\":\"python\",\"metrics\":{\"check_1_error_at_y0_n10\":0.019201001071442236,\"check_1_exact_cdf_at_y0_n10\":0.3486784401000001,\"check_1_gumbel_cdf_at_y0_n10\":0.36787944117144233,\"check_2_exact_cdf_at_boundary_n10\":2.913414348125081e-157,\"check_3_all_samples_satisfy_support\":true,\"check_4_convergence_errors_at_y0\":[0.019201001071442236,0.00370976108432558,0.0018470998982131337,0.00036818631428375825,0.0001840164004786038],\"check_4_target_gumbel_cdf\":0.36787944117144233,\"check_5_cdf_values_sample\":[0,0.00024329347941382212,0.5275284128981373,0.9503597690582861],\"check_5_exact_c",
+          "result_fingerprint": "d891444f7122d9d61b8375b28ecdea99565e778d569dcefdb304f7abecc3c15b",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 9
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3787
+          },
+          "cache_creation_input_tokens": 3787,
+          "cache_read_input_tokens": 23969,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 1680,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01D7udJ5TadgqTZBvwToEnqN",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "cf727539d2cbb26c018bd59dead75a9344898303031a338778af782a18a131cf",
+          "is_error": true,
+          "name": "edit_theory_document",
+          "observation_key": "client_tool_input_rejected:a56b5012ddb47fc52da6440e8e6e14ef6a4c7fd93a900696aea11fdf5a988d5b",
+          "result_excerpt": "{\"detail\":\"theory document 'exponential_maximum_gumbel_theory.md' changed since it was read; expected '699f8f42c9856d93c9a631bfbf367b30c17aad9a1b99639d13d2a653b827d8d8', current 'de3beab2fa550f6f80be93582cec86f335d56eaf02b69dd0b3fc1c69112d524c'\",\"error\":\"client_tool_input_rejected\",\"exception_type\":\"ClientToolInputError\",\"ok\":false}",
+          "result_fingerprint": "0ab1bb4162413239020076c157df590453c25ef3c017084490d90067f6256b43",
+          "state_changed": false,
+          "terminal": false
+        }
+      ],
+      "turn_index": 10
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1878
+          },
+          "cache_creation_input_tokens": 1878,
+          "cache_read_input_tokens": 27756,
+          "inference_geo": "not_available",
+          "input_tokens": 22,
+          "output_tokens": 89,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_012zMrSmJPG774qN73vNVKXa",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "c206303d8b3d93d8aa2074488276eca39ce7a09932ec3ee991526af073837bfd",
+          "is_error": false,
+          "name": "read_theory_document",
+          "observation_key": "theory-document:50dd83d25697acc229e43e87938fe0ff8eb99824c1cf8f1603b0a3dabe13231c",
+          "result_excerpt": "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]",
+          "result_fingerprint": "45d089b793e713ffd97235507d13791a2730c8de36baa161b693498ff953973d",
+          "state_changed": false,
+          "terminal": false
+        }
+      ],
+      "turn_index": 11
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1427
+          },
+          "cache_creation_input_tokens": 1427,
+          "cache_read_input_tokens": 29634,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 89,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01XRu6fTieCXVnHRwbBMTp8R",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "af994b55cce2d5414a7fd29676f43b4c2ae2173909943816562cc5357e9ad8d9",
+          "is_error": false,
+          "name": "read_theory_document",
+          "observation_key": "theory-document:3734cde390127a25986467904345a89715b77f3a8d3415001cad9ebfd8f30a87",
+          "result_excerpt": "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]",
+          "result_fingerprint": "dca7c3d74ca06447bd818cf334a3615c35d84321c05f5dab42a7ba78349335b2",
+          "state_changed": false,
+          "terminal": false
+        }
+      ],
+      "turn_index": 12
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 896
+          },
+          "cache_creation_input_tokens": 896,
+          "cache_read_input_tokens": 31061,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 1219,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01Xb7Jwd8TU85s4xKLUHM45y",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "667e67e69640d41612399325f166a496b2fdf40346f4d9c858a59fb845988eb6",
+          "is_error": false,
+          "name": "edit_theory_document",
+          "observation_key": "theory-workspace-valid:5f9a7494b3e6f82faac97e6e48f8b6bd2ccbd9225e4769550c5ccf85cb76e8fb",
+          "result_excerpt": "{\"candidate_hash\":\"5f9a7494b3e6f82faac97e6e48f8b6bd2ccbd9225e4769550c5ccf85cb76e8fb\",\"changed_artifact_names\":[\"estimator_specs\",\"problem_card\",\"simulation_ademp_spec\",\"theory_derivation_packet\"],\"changed_document_paths\":[\"est_exponential_maximum_gumbel.md\",\"exponential_maximum_gumbel_theory.md\"],\"checkpoint_blockers\":[],\"checkpoint_commit_ready\":true,\"checkpoint_committed\":false,\"model_artifact_writes_applied\":0,\"model_document_writes_applied\":1,\"ok\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_SUBMISSION_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"state_changed\":true,\"submissions\":8,\"validation_errors\":[],\"workspace_valid\":true,\"write_accepted\":true,\"write_transport\":\"model_owned_documents_and_handoff_v2\"}",
+          "result_fingerprint": "309cb32e583e909ff5644f83619febd7055be7a84dbc88a28788ee0edbcbb22f",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 13
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1510
+          },
+          "cache_creation_input_tokens": 1510,
+          "cache_read_input_tokens": 31957,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 1790,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01S7qiJqH4LHdNEGk4VvMuer",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "2e173f41f55daca69c429ae3ae4643c48d1d362ede0e24440884b3a040ec29ad",
+          "is_error": false,
+          "name": "run_theory_scratchpad",
+          "observation_key": "theory-scratchpad:a286b83b00d22e66e7940b67aa5e3195131ab877dae20c7f6472f55fafb8ee8e",
+          "result_excerpt": "{\"backend\":\"pyodide\",\"boundary\":\"This is a model-authored exploratory calculation returned to the same TheoryDeveloper session. It may expose a counterexample or numerical inconsistency, but it is not confirmatory simulation evidence and not theorem proof evidence.\",\"code_hash\":\"9e2459cfca52c6ec818c8a95855b95c555d2a7b27fb82bcb2b1df244d934269e\",\"code_path\":\"runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-2_02143fc894b27ffe_generated_draft.py\",\"dependencies\":[\"numpy\"],\"errors\":[],\"estimator_binding_errors\":[],\"estimator_binding_hash\":\"\",\"estimator_code_hashes\":{},\"estimator_code_paths\":{},\"estimator_invocation_counts\":{},\"estimator_invocation_samples\":{},\"estimator_runtime_errors\":[],\"estimator_runtime_failure_ids\":[],\"execution_attempted\":true,\"execution_envelope_hash\":\"3e424ffa32aa8d51ade5bb83325449328190800a579ba35ee8d7ddb00472f822\",\"execution_envelope_path\":\"runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-2_02143fc894b27ffe_scientific_result.json\",\"execution_profile\":\"scientific_wasm\",\"input_artifact_binding_hash\":\"\",\"input_artifact_hashes\":{},\"input_artifact_paths\":{},\"invocation_mode\":\"standalone\",\"isolation_provider\":\"macos_sandbox_exec+wasm\",\"language\":\"python\",\"metrics\":{\"test_1_permutation_invariance\":true,\"test_2_all_zeros_centered\":-2.302585092994046,\"test_2_all_zeros_exact_cdf\":2.913414348125081e-157,\"test_2_all_zeros_is_zero\":true,\"test_2_all_zeros_maximum\":0,\"test_3_y0_exact_cdf\":0.3584859224085419,\"test_3_y0_exact_error\":0,\"test_3_y0_exact_expected\":0.3584859224085419,\"test_3_y0_gumbel_cdf\":0.36787944117144233,\"test_3_y0_gumbel_error\":0,\"test_3_y0_gumbel_expected\":0.36787944117144233,\"test_4_large_sample_centered\":0.5733353542208697,\"test_4_large_sample_exact_cdf\":0.5689513867356508,\"test_4_large_sample_gumbel_cdf\":0.569",
+          "result_fingerprint": "43201f76d6cb5ba902f70befe06f75e323c3e613bd6834efeb6c08d0690351ae",
+          "state_changed": true,
+          "terminal": false
+        }
+      ],
+      "turn_index": 14
+    },
+    {
+      "model": "claude-haiku-4-5-20251001",
+      "n_tool_calls": 1,
+      "provider": "anthropic",
+      "provider_output_truncated": false,
+      "response_metadata": {
+        "client_tool_transport": true,
+        "n_client_tool_calls": 1,
+        "prompt_caching_applied": true,
+        "prompt_caching_requested": true,
+        "provider_capability_fallback_count": 0,
+        "provider_reported_model": "claude-haiku-4-5-20251001",
+        "provider_reported_model_tier": "haiku",
+        "provider_stop_reason": "tool_use",
+        "provider_usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3561
+          },
+          "cache_creation_input_tokens": 3561,
+          "cache_read_input_tokens": 33467,
+          "inference_geo": "not_available",
+          "input_tokens": 20,
+          "output_tokens": 241,
+          "service_tier": "standard"
+        },
+        "request_model_tier": "haiku",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "retry_count": 0,
+        "tools_executed_by_backend": false
+      },
+      "stop_reason": "tool_use",
+      "tool_calls": [
+        {
+          "call_id": "toolu_01U4fsWwQ75LDqzsVMJc7DC4",
+          "call_index": 0,
+          "executed_by_runtime": true,
+          "input_fingerprint": "ccceaf1ea62807631f81fe2915cf1e11bb01641c0eddbcbe162bcef1c29fcce0",
+          "is_error": false,
+          "name": "commit_theory_checkpoint",
+          "observation_key": "theory-workspace-committed:ef20b63470975d8749e46e74789410d88347db8969827aab1d71560aeec335bd",
+          "result_excerpt": "{\"candidate_hash\":\"8ceb6a432f6990579c4e25cb2617629f9a41a1fc77beade7771a0ef8fd01859d\",\"changed_artifact_names\":[\"estimator_specs\",\"problem_card\",\"simulation_ademp_spec\",\"theory_derivation_packet\"],\"changed_document_paths\":[\"est_exponential_maximum_gumbel.md\",\"exponential_maximum_gumbel_theory.md\"],\"checkpoint_committed\":true,\"disposition\":\"THEORY_CHECKPOINT_COMMITTED\",\"ok\":true,\"proof_evidence_status\":\"THEORY_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE\",\"runtime_edited_theory\":false,\"workspace_valid\":true}",
+          "result_fingerprint": "86ab1c856448f6b4892af217a814b6a6b638840e0d4b511218f0bdde0ac10ee2",
+          "state_changed": true,
+          "terminal": true
+        }
+      ],
+      "turn_index": 15
+    }
+  ],
+  "kernel_verified": false,
+  "model": "claude-haiku-4-5-20251001",
+  "model_artifact_writes": [
+    {
+      "artifact_name": "problem_card",
+      "submission_index": 1,
+      "value_hash": "c19e36c305f54f1d3a139d6cd6e270643ebd01ade36aff562e4b8d8b4b9f9804"
+    },
+    {
+      "artifact_name": "simulation_ademp_spec",
+      "submission_index": 1,
+      "value_hash": "2b3758ee5b2a432a29411b4e02e98990ae5c2459052cf9eacbf16092fffb409e"
+    },
+    {
+      "artifact_name": "estimator_specs",
+      "submission_index": 3,
+      "value_hash": "46efa76ec08ea28aa3ccf2022b8604f8025ea8362750104caf93de512983d06e"
+    },
+    {
+      "artifact_name": "theory_derivation_packet",
+      "submission_index": 4,
+      "value_hash": "a0cde7a6df7d319512d1575e9cd70cc46fe1f681cf44637375707b3ce14c9417"
+    },
+    {
+      "artifact_name": "estimator_specs",
+      "submission_index": 5,
+      "value_hash": "9c35019b9176469e6b8766aee09c16e12f4353c606cf7df675968cfe51dad710"
+    },
+    {
+      "artifact_name": "estimator_specs",
+      "submission_index": 6,
+      "value_hash": "de561e4e82881f98900d3fa80f9959a039692b1629c1175a7f6d2624ecc6d48a"
+    },
+    {
+      "artifact_name": "theory_derivation_packet",
+      "submission_index": 6,
+      "value_hash": "011d74d937c79f6b0c30004b23201353044d307ecb6f9b758a3a613357d97880"
+    }
+  ],
+  "model_document_writes": [
+    {
+      "byte_size": 5566,
+      "relative_path": "exponential_maximum_gumbel_theory.md",
+      "sha256": "de3beab2fa550f6f80be93582cec86f335d56eaf02b69dd0b3fc1c69112d524c",
+      "submission_index": 0
+    },
+    {
+      "byte_size": 4670,
+      "relative_path": "est_exponential_maximum_gumbel.md",
+      "sha256": "12cb9bdff6d076ee8d33308031f5f95e8b7bbcfc8bcad2d6dc3b9a630559178d",
+      "submission_index": 2
+    },
+    {
+      "byte_size": 7545,
+      "edit_count": 1,
+      "edits": [
+        {
+          "new_text_sha256": "aab54c3ddef94b86613bfd6af088806148fbbd9e29ba8e5f63f06cde532e2e49",
+          "old_text_sha256": "61df5042b83b9cfa6a2a3a77446456aba8623fba6eb6e12a2ccca50be1130432"
+        }
+      ],
+      "operation": "atomic_exact_text_replacement_batch",
+      "parent_sha256": "de3beab2fa550f6f80be93582cec86f335d56eaf02b69dd0b3fc1c69112d524c",
+      "relative_path": "exponential_maximum_gumbel_theory.md",
+      "sha256": "bdadfb57ea7a479d11d70de9fb0c1583a38fd6d136fa4a2cd3b06eb08b5e8af3",
+      "submission_index": 7
+    }
+  ],
+  "model_owned_theory": true,
+  "model_tier": "haiku",
+  "n_model_artifact_writes": 7,
+  "n_model_document_writes": 3,
+  "parent_workspace_hash": "ebfb700824168c9808d50d6e746dc46f679902850c440f989233187c0fba7134",
+  "proof_evidence_status": "THEORY_WORKSPACE_NOT_PROOF_EVIDENCE",
+  "provider": "anthropic",
+  "provider_usage": {
+    "cache_creation_input_tokens": 37028,
+    "cache_read_input_tokens": 319141,
+    "input_tokens": 323,
+    "output_tokens": 17430
+  },
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "read_only_artifact_hashes": {
+    "initial_authoring_context": "e0b9c552be579768bb93dce311f1482e02649fb59beafe1f85310c64dd119e42"
+  },
+  "reads": 3,
+  "research_source_discovery": {
+    "configured": false
+  },
+  "research_source_snapshot": {
+    "configured": false
+  },
+  "resumed_from_client_tool_session_ref": {},
+  "resumed_from_progress_checkpoint_id": "",
+  "runtime_edited_theory": false,
+  "runtime_executed_tool_calls": 16,
+  "runtime_source_theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+  "runtime_source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "runtime_storage_role": "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT",
+  "schema_version": 2,
+  "scratch_execution_refs": [
+    {
+      "code_hash": "7fc8517b028eb53ecff3392dc53162a9f459e8868676a2a8abea56c626886b5d",
+      "code_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-1_ab50534153be02ce_generated_draft.py",
+      "dependencies": [
+        "numpy",
+        "scipy",
+        "sympy"
+      ],
+      "errors": [],
+      "execution_attempted": true,
+      "input_artifact_hashes": {},
+      "language": "python",
+      "metrics_hash": "52bd7cef04cac5031feb0fed940ea69391016c16aaf377c9a76dfb73d0bce9b3",
+      "proof_evidence_status": "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE",
+      "request_hash": "364ec95cedb0f88ee9891eaff7b376c242973fee1cc19b6f503ec00770434e66",
+      "request_identity_source": "scientific_sandbox_request",
+      "request_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-1_ab50534153be02ce_scientific_request.json",
+      "result_hash": "52bd7cef04cac5031feb0fed940ea69391016c16aaf377c9a76dfb73d0bce9b3",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-1_ab50534153be02ce_scientific_metrics.json",
+      "returncode": 0,
+      "runtime_edited_source": false,
+      "runtime_edited_theory": false,
+      "scratch_run": 1,
+      "status": "EXECUTED"
+    },
+    {
+      "code_hash": "9e2459cfca52c6ec818c8a95855b95c555d2a7b27fb82bcb2b1df244d934269e",
+      "code_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-2_02143fc894b27ffe_generated_draft.py",
+      "dependencies": [
+        "numpy"
+      ],
+      "errors": [],
+      "execution_attempted": true,
+      "input_artifact_hashes": {},
+      "language": "python",
+      "metrics_hash": "1bc6ea8b9d391d555bcb384a3b1426e56bb0a6d491aa08c449a2be8626d090f6",
+      "proof_evidence_status": "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE",
+      "request_hash": "0262be53112aa7e74952f5995fe4160b524ed6ce7fc7bfd84e48500d76ba33b4",
+      "request_identity_source": "scientific_sandbox_request",
+      "request_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-2_02143fc894b27ffe_scientific_request.json",
+      "result_hash": "1bc6ea8b9d391d555bcb384a3b1426e56bb0a6d491aa08c449a2be8626d090f6",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-2_02143fc894b27ffe_scientific_metrics.json",
+      "returncode": 0,
+      "runtime_edited_source": false,
+      "runtime_edited_theory": false,
+      "scratch_run": 2,
+      "status": "EXECUTED"
+    }
+  ],
+  "scratch_runs": 2,
+  "scratchpad_enabled": true,
+  "source_discovery_read_refs": [],
+  "source_discovery_search_refs": [],
+  "source_read_refs": [],
+  "source_replication_manifests": [],
+  "source_replication_runs": 0,
+  "source_result_read_refs": [],
+  "source_search_refs": [],
+  "structured_handoff_role": "structured_cross_agent_index_and_abi",
+  "submissions": 8,
+  "submitted_core_packet_hash": "8ceb6a432f6990579c4e25cb2617629f9a41a1fc77beade7771a0ef8fd01859d",
+  "submitted_workspace_hash": "ff40af98cad60de068af13bbd5b2436c1a7c95945f37aa7f0d34e258ea44685d",
+  "theory_content_authority": "model_authored_markdown_latex_documents",
+  "theory_workspace_manifest": {
+    "artifact_kind": "TheoryWorkspaceDocumentManifest",
+    "content_authority": "model_authored_markdown_latex_documents",
+    "document_set_hash": "44c0b81c87531c6874424efd2762e7fa210b2a09c7b58f2a37a9c2bb3a940327",
+    "documents": [
+      {
+        "byte_size": 4670,
+        "document_id": "theory_document:0570c7e21c0960639656",
+        "media_type": "text/markdown",
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_workspaces/theory_workspace-8fedb0867fd73deeec93/.immutable_checkpoints/49427125f05fb9334ad07f44f23986e693e644569958ec3e521095940bb7bc79/est_exponential_maximum_gumbel.md",
+        "relative_path": "est_exponential_maximum_gumbel.md",
+        "sha256": "12cb9bdff6d076ee8d33308031f5f95e8b7bbcfc8bcad2d6dc3b9a630559178d"
+      },
+      {
+        "byte_size": 7545,
+        "document_id": "theory_document:7342069b0fb851021cec",
+        "media_type": "text/markdown",
+        "path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_workspaces/theory_workspace-8fedb0867fd73deeec93/.immutable_checkpoints/49427125f05fb9334ad07f44f23986e693e644569958ec3e521095940bb7bc79/exponential_maximum_gumbel_theory.md",
+        "relative_path": "exponential_maximum_gumbel_theory.md",
+        "sha256": "bdadfb57ea7a479d11d70de9fb0c1583a38fd6d136fa4a2cd3b06eb08b5e8af3"
+      }
+    ],
+    "proof_evidence_status": "THEORY_DOCUMENTS_NOT_PROOF_EVIDENCE",
+    "runtime_edited_theory": false,
+    "schema_version": 1,
+    "structured_handoff_role": "structured_cross_agent_index_and_abi",
+    "workspace_root": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_workspaces/theory_workspace-8fedb0867fd73deeec93/.immutable_checkpoints/49427125f05fb9334ad07f44f23986e693e644569958ec3e521095940bb7bc79"
+  },
+  "tool_calls": 16,
+  "transcript_fingerprint": "cabee6afeb11f22102c1c084d42c9199a6865a764d6553728c27c4455df129a1",
+  "transcript_policy": "linear_with_durable_recent_history_checkpoint_windows_v2",
+  "transport": "native_client_tools",
+  "turns": 16,
+  "workspace_id": "theory_workspace:8fedb0867fd73deeec93",
+  "workspace_operation": "initial_discovery",
+  "write_transport": "model_owned_documents_and_handoff_v2"
+}

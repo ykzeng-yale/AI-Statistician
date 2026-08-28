@@ -1,0 +1,34 @@
+{
+  "artifact_id": "theory-scratch-8071e1eb3f3d-2",
+  "artifact_kind": "ScientificSandboxExecutionRequest",
+  "backend": "pyodide",
+  "code_hash": "9e2459cfca52c6ec818c8a95855b95c555d2a7b27fb82bcb2b1df244d934269e",
+  "code_path": "/Users/yukangzengcmac/AI-Statistician/runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/theory_scratch_sandbox/e95fb050dc9315d3/theory-scratch-8071e1eb3f3d-2_02143fc894b27ffe_generated_draft.py",
+  "dependencies": [
+    "numpy"
+  ],
+  "estimators": [],
+  "execution_profile": "scientific_wasm",
+  "host_filesystem_policy": "read pinned runtimes plus exact code/request artifacts; write exact result/log artifacts only",
+  "input_artifacts": [],
+  "invocation_mode": "standalone",
+  "language": "python",
+  "network_access": false,
+  "proof_evidence_status": "SCIENTIFIC_SANDBOX_REQUEST_NOT_PROOF_EVIDENCE",
+  "replicates": 100,
+  "required_callable_exports": [],
+  "resource_limits": {
+    "cpu_seconds": 21,
+    "file_size_bytes": 65536,
+    "node_heap_mb": 768,
+    "open_files": 64
+  },
+  "runtime": {
+    "pyodide_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.mjs",
+    "pyodide_root": "/Users/yukangzengcmac/AI-Statistician/node_modules/pyodide",
+    "webr_entry": "/Users/yukangzengcmac/AI-Statistician/node_modules/webr/dist/webr.mjs"
+  },
+  "schema_version": 1,
+  "secret_environment_inherited": false,
+  "seed": 20260528
+}

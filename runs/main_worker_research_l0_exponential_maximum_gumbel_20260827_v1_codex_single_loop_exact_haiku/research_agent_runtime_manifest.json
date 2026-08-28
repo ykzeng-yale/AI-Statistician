@@ -1,0 +1,887 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchAgentRuntimeManifest",
+  "created_at": "2026-08-28T03:55:02.514663+00:00",
+  "runtime_endpoint": "typed_agent_runtime",
+  "runtime_formal_capability_source": "integrated_agent_runtime_only",
+  "runtime_evaluation_mode": "research_eval",
+  "runtime_trace_task_payload_policy": "content_addressed_refs_and_bounded_tool_summaries",
+  "runtime_blackboard_artifact_payload_policy": "content_addressed_refs",
+  "runtime_evaluation_claude_model_tier": "haiku",
+  "runtime_evaluation_claude_model": "claude-haiku-4-5-20251001",
+  "n_questions": 1,
+  "question_ids": [
+    "exponential_maximum_gumbel_known_result"
+  ],
+  "question_titles": [
+    "Gumbel limit for the maximum of exponential observations"
+  ],
+  "question_task_families": {
+    "exponential_maximum_gumbel_known_result": "extreme value theory"
+  },
+  "question_task_intents": {
+    "exponential_maximum_gumbel_known_result": {
+      "source_replication": "not_applicable",
+      "theory": "required",
+      "scientific_code": "required",
+      "empirical": "required",
+      "formal": "not_applicable",
+      "novelty": "not_applicable",
+      "unresolved_gaps": "required"
+    }
+  },
+  "config": {
+    "n_runs": 100,
+    "seed": 20260528,
+    "generated_simulation_timeout_seconds": 60,
+    "theory_scratch_timeout_seconds": 20,
+    "theory_scratch_max_runs": 3,
+    "max_iterations": 24,
+    "max_critic_revision_rounds": 1,
+    "generated_code_semantic_review_max_revisions": 1,
+    "formal_target_semantic_review_required": false,
+    "formal_target_semantic_review_max_revisions": 1,
+    "resume_through_architect": false,
+    "formal_verification_policy": "advisory",
+    "recommended_research_path": "simulation_first",
+    "evaluation_mode": "research_eval",
+    "evaluation_claude_model_tier": "haiku",
+    "evaluation_claude_model": "claude-haiku-4-5-20251001",
+    "formalizer_candidate_local_lean": false,
+    "formalizer_candidate_lean_project": "",
+    "formalizer_candidate_lean_timeout": 90
+  },
+  "runtime_input_context": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeInputContextSummary",
+    "runtime_cross_family_evaluation_protocol_supplied": false,
+    "runtime_cross_family_evaluation_protocol": {},
+    "runtime_requested_evidence_contract": {
+      "formal_verification_policy": "advisory",
+      "recommended_research_path": "simulation_first",
+      "recommended_research_path_frozen": true,
+      "formal_required_for_final": false,
+      "evaluation_mode": "research_eval",
+      "research_evaluation_requires_generated_algorithm_code": true,
+      "research_evaluation_requires_generated_simulation_code": true,
+      "research_evaluation_requires_generated_code_semantic_review": true,
+      "research_evaluation_requires_executable_evaluator_source": true,
+      "research_evaluation_requires_typed_metric_contracts": false,
+      "independent_theory_review_required": true,
+      "formal_evaluation_requires_formal_target_semantic_review": false,
+      "formal_evaluation_requires_formalizer_lean_candidate": false,
+      "formal_target_authoring_required": false,
+      "formal_target_completion_policy": "formal gaps must remain explicit when the task-specific target is not kernel verified",
+      "simulation_target_authoring_required": true,
+      "acceptance_modes": [
+        "research candidate may be reported with disclosed formal gaps"
+      ],
+      "disclosure_requirements": [
+        "do not call LLM proposals, retrieval hits, simulations, or static rows proof evidence",
+        "report formal verification level as none, partial, or full"
+      ]
+    },
+    "historical_routing_policy_applied": false,
+    "boundary": "Runtime input context contains immutable evaluation and evidence contracts only. It is not source, execution, or proof evidence."
+  },
+  "runtime_resume_context": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeResumeContext",
+    "n_initial_task_overrides": 0,
+    "n_rehydrated_blackboard_artifact_sets": 0,
+    "n_rehydrated_blackboard_artifacts": 0,
+    "question_ids": [],
+    "resumed_from_pending_task": false,
+    "n_hash_bound_resume_artifacts_preserved": 0,
+    "hash_bound_resume_artifact_ids_by_question": {},
+    "boundary": "Resume context preserves orchestration state across iteration budgets. Artifacts transitively bound by the pending task's persisted hashes are exempt from Architect-control metadata backfill, while proof-safety schema migrations remain fail-closed. Resume state is not proof evidence and does not imply that any theorem gap is closed."
+  },
+  "runtime_resume_policy": "fresh_start",
+  "runtime_architect_coordinator_registered": true,
+  "runtime_architect_coordinator_executed": true,
+  "n_runtime_architect_coordinator_traces": 2,
+  "status_counts": {
+    "BLOCKED": 1
+  },
+  "runtime_completion_summary": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeCompletionSummary",
+    "n_questions": 1,
+    "accepted": 0,
+    "failed": 0,
+    "blocked": 1,
+    "formal_required_blocked": 0,
+    "max_iterations_reached": 0,
+    "budget_exhausted_with_pending_next_task": 0,
+    "budget_exhausted_after_revision_request": 0,
+    "final_acceptance_status_counts": {
+      "REROUTE_REQUIRED_BEFORE_FINAL": 1
+    },
+    "rows": [
+      {
+        "question_id": "exponential_maximum_gumbel_known_result",
+        "question_title": "Gumbel limit for the maximum of exponential observations",
+        "status": "BLOCKED",
+        "terminal_kind": "blocked",
+        "n_iterations": 15,
+        "final_task_id": "critic:exponential_maximum_gumbel_known_result:244eb925",
+        "last_completed_task_id": "critic:exponential_maximum_gumbel_known_result:244eb925",
+        "last_completed_subsystem": "CriticEvaluator",
+        "last_completed_status": "BLOCKED",
+        "last_failure_classification": "critic_packet_validation_failed",
+        "final_acceptance_status": "REROUTE_REQUIRED_BEFORE_FINAL",
+        "formal_verification_policy": "advisory",
+        "formal_requirement": "not_applicable",
+        "recommended_research_path": "simulation_first",
+        "formal_satisfied": false,
+        "full_frontier_theorem_proved": false,
+        "formal_gaps": 0,
+        "pending_next_task_id": "",
+        "pending_next_task": {},
+        "pending_task_continuation_ref": {},
+        "pending_task_checkpoint_reason": "",
+        "max_iterations_reached": false,
+        "budget_exhausted_with_pending_next_task": false,
+        "budget_exhausted_after_revision_request": false
+      }
+    ],
+    "payload_policy": "content_addressed_task_continuations",
+    "boundary": "Runtime completion status describes orchestration progress and budget exhaustion only. final_acceptance_status records the Architect evidence-contract decision, not theorem proof evidence. Completion status is not simulation evidence or a claim that remaining formal gaps are closed."
+  },
+  "runtime_failure_summary": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeFailureSummary",
+    "n_failure_rows": 1,
+    "n_policy_block_rows": 0,
+    "n_incomplete_rows": 0,
+    "has_failure": true,
+    "has_policy_block": false,
+    "has_incomplete_pending_work": false,
+    "n_pending_next_tasks": 0,
+    "terminal_question_id": "exponential_maximum_gumbel_known_result",
+    "terminal_subsystem": "CriticEvaluator",
+    "terminal_task_id": "critic:exponential_maximum_gumbel_known_result:244eb925",
+    "terminal_status": "BLOCKED",
+    "terminal_kind": "blocked",
+    "terminal_classification": "critic_packet_validation_failed",
+    "failed_question_id": "exponential_maximum_gumbel_known_result",
+    "failed_subsystem": "CriticEvaluator",
+    "failed_task_id": "critic:exponential_maximum_gumbel_known_result:244eb925",
+    "failure_status": "BLOCKED",
+    "failure_terminal_kind": "blocked",
+    "failure_classification": "critic_packet_validation_failed",
+    "policy_block_question_id": "",
+    "policy_block_subsystem": "",
+    "policy_block_task_id": "",
+    "policy_block_status": "",
+    "policy_block_terminal_kind": "",
+    "policy_block_classification": "",
+    "pending_question_id": "",
+    "pending_next_task_id": "",
+    "pending_next_task": {},
+    "pending_task_continuation_ref": {},
+    "pending_task_checkpoint_reason": "",
+    "payload_policy": "content_addressed_task_continuations",
+    "boundary": "Runtime terminal status is an orchestration diagnostic. Budget exhaustion with a pending next task is incomplete work, not a subsystem failure. A formal-required policy block means the evidence contract correctly refused final acceptance without required kernel proof; it is not theorem success. This summary does not downgrade kernel-verified subclaims or promote partial runtime progress to theorem proof evidence."
+  },
+  "runtime_terminal_kind": "blocked",
+  "research_evaluation_summary": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeResearchEvaluationSummary",
+    "evaluation_mode": "research_eval",
+    "applies": true,
+    "n_questions": 1,
+    "n_questions_research_loop_complete": 0,
+    "all_questions_research_loop_complete": false,
+    "n_questions_mode_conformant": 1,
+    "all_questions_mode_conformant": true,
+    "n_questions_research_eval_complete": 0,
+    "all_questions_research_eval_complete": false,
+    "rows": [
+      {
+        "question_id": "exponential_maximum_gumbel_known_result",
+        "research_loop_complete": false,
+        "mode_conformant": true,
+        "research_eval_complete": false,
+        "requirements": {
+          "source_replication_checkpoint_recorded": false,
+          "source_replication_unresolved_gap_disclosure_present": false,
+          "serious_theory_completed": true,
+          "theory_preexecution_review_accepted": true,
+          "generated_algorithm_executed_and_passed": true,
+          "metric_protocol_independently_accepted": true,
+          "algorithm_semantic_review_accepted": true,
+          "generated_simulation_executed_and_passed": true,
+          "simulation_metric_evidence_nonvacuous_and_bound": true,
+          "simulation_semantic_review_accepted": true,
+          "exact_formal_target_kernel_closed": false,
+          "critic_research_acceptance": false,
+          "critic_unresolved_gap_disclosure_present": false
+        },
+        "dimension_requirements": {
+          "source_replication": "not_applicable",
+          "theory": "required",
+          "scientific_code": "required",
+          "empirical": "required",
+          "formal": "not_applicable"
+        },
+        "required_capability_checks": [
+          "serious_theory_completed",
+          "theory_preexecution_review_accepted",
+          "generated_algorithm_executed_and_passed",
+          "algorithm_semantic_review_accepted",
+          "metric_protocol_independently_accepted",
+          "generated_simulation_executed_and_passed",
+          "simulation_metric_evidence_nonvacuous_and_bound",
+          "simulation_semantic_review_accepted",
+          "critic_research_acceptance",
+          "critic_unresolved_gap_disclosure_present"
+        ],
+        "mode_conformance": {
+          "strict_formal_lane_not_executed": true,
+          "formal_lane_task_intent_conformant": true
+        },
+        "formalization_status": {
+          "required_for_research_eval": false,
+          "strict_formal_lane_executed": false,
+          "n_formalization_manifests": 0,
+          "n_kernel_verified_subclaims": 0
+        }
+      }
+    ],
+    "evidence_boundary": "This is research-loop evidence only. Theory, generated code, simulation, and semantic review are not theorem proof; formalization and kernel closure remain separately reported and are required only when selected task intent marks formal evidence required. Mode conformance is diagnostic and cannot erase completed research evidence."
+  },
+  "n_runtime_traces": 15,
+  "n_runtime_outer_graph_iterations": 15,
+  "n_runtime_same_owner_workspace_continuations": 0,
+  "n_runtime_evidence_ledger_rows": 23,
+  "n_runtime_task_handoffs": 14,
+  "n_runtime_observations": 35,
+  "n_runtime_tool_calls": 14,
+  "n_generated_code_sandbox_executed": 1,
+  "n_live_generated_code_sandbox_executed": 1,
+  "n_generated_simulation_sandbox_executed": 1,
+  "n_live_generated_simulation_sandbox_executed": 1,
+  "n_live_llm_formalizer_proof_engineer_proposals": 0,
+  "n_kernel_verified_subclaims": 0,
+  "n_materialized_formal_gap_rows": 0,
+  "n_formal_gaps": 0,
+  "formal_closure_summary": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeFormalClosureSummary",
+    "n_questions": 1,
+    "n_questions_formal_applicable": 0,
+    "n_questions_formal_not_applicable": 1,
+    "n_questions_formal_satisfied": 0,
+    "n_questions_formal_unverified": 0,
+    "n_materialized_formal_gap_rows": 0,
+    "formal_closure_verified_for_all_questions": false,
+    "formal_closure_status": "FORMAL_CLOSURE_NOT_APPLICABLE",
+    "formal_gap_inventory_status": "NO_MATERIALIZED_GAP_ROWS",
+    "boundary": "Materialized formal-gap rows are an observed inventory, not an exhaustive complement of proof. Zero rows never imply formal closure; closure requires each formal-applicable question's target-bound formal_satisfied gate. A task-intent dimension marked not_applicable is reported separately and is neither formally satisfied nor unverified."
+  },
+  "n_full_frontier_theorem_proved": 0,
+  "formalizer_client_tool_observation_summary": {
+    "n_workspaces_observed": 0,
+    "n_source_updates": 0,
+    "n_local_lean_checks": 0,
+    "n_formal_rag_tool_calls": 0,
+    "n_compiled_checkpoints": 0,
+    "proof_evidence_status": "FORMALIZER_CLIENT_TOOL_OBSERVATIONS_NOT_PROOF_EVIDENCE"
+  },
+  "candidate_gate_independence_summary": {
+    "required": false,
+    "status": "NOT_REQUIRED",
+    "n_confirmatory_cohort_execution_rows": 0,
+    "n_distinct_executed_cohorts": 0,
+    "n_post_outcome_cohort_transitions": 0,
+    "n_post_outcome_fresh_cohort_executions": 0,
+    "validation_errors": [],
+    "candidate_gate_independence_verified": false,
+    "proof_evidence_status": "EVALUATION_INDEPENDENCE_NOT_PROOF_EVIDENCE"
+  },
+  "n_formalizer_lean_candidate_local_lean_checked": 0,
+  "n_formalizer_lean_candidate_local_lean_compiled": 0,
+  "llm_topology_policy_ok": true,
+  "llm_runtime_topology": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeLLMTopologyManifest",
+    "created_at": "2026-08-28T03:41:02.463161+00:00",
+    "policy": {
+      "default_live_provider": "anthropic",
+      "supported_live_generator_providers": [
+        "anthropic",
+        "openai"
+      ],
+      "supported_generator_providers": [
+        "anthropic",
+        "openai",
+        "static"
+      ],
+      "claude_model_selection": {
+        "source_checked_date": "2026-08-02",
+        "source_evidence": {
+          "source_checked_date": "2026-08-02",
+          "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",
+          "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+          "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+          "verified_latest_cost_tier_api_ids": {
+            "haiku": "claude-haiku-4-5-20251001",
+            "sonnet": "claude-sonnet-5"
+          },
+          "verified_api_aliases_by_tier": {
+            "haiku": "claude-haiku-4-5",
+            "sonnet": "claude-sonnet-5"
+          },
+          "claims": [
+            "The source-checked project allowlist uses Claude Sonnet 5 and the dated Claude Haiku 4.5 API snapshot.",
+            "Claude 4.6+ dateless model IDs are pinned snapshots, not evergreen aliases."
+          ]
+        },
+        "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+        "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+        "default_provider": "anthropic",
+        "default_model_tier": "sonnet",
+        "max_live_anthropic_model_tier": "sonnet",
+        "allowed_live_anthropic_model_tiers": [
+          "haiku",
+          "sonnet"
+        ],
+        "prohibited_live_anthropic_model_tiers": [
+          "opus"
+        ],
+        "models_by_tier": {
+          "haiku": "claude-haiku-4-5-20251001",
+          "sonnet": "claude-sonnet-5"
+        },
+        "api_aliases_by_tier": {
+          "haiku": "claude-haiku-4-5",
+          "sonnet": "claude-sonnet-5"
+        },
+        "subsystem_model_tier_policy": {
+          "ArchitectCoordinator": "sonnet",
+          "TheoryDeveloper": "sonnet",
+          "FormalizerProofEngineer": "sonnet",
+          "TheoryIntake": "haiku",
+          "SimulationEngineer": "sonnet",
+          "SimulatorEngineer": "sonnet",
+          "AlgorithmEngineer": "sonnet",
+          "ArchitectMetricSemanticReviewer": "sonnet",
+          "GeneratedCodeSemanticReviewer": "sonnet",
+          "FormalTargetSemanticReviewer": "sonnet",
+          "CriticEvaluator": "sonnet",
+          "bounded_route_triage": "haiku"
+        },
+        "contextual_model_tier_policy": {
+          "TheoryDeveloper:serious": "sonnet"
+        },
+        "runtime_model_id_policy": "AI Statistician resolves live runtime calls only for the Haiku and Sonnet tiers. No higher-tier model ID is stored in the configurable catalog; any other Claude family or tier is rejected before provider-client construction.",
+        "tier_specific_model_env_vars": {
+          "haiku": [
+            "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+            "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL"
+          ],
+          "sonnet": [
+            "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+            "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL"
+          ]
+        },
+        "global_model_override_policy": "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. They must not collapse live Haiku/Sonnet cost-aware routing; use the live tier-specific Claude env vars to override helper tiers.",
+        "model_id_versioning": "Claude model IDs are pinned snapshots. Starting with Claude 4.6, dateless IDs such as claude-sonnet-4-6 are canonical release IDs, not evergreen aliases; newer releases require explicit constant updates.",
+        "cost_split": {
+          "sonnet": [
+            "ArchitectCoordinator",
+            "TheoryDeveloper",
+            "SimulationEngineer",
+            "AlgorithmEngineer",
+            "FormalizerProofEngineer",
+            "CriticEvaluator"
+          ],
+          "haiku": [
+            "theory_intake",
+            "bounded_route_triage"
+          ]
+        }
+      },
+      "claude_tier_routing_contract": {
+        "contract_name": "anthropic_claude_tier_routing_contract",
+        "source_checked_date": "2026-08-02",
+        "source_evidence": {
+          "source_checked_date": "2026-08-02",
+          "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",
+          "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+          "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+          "verified_latest_cost_tier_api_ids": {
+            "haiku": "claude-haiku-4-5-20251001",
+            "sonnet": "claude-sonnet-5"
+          },
+          "verified_api_aliases_by_tier": {
+            "haiku": "claude-haiku-4-5",
+            "sonnet": "claude-sonnet-5"
+          },
+          "claims": [
+            "The source-checked project allowlist uses Claude Sonnet 5 and the dated Claude Haiku 4.5 API snapshot.",
+            "Claude 4.6+ dateless model IDs are pinned snapshots, not evergreen aliases."
+          ]
+        },
+        "default_live_generator_provider": "anthropic",
+        "effective_live_generator_provider": "anthropic",
+        "supported_live_generator_providers": [
+          "anthropic",
+          "openai"
+        ],
+        "supported_generator_providers": [
+          "anthropic",
+          "openai",
+          "static"
+        ],
+        "static_replay_generator_providers": [
+          "static"
+        ],
+        "prohibited_agent_generator_providers": [
+          "codex",
+          "codex_exec",
+          "claude_code",
+          "cursor",
+          "gemini_cli"
+        ],
+        "claude_model_selection": {
+          "source_checked_date": "2026-08-02",
+          "source_evidence": {
+            "source_checked_date": "2026-08-02",
+            "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",
+            "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+            "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+            "verified_latest_cost_tier_api_ids": {
+              "haiku": "claude-haiku-4-5-20251001",
+              "sonnet": "claude-sonnet-5"
+            },
+            "verified_api_aliases_by_tier": {
+              "haiku": "claude-haiku-4-5",
+              "sonnet": "claude-sonnet-5"
+            },
+            "claims": [
+              "The source-checked project allowlist uses Claude Sonnet 5 and the dated Claude Haiku 4.5 API snapshot.",
+              "Claude 4.6+ dateless model IDs are pinned snapshots, not evergreen aliases."
+            ]
+          },
+          "models_overview_url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+          "model_ids_and_versioning_url": "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions",
+          "default_provider": "anthropic",
+          "default_model_tier": "sonnet",
+          "max_live_anthropic_model_tier": "sonnet",
+          "allowed_live_anthropic_model_tiers": [
+            "haiku",
+            "sonnet"
+          ],
+          "prohibited_live_anthropic_model_tiers": [
+            "opus"
+          ],
+          "models_by_tier": {
+            "haiku": "claude-haiku-4-5-20251001",
+            "sonnet": "claude-sonnet-5"
+          },
+          "api_aliases_by_tier": {
+            "haiku": "claude-haiku-4-5",
+            "sonnet": "claude-sonnet-5"
+          },
+          "subsystem_model_tier_policy": {
+            "ArchitectCoordinator": "sonnet",
+            "TheoryDeveloper": "sonnet",
+            "FormalizerProofEngineer": "sonnet",
+            "TheoryIntake": "haiku",
+            "SimulationEngineer": "sonnet",
+            "SimulatorEngineer": "sonnet",
+            "AlgorithmEngineer": "sonnet",
+            "ArchitectMetricSemanticReviewer": "sonnet",
+            "GeneratedCodeSemanticReviewer": "sonnet",
+            "FormalTargetSemanticReviewer": "sonnet",
+            "CriticEvaluator": "sonnet",
+            "bounded_route_triage": "haiku"
+          },
+          "contextual_model_tier_policy": {
+            "TheoryDeveloper:serious": "sonnet"
+          },
+          "runtime_model_id_policy": "AI Statistician resolves live runtime calls only for the Haiku and Sonnet tiers. No higher-tier model ID is stored in the configurable catalog; any other Claude family or tier is rejected before provider-client construction.",
+          "tier_specific_model_env_vars": {
+            "haiku": [
+              "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+              "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL"
+            ],
+            "sonnet": [
+              "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+              "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL"
+            ]
+          },
+          "global_model_override_policy": "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. They must not collapse live Haiku/Sonnet cost-aware routing; use the live tier-specific Claude env vars to override helper tiers.",
+          "model_id_versioning": "Claude model IDs are pinned snapshots. Starting with Claude 4.6, dateless IDs such as claude-sonnet-4-6 are canonical release IDs, not evergreen aliases; newer releases require explicit constant updates.",
+          "cost_split": {
+            "sonnet": [
+              "ArchitectCoordinator",
+              "TheoryDeveloper",
+              "SimulationEngineer",
+              "AlgorithmEngineer",
+              "FormalizerProofEngineer",
+              "CriticEvaluator"
+            ],
+            "haiku": [
+              "theory_intake",
+              "bounded_route_triage"
+            ]
+          }
+        },
+        "latest_claude_models_by_tier": {
+          "haiku": "claude-haiku-4-5-20251001",
+          "sonnet": "claude-sonnet-5"
+        },
+        "latest_claude_api_aliases_by_tier": {
+          "haiku": "claude-haiku-4-5",
+          "sonnet": "claude-sonnet-5"
+        },
+        "prohibited_live_anthropic_model_tiers": [
+          "opus"
+        ],
+        "resolved_claude_models_by_tier": {
+          "haiku": "claude-haiku-4-5-20251001",
+          "sonnet": "claude-sonnet-5"
+        },
+        "allowed_live_anthropic_model_tiers": [
+          "haiku",
+          "sonnet"
+        ],
+        "resolved_claude_model_tier_policy_status": "OK",
+        "resolved_claude_model_tier_policy_violations": [],
+        "resolved_claude_model_freshness_status": "CURRENT",
+        "resolved_claude_model_freshness_warnings": [],
+        "environment_override_status": "OK",
+        "provider_override_warnings": [],
+        "global_model_override_keys_present": [],
+        "tier_specific_model_override_keys_present": [],
+        "global_model_override_policy": "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and AI_STATISTICIAN_THEORY_MODEL are treated as Sonnet-tier defaults only. They must not collapse live Haiku/Sonnet cost-aware routing; use the live tier-specific Claude env vars to override helper tiers.",
+        "tier_specific_model_env_vars": {
+          "haiku": [
+            "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+            "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL"
+          ],
+          "sonnet": [
+            "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+            "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL"
+          ]
+        },
+        "subsystem_model_tier_policy": {
+          "ArchitectCoordinator": "sonnet",
+          "TheoryDeveloper": "sonnet",
+          "FormalizerProofEngineer": "sonnet",
+          "TheoryIntake": "haiku",
+          "SimulationEngineer": "sonnet",
+          "SimulatorEngineer": "sonnet",
+          "AlgorithmEngineer": "sonnet",
+          "ArchitectMetricSemanticReviewer": "sonnet",
+          "GeneratedCodeSemanticReviewer": "sonnet",
+          "FormalTargetSemanticReviewer": "sonnet",
+          "CriticEvaluator": "sonnet",
+          "bounded_route_triage": "haiku"
+        },
+        "contextual_model_tier_policy": {
+          "TheoryDeveloper:serious": "sonnet"
+        },
+        "all_ok": true
+      },
+      "resolved_claude_models_by_tier": {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-5"
+      },
+      "resolved_claude_model_tier_policy_status": "OK",
+      "resolved_claude_model_tier_policy_violations": [],
+      "resolved_claude_model_freshness_status": "CURRENT",
+      "resolved_claude_model_freshness_warnings": [],
+      "expected_subsystem_model_tiers": {
+        "ArchitectCoordinator": "sonnet",
+        "TheoryDeveloper": "sonnet",
+        "FormalizerProofEngineer": "sonnet",
+        "TheoryIntake": "haiku",
+        "SimulationEngineer": "sonnet",
+        "SimulatorEngineer": "sonnet",
+        "AlgorithmEngineer": "sonnet",
+        "ArchitectMetricSemanticReviewer": "sonnet",
+        "GeneratedCodeSemanticReviewer": "sonnet",
+        "FormalTargetSemanticReviewer": "sonnet",
+        "CriticEvaluator": "sonnet",
+        "bounded_route_triage": "haiku"
+      },
+      "expected_contextual_model_tiers": {
+        "TheoryDeveloper:serious": "sonnet"
+      },
+      "model_tier_assignment_policy": "centralized_subsystem_policy_from_model_backend",
+      "evaluation_claude_model_tier": "haiku",
+      "evaluation_claude_model": "claude-haiku-4-5-20251001",
+      "backend_boundary": "LLM backends generate structured proposals only. AgentRuntime owns tool use, filesystem changes, execution, tests, Lean checks, and evidence promotion."
+    },
+    "llm_agents": [
+      {
+        "subsystem": "ArchitectCoordinator",
+        "enabled": true,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "configured_model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "expected_model_tier": "haiku",
+        "role": "top-level research plan, evidence gates, and subsystem routing",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "max_tokens": 3000,
+        "temperature": 0.1,
+        "production_expected_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "ArchitectMetricSemanticReviewer",
+        "enabled": true,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "configured_model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "expected_model_tier": "haiku",
+        "role": "independent pre-execution semantic and mathematical review of Architect-authored typed empirical metric contracts",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "max_tokens": 16000,
+        "temperature": 0.0,
+        "production_expected_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "TheoryDeveloper",
+        "enabled": true,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "configured_model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "expected_model_tier": "haiku",
+        "role": "deductive statistical theory discovery and theorem/procedure proposal",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "max_tokens": 4500,
+        "temperature": 0.2,
+        "serious_model": "claude-haiku-4-5-20251001",
+        "configured_serious_model": "claude-haiku-4-5-20251001",
+        "serious_model_tier": "haiku",
+        "expected_serious_model_tier": "haiku",
+        "serious_max_tokens": 16000,
+        "theory_workspace_max_turns": 24,
+        "theory_workspace_max_tool_calls": 48,
+        "theory_workspace_budget_policy": "one_shared_ordinary_tool_call_budget",
+        "production_expected_model_tier": "sonnet",
+        "production_expected_serious_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "SimulationEngineer",
+        "enabled": true,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "configured_model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "expected_model_tier": "haiku",
+        "role": "simulation and falsifier proposal under runtime execution gates",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "max_tokens": 8000,
+        "temperature": 0.1,
+        "production_expected_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "AlgorithmEngineer",
+        "enabled": true,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "configured_model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "expected_model_tier": "haiku",
+        "role": "algorithm prototype and stress-test implementation proposal",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "max_tokens": 5000,
+        "temperature": 0.1,
+        "production_expected_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "FormalizerProofEngineer",
+        "enabled": false,
+        "provider_name": "",
+        "backend_provider_name": "",
+        "model": "",
+        "model_tier": "sonnet",
+        "expected_model_tier": "haiku",
+        "role": "Lean/formal-target/proof-search proposal before kernel gates",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "production_expected_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "GeneratedCodeSemanticReviewer",
+        "enabled": true,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "configured_model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "expected_model_tier": "haiku",
+        "role": "independent semantic review of exact executed generated code, runtime arguments, result schema, theory, and frozen protocols before confirmatory outcome release",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "max_tokens": 7000,
+        "temperature": 0.0,
+        "production_expected_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "FormalTargetSemanticReviewer",
+        "enabled": false,
+        "provider_name": "",
+        "backend_provider_name": "",
+        "model": "",
+        "model_tier": "sonnet",
+        "expected_model_tier": "haiku",
+        "role": "independent mathematical review of exact theorem statements against the question, derivation, assumptions, and constraints",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "production_expected_model_tier": "sonnet"
+      },
+      {
+        "subsystem": "CriticEvaluator",
+        "enabled": true,
+        "provider_name": "anthropic",
+        "backend_provider_name": "anthropic",
+        "model": "claude-haiku-4-5-20251001",
+        "configured_model": "claude-haiku-4-5-20251001",
+        "model_tier": "haiku",
+        "expected_model_tier": "haiku",
+        "role": "boundary audit, learning rows, and next-action triage",
+        "generator_only": true,
+        "acts_in_environment": false,
+        "max_tokens": 5000,
+        "temperature": 0.1,
+        "production_expected_model_tier": "sonnet"
+      }
+    ],
+    "provider_counts": {
+      "anthropic": 7
+    },
+    "model_tier_counts": {
+      "haiku": 7
+    },
+    "unsupported_provider_count": 0,
+    "generator_only_all_enabled": true,
+    "default_provider": "anthropic",
+    "architect_provider": "anthropic",
+    "architect_metric_semantic_reviewer_provider": "anthropic",
+    "theory_developer_provider": "anthropic",
+    "simulation_engineer_provider": "anthropic",
+    "algorithm_engineer_provider": "anthropic",
+    "formalizer_provider": "",
+    "critic_evaluator_provider": "anthropic",
+    "generated_code_semantic_reviewer_provider": "anthropic",
+    "formal_target_semantic_reviewer_provider": "",
+    "architect_model": "claude-haiku-4-5-20251001",
+    "architect_metric_semantic_reviewer_model": "claude-haiku-4-5-20251001",
+    "theory_developer_model": "claude-haiku-4-5-20251001",
+    "theory_developer_serious_model": "claude-haiku-4-5-20251001",
+    "simulation_engineer_model": "claude-haiku-4-5-20251001",
+    "algorithm_engineer_model": "claude-haiku-4-5-20251001",
+    "formalizer_model": "",
+    "critic_evaluator_model": "claude-haiku-4-5-20251001",
+    "generated_code_semantic_reviewer_model": "claude-haiku-4-5-20251001",
+    "formal_target_semantic_reviewer_model": "",
+    "architect_model_tier": "haiku",
+    "architect_metric_semantic_reviewer_model_tier": "haiku",
+    "theory_developer_model_tier": "haiku",
+    "theory_developer_serious_model_tier": "haiku",
+    "simulation_engineer_model_tier": "haiku",
+    "algorithm_engineer_model_tier": "haiku",
+    "formalizer_model_tier": "sonnet",
+    "critic_evaluator_model_tier": "haiku",
+    "generated_code_semantic_reviewer_model_tier": "haiku",
+    "formal_target_semantic_reviewer_model_tier": "sonnet",
+    "policy_status": "OK",
+    "policy_violations": [],
+    "non_llm_runtime_providers": {
+      "proof_state_provider": "",
+      "proof_state_feedback_is_proof_evidence": false
+    },
+    "counts": {
+      "llm_agents_total": 9,
+      "llm_agents_enabled": 7,
+      "llm_agents_disabled": 2,
+      "enabled_by_model_tier": {
+        "haiku": 7
+      },
+      "enabled_by_provider": {
+        "anthropic": 7
+      },
+      "unsupported_generator_backends_enabled": 0,
+      "anthropic_model_tier_mismatches": 0,
+      "anthropic_serious_model_tier_mismatches": 0,
+      "subsystem_model_tier_policy_mismatches": 0,
+      "contextual_model_tier_policy_mismatches": 0,
+      "resolved_claude_model_tier_policy_violations": 0
+    },
+    "boundary": "This manifest is runtime/model provenance and cost-control metadata. It is not proof, simulation, or implementation evidence.",
+    "manifest_id": "runtime_llm_topology:b8f4e69de83afc7bccaa"
+  },
+  "lean_provider_topology": {
+    "schema_version": 1,
+    "artifact_kind": "RuntimeLeanProviderTopology",
+    "manifest_id": "runtime_lean_provider_topology:0f97152d7ed11f967b01",
+    "formal_source_retriever": {
+      "activated_for_selected_tasks": false,
+      "activation_status": "all_selected_tasks_formal_not_applicable",
+      "configured": true,
+      "provider_instantiated": true
+    },
+    "proof_search_provider": {
+      "activated_for_selected_tasks": false,
+      "activation_status": "all_selected_tasks_formal_not_applicable",
+      "configured": false,
+      "provider_instantiated": false
+    },
+    "proof_state_retrieval": {
+      "activated_for_selected_tasks": false,
+      "activation_status": "all_selected_tasks_formal_not_applicable",
+      "configured": true,
+      "provider_instantiated": false
+    },
+    "activated_for_selected_tasks": false,
+    "proof_evidence_status": "LEAN_PROVIDER_TOPOLOGY_NOT_PROOF_EVIDENCE",
+    "proof_evidence_boundary": "External retrieval hits, generated proof bodies, verifier diagnostics, and OpenProver lemma assets are agent feedback. They do not prove the AI Statistician source theorem until its exact declaration passes the configured local Lean/AXLE gate."
+  },
+  "research_source_snapshot": {
+    "schema_version": 1,
+    "artifact_kind": "ResearchSourceSnapshotDescriptor",
+    "configured": false,
+    "proof_evidence_status": "RESEARCH_SOURCES_NOT_CONFIGURED",
+    "manifest_id": "runtime_research_source_snapshot:ddce057640a5e5914f2b"
+  },
+  "proof_evidence_boundary": "LLM derivations, retrieval hits, and simulation predictions are proposal or diagnostic evidence only. Formal proof evidence requires AXLE/local Lean kernel verification of the intended formal claim.",
+  "simulation_evidence_boundary": "Executable simulation and deterministic scaffold runs are empirical environment observations. They can falsify or support a proposal, but they are not theorem proof evidence.",
+  "manifest_boundary": "This compact manifest indexes runtime traces, observations, tool calls, and evidence. It does not infer capability or prescribe a repair; hidden authority and post-runtime gold scoring are outside this runtime and its manifest.",
+  "artifacts": {
+    "runtime_progress_jsonl": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_progress.jsonl",
+    "runtime_traces_jsonl": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_traces.jsonl",
+    "runtime_evidence_ledger_jsonl": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_evidence_ledger.jsonl",
+    "runtime_task_handoffs_jsonl": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_task_handoffs.jsonl",
+    "runtime_observations_jsonl": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_observations.jsonl",
+    "runtime_tool_calls_jsonl": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_tool_calls.jsonl",
+    "runtime_llm_topology_json": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_llm_topology.json",
+    "runtime_research_source_snapshot_json": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_research_source_snapshot.json",
+    "per_question_results": [
+      "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/exponential_maximum_gumbel_known_result_runtime_result.json"
+    ],
+    "runtime_artifact_store_indexes": [
+      "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_artifact_store/indexes/exponential_maximum_gumbel_known_result.json"
+    ],
+    "runtime_completion_summary_json": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_completion_summary.json",
+    "runtime_failure_summary_json": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/runtime_failure_summary.json"
+  }
+}

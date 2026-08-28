@@ -1,0 +1,160 @@
+{
+  "artifact_kind": "RuntimeGeneratedCodeSemanticReviewMaterialization",
+  "created_at": "2026-08-28T03:48:42.543150+00:00",
+  "evidence_boundary": "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.",
+  "exact_algorithm_artifacts": [
+    {
+      "dependencies": [],
+      "estimator_id": "est_exponential_maximum_gumbel",
+      "estimator_interface_contract": {
+        "request_fields": [
+          {
+            "binding": "per_replicate_data",
+            "meaning": "One observed independent sample of rate-one exponential observations whose maximum is evaluated.",
+            "name": "sample"
+          }
+        ],
+        "response_fields": [
+          {
+            "derivation_ref": "thm.exact_cdf_Y_n",
+            "meaning": "Number of observations in the accepted sample.",
+            "name": "sample_size",
+            "normalization": "len(sample)"
+          },
+          {
+            "derivation_ref": "thm.exact_cdf_M_n",
+            "meaning": "Largest observed sample value.",
+            "name": "maximum",
+            "normalization": "max(sample)"
+          },
+          {
+            "derivation_ref": "thm.exact_cdf_Y_n",
+            "meaning": "Maximum centered by the natural logarithm of sample size.",
+            "name": "centered_maximum",
+            "normalization": "maximum - log(sample_size), using the natural logarithm"
+          },
+          {
+            "derivation_ref": "thm.exact_cdf_Y_n",
+            "meaning": "Exact finite-sample CDF of Y_n evaluated at the returned centered maximum.",
+            "name": "exact_cdf_at_centered",
+            "normalization": "For n=sample_size and y=centered_maximum, 0 when y < -log(n), otherwise (1-exp(-y)/n)^n"
+          },
+          {
+            "derivation_ref": "def.gumbel_cdf",
+            "meaning": "Standard Gumbel limiting CDF evaluated at the returned centered maximum.",
+            "name": "gumbel_cdf_at_centered",
+            "normalization": "exp(-exp(-centered_maximum))"
+          }
+        ]
+      },
+      "estimator_interface_contract_authority": {
+        "owner_agent": "TheoryDeveloper",
+        "source_estimator_ref": "theory#/estimator_specs/0/estimator_interface_contract",
+        "source_theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+        "source_theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+        "transport_status": "RUNTIME_BOUND_FROM_THEORY"
+      },
+      "estimator_interface_contract_id": "estimator_interface_contract:591f19f1eaaa42ca4760",
+      "exact_smoke_result": {
+        "errors": [],
+        "summary": {
+          "failed": 0,
+          "passed": 17,
+          "total_tests": 17
+        },
+        "test_results": [
+          {
+            "status": "PASS",
+            "test": "valid_small_sample"
+          },
+          {
+            "status": "PASS",
+            "test": "all_zeros"
+          },
+          {
+            "status": "PASS",
+            "test": "permutation_invariance"
+          },
+          {
+            "status": "PASS",
+            "test": "determinism"
+          },
+          {
+            "replicates": 100,
+            "status": "PASS",
+            "test": "cdf_range"
+          },
+          {
+            "replicates": 100,
+            "status": "PASS",
+            "test": "support_constraint"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_missing_key"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_extra_key"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_tuple"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_boolean"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_nan"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_infinity"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_negative"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_too_few"
+          },
+          {
+            "status": "PASS",
+            "test": "reject_too_many"
+          },
+          {
+            "exact_cdf": 0.3486784401000001,
+            "gumbel_cdf": 0.36787944117144233,
+            "status": "PASS",
+            "test": "identity_at_y_zero"
+          },
+          {
+            "status": "PASS",
+            "test": "response_structure"
+          }
+        ]
+      },
+      "exact_smoke_result_hash": "497c5890193d57543a2aae5939e3183744438bd7ef7b51b7d56e2a1255656384",
+      "exact_source_code": "import math\nimport json\n\n\ndef run_estimator(request):\n    \"\"\"\n    Compute the exact finite-sample and Gumbel CDFs for the centered maximum.\n    \n    Args:\n        request: dict with exactly one key \"sample\", a list of 2-500 nonnegative finite numbers.\n    \n    Returns:\n        dict with keys: sample_size, maximum, centered_maximum, exact_cdf_at_centered, gumbel_cdf_at_centered\n    \n    Raises:\n        ValueError: if the request is malformed or the sample is invalid.\n    \"\"\"\n    \n    # Validate request structure\n    if not isinstance(request, dict):\n        raise ValueError(\"Request must be a dictionary.\")\n    \n    if set(request.keys()) != {\"sample\"}:\n        raise ValueError(\"Request must contain exactly the key 'sample'.\")\n    \n    sample = request[\"sample\"]\n    \n    # Validate sample type and structure\n    # Reject tuples, arrays, and other non-list types\n    if type(sample) is not list:\n        raise ValueError(\"sample must be a list.\")\n    \n    if len(sample) < 2 or len(sample) > 500:\n        raise ValueError(\"sample must have between 2 and 500 elements.\")\n    \n    # Validate each element\n    for i, x in enumerate(sample):\n        if not isinstance(x, (int, float)):\n            raise ValueError(f\"sample[{i}] is not a number: {x}\")\n        if isinstance(x, bool):\n            raise ValueError(f\"sample[{i}] is a Boolean, not a number.\")\n        if not math.isfinite(x):\n            raise ValueError(f\"sample[{i}] is not finite: {x}\")\n        if x < 0:\n            raise ValueError(f\"sample[{i}] is negative: {x}\")\n    \n    # Compute sample statistics\n    n = len(sample)\n    maximum = max(sample)\n    log_n = math.log(n)\n    centered_maximum = maximum - log_n\n    \n    # Compute exact finite-n CDF\n    # P(Y_n <= y) = 0 if y < -log(n), else (1 - exp(-y)/n)^n\n    if centered_maximum < -log_n:\n        # This should not happen since centered_maximum = maximum - log(n) >= 0 - log(n) = -log(n)\n        exact_cdf = 0.0\n    else:\n        # y >= -log(n), so use the formula (1 - exp(-y)/n)^n\n        exp_neg_y = math.exp(-centered_maximum)\n        exact_cdf = (1.0 - exp_neg_y / n) ** n\n    \n    # Compute Gumbel CDF\n    # G(y) = exp(-exp(-y))\n    exp_neg_y = math.exp(-centered_maximum)\n    gumbel_cdf = math.exp(-exp_neg_y)\n    \n    # Construct response\n    response = {\n        \"sample_size\": n,\n        \"maximum\": maximum,\n        \"centered_maximum\": centered_maximum,\n        \"exact_cdf_at_centered\": exact_cdf,\n        \"gumbel_cdf_at_centered\": gumbel_cdf\n    }\n    \n    return response\n\n\ndef run_sandbox(seed=42, replicates=10):\n    \"\"\"\n    Developer sandbox: unit, boundary, and metamorphic checks.\n    \n    This is NOT a confirmatory simulation or empirical gate.\n    It exercises run_estimator with various inputs and validates:\n    - Request validation (closed contract)\n    - Response structure and types\n    - Mathematical identities\n    - Permutation invariance\n    - Determinism\n    \n    Args:\n        seed: random seed for reproducibility\n        replicates: number of random samples to test\n    \n    Returns:\n        dict with diagnostic results\n    \"\"\"\n    \n    import random\n    random.seed(seed)\n    \n    diagnostics = {\n        \"test_results\": [],\n        \"errors\": []\n    }\n    \n    # Test 1: Valid request with small sample\n    try:\n        request = {\"sample\": [0.5, 1.5, 2.0]}\n        response = run_estimator(request)\n        assert response[\"sample_size\"] == 3\n        assert response[\"maximum\"] == 2.0\n        assert abs(response[\"centered_maximum\"] - (2.0 - math.log(3))) < 1e-10\n        diagnostics[\"test_results\"].append({\n            \"test\": \"valid_small_sample\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"valid_small_sample\", \"error\": str(e)})\n    \n    # Test 2: All zeros (boundary case)\n    try:\n        request = {\"sample\": [0.0, 0.0, 0.0, 0.0, 0.0]}\n        response = run_estimator(request)\n        n = 5\n        assert response[\"sample_size\"] == n\n        assert response[\"maximum\"] == 0.0\n        assert abs(response[\"centered_maximum\"] - (-math.log(n))) < 1e-10\n        # At y = -log(n), exact CDF should be 0 (or numerically very close)\n        # (1 - exp(log(n))/n)^n = (1 - n/n)^n = 0^n = 0\n        assert response[\"exact_cdf_at_centered\"] < 1e-50\n        diagnostics[\"test_results\"].append({\n            \"test\": \"all_zeros\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"all_zeros\", \"error\": str(e)})\n    \n    # Test 3: Permutation invariance\n    try:\n        sample = [0.1, 2.5, 1.3, 0.8, 3.2]\n        request1 = {\"sample\": sample}\n        response1 = run_estimator(request1)\n        \n        sample_permuted = [3.2, 0.1, 1.3, 2.5, 0.8]\n        request2 = {\"sample\": sample_permuted}\n        response2 = run_estimator(request2)\n        \n        assert response1[\"maximum\"] == response2[\"maximum\"]\n        assert abs(response1[\"centered_maximum\"] - response2[\"centered_maximum\"]) < 1e-10\n        assert abs(response1[\"exact_cdf_at_centered\"] - response2[\"exact_cdf_at_centered\"]) < 1e-10\n        assert abs(response1[\"gumbel_cdf_at_centered\"] - response2[\"gumbel_cdf_at_centered\"]) < 1e-10\n        diagnostics[\"test_results\"].append({\n            \"test\": \"permutation_invariance\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"permutation_invariance\", \"error\": str(e)})\n    \n    # Test 4: Determinism\n    try:\n        request = {\"sample\": [0.5, 1.5, 2.0, 0.3]}\n        response1 = run_estimator(request)\n        response2 = run_estimator(request)\n        \n        assert response1 == response2\n        diagnostics[\"test_results\"].append({\n            \"test\": \"determinism\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"determinism\", \"error\": str(e)})\n    \n    # Test 5: CDF monotonicity (exact CDF should be in [0, 1])\n    try:\n        for _ in range(replicates):\n            n = random.randint(2, 50)\n            sample = [random.expovariate(1.0) for _ in range(n)]\n            request = {\"sample\": sample}\n            response = run_estimator(request)\n            \n            assert 0.0 <= response[\"exact_cdf_at_centered\"] <= 1.0\n            assert 0.0 < response[\"gumbel_cdf_at_centered\"] < 1.0\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"cdf_range\",\n            \"status\": \"PASS\",\n            \"replicates\": replicates\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"cdf_range\", \"error\": str(e)})\n    \n    # Test 6: Support constraint (centered_maximum >= -log(n))\n    try:\n        for _ in range(replicates):\n            n = random.randint(2, 50)\n            sample = [random.expovariate(1.0) for _ in range(n)]\n            request = {\"sample\": sample}\n            response = run_estimator(request)\n            \n            log_n = math.log(n)\n            assert response[\"centered_maximum\"] >= -log_n - 1e-10\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"support_constraint\",\n            \"status\": \"PASS\",\n            \"replicates\": replicates\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"support_constraint\", \"error\": str(e)})\n    \n    # Test 7: Reject missing key\n    try:\n        request = {\"other_key\": [0.5, 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_missing_key\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_missing_key\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_missing_key\", \"error\": str(e)})\n    \n    # Test 8: Reject extra key\n    try:\n        request = {\"sample\": [0.5, 1.5], \"extra\": \"key\"}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_extra_key\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_extra_key\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_extra_key\", \"error\": str(e)})\n    \n    # Test 9: Reject non-list sample\n    try:\n        request = {\"sample\": (0.5, 1.5)}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_tuple\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_tuple\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_tuple\", \"error\": str(e)})\n    \n    # Test 10: Reject Boolean\n    try:\n        request = {\"sample\": [0.5, True, 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_boolean\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_boolean\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_boolean\", \"error\": str(e)})\n    \n    # Test 11: Reject NaN\n    try:\n        request = {\"sample\": [0.5, float('nan'), 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_nan\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_nan\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_nan\", \"error\": str(e)})\n    \n    # Test 12: Reject infinity\n    try:\n        request = {\"sample\": [0.5, float('inf'), 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_infinity\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_infinity\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_infinity\", \"error\": str(e)})\n    \n    # Test 13: Reject negative value\n    try:\n        request = {\"sample\": [0.5, -0.1, 1.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_negative\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_negative\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_negative\", \"error\": str(e)})\n    \n    # Test 14: Reject too few elements\n    try:\n        request = {\"sample\": [0.5]}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_too_few\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_too_few\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_too_few\", \"error\": str(e)})\n    \n    # Test 15: Reject too many elements\n    try:\n        request = {\"sample\": [0.5] * 501}\n        try:\n            run_estimator(request)\n            diagnostics[\"errors\"].append({\"test\": \"reject_too_many\", \"error\": \"Did not raise ValueError\"})\n        except ValueError:\n            diagnostics[\"test_results\"].append({\n                \"test\": \"reject_too_many\",\n                \"status\": \"PASS\"\n            })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"reject_too_many\", \"error\": str(e)})\n    \n    # Test 16: Mathematical identity check at y=0\n    try:\n        # If maximum = log(n), then centered_maximum = 0\n        n = 10\n        maximum = math.log(n)\n        sample = [0.0] * (n - 1) + [maximum]\n        request = {\"sample\": sample}\n        response = run_estimator(request)\n        \n        # Exact CDF at y=0: (1 - 1/n)^n\n        expected_exact = (1.0 - 1.0 / n) ** n\n        # Gumbel CDF at y=0: exp(-1)\n        expected_gumbel = math.exp(-1.0)\n        \n        assert abs(response[\"centered_maximum\"] - 0.0) < 1e-10\n        assert abs(response[\"exact_cdf_at_centered\"] - expected_exact) < 1e-10\n        assert abs(response[\"gumbel_cdf_at_centered\"] - expected_gumbel) < 1e-10\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"identity_at_y_zero\",\n            \"status\": \"PASS\",\n            \"exact_cdf\": response[\"exact_cdf_at_centered\"],\n            \"gumbel_cdf\": response[\"gumbel_cdf_at_centered\"]\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"identity_at_y_zero\", \"error\": str(e)})\n    \n    # Test 17: Response structure\n    try:\n        request = {\"sample\": [0.5, 1.5, 2.0]}\n        response = run_estimator(request)\n        \n        expected_keys = {\"sample_size\", \"maximum\", \"centered_maximum\", \"exact_cdf_at_centered\", \"gumbel_cdf_at_centered\"}\n        assert set(response.keys()) == expected_keys\n        assert isinstance(response[\"sample_size\"], int)\n        assert isinstance(response[\"maximum\"], (int, float))\n        assert isinstance(response[\"centered_maximum\"], (int, float))\n        assert isinstance(response[\"exact_cdf_at_centered\"], (int, float))\n        assert isinstance(response[\"gumbel_cdf_at_centered\"], (int, float))\n        \n        diagnostics[\"test_results\"].append({\n            \"test\": \"response_structure\",\n            \"status\": \"PASS\"\n        })\n    except Exception as e:\n        diagnostics[\"errors\"].append({\"test\": \"response_structure\", \"error\": str(e)})\n    \n    # Summary\n    diagnostics[\"summary\"] = {\n        \"total_tests\": len(diagnostics[\"test_results\"]) + len(diagnostics[\"errors\"]),\n        \"passed\": len(diagnostics[\"test_results\"]),\n        \"failed\": len(diagnostics[\"errors\"])\n    }\n    \n    return diagnostics\n\n\nif __name__ == \"__main__\":\n    result = run_sandbox()\n    print(json.dumps(result, indent=2))\n",
+      "exact_source_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+      "language": "python"
+    }
+  ],
+  "full_review_material_persisted": false,
+  "materialization_id": "generated_code_semantic_review_materialization:65751f1047dde4ad8cee",
+  "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_INPUT_NOT_PROOF_EVIDENCE",
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "review_input_artifact_refs": {
+    "proposal_packet_id": "algorithm_engineer_proposal:2a9c30bb7e759abc59c0b4f9",
+    "source_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+    "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+  },
+  "review_input_fingerprint": "a9a9ccaabe29c10923e7e230e7bb1aacda6f2771301db7eb6041d18fa43c69de",
+  "schema_version": 1,
+  "source_responsibility_contract_fingerprint": "62ca5cd4dadf7167dd76e61f69175f21be848447888b2f9b49bb88c6ee9e0760",
+  "work_order_hash": "38fcdfc76857004db2d07c384bd9a08e0220e0cd55c80eb26a0ad45a4ec12a0a",
+  "work_order_id": "generated_code_semantic_review_work_order:1b844cb032d82ae9b638"
+}

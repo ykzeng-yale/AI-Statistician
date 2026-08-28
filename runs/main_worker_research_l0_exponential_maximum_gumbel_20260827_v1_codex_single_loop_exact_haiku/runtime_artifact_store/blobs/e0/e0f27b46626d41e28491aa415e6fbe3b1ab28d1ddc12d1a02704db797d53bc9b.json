@@ -1,0 +1,85 @@
+{
+  "artifact_kind": "RuntimeAgentTaskContinuation",
+  "continuation_id": "agent_task_continuation:3d3f6007e71391411543",
+  "original_task_hash": "3d3f6007e71391411543b8b4bf029f584aafb9c4463b6dfe26a03d957cb659c3",
+  "payload_policy": "content_addressed_input_refs",
+  "schema_version": 1,
+  "task_ref": {
+    "acceptance_gate_ref": "task_acceptance_gate:ffda1975ff6feba32598",
+    "allowed_tools": [
+      "model_backend",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "artifact_kind": "AgentTaskRef",
+    "budget": {},
+    "expected_artifacts": [
+      "algorithm_sandbox_manifest"
+    ],
+    "input_keys": [
+      "architect_context",
+      "environment_feedback",
+      "generated_code_semantic_review_revision_count",
+      "implementation_gaps",
+      "n_runs",
+      "question",
+      "seed",
+      "simulation_manifest_id",
+      "theory_packet_id"
+    ],
+    "inputs_hash": "a8e2a747168f5100fa8cf991bef637241d69bfbf15523c3e5ef92ebc8d8df990",
+    "objective_ref": "task_objective:767f0e9951342eba677e",
+    "owner_subsystem": "AlgorithmEngineer",
+    "stop_condition_ref": "task_stop_condition:42f58febded770229e25",
+    "task_id": "semantic-review-producer-regenerate:exponential_maximum_gumbel_known_result:2392a9e6",
+    "task_snapshot_hash": "3df79e8dbe91a74b94d5016d34461a65620ce42af9f12a98f517b9e2c7181f79"
+  },
+  "task_template": {
+    "acceptance_gate": "a changed complete model-generated candidate executes and passes a new independent semantic review",
+    "allowed_tools": [
+      "model_backend",
+      "python",
+      "filesystem_sandbox"
+    ],
+    "budget": {},
+    "expected_artifacts": [
+      "algorithm_sandbox_manifest"
+    ],
+    "inputs": {
+      "architect_context": {
+        "artifact_hash": "3e4b362c3651c098e6ad96f36f27cea199daf39fe851da8e47bc84c8256a265a",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "c4cd6af817f12acaf147b69f2a470ca03aa0c5cf731422f4b49d3087a2453655",
+        "mapping_id": "agent_task_input_mapping:c4cd6af817f12acaf147"
+      },
+      "environment_feedback": {
+        "artifact_hash": "46b50acc618f3a8d33d64e58f4c3788f733196a39566cd892f631d4fb761ea5f",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "9a95ee827da42212de1de04a17e5584ba789b872bcbb922ec7f5b7aa72e111e8",
+        "mapping_id": "agent_task_input_mapping:9a95ee827da42212de1d"
+      },
+      "generated_code_semantic_review_revision_count": 1,
+      "implementation_gaps": [
+        {
+          "estimator_id": "est_exponential_maximum_gumbel",
+          "reason": "Agentic execution requires this LLM estimator spec to pass through generated code, sandbox execution, and independent semantic review. DGP-based statistical-performance gates belong to the downstream SimulationEngineer experiment. Task-family registries cannot satisfy this generated-artifact evidence gate.",
+          "status": "REQUIRES_GENERATED_ALGORITHM_ENGINEER_ADAPTER"
+        }
+      ],
+      "n_runs": 100,
+      "question": {
+        "artifact_hash": "9e44f8aa1c3fb5d7b7320a4d7d0e4975640ea53d8667afc4a1d64c70c327c09a",
+        "artifact_kind": "RuntimeAgentTaskInputMappingRef",
+        "mapping_hash": "5990a9155085e06a8f1f268a302e9d829166a7316bec49fa5d63f14f5f5b37cd",
+        "mapping_id": "agent_task_input_mapping:5990a9155085e06a8f1f"
+      },
+      "seed": 20260528,
+      "simulation_manifest_id": "",
+      "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b"
+    },
+    "objective": "Continue the exact source-owner workspace from its reviewed candidate, execution result, and independent semantic-review observations.",
+    "owner_subsystem": "AlgorithmEngineer",
+    "stop_condition": "the source producer emits a complete replacement candidate or the bounded lineage records a blocker",
+    "task_id": "semantic-review-producer-regenerate:exponential_maximum_gumbel_known_result:2392a9e6"
+  }
+}

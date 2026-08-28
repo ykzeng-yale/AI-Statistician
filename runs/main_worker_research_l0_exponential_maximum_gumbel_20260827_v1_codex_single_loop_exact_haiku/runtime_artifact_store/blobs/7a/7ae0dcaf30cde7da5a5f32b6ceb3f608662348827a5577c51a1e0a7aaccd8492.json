@@ -1,0 +1,215 @@
+{
+  "active_unresolved_finding_ids": [],
+  "artifact_kind": "GeneratedCodeSemanticReviewPacket",
+  "client_tool_loop": {
+    "fresh_current_source_observation_required": true,
+    "full_packet_regeneration_used": false,
+    "provider_usage": {
+      "cache_creation_input_tokens": 53057,
+      "cache_read_input_tokens": 165024,
+      "input_tokens": 105,
+      "output_tokens": 9074
+    },
+    "refreshed_current_source_artifact_ids": [
+      "est_exponential_maximum_gumbel"
+    ],
+    "review_probe_execution_fingerprint": "ac8993022c0eff5eede13405e2792c81052e60e225f20c0480ec652517a38700",
+    "review_probe_executions": [
+      {
+        "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
+        "code_path": "",
+        "errors": [
+          "generated scientific Python draft must define run_sandbox"
+        ],
+        "estimator_invocation_counts": {},
+        "estimator_runtime_errors": [],
+        "failed_probe_is_target_source_evidence": false,
+        "failure_origin": "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION",
+        "metrics": {},
+        "metrics_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "originating_tool_call_id": "toolu_014DGx2m25KBzxS2TShdh36p",
+        "probe_index": 0,
+        "probe_source_hash": "15772674f277e78cf0e5e424b84e24a75645e93fbb2b0b157a17a3e6193624f5",
+        "request_hash": "",
+        "result_hash": "",
+        "result_path": "",
+        "status": "REJECTED_CONTRACT",
+        "stderr_summary": "generated scientific Python draft must define run_sandbox",
+        "stdout_summary": "",
+        "successful_exact_invocation": false,
+        "target_artifact_id": "est_exponential_maximum_gumbel",
+        "target_source_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+        "target_source_invoked": false
+      },
+      {
+        "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
+        "code_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/9dd7e36b86f44b323062/probe-2/semantic-review-probe_5a5b4bf09cbac1b345d6_d84a3516621942f6_generated_draft.py",
+        "errors": [
+          "PythonError: Traceback (most recent call last):\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 597, in eval_code_async\n    await CodeRunner(\n    ...<9 lines>...\n    .run_async(globals, locals)\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 411, in run_async\n    coroutine = eval(self.code, globals, locals)\n  File \"<exec>\", line 6, in <module>\n  File \"<generated_simulation>\", line 10, in <module>\nNameError: name 'estimators' is not defined\n",
+          "bound estimator source was not invoked: est_exponential_maximum_gumbel"
+        ],
+        "estimator_invocation_counts": {},
+        "estimator_runtime_errors": [],
+        "failed_probe_is_target_source_evidence": false,
+        "failure_origin": "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION",
+        "metrics": {},
+        "metrics_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "originating_tool_call_id": "toolu_01RnFmJvURLyS98NbAUaitWG",
+        "probe_index": 1,
+        "probe_source_hash": "50fbfe4a77e699fabf3877c2939de25dd40c50c59a07d3b37d8bc23afd7bdeee",
+        "request_hash": "c573a4cf403f882af661a868dc6fbedbafe020634f8d33e34f0ab36486516afb",
+        "result_hash": "",
+        "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/9dd7e36b86f44b323062/probe-2/semantic-review-probe_5a5b4bf09cbac1b345d6_d84a3516621942f6_scientific_result.json",
+        "status": "FAILED",
+        "stderr_summary": "PythonError: Traceback (most recent call last):\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 597, in eval_code_async\n    await CodeRunner(\n    ...<9 lines>...\n    .run_async(globals, locals)\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 411, in run_async\n    coroutine = eval(self.code, globals, locals)\n  File \"<exec>\", line 6, in <module>\n  File \"<generated_simulation>\", line 10, in <module>\nNameError: name 'estimators' is not defined\n\n    at new_error (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:569233)\n    at wasm://wasm/024a8c3a:wasm-function[276]:0x6581b\n    at wasm://wasm/024a8c3a:wasm-function[482]:0x6fada\n    at wasm://wasm/6a0cf496:wasm-function[0]:0x93\n    at wasm://wasm/024a8c3a:wasm-function[5207]:0x261f63\n    at wasm://wasm/024a8c3a:wasm-function[1201]:0xbdd74\n    at wasm://wasm/024a8c3a:wasm-function[4012]:0x1f2043\n    at wasm://wasm/024a8c3a:wasm-function[2348]:0x10cf53\n    at wasm://wasm/024a8c3a:wasm-function[1209]:0xbe46b\n    at wasm://wasm/024a8c3a:wasm-function[1211]:0xbe680\n    at wasm://wasm/024a8c3a:wasm-function[1212]:0xbe707\n    at wasm://wasm/024a8c3a:wasm-function[3790]:0x1c251f\n    at wasm://wasm/024a8c3a:wasm-function[3791]:0x1d1875\n    at wasm://wasm/024a8c3a:wasm-function[1214]:0xbe84b\n    at wasm://wasm/024a8c3a:wasm-function[1210]:0xbe5a6\n    at wasm://wasm/024a8c3a:wasm-function[469]:0x6f0fa\n    at callPyObjectKwargs (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:623946)\n    at Module.callPyObjectMaybePromising (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:625214)\n    at Immediate.wrapper (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:586781)\n    at process.processImmediate (node:internal/timers:504:21)",
+        "stdout_summary": "{\"schema_version\":1,\"artifact_kind\":\"ScientificSandboxExecutionEnvelope\",\"ok\":false,\"language\":\"python\",\"backend\":\"pyodide\",\"metrics\":{},\"error_type\":\"PythonError\",\"error_message\":\"Traceback (most recent call last):\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 597, in eval_code_async\\n    await CodeRunner(\\n    ...<9 lines>...\\n    .run_async(globals, locals)\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 411, in run_async\\n    coroutine = eval(self.code, globals, locals)\\n  File \\\"<exec>\\\", line 6, in <module>\\n  File \\\"<generated_simulation>\\\", line 10, in <module>\\nNameError: name 'estimators' is not defined\\n\",\"error_stack\":\"PythonError: Traceback (most recent call last):\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 597, in eval_code_async\\n    await CodeRunner(\\n    ...<9 lines>...\\n    .run_async(globals, locals)\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 411, in run_async\\n    coroutine = eval(self.code, globals, locals)\\n  File \\\"<exec>\\\", line 6, in <module>\\n  File \\\"<generated_simulation>\\\", line 10, in <module>\\nNameError: name 'estimators' is not defined\\n\\n    at new_error (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:569233)\\n    at wasm://wasm/024a8c3a:wasm-function[276]:0x6581b\\n    at wasm://wasm/024a8c3a:wasm-function[482]:0x6fada\\n    at wasm://wasm/6a0cf496:wasm-function[0]:0x93\\n    at wasm://wasm/024a8c3a:wasm-function[5207]:0x261f63\\n    at wasm://wasm/024a8c3a:wasm-function[1201]:0xbdd74\\n    at wasm://wasm/024a8c3a:wasm-function[4012]:0x1f2043\\n    at wasm://wasm/024a8c3a:wasm-function[2348]:0x10cf53\\n    at wasm://wasm/024a8c3a:wasm-function[1209]:0xbe46b\\n    at wasm://wasm/024a8c3a:wasm-function[1211]:0xbe680\\n    at wasm://wasm/024a8c3a:wasm-function[1212]:0xbe707\\n    at wasm://wasm/024a8c3a:wasm-function[3790]:0x1c251f\\n    at wasm://wasm/024a8c3a:wasm-function[3791]:0x1d1875\\n    at wasm://wasm/024a8c3a:wasm-function[1214]:0xbe84b\\n    at wasm://wasm/024a8c3a:wasm-function[1210]:0xbe5a6\\n    at wasm://wasm/024a8c3a:wasm-function[469]:0x6f0fa\\n    at callPyObjectKwargs (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:623946)\\n    at Module.callPyObjectMaybePromising (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:625214)\\n    at Immediate.wrapper (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:586781)\\n    at process.processImmediate (node:internal/timers:504:21)\",\"error_origin\":\"generated_source\",\"error_artifact_id\":\"\",\"started_at\":\"2026-08-28T03:49:07.261Z\",\"completed_at\":\"2026-08-28T03:49:08.070Z\"}",
+        "successful_exact_invocation": false,
+        "target_artifact_id": "est_exponential_maximum_gumbel",
+        "target_source_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+        "target_source_invoked": false
+      },
+      {
+        "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
+        "code_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/9dd7e36b86f44b323062/probe-3/semantic-review-probe_f91cc9064baa3d2059fc_7f5f03de07d85a39_generated_draft.py",
+        "errors": [
+          "PythonError: Traceback (most recent call last):\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 597, in eval_code_async\n    await CodeRunner(\n    ...<9 lines>...\n    .run_async(globals, locals)\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 411, in run_async\n    coroutine = eval(self.code, globals, locals)\n  File \"<exec>\", line 6, in <module>\n  File \"<generated_simulation>\", line 10, in <module>\nNameError: name 'estimators' is not defined\n",
+          "bound estimator source was not invoked: est_exponential_maximum_gumbel"
+        ],
+        "estimator_invocation_counts": {},
+        "estimator_runtime_errors": [],
+        "failed_probe_is_target_source_evidence": false,
+        "failure_origin": "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION",
+        "metrics": {},
+        "metrics_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "originating_tool_call_id": "toolu_013CUynbeSacpMoUMQA4meLc",
+        "probe_index": 2,
+        "probe_source_hash": "e9564145bbd35a546a8255f39f85a9ed9540ff3d8e9b195467fed2c67c7f3f72",
+        "request_hash": "0cc93973aae9501cf748584afb70fb89d64b77b7fc0964f84a41cd315d02b442",
+        "result_hash": "",
+        "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/generated_code_review_probe_sandbox/9dd7e36b86f44b323062/probe-3/semantic-review-probe_f91cc9064baa3d2059fc_7f5f03de07d85a39_scientific_result.json",
+        "status": "FAILED",
+        "stderr_summary": "PythonError: Traceback (most recent call last):\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 597, in eval_code_async\n    await CodeRunner(\n    ...<9 lines>...\n    .run_async(globals, locals)\n  File \"/lib/python314.zip/_pyodide/_base.py\", line 411, in run_async\n    coroutine = eval(self.code, globals, locals)\n  File \"<exec>\", line 6, in <module>\n  File \"<generated_simulation>\", line 10, in <module>\nNameError: name 'estimators' is not defined\n\n    at new_error (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:569233)\n    at wasm://wasm/024a8c3a:wasm-function[276]:0x6581b\n    at wasm://wasm/024a8c3a:wasm-function[482]:0x6fada\n    at wasm://wasm/6a0cf496:wasm-function[0]:0x93\n    at wasm://wasm/024a8c3a:wasm-function[5207]:0x261f63\n    at wasm://wasm/024a8c3a:wasm-function[1201]:0xbdd74\n    at wasm://wasm/024a8c3a:wasm-function[4012]:0x1f2043\n    at wasm://wasm/024a8c3a:wasm-function[2348]:0x10cf53\n    at wasm://wasm/024a8c3a:wasm-function[1209]:0xbe46b\n    at wasm://wasm/024a8c3a:wasm-function[1211]:0xbe680\n    at wasm://wasm/024a8c3a:wasm-function[1212]:0xbe707\n    at wasm://wasm/024a8c3a:wasm-function[3790]:0x1c251f\n    at wasm://wasm/024a8c3a:wasm-function[3791]:0x1d1875\n    at wasm://wasm/024a8c3a:wasm-function[1214]:0xbe84b\n    at wasm://wasm/024a8c3a:wasm-function[1210]:0xbe5a6\n    at wasm://wasm/024a8c3a:wasm-function[469]:0x6f0fa\n    at callPyObjectKwargs (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:623946)\n    at Module.callPyObjectMaybePromising (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:625214)\n    at Immediate.wrapper (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:586781)\n    at process.processImmediate (node:internal/timers:504:21)",
+        "stdout_summary": "{\"schema_version\":1,\"artifact_kind\":\"ScientificSandboxExecutionEnvelope\",\"ok\":false,\"language\":\"python\",\"backend\":\"pyodide\",\"metrics\":{},\"error_type\":\"PythonError\",\"error_message\":\"Traceback (most recent call last):\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 597, in eval_code_async\\n    await CodeRunner(\\n    ...<9 lines>...\\n    .run_async(globals, locals)\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 411, in run_async\\n    coroutine = eval(self.code, globals, locals)\\n  File \\\"<exec>\\\", line 6, in <module>\\n  File \\\"<generated_simulation>\\\", line 10, in <module>\\nNameError: name 'estimators' is not defined\\n\",\"error_stack\":\"PythonError: Traceback (most recent call last):\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 597, in eval_code_async\\n    await CodeRunner(\\n    ...<9 lines>...\\n    .run_async(globals, locals)\\n  File \\\"/lib/python314.zip/_pyodide/_base.py\\\", line 411, in run_async\\n    coroutine = eval(self.code, globals, locals)\\n  File \\\"<exec>\\\", line 6, in <module>\\n  File \\\"<generated_simulation>\\\", line 10, in <module>\\nNameError: name 'estimators' is not defined\\n\\n    at new_error (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:569233)\\n    at wasm://wasm/024a8c3a:wasm-function[276]:0x6581b\\n    at wasm://wasm/024a8c3a:wasm-function[482]:0x6fada\\n    at wasm://wasm/6a0cf496:wasm-function[0]:0x93\\n    at wasm://wasm/024a8c3a:wasm-function[5207]:0x261f63\\n    at wasm://wasm/024a8c3a:wasm-function[1201]:0xbdd74\\n    at wasm://wasm/024a8c3a:wasm-function[4012]:0x1f2043\\n    at wasm://wasm/024a8c3a:wasm-function[2348]:0x10cf53\\n    at wasm://wasm/024a8c3a:wasm-function[1209]:0xbe46b\\n    at wasm://wasm/024a8c3a:wasm-function[1211]:0xbe680\\n    at wasm://wasm/024a8c3a:wasm-function[1212]:0xbe707\\n    at wasm://wasm/024a8c3a:wasm-function[3790]:0x1c251f\\n    at wasm://wasm/024a8c3a:wasm-function[3791]:0x1d1875\\n    at wasm://wasm/024a8c3a:wasm-function[1214]:0xbe84b\\n    at wasm://wasm/024a8c3a:wasm-function[1210]:0xbe5a6\\n    at wasm://wasm/024a8c3a:wasm-function[469]:0x6f0fa\\n    at callPyObjectKwargs (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:623946)\\n    at Module.callPyObjectMaybePromising (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:625214)\\n    at Immediate.wrapper (file:///Users/yukangzengcmac/AI-Statistician/node_modules/pyodide/pyodide.asm.mjs:1:586781)\\n    at process.processImmediate (node:internal/timers:504:21)\",\"error_origin\":\"generated_source\",\"error_artifact_id\":\"\",\"started_at\":\"2026-08-28T03:49:19.547Z\",\"completed_at\":\"2026-08-28T03:49:20.318Z\"}",
+        "successful_exact_invocation": false,
+        "target_artifact_id": "est_exponential_maximum_gumbel",
+        "target_source_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+        "target_source_invoked": false
+      }
+    ],
+    "runtime_executed_tool_calls": 5,
+    "tool_calls": 5,
+    "transcript_fingerprint": "b10175e8528174391cad7fa005f483c07bce5f919f7b5b15a534c304c8f8f9ce",
+    "transport": "native_same_reviewer_session_v1",
+    "turns": 5,
+    "validation_feedback_observed": false,
+    "validation_submissions": 1
+  },
+  "created_at": "2026-08-28T03:49:40.491215+00:00",
+  "cumulative_finding_ledger": [
+    {
+      "finding": {
+        "category": "Input Validation / Closed Contract Violation",
+        "evidence_refs": [],
+        "expected_behavior": "Per the frozen contract clause request.closed_sample_contract, the estimator must reject tuple inputs without mutation or coercion. The contract explicitly states: 'Reject tuples, arrays, null, nested values, NaN, infinity, negative values, Boolean elements, or nonnumeric elements rather than coercing them.' The estimator must raise a ValueError when the sample field is a tuple.",
+        "finding_id": "generated_code_semantic_finding:086d5d180e477f946c3c",
+        "observed_behavior": "When invoked with request {\"sample\": (0.5, 1.5)}, the estimator returns a valid response with sample_size=2, maximum=1.5, centered_maximum, exact_cdf_at_centered, and gumbel_cdf_at_centered fields, instead of raising a ValueError.",
+        "severity": "high",
+        "summary": "Estimator accepts tuple inputs instead of rejecting them"
+      },
+      "finding_id": "generated_code_semantic_finding:086d5d180e477f946c3c",
+      "resolution": {
+        "evidence_refs": [],
+        "rationale": "The current source at line 30 uses `type(sample) is not list`, a strict type check that rejects tuples without coercion. The embedded run_sandbox function includes Test 9 (lines 241\u2013253) that verifies tuple rejection, and the developer diagnostic execution reported in the manifest shows all 17 tests passing, including the tuple rejection test. The prior finding is no longer supported by the current artifact.",
+        "review_packet_id": "generated_code_semantic_review_event:2ed5e9bb32a0dd886aa3",
+        "revision_index": 0,
+        "status": "RESOLVED_BY_CURRENT_ARTIFACT"
+      },
+      "source_finding_hash": "0b3f64f1e6dfd59f03b156dfa9e06b04907613dc0a4846388b6ea12c40211bb7",
+      "source_review_packet_ids": [
+        "generated_code_semantic_review_event:ed905939283e18b05222"
+      ],
+      "status": "RESOLVED_BY_CURRENT_ARTIFACT"
+    }
+  ],
+  "cumulative_finding_ledger_fingerprint": "db2faf9542e6c5506a740e1c2062f556076d51c2435b5847fea38e6c2e80974f",
+  "evidence_boundary": "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.",
+  "finding_ledger_review_event_id": "generated_code_semantic_review_event:2ed5e9bb32a0dd886aa3",
+  "findings": [],
+  "kernel_verified": false,
+  "model": "claude-haiku-4-5-20251001",
+  "model_requested_overall_verdict": "ACCEPT",
+  "model_tier": "haiku",
+  "ok": true,
+  "overall_verdict": "ACCEPT",
+  "packet_id": "generated_code_semantic_review:fb46530431564c8cd95c4467",
+  "prior_finding_reviews": [
+    {
+      "evidence_refs": [],
+      "finding_id": "generated_code_semantic_finding:086d5d180e477f946c3c",
+      "rationale": "The current source at line 30 uses `type(sample) is not list`, a strict type check that rejects tuples without coercion. The embedded run_sandbox function includes Test 9 (lines 241\u2013253) that verifies tuple rejection, and the developer diagnostic execution reported in the manifest shows all 17 tests passing, including the tuple rejection test. The prior finding is no longer supported by the current artifact.",
+      "status": "RESOLVED_BY_CURRENT_ARTIFACT"
+    }
+  ],
+  "proof_evidence_status": "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE",
+  "proposal_packet_hash": "03631212a0ca42bc28cad76ab63985ed55ffa4879a782817fe97dfe9f1b08c5e",
+  "proposal_packet_id": "algorithm_engineer_proposal:2a9c30bb7e759abc59c0b4f9",
+  "provider": "anthropic",
+  "question_context": {
+    "description": "Focused L0 known-result evaluation grounded in Fisher and Tippett (1928) and Gnedenko (1943). Let X_1,...,X_n be independent rate-one exponential random variables, let M_n=max_i X_i, and let Y_n=M_n-log n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-n CDF of M_n and the support-aware finite-n CDF of Y_n, including the branch below -log n. Then prove pointwise for every real y that P(Y_n <= y) converges to the standard Gumbel CDF exp(-exp(-y)). Make independence, the exponential support, the normalization log n, the fixed-y limiting argument, and the distinction between an exact finite-n law and its asymptotic approximation auditable. Do not replace the maximum by the minimum, omit the finite-n support branch, center by n or log(n-1), reverse a CDF or survival function, claim finite-n equality with the Gumbel law, or generalize the result to arbitrary parent distributions without domain-of-attraction conditions. The required model-authored Python artifact is est_exponential_maximum_gumbel and must implement run_estimator(request) exactly for the frozen closed sample contract. It returns the sample size, maximum, centered maximum, exact finite-n CDF evaluated at that centered value, and standard Gumbel CDF evaluated at that value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment generates independent rate-one exponential samples at several predeclared sample sizes, invokes the exact accepted estimator, verifies the exact finite-n CDF empirically with Monte Carlo uncertainty, and assesses the Gumbel approximation over a preregistered finite grid as n grows. This assessment is distributional implementation evidence, not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, tail extrapolation beyond the frozen grid, or formal proof. Lean formalization is not applicable.",
+    "id": "exponential_maximum_gumbel_known_result",
+    "tags": [
+      "extreme value theory",
+      "exponential distribution",
+      "sample maximum",
+      "Gumbel distribution",
+      "weak convergence",
+      "known result",
+      "L0"
+    ],
+    "title": "Gumbel limit for the maximum of exponential observations"
+  },
+  "question_id": "exponential_maximum_gumbel_known_result",
+  "raw_response_fingerprint": "e325e5583a18e2769ae6ac6690dd5a73dc896361f8d1bab6a255bb450849223a",
+  "review_document_ref": {
+    "byte_size": 5922,
+    "document_id": "generated_code_semantic_review_document:9a4e7d331dd251c9ebc8",
+    "format": "markdown",
+    "line_count": 97,
+    "sha256": "8872654041bd62f915577efd9914d77763f1f91c1ecc4b2bf6d5323b6d4bbda2"
+  },
+  "review_evidence_document_fingerprint": "ee69d813b4d85d0a2f41fbc697c22b0c3efcb5436bd5df9a5a35ab66d9693661",
+  "review_input_fingerprint": "a9a9ccaabe29c10923e7e230e7bb1aacda6f2771301db7eb6041d18fa43c69de",
+  "reviewed_artifacts": [
+    {
+      "artifact_id": "est_exponential_maximum_gumbel",
+      "metric_contract_set_id": "",
+      "metric_requirement_set_id": "",
+      "result_hash": "497c5890193d57543a2aae5939e3183744438bd7ef7b51b7d56e2a1255656384",
+      "result_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/fbf32569568d/est_exponential_maximum_gumbel_caceed091d2d2e35_scientific_metrics.json",
+      "row_hash": "a9a37cb6ce20e7239022e516f8068641184396c0cc6ad7d59db341a724e1b0b2",
+      "runtime_replicates": 100,
+      "runtime_seed": 20260528,
+      "script_hash": "4fd67c64a4efc58e15626570460b00918097bf70e61c21f5d86f1f1455c16062",
+      "script_path": "runs/main_worker_research_l0_exponential_maximum_gumbel_20260827_v1_codex_single_loop_exact_haiku/algorithm_sandbox/exponential_maximum_gumbel_known_result/fbf32569568d/est_exponential_maximum_gumbel_caceed091d2d2e35_generated_draft.py"
+    }
+  ],
+  "schema_version": 32,
+  "source_agent": "LLMGeneratedCodeSemanticReviewerAgent",
+  "source_generator_agent": "LLMAlgorithmEngineerAgent",
+  "source_manifest_hash": "19ac59a3a01a37ad6554c4da28ac0feb795256b283092ab54a7133006a644ac3",
+  "source_manifest_id": "algorithm_sandbox_manifest:2302745e702d64decd42",
+  "source_model": "claude-haiku-4-5-20251001",
+  "source_model_tier": "haiku",
+  "source_revision_assessment": {
+    "evidence_refs": [],
+    "rationale": "The prior finding regarding tuple rejection has been resolved by the current source implementation. No additional changes to the estimator are required. The source correctly implements the closed contract and all mathematical formulas.",
+    "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT"
+  },
+  "source_subsystem": "AlgorithmEngineer",
+  "source_task_id": "semantic-review-producer-regenerate:exponential_maximum_gumbel_known_result:2392a9e6",
+  "theory_packet_hash": "a99cec23c2c812ce5bde15187202ec5b73dc89a0282cc8f1d87e08d3092df7f6",
+  "theory_packet_id": "theory_derivation:aba8e12e19d3c2002437c71b",
+  "validation_errors": [],
+  "work_order_hash": "38fcdfc76857004db2d07c384bd9a08e0220e0cd55c80eb26a0ad45a4ec12a0a",
+  "work_order_id": "generated_code_semantic_review_work_order:1b844cb032d82ae9b638"
+}

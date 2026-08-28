@@ -1,0 +1,14 @@
+{
+  "artifact_kind": "RuntimeAgentTaskInputMapping",
+  "mapping": {
+    "artifact_id": "accepted_algorithm_handoff:f7edaf168197ce939c63",
+    "artifact_kind": "RuntimeArtifactRef",
+    "content_hash": "96707883ada6d428b7e62d9257a32d163fbeb39e21a8afd008ecd585b5e18475",
+    "evidence_status": "REFERENCE_ONLY_NOT_EVIDENCE",
+    "payload_kind": "RuntimeAcceptedAlgorithmHandoff",
+    "reference_scope": "runtime_blackboard"
+  },
+  "mapping_hash": "e8038023f4a4d812f31f5261cd27d9fcf3a7042aec8bb36a880d7f7e8becb962",
+  "mapping_id": "agent_task_input_mapping:e8038023f4a4d812f31f",
+  "schema_version": 1
+}
