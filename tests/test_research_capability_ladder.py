@@ -7,6 +7,7 @@ from pathlib import Path
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 LATEST_SHARED_MECHANISM_HEAD = "b9297aef7574ab4670914ecb18e169ac251b85ef"
+TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
@@ -7562,3 +7563,50 @@ def test_lehmann_scheffe_l0_is_consumed_once_and_immutable() -> None:
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
+
+
+def test_debiased_lasso_l2_is_frozen_before_its_only_product_draw() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "debiased_lasso_known_precision_paper_to_code"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L2"
+    assert candidate["family"] == (
+        "high_dimensional_debiased_regression_inference"
+    )
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_exact_haiku_product_draw_not_started"
+    )
+    assert evidence["activation_ledger_commit"] == (
+        TASK_77_ACTIVATION_LEDGER_HEAD
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["activation_semantic_model_calls"] == 0
+    assert evidence["qualified_semantic_model_calls_before_activation"] == 7
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["task_intent"]["formal"] == "not_applicable"
+    assert question["estimator_execution_contract"]["estimator_id"] == (
+        "est_debiased_lasso_coordinate"
+    )
