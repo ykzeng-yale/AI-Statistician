@@ -3317,3 +3317,29 @@ finding, or Lean goal. The common loop now truncates only the middle and records
 original character and line counts, preserving both setup and terminal diagnostics.
 This is one central transport policy used by every workspace. It adds no repair
 phase, retry, router, content parser, task rule, acceptance condition, or model call.
+
+## Task 76 validates singular continuation ownership
+
+The BOCD Gamma-Poisson L2 draw exercised the intended Codex-shaped collaboration
+boundary: persistent Markdown/LaTeX Theory and Python/Simulation source owners used
+stable tools, exact artifacts, and raw observations; independent reviewers received
+hash-bound artifacts; Formalizer remained optional and did not run. The draw still
+failed. Its theory and estimator reversed the conjugate state update, while both
+independent Haiku reviewers false-accepted the core semantics. A coding-agent loop
+does not make the model infallible, and more routing layers would not repair that.
+
+The run did expose one harness defect. A valid Simulation `REVISE` handoff carried
+both stale scientific-progress state and a new semantic-review continuation, so the
+same source owner was blocked before another model call. Commit `b9297aef` now makes
+the semantic revision supersede stale progress/replay markers and returns exact
+reviewed source plus raw findings to that owner. The existing reviewer tool also
+states its stable probe ABI and asks the same model to distinguish self-consistency
+from an independently derived discriminating oracle. Runtime supplies no BOCD rule,
+test case, source patch, retry, agent, scheduler, provider, or verdict.
+
+This is the reusable Codex principle at the right boundary: one owner, one retained
+model/tool history, stable tools, raw observations, and sparse immutable handoffs at
+genuine independence boundaries. Codex Core, App Server, Responses transport,
+thread storage, provider state, worktree management, and multi-agent scheduling
+remain deliberately outside AI Statistician because they would create a second
+runtime rather than strengthen scientific reasoning.

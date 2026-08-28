@@ -866,3 +866,47 @@ include nondegenerate cases capable of distinguishing plausible wrong
 implementations, while model-authored public metrics remain an audited research
 artifact rather than hidden authority. The task remains immutable and must never
 be rerun, repaired, reevaluated, rescored, or resampled.
+
+## BOCD Gamma-Poisson L2 v1
+
+The seventy-sixth fully configured task received exactly one frozen exact-Haiku
+product draw and one post-runtime hidden evaluation. Runtime and hidden authority
+both returned `0/1`; aggregate trusted full-task capability remains `4/76`.
+Formalization was explicitly not applicable and did not run.
+
+The draw validates several architectural choices without establishing correctness.
+TheoryDeveloper produced two persistent Markdown/LaTeX documents, scientific code
+and Simulation used direct model-tool-observation loops, exact estimator bytes ran
+in the sandbox, independent reviews were hash-bound, and the terminal Critic kept
+missing empirical evidence inconclusive. No JSON mathematics, RepairAgent, second
+scheduler, provider fallback, Sonnet, Opus, or compulsory Lean lane was involved.
+
+Operator review overrides the frozen automated theory fields. One part of the
+theory correctly derives `Gamma(a+x,b+1)` while a later active section reverses
+the sufficient statistics to `shape=a+r, rate=b+sum(x)`. The independent referee
+quotes both forms and still returns `ACCEPT`; the calibrated hidden semantic judge
+returns eight of eight claims satisfied. A passed long-form activation near miss
+therefore does not make a single Haiku semantic call a correctness oracle for every
+long-range contradiction. Frozen scores remain immutable, but trusted component
+credit must still yield to direct operator counterevidence.
+
+The generated estimator implements the same reversed state update. Hidden exact
+execution shows that causality, normalization, row-zero identity, determinism, and
+long-sequence stability can all pass while core numerical semantics are wrong. A
+reviewer probe that checks only those self-consistency properties is not a
+discriminating oracle. Future reviewers are asked, in the existing prompt and same
+session, to compare load-bearing transitions side by side and attempt one
+independently derived discriminating check before claiming numerical correctness;
+runtime still chooses no formula, case, verdict, or edit.
+
+The final Simulation review correctly requested source revision, but its producer
+task retained both stale scientific-progress state and a new semantic-revision
+state. Runtime rejected the overlap before another model call. Commit `b9297aef`
+makes semantic revision the sole continuation mode while preserving exact reviewed
+source, upstream artifacts, and raw findings. This is a shared lifecycle correction,
+not a retry or a repair of BOCD. The consumed draw is unchanged and hidden/operator
+findings never enter its source-owner context.
+
+The shared panel passed `161/161` and the complete repository passed `1001/1001`
+in 81.48 seconds at 149,993 production Python lines. These are regression facts for
+future tasks, not retrospective Task 76 capability evidence.
