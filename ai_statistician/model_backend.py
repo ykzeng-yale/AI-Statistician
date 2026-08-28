@@ -877,6 +877,15 @@ class AnthropicGeneratorBackend:
             str, set[str]
         ] = {}
 
+    def validate_environment(self) -> Any:
+        if not self.api_key:
+            raise ValueError("ANTHROPIC_API_KEY is not set")
+        try:
+            import anthropic
+        except Exception as exc:  # pragma: no cover - import depends on local env
+            raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
+        return anthropic
+
     def _client_for_timeout(self, anthropic: Any, *, timeout_s: float) -> Any:
         """Reuse one SDK transport across consecutive model/tool turns."""
 
@@ -891,8 +900,7 @@ class AnthropicGeneratorBackend:
             return self._client
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY is not set")
+        anthropic = self.validate_environment()
         ceiling_violation = live_anthropic_model_ceiling_violation(
             request.model,
             requested_model_tier=str(
@@ -901,10 +909,6 @@ class AnthropicGeneratorBackend:
         )
         if ceiling_violation:
             raise ValueError(ceiling_violation)
-        try:
-            import anthropic
-        except Exception as exc:  # pragma: no cover - import depends on local env
-            raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
         timeout_s = _live_generator_timeout_seconds(self.timeout_s)
         client = self._client_for_timeout(anthropic, timeout_s=timeout_s)
         structured_output_requested = bool(
@@ -1093,8 +1097,7 @@ class AnthropicGeneratorBackend:
     ) -> ClientToolTurnResponse:
         """Transport one native client-tool turn without executing any tool."""
 
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY is not set")
+        anthropic = self.validate_environment()
         if not request.tools:
             raise ValueError("client-tool turn requires at least one tool")
         tool_names = [str(tool.name or "").strip() for tool in request.tools]
@@ -1116,11 +1119,6 @@ class AnthropicGeneratorBackend:
         )
         if ceiling_violation:
             raise ValueError(ceiling_violation)
-        try:
-            import anthropic
-        except Exception as exc:  # pragma: no cover - import depends on local env
-            raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
-
         timeout_s = _live_generator_timeout_seconds(self.timeout_s)
         client = self._client_for_timeout(anthropic, timeout_s=timeout_s)
         tool_choice: dict[str, Any] = (

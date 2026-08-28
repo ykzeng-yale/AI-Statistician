@@ -3384,6 +3384,58 @@ def test_research_architect_cli_rejects_json_only_static_provider() -> None:
     assert not (out_dir / "research_architect_manifest.json").exists()
 
 
+def test_runtime_cli_rejects_live_provider_environment_before_agent_activation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class MissingSDKBackend:
+        provider_name = "anthropic"
+
+        def __init__(self, **_kwargs):
+            pass
+
+        def validate_environment(self) -> None:
+            raise ValueError("missing live provider SDK")
+
+    question_file = tmp_path / "questions.json"
+    out_dir = tmp_path / "runtime"
+    question_file.write_text(
+        json.dumps(
+            {
+                "questions": [
+                    {
+                        "id": "q_provider_preflight",
+                        "title": "Provider preflight",
+                        "description": "Exercise launch readiness only.",
+                        "tags": ["infrastructure"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "AnthropicArchitectLLMProvider",
+        MissingSDKBackend,
+    )
+
+    code = main(
+        [
+            "research-agent-runtime",
+            "--question-file",
+            str(question_file),
+            "--provider",
+            "anthropic",
+            "--out",
+            str(out_dir),
+        ]
+    )
+
+    assert code == 2
+    assert not out_dir.exists()
+
+
 def test_research_architect_cli_binds_explicit_haiku_to_serious_mode(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

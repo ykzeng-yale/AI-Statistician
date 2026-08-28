@@ -178,6 +178,22 @@ should say. That separation is the reusable harness contract.
    completion events record status, duration, usage, and artifact identity.
    They never substitute for mathematical, empirical, or kernel evidence.
 
+7. **Validate the acting environment before step activation.** The exact
+   process that will own a live run must load its configured provider SDK and
+   credential before AgentRuntime creates the first task. This is a local,
+   no-network launch check: it does not test scientific content, spend a model
+   call, create a retry path, or treat provider availability as capability
+   evidence.
+
+The Pingouin Task 83 invocation exposed why this belongs at the harness
+boundary. Codex's bundled Python could import the repository but not the
+optional Anthropic SDK, so the first Architect trace failed before any model
+call. The consumed task remains `0/1`. For future canonical Claude tasks, the
+primary Anthropic backend now reuses one SDK loader for ordinary generation,
+client-tool turns, and a CLI preflight before AgentRuntime activation.
+Static/fake test backends remain unaffected, and provider account validity is
+not probed over the network.
+
 ## Current mapping
 
 | Codex primitive | AI Statistician implementation |
@@ -3632,3 +3648,31 @@ Focused immutable ladder checks passed 80/80, and the complete repository passed
 1015/1015 in 81.99 seconds. These are closeout and regression evidence only; no
 post-run product or evaluator model call occurred and no consumed Task 82 artifact or
 score changed.
+
+## 2026-08-28 seventh upstream refresh and launch readiness
+
+Official Codex `main` was refreshed through
+[`3ae4225b`](https://github.com/openai/codex/commit/3ae4225b1761c135c6d3bbc1ea0cfcfc95752cdc).
+The five-commit delta after `60fc6995` scopes cloud credentials to trusted origins,
+refreshes MCP authorization headers and remote plugin runtimes, preserves one-shot
+exec when unified exec is disabled, and introduces shared Guardian-context
+primitives. It does not change the source-owning model/tool/observation loop or add
+scientific planning, mathematical judgment, Simulation authority, or Lean proof
+authority.
+
+The reusable invariant is narrow: validate the exact acting environment and keep
+credentials inside its trusted transport boundary before activating work. Task 83
+exposed the local analogue when Codex's bundled Python imported AI Statistician but
+not the optional Anthropic SDK. The sole invocation remains consumed at `0/1` with
+zero product-model calls. Future canonical Claude runs now ask the primary Anthropic
+backend to load the same SDK path used by generation and native client-tool turns
+inside the existing CLI startup preflight, before the first `AgentTask` or output
+directory.
+
+This is not a connection probe, retry, fallback, provider registry, repair agent, or
+second scheduler. It emits no scientific evidence and does not validate account
+status over the network. The implementation reuses existing code and reduces
+top-level production Python from 149,999 to 149,998 lines. Focused backend, CLI,
+model-policy, ladder, and control-plane tests passed 187/187; the complete repository
+passed 1019/1019 in 80.45 seconds. Task 83 remains immutable and cannot validate this
+future-only mechanism.

@@ -3555,8 +3555,14 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         _apply_research_agent_runtime_research_eval_profile(args)
         _apply_research_agent_runtime_capability_eval_preset(args)
         _apply_research_agent_runtime_evaluation_model_policy(args)
+        provider, provider_name = _build_theory_generator_backend(
+            provider_name=args.provider,
+            static_response_file=args.static_response_file,
+            llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
+        )
+        getattr(provider, "validate_environment", lambda: None)()
     except ValueError as exc:
-        print("\nAI Statistician Agent Runtime evaluation profile rejected")
+        print("\nAI Statistician Agent Runtime startup preflight rejected")
         print("=" * 72)
         print(f"- {exc}")
         return 2
@@ -3707,11 +3713,6 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             print("=" * 72)
             print(f"- {exc}")
             return 2
-    provider, provider_name = _build_theory_generator_backend(
-        provider_name=args.provider,
-        static_response_file=args.static_response_file,
-        llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
-    )
     research_source_manifest = str(
         getattr(args, "research_source_manifest", "") or ""
     ).strip()

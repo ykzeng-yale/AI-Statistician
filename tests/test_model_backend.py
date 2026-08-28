@@ -73,6 +73,34 @@ def test_static_json_generator_backend_returns_text_without_tools() -> None:
     assert response.metadata["tools_available"] is False
 
 
+def test_live_provider_environment_preflight_never_constructs_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden_client(*_args, **_kwargs):
+        raise AssertionError("environment validation must not construct a client")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=forbidden_client),
+    )
+
+    AnthropicGeneratorBackend(api_key="test-anthropic-key").validate_environment()
+
+
+def test_live_provider_environment_preflight_rejects_missing_key_and_sdk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError, match="ANTHROPIC_API_KEY is not set"):
+        AnthropicGeneratorBackend(api_key="").validate_environment()
+
+    monkeypatch.setitem(sys.modules, "anthropic", None)
+    with pytest.raises(ValueError, match="failed to import anthropic package"):
+        AnthropicGeneratorBackend(
+            api_key="test-anthropic-key"
+        ).validate_environment()
+
+
 def test_anthropic_generator_backend_calls_messages_api_without_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
