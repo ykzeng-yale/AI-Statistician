@@ -63,14 +63,17 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness reference is [OpenAI Codex at `8aea62b2`](https://github.com/openai/codex/tree/8aea62b2d857e950cb84366602af79403b8ed545).
+The general harness reference is [OpenAI Codex at `ec9620c2`](https://github.com/openai/codex/tree/ec9620c231396895194329c410f3ec360b4cadef).
 We adopt its incremental session history, immutable per-step tool snapshot, generic
 tool registry, raw tool-error feedback, cancellation, checkpoint/resume, and bounded
-context discipline. We do not embed `codex-core`, App Server, its Responses transport,
-shared-working-directory subagents, or another thread scheduler into the Claude-first
-runtime. Each scientific workspace is the domain session; AgentRuntime remains the
-single outer research graph. An optional Codex sidecar is admissible only after model,
-tool, lineage, isolation, and resume parity tests, and can never become required authority.
+context discipline. The Claude transport also retains one Anthropic SDK client across
+consecutive model/tool rounds on the same backend, while every sampling request still
+rebuilds and binds its exact model, message history, tools, timeout, and metadata. We do
+not embed `codex-core`, App Server, its Responses transport, shared-working-directory
+subagents, or another thread scheduler into the Claude-first runtime. Each scientific
+workspace is the domain session; AgentRuntime remains the single outer research graph.
+An optional Codex sidecar is admissible only after model, tool, lineage, isolation, and
+resume parity tests, and can never become required authority.
 
 ## Progressive commitment
 

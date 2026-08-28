@@ -2978,3 +2978,44 @@ plane without supplying statistical semantics, empirical blinding, Lean kernel
 authority, or scientific evidence calibration. The right reuse is the small
 session-and-tool-loop principle above, while AI-Statistician retains its own
 task-intent evidence contract and specialist scientific environments.
+
+## Current Codex session audit and Claude transport reuse
+
+Official Codex `main` was refreshed through
+[`ec9620c2`](https://github.com/openai/codex/commit/ec9620c231396895194329c410f3ec360b4cadef).
+The two-commit delta after the Task 71 audit adds configurable exposure for the
+sleep tool and authentication-recovery progress. Neither changes the central
+execution contract. Codex still creates one turn-scoped `ModelClientSession`,
+reuses its provider transport and sticky state across tool continuations, rebuilds
+one exact step context and finalized tool router, and returns each completed tool
+output to the same accumulated history.
+
+AI Statistician already matched the scientific part of that contract: one
+AgentRuntime, persistent model-owned Theory/Python/R/Simulation/Lean sessions,
+stable tools for each session, and raw observations returned to the issuing model.
+The remaining transport mismatch was concrete. `AnthropicGeneratorBackend`
+constructed a new Anthropic SDK client for every ordinary generation and every
+client-tool round. The immutable Task 72 run contains 68 client-tool model-round
+records, so one run alone discarded the SDK connection pool dozens of times.
+
+Commit `f4a097a4` retains one Anthropic SDK client for the lifetime of a backend at
+one resolved timeout. The existing lock makes initialization atomic. Every sampling
+call still supplies its exact model, messages, tool definitions, tool choice,
+temperature, prompt-cache request, and model-tier metadata; SDK retries remain zero
+and the existing provider-local request retry policy is unchanged. This is transport
+reuse, not conversation summarization or hidden session state.
+
+No Codex Core, App Server, SDK thread, OpenAI model transport, tool scheduler,
+subagent manager, repair worker, fallback, extra model call, or research budget was
+added. A new ToolRouter clone was also rejected: the current client-tool loop already
+freezes one unique tool-definition tuple for the session, and Task 72 showed no
+unavailable-tool or internal-dispatch mismatch. Refactoring every specialist tool
+behind another registry without a measured failure would add an interface rather
+than remove one.
+
+The shared model-backend and client-tool regressions passed `58/58`; the complete
+repository passed `990/990` in 81.39 seconds. No live model call or task activation
+occurred. Task 72 and all prior draws remain immutable, trusted aggregate credit
+remains `4/72`, all future tests and evaluations remain exact
+`claude-haiku-4-5-20251001`, production remains Sonnet or below, and Opus remains
+prohibited.
