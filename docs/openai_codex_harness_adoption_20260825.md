@@ -3073,3 +3073,27 @@ repository passed `990/990` in 81.38 seconds. The change is a net deletion of 27
 No model call, task activation, retry, content repair, acceptance default, parser
 replacement, or scheduler was added. All consumed tasks remain immutable and trusted
 aggregate credit remains `4/72`.
+
+## Canonical runtime does not import the legacy research lab
+
+The product import graph still had one hidden architecture coupling.
+`research_agent_runtime.py` imports only `build_research_evaluation_summary` from
+`research_evaluation.py`, but that module eagerly imported the old
+`research_lab.py` seed benchmark. As a result, importing canonical AgentRuntime also
+loaded the large registered-procedure simulator and its task-family keyword/metric
+heuristics even though no canonical call used them. An isolated process confirmed the
+pre-change state: `ai_statistician.research_lab in sys.modules` was `True` immediately
+after importing AgentRuntime.
+
+Commit `32a04928` moves those two legacy imports inside the explicit
+`run_research_seed_eval` entrypoint. Canonical AgentRuntime import now leaves
+`research_lab` unloaded, while an actual empty-seed call to the old entrypoint still
+loads and completes normally. A subprocess architecture regression enforces this
+boundary without relying on pytest's already-populated module cache.
+
+This change adds no module, adapter, router, fallback, scheduler, model call, or task
+rule. It does not certify the legacy simulator; it prevents its registered answers and
+keyword heuristics from entering the live product dependency graph accidentally. The
+AgentRuntime, research-evaluation, and core panel passed `120/120`; the complete
+repository passed `991/991` in 86.60 seconds. No task was activated and trusted
+aggregate credit remains `4/72`.
