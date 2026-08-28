@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "sandwich_jss_2004_r_public_replication",
+      "title": "Exact replication and audit of the JSS HC/HAC R example",
+      "description": "Conduct an L1 exact public-source replication of Achim Zeileis's 2004 Journal of Statistical Software HC/HAC article example. Use only the operator-supplied hash-bound journal source snapshot and operator-pinned execution. Inspect the article, provenance record, unmodified accompanying R file, complete environment lock, and environment probe. Run the pinned source once with no editing, wrapping, replacement code, model-authored arguments, or network access. In one durable Markdown report, identify the paper, DOI, official source archive and hashes, source snapshot, R entrypoint, no-argument command, interpreter, current R and package versions, and successful source identity checks. Reconstruct the script's execution order and report the complete observed console evidence: all five PublicSchools standard-error vectors; the HC0 and HC4 coefficient tests; all three Investment HAC coefficient tests and their covariance choices; the M-fluctuation and supF tests; and the estimated breakpoints, observation-index confidence intervals, and corresponding breakdates. Interpret coefficient and structural-change decisions at conventional reported levels without turning finite-sample p values, non-rejection, robust covariance choices, or one data analysis into proof, causal evidence, or general validation. Explain how the HC/HAC covariance choice changes standard errors and which conclusions are stable in this run. Account for the normal stderr messages and distinguish warnings from execution failure. Account for the declared Rplots.pdf result artifact, identify the seven plot-producing stages from source, and distinguish source-derived page expectations and artifact metadata from actual visual or pixel-level inspection. Do not require cross-run equality of raw PDF bytes because PDF creation metadata can vary. Distinguish this exact current-environment rerun from a historical R 2.0.0/package-version reproduction, a reproduction of every article table or derivation, a Monte Carlo validation, package-wide correctness, a new estimator, a theorem, novelty, or Lean proof. No model-authored algorithm, replacement simulation, or formalization is required. Disclose all remaining source, version, environment, numerical, visualization, inferential, and scientific-scope gaps honestly.",
+      "tags": [
+        "R",
+        "heteroskedasticity",
+        "autocorrelation",
+        "sandwich covariance",
+        "structural change",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "Econometric Computing with HC and HAC Covariance Matrix Estimators",
+        "authors": [
+          "Achim Zeileis"
+        ],
+        "venue": "Journal of Statistical Software",
+        "volume": "11",
+        "issue": "10",
+        "year": 2004,
+        "pages": "1-17",
+        "doi": "10.18637/jss.v011.i10",
+        "paper_url": "https://www.jstatsoft.org/article/view/v011i10",
+        "official_source_url": "https://www.jstatsoft.org/index.php/jss/article/view/v011i10/1462",
+        "official_source_archive_sha256": "55951883e072b7b600f80c14069eff532f39f12be7cdb7e6b3a1b1c1ab85180b",
+        "code_license": "GPL as stated in the article",
+        "research_source_snapshot_id": "sandwich-jss-2004-r-public-replication-v1",
+        "research_source_snapshot_hash": "c6ea2004e2962c39c18db53415ec41fc3df680f0b181803d8456f28b0284cf3b",
+        "research_source_manifest_sha256": "a754f9c85ff61cbf189ce96aa19ff875bced1beed4e62550c42fca187105d775"
+      }
+    }
+  ]
+}

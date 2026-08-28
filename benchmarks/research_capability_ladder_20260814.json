@@ -7752,6 +7752,63 @@
         "novelty": "not_applicable",
         "unresolved_gaps": "required"
       }
+    },
+    {
+      "id": "sandwich_jss_2004_r_public_replication",
+      "level": "L1",
+      "family": "robust_covariance_and_structural_change_r_source_replication",
+      "status": "proposed_pending_activation",
+      "visible_questions_path": "benchmarks/research_l1_sandwich_jss_r_replication_questions_20260828.json",
+      "source_authority": "official_journal_article_and_accompanying_r_source",
+      "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+      "gold_bundle_id": "research-l1-sandwich-jss-2004-r-20260828-v1",
+      "gold_runtime_visibility": "evaluator_only_after_runtime",
+      "activation_status": "visible_scope_selected_hidden_authority_frozen_product_not_started",
+      "activation_evidence": {
+        "public_reference": "Achim Zeileis, Econometric Computing with HC and HAC Covariance Matrix Estimators, Journal of Statistical Software 11(10), 2004, pages 1-17, DOI 10.18637/jss.v011.i10",
+        "preselection_code_head": "3b079a58617dad198f95e1f84ad25a5c69b4832a",
+        "visible_questions_sha256": "0257f3754455a91390dacd57b6ead47f2b7a69b93aa98456fc384726051afa01",
+        "runtime_visible_question_hash": "f4aabae8dc9e383b7ef0b492dc33cfeb05e74c491fa5d479e4a7589a3a96a920",
+        "source_snapshot_id": "sandwich-jss-2004-r-public-replication-v1",
+        "source_snapshot_hash": "c6ea2004e2962c39c18db53415ec41fc3df680f0b181803d8456f28b0284cf3b",
+        "source_manifest_sha256": "a754f9c85ff61cbf189ce96aa19ff875bced1beed4e62550c42fca187105d775",
+        "source_execution_spec_sha256": "7709dd27b3bbc0fa626efb0b46b79029410f00ff330256f1085d933f198ec181",
+        "gold_manifest_file_sha256": "e36b9354cf2c1beba4a8fb3f6b5402d8776c17d7a3162df26433df59057942dc",
+        "activation_schema_version": 4,
+        "semantic_protocol_version": 10,
+        "semantic_calibration_attempts": 2,
+        "semantic_calibration_total_model_calls": 12,
+        "semantic_calibration_cases": 4,
+        "semantic_calibration_cases_correct": 4,
+        "semantic_candidate_mode_negative_cases": 1,
+        "semantic_candidate_mode_negative_cases_correct": 1,
+        "semantic_reference_claims": 10,
+        "semantic_reference_candidate_passed": true,
+        "semantic_calibration_model": "claude-haiku-4-5-20251001",
+        "semantic_activation_record_sha256": "498bccd3d349c46c91822c99b42316d7a2e018bb1f5514ca80d62c161298c174",
+        "source_harness_calibration_cases": 14,
+        "source_harness_calibration_cases_correct": 14,
+        "independent_source_reruns": "4/4",
+        "normalized_pdf_render_checks": "3 runs, 7/7 page hashes identical",
+        "hidden_gold_manifest_validated": false,
+        "gold_frozen_before_first_runtime_model_call": true,
+        "preactivation_product_model_calls": 0,
+        "first_runtime_model_call_occurred": false,
+        "fresh_live_runs": 0,
+        "formalization_requirement": "not_applicable",
+        "formalizer_executed": false,
+        "model_draw_resampling_blocked": true,
+        "boundary": "Task 74 is selected but not active. Hidden evaluator authority was frozen before any product-model call. The visible question and private authority may now be validated and bound by a separate activation ledger commit; no runtime, source-report model, or hidden post-runtime evaluation has run."
+      },
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      }
     }
   ],
   "activation_requirements": [
@@ -7779,6 +7836,6 @@
     "canonical_live_gold_activation_schema": 4,
     "executable_activation_gate": "Frozen executable references and behavioral negatives must run through their exact hidden candidate validators, and every configured semantic evaluator must pass its full reference plus reject at least one realistic hash-bound long-form near miss through the exact integrated document-and-claim candidate path before any product-model call. No activation result may enter runtime feedback.",
     "latest_diagnostic": "Four of seventy-three consumed tasks receive trustworthy full-task capability credit. Task 73 remains immutable 0/1: hidden algorithm 8/8 and empirical 10/10 are scoped component evidence, hidden Theory semantic status is inconclusive, Critic did not submit a terminal packet, and operator audit invalidates a false extreme-value contextual claim accepted by the runtime referee. Formalization was correctly not applicable.",
-    "next_step": "Preserve all seventy-three consumed draws and the 4/73 trusted aggregate. Select the next disjoint task through the progressive ladder and freeze visible scope plus evaluator-only authority before any product call. Prefer an evaluation that adds underrepresented source-replication, R, long-horizon Theory, or optional Lean evidence rather than another task-specific runtime patch. Never expose hidden authority, rerun a consumed task, add formulas or parsers, import Codex runtime infrastructure, add repair/fallback layers, or escalate models."
+    "next_step": "Preserve all seventy-three consumed draws and the 4/73 trusted aggregate. Task 74 is selected but not started: validate and bind its already frozen evaluator-only authority in a separate activation ledger commit, then run exactly one fresh exact-Haiku product draw and one post-runtime hidden evaluation. Never expose hidden authority, rerun a consumed task, add formulas or parsers, import Codex runtime infrastructure, add repair/fallback layers, or escalate models."
   }
 }
