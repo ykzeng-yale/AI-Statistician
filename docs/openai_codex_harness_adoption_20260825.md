@@ -3587,3 +3587,48 @@ Core, App Server, Responses transport, OpenAI provider state, thread storage,
 worktrees, Guardian, and multi-agent scheduling remain excluded because importing them
 would create a second control plane without adding mathematical, empirical, or kernel
 authority.
+
+## 2026-08-28 sixth upstream refresh and Task 82
+
+Official Codex `main` was refreshed through
+[`60fc6995`](https://github.com/openai/codex/commit/60fc6995608e8188c0c9f8407d6cd98676efa247).
+Its newest harness-relevant change gives every Guardian classification a distinct turn
+identity, retains the owning parent and trusted causal root across retries, and omits
+root lineage when it becomes ambiguous. The adjacent commit adds configurable thread
+shell timeouts. Neither supplies a scientific planner, mathematical workspace,
+Simulation policy, Lean prover, or provider-neutral inner loop.
+
+The lineage principle is useful and already present at AI Statistician's authority
+boundary. A Theory, Algorithm, Simulation, or Lean source owner has its own task and
+workspace identity. An independent review has a different task identity, is parented
+to exact immutable source artifacts, and retains the root public question and contract
+hash. Ambiguous or absent ancestry cannot be invented for promotion. These are typed
+lineage invariants inside the sole `AgentRuntime`; they do not require Codex Guardian,
+thread storage, Responses transport, or another scheduler.
+
+Task 82 exercised the intended loop. The same Theory owner wrote durable
+Markdown/LaTeX files, selected Python/R scratch tools, read their raw observations,
+and explicitly committed a checkpoint. The same R owner authored, executed, observed,
+and committed exact source. The isolated code reviewer received the immutable source,
+authored three probes, saw two reviewer-source failures and one successful seven-call
+result, and received both rejected terminal submissions as raw validation observations
+in the retained session. Sparse content-addressed handoffs crossed one outer runtime.
+
+The draw still failed, and the failure is informative. The Theory and independent
+referee missed line-level algebraic contradictions. The R source implemented the core
+score but violated several visible closed-contract clauses. The code reviewer tested
+only happy paths and twice attempted `ACCEPT` without complete public-clause attention.
+The existing gate correctly blocked promotion before Simulation. Weakening that gate,
+adding a repair agent, or importing Codex would hide a model-capability failure rather
+than improve scientific reasoning.
+
+No product mechanism changes after Task 82. Production may use the existing Sonnet
+roles under the Sonnet-or-below ceiling; capability draws remain exact Haiku and Opus
+remains prohibited. Codex Core, App Server, Responses transport, OpenAI provider state,
+thread/worktree management, Guardian, and Codex multi-agent scheduling remain excluded
+from the canonical Anthropic-backed runtime.
+
+Focused immutable ladder checks passed 80/80, and the complete repository passed
+1015/1015 in 81.99 seconds. These are closeout and regression evidence only; no
+post-run product or evaluator model call occurred and no consumed Task 82 artifact or
+score changed.

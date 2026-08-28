@@ -6,10 +6,11 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "1ebed16db58f8edb8e3658eb94f693ce1a14223a"
+LATEST_SHARED_MECHANISM_HEAD = "8ddbf749585f2d97dae08c300d7c05bf1deb74e2"
 TASK_79_ACTIVATION_LEDGER_HEAD = "a6745543c662200fb39806cea5bb970532357cf0"
 TASK_79_SHARED_MECHANISM_HEAD = "492d11120fbae8b630fa01af8bb11d6da131f5b9"
 TASK_80_ACTIVATION_LEDGER_HEAD = "eb6ddd325f7d8969c1f446c97ceb56860b9a4add"
+TASK_80_SHARED_MECHANISM_HEAD = "1ebed16db58f8edb8e3658eb94f693ce1a14223a"
 TASK_81_ACTIVATION_LEDGER_HEAD = "2c8478731c9e0472227342b1fd1f30ead752d9b8"
 TASK_82_ACTIVATION_LEDGER_HEAD = "6623cee3f6f4a1540c4c258fdb9181e740fecf7c"
 TASK_78_SHARED_MECHANISM_HEAD = "81349094a4d8b67dbc1e744c7b45aba6a7c448b4"
@@ -18,7 +19,7 @@ TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 82
-CURRENT_CONSUMED_TASKS = 81
+CURRENT_CONSUMED_TASKS = 82
 CURRENT_OPERATOR_INVALID_TASKS = 16
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -8044,7 +8045,7 @@ def test_pelt_gaussian_mean_l2_only_product_draw_is_consumed_and_immutable() -> 
     assert evidence["post_run_score_changed"] is False
     assert evidence["future_shared_mechanism_pending"] is False
     assert evidence["post_run_shared_mechanism_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        TASK_80_SHARED_MECHANISM_HEAD
     )
     assert "1013/1013" in evidence["post_run_shared_mechanism_evidence"]
     assert "future tasks only" in evidence["post_run_shared_mechanism_change"].lower()
@@ -8269,7 +8270,7 @@ def test_linear_kernel_two_sample_l3_is_blind_frozen_and_consumed_once() -> None
     )
 
 
-def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_unconsumed() -> None:
+def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_consumed_once() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -8282,9 +8283,9 @@ def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_unconsumed() -> Non
     assert candidate["family"] == (
         "causal_binary_treatment_crossfit_orthogonal_contrast"
     )
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_v1_exact_haiku_gold_qualified_before_product_runtime"
+        "fresh_live_v1_consumed_exact_haiku_runtime_blocked_hidden_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l3-crossfit-orthogonal-contrast-r-20260828-v1"
@@ -8301,8 +8302,8 @@ def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_unconsumed() -> Non
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 7
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["target_publication_identity_withheld_from_runtime"] is True
     assert evidence["public_source_discovery_disabled_for_blind_draw"] is True
     assert evidence["semantic_calibration_model"] == (
@@ -8336,12 +8337,69 @@ def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_unconsumed() -> Non
     assert evidence["reference_empirical_invocation_failures"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["generated_algorithm_executed"] is False
+    assert evidence["generated_algorithm_executed"] is True
     assert evidence["generated_simulation_executed"] is False
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_consumption"] == "4/81"
+    assert evidence["ladder_score_after_consumption"] == "4/82"
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "generated_code_semantic_review_packet_invalid"
+    )
+    assert evidence["runtime_research_loop_complete"] is False
+    assert evidence["runtime_mode_conformant"] is True
+    assert evidence["runtime_traces"] == 5
+    assert evidence["runtime_outer_graph_iterations"] == 5
+    assert evidence["runtime_model_calls"] == 38
+    assert evidence["hidden_theory_mechanical_checks_passed"] == 7
+    assert evidence["hidden_theory_mechanical_checks_total"] == 7
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == 9
+    assert evidence["hidden_theory_semantic_claims_total"] == 10
+    assert evidence["hidden_theory_semantic_candidate_status"] == "INCONCLUSIVE"
+    assert evidence["hidden_theory_combined_passed"] is False
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
+    assert evidence["independently_accepted_algorithm_handoff_observed"] is False
+    assert evidence["future_shared_mechanism_pending"] is False
+    assert "sole product draw" in evidence["boundary"]
+    assert "Never rerun" in evidence["boundary"]
+
+    run_path = Path(evidence["run_path"])
+    run_hashes = {
+        "research_agent_runtime_manifest.json": evidence[
+            "runtime_manifest_sha256"
+        ],
+        "crossfit_orthogonal_contrast_r_known_theory_rederivation_runtime_result.json": evidence[
+            "runtime_result_sha256"
+        ],
+        "research_capability_gold_evaluation.json": evidence[
+            "hidden_gold_evaluation_sha256"
+        ],
+        "runtime_llm_topology.json": evidence["runtime_llm_topology_sha256"],
+        "runtime_evidence_ledger.jsonl": evidence[
+            "runtime_evidence_ledger_sha256"
+        ],
+        "runtime_failure_summary.json": evidence[
+            "runtime_failure_summary_sha256"
+        ],
+        "runtime_completion_summary.json": evidence[
+            "runtime_completion_summary_sha256"
+        ],
+        "runtime_progress.jsonl": evidence["runtime_progress_sha256"],
+        "runtime_tool_calls.jsonl": evidence["runtime_tool_calls_sha256"],
+        "runtime_traces.jsonl": evidence["runtime_traces_sha256"],
+        "runtime_task_handoffs.jsonl": evidence[
+            "runtime_task_handoffs_sha256"
+        ],
+        "runtime_observations.jsonl": evidence["runtime_observations_sha256"],
+    }
+    for filename, expected_sha256 in run_hashes.items():
+        assert hashlib.sha256((run_path / filename).read_bytes()).hexdigest() == (
+            expected_sha256
+        )
+    assert Path(evidence["operator_audit"]).is_file()
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -8387,14 +8445,14 @@ def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_unconsumed() -> Non
         "semantic_rubric.json",
     ):
         assert hidden_name not in runtime_visible
-    for hidden_identity in (
-        "Zhong",
-        "Kennedy",
-        "AIPW",
-        "10.1093/aje/kwab207",
-        "yqzhong7",
+    for hidden_identity_field in (
+        "target_publication_title",
+        "target_publication_authors",
+        "target_publication_doi",
+        "target_repository_url",
+        "target_repository_commit",
     ):
-        assert hidden_identity not in runtime_visible
+        assert hidden_identity_field not in runtime_visible
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
