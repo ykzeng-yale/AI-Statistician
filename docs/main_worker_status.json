@@ -1,13 +1,13 @@
 {
-  "schema_version": 228,
+  "schema_version": 229,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "ea7a6ce0",
+  "validated_code_head": "dd8ae7f2",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/70 and exact development Lean closure remains 0/2. Task 70 is permanently consumed 0/1: its persistent Markdown/LaTeX Theory workspace passed 7/7 hidden mechanical checks and a calibrated integrated exact-Haiku semantic judgment, while scientific code, empirical evidence, unresolved-gap completion, and the full research loop failed because no Algorithm source was explicitly committed. Shared commits ecfc2403 and ea7a6ce0 improve only the future-task harness: uncommitted execution success cannot masquerade as accepted source; Python/R edits support one atomic multi-hunk model patch; and frozen task intent now decides whether confirmatory evaluator authoring depends on an accepted Algorithm handoff, which is validated before any evaluator model call. Pure empirical tasks no longer inherit a stale code dependency. Keep one AgentRuntime and model-owned Theory, Python/R, Simulation, and optional Lean workspaces; do not rerun Task 70, import Codex Core/App Server/SDK threads, add formulas, parsers, deterministic content repair, auto-commit, extra agents, schedulers, provider fallback, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy consumed draws and immutable artifacts at trustworthy full-task credit 4/70, with exact development Lean closure still 0/2. Task 71 is a new disjoint L0 known-result evaluation whose public question and schema-4 hidden theory, code, and empirical authority are frozen before any product call. Semantic protocol v9 now distinguishes missing support or explicit noncoverage from active contradiction; after two recorded failed evaluator-only qualifications on an ambiguous scope-narrowing control, the corrected proof-gap control passed 4/4 calibration cases, 1/1 integrated long-form candidate-mode negative, and the eight-claim reference under exact Haiku. Executable reference and negative activation also passed, while product calls and live runs remain zero. Next consume exactly one fresh exact-Haiku AgentRuntime draw and one post-termination hidden evaluation. Keep one AgentRuntime and model-owned Markdown/LaTeX Theory, Python, Simulation, and optional Lean workspaces; do not import Codex Core/App Server/SDK threads, add formulas, parsers, deterministic content repair, auto-commit, extra agents, schedulers, provider fallback, retries, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
   "latest_codex_single_loop_harness_change": {
     "shared_mechanism_head": "e282aeb1afd16ec1a754c09ce240710e01b88e7a",
     "upstream_codex_head": "f6494dc8f5969e8576a8a0945a674f2a15ac4de6",
@@ -39,6 +39,35 @@
     "verification": "The affected evaluator/runtime panel passed 110/110. The complete repository passed 987/987 in 81.46 seconds; compileall and diff hygiene passed. No model call or live task occurred.",
     "model_policy": "Future tests and evaluations remain exact claude-haiku-4-5-20251001; production remains Sonnet or below; Opus and automatic model escalation remain prohibited.",
     "task_boundary": "Task 70 and all earlier draws remain immutable. This commit is deterministic future-task mechanism evidence only and does not alter the 4/70 trusted aggregate."
+  },
+  "latest_randomized_distributional_transform_l0_activation": {
+    "task_id": "randomized_distributional_transform_known_result",
+    "family": "probability_integral_transform_mixed_distributions",
+    "status": "frozen_ready_schema_v4_exact_haiku_product_not_started",
+    "public_reference": "A. E. Brockwell, Universal Residuals: A Multivariate Transformation, Statistics & Probability Letters 77(14), 2007, pages 1473-1478, DOI 10.1016/j.spl.2007.02.008",
+    "visible_question_activation_commit": "9dc86dd647bc99f029174a1db84208b8131d3b72",
+    "preactivation_code_head": "dd8ae7f26910bf7b298ca4a5702f467a974e8434",
+    "visible_questions_sha256": "4a39084a93cdfa9eb352106d6467c35b0f489cbcb4f9553ad7c284a493cf8c5a",
+    "gold_manifest_file_sha256": "f01d4847394414ebea3a22bb2a62e489cea479eb6a7eae5ca486b59e0dcec2c9",
+    "gold_manifest_stable_hash": "4fe00920906ffaa8a360cf43a0bd5e09ddaef5a000b6514ed7d52af761efc4bb",
+    "semantic_protocol_version": 9,
+    "semantic_activation_record_sha256": "e3887c7039929b681041c572867686c2347d4a4ff896d6e5140451cf7daa9c91",
+    "semantic_qualification": "Final exact-Haiku qualification passed 4/4 calibration cases, 1/1 integrated long-form candidate-mode negative, and the eight-claim reference. Two earlier evaluator-only attempts are retained as failed qualification evidence; all eighteen preactivation model calls were exact Haiku and none entered runtime.",
+    "executable_activation": "The frozen reference passed the exact algorithm and empirical validators. Three predeclared negative-evaluator obligations were rejected through those same validators. Semantic activation validation reused the frozen qualification and made zero new model calls.",
+    "task_intent": {
+      "source_replication": "not_applicable",
+      "theory": "required",
+      "scientific_code": "required",
+      "empirical": "required",
+      "formal": "not_applicable",
+      "novelty": "not_applicable",
+      "unresolved_gaps": "required"
+    },
+    "product_model_calls": 0,
+    "fresh_live_runs": 0,
+    "formalizer_executed": false,
+    "trusted_capability_credit": "not_scored; aggregate remains 4/70 consumed",
+    "boundary": "All authority is evaluator-only and hash-bound outside the repository/model workspace. The activation ledger must be pushed before the sole product draw; no qualification result may become runtime feedback."
   },
   "latest_fieller_ratio_l0_evaluation": {
     "task_id": "fieller_bivariate_normal_ratio_confidence_set_known_result",
@@ -3164,7 +3193,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/70 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Tasks 69 and 70 add component diagnostics but no full-task credit. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
+    "fully_gold_covered_research_tasks": "4/70 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Tasks 69 and 70 add component diagnostics but no full-task credit. Task 71 is fully configured and frozen but unconsumed, so it is excluded from both numerator and denominator. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -3187,6 +3216,7 @@
     "latest_runtime_manifest_bytes": 53189
   },
   "next_gates": [
+    "Push the frozen Task 71 activation ledger to both the work branch and main, then consume exactly one fresh AgentRuntime draw with exact claude-haiku-4-5-20251001 and one post-termination hidden evaluation. Formalization is not applicable and must not run or block theory, code, or empirical evidence. Never expose hidden authority to runtime, retry the product draw, or change the task, evaluator, prompt, runtime, or model after activation.",
     "Preserve Fieller ratio Task 70 at immutable 0/1. Its long-horizon Markdown/LaTeX Theory passed frozen mechanical and calibrated semantic authority, but no Algorithm source was explicitly committed, so hidden code and empirical evaluators correctly did not run. Treat ecfc2403 only as future-task shared harness evidence for atomic multi-hunk source edits and commit-aware same-owner checkpoint continuation. Never rerun, resume, repair, hidden-evaluate again, rescore, manually commit its draft, or add a Fieller formula, diagnostic parser, auto-commit, recovery phase, agent, route, or scheduler.",
     "Preserve pinball-loss quantile Task 63 at immutable 0/1. Automated theory mechanics and hidden semantic judgment passed, but operator audit invalidated the active subgradient, atom/uniqueness, and empirical-minimizer reasoning; hidden code authority found a boolean closed-contract defect; and runtime Critic correctly refused empirical completion after Simulation weakened the frozen design. Treat commit b567aaa6 only as future-task shared action-boundary evidence. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or add a quantile formula, Python-bool rule, replicate-count check, deterministic math parser, reviewer vote, agent, route, or scheduler.",
     "The model-authored executable Python/R evaluator is now the canonical preregistration authority. On the next independently justified disjoint task, require live evidence of exact evaluator source authoring, independent exact-source review, and one frozen hidden replay. If frozen task intent requires scientific code, validate the accepted Algorithm handoff before the evaluator model call; if scientific code is not applicable, do not invent that dependency. Keep the concise readable protocol beside the source, preserve blinding and hashes, and never use Task 70 or another consumed draw to manufacture this evidence.",

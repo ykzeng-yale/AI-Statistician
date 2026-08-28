@@ -16,6 +16,10 @@ embed Codex's thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `dd8ae7f2`: keep semantic absence, explicit noncoverage, and unsupported
+  claims `INCONCLUSIVE`, reserving `VIOLATED` for active contradiction or an
+  invalid asserted derivation; the protocol change is confined to hidden
+  evaluator qualification and cannot repair or route product work;
 - `ea7a6ce0`: let frozen task intent decide whether executable evaluator
   authoring requires an accepted Algorithm handoff, validate required
   dependencies before any evaluator model call, and preserve standalone
@@ -2902,3 +2906,29 @@ and Task 70 remains immutable `0/1` with the trusted aggregate unchanged at
 `4/70`. Future tests and evaluations remain exact
 `claude-haiku-4-5-20251001`; production remains Sonnet or below; Opus remains
 prohibited.
+
+## Semantic qualification without product repair
+
+Task 71's preactivation exposed a general evaluator distinction rather than a
+product-runtime failure. An incomplete document that explicitly declines to
+claim a result is unsupported, not contradicted. Protocol v9 therefore tells
+the independent judge to use `INCONCLUSIVE` for omitted or explicitly
+uncovered claims and to reserve `VIOLATED` for an active false assertion or
+invalid asserted derivation. This is scientific evidence semantics, not a
+statistical formula, document parser, or output repair rule.
+
+The first protocol-v8 qualification and the first protocol-v9 qualification
+both passed three of four cases because the nominal partial control also
+narrowed an arbitrary-CDF target to continuous distributions. The hidden
+control was replaced before any product call by a clean arbitrary-CDF setup
+whose proof obligations are explicitly unresolved. The final exact-Haiku
+qualification passed `4/4` calibration cases, `1/1` integrated long-form near
+miss, and the eight-claim reference. All three attempts remain recorded; no
+result entered AgentRuntime.
+
+This preserves the useful Codex boundary: validation owns action and evidence
+semantics, while the source-owning model owns substantive work. The hidden
+authority is frozen and hash-bound outside the model workspace, activation
+reuses the qualified record with zero additional semantic calls, and the sole
+future product draw remains one direct AgentRuntime execution. No second model
+session, repair worker, retry path, scheduler, or Codex runtime was added.
