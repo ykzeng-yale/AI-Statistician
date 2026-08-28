@@ -58,6 +58,24 @@ def _question() -> OpenResearchQuestion:
     )
 
 
+def _question_with_estimator_contract() -> OpenResearchQuestion:
+    return OpenResearchQuestion(
+        id="semantic-review-contract-test",
+        title="Review a public estimator contract",
+        description="Review every explicit public Algorithm clause.",
+        tags=("semantic-review", "public-contract"),
+        estimator_execution_contract={
+            "schema_version": 1,
+            "estimator_id": "candidate",
+            "entrypoint": "run_estimator",
+            "request_fields": [{"clause_id": "request.value"}],
+            "response_fields": [{"clause_id": "response.estimate"}],
+            "invariants": [{"clause_id": "invariant.closed_object"}],
+            "empirical_claims": [{"clause_id": "claim.empirical.calibration"}],
+        },
+    )
+
+
 def test_simulation_proposal_review_uses_current_dependency_projection_only() -> None:
     projection = generated_code_semantic_review_proposal_projection(
         source_subsystem="SimulationEvaluator",
@@ -211,15 +229,14 @@ def test_semantic_review_delegates_load_bearing_checks_to_the_model() -> None:
         review_material=_review_material(),
     )
 
-    assert "Choose the load-bearing checks yourself" in prompt
-    assert "do not fill a fixed dimension checklist" in prompt
-    assert "Actively try to falsify explicit public" in prompt
-    assert "instead of checking only a happy path" in prompt
+    assert "Choose load-bearing checks yourself" in prompt
+    assert "rather than a fixed dimension checklist" in prompt
+    assert "try to falsify public acceptance, rejection, and boundary behavior" in prompt
     assert "public contract is closed in both directions" in prompt
-    assert "do not invent stricter conditions" in prompt
-    assert "Use findings only for active defects" in prompt
-    assert "Put nonblocking observations in" in prompt
-    assert "ACCEPT a fit artifact with no findings" in prompt
+    assert "do not invent conditions" in prompt
+    assert "Findings are unique active blockers" in prompt
+    assert "nonblockers stay in Markdown" in prompt
+    assert "ACCEPT only a semantically fit artifact" in prompt
     assert "actual_runtime_arguments" in prompt
     assert "runtime_argument_rule" in prompt
 
@@ -251,9 +268,8 @@ def test_semantic_review_keeps_current_artifact_distinct_from_dependency() -> No
         review_material=material,
     )
 
-    assert "/current_target_artifacts as the final current snapshot" in prompt
-    assert "/supporting_review_context and prior findings as historical context" in prompt
-    assert "Never substitute an upstream review" in prompt
+    assert "Supporting context is historical" in prompt
+    assert "current_target_artifacts is authoritative" in prompt
     assert prompt.index('"supporting_review_context"') < prompt.index(
         '"current_target_artifacts"'
     )
@@ -396,20 +412,20 @@ def test_prompt_is_observation_only_and_preserves_complete_source() -> None:
     ]["seed"] == "EVALUATOR_WITHHELD"
     assert "RESULT_VALUE_MUST_NOT_APPEAR" not in prompt
     assert "def run_sandbox" in prompt
-    assert "Do not write replacement code" in prompt
-    assert "review_document as Markdown" in prompt
-    assert "not a repair plan or routing decision" in prompt
-    assert "whether some rewrite of the current source could close all findings" in prompt
+    assert "write no code, owner, or tactic" in prompt
+    assert "review_document Markdown" in prompt
+    assert "not a repair plan or route" in prompt
+    assert "whether current-source rewrite can close findings" in prompt
     assert "source_revision_assessment" in prompt
     assert "Monte Carlo" in prompt
-    assert "empirical evaluator owns realized outcome values" in prompt
-    assert "cannot by themselves create a source finding" in prompt
+    assert "withheld evaluator evidence" in prompt
+    assert "cannot alone create a source finding" in prompt
     assert "fixed dimension checklist" in prompt
     assert "question.estimator_execution_contract" in prompt
-    assert "outranks compact Theory interface" in prompt
+    assert "outranks Theory summaries" in prompt
     assert '"reviewer_scope_contract"' in prompt
     assert "valid_evidence_refs" not in prompt
-    assert "Review every listed prior finding once" in prompt
+    assert "Review each prior finding once" in prompt
     assert "repair_scope" not in prompt
     assert "upstream_metric_contract" not in prompt
     assert len(prompt) < 20_000
@@ -486,7 +502,7 @@ def test_prompt_projection_preserves_frozen_comparator_but_excludes_outcomes() -
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(), review_material=material
     )
-    assert "frozen measurement meanings" in prompt
+    assert "frozen meanings" in prompt
     assert "For every emitted metric path" not in prompt
 
 
@@ -528,13 +544,146 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
         "properties"
     ]
     assert "evidence_refs" not in assessment_schema["properties"]
+
+
+def test_algorithm_review_schema_indexes_every_public_abi_clause_without_empirical_claims() -> None:
+    material = _algorithm_review_material(
+        language="python",
+        source="def run_estimator(request):\n    return {'estimate': request['value']}\n",
+        dependencies=[],
+    )
+    question = _question_with_estimator_contract()
+    schema = generated_code_semantic_review_json_schema(
+        material,
+        question=question,
+    )
+    clause_schema = schema["properties"]["reviewed_public_contract_clause_ids"]
+
+    assert "reviewed_public_contract_clause_ids" in schema["required"]
+    assert clause_schema["minItems"] == 3
+    assert clause_schema["maxItems"] == 3
+    assert clause_schema["uniqueItems"] is True
+    assert clause_schema["items"]["enum"] == [
+        "invariant.closed_object",
+        "request.value",
+        "response.estimate",
+    ]
+    assert "claim.empirical.calibration" not in clause_schema["items"]["enum"]
+    prompt = build_generated_code_semantic_review_prompt(
+        question=question,
+        review_material=material,
+    )
+    assert "reviewed_public_contract_clause_ids lists clauses actually inspected" in prompt
+    assert "records model attention, not evidence" in prompt
+    assert "does not replace analysis or probes" in prompt
+
+    simulation_schema = generated_code_semantic_review_json_schema(
+        _review_material(),
+        question=question,
+    )
+    assert "reviewed_public_contract_clause_ids" not in simulation_schema["required"]
+    assert "reviewed_public_contract_clause_ids" not in simulation_schema["properties"]
+
+
+def test_missing_public_contract_clause_record_returns_to_same_reviewer_session() -> None:
+    material = _algorithm_review_material(
+        language="python",
+        source="def run_estimator(request):\n    return {'estimate': request['value']}\n",
+        dependencies=[],
+    )
+    question = _question_with_estimator_contract()
+    base_submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe current source was reviewed against the public ABI.",
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No current-source defect was found.",
+        },
+    }
+    corrected_submission = {
+        **base_submission,
+        "reviewed_public_contract_clause_ids": [
+            "request.value",
+            "response.estimate",
+            "invariant.closed_object",
+        ],
+    }
+
+    class ContractCoverageBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            payload = (
+                base_submission
+                if len(self.requests) == 1
+                else corrected_submission
+            )
+            call_id = f"contract-review-{len(self.requests)}"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call_id,
+                        "name": "submit_generated_code_semantic_review",
+                        "input": payload,
+                    },
+                ),
+                tool_calls=(
+                    ClientToolCall(
+                        call_id=call_id,
+                        name="submit_generated_code_semantic_review",
+                        input=payload,
+                    ),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = ContractCoverageBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=question,
+        review_material=material,
+        trusted_lineage=_algorithm_lineage(),
+    )
+
+    assert len(backend.requests) == 2
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["reviewed_public_contract_clause_ids"] == [
+        "request.value",
+        "response.estimate",
+        "invariant.closed_object",
+    ]
+    assert packet["client_tool_loop"]["validation_submissions"] == 2
+    assert packet["client_tool_loop"]["validation_feedback_observed"] is True
+    assert "must cover every public Algorithm contract clause exactly once" in str(
+        backend.requests[1].messages[-1]
+    )
+    assert validate_generated_code_semantic_review_packet(
+        packet,
+        review_material=material,
+    ) == []
     prompt = build_generated_code_semantic_review_prompt(
         question=_question(), review_material=_review_material()
     )
     assert "RFC 6901" not in prompt
-    assert "CURRENT_SOURCE_REWRITE_SUFFICIENT" in prompt
-    assert "CROSS_ARTIFACT_RESOLUTION_REQUIRED" in prompt
-    assert "even when that source is itself called a simulation" in prompt
+    assert "source_revision_assessment asks only whether current-source rewrite" in prompt
+    assert "without changing immutable parents" in prompt
+    assert "It is not a repair plan or route" in prompt
 
 
 def test_anthropic_reviewer_uses_native_client_tool_submission() -> None:
@@ -782,8 +931,8 @@ def test_executable_evaluator_decision_path_review_is_model_owned() -> None:
         question=_question(),
         review_material=material,
     )
-    assert "Trace the returned acceptance decision backward" in prompt
-    assert "constant or disconnected acceptance output" in prompt
+    assert "Trace acceptance through every load-bearing check" in prompt
+    assert "diagnostic outcomes cannot establish acceptance" in prompt
 
 
 def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() -> None:
@@ -1101,28 +1250,22 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
         source_probe_tool.description
     )
     assert "not the target's" in source_probe_tool.description
-    assert "one broad model-authored probe" in str(
+    assert "model-authored multi-case Python or R test" in str(
         backend.requests[0].messages[0]["content"]
     )
-    assert "Re-read every public request field" in str(
+    assert "Choose cases and interpretation yourself" in str(
         backend.requests[0].messages[0]["content"]
     )
-    assert "does not cover an omitted input boundary" in str(
+    assert "do not cover omitted boundaries or establish semantics" in str(
         backend.requests[0].messages[0]["content"]
     )
-    assert "never a scientific finding or cross-artifact conflict" in str(
+    assert "Failure before target invocation is your tool error, not a finding" in str(
         backend.requests[0].messages[0]["content"]
     )
     assert "return a non-accepting judgment" not in str(
         backend.requests[0].messages[0]["content"]
     )
-    assert "do not infer coverage from test count alone" in str(
-        backend.requests[0].messages[0]["content"]
-    )
-    assert "independently derived discriminating oracle" in str(
-        backend.requests[0].messages[0]["content"]
-    )
-    assert "self-consistency checks cannot by themselves establish" in str(
+    assert "derive a discriminating oracle" in str(
         backend.requests[0].messages[0]["content"]
     )
     assert "accepted_numeric_string" in str(backend.requests[1].messages[-1])
