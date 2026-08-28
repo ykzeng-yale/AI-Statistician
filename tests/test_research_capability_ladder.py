@@ -18,7 +18,7 @@ TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
-CURRENT_ACTIVE_TASKS = 82
+CURRENT_SCORED_TASKS = 82
 CURRENT_CONSUMED_TASKS = 82
 CURRENT_OPERATOR_INVALID_TASKS = 16
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
@@ -70,7 +70,7 @@ def test_research_ladder_has_progressive_evidence_and_no_fixed_replication_rule(
     assert ladder["formalization_contract"]["nonproof_evidence_may_be_promoted_to_proof"] is False
 
 
-def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() -> None:
+def test_ladder_counts_scored_and_consumed_tasks_without_embedding_gold() -> None:
     ladder = _load_ladder()
     candidates = ladder["initial_candidate_queue"]
 
@@ -85,18 +85,32 @@ def test_ladder_counts_fully_configured_active_tasks_without_embedding_gold() ->
         for candidate in candidates
         if candidate["status"].startswith("proposed_pending_")
     ]
+    unconsumed = [
+        candidate for candidate in scored if candidate["status"] == "active_scored"
+    ]
+    consumed = [
+        candidate for candidate in scored if candidate["status"] == "consumed_scored"
+    ]
     assert scored
-    assert ladder["current_readiness"]["active_scored_tasks"] == len(scored)
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == sum(
-        not candidate["activation_status"].startswith("frozen_ready_")
-        for candidate in scored
+    assert ladder["current_readiness"]["scored_tasks_total"] == len(scored)
+    assert ladder["current_readiness"]["unconsumed_scored_tasks"] == len(
+        unconsumed
     )
+    assert ladder["current_readiness"]["consumed_scored_tasks"] == len(consumed)
     assert ladder["current_readiness"]["fully_gold_configured_tasks"] == len(scored)
     assert ladder["current_readiness"]["fully_gold_passed_tasks"] == sum(
         candidate["activation_evidence"].get("full_task_passed") is True
         for candidate in scored
     )
     assert len({candidate["id"] for candidate in candidates}) == len(candidates)
+    assert all(
+        candidate["activation_status"].startswith("frozen_ready_")
+        for candidate in unconsumed
+    )
+    assert all(
+        not candidate["activation_status"].startswith("frozen_ready_")
+        for candidate in consumed
+    )
     for candidate in scored:
         assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
         assert candidate["activation_status"].startswith(
@@ -318,9 +332,9 @@ def test_weighted_isotonic_pava_l0_records_one_closed_theory_failure() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
@@ -453,9 +467,9 @@ def test_orthogonal_lasso_l0_records_one_consumed_failure() -> None:
     assert evidence["ladder_score_after_consumption"] == "4/59"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -577,9 +591,9 @@ def test_uniform_spacings_l0_records_one_consumed_failure() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -707,9 +721,9 @@ def test_exact_permutation_l0_records_one_consumed_operator_invalidated_draw() -
     assert evidence["ladder_score_after_consumption"] == "4/61"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -841,9 +855,9 @@ def test_gamma_poisson_l0_records_one_consumed_operator_invalidated_draw() -> No
     assert consumed["ladder_score_after_consumption"] == "4/62"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == (
@@ -972,9 +986,9 @@ def test_pinball_quantile_l0_records_consumed_operator_invalidated_draw() -> Non
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == (
@@ -1232,7 +1246,7 @@ def test_hotelling_t2_l0_preserves_its_only_consumed_product_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "multivariate_normal_mean_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_failed_algorithm_contract_and_runtime_review_transport"
     )
@@ -1344,7 +1358,7 @@ def test_quantile_l0_freezes_theory_only_failure_without_resampling() -> None:
     )
 
     assert candidate["level"] == "L0"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_evidence"]["fresh_live_runs"] == 1
     assert candidate["activation_evidence"]["fresh_live_runtime_status"] == "BLOCKED"
     assert candidate["activation_evidence"]["fresh_live_hidden_gold_result"].startswith(
@@ -1377,7 +1391,7 @@ def test_doubleml_l1_freezes_exact_replication_without_conflating_l2() -> None:
     )
 
     assert candidate["level"] == "L1"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_blocked_before_checkpoint_promotion"
     )
@@ -1429,7 +1443,7 @@ def test_model_x_l2_hides_author_code_and_freezes_gold_before_first_draw() -> No
     )
 
     assert candidate["level"] == "L2"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_blocked_by_theory_progress_context_binding"
     )
@@ -1484,7 +1498,7 @@ def test_horvitz_thompson_l0_freezes_gold_without_embedding_evaluator() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "survey_sampling"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_blocked_by_redundant_nonformal_theorem_handoff"
     )
@@ -1552,7 +1566,7 @@ def test_normal_sample_variance_l0_records_operator_invalidated_single_draw() ->
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "mathematical_statistics"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_operator_invalidated_theory_review_false_positive"
     )
@@ -1627,7 +1641,7 @@ def test_median_of_means_l0_is_frozen_after_its_only_live_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "robust_statistics"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "full_task_gold_frozen_v1_failed_preflight_transport_and_operator_math_audit"
     )
@@ -1706,7 +1720,7 @@ def test_benjamini_hochberg_l0_single_live_draw_is_frozen_failed() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "multiple_testing"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "full_task_gold_frozen_v1_failed_theory_index_anchor_transport"
     )
@@ -1803,7 +1817,7 @@ def test_wilson_score_l0_single_live_draw_is_frozen_failed() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "binomial_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "full_task_gold_frozen_v1_failed_preflight_transport_and_operator_math_audit"
     )
@@ -1908,7 +1922,7 @@ def test_jackknife_mean_l0_freezes_invalid_design_and_terminal_budget_block() ->
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "resampling"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_invalid_evaluation_design_and_theory_terminal_budget_blocked"
     )
@@ -2011,7 +2025,7 @@ def test_ar1_ols_l0_freezes_consumed_collaboration_failure_without_resampling() 
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "time_series"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == "full_task_gold_frozen_consumed_closed"
     evidence = candidate["activation_evidence"]
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
@@ -2061,7 +2075,7 @@ def test_fisher_z_l0_is_consumed_closed_after_one_runtime_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "correlation_multivariate"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == "full_task_gold_consumed_closed"
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
@@ -2147,7 +2161,7 @@ def test_paired_ratio_l0_draw_is_consumed_and_hash_bound() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "ratio_metrics"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "full_task_gold_frozen_v1_failed_shared_terminal_disposition_budget"
     )
@@ -2230,7 +2244,7 @@ def test_scalar_control_variate_l0_frozen_draw_is_consumed_and_closed() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "monte_carlo_variance_reduction"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "full_task_gold_frozen_v1_failed_shared_simulation_prompt_artifact_expansion"
     )
@@ -2321,7 +2335,7 @@ def test_pearson_multinomial_gof_l0_frozen_draw_is_consumed_and_closed() -> None
     }
     assert candidate["level"] == "L0"
     assert candidate["family"] == "categorical_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == "full_task_gold_frozen_consumed_closed"
     evidence = candidate["activation_evidence"]
     assert evidence["hidden_gold_manifest_validated"] is True
@@ -2392,7 +2406,7 @@ def test_exponential_rate_mle_l0_authority_is_consumed_after_one_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "lifetime_rate_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert (
         candidate["activation_status"]
         == "full_task_gold_frozen_consumed_closed"
@@ -2548,7 +2562,7 @@ def test_statlib_formal_l0_draw_is_consumed_without_proof_credit() -> None:
     )
     evidence = candidate["activation_evidence"]
 
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == "fresh_live_v1_hidden_gold_failed"
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["first_runtime_model_call_occurred"] is True
@@ -2612,7 +2626,7 @@ def test_variance_affine_formal_l0_draw_is_consumed_without_proof_credit() -> No
     )
     evidence = candidate["activation_evidence"]
 
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_hidden_gold_failed_missing_formal_only_semantic_authority"
     )
@@ -2674,7 +2688,7 @@ def test_score_information_l0_draw_is_consumed_without_review_credit() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "parametric_information_bounds"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_hidden_gold_failed_missing_independent_theory_review"
     )
@@ -2770,7 +2784,7 @@ def test_basu_theory_l0_draw_is_consumed_after_missing_routed_review() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "statistical_structure_and_ancillarity"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_hidden_gold_failed_missing_routed_independent_theory_review"
     )
@@ -2859,7 +2873,7 @@ def test_uniform_endpoint_l0_draw_is_consumed_after_hidden_gold_failure() -> Non
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "nonregular_endpoint_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_hidden_gold_failed_theory_semantics_and_executable_interface"
     )
@@ -2958,7 +2972,7 @@ def test_aitken_gls_l0_records_sole_consumed_draw_and_operator_caveats() -> None
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "generalized_least_squares_efficiency"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_passed_with_operator_semantic_and_"
         "referee_evidence_caveats"
@@ -3102,7 +3116,7 @@ def test_huber_location_l0_draw_is_consumed_after_review_packet_failure() -> Non
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "robust_location_m_estimation"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_blocked_invalid_generated_code_semantic_review_packet"
     )
@@ -3224,7 +3238,7 @@ def test_ridge_bias_variance_l0_draw_is_consumed_after_review_tool_failure() -> 
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "fixed_design_ridge_regression"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_blocked_invalid_generated_code_semantic_review_packet"
     )
@@ -3449,7 +3463,7 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "bayesian_conjugate_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == "fresh_live_v1_full_task_gold_passed"
     assert candidate["gold_manifest_sha256"] == (
         "0146a264fcdb3be8bf56d5ba266c9eab041cb64990060cbbeb17567bf22a4d5b"
@@ -3508,10 +3522,11 @@ def test_beta_binomial_l0_draw_is_consumed_as_first_full_task_pass() -> None:
     consumed = [
         row
         for row in scored
-        if not row["activation_status"].startswith("frozen_ready_")
+        if row["status"] == "consumed_scored"
     ]
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == len(scored)
+    assert readiness["scored_tasks_total"] == len(scored)
+    assert readiness["unconsumed_scored_tasks"] == len(scored) - len(consumed)
     assert readiness["consumed_scored_tasks"] == len(consumed)
     assert readiness["fully_gold_configured_tasks"] == len(scored)
     assert readiness["fully_gold_passed_tasks"] == sum(
@@ -3607,7 +3622,7 @@ def test_poisson_garwood_r_l0_records_one_consumed_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "poisson_exposure_rate_exact_inference_r"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_failed_with_evaluator_scope_caveat"
     )
@@ -3704,7 +3719,7 @@ def test_rao_blackwell_poisson_theory_l0_records_one_consumed_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "conditional_expectation_variance_reduction"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_hidden_gold_failed_theory_only_estimator_gate_conflation"
     )
@@ -3948,7 +3963,7 @@ def test_complete_randomization_l0_draw_is_consumed_and_failed_closed() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "finite_population_randomization_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_failed_metric_protocol_and_operator_theory"
     )
@@ -4088,7 +4103,7 @@ def test_bootstrap_mean_l0_records_one_consumed_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "nonparametric_bootstrap"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_failed_scientific_code_and_simulation"
     )
@@ -4206,7 +4221,7 @@ def test_mann_whitney_u_r_l0_records_sole_consumed_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "two_sample_rank_inference_r"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_failed_metric_protocol_liveness"
     )
@@ -4312,7 +4327,7 @@ def test_inverse_variance_meta_analysis_r_l0_records_sole_consumed_draw() -> Non
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "fixed_effect_meta_analysis_r"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_failed_metric_protocol_and_algorithm_contract"
     )
@@ -4431,7 +4446,7 @@ def test_mcnemar_exact_l0_records_sole_consumed_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "paired_binary_exact_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_failed_theory_packet_validation"
     )
@@ -4575,7 +4590,7 @@ def test_hoeffding_u_statistic_l0_records_one_consumed_caveated_pass() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "u_statistic_projection_asymptotics"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
         "fresh_live_v1_full_task_gold_passed_with_operator_math_evaluator_and_"
         "duplicate_handoff_caveats"
@@ -5146,9 +5161,9 @@ def test_one_way_anova_l0_records_its_only_consumed_product_draw() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -5280,9 +5295,9 @@ def test_two_period_panel_did_l0_records_one_consumed_operator_invalid_draw() ->
     assert evidence["ladder_score_after_consumption"] == "4/67"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
@@ -5415,9 +5430,9 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert evidence["full_task_passed"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == (
         CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
@@ -5522,9 +5537,9 @@ def test_weighted_partial_regression_l0_records_its_only_consumed_failed_draw() 
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -5639,9 +5654,9 @@ def test_clopper_pearson_l0_single_draw_is_consumed_and_scored() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -5753,9 +5768,9 @@ def test_ols_press_l0_consumed_draw_preserves_component_evidence() -> None:
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -5887,9 +5902,9 @@ def test_rdrobust_senate_l1_records_consumed_operator_false_acceptance() -> None
     assert evidence["ladder_score_after_consumption"] == "4/54"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == (
         CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
@@ -6017,9 +6032,9 @@ def test_statsmodels_adf_kpss_l1_records_consumed_operator_false_acceptance() ->
     assert evidence["ladder_score_after_consumption"] == "4/55"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["runtime_source_replication_components_ready"] == (
         CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
@@ -6128,9 +6143,9 @@ def test_nadaraya_watson_l0_records_consumed_operator_invalidated_draw() -> None
     assert evidence["trusted_capability_credit"] is False
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
@@ -6243,9 +6258,9 @@ def test_brier_bernoulli_l0_records_one_consumed_empirical_authority_failure() -
     assert result["ladder_score_after_consumption"] == "4/64"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
@@ -6362,9 +6377,9 @@ def test_warner_randomized_response_l0_records_one_immutable_failed_draw() -> No
     assert evidence["ladder_score_after_consumption"] == "4/65"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
@@ -6490,9 +6505,9 @@ def test_measurement_error_attenuation_l0_records_one_immutable_failed_draw() ->
     assert evidence["ladder_score_after_consumption"] == "4/66"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
@@ -6627,9 +6642,9 @@ def test_welch_satterthwaite_l0_consumed_draw_is_operator_invalidated() -> None:
     assert evidence["ladder_score_after_consumption"] == "4/68"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
@@ -6745,9 +6760,9 @@ def test_neyman_scott_l0_automated_pass_is_operator_invalidated() -> None:
     assert evidence["ladder_score_after_consumption"] == "4/69"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
@@ -6962,9 +6977,9 @@ def test_randomized_distributional_transform_l0_consumption_is_immutable() -> No
     assert evidence["ladder_score_after_consumption"] == "4/71"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -7131,9 +7146,9 @@ def test_fisher_exact_greater_l0_records_one_consumed_operator_invalid_draw() ->
     assert evidence["ladder_score_after_consumption"] == "4/72"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == (
@@ -7310,9 +7325,9 @@ def test_exponential_maximum_gumbel_l0_is_consumed_and_immutable() -> None:
         )
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == (
@@ -7431,7 +7446,7 @@ def test_sandwich_jss_r_l1_is_consumed_and_operator_invalidated() -> None:
     assert question["task_intent"]["formal"] == "not_applicable"
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
@@ -7569,9 +7584,9 @@ def test_lehmann_scheffe_l0_is_consumed_once_and_immutable() -> None:
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
 
 
@@ -7776,9 +7791,9 @@ def test_horvitz_thompson_l0_draw_is_consumed_and_immutable() -> None:
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -7944,9 +7959,9 @@ def test_distance_correlation_l2_only_product_draw_is_consumed_and_immutable() -
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -8122,9 +8137,9 @@ def test_pelt_gaussian_mean_l2_only_product_draw_is_consumed_and_immutable() -> 
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -8261,9 +8276,9 @@ def test_linear_kernel_two_sample_l3_is_blind_frozen_and_consumed_once() -> None
     assert "target_publication_venue" not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
@@ -8455,9 +8470,9 @@ def test_crossfit_orthogonal_contrast_l3_is_blind_frozen_and_consumed_once() -> 
         assert hidden_identity_field not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["scored_tasks_total"] == CURRENT_SCORED_TASKS
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
-    assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["fully_gold_configured_tasks"] == CURRENT_SCORED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
