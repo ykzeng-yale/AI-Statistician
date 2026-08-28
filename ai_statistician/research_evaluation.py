@@ -15,7 +15,6 @@ from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
 )
 from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
-from .research_lab import build_research_provenance, run_research_benchmark
 from .research_schema import (
     RESEARCH_EVIDENCE_DIMENSIONS,
     OpenResearchQuestion,
@@ -41,6 +40,8 @@ async def run_research_seed_eval(
     proof_verifier: ProofVerifier | None = None,
 ) -> dict[str, object]:
     """Run the open-question research benchmark across multiple simulation seeds."""
+
+    from .research_lab import build_research_provenance, run_research_benchmark
 
     out_dir.mkdir(parents=True, exist_ok=True)
     verifier = proof_verifier or (AxleProofVerifier() if config.use_axle else MockProofVerifier())

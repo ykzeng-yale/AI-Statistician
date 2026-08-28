@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
 from pathlib import Path
 
 import ai_statistician
@@ -102,6 +104,27 @@ def test_canonical_runtime_does_not_restore_retired_routing_surfaces() -> None:
     }
 
     assert not {needle for needle in forbidden if needle in runtime_source}
+
+
+def test_canonical_runtime_does_not_import_legacy_research_lab() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "import ai_statistician.research_agent_runtime; "
+                "print('loaded' if 'ai_statistician.research_lab' in sys.modules "
+                "else 'not-loaded')"
+            ),
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.stdout.strip() == "not-loaded"
 
 
 def test_live_model_policy_forbids_opus_and_pins_evaluation_to_haiku() -> None:
