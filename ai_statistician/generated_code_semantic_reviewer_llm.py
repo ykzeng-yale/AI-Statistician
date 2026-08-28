@@ -48,11 +48,11 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 33
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 34
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.")
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_optional_exact_probe_v10"
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_committed_probe_observations_v11"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
@@ -715,8 +715,8 @@ def build_generated_code_semantic_review_prompt(
     review_scope_instruction = (
         "This is preconfirmatory evaluator authoring: exact source owns the DGP, measurements, "
         "decision rule, and independently fixed requested_runtime_replicates. Trace acceptance "
-        "through every load-bearing check. The attached diagnostic outcomes cannot establish "
-        "acceptance; ACCEPT authorizes only unchanged-source hidden-cohort execution.\n\n"
+        "through every load-bearing check. actual_runtime_arguments.replicates is diagnostic capacity, not a future commitment or minimum; "
+        "review the returned request separately, never reject a small diagnostic; diagnostic outcomes cannot establish acceptance, and ACCEPT authorizes only unchanged-source hidden-cohort execution.\n\n"
         if executable_evaluator_authoring
         else "Realized outcomes, thresholds, Monte Carlo precision, power, and efficiency remain "
         "withheld evaluator evidence and cannot alone create a source finding.\n\n"
@@ -938,7 +938,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             "interpretation yourself. Failure before target invocation is your tool "
                             "error, not a finding. Numerical or self-consistency checks do not cover "
                             "omitted boundaries or establish semantics; derive a discriminating oracle "
-                            "when needed."
+                            "when needed. Successful probes are committed: cite result_hash in review_document, "
+                            "reconcile metrics with the verdict, and never ignore a contradiction."
                             if probe_targets
                             else ""
                         )
@@ -1136,6 +1137,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
+            reviewed_text = str(payload.get("review_document", "") or "")
+            for row in probe_executions:
+                result_hash = str(row.get("result_hash", "") or "")
+                if row.get("successful_exact_invocation") is True and result_hash not in reviewed_text:
+                    errors.append("review_document must reconcile successful probe result_hash " + result_hash)
             validation_history.append(
                 {
                     "attempt_index": len(validation_history),

@@ -962,6 +962,9 @@ def test_executable_evaluator_decision_path_review_is_model_owned() -> None:
     )
     assert "Trace acceptance through every load-bearing check" in prompt
     assert "diagnostic outcomes cannot establish acceptance" in prompt
+    assert "actual_runtime_arguments.replicates is diagnostic capacity" in prompt
+    assert "not a future commitment or minimum" in prompt
+    assert "never reject a small diagnostic" in prompt
 
 
 def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() -> None:
@@ -1198,11 +1201,34 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            name, payload = (
-                ("run_exact_estimator_review_probe", probe_input)
-                if len(self.requests) == 1
-                else ("submit_generated_code_semantic_review", submission)
-            )
+            if len(self.requests) == 1:
+                name, payload = "run_exact_estimator_review_probe", probe_input
+            else:
+                observation_message = request.messages[
+                    -1 if len(self.requests) == 2 else -3
+                ]
+                probe_observation = json.loads(
+                    observation_message["content"][0]["content"]
+                )
+                name = "submit_generated_code_semantic_review"
+                payload = (
+                    {
+                        **submission,
+                        "overall_verdict": "ACCEPT",
+                        "review_document": (
+                            "# Review\n\nThe source is fit despite the contradictory probe."
+                        ),
+                        "findings": [],
+                    }
+                    if len(self.requests) == 2
+                    else {
+                        **submission,
+                        "review_document": submission["review_document"]
+                        + "\n\nProbe result_hash `"
+                        + probe_observation["result_hash"]
+                        + "` contradicts source fit.",
+                    }
+                )
             call_id = f"review-call-{len(self.requests)}"
             return ClientToolTurnResponse(
                 content_blocks=(
@@ -1297,8 +1323,17 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert "derive a discriminating oracle" in str(
         backend.requests[0].messages[0]["content"]
     )
+    assert "Successful probes are committed" in str(
+        backend.requests[0].messages[0]["content"]
+    )
     assert "accepted_numeric_string" in str(backend.requests[1].messages[-1])
     assert packet["overall_verdict"] == "REVISE"
+    assert len(backend.requests) == 3
+    assert packet["client_tool_loop"]["validation_submissions"] == 2
+    assert packet["client_tool_loop"]["validation_feedback_observed"] is True
+    assert "must reconcile successful probe result_hash" in str(
+        backend.requests[2].messages[-1]
+    )
     probe_record = packet["client_tool_loop"]["review_probe_executions"][0]
     assert probe_record["target_source_hash"] == stable_hash(estimator_source)
     assert probe_record["metrics"] == {"accepted_numeric_string": True}
@@ -1306,6 +1341,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["failure_origin"] == "PROBE_COMPLETED"
     assert probe_record["target_source_invoked"] is True
     assert probe_record["failed_probe_is_target_source_evidence"] is False
+    assert probe_record["result_hash"] in packet["_review_document_artifact"]["content"]
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
