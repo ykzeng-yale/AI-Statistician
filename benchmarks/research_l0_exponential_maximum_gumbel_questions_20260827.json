@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "exponential_maximum_gumbel_known_result",
+      "title": "Gumbel limit for the maximum of exponential observations",
+      "description": "Focused L0 known-result evaluation grounded in Fisher and Tippett (1928) and Gnedenko (1943). Let X_1,...,X_n be independent rate-one exponential random variables, let M_n=max_i X_i, and let Y_n=M_n-log n. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-n CDF of M_n and the support-aware finite-n CDF of Y_n, including the branch below -log n. Then prove pointwise for every real y that P(Y_n <= y) converges to the standard Gumbel CDF exp(-exp(-y)). Make independence, the exponential support, the normalization log n, the fixed-y limiting argument, and the distinction between an exact finite-n law and its asymptotic approximation auditable. Do not replace the maximum by the minimum, omit the finite-n support branch, center by n or log(n-1), reverse a CDF or survival function, claim finite-n equality with the Gumbel law, or generalize the result to arbitrary parent distributions without domain-of-attraction conditions. The required model-authored Python artifact is est_exponential_maximum_gumbel and must implement run_estimator(request) exactly for the frozen closed sample contract. It returns the sample size, maximum, centered maximum, exact finite-n CDF evaluated at that centered value, and standard Gumbel CDF evaluated at that value. Exploratory Python or R may check identities. A separately frozen confirmatory assessment generates independent rate-one exponential samples at several predeclared sample sizes, invokes the exact accepted estimator, verifies the exact finite-n CDF empirically with Monte Carlo uncertainty, and assesses the Gumbel approximation over a preregistered finite grid as n grows. This assessment is distributional implementation evidence, not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, tail extrapolation beyond the frozen grid, or formal proof. Lean formalization is not applicable.",
+      "tags": [
+        "extreme value theory",
+        "exponential distribution",
+        "sample maximum",
+        "Gumbel distribution",
+        "weak convergence",
+        "known result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Limiting forms of the frequency distribution of the largest or smallest member of a sample",
+          "authors": [
+            "R. A. Fisher",
+            "L. H. C. Tippett"
+          ],
+          "journal": "Mathematical Proceedings of the Cambridge Philosophical Society",
+          "year": 1928,
+          "volume": 24,
+          "issue": 2,
+          "pages": "180-190",
+          "doi": "10.1017/S0305004100015681",
+          "url": "https://doi.org/10.1017/S0305004100015681"
+        },
+        "foundational_paper": {
+          "title": "Sur la distribution limite du terme maximum d'une serie aleatoire",
+          "authors": [
+            "B. Gnedenko"
+          ],
+          "journal": "Annals of Mathematics",
+          "year": 1943,
+          "volume": 44,
+          "issue": 3,
+          "pages": "423-453",
+          "doi": "10.2307/1968974",
+          "url": "https://doi.org/10.2307/1968974"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_exponential_maximum_gumbel",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample",
+            "name": "sample",
+            "meaning": "One observed independent sample whose maximum is evaluated.",
+            "json_type": "array",
+            "shape": "a Python list of 2 through 500 finite nonnegative real numbers; Boolean values are not numbers",
+            "units": "rate-one exponential observation scale",
+            "indexing": "unordered observations",
+            "edge_cases": "Zero is allowed. Reject tuples, arrays, null, nested values, NaN, infinity, negative values, Boolean elements, or nonnumeric elements rather than coercing them.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "request_constraints": [
+          {
+            "clause_id": "request.closed_sample_contract",
+            "meaning": "The request contains exactly the field sample. Reject missing, extra, malformed, shorter-than-two, or longer-than-500 requests without mutation or coercion."
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "Number of observations in the accepted sample.",
+            "json_type": "integer",
+            "shape": "one exact Python integer from 2 through 500",
+            "units": "observations",
+            "indexing": "not applicable",
+            "edge_cases": "It is never Boolean or floating point.",
+            "normalization": "len(sample)."
+          },
+          {
+            "clause_id": "response.maximum",
+            "name": "maximum",
+            "meaning": "Largest observed sample value.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "rate-one exponential observation scale",
+            "indexing": "not applicable",
+            "edge_cases": "Repeated maxima and an all-zero sample are allowed.",
+            "normalization": "max(sample)."
+          },
+          {
+            "clause_id": "response.centered_maximum",
+            "name": "centered_maximum",
+            "meaning": "Maximum centered by the natural logarithm of sample size.",
+            "json_type": "number",
+            "shape": "one finite real scalar",
+            "units": "dimensionless",
+            "indexing": "not applicable",
+            "edge_cases": "It may be negative and is always at least -log(sample_size).",
+            "normalization": "maximum - log(sample_size), using the natural logarithm."
+          },
+          {
+            "clause_id": "response.exact_cdf_at_centered",
+            "name": "exact_cdf_at_centered",
+            "meaning": "Exact finite-sample CDF of Y_n evaluated at the returned centered maximum.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Use the support-aware finite-n law; at the returned sample maximum the supported branch applies.",
+            "normalization": "For n=sample_size and y=centered_maximum, 0 when y < -log(n), otherwise (1-exp(-y)/n)^n."
+          },
+          {
+            "clause_id": "response.gumbel_cdf_at_centered",
+            "name": "gumbel_cdf_at_centered",
+            "meaning": "Standard Gumbel limiting CDF evaluated at the returned centered maximum.",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1)",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "This is an approximation target and must not replace the exact finite-n CDF.",
+            "normalization": "exp(-exp(-centered_maximum))."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly sample and the response contains exactly sample_size, maximum, centered_maximum, exact_cdf_at_centered, and gumbel_cdf_at_centered. Invalid requests are rejected without mutation or coercion."
+          },
+          {
+            "clause_id": "invariant.maximum_and_centering",
+            "meaning": "maximum equals the largest input value, sample_size equals its length, and centered_maximum equals maximum-log(sample_size) up to floating-point error."
+          },
+          {
+            "clause_id": "invariant.cdf_identities",
+            "meaning": "Both returned CDF values use the returned centered maximum; exact_cdf_at_centered uses the exact support-aware finite-n law and gumbel_cdf_at_centered uses exp(-exp(-y))."
+          },
+          {
+            "clause_id": "invariant.permutation_deterministic_nonmutating",
+            "meaning": "Permuting an equal sample leaves every response unchanged up to floating-point equality, repeated calls agree, and no call mutates the request."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze every sample size, evaluation point, seed, replicate count, exact finite-n target, Gumbel target, Monte Carlo precision rule, and joint acceptance decision; generate only independent rate-one exponential observations and invoke the exact accepted estimator for every replicate."
+          },
+          {
+            "clause_id": "claim.empirical.finite_law",
+            "meaning": "For every frozen sample size and evaluation point, compare the empirical CDF of centered maxima to the exact support-aware finite-n CDF using the preregistered Monte Carlo uncertainty rule."
+          },
+          {
+            "clause_id": "claim.empirical.gumbel_approximation",
+            "meaning": "On the frozen finite evaluation grid, retain exact finite-n and Gumbel CDF errors across increasing sample sizes and assess the preregistered approximation pattern without claiming uniform convergence or finite-n equality."
+          },
+          {
+            "clause_id": "claim.empirical.diagnostics",
+            "meaning": "Retain per-design sample size, evaluation point, replicate count, empirical CDF, exact CDF, Gumbel CDF, Monte Carlo standard error, and estimator invocation failures rather than reporting only a pass Boolean."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The assessment is rate-one exponential distributional implementation evidence only; it is not proof, a universal extreme-value theorem, finite-n Gumbel equality, source replication, novelty, extrapolation beyond the frozen grid, or formal evidence."
+          }
+        ]
+      }
+    }
+  ]
+}
