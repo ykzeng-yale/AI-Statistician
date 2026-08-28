@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "pingouin_joss_rmcorr_public_replication",
+      "title": "Exact replication and audit of the Pingouin repeated-measures correlation author test",
+      "description": "Conduct an L1 public-source replication of the repeated-measures correlation capability named in Vallat, Journal of Open Source Software 3(31), 2018, using Pingouin release v0.6.1 at the fixed repository commit. Use only the operator-supplied hash-bound source snapshot and operator-pinned execution. Inspect the JOSS article source and bibliography, repository README and license, package metadata, current rm_corr and supporting ANCOVA, confidence-interval, and power implementations, bundled rm_corr dataset and catalog, changelog, unchanged author test, transparent operator invocation, and independent environment lock. Run the pinned source once without editing, wrapping, replacing, or supplying model-authored arguments. In one durable Markdown report, identify the paper, current release and commit, source snapshot, author test, invocation file, no-argument command, interpreter, and exact package environment. Explain what the invocation does and distinguish the unchanged author test and package source from the operator invocation. Record the dataset dimensions, subject structure, missingness relevant to this run, variables, method implemented, returned statistics documented or asserted by the source, and the less-than-three-subject behavior checked by the author test. Distinguish values present in source documentation or assertions from bytes actually printed by the pinned process. Interpret the reported coefficient as a common within-subject association under the implemented repeated-measures ANCOVA construction, without turning it into an ordinary independent-observation Pearson correlation, a between-subject relationship, or a causal effect. Audit the relationship among the 2018 software article, the 2026 package release, the source claim of comparison with the R rmcorr package, and what this exact Python rerun actually establishes. Do not claim that this run independently executed R, reproduced a JOSS numerical table or figure, validated every Pingouin method or environment, established a statistical theorem, or produced Lean proof. No model-authored estimator, replacement simulation, novelty claim, or formalization is required. Disclose all remaining source, version, environment, numerical, interpretation, and scientific-scope gaps honestly.",
+      "tags": [
+        "repeated measures",
+        "correlation",
+        "Pingouin",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "Pingouin: statistics in Python",
+        "authors": [
+          "Raphael Vallat"
+        ],
+        "journal": "Journal of Open Source Software",
+        "year": 2018,
+        "volume": 3,
+        "issue": 31,
+        "article": 1026,
+        "doi": "10.21105/joss.01026",
+        "paper_url": "https://joss.theoj.org/papers/10.21105/joss.01026",
+        "repository": "https://github.com/raphaelvallat/pingouin",
+        "repository_release": "v0.6.1",
+        "repository_commit": "2d906c5fe30a44d3652c0895cea519e17d22a9f1",
+        "code_license": "GPL-3.0",
+        "research_source_snapshot_id": "pingouin-joss-rmcorr-v0.6.1-public-replication-v1",
+        "research_source_snapshot_hash": "ae890186047c1cd74a62b7e03ec24ff832a5cd4d21ca510da77d0073233bce52",
+        "research_source_manifest_sha256": "ef27371b119394ce0dbe302bfec369bf98777209e417537ab1536b38d5497933"
+      }
+    }
+  ]
+}
