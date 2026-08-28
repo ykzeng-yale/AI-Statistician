@@ -6,7 +6,7 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`f6494dc8f5969e8576a8a0945a674f2a15ac4de6`.
+`31d338a1af4f79b106f01f2f3a43ac4617ea19bb`.
 
 The cumulative audit through that head continues to support the same boundary:
 a delegated worker receives explicit authority-scoped tools and artifact context,
@@ -3379,3 +3379,35 @@ provider-neutral exact-Haiku evaluation. Commit
 Simulation, and independent-review prompts; AgentRuntime receives no new branch or
 gate. Focused regression passed 145/145 and the complete repository passed 1002/1002
 without rerunning Task 77.
+
+## 2026-08-28 second upstream refresh
+
+Official Codex `main` was fetched again at
+[`31d338a1`](https://github.com/openai/codex/commit/31d338a1af4f79b106f01f2f3a43ac4617ea19bb),
+four commits after the prior `94311d44` pin. Two commits concern Guardian score and
+approval-test behavior, one separates HTTP retry-backoff integration testing, and
+`dc2ccc68` makes spawned Codex agents inherit the root session's service tier.
+
+The service-tier change reinforces one useful control-plane invariant: a root-owned
+execution policy must remain coherent across delegated sessions. AI Statistician
+already applies the stronger frozen-evaluation form of this invariant. One exact
+evaluation model and tier are normalized at the root, every enabled specialist and
+reviewer is checked against that policy before the graph runs, and any mismatch fails
+closed. Production intentionally retains role-level Haiku/Sonnet selection under the
+global Sonnet-or-below ceiling, so copying Codex's single service-tier implementation
+would remove a deliberate scientific-resource choice rather than improve safety.
+
+The core `run_turn`, `ToolRouter`, parallel-tool gate, and session-level collaboration
+principles are unchanged in this delta. No new Codex component is adopted. In
+particular, Codex Core, App Server, Responses transport, thread persistence, Guardian,
+worktree management, and its agent scheduler remain outside the canonical runtime.
+Theory, Python/R, Simulation, and Lean continue to share the provider-neutral
+`client_tool_loop`, with one source-owning model session per workspace and sparse
+hash-bound handoffs through the sole `AgentRuntime`.
+
+The next meaningful evidence is therefore a disjoint frozen live task, not another
+wrapper. It must test whether the existing Theory -> R source -> Simulation -> review
+collaboration preserves one-owner raw-feedback iteration and strict evidence
+boundaries. A failure may justify simplifying an existing shared interface, but cannot
+justify embedding Codex or adding another scheduler, repair agent, fallback, or
+task-specific rule.
