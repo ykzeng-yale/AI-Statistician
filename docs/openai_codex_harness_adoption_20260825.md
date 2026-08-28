@@ -3343,3 +3343,34 @@ genuine independence boundaries. Codex Core, App Server, Responses transport,
 thread storage, provider state, worktree management, and multi-agent scheduling
 remain deliberately outside AI Statistician because they would create a second
 runtime rather than strengthen scientific reasoning.
+
+## Task 77 isolates two harness-owned invariants
+
+The de-biased-Lasso L2 draw used the intended collaboration shape: persistent
+Markdown/LaTeX Theory, a same-owner Python coding loop, a same-owner Simulation
+authoring loop, hash-bound independent reviews, and no compulsory Formalizer. It
+still ended `BLOCKED` and scored hidden `0/1`. The mathematical author and referee
+made substantive KKT and remainder errors, and the estimator violated its visible
+closed ABI despite accurate core numerics and 5/5 hidden empirical checks. Those are
+model capability failures, not reasons to embed another orchestrator.
+
+The trace did identify two responsibilities that belong in a Codex-like harness.
+An immutable operator-owned contract must remain byte- and hash-identical across
+specialist handoffs. A model can author a readable interface note, but that note
+cannot replace the frozen contract or become downstream authority. This is analogous
+to Codex keeping tool schemas and sandbox policy outside the model's editable source.
+
+Likewise, a client tool reports whether execution completed and whether its output
+matched the tool schema. A returned scientific result such as
+`acceptance_passed=false` is still a successful observation. It must not be converted
+into transport failure, automatic retry, or a demand that the model make the
+experiment pass. Frozen confirmatory promotion evaluates that result separately.
+
+This is the maximum useful reuse from the current OpenAI Codex harness for these
+workspaces: centralized immutable tool authority, persistent source ownership, raw
+observations, content-addressed artifacts, and clean terminal semantics. Importing
+Codex Core, App Server, Responses transport, thread state, provider state, worktrees,
+or its multi-agent scheduler would duplicate AI Statistician's AgentRuntime and break
+provider-neutral exact-Haiku evaluation. The implementation response stays narrow:
+fix the two shared invariants in the existing loop, then test them deterministically
+on synthetic cross-domain fixtures without rerunning Task 77.

@@ -1,13 +1,13 @@
 {
-  "schema_version": 247,
+  "schema_version": 248,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "8211a2e1",
+  "validated_code_head": "3777a0cd",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy-six consumed draws and immutable artifacts at trustworthy full-task credit 4/76, with exact development Lean closure still 0/2. Task 76 is consumed 0/1: it exercised persistent Markdown/LaTeX Theory, direct Python and Simulation source-owner loops, independent reviews, hidden code and empirical execution, and correctly omitted Formalizer, but the theory and estimator reverse the Gamma-Poisson conjugate update and the calibrated Haiku theory judge false-accepted the contradiction. Commit b9297aef fixes only the future shared lifecycle exposed by the run: one semantic revision supersedes stale progress/replay continuation state, and the existing reviewer model is asked for a discriminating oracle through the stable probe tool. Keep one AI Statistician AgentRuntime and same-owner model/tool loop; do not embed Codex Core, App Server, Responses transport, thread storage, provider state, another scheduler, RepairAgent, formula rule, or hidden feedback. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy-seven consumed draws and immutable artifacts at trustworthy full-task credit 4/77, with exact development Lean closure still 0/2. Task 77 is consumed 0/1: persistent Markdown/LaTeX Theory, direct Python and Simulation source-owner loops, independent reviews, hidden code and empirical execution, and optional Formalizer topology all ran as designed, but theory/referee KKT and remainder reasoning is invalid, the estimator violates the frozen closed ABI, and Simulation authoring deadlocked because the harness confused successful execution with scientific acceptance. Apply only two future shared Codex-style invariants: carry frozen contracts by exact immutable reference rather than lossy model restatement, and separate tool execution outcome from scientific result. Keep one AI Statistician AgentRuntime and same-owner model/tool loop; do not embed Codex Core, App Server, Responses transport, thread storage, provider state, another scheduler, RepairAgent, formula rule, or hidden feedback. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
   "latest_bocd_gamma_poisson_l2_activation": {
     "task_id": "bayesian_online_changepoint_gamma_poisson_paper_to_code",
     "family": "bayesian_online_changepoint_gamma_poisson",
@@ -69,6 +69,34 @@
     "formalizer_executed": false,
     "trusted_capability_credit": "0/1; aggregate remains 4/76 consumed",
     "boundary": "The sole product draw and sole post-runtime hidden evaluation are immutable. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed hidden/operator findings to Task 76 source owners."
+  },
+  "latest_debiased_lasso_known_precision_l2_evaluation": {
+    "task_id": "debiased_lasso_known_precision_paper_to_code",
+    "family": "high_dimensional_debiased_regression_inference",
+    "level": "L2",
+    "status": "fresh_live_v1_consumed_runtime_blocked_hidden_algorithm_and_theory_failed_empirical_passed_operator_invalidated",
+    "product_head": "3777a0cdab9e7ce022f862cb681688c92741cc92",
+    "run_path": "runs/main_worker_research_l2_debiased_lasso_jmlr_20260828_v1_codex_same_owner_exact_haiku",
+    "runtime_model_policy": "All seven enabled roles used exact claude-haiku-4-5-20251001; zero Sonnet and Opus calls, no provider fallback, and no automatic escalation",
+    "runtime_status": "BLOCKED after 16 traces, 11 outer graph iterations, five same-owner workspace continuations, 49 runtime tool calls, and 183 detailed model turns; terminal classification critic_scientific_inconclusive",
+    "runtime_research_result": "0/1 complete and 1/1 mode-conformant",
+    "automated_hidden_result": "0/1; theory mechanics 7/7 passed but combined semantics failed at 7/8, algorithm passed 2/3 top-level checks over 22 estimator calls, and empirical passed 5/5 over 3000 estimator calls",
+    "operator_theory_finding": "The authoritative Markdown gives opposite KKT signs in active sections, uses the infinity norm instead of the L1 Lasso error in its remainder bound, derives an incompatible log^(3/2) rate, and overstates the complete estimator as exactly conditionally Gaussian. The independent referee repeats the sign error and false-accepts.",
+    "operator_code_finding": "The exact estimator passes hidden numerical recomputation, determinism, and all empirical checks, but violates the visible frozen closed ABI through missing exact-key, strict-type, no-coercion, boolean, numeric-string, and declared-dimension enforcement.",
+    "simulation_finding": "Independent review correctly rejects scientific acceptance below 1000 replicates. The same Simulation owner then withholds acceptance at the fixed 128-replicate authoring diagnostic, but runtime treats acceptance_passed=false as a tool failure and repeats the diagnostic. Execution validity and scientific acceptance are incorrectly conflated.",
+    "future_shared_mechanism_scope": "Preserve frozen execution authority through exact hash-bound references across Theory and Algorithm handoffs, and treat a valid false scientific result as a successful tool observation. No task formula, hidden case, source patch, agent, retry, fallback, scheduler, provider change, or model escalation is allowed.",
+    "runtime_manifest_sha256": "23a85c3fab4832dbf6a668b855fc65382554d2681a6428d31d8b39cd224c3cb2",
+    "runtime_result_sha256": "1eb834dbb27f3f0dfe4bdc73147fd0e982b46ddcf6b037fa75b857ee6f76cc09",
+    "hidden_gold_evaluation_sha256": "bed81b1f7d18b13dde50f7065386c24697693bc9d6c16c494ee0c8fc73b455a7",
+    "runtime_llm_topology_sha256": "e2b864489506b19be6b807d4ddaa1232a05d654d8bd358d87f55beb17d068f3e",
+    "theory_document_sha256": "a04aa1e619529f0253e674d60549a7ae3b3f3e0a445268d8f11d1ca768e5110f",
+    "theory_review_sha256": "53020b72ac23f4b8ec2503a5cd96775d72510198effefc0952c4a444c62fd0dd",
+    "evaluated_estimator_source_hash": "8680b1cf4015d8d3cc35c98903c07f7c6d878b135604934dc410a7e1099bb971",
+    "operator_audit": "docs/operator_audits/debiased_lasso_known_precision_l2_v1.md",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "trusted_capability_credit": "0/1; aggregate remains 4/77 consumed",
+    "boundary": "The sole product draw and sole post-runtime hidden evaluation are immutable. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, or feed hidden/operator findings to Task 77 source owners."
   },
   "latest_codex_tool_observation_fidelity": {
     "implementation_commit": "89a82b282f56a395437b0f3703fb72416d7ecec6",
@@ -3623,7 +3651,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/76 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 74 remains immutable automated 1/1 and trustworthy 0/1 after operator invalidation. Task 75 remains immutable 0/1 after runtime blocked before accepted theory. Task 76 remains immutable 0/1 after hidden algorithm and empirical failure plus operator invalidation of its theory, code, and semantic false acceptance. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
+    "fully_gold_covered_research_tasks": "4/77 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 74 remains immutable automated 1/1 and trustworthy 0/1 after operator invalidation. Task 75 remains immutable 0/1 after runtime blocked before accepted theory. Task 76 remains immutable 0/1 after hidden algorithm and empirical failure plus operator invalidation. Task 77 remains immutable 0/1 after runtime block, hidden theory and public-contract algorithm failure, hidden empirical component success, and operator invalidation of its theory/referee and closed ABI. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -3646,6 +3674,7 @@
     "latest_runtime_manifest_bytes": 41917
   },
   "next_gates": [
+    "Preserve de-biased-Lasso Task 77 at immutable 0/1 and aggregate 4/77. Its Markdown/LaTeX theory and independent referee contain contradictory KKT signs and an invalid remainder argument; its numerically accurate estimator violates the visible frozen closed ABI; hidden empirical authority passed only as component evidence; and confirmatory authoring exposed a shared execution-versus-acceptance deadlock. Correct only future exact contract-reference authority and tool-result semantics. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, add a de-biased-Lasso formula, hidden case, math parser, ABI case, agent, retry, scheduler, fallback, or model escalation.",
     "Preserve BOCD Gamma-Poisson Task 76 at immutable 0/1. Its persistent Markdown/LaTeX theory and exact estimator reverse the shape-rate conjugate update, the independent referee and code reviewer false-accept, hidden algorithm and empirical authority fail, and the terminal Critic remains inconclusive. Treat commit b9297aef only as future-task evidence for singular continuation ownership and model-owned discriminating review. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a BOCD formula, deterministic equation parser, hidden case, reviewer vote, agent, scheduler, fallback, or model escalation.",
     "Preserve Task 74 at immutable automated 1/1 and trustworthy 0/1. Its exact R source execution passed 12/12 and is scoped component evidence; its false 5% significance claim and unsupported robustness, power, historical, and visual claims were accepted by both runtime Critic and the hidden semantic judge. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a sandwich-statistics parser, or feed hidden/operator findings to its source owners.",
     "Preserve Fisher exact-test Task 72 at immutable 0/1. Runtime correctly blocked two unsupported code-review ACCEPT submissions after four model-authored probes failed to invoke the target; hidden theory mechanics passed 7/7 but semantic status remained INCONCLUSIVE; hidden code and empirical execution were ineligible; and operator audit invalidated positive-margin scope, closed ABI, tail identity, and empirical preregistration. Do not rerun, resume, repair, hidden-evaluate again, rescore, resample, add a Fisher formula or ABI parser, wrap the reviewer tool, add retries, or feed hidden/operator findings to its source owners.",

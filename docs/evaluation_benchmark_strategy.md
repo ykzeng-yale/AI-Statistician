@@ -910,3 +910,45 @@ findings never enter its source-owner context.
 The shared panel passed `161/161` and the complete repository passed `1001/1001`
 in 81.48 seconds at 149,993 production Python lines. These are regression facts for
 future tasks, not retrospective Task 76 capability evidence.
+
+## De-biased Lasso known-precision L2 v1
+
+The seventy-seventh fully configured task received exactly one frozen exact-Haiku
+product draw and one post-runtime hidden evaluation. Runtime and hidden full-task
+authority both returned `0/1`; aggregate trusted capability remains `4/77`.
+Formalization was explicitly not applicable and did not run.
+
+The draw again separates a working model/tool loop from scientific correctness.
+TheoryDeveloper produced a persistent 225-line Markdown/LaTeX derivation, but active
+sections give opposite KKT signs, the remainder bound uses an infinity norm where the
+L1 Lasso error is required, and the stated log-rate does not imply its own sparsity
+conclusion. The independent referee repeats the sign error and false-accepts. Hidden
+theory mechanics passed 7/7, while the calibrated semantic result was already
+`INCONCLUSIVE` at seven of eight claims. Operator findings further invalidate the
+positive KKT and remainder assessments.
+
+The accepted Python estimator computes the central de-biasing quantity accurately:
+hidden numerical and determinism checks passed, and hidden empirical authority passed
+5/5 over 3,000 exact calls. It still violates the visible closed ABI by coercing
+values, accepting forbidden JSON types, omitting exact key-set enforcement, and not
+enforcing declared dimensions. Hidden algorithm authority correctly failed its
+aggregate public-contract check. Numerical success and empirical component evidence
+therefore do not become scientific-code capability credit.
+
+The run exposed two future-only shared harness defects. First, TheoryDeveloper
+re-authored a lossy interface summary even though the visible question carried a rich
+frozen execution contract. Frozen authority must travel by exact immutable reference
+and hash; model-authored explanatory notes may supplement but never replace it.
+Second, a 128-replicate authoring diagnostic treated
+`acceptance_passed=false` as a tool error. After independent review required at least
+1,000 replicates, the same Simulation owner could not both honor that protocol and
+make the diagnostic scientifically pass. Tool execution validity and scientific
+acceptance must be separate observations.
+
+These are Codex-style harness invariants, not content repairs: stable tools, exact
+inputs, raw observations, one persistent source owner, and clean termination. No
+de-biased-Lasso formula, hidden case, deterministic equation parser, new agent,
+retry, fallback, scheduler, or model escalation should enter product runtime.
+Task 77 remains immutable and must never be rerun, resumed, repaired,
+hidden-evaluated again, reevaluated, rescored, resampled, or supplied its
+hidden/operator findings as source-owner feedback.
