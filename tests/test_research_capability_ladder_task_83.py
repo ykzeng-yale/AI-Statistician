@@ -9,7 +9,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "pingouin_joss_rmcorr_public_replication"
 
 
-def test_pingouin_rmcorr_l1_is_frozen_once_before_product_draw() -> None:
+def test_pingouin_rmcorr_l1_provider_environment_failure_is_consumed() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -18,8 +18,8 @@ def test_pingouin_rmcorr_l1_is_frozen_once_before_product_draw() -> None:
 
     assert candidate["level"] == "L1"
     assert candidate["family"] == "repeated_measures_correlation_source_replication"
-    assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"].startswith("frozen_ready_")
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"].startswith("fresh_live_v1_consumed_")
     assert candidate["gold_bundle_id"] == (
         "research-l1-pingouin-joss-rmcorr-20260828-v1"
     )
@@ -46,7 +46,21 @@ def test_pingouin_rmcorr_l1_is_frozen_once_before_product_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
+    assert evidence["runtime_status"] == "FAILED"
+    assert evidence["runtime_terminal_subsystem"] == "ArchitectCoordinator"
+    assert evidence["runtime_product_model_calls"] == 0
+    assert evidence["runtime_outer_graph_iterations"] == 1
+    assert evidence["runtime_same_owner_workspace_continuations"] == 0
+    assert evidence["runtime_llm_topology_policy_ok"] is True
+    assert evidence["post_runtime_hidden_assessment_reports"] == 1
+    assert evidence["hidden_gold_tasks_evaluated"] == 0
+    assert evidence["hidden_source_harness_execution_attempted"] is False
+    assert evidence["hidden_source_semantic_execution_attempted"] is False
+    assert evidence["trusted_capability_credit"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/83"
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
 
@@ -75,7 +89,7 @@ def test_pingouin_rmcorr_l1_is_frozen_once_before_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 83
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 82
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 83
     assert readiness["fully_gold_configured_tasks"] == 83
     assert readiness["fully_gold_passed_tasks"] == 4
