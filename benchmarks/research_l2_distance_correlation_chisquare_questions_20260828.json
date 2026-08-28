@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "distance_correlation_chisquare_paper_to_code",
+      "title": "Bias-corrected distance-correlation chi-square independence test from paper to code",
+      "description": "Focused L2 paper-to-code evaluation based on Shen, Panda, and Vogelstein, The Chi-Square Test of Distance Correlation, JCGS 31(1), 2022. The model-visible snapshot contains the exact arXiv v5 LaTeX source and bibliography; author implementations and gold outcomes are withheld from runtime. For iid paired observations (X_i,Y_i), develop one authoritative Markdown/LaTeX Theory workspace that derives Euclidean pairwise distance matrices, the off-diagonal U-centering formula, unbiased distance covariance, bias-corrected distance correlation C in [-1,1], and the convention C=0 when either finite-sample self-distance covariance is not positive. Derive the centered chi-square p-value P(chi-square_1 > nC+1) and the strict reject rule p<alpha. Under independence and the paper's strong-negative-type assumptions, explain the asymptotic null representation nC converging in distribution to a nonnegative-weighted sum of independent (N_ij^2-1) terms with squared weights summing to one. State upper-tail dominance, validity, and consistency with their exact asymptotic and sufficiently-small-alpha qualifications. Treat the paper's n>=20 and alpha<=0.05 language as empirical guidance, not a universal finite-sample theorem. State fixed-alternative consistency and distinguish the general O(n^2) implementation required here from the paper's separate O(n log n) one-dimensional Euclidean method, which is out of scope. The required model-authored artifact is est_distance_correlation_chisquare and must implement the frozen run_estimator(request) contract as Python source. Exploratory Python may diagnose formulas. A separately frozen confirmatory assessment uses alpha=0.05, n=120, and at least 2000 fresh replicates in each of four fully public designs. Normal-null draws X and Y independently from N(0,1). Mixture-null draws independent Z,W from N(0,1) and B,C from Bernoulli(0.5), then uses X=Z/3+2B-1 and Y=W/3+2C-1. Quadratic-alternative draws X from Uniform(-1,1) and Y=X^2+0.5 epsilon. Linear-alternative draws X from Uniform(-1,1) and Y=X+epsilon. Both alternatives use independent epsilon from N(0,1). Before outcomes, freeze the exact estimator invocation and one fresh seed per design. For each null design, the rejection rate plus two Monte Carlo standard errors must not exceed 0.075. For each alternative, the rejection rate minus two Monte Carlo standard errors must be at least 0.90. These finite simulations test implementation behavior only; they do not prove asymptotic validity, universal consistency, or power outside the declared designs. Exact source-code replication, the paper's permutation comparison, K-sample and partial tests, novelty, and Lean formalization are not applicable. Unresolved mathematical, ABI, execution, or empirical gaps must remain explicit.",
+      "tags": [
+        "distance_correlation",
+        "independence_testing",
+        "chi_square_approximation",
+        "paper_to_code",
+        "python_language",
+        "L2"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "The Chi-Square Test of Distance Correlation",
+          "authors": [
+            "Cencheng Shen",
+            "Sambit Panda",
+            "Joshua T. Vogelstein"
+          ],
+          "venue": "Journal of Computational and Graphical Statistics",
+          "year": 2022,
+          "volume": 31,
+          "issue": 1,
+          "pages": "254-262",
+          "identifier": "arXiv:1912.12150v5; DOI 10.1080/10618600.2021.1938585",
+          "url": "https://arxiv.org/abs/1912.12150v5"
+        },
+        "research_source_snapshot_id": "distance-correlation-chi-square-paper-20210814-v1",
+        "research_source_snapshot_hash": "18334eeff9d1010ca62c7e1585b3b44616c0b54af18d728a884ef4f04d8a4f99",
+        "research_source_manifest_sha256": "214cddbfa0de6d12f1197986a732aace0b052ab0a16a62ee0cba2e9bda4fe5a8",
+        "reference_implementation_visibility": "evaluator_only_hidden_for_l2"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_distance_correlation_chisquare",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "The X observations in paired sample order.",
+            "json_type": "array[array[number]]",
+            "shape": "One rectangular n-by-p array with 4 through 2048 rows and 1 through 256 columns.",
+            "units": "arbitrary Euclidean-coordinate units",
+            "indexing": "x[i] and y[i] are the paired observation i, with zero-based JSON row order.",
+            "edge_cases": "Reject Boolean, string, null, object, ragged, empty-column, nonfinite, below-domain, or above-domain values rather than coercing, dropping, padding, clipping, or truncating them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "The Y observations in the same paired sample order as x.",
+            "json_type": "array[array[number]]",
+            "shape": "One rectangular n-by-q array with exactly the same 4 through 2048 rows as x and 1 through 256 columns.",
+            "units": "arbitrary Euclidean-coordinate units",
+            "indexing": "y[i] and x[i] are the paired observation i; p and q need not match.",
+            "edge_cases": "Reject Boolean, string, null, object, ragged, empty-column, nonfinite, row-mismatched, below-domain, or above-domain values rather than coercing, dropping, padding, clipping, or truncating them.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.distance_correlation",
+            "name": "distance_correlation",
+            "meaning": "The Euclidean bias-corrected sample distance correlation C computed from U-centered distance matrices.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "dimensionless",
+            "indexing": "One statistic for the complete paired sample.",
+            "edge_cases": "Return exactly 0.0 when either unbiased finite-sample self-distance covariance is nonpositive; otherwise return the unrounded normalized cross-distance covariance.",
+            "normalization": "C equals the U-centered cross inner product divided by the square root of the two U-centered self inner products; the shared n(n-3) factors cancel."
+          },
+          {
+            "clause_id": "response.p_value",
+            "name": "p_value",
+            "meaning": "The centered chi-square upper-tail p-value for the returned distance correlation.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [0,1].",
+            "units": "probability",
+            "indexing": "One p-value for the complete paired sample.",
+            "edge_cases": "Use the chi-square_1 survival probability at n*distance_correlation+1, including a value of one when that argument is nonpositive; do not use a permutation p-value or a t approximation.",
+            "normalization": "p_value=P(chi-square_1 > n*C+1), equivalently 1-F_(chi-square_1-1)(n*C)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly x and y, and the response contains exactly distance_correlation and p_value. Missing, extra, malformed, nonfinite, or out-of-domain values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.u_centering",
+            "meaning": "For each Euclidean distance matrix D and i not equal to j, the centered entry is D_ij-row_sum_i/(n-2)-column_sum_j/(n-2)+total_sum/((n-1)(n-2)), and every diagonal entry is exactly zero before inner products are taken."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, access files, invoke subprocesses, or use the network."
+          },
+          {
+            "clause_id": "invariant.paired_euclidean_invariance",
+            "meaning": "A common permutation of paired rows leaves both outputs unchanged. Separate Euclidean translations, orthogonal coordinate changes, and nonzero rescalings of x or y leave both outputs unchanged up to floating roundoff."
+          },
+          {
+            "clause_id": "invariant.general_complexity_scope",
+            "meaning": "The required implementation computes general multivariate Euclidean pairwise distances and U-centering in O(n^2(p+q)) arithmetic and O(n^2) auxiliary storage. It neither claims nor must implement the paper's separate O(n log n) one-dimensional algorithm."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze alpha=0.05, n=120, the four declared DGPs, at least 2000 fresh replicates per DGP, one fresh seed per DGP, exact estimator invocation, strict p_value<alpha rejection, Monte Carlo standard errors, and the one-sided two-standard-error decision rules."
+          },
+          {
+            "clause_id": "claim.empirical.null_calibration",
+            "meaning": "For both the independent standard-normal DGP and the declared independent two-component Gaussian-mixture DGP, the rejection rate plus two Monte Carlo standard errors is at most 0.075."
+          },
+          {
+            "clause_id": "claim.empirical.alternative_power",
+            "meaning": "For both the declared quadratic and linear alternatives, the rejection rate minus two Monte Carlo standard errors is at least 0.90."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment tests executable fidelity and behavior on four finite designs only. It is not proof of upper-tail dominance, asymptotic validity, universal consistency, finite-sample control for arbitrary marginals, author-code replication, novelty, or formal correctness."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite pairwise Euclidean distance, U-centering, inner-product, and chi-square-tail calculations and returns exactly one response without randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
