@@ -1,0 +1,59 @@
+{
+  "questions": [
+    {
+      "id": "statlib_qmd_score_mean_zero_univ_formal_known_result",
+      "title": "Mean-zero QMD score on the full parameter space",
+      "description": "Focused formal L0 known-result evaluation in asymptotic statistical theory. Complete the single operator-frozen Lean declaration in formal_target_contract using the pinned active Statlib project. The exact namespace, variables, assumptions, QMD definition, integral, conclusion, declaration name, and source prefix are authoritative and must not be weakened, replaced, or renamed. Use indexed Statlib/Mathlib declarations, exact source inspection, proof search, independent Lean scratch, and raw local Lean feedback as useful. Submit one standalone Lean source for AIStatisticianBench.qmd_score_mean_zero_univ. The proof is hidden, and the closing Statlib declaration name is not supplied. Retrieval hits, scratch compilation, model judgment, and compilation of a different declaration do not count. Success requires independent whole-target semantic acceptance, clean axiom audit, and unchanged exact-source local kernel promotion. If the bounded workspace cannot close the target, report the concrete formal gap without inventing an axiom, sorry, or altered theorem. Theory development, scientific Python/R code, simulation, source replication, and novelty are not applicable to this proof-only task.",
+      "tags": [
+        "formal_L0",
+        "Statlib",
+        "QMD",
+        "mean_zero_score",
+        "asymptotic_statistics",
+        "Lean"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "required",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "not_applicable"
+      },
+      "source": {
+        "library": "stat-lib/statlib",
+        "module": "Statlib.QMD",
+        "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+        "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a",
+        "lean_toolchain": "leanprover/lean4:v4.30.0",
+        "code_license": "Apache-2.0"
+      },
+      "formal_target_contract": {
+        "schema_version": 1,
+        "contract_kind": "operator_frozen_exact_lean_target",
+        "target_id": "statlib_qmd_score_mean_zero_univ",
+        "declaration_name": "AIStatisticianBench.qmd_score_mean_zero_univ",
+        "lean_source_prefix": "import Statlib.QMD\n\nopen scoped Topology\n\nopen Filter MeasureTheory\n\nnamespace AIStatisticianBench\n\ntheorem qmd_score_mean_zero_univ\n    {Omega E : Type*} {mOmega : MeasurableSpace Omega} [AddCommMonoid E]\n    [Module Real E] [TopologicalSpace E] [SeparatelyContinuousAdd E]\n    [ContinuousSMul Real E] {P : E → Measure Omega} {mu : Measure Omega}\n    [SigmaFinite mu] {theta h : E} {A : E →ₗ[Real] (Omega →₂[P theta] Real)}\n    (hA : QMD.HasHadamardQuadraticMeanDerivWithinAt P mu Set.univ theta A)\n    (hprob : ∀ x, IsProbabilityMeasure (P x))\n    (hdom : ∀ x, P x ≪ mu) :\n    ∫ omega, A h omega ∂P theta = 0 := by\n",
+        "lean_source_prefix_sha256": "9de233f67bf34d7d5875c069d7f14c30bd9a0e7dd019228ba852f31883411b83",
+        "proof_visibility": "hidden",
+        "lean_environment": {
+          "project_id": "EmpericalProcessLEAN-Statlib-active-20260828",
+          "project_commit": "4cec7860c926feebd4cbcdaccedb63b2156972dd",
+          "lean_toolchain": "leanprover/lean4:v4.30.0",
+          "lean_toolchain_file_sha256": "54727eec5cba149c18842e6deb5c41b369d66455c93ce135d7d5347c782b2325",
+          "lake_manifest_sha256": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
+          "lakefile_sha256": "2066011983ec7ed716f5c4e6224c5e779c3237bf96f4b7f4ae63083ded34fb66",
+          "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+          "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a"
+        },
+        "required_primitives": [
+          "QMD.HasHadamardQuadraticMeanDerivWithinAt",
+          "MeasureTheory.Measure",
+          "MeasureTheory.IsProbabilityMeasure",
+          "MeasureTheory.Integral"
+        ]
+      }
+    }
+  ]
+}
