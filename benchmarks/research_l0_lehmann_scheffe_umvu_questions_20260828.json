@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "lehmann_scheffe_complete_sufficient_umvu_known_result",
+      "title": "Complete sufficiency, Rao-Blackwellization, and the unique UMVU estimator",
+      "description": "Focused known-result theory evaluation grounded in E. L. Lehmann and Henry Scheffe, Completeness, Similar Regions, and Unbiased Estimation: Part I, Sankhya 10(4) (1950), pages 305-340, JSTOR stable 25048038. Work in a dominated statistical experiment on a standard Borel sample space, with parameter theta and observation X. Let T=T(X) be sufficient in the conditional-law sense: a regular conditional law of X given T has one parameter-independent version. Let T also be complete: every integrable measurable a(T) whose expectation is zero for every theta vanishes P_theta-almost surely for every theta. Suppose U=U(X) has finite second moment under every P_theta and is unbiased for a real target g(theta). In one authoritative Markdown/LaTeX theory workspace, construct the Rao-Blackwellized estimator delta(T), explain precisely where sufficiency makes it one parameter-independent statistic, and derive its unbiasedness and the exact conditional-variance decomposition. Use completeness to prove uniqueness among unbiased functions of T. Then compare delta with an arbitrary finite-variance unbiased estimator V to prove that delta is uniformly minimum-variance unbiased over the full competitor class, not only among T-measurable estimators. Finally prove the corresponding almost-sure uniqueness statement for any other UMVU estimator by combining Rao-Blackwellization with the equality case of the variance decomposition. Keep P_theta-almost-sure statements distinct from pointwise equality, identify all regularity and integrability assumptions actually used, and explain why sufficiency without completeness and completeness without a parameter-independent conditional law do not establish the same conclusion. Keep active and rejected calculations visibly distinct and disclose unresolved scope gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Lehmann-Scheffe theorem",
+        "complete statistic",
+        "sufficient statistic",
+        "Rao-Blackwellization",
+        "UMVU",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Completeness, Similar Regions, and Unbiased Estimation: Part I",
+        "authors": [
+          "E. L. Lehmann",
+          "Henry Scheffe"
+        ],
+        "journal": "Sankhya: The Indian Journal of Statistics",
+        "year": 1950,
+        "volume": 10,
+        "issue": 4,
+        "pages": "305-340",
+        "jstor_stable": "25048038",
+        "url": "https://www.jstor.org/stable/25048038"
+      }
+    }
+  ]
+}
