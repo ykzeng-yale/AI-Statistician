@@ -6,10 +6,11 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
+LATEST_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
+TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 75
-CURRENT_CONSUMED_TASKS = 74
+CURRENT_CONSUMED_TASKS = 75
 CURRENT_OPERATOR_INVALID_TASKS = 14
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
@@ -6621,7 +6622,7 @@ def test_welch_satterthwaite_l0_consumed_draw_is_operator_invalidated() -> None:
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
-    assert "long-form near miss" in readiness["latest_shared_mechanism_summary"]
+    assert "long-form near miss" in readiness["executable_activation_gate"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -6739,7 +6740,7 @@ def test_neyman_scott_l0_automated_pass_is_operator_invalidated() -> None:
     assert readiness["fully_gold_passed_tasks"] == 4
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
-    assert "long-form near miss" in readiness["latest_shared_mechanism_summary"]
+    assert "long-form near miss" in readiness["executable_activation_gate"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -7369,7 +7370,7 @@ def test_sandwich_jss_r_l1_is_consumed_and_operator_invalidated() -> None:
     assert evidence["architect_model_calls"] == 2
     assert evidence["architect_full_packet_regenerations"] == 1
     assert evidence["post_run_shared_mechanism_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        TASK_74_SHARED_MECHANISM_HEAD
     )
     assert evidence["post_run_shared_mechanism_change"].startswith(
         "Future tasks only:"
@@ -7425,7 +7426,7 @@ def test_sandwich_jss_r_l1_is_consumed_and_operator_invalidated() -> None:
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
 
 
-def test_lehmann_scheffe_l0_is_frozen_and_unconsumed() -> None:
+def test_lehmann_scheffe_l0_is_consumed_once_and_immutable() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -7436,8 +7437,10 @@ def test_lehmann_scheffe_l0_is_frozen_and_unconsumed() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "complete_sufficient_umvu_estimation"
-    assert candidate["status"] == "active_scored"
-    assert candidate["activation_status"].startswith("frozen_ready_")
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_consumed_runtime_blocked_no_hidden_theory_execution"
+    )
     assert candidate["gold_bundle_id"] == (
         "research-l0-lehmann-scheffe-umvu-20260828-v1"
     )
@@ -7460,11 +7463,76 @@ def test_lehmann_scheffe_l0_is_frozen_and_unconsumed() -> None:
         "3bd92ff71d4ce8b4900cc75e4701f19df27fbde1"
     )
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["product_code_head"] == (
+        "75620bf8ff5f0007e8287ac4d68f8c841f9f5c8f"
+    )
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["product_model_calls"] == 67
+    assert evidence["initial_architect_planning_model_calls"] == 1
+    assert evidence["client_tool_model_turns"] == 66
+    assert evidence["theory_developer_model_turns"] == 32
+    assert evidence["independent_referee_model_turns"] == 34
+    assert evidence["runtime_outer_graph_iterations"] == 6
+    assert evidence["runtime_trace_labeled_architect_coordinator_rows"] == 3
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_failure_classification"] == (
+        "theory_developer_packet_validation_failed"
+    )
+    assert evidence["research_eval_complete"] is False
+    assert evidence["research_eval_mode_conformant"] is True
+    assert evidence["hidden_evaluator_runs"] == 1
+    assert evidence["hidden_tasks_evaluated"] == 0
+    assert evidence["hidden_theory_execution_attempted"] is False
+    assert evidence["theory_document_lines"] == 235
+    assert evidence["theory_document_bytes"] == 17403
+    assert evidence["independent_referee_cycles"] == 2
+    assert evidence["future_shared_mechanism_commit"] == (
+        LATEST_SHARED_MECHANISM_HEAD
+    )
+    assert "998/998" in evidence["evidence_closeout_verification"]
+    assert "No model or hidden-evaluator call" in (
+        evidence["evidence_closeout_verification"]
+    )
     assert evidence["formalizer_executed"] is False
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/75"
+    assert evidence["post_run_score_changed"] is False
+
+    run_path = Path(evidence["immutable_run_path"])
+    assert run_path.is_dir()
+    for filename, field in (
+        ("research_agent_runtime_manifest.json", "runtime_manifest_sha256"),
+        (
+            "lehmann_scheffe_complete_sufficient_umvu_known_result_runtime_result.json",
+            "runtime_result_sha256",
+        ),
+        (
+            "research_capability_gold_evaluation.json",
+            "hidden_gold_evaluation_sha256",
+        ),
+        ("runtime_completion_summary.json", "runtime_completion_summary_sha256"),
+        ("runtime_failure_summary.json", "runtime_failure_summary_sha256"),
+        ("runtime_observations.jsonl", "runtime_observations_sha256"),
+        ("runtime_task_handoffs.jsonl", "runtime_task_handoffs_sha256"),
+        ("runtime_progress.jsonl", "runtime_progress_sha256"),
+        ("runtime_llm_topology.json", "runtime_llm_topology_sha256"),
+        ("runtime_tool_calls.jsonl", "runtime_tool_calls_sha256"),
+    ):
+        assert hashlib.sha256((run_path / filename).read_bytes()).hexdigest() == (
+            evidence[field]
+        )
+
+    theory_path = run_path / evidence["theory_document_path"]
+    assert hashlib.sha256(theory_path.read_bytes()).hexdigest() == (
+        evidence["theory_document_sha256"]
+    )
+    assert len(theory_path.read_text(encoding="utf-8").splitlines()) == 235
+    assert Path(evidence["operator_audit_path"]).is_file()
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
