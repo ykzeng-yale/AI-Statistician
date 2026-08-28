@@ -1,13 +1,22 @@
 {
-  "schema_version": 259,
+  "schema_version": 260,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "05d64366",
+  "validated_code_head": "421afa00",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-three consumed draws and immutable artifacts at trustworthy full-task credit 4/83, with exact development Lean closure still 0/2. Task 83 remains consumed 0/1 after a pre-model missing-SDK failure and cannot be rerun. Commit 05d64366 makes future canonical Claude launches validate the primary Anthropic SDK and credential inside the existing startup preflight before any AgentTask or artifact. Continue with one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; direct raw scientific feedback to the same source owner, preserve isolated hash-bound reviewer identity, keep Formalizer task-intent driven, use exact claude-haiku-4-5-20251001 for all tests and evaluations, and prohibit Opus.",
+  "current_goal_focus": "Preserve all eighty-three consumed draws and immutable artifacts at trustworthy full-task credit 4/83, with exact development Lean closure still 0/2. Task 83 remains consumed 0/1 and cannot be rerun. Commit 421afa00 now starts a frozen single-workspace task with its source owner directly, while mixed-lane and resumed work retain Architect or pending-task ownership. Continue with one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; direct raw scientific feedback to the same source owner, preserve isolated hash-bound reviewer identity, keep Formalizer task-intent driven, use exact claude-haiku-4-5-20251001 for all tests and evaluations, and prohibit Opus.",
+  "latest_frozen_single_workspace_startup": {
+    "commit": "421afa0086bb95fd93bf83eb2b08894f5ada98b8",
+    "official_codex_basis": "Reuse Codex's same-owner model/tool/observation loop and sparse-handoff principle, not its App Server, Responses transport, thread store, Guardian, worktrees, provider state, or scheduler.",
+    "change": "When operator-frozen task intent has source_replication as its sole substantive required workspace, the existing TheoryDeveloper source workspace starts directly. Existing exact formal-only work still starts through formal RAG, and mixed-lane tasks still begin with Architect.",
+    "runtime_effect": "The integrated source-only topology decreases from Architect REROUTE plus TheoryDeveloper ACCEPTED to one TheoryDeveloper ACCEPTED outer step; Architect traces decrease from one to zero without changing source execution, checkpoint validation, evidence gates, or final authority.",
+    "resume_boundary": "Pending resume tasks remain first authority because direct-task selection is evaluated lazily only after resume_pending_task is absent.",
+    "verification": "Focused runtime/control regressions passed 142/142; the final complete repository passed 1020/1020 in 80.51 seconds. Compileall, diff and secret hygiene passed. research_agent_runtime.py decreased to 24951 lines and top-level production Python remains 149999 lines under unchanged budgets.",
+    "model_and_evidence_boundary": "No product or evaluator model call, task activation, consumed-task action, statistical rule, Lean grammar rule, repair agent, retry, fallback, provider, scheduler, hidden feedback, rescore, or capability credit was added. Tests and evaluations remain exact claude-haiku-4-5-20251001; Opus remains prohibited."
+  },
   "latest_pingouin_rmcorr_l1_evaluation": {
     "task_id": "pingouin_joss_rmcorr_public_replication",
     "family": "repeated_measures_correlation_source_replication",

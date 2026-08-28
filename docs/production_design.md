@@ -34,11 +34,11 @@ Goal, source policy, and task-intent evidence contract
   -> final critic with a per-dimension evidence vector
 ```
 
-The Architect creates the initial plan, resolves independently evidenced conflicts
-between workspaces, and decides when to stop. Exhausting a source-workspace budget
-produces a typed block; it does not by itself trigger another routing call. Routine
-syntax, ABI, compiler, simulation, or Lean failures stay with the model that owns
-the source.
+Frozen intent that names one workspace starts its source owner directly. Otherwise
+the Architect creates the initial plan, resolves independently evidenced conflicts,
+and decides when to stop. Exhausting a source-workspace budget produces a typed block;
+it does not by itself trigger another routing call. Routine syntax, ABI, compiler,
+simulation, or Lean failures stay with the model that owns the source.
 
 Every source-owning workspace uses the same loop:
 
@@ -63,7 +63,7 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness reference is [OpenAI Codex at `76253439`](https://github.com/openai/codex/tree/7625343977154efed8c0dadba956374992a1580b). We adopt its incremental session history,
+The general harness reference is [OpenAI Codex at `3ae4225b`](https://github.com/openai/codex/tree/3ae4225b1761c135c6d3bbc1ea0cfcfc95752cdc). We adopt its incremental session history,
 immutable per-step tool snapshot, generic tool registry, raw tool-error feedback,
 cancellation, checkpoint/resume, and bounded context discipline. The Claude transport
 also retains one Anthropic SDK client across consecutive model/tool rounds on the same

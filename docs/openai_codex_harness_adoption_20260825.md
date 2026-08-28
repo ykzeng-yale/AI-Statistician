@@ -3677,3 +3677,30 @@ top-level production Python from 149,999 to 149,998 lines. Focused backend, CLI,
 model-policy, ladder, and control-plane tests passed 187/187; the complete repository
 passed 1019/1019 in 80.45 seconds. Task 83 remains immutable and cannot validate this
 future-only mechanism.
+
+## 2026-08-28 frozen single-workspace ownership
+
+Commit `421afa0086bb95fd93bf83eb2b08894f5ada98b8` applies another Codex harness
+principle without importing Codex itself: a model/tool session should retain ownership
+until a real cross-workspace decision exists. Previously, even an operator-frozen
+source-replication-only task spent one model call and one outer iteration on Architect
+before entering the existing TheoryDeveloper source workspace. Architect had no
+scientific choice to make, and runtime already had to override an incompatible route.
+
+The sole `AgentRuntime` now derives initial ownership from frozen task intent when one
+workspace is unambiguous. Source-replication-only work starts TheoryDeveloper directly;
+exact formal-only work retains its direct RAG-to-Formalizer path. Mixed source/theory,
+code, empirical, ambiguous, and resumed tasks preserve their prior Architect or pending
+task ownership. This is deterministic control routing only. The source-owning model
+still runs the immutable source, reads raw observations, writes the Markdown report,
+and chooses whether to commit or disclose a blocker. Runtime neither interprets nor
+repairs scientific content.
+
+The integrated source-only regression now consumes one outer step and zero Architect
+traces instead of two steps and one Architect trace. A mixed-lane counterexample proves
+that the optimization does not become a fixed research-order rule, and lazy resume
+precedence is preserved. No agent, scheduler, provider, retry, fallback, repair path,
+content parser, model call, or evidence promotion was added. Focused control regressions
+passed 142/142 and the final complete repository passed 1020/1020 in 80.51 seconds. Central
+runtime shrank to 24,951 lines; production Python remains at the strict 149,999-line
+budget. All consumed tasks and the aggregate `4/83` capability record remain unchanged.
