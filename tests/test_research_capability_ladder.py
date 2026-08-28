@@ -6,11 +6,11 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "dd8ae7f26910bf7b298ca4a5702f467a974e8434"
+LATEST_SHARED_MECHANISM_HEAD = "02ce1ae3cf73c73bc41f3744f3a7f9d160cef1f8"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 71
-CURRENT_CONSUMED_TASKS = 70
-CURRENT_OPERATOR_INVALID_TASKS = 10
+CURRENT_CONSUMED_TASKS = 71
+CURRENT_OPERATOR_INVALID_TASKS = 11
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
 TASK_62_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
@@ -6851,7 +6851,7 @@ def test_fieller_ratio_l0_preserves_theory_component_and_full_task_failure() -> 
         assert hidden_name not in runtime_visible
 
 
-def test_randomized_distributional_transform_l0_is_frozen_before_product_draw() -> None:
+def test_randomized_distributional_transform_l0_consumption_is_immutable() -> None:
     ladder = _load_ladder()
     candidate = next(
         row
@@ -6864,9 +6864,10 @@ def test_randomized_distributional_transform_l0_is_frozen_before_product_draw() 
     assert candidate["family"] == (
         "probability_integral_transform_mixed_distributions"
     )
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_schema_v4_exact_haiku_product_not_started"
+        "fresh_live_v1_consumed_operator_invalidated_theory_scope_and_"
+        "simulation_review_false_accept"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-randomized-distributional-transform-20260827-v1"
@@ -6911,12 +6912,35 @@ def test_randomized_distributional_transform_l0_is_frozen_before_product_draw() 
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["product_code_head"] == (
+        "6e9295de6bf84795fa13fe15362a7c4f085d8887"
+    )
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_research_eval_complete"] == "1/1"
+    assert evidence["hidden_full_task_result"] == "0/1"
+    assert evidence["runtime_outer_graph_iterations"] == 11
+    assert evidence["runtime_same_owner_workspace_continuations"] == 2
+    assert evidence["runtime_tool_calls"] == 17
+    assert evidence["enabled_llm_roles"] == 7
+    assert evidence["enabled_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["enabled_sonnet_calls"] == 0
+    assert evidence["enabled_opus_calls"] == 0
+    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
+    assert evidence["hidden_algorithm_checks"] == "8/8"
+    assert evidence["hidden_empirical_checks"] == "7/7"
+    assert evidence["operator_disposition"] == (
+        "OPERATOR_INVALIDATED_THEORY_SCOPE_CONTRACTION_AND_SIMULATION_REVIEW_FALSE_ACCEPT"
+    )
+    assert Path(evidence["operator_audit_path"]).exists()
+    assert evidence["post_run_shared_mechanism_commit"] == "02ce1ae3"
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/71"
 
     readiness = ladder["current_readiness"]
     assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
