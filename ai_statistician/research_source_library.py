@@ -33,8 +33,8 @@ RESEARCH_SOURCE_NOT_PROOF_EVIDENCE = (
 SOURCE_REPLICATION_NOT_PROOF_EVIDENCE = (
     "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
 )
-SOURCE_EXECUTION_SCHEMA_VERSION = 2
-SUPPORTED_SOURCE_EXECUTION_SCHEMA_VERSIONS = frozenset({1, 2})
+SOURCE_EXECUTION_SCHEMA_VERSION = 3
+SUPPORTED_SOURCE_EXECUTION_SCHEMA_VERSIONS = frozenset({1, 2, 3})
 MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024
 MAX_SOURCE_READ_LINES = 240
 MAX_SOURCE_READ_CHARS = 50_000
@@ -45,6 +45,10 @@ MAX_SOURCE_RESULT_ARTIFACTS = 32
 MAX_SOURCE_RESULT_READ_LINES = 240
 MAX_SOURCE_RESULT_READ_CHARS = 50_000
 MAX_SOURCE_RESULT_SUMMARY_UNIQUE_VALUES = 16
+SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS = frozenset("""HOME LANG LC_ALL PATH
+    PYTHONHASHSEED PYTHONDONTWRITEBYTECODE PYTHONNOUSERSITE R_ENVIRON_USER
+    R_HISTFILE R_PROFILE_USER TMPDIR TZ OMP_NUM_THREADS OPENBLAS_NUM_THREADS
+    MKL_NUM_THREADS NUMEXPR_NUM_THREADS PYTHONPATH""".split())
 PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
 
 
@@ -338,8 +342,10 @@ class ResearchSourceExecutionSpec:
     entrypoint_document_id: str
     environment_lock_document_id: str
     environment_root: Path
-    python_executable: Path
-    python_executable_sha256: str
+    runtime_language: str
+    interpreter_executable: Path
+    interpreter_executable_sha256: str
+    environment_probe_document_id: str
     runtime_read_roots: tuple[Path, ...]
     working_directory_relative: str
     arguments: tuple[str, ...]
@@ -350,30 +356,33 @@ class ResearchSourceExecutionSpec:
     schema_version: int = 1
     execution_workspace_mode: str = "immutable_source"
     result_artifact_paths: tuple[str, ...] = ()
+    interpreter_arguments: tuple[str, ...] = ()
+    runtime_environment: tuple[tuple[str, str], ...] = ()
 
     def descriptor(self, snapshot: ResearchSourceSnapshot) -> dict[str, Any]:
         entrypoint = snapshot.document(self.entrypoint_document_id)
         environment_lock = snapshot.document(self.environment_lock_document_id)
-        return {
-            "schema_version": self.schema_version,
-            "artifact_kind": "ResearchSourceExecutionDescriptor",
-            "execution_id": self.execution_id,
-            "benchmark_id": self.benchmark_id,
-            "execution_spec_sha256": self.manifest_sha256,
-            "source_snapshot_id": self.source_snapshot_id,
-            "source_snapshot_hash": self.source_snapshot_hash,
-            "source_manifest_sha256": self.source_manifest_sha256,
-            "source_commit": self.source_commit,
-            "entrypoint_document_id": self.entrypoint_document_id,
-            "entrypoint_sha256": entrypoint.sha256,
-            "environment_lock_document_id": self.environment_lock_document_id,
-            "environment_lock_sha256": environment_lock.sha256,
-            "package_distributions": dict(self.package_distributions),
-            "working_directory_relative": self.working_directory_relative,
-            "arguments": list(self.arguments),
-            "timeout_seconds": self.timeout_seconds,
-            "max_output_bytes": self.max_output_bytes,
-            "execution_workspace_mode": self.execution_workspace_mode,
+        probe_sha256 = (
+            snapshot.document(self.environment_probe_document_id).sha256
+            if self.environment_probe_document_id
+            else hashlib.sha256(
+                _python_environment_probe_code(dict(self.package_distributions)).encode()
+            ).hexdigest()
+        )
+        descriptor = {
+            "schema_version": self.schema_version, "artifact_kind": "ResearchSourceExecutionDescriptor",
+            "execution_id": self.execution_id, "benchmark_id": self.benchmark_id,
+            "execution_spec_sha256": self.manifest_sha256, "source_snapshot_id": self.source_snapshot_id,
+            "source_snapshot_hash": self.source_snapshot_hash, "source_manifest_sha256": self.source_manifest_sha256,
+            "source_commit": self.source_commit, "entrypoint_document_id": self.entrypoint_document_id,
+            "entrypoint_sha256": entrypoint.sha256, "environment_lock_document_id": self.environment_lock_document_id,
+            "environment_lock_sha256": environment_lock.sha256, "runtime_language": self.runtime_language,
+            "interpreter_executable_sha256": self.interpreter_executable_sha256,
+            "environment_probe_document_id": self.environment_probe_document_id, "environment_probe_sha256": probe_sha256,
+            "package_distributions": dict(self.package_distributions), "working_directory_relative": self.working_directory_relative,
+            "interpreter_arguments": list(self.interpreter_arguments), "arguments": list(self.arguments),
+            "runtime_environment": dict(self.runtime_environment), "timeout_seconds": self.timeout_seconds,
+            "max_output_bytes": self.max_output_bytes, "execution_workspace_mode": self.execution_workspace_mode,
             "result_artifact_paths": list(self.result_artifact_paths),
             "runtime_executable_sha256": [
                 sha256 for _, sha256 in self.runtime_executables
@@ -391,6 +400,9 @@ class ResearchSourceExecutionSpec:
                 "command. Raw execution is replication evidence, not a theorem proof."
             ),
         }
+        if self.schema_version < 3:
+            descriptor["python_executable_sha256"] = self.interpreter_executable_sha256
+        return descriptor
 
 
 def load_research_source_execution_spec(
@@ -403,30 +415,17 @@ def load_research_source_execution_spec(
     payload = json.loads(manifest_bytes.decode("utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError("research source execution manifest must be a JSON object")
-    allowed_fields = {
-        "schema_version",
-        "artifact_kind",
-        "execution_id",
-        "benchmark_id",
-        "source_snapshot_id",
-        "source_snapshot_hash",
-        "source_manifest_sha256",
-        "source_commit",
-        "entrypoint_document_id",
-        "environment_lock_document_id",
-        "environment_root",
-        "python_executable_relative_path",
-        "python_executable_sha256",
-        "runtime_read_roots",
-        "runtime_executables",
-        "working_directory_relative",
-        "arguments",
-        "package_distributions",
-        "timeout_seconds",
-        "max_output_bytes",
-        "execution_workspace_mode",
-        "result_artifact_paths",
-    }
+    allowed_fields = set(
+        """schema_version artifact_kind execution_id benchmark_id source_snapshot_id
+        source_snapshot_hash source_manifest_sha256 source_commit
+        entrypoint_document_id environment_lock_document_id environment_root
+        python_executable_relative_path python_executable_sha256 runtime_language
+        interpreter_executable_relative_path interpreter_executable_sha256
+        environment_probe_document_id runtime_read_roots runtime_executables
+        interpreter_arguments runtime_environment
+        working_directory_relative arguments package_distributions timeout_seconds
+        max_output_bytes execution_workspace_mode result_artifact_paths""".split()
+    )
     unknown_fields = sorted(set(payload) - allowed_fields)
     if unknown_fields:
         raise ValueError(
@@ -471,37 +470,63 @@ def load_research_source_execution_spec(
     )
     entrypoint = research_sources.document(entrypoint_document_id)
     research_sources.document(environment_lock_document_id)
-    if Path(entrypoint.relative_path).suffix.lower() != ".py":
-        raise ValueError("research source execution currently requires a Python entrypoint")
+    legacy_python = int(schema_version) < 3
+    python_fields = {"python_executable_relative_path", "python_executable_sha256"}
+    interpreter_fields = {
+        "runtime_language", "interpreter_executable_relative_path",
+        "interpreter_executable_sha256", "environment_probe_document_id",
+        "interpreter_arguments", "runtime_environment",
+    }
+    if legacy_python and set(payload) & interpreter_fields:
+        raise ValueError("source execution schema versions 1 and 2 use Python fields")
+    if not legacy_python and set(payload) & python_fields:
+        raise ValueError("source execution schema version 3 uses interpreter fields")
+    if legacy_python:
+        runtime_language = "python"
+        environment_probe_document_id = ""
+        executable_path_field = "python_executable_relative_path"
+        executable_hash_field = "python_executable_sha256"
+        if Path(entrypoint.relative_path).suffix.lower() != ".py":
+            raise ValueError(
+                "research source execution schema versions 1 and 2 require a Python entrypoint"
+            )
+    else:
+        runtime_language = _required_text(payload, "runtime_language").lower()
+        if len(runtime_language) > 32 or any(
+            character not in "abcdefghijklmnopqrstuvwxyz0123456789_+-"
+            for character in runtime_language
+        ):
+            raise ValueError("runtime_language must be a lowercase language identifier")
+        environment_probe_document_id = _required_text(
+            payload, "environment_probe_document_id"
+        )
+        research_sources.document(environment_probe_document_id)
+        executable_path_field = "interpreter_executable_relative_path"
+        executable_hash_field = "interpreter_executable_sha256"
     source_commit = _required_text(payload, "source_commit")
     if entrypoint.git_commit and entrypoint.git_commit != source_commit:
         raise ValueError("research source execution commit does not match the entrypoint")
-
-    environment_root = Path(
-        _required_text(payload, "environment_root")
-    ).expanduser().resolve()
+    environment_root = Path(_required_text(payload, "environment_root")).expanduser().resolve()
     if not environment_root.is_dir():
         raise ValueError("research source execution environment_root is unavailable")
     executable_relative = PurePosixPath(
-        _required_text(payload, "python_executable_relative_path")
+        _required_text(payload, executable_path_field)
     )
     if executable_relative.is_absolute() or ".." in executable_relative.parts:
-        raise ValueError("python executable must stay inside environment_root")
-    python_executable = environment_root / executable_relative
-    resolved_python_executable = python_executable.resolve()
+        raise ValueError("interpreter executable must stay inside environment_root")
+    interpreter_executable = environment_root / executable_relative
+    resolved_interpreter_executable = interpreter_executable.resolve()
     try:
-        python_executable.relative_to(environment_root)
+        interpreter_executable.relative_to(environment_root)
     except ValueError:
-        raise ValueError("python executable must stay inside environment_root")
-    if not resolved_python_executable.is_file() or not os.access(
-        python_executable, os.X_OK
+        raise ValueError("interpreter executable must stay inside environment_root")
+    if not resolved_interpreter_executable.is_file() or not os.access(
+        interpreter_executable, os.X_OK
     ):
-        raise ValueError("python executable is unavailable or not executable")
-    expected_executable_hash = _required_sha256(
-        payload, "python_executable_sha256"
-    )
-    if _file_sha256(resolved_python_executable) != expected_executable_hash:
-        raise ValueError("python executable sha256 mismatch")
+        raise ValueError("interpreter executable is unavailable or not executable")
+    expected_executable_hash = _required_sha256(payload, executable_hash_field)
+    if _file_sha256(resolved_interpreter_executable) != expected_executable_hash:
+        raise ValueError("interpreter executable sha256 mismatch")
 
     raw_runtime_roots = payload.get("runtime_read_roots", [])
     if not isinstance(raw_runtime_roots, list) or len(raw_runtime_roots) > 8:
@@ -514,11 +539,8 @@ def load_research_source_execution_spec(
         if not root.exists():
             raise ValueError(f"runtime read root is unavailable: {root}")
         runtime_roots.append(root)
-
     raw_runtime_executables = payload.get("runtime_executables", {})
-    if not isinstance(raw_runtime_executables, Mapping) or len(
-        raw_runtime_executables
-    ) > 8:
+    if not isinstance(raw_runtime_executables, Mapping) or len(raw_runtime_executables) > 8:
         raise ValueError(
             "runtime_executables must be an object with at most eight path hashes"
         )
@@ -536,15 +558,11 @@ def load_research_source_execution_spec(
             or _file_sha256(executable_path) != expected_hash
         ):
             raise ValueError(
-                f"runtime executable is unavailable or has a sha256 mismatch: "
-                f"{executable_path}"
+                f"runtime executable is unavailable or has a sha256 mismatch: {executable_path}"
             )
         runtime_executables.append((executable_path, expected_hash))
     runtime_executables.sort(key=lambda row: str(row[0]))
-
-    working_directory_relative = str(
-        payload.get("working_directory_relative", ".") or "."
-    ).strip()
+    working_directory_relative = str(payload.get("working_directory_relative", ".") or ".").strip()
     working_path = PurePosixPath(working_directory_relative)
     if working_path.is_absolute() or ".." in working_path.parts:
         raise ValueError("working_directory_relative must stay inside source_root")
@@ -557,8 +575,7 @@ def load_research_source_execution_spec(
         raise ValueError("source execution working directory is unavailable")
 
     execution_workspace_mode = str(
-        payload.get("execution_workspace_mode", "immutable_source")
-        or "immutable_source"
+        payload.get("execution_workspace_mode", "immutable_source") or "immutable_source"
     ).strip()
     if execution_workspace_mode not in {"immutable_source", "staged_copy_on_write"}:
         raise ValueError(
@@ -578,11 +595,7 @@ def load_research_source_execution_spec(
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise ValueError("result artifact paths must be nonempty text")
         result_path = PurePosixPath(raw_path.strip())
-        if (
-            result_path.is_absolute()
-            or ".." in result_path.parts
-            or str(result_path) == "."
-        ):
+        if result_path.is_absolute() or ".." in result_path.parts or str(result_path) == ".":
             raise ValueError("result artifact paths must stay inside source_root")
         normalized_result_path = result_path.as_posix()
         if normalized_result_path in result_artifact_paths:
@@ -592,6 +605,10 @@ def load_research_source_execution_spec(
         entrypoint.relative_path,
         research_sources.document(environment_lock_document_id).relative_path,
     }
+    if environment_probe_document_id:
+        protected_paths.add(
+            research_sources.document(environment_probe_document_id).relative_path
+        )
     if protected_paths.intersection(result_artifact_paths):
         raise ValueError(
             "result artifacts cannot replace the entrypoint or environment lock"
@@ -610,6 +627,25 @@ def load_research_source_execution_spec(
         isinstance(value, str) and "\x00" not in value for value in raw_arguments
     ):
         raise ValueError("source execution arguments must be at most 32 text values")
+    raw_interpreter_arguments = payload.get("interpreter_arguments", [])
+    if not isinstance(raw_interpreter_arguments, list) or len(raw_interpreter_arguments) > 32 or not all(
+        isinstance(value, str) and "\x00" not in value for value in raw_interpreter_arguments
+    ):
+        raise ValueError("interpreter_arguments must be at most 32 text values")
+    raw_runtime_environment = payload.get("runtime_environment", {})
+    if not isinstance(raw_runtime_environment, Mapping) or len(raw_runtime_environment) > 16:
+        raise ValueError("runtime_environment must be an object with at most 16 entries")
+    runtime_environment: list[tuple[str, str]] = []
+    for raw_name, raw_value in raw_runtime_environment.items():
+        name, value = str(raw_name), str(raw_value)
+        if (not isinstance(raw_name, str) or not isinstance(raw_value, str) or not name
+                or name[0] not in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                or any(character not in "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for character in name)
+                or name in SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS
+                or "\x00" in value or len(value) > 2048):
+            raise ValueError("runtime_environment contains an invalid or controlled entry")
+        runtime_environment.append((name, value))
+    runtime_environment.sort()
     raw_packages = payload.get("package_distributions", {})
     if not isinstance(raw_packages, Mapping) or not raw_packages:
         raise ValueError("package_distributions must be a nonempty object")
@@ -620,24 +656,17 @@ def load_research_source_execution_spec(
             for value in (display_name, distribution_name)
         ):
             raise ValueError("package distribution names must be nonempty text")
-        package_distributions.append(
-            (str(display_name).strip(), str(distribution_name).strip())
-        )
+        package_distributions.append((str(display_name).strip(), str(distribution_name).strip()))
     if len(package_distributions) > 64:
         raise ValueError("package_distributions exceeds 64 entries")
     package_distributions.sort()
 
     timeout_seconds = _bounded_int(
-        payload.get("timeout_seconds", 120),
-        label="timeout_seconds",
-        minimum=1,
-        maximum=1800,
+        payload.get("timeout_seconds", 120), label="timeout_seconds", minimum=1, maximum=1800
     )
     max_output_bytes = _bounded_int(
-        payload.get("max_output_bytes", 128 * 1024),
-        label="max_output_bytes",
-        minimum=1024,
-        maximum=MAX_SOURCE_EXECUTION_OUTPUT_BYTES,
+        payload.get("max_output_bytes", 128 * 1024), label="max_output_bytes",
+        minimum=1024, maximum=MAX_SOURCE_EXECUTION_OUTPUT_BYTES,
     )
     return ResearchSourceExecutionSpec(
         execution_id=_required_text(payload, "execution_id"),
@@ -650,8 +679,10 @@ def load_research_source_execution_spec(
         entrypoint_document_id=entrypoint_document_id,
         environment_lock_document_id=environment_lock_document_id,
         environment_root=environment_root,
-        python_executable=python_executable,
-        python_executable_sha256=expected_executable_hash,
+        runtime_language=runtime_language,
+        interpreter_executable=interpreter_executable,
+        interpreter_executable_sha256=expected_executable_hash,
+        environment_probe_document_id=environment_probe_document_id,
         runtime_read_roots=tuple(runtime_roots),
         working_directory_relative=working_directory_relative,
         arguments=tuple(raw_arguments),
@@ -662,6 +693,8 @@ def load_research_source_execution_spec(
         schema_version=int(schema_version),
         execution_workspace_mode=execution_workspace_mode,
         result_artifact_paths=tuple(result_artifact_paths),
+        interpreter_arguments=tuple(raw_interpreter_arguments),
+        runtime_environment=tuple(runtime_environment),
     )
 
 
@@ -788,53 +821,23 @@ def source_replication_model_observation(
 ) -> dict[str, Any]:
     """Project a bounded result while retaining full bytes in the artifact manifest."""
 
-    identity_fields = (
-        "schema_version",
-        "artifact_kind",
-        "artifact_id",
-        "question_id",
-        "benchmark_id",
-        "execution_id",
-        "execution_spec_sha256",
-        "source_snapshot_id",
-        "source_snapshot_hash",
-        "source_manifest_sha256",
-        "source_commit",
-        "entrypoint_document_id",
-        "executed_entrypoint_sha256",
-        "environment_lock_document_id",
-        "environment_lock_sha256",
-        "python_executable_sha256",
-        "runtime_executable_sha256",
-        "environment_probe_sha256",
-        "python_version",
-        "package_versions",
-        "working_directory_relative",
-        "arguments",
-        "execution_attempted",
-        "returncode",
-        "errors",
-        "stdout_sha256",
-        "stderr_sha256",
-        "execution_workspace_mode",
-        "declared_result_artifact_paths",
-        "source_workspace_hash_before",
-        "source_workspace_hash_after",
-        "staged_source_inputs_mutated",
-        "unexpected_workspace_artifacts",
-        "source_mutated",
-        "runtime_edited_source",
-        "command_owned_by_model",
-        "network_access",
-        "secret_environment_inherited",
-        "execution_status",
-        "runtime_generated",
-        "model_authored",
-        "proof_evidence_status",
-        "kernel_verified",
-        "boundary",
-        "manifest_hash",
-    )
+    identity_fields = """schema_version artifact_kind artifact_id question_id
+        benchmark_id execution_id execution_spec_sha256 source_snapshot_id
+        source_snapshot_hash source_manifest_sha256 source_commit
+        entrypoint_document_id executed_entrypoint_sha256
+        environment_lock_document_id environment_lock_sha256
+        environment_probe_document_id runtime_language interpreter_executable_sha256
+        runtime_version python_executable_sha256 runtime_executable_sha256
+        environment_probe_sha256 python_version package_versions
+        working_directory_relative interpreter_arguments arguments runtime_environment
+        execution_attempted returncode errors
+        stdout_sha256 stderr_sha256 execution_workspace_mode
+        declared_result_artifact_paths source_workspace_hash_before
+        source_workspace_hash_after staged_source_inputs_mutated
+        unexpected_workspace_artifacts source_mutated runtime_edited_source
+        command_owned_by_model network_access secret_environment_inherited
+        execution_status runtime_generated model_authored proof_evidence_status
+        kernel_verified boundary manifest_hash""".split()
     observation = {
         field: manifest[field] for field in identity_fields if field in manifest
     }
@@ -1065,8 +1068,11 @@ def execute_research_source(
     executor = process_executor or _execute_pinned_process
     pre_identity_errors = research_sources.identity_errors()
     errors = list(pre_identity_errors)
-    if _file_sha256(execution.python_executable) != execution.python_executable_sha256:
-        errors.append("python executable changed after execution-spec load")
+    if (
+        _file_sha256(execution.interpreter_executable)
+        != execution.interpreter_executable_sha256
+    ):
+        errors.append("interpreter executable changed after execution-spec load")
     for executable_path, expected_hash in execution.runtime_executables:
         if _file_sha256(executable_path) != expected_hash:
             errors.append("runtime executable changed after execution-spec load")
@@ -1107,11 +1113,20 @@ def execute_research_source(
         source_workspace_root / PurePosixPath(execution.working_directory_relative)
     ).resolve()
 
-    package_probe_path = resolved_output / "environment_probe.py"
-    package_probe_code = _python_environment_probe_code(
-        dict(execution.package_distributions)
-    )
-    package_probe_path.write_text(package_probe_code, encoding="utf-8")
+    if execution.environment_probe_document_id:
+        probe_document = research_sources.document(
+            execution.environment_probe_document_id
+        )
+        package_probe_path = (
+            source_workspace_root / PurePosixPath(probe_document.relative_path)
+        )
+        package_probe_code = package_probe_path.read_text(encoding="utf-8")
+    else:
+        package_probe_path = resolved_output / "environment_probe.py"
+        package_probe_code = _python_environment_probe_code(
+            dict(execution.package_distributions)
+        )
+        package_probe_path.write_text(package_probe_code, encoding="utf-8")
     probe_result: dict[str, Any] = {
         "execution_attempted": False,
         "returncode": None,
@@ -1130,6 +1145,7 @@ def execute_research_source(
         "environment_root": execution.environment_root,
         "runtime_read_roots": execution.runtime_read_roots,
         "runtime_executables": execution.runtime_executables,
+        "runtime_environment": execution.runtime_environment,
         "source_paths": execution_source_paths,
         "output_dir": resolved_output,
         "timeout_seconds": execution.timeout_seconds,
@@ -1139,7 +1155,8 @@ def execute_research_source(
         probe_result = dict(
             executor(
                 command=(
-                    str(execution.python_executable),
+                    str(execution.interpreter_executable),
+                    *execution.interpreter_arguments,
                     str(package_probe_path),
                 ),
                 cwd=resolved_output,
@@ -1156,8 +1173,16 @@ def execute_research_source(
             probe_payload = dict(raw_probe) if isinstance(raw_probe, Mapping) else {}
         except json.JSONDecodeError:
             errors.append("source environment probe did not return a JSON object")
-        if not str(probe_payload.get("python_version", "") or "").strip():
-            errors.append("source environment probe omitted python_version")
+        runtime_version_key = (
+            "python_version" if execution.schema_version < 3 else "runtime_version"
+        )
+        if not str(probe_payload.get(runtime_version_key, "") or "").strip():
+            errors.append(f"source environment probe omitted {runtime_version_key}")
+        if execution.schema_version >= 3 and (
+            str(probe_payload.get("runtime_language", "") or "").strip().lower()
+            != execution.runtime_language
+        ):
+            errors.append("source environment probe runtime_language mismatch")
         observed_packages = probe_payload.get("package_versions", {})
         if not isinstance(observed_packages, Mapping) or set(observed_packages) != set(
             dict(execution.package_distributions)
@@ -1170,7 +1195,8 @@ def execute_research_source(
         source_result = dict(
             executor(
                 command=(
-                    str(execution.python_executable),
+                    str(execution.interpreter_executable),
+                    *execution.interpreter_arguments,
                     str(execution_entrypoint_path),
                     *execution.arguments,
                 ),
@@ -1179,7 +1205,8 @@ def execute_research_source(
                 stderr_path=resolved_output / "source.stderr",
                 python_path_root=(
                     source_workspace_root
-                    if execution.execution_workspace_mode == "staged_copy_on_write"
+                    if execution.runtime_language == "python"
+                    and execution.execution_workspace_mode == "staged_copy_on_write"
                     else None
                 ),
                 **common_executor_inputs,
@@ -1214,8 +1241,11 @@ def execute_research_source(
     post_identity_errors = research_sources.identity_errors()
     source_mutated = bool(pre_identity_errors or post_identity_errors)
     errors.extend(post_identity_errors)
-    if _file_sha256(execution.python_executable) != execution.python_executable_sha256:
-        errors.append("python executable changed during source execution")
+    if (
+        _file_sha256(execution.interpreter_executable)
+        != execution.interpreter_executable_sha256
+    ):
+        errors.append("interpreter executable changed during source execution")
     for executable_path, expected_hash in execution.runtime_executables:
         if _file_sha256(executable_path) != expected_hash:
             errors.append("runtime executable changed during source execution")
@@ -1236,58 +1266,38 @@ def execute_research_source(
         ]
     )[:20]
     manifest_path = resolved_output / "source_replication_manifest.json"
+    runtime_version_key = "python_version" if execution.schema_version < 3 else "runtime_version"
+    runtime_version = str(probe_payload.get(runtime_version_key, "") or "")
     manifest: dict[str, Any] = {
-        "schema_version": execution.schema_version,
-        "artifact_kind": "SourceReplicationManifest",
-        "artifact_id": artifact_id,
-        "question_id": str(question_id),
-        "benchmark_id": execution.benchmark_id,
-        "execution_id": execution.execution_id,
-        "execution_spec_sha256": execution.manifest_sha256,
-        "source_snapshot_id": research_sources.snapshot_id,
-        "source_snapshot_hash": research_sources.snapshot_hash,
-        "source_manifest_sha256": research_sources.manifest_sha256,
-        "source_commit": execution.source_commit,
-        "entrypoint_document_id": entrypoint.document_id,
-        "executed_entrypoint_sha256": entrypoint.sha256,
-        "environment_lock_document_id": environment_lock.document_id,
-        "environment_lock_sha256": environment_lock.sha256,
-        "python_executable_sha256": execution.python_executable_sha256,
+        "schema_version": execution.schema_version, "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": artifact_id, "question_id": str(question_id),
+        "benchmark_id": execution.benchmark_id, "execution_id": execution.execution_id,
+        "execution_spec_sha256": execution.manifest_sha256, "source_snapshot_id": research_sources.snapshot_id,
+        "source_snapshot_hash": research_sources.snapshot_hash, "source_manifest_sha256": research_sources.manifest_sha256,
+        "source_commit": execution.source_commit, "entrypoint_document_id": entrypoint.document_id,
+        "executed_entrypoint_sha256": entrypoint.sha256, "environment_lock_document_id": environment_lock.document_id,
+        "environment_lock_sha256": environment_lock.sha256, "environment_probe_document_id": execution.environment_probe_document_id,
+        "runtime_language": execution.runtime_language, "interpreter_executable_sha256": execution.interpreter_executable_sha256,
         "runtime_executable_sha256": [
             sha256 for _, sha256 in execution.runtime_executables
         ],
-        "environment_probe_sha256": hashlib.sha256(
-            package_probe_code.encode("utf-8")
-        ).hexdigest(),
-        "python_version": str(probe_payload.get("python_version", "") or ""),
-        "package_versions": dict(probe_payload.get("package_versions", {}) or {}),
+        "environment_probe_sha256": hashlib.sha256(package_probe_code.encode("utf-8")).hexdigest(),
+        "runtime_version": runtime_version, "package_versions": dict(probe_payload.get("package_versions", {}) or {}),
         "working_directory_relative": execution.working_directory_relative,
-        "arguments": list(execution.arguments),
-        "execution_attempted": source_result.get("execution_attempted") is True,
-        "returncode": source_result.get("returncode"),
-        "errors": errors,
-        "raw_stdout": raw_stdout,
-        "raw_stderr": raw_stderr,
-        "stdout_sha256": stdout_sha256,
-        "stderr_sha256": stderr_sha256,
-        "execution_workspace_mode": execution.execution_workspace_mode,
-        "declared_result_artifact_paths": list(execution.result_artifact_paths),
+        "interpreter_arguments": list(execution.interpreter_arguments), "arguments": list(execution.arguments),
+        "runtime_environment": dict(execution.runtime_environment),
+        "execution_attempted": source_result.get("execution_attempted") is True, "returncode": source_result.get("returncode"),
+        "errors": errors, "raw_stdout": raw_stdout, "raw_stderr": raw_stderr,
+        "stdout_sha256": stdout_sha256, "stderr_sha256": stderr_sha256,
+        "execution_workspace_mode": execution.execution_workspace_mode, "declared_result_artifact_paths": list(execution.result_artifact_paths),
         "result_artifacts": result_artifacts,
-        "source_workspace_hash_before": source_workspace_hash_before,
-        "source_workspace_hash_after": source_workspace_hash_after,
-        "staged_source_inputs_mutated": staged_source_inputs_mutated,
-        "unexpected_workspace_artifacts": unexpected_workspace_artifacts,
-        "source_mutated": source_mutated,
-        "runtime_edited_source": False,
-        "command_owned_by_model": False,
-        "network_access": False,
-        "secret_environment_inherited": False,
-        "execution_status": "EXECUTED" if not errors else "FAILED",
-        "manifest_path": str(manifest_path),
-        "runtime_generated": True,
-        "model_authored": False,
-        "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
-        "kernel_verified": False,
+        "source_workspace_hash_before": source_workspace_hash_before, "source_workspace_hash_after": source_workspace_hash_after,
+        "staged_source_inputs_mutated": staged_source_inputs_mutated, "unexpected_workspace_artifacts": unexpected_workspace_artifacts,
+        "source_mutated": source_mutated, "runtime_edited_source": False,
+        "command_owned_by_model": False, "network_access": False,
+        "secret_environment_inherited": False, "execution_status": "EXECUTED" if not errors else "FAILED",
+        "manifest_path": str(manifest_path), "runtime_generated": True, "model_authored": False,
+        "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE, "kernel_verified": False,
         "boundary": (
             "This manifest records an exact hash-bound author-source rerun, raw "
             "environment feedback, and any operator-declared result artifacts from "
@@ -1296,11 +1306,11 @@ def execute_research_source(
             "evidence."
         ),
     }
+    if execution.schema_version < 3:
+        manifest["python_executable_sha256"] = execution.interpreter_executable_sha256
+        manifest["python_version"] = runtime_version
     manifest["manifest_hash"] = stable_hash(manifest)
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return manifest
 
 
@@ -1335,6 +1345,7 @@ def _execute_pinned_process(
     environment_root: Path,
     runtime_read_roots: Sequence[Path],
     runtime_executables: Sequence[tuple[Path, str]],
+    runtime_environment: Sequence[tuple[str, str]],
     source_paths: Sequence[Path],
     output_dir: Path,
     timeout_seconds: int,
@@ -1366,10 +1377,16 @@ def _execute_pinned_process(
         "HOME": str(output_dir),
         "LANG": "C",
         "LC_ALL": "C",
-        "PATH": str(environment_root / "bin"),
+        "PATH": os.pathsep.join(dict.fromkeys([
+            str(environment_root / "bin"),
+            *(str(path.parent) for path, _ in runtime_executables),
+        ])),
         "PYTHONHASHSEED": "0",
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONNOUSERSITE": "1",
+        "R_ENVIRON_USER": "/dev/null",
+        "R_HISTFILE": "/dev/null",
+        "R_PROFILE_USER": "/dev/null",
         "TMPDIR": str(output_dir),
         "TZ": "UTC",
         "OMP_NUM_THREADS": "1",
@@ -1379,10 +1396,11 @@ def _execute_pinned_process(
     }
     if python_path_root is not None:
         environment["PYTHONPATH"] = str(python_path_root)
+    environment.update(dict(runtime_environment))
     limits = {
         "cpu_seconds": max(2, int(math.ceil(timeout_seconds)) + 1),
         "file_size_bytes": max_output_bytes,
-        "open_files": 128,
+        "open_files": 512,
     }
     returncode: int | None = None
     transport_errors: list[str] = []
@@ -1466,6 +1484,7 @@ def _source_execution_sandbox_profile(
         "/dev/urandom",
         "/etc/localtime",
         _seatbelt_path(executable), _seatbelt_path(cwd),
+        *(_seatbelt_path(path) for path, _ in runtime_executables),
         *(_seatbelt_path(path) for path in source_paths),
     }
     process_literals = {
@@ -1498,14 +1517,13 @@ def _source_execution_sandbox_profile(
     return (
         "(version 1) (allow default) "
         "(deny network*) "
-        "(deny process-fork) "
         "(deny process-exec) "
         f"(allow process-exec {process_rules}) "
         "(deny file-read*) "
         f"(allow file-read* {read_rules}) "
         f"(allow file-read-metadata {metadata_rules}) "
         "(deny file-write*) "
-        f'(allow file-write* (subpath "{_seatbelt_path(output_dir)}"))'
+        f'(allow file-write* (literal "/dev/null") (subpath "{_seatbelt_path(output_dir)}"))'
     )
 
 
@@ -1579,9 +1597,7 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
         if not isinstance(raw_document, Mapping):
             raise ValueError("research source document rows must be JSON objects")
         if raw_document.get("model_visible") is not True:
-            raise ValueError(
-                "every research source document must explicitly set model_visible=true"
-            )
+            raise ValueError("every research source document must set model_visible=true")
         document_id = _required_text(raw_document, "document_id")
         title = _required_text(raw_document, "title")
         source_kind = _required_text(raw_document, "source_kind")
@@ -1590,50 +1606,34 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
         if len(expected_sha256) != 64 or any(
             character not in "0123456789abcdef" for character in expected_sha256
         ):
-            raise ValueError(
-                f"research source {document_id} sha256 must be 64 lowercase hex characters"
-            )
+            raise ValueError(f"research source {document_id} sha256 must be 64 lowercase hex characters")
         relative_path = PurePosixPath(relative_path_value)
         if relative_path.is_absolute() or ".." in relative_path.parts:
-            raise ValueError(
-                f"research source {document_id} relative_path must stay inside source_root"
-            )
+            raise ValueError(f"research source {document_id} relative_path must stay inside source_root")
         resolved_document = (source_root / relative_path).resolve()
         try:
             resolved_document.relative_to(source_root)
         except ValueError as exc:
-            raise ValueError(
-                f"research source {document_id} resolves outside source_root"
-            ) from exc
+            raise ValueError(f"research source {document_id} resolves outside source_root") from exc
         if not resolved_document.is_file():
             raise ValueError(f"research source {document_id} file does not exist")
         if resolved_document.stat().st_size > MAX_SOURCE_FILE_BYTES:
-            raise ValueError(
-                f"research source {document_id} exceeds {MAX_SOURCE_FILE_BYTES} bytes"
-            )
+            raise ValueError(f"research source {document_id} exceeds {MAX_SOURCE_FILE_BYTES} bytes")
         raw_bytes = resolved_document.read_bytes()
         observed_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         if observed_sha256 != expected_sha256:
-            raise ValueError(
-                f"research source {document_id} sha256 mismatch: expected "
-                f"{expected_sha256}, observed {observed_sha256}"
-            )
+            raise ValueError(f"research source {document_id} sha256 mismatch: expected {expected_sha256}, observed {observed_sha256}")
         try:
             text = raw_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
-            raise ValueError(
-                f"research source {document_id} must be UTF-8 text; extract PDFs "
-                "to a pinned text or Markdown artifact first"
-            ) from exc
+            raise ValueError(f"research source {document_id} must be UTF-8 text; extract binary sources first") from exc
         if not text.strip():
             raise ValueError(f"research source {document_id} must contain nonempty text")
         if document_id in document_ids:
             raise ValueError(f"duplicate research source document_id: {document_id}")
         normalized_relative_path = relative_path.as_posix()
         if normalized_relative_path in relative_paths:
-            raise ValueError(
-                f"duplicate research source relative_path: {normalized_relative_path}"
-            )
+            raise ValueError(f"duplicate research source relative_path: {normalized_relative_path}")
         document_ids.add(document_id)
         relative_paths.add(normalized_relative_path)
         document = ResearchSourceDocument(
@@ -1644,21 +1644,14 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
             sha256=observed_sha256,
             citation=str(raw_document.get("citation", "") or "").strip(),
             url=str(raw_document.get("url", "") or "").strip(),
-            publication_date=str(
-                raw_document.get("publication_date", "") or ""
-            ).strip(),
+            publication_date=str(raw_document.get("publication_date", "") or "").strip(),
             git_commit=str(raw_document.get("git_commit", "") or "").strip(),
             license=str(raw_document.get("license", "") or "").strip(),
             lines=tuple(text.splitlines()),
         )
         documents.append(document)
-        normalized_index.append(
-            {
-                **document.public_descriptor(),
-                "relative_path": normalized_relative_path,
-                "model_visible": True,
-            }
-        )
+        normalized_index.append({**document.public_descriptor(),
+            "relative_path": normalized_relative_path, "model_visible": True})
 
     documents.sort(key=lambda document: document.document_id)
     normalized_index.sort(key=lambda row: str(row["document_id"]))
@@ -1672,9 +1665,7 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
     )
     declared_snapshot_hash = str(payload.get("snapshot_hash", "") or "").strip()
     if declared_snapshot_hash and declared_snapshot_hash != snapshot_hash:
-        raise ValueError(
-            "research source snapshot_hash does not match the normalized document index"
-        )
+        raise ValueError("research source snapshot_hash does not match its document index")
     return ResearchSourceSnapshot(
         snapshot_id=snapshot_id,
         source_horizon=source_horizon,

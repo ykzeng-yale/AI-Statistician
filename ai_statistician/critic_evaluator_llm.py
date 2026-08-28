@@ -1190,7 +1190,9 @@ def _critic_source_replication_view(
     execution_keys = (
         "execution_status", "returncode", "source_snapshot_id",
         "source_snapshot_hash", "source_commit", "executed_entrypoint_sha256",
-        "environment_lock_sha256", "python_version", "package_versions",
+        "environment_lock_sha256", "runtime_language", "runtime_version",
+        "interpreter_executable_sha256", "interpreter_arguments",
+        "runtime_environment", "python_version", "package_versions",
         "raw_stdout", "raw_stderr", "stdout_sha256", "stderr_sha256", "errors",
         "source_mutated", "staged_source_inputs_mutated",
         "unexpected_workspace_artifacts", "proof_evidence_status",

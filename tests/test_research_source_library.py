@@ -643,7 +643,7 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
 
     assert len(calls) == 2
     assert calls[1]["command"] == (
-        str(execution.python_executable),
+        str(execution.interpreter_executable),
         str(snapshot.document_path("published-example")),
         "--operator-fixed",
     )
@@ -678,6 +678,147 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
     observation = source_replication_model_observation(manifest)
     assert observation["working_directory_relative"] == "."
     assert observation["arguments"] == ["--operator-fixed"]
+
+
+def test_schema_v3_runs_hash_bound_interpreter_and_environment_probe(tmp_path) -> None:
+    source_root = tmp_path / "public_sources"
+    source_root.mkdir()
+    files = {
+        "published-example.R": "cat('clustered covariance replication complete\\n')\n",
+        "environment-probe.R": "# operator-frozen environment probe\n",
+        "environment-lock.txt": "R=test\\nsandwich=3.test\n",
+    }
+    for relative_path, content in files.items():
+        (source_root / relative_path).write_text(content, encoding="utf-8")
+    documents = []
+    for document_id, relative_path, source_kind in (
+        ("published-example", "published-example.R", "published_example_code"),
+        ("environment-probe", "environment-probe.R", "replication_provenance"),
+        ("environment-lock", "environment-lock.txt", "replication_provenance"),
+    ):
+        content = files[relative_path]
+        documents.append(
+            {
+                "document_id": document_id,
+                "title": document_id,
+                "source_kind": source_kind,
+                "relative_path": relative_path,
+                "sha256": hashlib.sha256(content.encode()).hexdigest(),
+                "model_visible": True,
+                "git_commit": "r-source-commit" if document_id == "published-example" else "",
+            }
+        )
+    source_manifest_path = tmp_path / "sources.json"
+    source_manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "snapshot_id": "published-r-source-v1",
+                "source_horizon": "2026-08-28",
+                "source_root": "public_sources",
+                "documents": documents,
+            }
+        ),
+        encoding="utf-8",
+    )
+    snapshot = load_research_source_snapshot(source_manifest_path)
+    environment_root = tmp_path / "r-environment"
+    (environment_root / "bin").mkdir(parents=True)
+    interpreter = environment_root / "bin" / "Rscript"
+    interpreter.symlink_to(sys.executable)
+    execution_payload = {
+        "schema_version": 3,
+        "artifact_kind": "ResearchSourceExecutionSpec",
+        "execution_id": "published-r-source-execution-v1",
+        "benchmark_id": "published-r-source-benchmark-v1",
+        "source_snapshot_id": snapshot.snapshot_id,
+        "source_snapshot_hash": snapshot.snapshot_hash,
+        "source_manifest_sha256": snapshot.manifest_sha256,
+        "source_commit": "r-source-commit",
+        "entrypoint_document_id": "published-example",
+        "environment_lock_document_id": "environment-lock",
+        "environment_root": str(environment_root),
+        "runtime_language": "r",
+        "interpreter_executable_relative_path": "bin/Rscript",
+        "interpreter_executable_sha256": hashlib.sha256(
+            interpreter.resolve().read_bytes()
+        ).hexdigest(),
+        "environment_probe_document_id": "environment-probe",
+        "interpreter_arguments": ["--quiet"],
+        "runtime_environment": {"R_HOME": "/operator-bound/r-home"},
+        "runtime_read_roots": [str(Path(sys.executable).resolve().parent)],
+        "working_directory_relative": ".",
+        "arguments": [],
+        "package_distributions": {"sandwich": "sandwich"},
+        "timeout_seconds": 30,
+        "max_output_bytes": 8192,
+    }
+    execution_path = tmp_path / "source-execution.json"
+    execution_path.write_text(json.dumps(execution_payload), encoding="utf-8")
+    execution = load_research_source_execution_spec(
+        execution_path, research_sources=snapshot
+    )
+    calls = []
+
+    def fake_executor(**kwargs):
+        calls.append(kwargs)
+        probe = str(kwargs["command"][2]).endswith("environment-probe.R")
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": json.dumps(
+                {
+                    "runtime_language": "r",
+                    "runtime_version": "R version test",
+                    "package_versions": {"sandwich": "3.test"},
+                }
+            )
+            if probe
+            else "clustered covariance replication complete\n",
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "replication-output",
+        question_id="published-r-source-task",
+        process_executor=fake_executor,
+    )
+
+    assert [Path(call["command"][2]).name for call in calls] == [
+        "environment-probe.R",
+        "published-example.R",
+    ]
+    assert all(call["command"][0] == str(interpreter) for call in calls)
+    assert all(call["command"][1] == "--quiet" for call in calls)
+    assert all(
+        call["runtime_environment"] == (("R_HOME", "/operator-bound/r-home"),)
+        for call in calls
+    )
+    assert manifest["execution_status"] == "EXECUTED"
+    assert manifest["runtime_language"] == "r"
+    assert manifest["runtime_version"] == "R version test"
+    assert manifest["package_versions"] == {"sandwich": "3.test"}
+    assert manifest["environment_probe_document_id"] == "environment-probe"
+    assert "python_version" not in manifest
+    assert "python_executable_sha256" not in manifest
+    descriptor = execution.descriptor(snapshot)
+    assert descriptor["runtime_language"] == "r"
+    assert descriptor["interpreter_arguments"] == ["--quiet"]
+    assert descriptor["runtime_environment"] == {
+        "R_HOME": "/operator-bound/r-home"
+    }
+    assert descriptor["environment_probe_sha256"] == documents[1]["sha256"]
+    observation = source_replication_model_observation(manifest)
+    assert observation["runtime_language"] == "r"
+    assert observation["runtime_version"] == "R version test"
+
+    execution_payload["runtime_environment"] = {"PATH": "/not-allowed"}
+    execution_path.write_text(json.dumps(execution_payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid or controlled"):
+        load_research_source_execution_spec(execution_path, research_sources=snapshot)
 
 
 def test_source_execution_fails_closed_when_snapshot_changes(tmp_path) -> None:
@@ -741,9 +882,14 @@ def test_source_sandbox_reads_only_inventory_and_executes_only_allowlist(
     process_clause = profile.split("(allow process-exec ", 1)[1].split(
         ") (deny file-read", 1
     )[0]
+    read_clause = profile.split("(allow file-read* ", 1)[1].split(
+        ") (allow file-read-metadata", 1
+    )[0]
 
     assert f'(literal "{listed_source.resolve()}")' in profile
     assert f'(literal "{source_root.resolve()}")' in profile
     assert f'(subpath "{source_root.resolve()}")' not in profile
     assert f'(literal "{runtime_executable.resolve()}")' in process_clause
+    assert f'(literal "{runtime_executable.resolve()}")' in read_clause
     assert "(subpath " not in process_clause
+    assert "(deny process-fork)" not in profile

@@ -3192,3 +3192,36 @@ window; dynamic tool discovery is appropriate only if a measured tool-catalog co
 appears; parallel tool execution is appropriate only for independent read-only
 actions. None justifies a second scheduler, nested Codex threads, routine subagent
 delegation, or another repair taxonomy.
+
+## Interpreter-neutral published-source execution
+
+The next measured gap was below the agent layer. Published-source replication used
+the correct Codex-shaped ownership loop, but its pinned executor still required a
+`.py` entrypoint, a Python executable, and a runtime-generated Python package probe.
+That made the supposedly general research-source tool unable to execute an official
+R paper example without adding an R-specific worker or bypassing provenance.
+
+Source-execution schema v3 keeps the same tool and executor while binding a generic
+runtime language, interpreter, entrypoint-prefix arguments, explicit non-secret
+runtime environment, and model-visible environment probe. The manifest SHA-256 binds
+the complete command contract. Security-owned environment keys cannot be overridden;
+the model cannot alter the command; schema v1/v2 Python manifests remain loadable.
+Runtime child executables are individually hash-bound and are both readable and
+executable inside the sandbox. Forking is available to immutable published runtime
+code, while process execution remains exact-allowlist-only, network remains denied,
+and ordinary writes remain confined to the staged output workspace.
+
+The mechanism was tested with the journal-distributed, unmodified 115-line R source
+for Zeileis (2004), *Econometric Computing with HC and HAC Covariance Matrix
+Estimators*. An explicit R 4.4.3 environment pins `sandwich`, `lmtest`,
+`strucchange`, `scatterplot3d`, and `zoo`. Independent manual runs and three product
+sandbox runs completed the HC/HAC, structural-change, and graphics workflow. The
+successful sandbox runs had identical stdout and stderr hashes. Raw PDF hashes vary
+because R embeds creation time, but all seven normalized rendered pages had identical
+pixel hashes, so evaluation can compare scientific output rather than unstable PDF
+metadata.
+
+This adds no R agent, repair route, language grammar, scheduler, provider, or expected
+statistical value to the product. It applies the same Codex invariant one level lower:
+the harness exposes a stable executable tool and raw observation; the source-owning
+model interprets the result and writes its own report.
