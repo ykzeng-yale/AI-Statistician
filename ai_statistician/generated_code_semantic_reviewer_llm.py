@@ -480,16 +480,23 @@ def _question_context(question: OpenResearchQuestion) -> dict[str, Any]:
     return research_question_payload(question)
 
 
-def _public_algorithm_contract_clause_ids(
+def _public_review_contract_clause_ids(
     question_context: Mapping[str, Any],
     review_material: Mapping[str, Any],
 ) -> tuple[str, ...]:
-    if str(review_material.get("source_subsystem", "") or "") != "AlgorithmEngineer":
-        return ()
     contract = question_context.get("estimator_execution_contract", {})
-    clause_ids = frozen_estimator_execution_contract_clause_ids(contract)
     empirical_ids = frozen_estimator_execution_contract_empirical_claim_ids(contract)
-    return tuple(sorted(clause_ids - empirical_ids))
+    source_subsystem = str(review_material.get("source_subsystem", "") or "")
+    if source_subsystem == "AlgorithmEngineer":
+        return tuple(sorted(
+            frozen_estimator_execution_contract_clause_ids(contract) - empirical_ids
+        ))
+    if (
+        source_subsystem == "SimulationEvaluator"
+        and review_material.get("empirical_evaluation_phase") == "executable_evaluator_authoring"
+    ):
+        return tuple(sorted(empirical_ids))
+    return ()
 
 
 def _reviewer_scope_contract(
@@ -669,7 +676,7 @@ def generated_code_semantic_review_json_schema(
     prior_schema["minItems"] = len(prior_ids)
     prior_schema["maxItems"] = len(prior_ids)
     question_context = _question_context(question) if question is not None else {}
-    public_contract_clause_ids = _public_algorithm_contract_clause_ids(
+    public_contract_clause_ids = _public_review_contract_clause_ids(
         question_context,
         review_material,
     )
@@ -1474,7 +1481,7 @@ def validate_generated_code_semantic_review_packet(
         errors.append(
             "generated-code semantic review evidence document fingerprint mismatch"
         )
-    expected_public_contract_clause_ids = _public_algorithm_contract_clause_ids(
+    expected_public_contract_clause_ids = _public_review_contract_clause_ids(
         question_context,
         material,
     )
@@ -1490,8 +1497,8 @@ def validate_generated_code_semantic_review_packet(
             != set(expected_public_contract_clause_ids)
         ):
             errors.append(
-                "reviewed_public_contract_clause_ids must cover every public Algorithm "
-                "contract clause exactly once"
+                "reviewed_public_contract_clause_ids must cover every applicable "
+                "public source contract clause exactly once"
             )
     elif reviewed_public_contract_clause_ids:
         errors.append(

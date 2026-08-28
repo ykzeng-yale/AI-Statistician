@@ -1731,6 +1731,52 @@ def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() 
     }
 
 
+def test_final_critic_has_no_pending_proof_when_formal_is_not_applicable() -> None:
+    question = OpenResearchQuestion(
+        id="terminal-critic-formal-not-applicable",
+        title="Do not create formal debt for an empirical task",
+        description="Record only the evidence dimensions requested by the task.",
+        task_intent={
+            "theory": "not_applicable",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    result = CriticEvaluatorRuntimeSubsystem().run(
+        AgentTask(
+            task_id="critic:formal-not-applicable",
+            owner_subsystem="CriticEvaluator",
+            objective="Respect the public task intent.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "architect_runtime_plan": {
+                        "evidence_contract": {
+                            "formal_verification_policy": "optional",
+                            "formal_required_for_final": False,
+                        }
+                    }
+                },
+            },
+        ),
+        BlackboardState(project_id=question.id),
+    )
+
+    critic_manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    assert critic_manifest["runtime_reroute_decision"]["observed_conditions"][
+        "formal_proof_work_pending"
+    ] is False
+    assert critic_manifest["runtime_reroute_decision"][
+        "formal_debt_deferred_nonblocking"
+    ] is False
+
+
 def test_summary_flags_and_subclaims_do_not_satisfy_exact_theorem_gate() -> None:
     decision = runtime_module._critic_evidence_contract_decision(
         critic_control={

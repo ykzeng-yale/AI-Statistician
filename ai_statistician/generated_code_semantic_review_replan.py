@@ -8,7 +8,7 @@ from .fingerprint import stable_hash
 from .generated_code_semantic_reviewer_llm import (
     generated_code_semantic_review_prompt_projection,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import OpenResearchQuestion, research_question_payload
 
 
 GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM = "GeneratedCodeSemanticReviewer"
@@ -218,12 +218,10 @@ def build_generated_code_semantic_review_producer_revision_task(
     revision_inputs.pop("scientific_code_workspace_progress_manifest", None)
     revision_inputs.pop("scientific_code_workspace_continuation_count", None)
     revision_inputs.pop("consumer_resume_manifest", None)
-    revision_inputs["question"] = {
-        "id": question.id,
-        "title": question.title,
-        "description": question.description,
-        "tags": list(question.tags),
-    }
+    revision_inputs["question"] = research_question_payload(
+        question,
+        include_task_intent=True,
+    )
     revision_inputs["architect_context"] = replan_context
     revision_inputs["environment_feedback"] = dict(observations)
     revision_inputs["generated_code_semantic_review_revision_count"] = (

@@ -19183,8 +19183,10 @@ class CriticEvaluatorRuntimeSubsystem:
             else {}
         )
         formal_proof_work_pending = bool(
-            int(formalization_counts.get("formal_gap", 0) or 0) > 0
-            or not source_theorem_kernel_verified
+            (not dimension_requirements
+             or dimension_requirements.get("formal") != "not_applicable")
+            and (int(formalization_counts.get("formal_gap", 0) or 0) > 0
+                 or not source_theorem_kernel_verified)
         )
         formal_debt_deferred_nonblocking = bool(
             formal_proof_work_pending

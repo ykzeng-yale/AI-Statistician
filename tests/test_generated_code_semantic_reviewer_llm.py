@@ -35,7 +35,10 @@ from ai_statistician.model_backend import (
     ClientToolCall,
     ClientToolTurnResponse,
 )
-from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.research_schema import (
+    OpenResearchQuestion,
+    research_question_payload,
+)
 
 
 _LEGACY_REVIEW_DIMENSIONS = (
@@ -64,6 +67,12 @@ def _question_with_estimator_contract() -> OpenResearchQuestion:
         title="Review a public estimator contract",
         description="Review every explicit public Algorithm clause.",
         tags=("semantic-review", "public-contract"),
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
         estimator_execution_contract={
             "schema_version": 1,
             "estimator_id": "candidate",
@@ -584,6 +593,25 @@ def test_algorithm_review_schema_indexes_every_public_abi_clause_without_empiric
     assert "reviewed_public_contract_clause_ids" not in simulation_schema["required"]
     assert "reviewed_public_contract_clause_ids" not in simulation_schema["properties"]
 
+    confirmatory_material = {
+        **_review_material(),
+        "empirical_evaluation_phase": "executable_evaluator_authoring",
+    }
+    confirmatory_schema = generated_code_semantic_review_json_schema(
+        confirmatory_material,
+        question=question,
+    )
+    empirical_clause_schema = confirmatory_schema["properties"][
+        "reviewed_public_contract_clause_ids"
+    ]
+    assert "reviewed_public_contract_clause_ids" in confirmatory_schema["required"]
+    assert empirical_clause_schema["minItems"] == 1
+    assert empirical_clause_schema["maxItems"] == 1
+    assert empirical_clause_schema["uniqueItems"] is True
+    assert empirical_clause_schema["items"]["enum"] == [
+        "claim.empirical.calibration"
+    ]
+
 
 def test_missing_public_contract_clause_record_returns_to_same_reviewer_session() -> None:
     material = _algorithm_review_material(
@@ -670,8 +698,9 @@ def test_missing_public_contract_clause_record_returns_to_same_reviewer_session(
     ]
     assert packet["client_tool_loop"]["validation_submissions"] == 2
     assert packet["client_tool_loop"]["validation_feedback_observed"] is True
-    assert "must cover every public Algorithm contract clause exactly once" in str(
-        backend.requests[1].messages[-1]
+    assert (
+        "must cover every applicable public source contract clause exactly once"
+        in str(backend.requests[1].messages[-1])
     )
     assert validate_generated_code_semantic_review_packet(
         packet,
@@ -1966,12 +1995,13 @@ def test_lineage_budget_bounds_source_producer_regenerations() -> None:
 
 
 def test_revision_task_returns_complete_observations_to_source_producer() -> None:
+    question = _question_with_estimator_contract()
     source_task = AgentTask(
         task_id="simulation-task:1",
         owner_subsystem="SimulationEvaluator",
         objective="Generate and execute a complete simulation.",
         inputs={
-            "question": {"id": "semantic-review-test"},
+            "question": {"id": question.id},
             "architect_context": {},
         },
         allowed_tools=("python",),
@@ -2021,7 +2051,7 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
     }
 
     task = build_generated_code_semantic_review_producer_revision_task(
-        question=_question(),
+        question=question,
         review_task_id="review-task:1",
         work_order=work_order,
         source_task=source_task,
@@ -2043,6 +2073,10 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
     )
     assert reviewed["exact_result"] == {"estimate": 0.0}
     assert task.inputs["generated_code_semantic_review_revision_count"] == 1
+    assert task.inputs["question"] == research_question_payload(
+        question,
+        include_task_intent=True,
+    )
     replan = task.inputs["architect_context"][
         "runtime_generated_code_semantic_review_replan"
     ]

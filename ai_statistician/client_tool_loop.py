@@ -546,11 +546,9 @@ def run_bounded_client_tool_loop(
 ) -> ClientToolLoopResult:
     """Run one model -> tool -> observation session under caller-owned bounds.
 
-    Terminal submission is a normal model-selected tool call. A rejected
-    submission is returned to the same model like any other tool observation;
-    the harness does not open a separate repair phase or reserve hidden retries.
-    Terminal calls do not consume the ordinary workspace-action budget. A final
-    ordinary action gets one terminal-only continuation in the same session.
+    A rejected terminal submission is a raw observation for the same model. A final
+    workspace action gets one terminal-only continuation; rejection there permits
+    one final terminal-only correction, never a separate repair phase.
     """
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
@@ -559,30 +557,21 @@ def run_bounded_client_tool_loop(
     if not callable(generate_turn):
         raise ValueError("backend does not support client-tool turns")
     allowed_tool_names = [tool.name for tool in request.tools]
-    if (
-        not allowed_tool_names
+    if (not allowed_tool_names
         or any(not str(name).strip() for name in allowed_tool_names)
-        or len(set(allowed_tool_names)) != len(allowed_tool_names)
-    ):
+        or len(set(allowed_tool_names)) != len(allowed_tool_names)):
         raise ValueError("client-tool definitions must have unique nonempty names")
     tool_definitions = {tool.name: tool for tool in request.tools}
     messages = [deepcopy(dict(message)) for message in request.messages]
     history: list[dict[str, Any]] = []
     seen_observations: set[str] = set()
-    total_calls = 0
-    runtime_executed_tool_calls = 0
-    no_progress_turns = 0
+    total_calls = runtime_executed_tool_calls = no_progress_turns = 0
     last_response: ClientToolTurnResponse | None = None
     terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
     ordinary_tool_calls = 0
-    terminal_continuation_required = False
+    terminal_continuation_required = terminal_rejection_followup_required = False
 
-    def loop_error(
-        reason: str,
-        *,
-        turns: int,
-        tool_calls: int,
-    ) -> ClientToolLoopError:
+    def loop_error(reason: str, *, turns: int, tool_calls: int) -> ClientToolLoopError:
         return ClientToolLoopError(
             reason=reason,
             turns=turns,
@@ -590,42 +579,40 @@ def run_bounded_client_tool_loop(
             runtime_executed_tool_calls=runtime_executed_tool_calls,
             history=history,
             messages=messages,
-            provider=(
-                last_response.provider
-                if last_response
-                else str(getattr(backend, "provider_name", "") or "")
-            ),
+            provider=(last_response.provider if last_response else str(
+                getattr(backend, "provider_name", "") or "")),
             model=(last_response.model if last_response else request.model),
-            final_response_metadata=(
-                last_response.metadata if last_response else {}
-            ),
+            final_response_metadata=last_response.metadata if last_response else {},
         )
 
-    for turn_index in range(max_turns + bool(terminal_tools)):
-        terminal_continuation_turn = turn_index == max_turns
-        if terminal_continuation_turn and not terminal_continuation_required:
+    for turn_index in range(max_turns + (2 if terminal_tools else 0)):
+        terminal_continuation_turn = turn_index >= max_turns
+        terminal_rejection_followup_turn = turn_index == max_turns + 1
+        extension_required = (terminal_rejection_followup_required
+                              if terminal_rejection_followup_turn
+                              else terminal_continuation_required)
+        if terminal_continuation_turn and not extension_required:
             break
         if terminal_continuation_turn:
+            notice = (
+                "The previous terminal disposition was rejected. Use the raw "
+                "observation above and submit one corrected terminal disposition "
+                "now; no workspace action is available."
+                if terminal_rejection_followup_turn
+                else "Ordinary actions are complete. Submit one terminal disposition "
+                "now; no further workspace action is available."
+            )
             messages[-1]["content"] = [
                 *_client_tool_content_blocks(messages[-1].get("content")),
-                {
-                    "type": "text",
-                    "text": (
-                        "Ordinary actions are complete. Submit one terminal "
-                        "disposition now; no further workspace action is available."
-                    ),
-                },
+                {"type": "text", "text": notice},
             ]
         # Keep one stable tool definition surface across the whole transcript so
         # provider prompt caches retain the accumulated workspace prefix.
         turn_tools = request.tools
         terminal_only_turn = terminal_continuation_turn or bool(
-            turn_tools and all(tool.terminal for tool in turn_tools)
-        )
-        turn_allowed_tools = {
-            tool.name
-            for tool in (terminal_tools if terminal_continuation_turn else turn_tools)
-        }
+            turn_tools and all(tool.terminal for tool in turn_tools))
+        allowed_definitions = terminal_tools if terminal_continuation_turn else turn_tools
+        turn_allowed_tools = {tool.name for tool in allowed_definitions}
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
@@ -659,19 +646,15 @@ def run_bounded_client_tool_loop(
                             "client_tool_loop_calls_before": total_calls,
                             "client_tool_loop_ordinary_calls_before": ordinary_tool_calls,
                             "client_tool_loop_terminal_only_turn": terminal_only_turn,
-                            "client_tool_loop_terminal_continuation": (
-                                terminal_continuation_turn
-                            ),
+                            "client_tool_loop_terminal_continuation": terminal_continuation_turn,
+                            "client_tool_loop_terminal_rejection_followup": terminal_rejection_followup_turn,
                         },
                     )
                 )
             except Exception as exc:
                 if not _is_terminal_provider_turn_error(exc):
                     raise
-                provider_failure = (
-                    type(exc).__name__,
-                    type(exc).__module__,
-                )
+                provider_failure = (type(exc).__name__, type(exc).__module__)
             if provider_failure is not None:
                 exception_type, exception_module = provider_failure
                 history.append(
@@ -746,6 +729,7 @@ def run_bounded_client_tool_loop(
         tool_result_blocks: list[dict[str, Any]] = []
         turn_state_changed = False
         turn_new_observation = False
+        turn_executed_terminal_rejected = False
         terminal_payload: Mapping[str, Any] | None = None
         for call_index, call in enumerate(calls):
             call_definition = tool_definitions.get(call.name)
@@ -921,6 +905,12 @@ def run_bounded_client_tool_loop(
                     is_error=True,
                     observation_key="terminal_result_from_nonterminal_tool",
                 )
+            turn_executed_terminal_rejected |= bool(
+                executed_by_runtime
+                and call_definition is not None
+                and call_definition.terminal
+                and not execution.terminal
+            )
             observation_key = execution.observation_key or stable_hash(
                 [call.name, execution.is_error, execution.content]
             )
@@ -928,9 +918,7 @@ def run_bounded_client_tool_loop(
             if observation_is_new:
                 turn_new_observation = True
                 seen_observations.add(observation_key)
-            turn_state_changed = (
-                turn_state_changed or execution.state_changed
-            )
+            turn_state_changed = turn_state_changed or execution.state_changed
             result_text = _client_tool_result_text(execution.content)
             tool_result_blocks.append(
                 {
@@ -964,9 +952,7 @@ def run_bounded_client_tool_loop(
                         turns=turn_index + 1,
                         tool_calls=total_calls,
                     )
-                terminal_payload = deepcopy(
-                    dict(execution.terminal_payload)
-                )
+                terminal_payload = deepcopy(dict(execution.terminal_payload))
 
         messages.append({"role": "user", "content": tool_result_blocks})
         if terminal_payload is not None:
@@ -991,6 +977,8 @@ def run_bounded_client_tool_loop(
                 if call.name in tool_definitions
             }
             terminal_continuation_required = requested_terminal_kinds == {False}
+        elif not terminal_rejection_followup_turn:
+            terminal_rejection_followup_required = turn_executed_terminal_rejected
 
         if turn_state_changed or turn_new_observation:
             no_progress_turns = 0

@@ -786,6 +786,99 @@ def test_last_workspace_action_gets_one_terminal_continuation() -> None:
     assert "Submit one terminal disposition" in terminal_notice["text"]
 
 
+def test_rejected_terminal_continuation_gets_one_same_session_followup() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit-invalid", "submit", {})),
+            _response(ClientToolCall("call-submit-valid", "submit", {})),
+        ]
+    )
+    terminal_attempts = 0
+
+    def execute(call, _context):
+        nonlocal terminal_attempts
+        if call.name == "edit":
+            return ClientToolExecutionResult(
+                content={"ok": True},
+                state_changed=True,
+                observation_key="edited",
+            )
+        terminal_attempts += 1
+        if terminal_attempts == 1:
+            raise ClientToolInputError("terminal packet is incomplete")
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"submitted": True},
+            observation_key="submitted",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=1,
+        max_tool_calls=4,
+        max_no_progress_turns=2,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 3
+    assert terminal_attempts == 2
+    assert len(backend.requests) == 3
+    assert all(
+        [tool.name for tool in request.tools] == ["edit", "check", "submit"]
+        for request in backend.requests[1:]
+    )
+    assert all(request.tool_choice == "submit" for request in backend.requests[1:])
+    assert backend.requests[1].metadata[
+        "client_tool_loop_terminal_rejection_followup"
+    ] is False
+    assert backend.requests[2].metadata[
+        "client_tool_loop_terminal_rejection_followup"
+    ] is True
+    assert "terminal packet is incomplete" in str(
+        backend.requests[2].messages[-1]["content"]
+    )
+
+
+def test_terminal_continuation_rejection_followup_is_bounded() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
+            _response(ClientToolCall("call-submit-first", "submit", {})),
+            _response(ClientToolCall("call-submit-second", "submit", {})),
+        ]
+    )
+    terminal_attempts = 0
+
+    def execute(call, _context):
+        nonlocal terminal_attempts
+        if call.name == "edit":
+            return ClientToolExecutionResult(
+                content={"ok": True},
+                state_changed=True,
+                observation_key="edited",
+            )
+        terminal_attempts += 1
+        raise ClientToolInputError(f"terminal rejection {terminal_attempts}")
+
+    with pytest.raises(ClientToolLoopError, match="turn budget exhausted"):
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=execute,
+            max_turns=1,
+            max_tool_calls=4,
+            max_no_progress_turns=2,
+        )
+
+    assert terminal_attempts == 2
+    assert len(backend.requests) == 3
+    assert all(request.tool_choice == "submit" for request in backend.requests[1:])
+
+
 def test_terminal_continuation_cannot_execute_another_workspace_action() -> None:
     backend = ScriptedToolTurnBackend(
         [
@@ -1272,6 +1365,7 @@ def test_bounded_client_tool_loop_returns_only_declared_input_errors_to_model() 
             _response(ClientToolCall("call-safe", "edit", {})),
             _response(text="stop"),
             _response(ClientToolCall("call-submit", "submit", {})),
+            _response(ClientToolCall("call-submit-followup", "submit", {})),
         ]
     )
 
