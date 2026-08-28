@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "bayesian_online_changepoint_gamma_poisson_paper_to_code",
+      "title": "Gamma-Poisson Bayesian online changepoint detection from paper and data",
+      "description": "Focused L2 paper-to-code reproduction based on Adams and MacKay (2007). The model-visible source snapshot contains the exact arXiv author source, Algorithm 1, and the public boot coal-disaster event dates and documentation. Public reference implementations and all gold outcomes are withheld from runtime. Let x_1,...,x_T be nonnegative integer counts. Within each product partition, counts are iid Poisson with a segment-specific rate; independent segment rates have a Gamma(shape a, rate b) prior. Use the paper's Algorithm 1 convention: before x_t, each prior run-length hypothesis has its own posterior predictive; the same predictive term enters the growth and changepoint branches, the constant hazard h is applied after that predictive factor, and the zero-run state resets its sufficient statistics to the prior for the next datum. In one authoritative Markdown/LaTeX Theory workspace, derive the Gamma-Poisson predictive mass, the log-space growth and changepoint recursions, normalization, sufficient-statistic updates, initialization, and indexing. Prove from this declared constant-hazard convention that the normalized row-zero probability equals h at every processed time, and explain why row zero alone is therefore not a changepoint score. Explain causal prefix invariance, finite-horizon complexity, and the distinction between exact filtering under the model and evidence that the model is scientifically adequate. The required model-authored Python artifact is est_bocd_gamma_poisson and must implement run_estimator(request) under the closed contract below without author or reference code. Exploratory Python or R may check formulas. A separately frozen confirmatory assessment uses four 120-observation single-change Poisson designs with the change before observation 61, rate pairs (1,8), (8,1), (1,4), and (4,1), Gamma(1,1), h=0.01, and at least 1000 fresh replicates per design. A detection occurs when the returned MAP run length is at most 5 for some observation 61 through 71; a pre-change false reset occurs when it is at most 5 for some observation 31 through 60. For each design, report detection probability, false-reset probability, conditional detection delay, and Monte Carlo standard errors. The confirmatory target is detection probability at least 0.75 and false-reset probability at most 0.10 in every declared design, assessed with a pre-outcome one-sided two-standard-error margin. Separately bin all 191 supplied coal event dates by floor(date) for calendar years 1851 through 1962, preserving zero-count years, and run the same estimator with Gamma(1,1) and h=1/30; report exact input identity and posterior/MAP summaries without claiming that one annual rebin reproduces the paper's weekly figure or identifies a causal effect of the 1887 Act. These algorithm and empirical checks are finite-design evidence, not proof of changepoint recovery outside the declared model, author-code replication, novelty, or formal proof. Lean formalization is not applicable, and unresolved indexing, numerical, source, or scientific-scope gaps must remain explicit.",
+      "tags": [
+        "Bayesian online changepoint detection",
+        "Gamma-Poisson",
+        "paper to code",
+        "coal mining disasters",
+        "online filtering",
+        "L2"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "Bayesian Online Changepoint Detection",
+          "authors": [
+            "Ryan Prescott Adams",
+            "David J. C. MacKay"
+          ],
+          "venue": "arXiv",
+          "year": 2007,
+          "identifier": "arXiv:0710.3742v1",
+          "url": "https://arxiv.org/abs/0710.3742v1"
+        },
+        "public_data": {
+          "name": "coal",
+          "package": "boot 1.3-32",
+          "source_reference": "Jarrett (1979), A note on the intervals between coal-mining disasters, Biometrika 66, 191-193",
+          "url": "https://cran.r-project.org/package=boot",
+          "license": "Unlimited"
+        },
+        "research_source_snapshot_id": "bocd-gamma-poisson-paper-coal-data-20260828-v1",
+        "research_source_snapshot_hash": "f6c1d5a52d21a88aee113ded11ce814dea0416061101e37f8cc593fb5487aa33",
+        "research_source_manifest_sha256": "29f1c220bf66ca559441501084156227a185baaf39a5c3dce0472982e9d03277",
+        "reference_implementation_visibility": "evaluator_only_hidden_for_l2"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_bocd_gamma_poisson",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.counts",
+            "name": "counts",
+            "meaning": "Observed Poisson counts in causal time order.",
+            "json_type": "array[integer]",
+            "shape": "one array containing 1 through 512 exact integers",
+            "units": "events per observation interval",
+            "indexing": "counts[i] is x_{i+1}; no future count may affect an earlier posterior row",
+            "edge_cases": "Reject booleans, floats, strings, nulls, nested values, negative counts, counts above 10000, an empty array, or more than 512 observations. Do not coerce, round, drop, pad, or truncate values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.hazard_probability",
+            "name": "hazard_probability",
+            "meaning": "Constant per-step changepoint hazard h used in both branches of Algorithm 1.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar strictly between 0 and 1",
+            "units": "probability per observation",
+            "indexing": "the same value applies at every time and prior run length",
+            "edge_cases": "Reject zero, one, out-of-range, nonfinite, Boolean, string, null, array, or object values rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.gamma_shape",
+            "name": "gamma_shape",
+            "meaning": "Prior Gamma shape a for each newly reset segment rate.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar in (0,1000000]",
+            "units": "shape",
+            "indexing": "the same prior shape initializes every zero-run state",
+            "edge_cases": "Reject nonpositive, above-domain, nonfinite, Boolean, string, null, array, or object values rather than clipping or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.gamma_rate",
+            "name": "gamma_rate",
+            "meaning": "Prior Gamma rate b, not scale, for each newly reset segment rate.",
+            "json_type": "number",
+            "shape": "one finite non-Boolean scalar in (0,1000000]",
+            "units": "exposure-equivalent rate parameter",
+            "indexing": "the same prior rate initializes every zero-run state",
+            "edge_cases": "Reject nonpositive, above-domain, nonfinite, Boolean, string, null, array, or object values rather than clipping, inverting, or coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.run_length_posterior",
+            "name": "run_length_posterior",
+            "meaning": "Causal posterior probability rows for run length after each processed prefix, including initialization.",
+            "json_type": "array[array[number]]",
+            "shape": "exactly T+1 rows; row 0 is [1.0], and row t has exactly t+1 finite probabilities indexed r=0,...,t",
+            "units": "probability",
+            "indexing": "row t conditions only on counts[0:t]; row t entry r is the normalized Algorithm 1 mass for r_t=r",
+            "edge_cases": "Every value is in [0,1], each row sums to one within floating roundoff, impossible upper-triangular states are absent rather than padded, and under this constant-hazard convention row t entry 0 equals h within floating roundoff for every t>=1.",
+            "normalization": "Use log-space predictive and branch weights, normalize each complete row once, and return ordinary probabilities."
+          },
+          {
+            "clause_id": "response.map_run_length",
+            "name": "map_run_length",
+            "meaning": "Maximum a posteriori run length for each noninitial posterior row.",
+            "json_type": "array[integer]",
+            "shape": "exactly T integers",
+            "units": "observation intervals",
+            "indexing": "entry t-1 is the smallest r attaining the maximum in posterior row t",
+            "edge_cases": "Every entry lies in 0,...,t and ties choose the smallest run length without a tolerance.",
+            "normalization": "Direct argmax of the returned row."
+          },
+          {
+            "clause_id": "response.log_evidence",
+            "name": "log_evidence",
+            "meaning": "Incremental log predictive evidence for each observed count under the previous normalized run-length mixture.",
+            "json_type": "array[number]",
+            "shape": "exactly T finite scalars",
+            "units": "natural-log probability mass",
+            "indexing": "entry t-1 is log P(x_t | x_1,...,x_{t-1}) under the declared recursion",
+            "edge_cases": "Do not return cumulative evidence, likelihood density, base-10 logarithms, nulls, or infinities.",
+            "normalization": "Log-sum-exp of the complete changepoint and growth branch weights before row normalization."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the four declared fields and the response contains exactly the three declared fields. Missing, extra, malformed, nonfinite, or out-of-domain values are rejected rather than ignored, coerced, clipped, padded, or truncated."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, access files, invoke subprocesses, or use the network."
+          },
+          {
+            "clause_id": "invariant.causal_prefix",
+            "meaning": "For any valid sequence and any nonempty prefix, running the prefix alone returns exactly the corresponding prefix of all three outputs up to floating roundoff; future counts cannot change an earlier row, MAP value, or log evidence."
+          },
+          {
+            "clause_id": "invariant.constant_hazard_row_zero",
+            "meaning": "Because the same predictive mixture multiplies both branches before normalization, every noninitial posterior row has row-zero probability equal to hazard_probability within floating roundoff. This identity is an indexing and implementation check, not a useful changepoint score."
+          },
+          {
+            "clause_id": "invariant.gamma_poisson_updates",
+            "meaning": "For a prior-run hypothesis with Gamma(shape,rate) before count x, the predictive is the Gamma-Poisson mass; its growth child uses Gamma(shape+x,rate+1), while the zero-run child for the next observation resets to the original prior."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze the four declared single-change Poisson designs, exact change index, rates, Gamma prior, hazard, fresh seeds, at least 1000 replicates per design, estimator invocation, detection and false-reset events, conditional delay rule, Monte Carlo standard errors, and one-sided two-standard-error joint decision rule."
+          },
+          {
+            "clause_id": "claim.empirical.synthetic_detection",
+            "meaning": "In every declared design, detection probability is at least 0.75 and pre-change false-reset probability is at most 0.10 when assessed using the frozen one-sided two-standard-error margin. Conditional detection delay is descriptive and receives no undeclared success threshold."
+          },
+          {
+            "clause_id": "claim.empirical.coal_application",
+            "meaning": "The coal application uses all 191 supplied dates exactly once, bins by floor(date) into every calendar year 1851 through 1962 including zero-count years, and invokes the same estimator with Gamma(1,1) and h=1/30. Its posterior and MAP summaries are descriptive finite-data evidence, not a weekly figure replication or causal estimate."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory assessment tests implementation and finite-design behavior only. It does not prove exact filtering, universal changepoint recovery, scientific adequacy of piecewise Poisson sampling, historical causality, author-code replication, novelty, or formal correctness."
+          }
+        ],
+        "termination_guarantee": "For every valid request, run_estimator performs finite O(T^2) Gamma-Poisson predictive and branch arithmetic over at most 512 observations, stores the declared triangular posterior, and returns exactly one response without randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
