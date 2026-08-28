@@ -871,7 +871,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             description=(
                 "Run reviewer-authored Python or R diagnostic source against one "
                 "exact immutable estimator. Define run_sandbox(seed, replicates, "
-                "estimators), then call the target run_estimator directly with "
+                "estimators) exactly; for Python the declaration begins "
+                "`def run_sandbox(seed, replicates, estimators):`. Then call the "
+                "target run_estimator directly with "
                 "estimators[artifact_id](request) in Python or "
                 "estimators[[artifact_id]](request) in R, never a run_estimator "
                 "attribute. This executes the reviewer's run_sandbox, not the "
@@ -951,7 +953,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             "public request field, response field, invariant, and stated edge case. "
                             "A broad numerical probe does not cover an omitted input boundary; a probe "
                             "that failed before exact target invocation covers nothing; do not infer "
-                            "coverage from test count alone."
+                            "coverage from test count alone. Before claiming numerical or statistical "
+                            "algorithm correctness, compare every load-bearing executable transition "
+                            "side by side with its theory-required transition and try at least one "
+                            "independently derived discriminating oracle. Shape, normalization, "
+                            "causality, determinism, and other self-consistency checks cannot by "
+                            "themselves establish the implemented update or estimand."
                             if probe_targets
                             else ""
                         )

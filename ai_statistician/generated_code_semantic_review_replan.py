@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Mapping
 
-from .agent_runtime import AgentTask
+from .agent_runtime import AgentTask, RUNTIME_CONTINUATION_BUDGET_MARKER_KEY
 from .fingerprint import stable_hash
 from .generated_code_semantic_reviewer_llm import (
     generated_code_semantic_review_prompt_projection,
@@ -230,6 +230,11 @@ def build_generated_code_semantic_review_producer_revision_task(
         f"{stable_hash([review_execution_id, replan['revision_context_id']])[:8]}"
     )
     revision_inputs = deepcopy(source_inputs)
+    # Semantic review starts a new hash-bound continuation from the reviewed
+    # source. Older progress/replay continuations are mutually exclusive with it.
+    revision_inputs.pop("scientific_code_workspace_progress_manifest", None)
+    revision_inputs.pop("scientific_code_workspace_continuation_count", None)
+    revision_inputs.pop("consumer_resume_manifest", None)
     revision_inputs["question"] = {
         "id": question.id,
         "title": question.title,
@@ -241,6 +246,8 @@ def build_generated_code_semantic_review_producer_revision_task(
     revision_inputs["generated_code_semantic_review_revision_count"] = (
         max(0, int(revision_count or 0)) + 1
     )
+    revision_budget = deepcopy(source_task.budget)
+    revision_budget.pop(RUNTIME_CONTINUATION_BUDGET_MARKER_KEY, None)
     return AgentTask(
         task_id=task_id,
         owner_subsystem=source_subsystem,
@@ -250,7 +257,7 @@ def build_generated_code_semantic_review_producer_revision_task(
         ),
         inputs=revision_inputs,
         allowed_tools=source_task.allowed_tools,
-        budget=deepcopy(source_task.budget),
+        budget=revision_budget,
         expected_artifacts=source_task.expected_artifacts,
         acceptance_gate=(
             "a changed complete model-generated candidate executes and passes a new "

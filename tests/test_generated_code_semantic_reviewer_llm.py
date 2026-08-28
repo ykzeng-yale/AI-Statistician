@@ -1095,6 +1095,9 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
         if tool.name == "run_exact_estimator_review_probe"
     )
     assert "call the target run_estimator directly" in source_probe_tool.description
+    assert "def run_sandbox(seed, replicates, estimators):" in (
+        source_probe_tool.description
+    )
     assert "not the target's" in source_probe_tool.description
     assert "one broad model-authored probe" in str(
         backend.requests[0].messages[0]["content"]
@@ -1112,6 +1115,12 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
         backend.requests[0].messages[0]["content"]
     )
     assert "do not infer coverage from test count alone" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "independently derived discriminating oracle" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "self-consistency checks cannot by themselves establish" in str(
         backend.requests[0].messages[0]["content"]
     )
     assert "accepted_numeric_string" in str(backend.requests[1].messages[-1])
@@ -1900,6 +1909,84 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
     assert replan["exact_source_workspace_continuation_required"] is True
     assert "complete_candidate_regeneration_required" not in replan
     assert "Continue the exact source-owner workspace" in task.objective
+
+
+def test_revision_task_replaces_stale_source_continuation_mode() -> None:
+    source_task = AgentTask(
+        task_id="scientific-progress:SimulationEvaluator:test:1:checkpoint",
+        owner_subsystem="SimulationEvaluator",
+        objective="Continue the exact simulation source.",
+        inputs={
+            "question": {"id": "semantic-review-test"},
+            "scientific_code_workspace_progress_manifest": {
+                "manifest_id": "simulation-manifest:progress"
+            },
+            "scientific_code_workspace_continuation_count": 1,
+            "consumer_resume_manifest": {
+                "manifest_id": "simulation-manifest:consumer"
+            },
+            "upstream_algorithm_handoff": {"handoff_id": "algorithm:accepted"},
+        },
+        budget={
+            "runtime_same_owner_workspace_continuation": {
+                "scope": "same_owner_workspace",
+                "parent_task_id": "simulation-task:parent",
+                "next_task_id": "scientific-progress:SimulationEvaluator:test:1:checkpoint",
+                "owner_subsystem": "SimulationEvaluator",
+            }
+        },
+    )
+    work_order = {
+        "work_order_id": "work-order:continuation",
+        "source_task_id": source_task.task_id,
+        "source_subsystem": "SimulationEvaluator",
+        "source_manifest_id": "simulation-manifest:reviewed",
+        "theory_packet_hash": "theory-hash",
+    }
+    feedback = {
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "source_subsystem": "SimulationEvaluator",
+        "overall_verdict": "REVISE",
+        "semantic_review_packet_hash": "review-hash",
+        "source_lineage": {"theory_packet_hash": "theory-hash"},
+        "reviewed_source_artifacts": [
+            {
+                "artifact_id": "simulation:reviewed",
+                "exact_source_hash": "source-hash",
+                "exact_source_code": (
+                    "def run_sandbox(seed, replicates, estimators):\n"
+                    "    return {'ok': True}\n"
+                ),
+            }
+        ],
+        "findings": [
+            {
+                "finding_id": "finding:continuation",
+                "summary": "The current source omits one required output.",
+            }
+        ],
+    }
+
+    task = build_generated_code_semantic_review_producer_revision_task(
+        question=_question(),
+        review_task_id="review-task:continuation",
+        work_order=work_order,
+        source_task=source_task,
+        review_feedback=feedback,
+        review_packet_id="review:continuation",
+        review_execution_id="review-execution:continuation",
+        revision_count=0,
+        max_revisions=1,
+    )
+
+    assert "scientific_code_workspace_progress_manifest" not in task.inputs
+    assert "scientific_code_workspace_continuation_count" not in task.inputs
+    assert "consumer_resume_manifest" not in task.inputs
+    assert "runtime_same_owner_workspace_continuation" not in task.budget
+    assert task.inputs["upstream_algorithm_handoff"] == {
+        "handoff_id": "algorithm:accepted"
+    }
+    assert task.inputs["environment_feedback"] == feedback
 
 
 def test_confirmatory_revision_returns_source_and_findings_without_result_values() -> None:
