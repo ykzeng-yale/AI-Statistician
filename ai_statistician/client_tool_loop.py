@@ -240,6 +240,7 @@ CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY = "fresh_context_from_hash_bound_checkpoint
 CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY = "recent_complete_tool_rounds_from_hash_bound_checkpoint_v1"
 CLIENT_TOOL_RECENT_HISTORY_ROUNDS = 8
 CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_durable_recent_history_checkpoint_windows_v2"
+CLIENT_TOOL_RESULT_MAX_CHARS = 60_000
 
 
 def _client_tool_ids(content: Any, *, kind: str, identity: str) -> set[str]:
@@ -1013,7 +1014,11 @@ def run_bounded_client_tool_loop(
     )
 
 
-def _client_tool_result_text(value: Any, *, max_chars: int = 60000) -> str:
+def _client_tool_result_text(
+    value: Any,
+    *,
+    max_chars: int = CLIENT_TOOL_RESULT_MAX_CHARS,
+) -> str:
     if isinstance(value, str):
         text = value
     else:
@@ -1026,7 +1031,16 @@ def _client_tool_result_text(value: Any, *, max_chars: int = 60000) -> str:
         )
     if len(text) <= max_chars:
         return text
-    return text[:max_chars] + "\n[tool result truncated by runtime]"
+    marker = (
+        "\n[tool result truncated in middle by runtime; "
+        f"original_chars={len(text)}; original_lines={len(text.splitlines())}]\n"
+    )
+    if max_chars <= len(marker):
+        return marker[:max_chars]
+    remaining = max_chars - len(marker)
+    head = (remaining + 1) // 2
+    tail = remaining - head
+    return text[:head] + marker + (text[-tail:] if tail else "")
 
 
 def _compact_tool_response_metadata(

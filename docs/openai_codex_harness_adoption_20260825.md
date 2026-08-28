@@ -3289,3 +3289,31 @@ Task 74's historical two Architect calls, one regeneration, automated `1/1`, and
 trustworthy `0/1` remain unchanged. Architect routing passed `26/26`, Architect plus
 core passed `34/34`, and the complete repository passed `997/997` in 81.39 seconds at
 149,997 production Python lines. No product or evaluator model call occurred.
+
+## 2026-08-28 upstream refresh and bounded observation fidelity
+
+Official Codex `main` was fetched again and pinned at
+[`94311d44`](https://github.com/openai/codex/commit/94311d447587411789533c47601fd8bc9d81eb48).
+Since the prior `6be2a6ca` audit, `7d6f808b` refactors TUI keymap conflict checks and
+`94311d44` forwards image content from the history-notes extension. Neither changes
+the core model/tool action loop, tool registry, sandbox orchestrator, session
+ownership, or multi-agent control boundary.
+
+The source-level decision therefore remains selective adoption, not embedding.
+Theory, Python/R, simulation evaluation, and Lean continue to use the existing
+provider-neutral `ClientToolTurnRequest` and one AI Statistician `AgentRuntime`.
+Importing Codex Core, App Server, its OpenAI Responses transport, thread store, or
+agent scheduler would create a second conversation and orchestration owner while
+violating the exact-Haiku evaluation boundary. Codex collaboration contributes one
+useful principle instead: the parent model delegates only genuinely independent
+work, child state remains session-scoped, and sparse messages or immutable artifact
+references cross sessions. Routine compiler, interpreter, simulation, and retrieval
+observations stay with the issuing source owner.
+
+One small shared mechanism was worth adopting from Codex's centralized output-budget
+discipline. Long client-tool observations previously kept only their first 60,000
+characters, which could discard the final Python traceback, R diagnostic, referee
+finding, or Lean goal. The common loop now truncates only the middle and records the
+original character and line counts, preserving both setup and terminal diagnostics.
+This is one central transport policy used by every workspace. It adds no repair
+phase, retry, router, content parser, task rule, acceptance condition, or model call.

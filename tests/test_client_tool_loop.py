@@ -20,6 +20,7 @@ from ai_statistician.client_tool_loop import (
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
 )
+from ai_statistician import client_tool_loop
 from ai_statistician.model_backend import (
     ClientToolCall,
     ClientToolDefinition,
@@ -138,6 +139,19 @@ def test_exact_text_edits_support_count_checked_repeated_literals() -> None:
             }],
             replacement_key="new_text",
         )
+
+
+def test_long_tool_observation_preserves_head_tail_and_size_metadata() -> None:
+    text = "diagnostic-start\n" + ("middle\n" * 80) + "diagnostic-end"
+
+    bounded = client_tool_loop._client_tool_result_text(text, max_chars=120)
+
+    assert len(bounded) == 120
+    assert bounded.startswith("diagnostic-start")
+    assert bounded.endswith("diagnostic-end")
+    assert "truncated in middle by runtime" in bounded
+    assert f"original_chars={len(text)}" in bounded
+    assert f"original_lines={len(text.splitlines())}" in bounded
 
 
 def test_client_tool_session_roundtrips_exact_transcript(tmp_path) -> None:
