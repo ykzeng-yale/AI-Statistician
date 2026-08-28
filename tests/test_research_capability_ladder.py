@@ -7443,14 +7443,15 @@ def test_lehmann_scheffe_l0_is_frozen_and_unconsumed() -> None:
     )
     assert evidence["activation_schema_version"] == 4
     assert evidence["semantic_protocol_version"] == 10
-    assert evidence["semantic_calibration_attempts"] == 2
-    assert evidence["semantic_calibration_total_model_calls"] == 31
-    assert evidence["semantic_final_calibration_cases_correct"] == 14
+    assert evidence["semantic_calibration_attempts"] == 4
+    assert evidence["semantic_calibration_total_model_calls"] == 53
+    assert evidence["semantic_final_calibration_cases_correct"] == 4
     assert evidence["semantic_candidate_mode_negative_cases_correct"] == 1
     assert evidence["semantic_reference_candidate_passed"] is True
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
+    assert evidence["product_loader_preactivation_rejections"] == 1
     assert evidence["mechanical_authority_checks"] == 7
     assert evidence["mechanical_negative_variants_rejected"] == 7
     assert evidence["hidden_gold_manifest_validated"] is True
