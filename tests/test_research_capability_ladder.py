@@ -6,11 +6,12 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "bfae4e135c54b70cadbe6a6fb04234c55b7a8cec"
+LATEST_SHARED_MECHANISM_HEAD = "3b079a58617dad198f95e1f84ad25a5c69b4832a"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
-CURRENT_ACTIVE_TASKS = 73
+CURRENT_ACTIVE_TASKS = 74
 CURRENT_CONSUMED_TASKS = 73
 CURRENT_OPERATOR_INVALID_TASKS = 13
+CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
 TASK_62_SHARED_MECHANISM_HEAD = "ccaca8d7ffcc9cecd0380c0cb07879bcc395647f"
@@ -5406,7 +5407,9 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["runtime_source_replication_components_ready"] == 6
+    assert readiness["runtime_source_replication_components_ready"] == (
+        CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
+    )
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
 
@@ -5876,7 +5879,9 @@ def test_rdrobust_senate_l1_records_consumed_operator_false_acceptance() -> None
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["runtime_source_replication_components_ready"] == 6
+    assert readiness["runtime_source_replication_components_ready"] == (
+        CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
+    )
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
@@ -6004,7 +6009,9 @@ def test_statsmodels_adf_kpss_l1_records_consumed_operator_false_acceptance() ->
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_configured_tasks"] == CURRENT_ACTIVE_TASKS
     assert readiness["fully_gold_passed_tasks"] == 4
-    assert readiness["runtime_source_replication_components_ready"] == 6
+    assert readiness["runtime_source_replication_components_ready"] == (
+        CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
+    )
     assert readiness["source_replication_components_passed"] == 1
     assert readiness["source_replication_full_tasks_passed"] == 1
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
