@@ -3734,3 +3734,35 @@ repair path, retry, fallback, model, or model call was added. Focused topology c
 passed 7/7, the affected panel passed 222/222, and the complete repository passed
 1021/1021 in 80.11 seconds. Central runtime shrank to 24,947 lines and production
 Python to 149,995 lines. All 83 consumed draws remain immutable at aggregate `4/83`.
+
+## 2026-08-28 direct Theory live validation
+
+Task 84 supplied the first unrelated frozen live check of the direct long-horizon
+Theory path. The theory-only intent entered TheoryDeveloper without an Architect
+planning call. One retained exact-Haiku session used 18 model-selected file and
+scratch tools, wrote and explicitly committed a 343-line Markdown/LaTeX artifact,
+then handed exact content-addressed bytes to an isolated 13-turn referee and a
+terminal 26-turn Critic. Scientific code, Simulation, source replication,
+Formalizer, Lean, and kernel work did not run because they were not applicable.
+All 57 product calls used exact `claude-haiku-4-5-20251001`; no Sonnet, Opus,
+fallback, or escalation was used.
+
+The harness mechanics passed, but the scientific result did not. The frozen hidden
+authority passed all `7/7` document checks and only `7/8` semantic claims, yielding
+`0/1`. The active Karlin-Rubin derivation did not prove comparison with every
+level-alpha competitor at every fixed alternative: it collapsed a potentially flat
+likelihood-ratio equality region to one threshold point and relied on an invalid
+uniqueness claim. The independent referee and Critic both false-accepted that proof.
+
+This distinction is the point of selective Codex reuse. Persistent model ownership,
+stable tools, raw observations, sparse content-addressed handoffs, and external
+authority can make work inspectable without making the model mathematically correct.
+The failure does not justify importing Codex Core, App Server, Responses transport,
+thread/worktree management, Guardian, or multi-agent scheduling. It also does not
+justify a theorem-specific prompt hint, deterministic equation parser, repair worker,
+extra reviewer vote, retry, more turns, or model escalation. Task 84 and its single
+hidden evaluation remain immutable at `0/1`; aggregate trusted capability is `4/84`.
+
+Closeout regressions passed 128/128 for the ladder and hidden-evaluation surface;
+the complete repository passed 1022/1022 in 81.91 seconds. This is regression and
+evidence-accounting support only, not additional scientific capability evidence.
