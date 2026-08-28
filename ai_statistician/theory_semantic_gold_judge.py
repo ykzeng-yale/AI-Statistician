@@ -22,7 +22,7 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 9
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 10
 
 
 def _theory_semantic_gold_judge_schema(
@@ -220,7 +220,10 @@ def _generate_semantic_assessment_batch(
             "required support is missing or indeterminate. For an omitted claim, an explicit "
             "statement of noncoverage, or material outside the document's stated scope, use "
             "INCONCLUSIVE rather than VIOLATED unless the document actively asserts something "
-            "false about that claim. Calibration cases are unlabeled, and "
+            "false about that claim. If assumptions, a problem card, or the proof branches "
+            "cover only a strict subdomain while an active conclusion retains broader "
+            "quantifiers, that is an invalid asserted derivation and must be treated as FAIL "
+            "or VIOLATED, not as mere omitted coverage. Calibration cases are unlabeled, and "
             "the candidate phase contains no calibration cases. Follow the keyed response schema "
             "exactly. During calibration, candidate-mode negative control, and candidate "
             "adjudication, use the same claim-level assessment: return document_status and one "

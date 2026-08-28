@@ -142,6 +142,10 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
     )
     assert "evidence authority" in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
+    assert "level of quantifiers and domains" in protocol
+    assert "case split must exhaust the asserted domain" in protocol
+    assert "silently narrows scope" in protocol
+    assert "cannot justify a broader active claim" in protocol
 
 
 def test_source_acceptance_protocol_materializes_one_stable_boolean_abi() -> None:

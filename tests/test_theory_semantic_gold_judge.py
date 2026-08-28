@@ -234,7 +234,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 9
+    assert result["protocol_version"] == 10
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -282,6 +282,10 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     assert "an explicit statement of noncoverage" in (
         provider.requests[0].system_prompt
     )
+    assert "proof branches cover only a strict subdomain" in (
+        provider.requests[0].system_prompt
+    )
+    assert "invalid asserted derivation" in provider.requests[0].system_prompt
     assert all(case_id not in provider.requests[0].user_prompt for case_id in CASE_IDS)
     assert "reference_complete.md" not in provider.requests[0].user_prompt
     assert "wrong_limit.md" not in provider.requests[0].user_prompt

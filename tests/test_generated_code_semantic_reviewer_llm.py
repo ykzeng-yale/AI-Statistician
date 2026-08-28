@@ -722,7 +722,8 @@ def test_executable_evaluator_acceptance_must_review_current_authority_abi() -> 
     material = _review_material()
     source = (
         "def run_sandbox(seed, replicates):\n"
-        "    return {'acceptance_passed': True, "
+        "    checks = {'positive_replicates': replicates > 0}\n"
+        "    return {'acceptance_passed': all(checks.values()), "
         "'requested_runtime_replicates': replicates}\n"
     )
     metrics = {
@@ -779,6 +780,12 @@ def test_executable_evaluator_acceptance_must_review_current_authority_abi() -> 
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question(),
+        review_material=material,
+    )
+    assert "Trace the returned acceptance decision backward" in prompt
+    assert "constant or disconnected acceptance output" in prompt
 
 
 def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() -> None:

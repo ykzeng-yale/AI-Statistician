@@ -44,11 +44,11 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 31
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 32
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.")
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_optional_exact_probe_v8"
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_optional_exact_probe_v9"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
@@ -77,7 +77,10 @@ GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
         "and meaning; metric_semantics_alignment checks meaning. Neither adjudicates realized "
         "threshold pass or fail. For simulation_source_acceptance_v1, inspect whether the exact "
         "source implements the complete frozen protocol and retains raw measurements and "
-        "per-check diagnostics; do not infer correctness from acceptance_passed alone."
+        "per-check diagnostics; do not infer correctness from acceptance_passed alone. The "
+        "returned acceptance decision must be computed from the declared scientific checks. A "
+        "constant decision, or a decision that ignores a computed load-bearing diagnostic, is a "
+        "blocking source defect even when the diagnostic run happens to look favorable."
     ),
     "runtime_argument_rule": (
         "Every runtime argument with a declared semantic or resource role must affect the "
@@ -700,6 +703,9 @@ def build_generated_code_semantic_review_prompt(
         "and requested Monte Carlo replicates. Review those choices directly against "
         "the theory and question, including whether requested_runtime_replicates is "
         "fixed independently of diagnostic outcomes and scientifically justified. "
+        "Trace the returned acceptance decision backward through the exact source and verify "
+        "that every load-bearing computed check participates in that decision; a constant or "
+        "disconnected acceptance output is not an implemented protocol. "
         "The attached run is a non-confirmatory authoring diagnostic; its realized "
         "values cannot establish acceptance. ACCEPT authorizes only unchanged-source "
         "execution on a later hidden cohort.\n\n"

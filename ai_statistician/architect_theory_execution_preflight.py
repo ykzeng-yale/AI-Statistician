@@ -68,7 +68,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 27
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 39
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 40
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -124,7 +124,11 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "correction does not revoke it. Only material clearly delimited as REJECTED or "
         "SCRATCH is nonauthoritative, and no active claim may depend on it. First challenge unresolved risks and claims "
         "that change scope, evidence authority, or the mathematical-to-executable "
-        "interface."
+        "interface. Compare the question, problem card, assumptions, active claim, and "
+        "actual proof branches at the level of quantifiers and domains. A case split must "
+        "exhaust the asserted domain, and a structured handoff that silently narrows scope "
+        "cannot justify a broader active claim. Treat the broader claim as unsupported or "
+        "false unless the missing domain is established."
     ),
     (
         "Try to falsify each load-bearing conclusion with a discriminating special "

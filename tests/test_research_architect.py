@@ -1775,6 +1775,12 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "initial_authoring_context" in initial_prompt
     assert "scratchpad result is an exploratory diagnostic" in initial_prompt
     assert "pre-outcome-frozen simulation lane" in initial_prompt
+    assert "The Simulation owner, not the theory document" in initial_prompt
+    assert "empirical prediction, estimand, identifiability assumption" in (
+        initial_prompt
+    )
+    assert "a case split must exhaust the asserted domain" in initial_prompt
+    assert "derivation establishes only a strict subdomain" in initial_prompt
     assert "Use write_theory_document(path, content)" in initial_prompt
     assert "write_theory_workspace only for compact structured handoff" in (
         initial_prompt

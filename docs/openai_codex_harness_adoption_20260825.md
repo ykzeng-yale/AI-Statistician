@@ -2932,3 +2932,49 @@ authority is frozen and hash-bound outside the model workspace, activation
 reuses the qualified record with zero additional semantic calls, and the sole
 future product draw remains one direct AgentRuntime execution. No second model
 session, repair worker, retry path, scheduler, or Codex runtime was added.
+
+## Task 71 and the current Codex harness boundary
+
+The official Codex repository was inspected again at upstream commit
+`f1bb4c168d7b7bcfab8083d8cb34996bf2332c3a`. Its current turn runner keeps one
+turn-scoped model session, samples from the exact accumulated history, executes
+requested tools, records their outputs, and continues the same loop while a
+tool call or stop hook requires follow-up. Its tool router likewise binds one
+final model-visible tool plan to the matching executable registry, while every
+invocation carries exact tool, call, source, payload, and session identity.
+
+Those are the Codex mechanisms AI-Statistician should reuse as principles:
+
+1. Each substantive owner keeps one persistent model/tool/observation loop.
+2. Raw Python, R, Lean, search, and document observations return to that same
+   owner; ordinary failures do not route through Architect or a repair agent.
+3. The advertised tool contract and executable implementation are one surface.
+4. Artifacts and tool calls have exact identity and external content-addressed
+   storage rather than recursively copied payloads.
+5. An independent reviewer may block promotion and return a compact observation
+   to the source owner, but it does not rewrite the work.
+
+Task 71 confirmed that this execution shape now works. Simulation received a
+semantic finding and continued with the same source-owning model without an
+Architect round trip or repair worker. The remaining failure was scientific
+judgment: the theory asserted an arbitrary-CDF theorem while deriving only the
+finite-discrete case, and both the independent referee and hidden semantic judge
+missed that strict scope contraction. The Simulation reviewer also accepted a
+source whose returned decision was constant rather than computed from its own
+diagnostics.
+
+The future-only response is therefore a protocol clarification inside the
+existing loops, not a new harness layer. Theory must reconcile active
+quantifiers with proof branches; the referee and hidden judge must treat a
+strict-subdomain derivation supporting a broader active conclusion as an
+invalid asserted derivation; and the Simulation source reviewer must trace the
+acceptance output back through every load-bearing computed check. Runtime still
+does not parse mathematics, infer code semantics, choose a threshold, repair a
+source, or add a task-specific rule.
+
+Importing Codex Core, App Server, Responses transport, thread storage, Guardian,
+worktrees, or Codex collaboration agents would create a second orchestration
+plane without supplying statistical semantics, empirical blinding, Lean kernel
+authority, or scientific evidence calibration. The right reuse is the small
+session-and-tool-loop principle above, while AI-Statistician retains its own
+task-intent evidence contract and specialist scientific environments.
