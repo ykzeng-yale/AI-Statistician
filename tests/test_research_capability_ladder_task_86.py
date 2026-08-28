@@ -72,7 +72,10 @@ def test_chapman_r_l0_task_is_frozen_before_product_draw() -> None:
     assert evidence["generated_algorithm_executed"] is False
     assert evidence["generated_simulation_executed"] is False
     assert evidence["model_draw_resampling_blocked"] is True
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "60b0b731a266bdd34c0647b1588f7f4b7fdf802b"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
