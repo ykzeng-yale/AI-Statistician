@@ -226,6 +226,66 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
     assert response.metadata["provider_stop_reason"] == "tool_use"
 
 
+def test_anthropic_backend_reuses_sdk_client_across_client_tool_turns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client_initializations = 0
+    requests: list[dict[str, object]] = []
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            call_index = len(requests)
+            return SimpleNamespace(
+                content=[
+                    SimpleNamespace(
+                        type="tool_use",
+                        id=f"toolu_{call_index}",
+                        name="inspect_artifact",
+                        input={"path": ["claim", str(call_index)]},
+                    )
+                ],
+                model="claude-haiku-4-5-20251001",
+                stop_reason="tool_use",
+                usage=SimpleNamespace(input_tokens=10, output_tokens=4),
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            nonlocal client_initializations
+            client_initializations += 1
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+    request = ClientToolTurnRequest(
+        system_prompt="Use tools.",
+        messages=({"role": "user", "content": "Inspect the claim."},),
+        tools=(
+            ClientToolDefinition(
+                name="inspect_artifact",
+                description="Read one artifact path.",
+                input_schema={"type": "object"},
+            ),
+        ),
+        model="claude-haiku-4-5-20251001",
+        max_tokens=256,
+        metadata={"model_tier": "haiku"},
+    )
+    backend = AnthropicGeneratorBackend(api_key="test-anthropic-key")
+
+    first = backend.generate_client_tool_turn(request)
+    second = backend.generate_client_tool_turn(request)
+
+    assert client_initializations == 1
+    assert len(requests) == 2
+    assert first.tool_calls[0].call_id == "toolu_1"
+    assert second.tool_calls[0].call_id == "toolu_2"
+
+
 def test_anthropic_generator_backend_transforms_strict_client_tool_schema(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

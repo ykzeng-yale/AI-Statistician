@@ -870,10 +870,25 @@ class AnthropicGeneratorBackend:
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         self.timeout_s = timeout_s
         self._capability_lock = threading.Lock()
+        self._client: Any | None = None
+        self._client_timeout_s: float | None = None
         self._unsupported_optional_parameters_by_model: dict[str, set[str]] = {}
         self._oversized_structured_output_schemas_by_model: dict[
             str, set[str]
         ] = {}
+
+    def _client_for_timeout(self, anthropic: Any, *, timeout_s: float) -> Any:
+        """Reuse one SDK transport across consecutive model/tool turns."""
+
+        with self._capability_lock:
+            if self._client is None or self._client_timeout_s != timeout_s:
+                self._client = anthropic.Anthropic(
+                    api_key=self.api_key,
+                    timeout=timeout_s,
+                    max_retries=0,
+                )
+                self._client_timeout_s = timeout_s
+            return self._client
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         if not self.api_key:
@@ -891,11 +906,7 @@ class AnthropicGeneratorBackend:
         except Exception as exc:  # pragma: no cover - import depends on local env
             raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
         timeout_s = _live_generator_timeout_seconds(self.timeout_s)
-        client = anthropic.Anthropic(
-            api_key=self.api_key,
-            timeout=timeout_s,
-            max_retries=0,
-        )
+        client = self._client_for_timeout(anthropic, timeout_s=timeout_s)
         structured_output_requested = bool(
             request.schema is not None
             and request.metadata.get(PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY)
@@ -1111,11 +1122,7 @@ class AnthropicGeneratorBackend:
             raise ValueError(f"failed to import anthropic package: {exc!r}") from exc
 
         timeout_s = _live_generator_timeout_seconds(self.timeout_s)
-        client = anthropic.Anthropic(
-            api_key=self.api_key,
-            timeout=timeout_s,
-            max_retries=0,
-        )
+        client = self._client_for_timeout(anthropic, timeout_s=timeout_s)
         tool_choice: dict[str, Any] = (
             {"type": request.tool_choice}
             if request.tool_choice in {"auto", "any"}
