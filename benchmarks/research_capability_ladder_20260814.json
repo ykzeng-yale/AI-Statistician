@@ -7802,7 +7802,8 @@
         "normalized_pdf_render_checks": "3 runs, 7/7 page hashes identical",
         "hidden_gold_manifest_validated": true,
         "gold_frozen_before_first_runtime_model_call": true,
-        "activation_push_confirmed_on_work_branch_and_main": false,
+        "activation_ledger_commit": "49db60d783ef29a23ed22d1148d91c9a47ee1d64",
+        "activation_push_confirmed_on_work_branch_and_main": true,
         "preactivation_product_model_calls": 0,
         "preactivation_evaluator_model_calls": 12,
         "first_runtime_model_call_occurred": false,
@@ -7810,7 +7811,7 @@
         "formalization_requirement": "not_applicable",
         "formalizer_executed": false,
         "model_draw_resampling_blocked": true,
-        "boundary": "Task 74 has validated frozen evaluator authority and is ready for a single exact-Haiku product draw only after this activation commit is pushed and bound on both streams. No runtime, source-report product model, or hidden post-runtime evaluation has run."
+        "boundary": "Task 74 has validated frozen evaluator authority and a pushed activation identity on both streams. It is ready for exactly one exact-Haiku product draw and one post-runtime hidden evaluation. No runtime, source-report product model, or hidden post-runtime evaluation has run."
       },
       "task_intent": {
         "source_replication": "required",
@@ -7848,6 +7849,6 @@
     "canonical_live_gold_activation_schema": 4,
     "executable_activation_gate": "Frozen executable references and behavioral negatives must run through their exact hidden candidate validators, and every configured semantic evaluator must pass its full reference plus reject at least one realistic hash-bound long-form near miss through the exact integrated document-and-claim candidate path before any product-model call. No activation result may enter runtime feedback.",
     "latest_diagnostic": "Four of seventy-three consumed tasks receive trustworthy full-task capability credit. Task 74 is active but unconsumed with frozen evaluator-only authority, four independent exact-source R reruns, fourteen mechanical calibration cases, and a qualified schema-4 exact-Haiku semantic judge. It contributes no capability credit before its sole product draw and post-runtime hidden evaluation.",
-    "next_step": "Push and bind the Task 74 activation commit on both streams, then run exactly one fresh exact-Haiku product draw and one post-runtime hidden evaluation. Preserve all seventy-three consumed draws and the 4/73 trusted aggregate until that immutable result is recorded. Never expose hidden authority, rerun a consumed task, add formulas or parsers, import Codex runtime infrastructure, add repair/fallback layers, or escalate models."
+    "next_step": "Run exactly one fresh exact-Haiku Task 74 product draw from the bound activation HEAD and exactly one post-runtime hidden evaluation. Preserve all seventy-three consumed draws and the 4/73 trusted aggregate until that immutable result is recorded. Never expose hidden authority, rerun a consumed task, add formulas or parsers, import Codex runtime infrastructure, add repair/fallback layers, or escalate models."
   }
 }
