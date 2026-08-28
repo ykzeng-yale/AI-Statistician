@@ -952,9 +952,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             "A broad numerical probe does not cover an omitted input boundary; a probe "
                             "that failed before exact target invocation covers nothing; do not infer "
                             "coverage from test count alone."
-                            " If you attempt a probe and then request ACCEPT, at least one "
-                            "probe must reach the exact target; repair and rerun failed "
-                            "reviewer scaffolding in this session."
                             if probe_targets
                             else ""
                         )
@@ -1152,12 +1149,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
-            if (packet.get("overall_verdict") == "ACCEPT" and probe_executions
-                    and not any(row.get("target_source_invoked") is True
-                                for row in probe_executions)):
-                errors.append(
-                    "ACCEPT after a review probe requires at least one exact target "
-                    "invocation; repair and rerun it or submit a non-accepting judgment")
             validation_history.append(
                 {
                     "attempt_index": len(validation_history),

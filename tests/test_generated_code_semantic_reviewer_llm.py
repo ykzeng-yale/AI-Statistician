@@ -1130,7 +1130,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
-def test_failed_reviewer_wrapper_must_reach_target_before_acceptance(
+def test_failed_optional_probe_does_not_control_model_owned_acceptance(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1162,19 +1162,7 @@ def test_failed_reviewer_wrapper_must_reach_target_before_acceptance(
         },
     }
 
-    repaired_probe = {
-        "artifact_id": "candidate",
-        "dependencies": [],
-        "code": (
-            "def run_sandbox(seed, replicates, estimators):\n"
-            "    return {'target_result': "
-            "estimators['candidate']({'value': 2.0})}\n"
-        ),
-        "seed": 0,
-        "replicates": 1,
-    }
-
-    class FailedProbeThenRepairedProbeBackend:
+    class FailedProbeThenStaticReviewBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -1184,8 +1172,6 @@ def test_failed_reviewer_wrapper_must_reach_target_before_acceptance(
             self.requests.append(request)
             sequence = (
                 ("run_exact_estimator_review_probe", failed_probe),
-                ("submit_generated_code_semantic_review", submission),
-                ("run_exact_estimator_review_probe", repaired_probe),
                 ("submit_generated_code_semantic_review", submission),
             )
             name, payload = sequence[len(self.requests) - 1]
@@ -1203,38 +1189,19 @@ def test_failed_reviewer_wrapper_must_reach_target_before_acceptance(
                 metadata={"provider_stop_reason": "tool_use"},
             )
 
-    executions = 0
-
     def fake_execute_scientific_sandbox(**kwargs):
-        nonlocal executions
-        executions += 1
-        if executions == 1:
-            return SimpleNamespace(
-                status="FAILED",
-                metrics={},
-                errors=("run_sandbox signature mismatch",),
-                stdout_summary="",
-                stderr_summary="run_sandbox signature mismatch",
-                estimator_invocation_counts={},
-                estimator_runtime_errors=(),
-                request_hash="failed-request-hash",
-                result_hash="",
-                code_path=str(tmp_path / "failed-probe-source"),
-                result_path=str(tmp_path / "failed-probe-result"),
-            )
-        assert "estimators['candidate']" in kwargs["code"]
         return SimpleNamespace(
-            status="EXECUTED",
-            metrics={"target_result": {"estimate": 2.0}},
-            errors=(),
+            status="FAILED",
+            metrics={},
+            errors=("run_sandbox signature mismatch",),
             stdout_summary="",
-            stderr_summary="",
-            estimator_invocation_counts={"candidate": 1},
+            stderr_summary="run_sandbox signature mismatch",
+            estimator_invocation_counts={},
             estimator_runtime_errors=(),
-            request_hash="repaired-request-hash",
-            result_hash="repaired-result-hash",
-            code_path=str(tmp_path / "repaired-probe-source"),
-            result_path=str(tmp_path / "repaired-probe-result"),
+            request_hash="failed-request-hash",
+            result_hash="",
+            code_path=str(tmp_path / "failed-probe-source"),
+            result_path=str(tmp_path / "failed-probe-result"),
         )
 
     monkeypatch.setattr(
@@ -1242,7 +1209,7 @@ def test_failed_reviewer_wrapper_must_reach_target_before_acceptance(
         "execute_scientific_sandbox",
         fake_execute_scientific_sandbox,
     )
-    backend = FailedProbeThenRepairedProbeBackend()
+    backend = FailedProbeThenStaticReviewBackend()
     packet = LLMGeneratedCodeSemanticReviewerAgent(
         provider=backend,
         config=GeneratedCodeSemanticReviewerConfig(
@@ -1257,42 +1224,30 @@ def test_failed_reviewer_wrapper_must_reach_target_before_acceptance(
         probe_sandbox_dir=tmp_path,
     )
 
-    assert len(backend.requests) == 4
+    assert len(backend.requests) == 2
     failed_observation = backend.requests[1].messages[-1]["content"][0]
     assert failed_observation["type"] == "tool_result"
     assert failed_observation["is_error"] is True
     assert "run_sandbox signature mismatch" in str(failed_observation)
-    rejected_acceptance = backend.requests[2].messages[-1]["content"][0]
-    assert rejected_acceptance["type"] == "tool_result"
-    assert rejected_acceptance["is_error"] is True
-    assert "requires at least one exact target invocation" in str(
-        rejected_acceptance
-    )
-    repaired_observation = backend.requests[3].messages[-1]["content"][0]
-    assert repaired_observation["type"] == "tool_result"
-    assert repaired_observation["is_error"] is False
-    assert "target_result" in str(repaired_observation)
     assert packet["overall_verdict"] == "ACCEPT"
     loop = packet["client_tool_loop"]
-    assert loop["validation_submissions"] == 2
-    assert loop["validation_feedback_observed"] is True
-    assert [row["status"] for row in loop["review_probe_executions"]] == [
-        "FAILED",
-        "EXECUTED",
-    ]
+    assert loop["validation_submissions"] == 1
+    assert loop["validation_feedback_observed"] is False
+    assert [row["status"] for row in loop["review_probe_executions"]] == ["FAILED"]
     assert [
         row["successful_exact_invocation"]
         for row in loop["review_probe_executions"]
-    ] == [False, True]
+    ] == [False]
     failed_record = loop["review_probe_executions"][0]
     assert failed_record["originating_tool_call_id"] == "review-call-1"
     assert failed_record["failure_origin"] == (
         "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION"
     )
     assert failed_record["failed_probe_is_target_source_evidence"] is False
-    repaired_record = loop["review_probe_executions"][1]
-    assert repaired_record["target_source_invoked"] is True
-    assert repaired_record["metrics"] == {"target_result": {"estimate": 2.0}}
+    assert failed_record["target_source_invoked"] is False
+    assert failed_record["authority"].endswith(
+        "NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF"
+    )
 
 
 @pytest.mark.parametrize("tamper_hash", [False, True])
