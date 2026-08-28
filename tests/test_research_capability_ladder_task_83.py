@@ -61,6 +61,10 @@ def test_pingouin_rmcorr_l1_provider_environment_failure_is_consumed() -> None:
     assert evidence["trusted_capability_credit"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["ladder_score_after_consumption"] == "4/83"
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "05d64366ede9186b466e11b84d413b6e6788bf7a"
+    )
+    assert evidence["post_run_score_changed"] is False
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
 
@@ -93,3 +97,6 @@ def test_pingouin_rmcorr_l1_provider_environment_failure_is_consumed() -> None:
     assert readiness["consumed_scored_tasks"] == 83
     assert readiness["fully_gold_configured_tasks"] == 83
     assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["latest_shared_mechanism_head"] == (
+        "05d64366ede9186b466e11b84d413b6e6788bf7a"
+    )

@@ -8,7 +8,7 @@ from pathlib import Path
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "bayesian_online_changepoint_gamma_poisson_paper_to_code"
 TASK_76_SHARED_MECHANISM_HEAD = "b9297aef7574ab4670914ecb18e169ac251b85ef"
-LATEST_SHARED_MECHANISM_HEAD = "8ddbf749585f2d97dae08c300d7c05bf1deb74e2"
+LATEST_SHARED_MECHANISM_HEAD = "05d64366ede9186b466e11b84d413b6e6788bf7a"
 
 
 def test_bocd_gamma_poisson_l2_is_frozen_and_consumed_once() -> None:

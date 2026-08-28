@@ -3660,7 +3660,8 @@ primitives. It does not change the source-owning model/tool/observation loop or 
 scientific planning, mathematical judgment, Simulation authority, or Lean proof
 authority.
 
-The reusable invariant is narrow: validate the exact acting environment and keep
+Commit `05d64366ede9186b466e11b84d413b6e6788bf7a` applies the reusable
+invariant: validate the exact acting environment and keep
 credentials inside its trusted transport boundary before activating work. Task 83
 exposed the local analogue when Codex's bundled Python imported AI Statistician but
 not the optional Anthropic SDK. The sole invocation remains consumed at `0/1` with

@@ -1,13 +1,13 @@
 {
-  "schema_version": 258,
+  "schema_version": 259,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "126fc25c",
+  "validated_code_head": "05d64366",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-three consumed draws and immutable artifacts at trustworthy full-task credit 4/83, with exact development Lean closure still 0/2. Task 83's sole runtime invocation failed before any model call because the selected product interpreter lacked the optional Anthropic SDK; its sole post-runtime hidden assessment returned 0/1 without an eligible source checkpoint. Never rerun it. Add only a future-task provider-environment preflight before AgentRuntime activation, then continue with one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops. Direct raw scientific feedback to the same source owner, preserve isolated hash-bound reviewer identity, keep Formalizer task-intent driven, use exact claude-haiku-4-5-20251001 for all tests and evaluations, and prohibit Opus.",
+  "current_goal_focus": "Preserve all eighty-three consumed draws and immutable artifacts at trustworthy full-task credit 4/83, with exact development Lean closure still 0/2. Task 83 remains consumed 0/1 after a pre-model missing-SDK failure and cannot be rerun. Commit 05d64366 makes future canonical Claude launches validate the primary Anthropic SDK and credential inside the existing startup preflight before any AgentTask or artifact. Continue with one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; direct raw scientific feedback to the same source owner, preserve isolated hash-bound reviewer identity, keep Formalizer task-intent driven, use exact claude-haiku-4-5-20251001 for all tests and evaluations, and prohibit Opus.",
   "latest_pingouin_rmcorr_l1_evaluation": {
     "task_id": "pingouin_joss_rmcorr_public_replication",
     "family": "repeated_measures_correlation_source_replication",
@@ -30,6 +30,10 @@
     "formalizer_executed": false,
     "trusted_capability_credit": "0/1; aggregate remains 4/83 consumed",
     "future_shared_mechanism": "Before future activation, verify the selected process can load its configured live provider SDK and credential. This no-network preflight must occur before the first AgentTask and cannot revise or reopen Task 83.",
+    "post_run_shared_mechanism_commit": "05d64366ede9186b466e11b84d413b6e6788bf7a",
+    "post_run_shared_mechanism_change": "Future canonical Claude runs load the primary Anthropic SDK and credential through the existing CLI startup preflight before AgentRuntime activation; ordinary generation and native client-tool turns reuse the same loader. No network probe, model call, repair, retry, fallback, provider registry, agent, scheduler, or content rule was added.",
+    "post_run_shared_mechanism_evidence": "A neutral missing-SDK probe exited 2 and created no output. Focused tests passed 187/187, the complete repository passed 1019/1019 in 80.45 seconds, compile/diff/secret hygiene passed, and top-level production Python decreased from 149999 to 149998 lines.",
+    "official_codex_recheck": "Official openai/codex main was refreshed from 60fc6995608e8188c0c9f8407d6cd98676efa247 through 3ae4225b1761c135c6d3bbc1ea0cfcfc95752cdc. The five-commit delta concerns trusted-origin credentials, MCP auth headers, remote plugin refresh, one-shot exec preservation, and Guardian context; it does not change the selective-adoption boundary or justify a second control plane.",
     "boundary": "The sole runtime invocation and sole post-runtime hidden assessment are immutable. Never rerun, resume, repair, hidden-evaluate again, reevaluate, rescore, resample, or feed hidden/operator findings to Task 83 source owners."
   },
   "latest_ladder_status_reconciliation": {
