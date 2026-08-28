@@ -16,6 +16,10 @@ embed Codex's thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `ea7a6ce0`: let frozen task intent decide whether executable evaluator
+  authoring requires an accepted Algorithm handoff, validate required
+  dependencies before any evaluator model call, and preserve standalone
+  confirmatory Simulation for empirical-only tasks;
 - `ecfc2403`: give the shared Python/R source workspace an atomic ordered
   multi-hunk exact patch, and require the existing explicit source-acceptance
   gate everywhere AlgorithmEngineer counts, reuses, materializes, or resumes a
@@ -2867,3 +2871,34 @@ tests passed `25/25`; the mechanism-only repository passed `985/985` in 81.02
 seconds. After adding the immutable Task 70 ledger assertion, the complete
 repository passed `986/986` in 80.87 seconds. Task 70 was not rerun, resumed,
 repaired, hidden-evaluated again, rescored, resampled, or manually committed.
+
+## Task-intent-driven evaluator dependencies
+
+The executable evaluator lane already matched the useful Codex harness pattern:
+one Simulation model authors ordinary Python/R source, executes it directly,
+receives raw observations in the same session, explicitly commits exact bytes,
+and sends those bytes to an isolated reviewer before one blinded confirmatory
+replay. The remaining defect was outside that inner loop. Runtime universally
+required an accepted Algorithm handoff at confirmation and could begin evaluator
+authoring before checking that dependency.
+
+Commit `ea7a6ce0` makes the dependency belong to frozen task intent. A task whose
+scientific-code dimension is required must present a validated accepted Algorithm
+handoff before any evaluator-authoring model call. A task whose scientific-code
+dimension is not applicable can author and confirm an evaluator without stale
+Algorithm fields. An optional valid handoff is still preserved when the task has
+one. Exploratory Simulation remains available as an early diagnostic; only frozen
+confirmatory evidence is dependency-gated.
+
+The cohesive authoring-task builder moved into the existing evaluation protocol
+module, leaving `research_agent_runtime.py` at 24,998 lines under its enforced
+25,000-line architecture budget. Runtime still chooses no estimator, DGP, metric,
+threshold, formula, source patch, or repair action. No new agent, scheduler, retry,
+fallback, task branch, Codex runtime, or model escalation was added.
+
+The affected evaluator/runtime panel passed `110/110`; the complete repository
+passed `987/987` in 81.46 seconds. No live model was called, no task was consumed,
+and Task 70 remains immutable `0/1` with the trusted aggregate unchanged at
+`4/70`. Future tests and evaluations remain exact
+`claude-haiku-4-5-20251001`; production remains Sonnet or below; Opus remains
+prohibited.

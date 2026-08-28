@@ -1,13 +1,13 @@
 {
-  "schema_version": 227,
+  "schema_version": 228,
   "updated_at": "2026-08-27",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "ecfc2403",
+  "validated_code_head": "ea7a6ce0",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/70 and exact development Lean closure remains 0/2. Task 70 is permanently consumed 0/1: its persistent Markdown/LaTeX Theory workspace passed 7/7 hidden mechanical checks and a calibrated integrated exact-Haiku semantic judgment, while scientific code, empirical evidence, unresolved-gap completion, and the full research loop failed because no Algorithm source was explicitly committed. Shared commit ecfc2403 fixes only the future-task harness: uncommitted execution success cannot masquerade as accepted source, its exact checkpoint returns to the same source owner, and Python/R edits support one atomic multi-hunk model patch like Codex apply_patch. Keep one AgentRuntime and model-owned Theory, Python/R, Simulation, and optional Lean workspaces; do not rerun Task 70, import Codex Core/App Server/SDK threads, add formulas, parsers, deterministic content repair, auto-commit, extra agents, schedulers, provider fallback, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy consumed draws and immutable artifacts. Trustworthy full-task credit remains 4/70 and exact development Lean closure remains 0/2. Task 70 is permanently consumed 0/1: its persistent Markdown/LaTeX Theory workspace passed 7/7 hidden mechanical checks and a calibrated integrated exact-Haiku semantic judgment, while scientific code, empirical evidence, unresolved-gap completion, and the full research loop failed because no Algorithm source was explicitly committed. Shared commits ecfc2403 and ea7a6ce0 improve only the future-task harness: uncommitted execution success cannot masquerade as accepted source; Python/R edits support one atomic multi-hunk model patch; and frozen task intent now decides whether confirmatory evaluator authoring depends on an accepted Algorithm handoff, which is validated before any evaluator model call. Pure empirical tasks no longer inherit a stale code dependency. Keep one AgentRuntime and model-owned Theory, Python/R, Simulation, and optional Lean workspaces; do not rerun Task 70, import Codex Core/App Server/SDK threads, add formulas, parsers, deterministic content repair, auto-commit, extra agents, schedulers, provider fallback, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
   "latest_codex_single_loop_harness_change": {
     "shared_mechanism_head": "e282aeb1afd16ec1a754c09ce240710e01b88e7a",
     "upstream_codex_head": "f6494dc8f5969e8576a8a0945a674f2a15ac4de6",
@@ -29,6 +29,16 @@
     "excluded_changes": "No auto-commit, forced terminal turn, hidden retry, repair phase, task-specific code, diagnostic parser, extra agent, Architect route, scheduler, model escalation, or Task 70 rerun/rescore was added.",
     "verification": "Focused scientific workspace and continuation tests passed 25/25. The mechanism-only repository passed 985/985 in 81.02 seconds; after adding the immutable Task 70 ledger assertion, the complete repository passed 986/986 in 80.87 seconds. JSON and git diff hygiene passed. Ruff is not installed in the repository virtual environment.",
     "model_policy": "No live model call was made for the post-run correction. Future live evaluations remain exact claude-haiku-4-5-20251001; production remains Sonnet or below; Opus remains prohibited."
+  },
+  "latest_task_intent_evaluator_dependency_change": {
+    "shared_mechanism_head": "ea7a6ce0cdfaf8c68cec5b2037022ec09618bc8c",
+    "observed_design_contradiction": "The canonical executable evaluator source lane already used one Simulation model, direct Python/R execution, exact-source independent review, and frozen hidden replay, but confirmation universally required an accepted Algorithm handoff and evaluator authoring could start before that required dependency was validated. Pure empirical tasks could therefore inherit an irrelevant code dependency, while code-required tasks could spend a model call before failing on a missing handoff.",
+    "implemented_boundary": "Frozen task intent and its evidence contract now decide whether an accepted Algorithm handoff is required. A required handoff is validated before metric guard or evaluator-authoring model execution; an optional valid handoff is preserved when present; and scientific-code-not-applicable tasks author and confirm their evaluator without stale Algorithm fields.",
+    "codex_harness_principle": "The source-owning Simulation model still chooses edits and executions in one persistent tool-observation loop. Runtime owns only dependency identity, phase, blinding, exact source hashes, independent review, and promotion authority; it does not choose evaluator content, thresholds, formulas, or repairs.",
+    "architecture_boundary": "The cohesive authoring-task builder moved into the existing evaluation_protocol_revision module so the central research runtime remains 24998 lines. No new agent, scheduler, retry, fallback, repair state, content parser, task-specific branch, or Codex runtime dependency was added.",
+    "verification": "The affected evaluator/runtime panel passed 110/110. The complete repository passed 987/987 in 81.46 seconds; compileall and diff hygiene passed. No model call or live task occurred.",
+    "model_policy": "Future tests and evaluations remain exact claude-haiku-4-5-20251001; production remains Sonnet or below; Opus and automatic model escalation remain prohibited.",
+    "task_boundary": "Task 70 and all earlier draws remain immutable. This commit is deterministic future-task mechanism evidence only and does not alter the 4/70 trusted aggregate."
   },
   "latest_fieller_ratio_l0_evaluation": {
     "task_id": "fieller_bivariate_normal_ratio_confidence_set_known_result",
@@ -3154,12 +3164,13 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/68 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 68 is operator-invalidated despite automated theory and empirical component passes: its active theory contains explicit mathematical errors, its estimator violates the closed request ABI, and runtime never accepted the revised confirmatory source. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
+    "fully_gold_covered_research_tasks": "4/70 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Tasks 69 and 70 add component diagnostics but no full-task credit. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24992,
+    "research_agent_runtime_lines": 24998,
+    "evaluation_protocol_revision_lines": 1285,
     "scientific_code_workspace_lines": 2555,
     "theory_workspace_lines": 3833,
     "research_architect_lines": 4167,
@@ -3172,13 +3183,13 @@
     "agent_runtime_lines": 1248,
     "cli_lines": 7036,
     "top_level_python_modules": 137,
-    "top_level_package_lines": 149846,
+    "top_level_package_lines": 149942,
     "latest_runtime_manifest_bytes": 53189
   },
   "next_gates": [
     "Preserve Fieller ratio Task 70 at immutable 0/1. Its long-horizon Markdown/LaTeX Theory passed frozen mechanical and calibrated semantic authority, but no Algorithm source was explicitly committed, so hidden code and empirical evaluators correctly did not run. Treat ecfc2403 only as future-task shared harness evidence for atomic multi-hunk source edits and commit-aware same-owner checkpoint continuation. Never rerun, resume, repair, hidden-evaluate again, rescore, manually commit its draft, or add a Fieller formula, diagnostic parser, auto-commit, recovery phase, agent, route, or scheduler.",
     "Preserve pinball-loss quantile Task 63 at immutable 0/1. Automated theory mechanics and hidden semantic judgment passed, but operator audit invalidated the active subgradient, atom/uniqueness, and empirical-minimizer reasoning; hidden code authority found a boolean closed-contract defect; and runtime Critic correctly refused empirical completion after Simulation weakened the frozen design. Treat commit b567aaa6 only as future-task shared action-boundary evidence. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or add a quantile formula, Python-bool rule, replicate-count check, deterministic math parser, reviewer vote, agent, route, or scheduler.",
-    "Before another product draw, make one independently reviewed model-authored executable Python/R evaluator the frozen preregistration authority and retain only a concise readable protocol beside it. The exact accepted evaluator source, dependencies, estimator refs, seed/cohort policy, decision output, and hash must freeze before outcomes. Simulation should execute that source rather than translate a later prose design. This remains a generic source-ownership and evidence-lineage change, not a content-specific evaluator generator or runtime threshold parser.",
+    "The model-authored executable Python/R evaluator is now the canonical preregistration authority. On the next independently justified disjoint task, require live evidence of exact evaluator source authoring, independent exact-source review, and one frozen hidden replay. If frozen task intent requires scientific code, validate the accepted Algorithm handoff before the evaluator model call; if scientific code is not applicable, do not invent that dependency. Keep the concise readable protocol beside the source, preserve blinding and hashes, and never use Task 70 or another consumed draw to manufacture this evidence.",
     "Treat commit 2696ebb5 only as future-task evaluator evidence. On the next independently justified, disjoint, pre-frozen theory or source-report task, require the one integrated candidate call to return both document-wide and per-claim status and calibrate it before the product draw. Never replay or rescore Task 62 or any prior candidate to manufacture evidence for this change, and do not restore per-claim calls, add a second vote, or expose hidden findings to source owners.",
     "Preserve Gamma-Poisson negative-binomial Task 62 at immutable 0/1. Its hidden core theory mechanics passed 7/7, required semantic claims passed 7/7, algorithm passed 12/12, and evaluator-only empirical checks passed 11/11, but runtime stopped before Simulation and active documents falsely claim that r to infinity with fixed beta and t removes overdispersion and yields a Poisson limit. Treat commit ccaca8d7 only as future-task shared harness evidence for same-session persistent reviewer drafts. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a Gamma-Poisson formula, deterministic asymptotic parser, reviewer vote, agent, route, or scheduler.",
     "Preserve Nadaraya-Watson L0 v1 as one consumed automated 1/1 with trustworthy capability 0/1. Its authoritative derivation drops the change-of-variables factor in unscaled-kernel moments, contradicts the asserted sqrt(nh) limit through a 1/n variance claim, and uses an insufficient asymptotic comparison; both product review and hidden semantics false-accepted it. Treat commit 08242464 only as future-task shared mechanism evidence. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or add a kernel formula, Jacobian parser, deterministic equation checker, reviewer vote, agent, or scheduler.",
