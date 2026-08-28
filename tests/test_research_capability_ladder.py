@@ -6,10 +6,11 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
+LATEST_SHARED_MECHANISM_HEAD = "89a82b282f56a395437b0f3703fb72416d7ecec6"
+TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
-CURRENT_ACTIVE_TASKS = 75
+CURRENT_ACTIVE_TASKS = 76
 CURRENT_CONSUMED_TASKS = 75
 CURRENT_OPERATOR_INVALID_TASKS = 14
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
@@ -572,7 +573,6 @@ def test_uniform_spacings_l0_records_one_consumed_failure() -> None:
     assert readiness["latest_shared_mechanism_head"] == (
         LATEST_SHARED_MECHANISM_HEAD
     )
-
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
         evidence["visible_questions_sha256"]
@@ -7490,7 +7490,7 @@ def test_lehmann_scheffe_l0_is_consumed_once_and_immutable() -> None:
     assert evidence["theory_document_bytes"] == 17403
     assert evidence["independent_referee_cycles"] == 2
     assert evidence["future_shared_mechanism_commit"] == (
-        LATEST_SHARED_MECHANISM_HEAD
+        TASK_75_SHARED_MECHANISM_HEAD
     )
     assert "998/998" in evidence["evidence_closeout_verification"]
     assert "No model or hidden-evaluator call" in (
