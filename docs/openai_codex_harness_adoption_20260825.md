@@ -3019,3 +3019,34 @@ occurred. Task 72 and all prior draws remain immutable, trusted aggregate credit
 remains `4/72`, all future tests and evaluations remain exact
 `claude-haiku-4-5-20251001`, production remains Sonnet or below, and Opus remains
 prohibited.
+
+## Optional diagnostics do not own reviewer verdicts
+
+The post-Task 72 harness audit found one remaining contradiction in the otherwise
+model-owned generated-code review loop. `run_exact_estimator_review_probe` was
+documented as optional: a reviewer-side source failure before target invocation was
+returned as a raw tool error, explicitly marked as covering nothing, and could be
+ignored while the independent model reviewed the exact immutable target source.
+Nevertheless, a separate runtime condition prohibited `ACCEPT` after any such failed
+probe until another probe reached the target. A reviewer that never used the optional
+tool could accept from source, while one that attempted a diagnostic had its verdict
+controlled by its own scaffolding error.
+
+Commit `073d2e42` deletes that procedural verdict controller and its contradictory
+prompt sentence. It does not convert a failed probe into evidence. The exact
+observation remains `is_error=true`, `target_source_invoked=false`,
+`failed_probe_is_target_source_evidence=false`, and
+`NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF`. Immutable source identity, independent model
+identity, finding-ledger consistency, Markdown review identity, lineage validation,
+and downstream promotion gates are unchanged. The isolated reviewer may repair and
+rerun when execution matters, submit `REVISE`, or ignore invalid diagnostic scaffolding
+and judge the exact source itself.
+
+This follows the useful Codex harness boundary: tools expose observations, while the
+model owns substantive interpretation. No probe retry, extra turn, fallback,
+source patch, acceptance default, repair agent, Architect route, or second scheduler
+was added. The change is a net deletion of 56 lines. Reviewer, AgentRuntime,
+client-tool, and architecture tests passed `153/153`; the complete repository passed
+`990/990` in 81.77 seconds. No live model call occurred. Task 72 was not rerun,
+resumed, repaired, re-evaluated, rescored, or resampled and remains immutable `0/1`;
+trusted aggregate credit remains `4/72`.
