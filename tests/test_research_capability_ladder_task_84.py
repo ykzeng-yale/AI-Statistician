@@ -56,6 +56,10 @@ def test_karlin_rubin_l0_theory_task_is_frozen_before_product_draw() -> None:
     assert evidence["activation_semantic_qualification_reused"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_ledger_commit"] == (
+        "bbd3bafdcafa8c2b29eea73094b4f89fcd96edb3"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
