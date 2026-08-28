@@ -3225,3 +3225,56 @@ This adds no R agent, repair route, language grammar, scheduler, provider, or ex
 statistical value to the product. It applies the same Codex invariant one level lower:
 the harness exposes a stable executable tool and raw observation; the source-owning
 model interprets the result and writes its own report.
+
+## Task 74 validates the action loop, not the scientific prose
+
+Task 74 consumed the first exact-Haiku product draw of that generic R mechanism at
+code head `9feec25d`. The Architect handed the source-replication task directly to
+one persistent source owner. Across eight turns, the same model searched and read the
+official source snapshot, ran the operator-pinned R entrypoint, received raw stdout
+and stderr, attempted to read binary `Rplots.pdf`, received the ordinary non-UTF-8
+tool error, wrote a durable Markdown report, and committed its checkpoint. The
+Critic then reviewed externalized immutable evidence. The complete run used three
+outer graph steps. No source repair agent, fallback, task-specific R worker, routine
+Architect route, second scheduler, model escalation, or Formalizer was involved.
+
+One remaining control-plane mismatch was visible before that clean source loop. The
+first Architect structured packet repeated a simulation target although empirical
+evidence was not applicable. Runtime validation rejected it and the legacy helper
+regenerated the complete Architect packet, so this nominally one-stage plan used two
+model calls. Frozen task intent should remain runtime-owned while Architect emits
+only substantive planning decisions and one next action. That simplification should
+remove full-packet regeneration rather than adding an Architect repair worker.
+
+The mechanical result is strong scoped evidence: the unmodified source returned 0,
+all source/interpreter/environment/output identities matched, and the frozen hidden
+source harness passed 12/12. The automated report evaluator also returned 10/10
+`SATISFIED`, so the command reported hidden `1/1`.
+
+Operator audit nevertheless invalidated full-task credit. The report called
+`p = 0.05586` significant at the 5% level, inferred heteroskedasticity and an ordered
+robustness scale from standard-error magnitudes, inferred test power from one pair of
+observed p-values, added unsupported historical explanations for estimated breaks,
+and claimed logical PDF reproducibility despite explicitly not inspecting the
+visuals. Runtime Critic and the calibrated hidden exact-Haiku judge both accepted
+those claims.
+
+This is the important harness boundary. Codex's model -> tool -> observation -> same
+model loop solved the execution and collaboration problem cleanly; it cannot make a
+weak scientific author or referee correct. Adding a p-value parser, HC rule, economic
+event blacklist, repair queue, another reviewer agent, or retry would overfit the
+consumed output and move scientific ownership back into Python. The automated `1/1`
+therefore remains immutable, but trustworthy capability credit is `0/1` and the
+aggregate remains `4/74`. Exact source execution remains component evidence.
+
+The system response is evidence discipline, not another middle layer: production may
+use Sonnet for scientific roles, frozen tests/evaluations continue to expose exact
+Haiku limitations, operator authority can invalidate correlated author/referee false
+acceptance, and future tasks remain disjoint. Task 74 will never be rerun, resumed,
+repaired, hidden-evaluated again, rescored, resampled, or supplied its hidden/operator
+findings as model feedback.
+
+The research-ladder ledger passed `72/72`; the complete repository passed `997/997`
+in 82.49 seconds. Compileall, JSON, diff hygiene, secret scanning, and the unchanged
+production architecture budget passed at 149,991 lines. No post-run product or hidden
+evaluator model call occurred.

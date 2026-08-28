@@ -1,13 +1,43 @@
 {
-  "schema_version": 239,
+  "schema_version": 240,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "bfae4e13",
+  "validated_code_head": "3b079a58",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all seventy-three consumed draws and immutable artifacts at trustworthy full-task credit 4/73, with exact development Lean closure still 0/2. Task 73 is consumed 0/1: hidden algorithm 8/8 and empirical 10/10 remain scoped component evidence, hidden Theory semantics were inconclusive, Critic did not submit a terminal packet, and operator audit invalidates a false contextual extreme-value claim accepted by the runtime referee. Commit bfae4e13 selectively adopts the current open-source Codex model-tool-observation lifecycle by giving a final ordinary observation one same-session terminal-only continuation; it imports no Codex runtime, provider, scheduler, thread manager, subagent system, repair layer, task rule, or extra research action. Keep one AgentRuntime and model-owned Markdown/LaTeX Theory, Python/R, Simulation, and optional Lean workspaces. Next prioritize the broad capability gaps exposed across the ladder: long-horizon Theory quality, source replication and paper/code/data reuse, real R evidence, confirmatory simulation ownership, and proof-state-driven optional Lean work. Never expose hidden authority to runtime, rerun a consumed task, add formulas, parsers, deterministic content repair, extra agents, schedulers, provider fallback, retries, or model escalation. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all seventy-four consumed draws and immutable artifacts at trustworthy full-task credit 4/74, with exact development Lean closure still 0/2. Task 74 is consumed 0/1 despite automated hidden 1/1: its hash-bound unmodified R execution passed 12/12 and validates the Codex-shaped same-owner model-tool-observation workspace, but the 437-line report made a false 5% significance claim and unsupported robustness, power, historical, and visual-reproducibility claims that both runtime Critic and the calibrated hidden semantic judge accepted. Do not repair, rerun, rescore, or add task rules. Keep one AgentRuntime and model-owned Markdown/LaTeX Theory, Python/R, Simulation, and optional Lean workspaces. The harness should own tools, isolation, identity, budgets, provenance, independent evidence, and kernel authority; models should own scientific content and revision from raw feedback. Next prioritize broad disjoint capability evidence for long-horizon Theory, paper/code/data reproduction, scientific Python/R, confirmatory simulation, and optional proof-state-driven Lean. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "latest_sandwich_jss_r_source_replication_evaluation": {
+    "task_id": "sandwich_jss_2004_r_public_replication",
+    "family": "robust_covariance_and_structural_change_r_source_replication",
+    "status": "fresh_live_v1_consumed_runtime_and_hidden_automated_pass_operator_invalidated_report_semantics",
+    "visible_question_path": "benchmarks/research_l1_sandwich_jss_r_replication_questions_20260828.json",
+    "gold_bundle_id": "research-l1-sandwich-jss-2004-r-20260828-v1",
+    "activation_ledger_commit": "49db60d783ef29a23ed22d1148d91c9a47ee1d64",
+    "product_head": "9feec25d9f4c819ba4bbd991bd1c8469b9d7f4c8",
+    "run_path": "runs/main_worker_research_l1_sandwich_jss_r_replication_20260828_v1_codex_hash_bound_r_exact_haiku",
+    "runtime_model_policy": "claude-haiku-4-5-20251001 for all seven enabled roles; zero Sonnet and Opus calls; no provider fallback or automatic escalation",
+    "runtime_status": "ACCEPTED after three outer traces; research evaluation 1/1 complete and mode-conformant",
+    "source_workspace": "Eight same-session model turns, eleven model-selected tools, one unmodified official R source execution, raw stdout/stderr and binary-read feedback, one 437-line Markdown checkpoint, and no source-repair route",
+    "architect_control_plane": "Two Architect model calls: the first packet echoed non-applicable simulation targets and triggered one legacy full-packet structured-output regeneration before the accepted source-replication route. This is an efficiency/design debt, not source execution evidence.",
+    "source_execution_evidence": "The official v11i10.R entrypoint executed once under pinned R 4.4.3 with return code 0, no source mutation, no network, exact source/interpreter/environment identity, and 12/12 hidden source checks.",
+    "automated_hidden_result": "1/1; source checks 12/12 and calibrated exact-Haiku report semantics 10/10 SATISFIED",
+    "trusted_capability_result": "0/1; exact source execution remains scoped component evidence, but scientific report semantics and both reviewer verdicts are operator-invalidated",
+    "operator_finding": "The report calls p=0.05586 significant at the 0.05 level, infers heteroskedasticity and an ordered robustness scale from standard-error magnitudes, infers test power from one observed p-value pair, adds unsupported economic-event explanations for breakpoints, and claims logical PDF reproducibility despite no visual inspection.",
+    "harness_finding": "The Codex-style source-owner lifecycle worked without a source repair agent or second scheduler. The failure is model/referee scientific judgment: a qualified closed obligation list and one long-form negative control did not detect extra incorrect claims in the product report. Architect still duplicates frozen contract fields and used one full-packet regeneration, so its envelope remains larger than necessary.",
+    "operator_disposition": "OPERATOR_INVALIDATED_REPORT_SEMANTICS_AND_DUAL_REVIEWER_FALSE_ACCEPTANCE",
+    "operator_audit": "docs/operator_audits/sandwich_jss_r_replication_l1_v1.md",
+    "runtime_manifest_sha256": "7c62c9e668a709e977190e0f7f3cf1a54f16859690d612edd001a86e13b9792c",
+    "runtime_result_sha256": "682edc9c92a598da45f3de3da0114ac85dc5d21428c5434649be54a153b0c46a",
+    "hidden_gold_evaluation_sha256": "8962c540bfc4036ee28408bfe962aebdf967869b5280b28e7e25eb47b9dd9406",
+    "model_authored_report_sha256": "73d555669b3bbc2eb818b2c8b4c57d3a784235361e998a9b6eb33443880aecb7",
+    "verification": "Research ladder 72/72; complete repository 997/997 in 82.49 seconds; compileall, JSON, diff hygiene, secret scan, and production Python 149991 lines passed. No post-run product or hidden-evaluator model call occurred.",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "trusted_capability_credit": "0/1; aggregate remains 4/74 consumed",
+    "boundary": "The sole product draw and sole post-runtime hidden evaluation are consumed and immutable. Hidden and operator findings generated no runtime feedback. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed those findings to Task 74 source owners."
+  },
   "latest_canonical_authority_process_boundary": {
     "shared_mechanism_head": "af085faa",
     "observed_design_contradiction": "The direct AgentRuntime import had been cleaned, but the actual cli.py product entrypoint still eagerly loaded research_lab through shared question loading and legacy audit imports. AgentRuntime also accepted research_gold_manifest, activated hidden authority before its product loop, scored hidden gold afterward, and embedded that result in the canonical runtime manifest.",
@@ -1990,7 +2020,7 @@
     "fresh_live_client_tool_model_turns": 1094,
     "capability_credit": true,
     "latest_mechanism_capability_credit": false,
-    "boundary": "All seventy-three consumed draws remain immutable. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen protocols and recorded caveats; every other draw retains its recorded 0/1 or operator-invalid disposition. Task 73's post-run mechanism is future-task evidence only. Trusted aggregate is 4/73 and exact Lean closure remains 0/2 and separate."
+    "boundary": "All seventy-four consumed draws remain immutable. Beta-Binomial, PyMLE, Aitken GLS, and Hoeffding U-statistics retain trusted capability credit under their frozen protocols and recorded caveats; every other draw retains its recorded 0/1 or operator-invalid disposition. Task 74 contributes exact hash-bound R source-execution component evidence but no full-task credit because author, Critic, and hidden semantic judgment accepted material report errors. Trusted aggregate is 4/74 and exact Lean closure remains 0/2 and separate."
   },
   "latest_mann_whitney_u_r_l0_evaluation": {
     "task_id": "mann_whitney_u_null_moments_r_known_result",
@@ -3434,7 +3464,7 @@
     "formalization_and_exact_proof_closure": "about 30-35%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "4/73 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 73 is immutable 0/1: hidden algorithm and empirical components passed, hidden Theory semantics were inconclusive, Critic did not submit its terminal packet, and operator audit invalidated a false contextual extreme-value claim accepted by the runtime referee. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
+    "fully_gold_covered_research_tasks": "4/74 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, and Hoeffding U-statistics retain their recorded scoped credit and caveats. Task 74 is immutable automated 1/1 and trustworthy 0/1: exact R source execution passed, but operator audit invalidated report semantics accepted by runtime Critic and the hidden judge. Every failed draw retains its immutable automatic outcome and valid component evidence; no post-run mechanism change alters a consumed score.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
@@ -3457,7 +3487,7 @@
     "latest_runtime_manifest_bytes": 53205
   },
   "next_gates": [
-    "Consume exactly one fresh Task 73 AgentRuntime draw with exact claude-haiku-4-5-20251001 and one post-termination hidden evaluation now that activation commit 63d1d53e586a815848ef16725d49554551253af6 is confirmed on both remote branches. Formalization is not applicable and must not run or block theory, code, or empirical evidence. Never expose hidden authority to runtime, retry the product draw, or change the task, evaluator, prompt, runtime, or model after activation.",
+    "Preserve Task 74 at immutable automated 1/1 and trustworthy 0/1. Its exact R source execution passed 12/12 and is scoped component evidence; its false 5% significance claim and unsupported robustness, power, historical, and visual claims were accepted by both runtime Critic and the hidden semantic judge. Never rerun, resume, repair, hidden-evaluate again, rescore, resample, add a sandwich-statistics parser, or feed hidden/operator findings to its source owners.",
     "Preserve Fisher exact-test Task 72 at immutable 0/1. Runtime correctly blocked two unsupported code-review ACCEPT submissions after four model-authored probes failed to invoke the target; hidden theory mechanics passed 7/7 but semantic status remained INCONCLUSIVE; hidden code and empirical execution were ineligible; and operator audit invalidated positive-margin scope, closed ABI, tail identity, and empirical preregistration. Do not rerun, resume, repair, hidden-evaluate again, rescore, resample, add a Fisher formula or ABI parser, wrap the reviewer tool, add retries, or feed hidden/operator findings to its source owners.",
     "Preserve randomized-distributional-transform Task 71 at immutable 0/1. Visible runtime ACCEPTED and hidden Algorithm 8/8 plus Empirical 7/7 are component evidence, but the active arbitrary-CDF theorem is supported only by a finite-discrete proof and the Theory referee plus hidden semantic judge false-accepted the scope contraction. Treat commit 02ce1ae3 only as future-task shared protocol evidence; never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed hidden/operator findings to its source owners.",
     "Preserve Fieller ratio Task 70 at immutable 0/1. Its long-horizon Markdown/LaTeX Theory passed frozen mechanical and calibrated semantic authority, but no Algorithm source was explicitly committed, so hidden code and empirical evaluators correctly did not run. Treat ecfc2403 only as future-task shared harness evidence for atomic multi-hunk source edits and commit-aware same-owner checkpoint continuation. Never rerun, resume, repair, hidden-evaluate again, rescore, manually commit its draft, or add a Fieller formula, diagnostic parser, auto-commit, recovery phase, agent, route, or scheduler.",
@@ -3547,7 +3577,7 @@
     "Improve Formalizer through direct proof-state retrieval and source iteration, but keep it parallel or downstream for non-formal product tasks and mandatory only when frozen task intent requires proof.",
     "Delete or extract existing central runtime responsibilities before adding any new outer control feature.",
     "Preserve Task 73 at immutable 0/1. Its hidden algorithm 8/8 and empirical 10/10 are component evidence only; never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed hidden/operator findings to its source owners. Commit bfae4e13 is future-task lifecycle evidence only.",
-    "Use the next disjoint evaluation to measure an underrepresented capability such as source replication, R execution, long-horizon Theory revision, or optional proof-state-driven Lean work. Freeze visible scope and evaluator-only authority before any product call, and do not select another task merely to demonstrate the terminal-continuation mechanism.",
+    "Use the next disjoint evaluation to measure an underrepresented capability such as long-horizon Theory revision, paper-to-code reproduction, confirmatory simulation ownership, or optional proof-state-driven Lean work. Freeze visible scope and evaluator-only authority before any product call, and do not select another task merely to demonstrate the R source executor or terminal-continuation mechanism.",
     "Continue selective Codex reuse at the invariant level: one source owner, stable tools, raw observations, durable external artifacts, and clean termination. Do not embed Codex Core, App Server, Responses transport, SDK threads, worktree management, or multi-agent scheduling into the Anthropic-backed scientific runtime."
   ]
 }

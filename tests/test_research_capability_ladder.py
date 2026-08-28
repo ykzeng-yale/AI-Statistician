@@ -9,8 +9,8 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 LATEST_SHARED_MECHANISM_HEAD = "3b079a58617dad198f95e1f84ad25a5c69b4832a"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_ACTIVE_TASKS = 74
-CURRENT_CONSUMED_TASKS = 73
-CURRENT_OPERATOR_INVALID_TASKS = 13
+CURRENT_CONSUMED_TASKS = 74
+CURRENT_OPERATOR_INVALID_TASKS = 14
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 7
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
@@ -7340,3 +7340,80 @@ def test_exponential_maximum_gumbel_l0_is_consumed_and_immutable() -> None:
         "negative_permissive.py",
     ):
         assert hidden_name not in runtime_visible
+
+
+def test_sandwich_jss_r_l1_is_consumed_and_operator_invalidated() -> None:
+    ladder = _load_ladder()
+    candidate = next(
+        row
+        for row in ladder["initial_candidate_queue"]
+        if row["id"] == "sandwich_jss_2004_r_public_replication"
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L1"
+    assert candidate["status"] == "consumed_scored"
+    assert candidate["activation_status"] == (
+        "fresh_live_v1_consumed_runtime_and_hidden_automated_pass_"
+        "operator_invalidated_report_semantics"
+    )
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["product_code_head"] == (
+        "9feec25d9f4c819ba4bbd991bd1c8469b9d7f4c8"
+    )
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_research_eval_complete"] == "1/1"
+    assert evidence["automated_hidden_full_task_result"] == "1/1"
+    assert evidence["product_model_calls"] == 18
+    assert evidence["architect_model_calls"] == 2
+    assert evidence["architect_full_packet_regenerations"] == 1
+    assert evidence["hidden_source_execution_checks"] == "12/12"
+    assert evidence["hidden_source_semantic_claims"] == "10/10 SATISFIED"
+    assert evidence["enabled_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["enabled_sonnet_calls"] == 0
+    assert evidence["enabled_opus_calls"] == 0
+    assert evidence["operator_disposition"] == (
+        "OPERATOR_INVALIDATED_REPORT_SEMANTICS_AND_DUAL_REVIEWER_"
+        "FALSE_ACCEPTANCE"
+    )
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_after_consumption"] == "4/74"
+    assert evidence["formalizer_executed"] is False
+
+    run_path = Path(evidence["immutable_run_path"])
+    assert run_path.is_dir()
+    for filename, field in (
+        ("research_agent_runtime_manifest.json", "runtime_manifest_sha256"),
+        (
+            "sandwich_jss_2004_r_public_replication_runtime_result.json",
+            "runtime_result_sha256",
+        ),
+        (
+            "research_capability_gold_evaluation.json",
+            "hidden_gold_evaluation_sha256",
+        ),
+        ("runtime_completion_summary.json", "runtime_completion_summary_sha256"),
+        ("runtime_failure_summary.json", "runtime_failure_summary_sha256"),
+        ("runtime_llm_topology.json", "runtime_llm_topology_sha256"),
+    ):
+        assert hashlib.sha256((run_path / filename).read_bytes()).hexdigest() == (
+            evidence[field]
+        )
+
+    visible_path = Path(candidate["visible_questions_path"])
+    assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
+        evidence["visible_questions_sha256"]
+    )
+    question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == candidate["id"]
+    assert question["source"]["doi"] == "10.18637/jss.v011.i10"
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["task_intent"]["formal"] == "not_applicable"
+
+    readiness = ladder["current_readiness"]
+    assert readiness["active_scored_tasks"] == CURRENT_ACTIVE_TASKS
+    assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
+    assert readiness["fully_gold_passed_tasks"] == 4
+    assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
