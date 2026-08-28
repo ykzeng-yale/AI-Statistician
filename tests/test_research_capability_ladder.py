@@ -7040,6 +7040,10 @@ def test_fisher_exact_greater_l0_is_frozen_before_product_draw() -> None:
     )
     assert evidence["activation_semantic_model_calls"] == 0
     assert evidence["qualified_semantic_model_calls_before_activation"] == 6
+    assert evidence["activation_ledger_commit"] == (
+        "f33d6bc333afac8292abc0dfca19767d4c49d59a"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
