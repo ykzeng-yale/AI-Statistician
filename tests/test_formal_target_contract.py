@@ -11,10 +11,12 @@ from ai_statistician.research_agent_runtime import (
     FormalizerWorkspaceRuntimeSubsystem,
     RetrievalMemoryRuntimeSubsystem,
     _formalization_runtime_problem_and_goals,
-    _frozen_formal_only_initial_task,
-    _is_frozen_formal_only_question,
     _question_from_payload,
     _question_to_payload,
+)
+from ai_statistician.runtime_research_problem_adapter import (
+    frozen_direct_initial_task as _frozen_direct_initial_task,
+    is_frozen_formal_only_question as _is_frozen_formal_only_question,
 )
 from ai_statistician.research_lab import load_open_research_questions
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -109,10 +111,11 @@ class _CapturingFormalizer:
 def test_formal_only_target_routes_retrieval_directly_to_formalizer() -> None:
     question = _formal_only_question()
     assert _is_frozen_formal_only_question(question)
-    initial_task = _frozen_formal_only_initial_task(
+    initial_task = _frozen_direct_initial_task(
         question=question,
         architect_context={},
     )
+    assert initial_task is not None
     assert initial_task.owner_subsystem == "RetrievalMemory"
     assert initial_task.inputs["retrieval_return_to_subsystem"] == (
         "FormalizationEvaluator"

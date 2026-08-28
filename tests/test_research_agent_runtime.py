@@ -978,44 +978,15 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
     class Provider:
         provider_name = "anthropic"
 
-    class SimulationRequestingArchitect:
+    class UnusedArchitect:
         config = exact_haiku_config
         provider = Provider()
         metric_semantic_reviewer = None
 
         @staticmethod
         def propose(*, question, architect_context, runtime_config):  # type: ignore[no-untyped-def]
-            del question, runtime_config
-            evidence_contract = dict(
-                architect_context["runtime_requested_evidence_contract"]
-            )
-            return {
-                "packet_id": "architect:integrated-source-only",
-                "problem_analysis": {},
-                "evidence_contract": evidence_contract,
-                "subsystem_execution_plan": [
-                    {
-                        "subsystem": "TheoryDeveloper",
-                        "objective": "Execute and report the immutable source.",
-                        "expected_artifacts": [
-                            "source_replication_checkpoint"
-                        ],
-                        "acceptance_gate": (
-                            "a source-replication checkpoint is recorded"
-                        ),
-                    }
-                ],
-                "retrieval_strategy": {},
-                "iteration_policy": {},
-                "next_actions": [
-                    {
-                        "owner_agent": "SimulationEvaluator",
-                        "action": "Run an unrelated simulation lane.",
-                        "acceptance_gate": "simulation evidence is recorded",
-                    }
-                ],
-                "evidence_boundary": "Architect routing is not scientific evidence.",
-            }
+            del question, architect_context, runtime_config
+            raise AssertionError("frozen source-only intent must bypass Architect")
 
     class SourceOnlyTheoryDeveloper:
         config = exact_haiku_config
@@ -1031,7 +1002,7 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
         [question],
         tmp_path,
         theory_developer=SourceOnlyTheoryDeveloper(),  # type: ignore[arg-type]
-        architect_coordinator=SimulationRequestingArchitect(),  # type: ignore[arg-type]
+        architect_coordinator=UnusedArchitect(),  # type: ignore[arg-type]
         config=ResearchAgentRuntimeConfig(
             evaluation_mode="research_eval",
             formal_verification_policy="optional",
@@ -1047,15 +1018,11 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
     )
     traces = runtime_result["traces"]
     assert [(row["subsystem"], row["status"]) for row in traces] == [
-        ("ArchitectCoordinator", "REROUTE"),
         ("TheoryDeveloper", "ACCEPTED"),
     ]
-    initial_routing = traces[0]["observations"][0]["payload"][
-        "initial_routing"
-    ]
-    assert initial_routing["requested_subsystem"] == "SimulationEvaluator"
-    assert initial_routing["selected_subsystem"] == "TheoryDeveloper"
-    assert initial_routing["model_route_honored_exactly"] is False
+    assert traces[0]["task"]["task_id"] == (
+        "source-replication:integrated-source-only-runtime"
+    )
     assert manifest["status_counts"] == {"ACCEPTED": 1}
     assert manifest["research_evaluation_summary"][
         "all_questions_research_eval_complete"
@@ -1066,16 +1033,38 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
         "source_replication_unresolved_gap_disclosure_present",
     ]
     assert row["requirements"]["critic_research_acceptance"] is False
-    assert manifest["n_runtime_architect_coordinator_traces"] == 1
-    assert manifest["n_runtime_outer_graph_iterations"] == 2
+    assert manifest["n_runtime_architect_coordinator_traces"] == 0
+    assert manifest["n_runtime_outer_graph_iterations"] == 1
     assert manifest["n_runtime_same_owner_workspace_continuations"] == 0
-    assert runtime_result["outer_graph_iterations_consumed"] == 2
+    assert runtime_result["outer_graph_iterations_consumed"] == 1
     assert runtime_result["same_owner_workspace_continuations_consumed"] == 0
     assert manifest["n_generated_simulation_sandbox_executed"] == 0
     assert manifest["n_kernel_verified_subclaims"] == 0
     assert manifest["formal_closure_summary"]["formal_closure_status"] == (
         "FORMAL_CLOSURE_NOT_APPLICABLE"
     )
+
+
+def test_multi_lane_intent_keeps_architect_initial_ownership() -> None:
+    question = OpenResearchQuestion(
+        id="source-and-theory-runtime",
+        title="Source and theory runtime",
+        description="Replicate a source and derive a new claim.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "novelty": "optional",
+            "unresolved_gaps": "required",
+        },
+    )
+
+    assert runtime_module._frozen_direct_initial_task(
+        question=question,
+        architect_context={},
+    ) is None
 
 
 def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:

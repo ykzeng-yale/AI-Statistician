@@ -298,8 +298,7 @@ from .research_schema import (
 from .research_source_library import ResearchSourceSnapshot
 from .runtime_research_problem_adapter import (
     derive_runtime_research_problem,
-    frozen_formal_only_initial_task as _frozen_formal_only_initial_task,
-    is_frozen_formal_only_question as _is_frozen_formal_only_question,
+    frozen_direct_initial_task as _frozen_direct_initial_task,
 )
 from .simulation_engineer_llm import (
     EMPIRICAL_EVALUATION_PHASE_CONFIRMATORY,
@@ -20313,12 +20312,11 @@ def run_research_agent_runtime(
             )
         else:
             initial_task = resume_pending_task or (
-                _frozen_formal_only_initial_task(
+                _frozen_direct_initial_task(
                     question=question,
                     architect_context=question_architect_context,
                 )
-                if _is_frozen_formal_only_question(question)
-                else AgentTask(
+                or AgentTask(
                     task_id=f"architect:{question.id}",
                     owner_subsystem="ArchitectCoordinator",
                     objective=(
