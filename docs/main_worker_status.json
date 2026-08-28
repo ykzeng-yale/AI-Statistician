@@ -1,5 +1,5 @@
 {
-  "schema_version": 256,
+  "schema_version": 257,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,15 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-two consumed draws and immutable artifacts at trustworthy full-task credit 4/82, with exact development Lean closure still 0/2. Task 82 remains consumed 0/1: its Markdown/LaTeX Theory contains invalid remainder, orthogonality, and asymptotic steps; its generated R executes the core score but violates visible closed-contract clauses; and its independent exact-Haiku reviewer tested only happy paths before two invalid ACCEPT submissions were correctly blocked. No product correction is justified. Keep one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; direct raw feedback to the same source owner, preserve distinct hash-bound reviewer identity, and selectively reuse Codex turn/lineage invariants without embedding Codex Core, App Server, Responses transport, thread storage, provider state, Guardian, worktrees, or multi-agent scheduling. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "current_goal_focus": "Preserve all eighty-two consumed draws and immutable artifacts at trustworthy full-task credit 4/82, with exact development Lean closure still 0/2. Commit cb03a517 reconciles thirty-nine historically consumed rows that still said active_scored, replaces the ambiguous active-scored total with scored_tasks_total, and records unconsumed_scored_tasks=0. This is evidence-control only: no task artifact, outcome, score, model call, runtime, prompt, or hidden authority changed. Task 82 remains consumed 0/1. Keep one AgentRuntime and persistent Theory, Python/R, Simulation, and Lean model/tool loops; direct raw feedback to the same source owner, preserve distinct hash-bound reviewer identity, and select the next disjoint benchmark only after its visible contract plus external evaluator authority are frozen. Production may use Sonnet, all tests and evaluations remain exact claude-haiku-4-5-20251001, and Opus remains prohibited.",
+  "latest_ladder_status_reconciliation": {
+    "commit": "cb03a517018d2a731588dee5f75f18f390d4b73f",
+    "finding": "Thirty-nine rows with an already consumed live draw still used status=active_scored even though current_readiness counted all eighty-two scored tasks as consumed. One formal-only Statlib row was therefore superficially selectable despite an explicit immutable sole-draw boundary.",
+    "correction": "Every row proven consumed now uses status=consumed_scored. current_readiness now distinguishes scored_tasks_total=82, unconsumed_scored_tasks=0, and consumed_scored_tasks=82. Tests require active_scored exactly for frozen_ready activations and consumed_scored exactly after activation consumption.",
+    "authority_boundary": "No visible question, source snapshot, product artifact, hidden evaluator, runtime output, trusted score, task outcome, model call, prompt, or product Python changed. This correction cannot reactivate, rerun, rescore, or alter any consumed draw.",
+    "verification": "Focused ladder checks passed 80/80 and the complete repository passed 1015/1015 in 86.33 seconds. JSON, diff, and secret hygiene passed.",
+    "next_selection_state": "There is no unconsumed scored task. Any next draw must be a newly frozen disjoint benchmark with evaluator-only authority qualified before the first product call."
+  },
   "latest_distance_correlation_chisquare_l2_evaluation": {
     "task_id": "distance_correlation_chisquare_paper_to_code",
     "family": "nonlinear_independence_testing_distance_correlation",
