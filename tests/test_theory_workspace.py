@@ -2200,14 +2200,8 @@ def test_document_authority_supports_local_edit_without_forced_reread(
                     input={
                         "path": "derivations/C1.md",
                         "expected_sha256": parent_sha256,
-                        "edits": [
-                            {
-                                "old_text": "For all n, $a_n = b_n$.",
-                                "new_text": (
-                                    "For every admitted n, $a_n = b_n$."
-                                ),
-                            }
-                        ],
+                        "old_text": "For all n, $a_n = b_n$.",
+                        "new_text": "For every admitted n, $a_n = b_n$.",
                     },
                 )
             ),
@@ -2252,29 +2246,36 @@ def test_document_authority_supports_local_edit_without_forced_reread(
     assert result.evidence["model_document_writes"] == [
         {
             "submission_index": 0,
-            "operation": "atomic_exact_text_replacement_batch",
+            "operation": "exact_text_replacement",
             "relative_path": "derivations/C1.md",
             "parent_sha256": parent_sha256,
-            "edit_count": 1,
-            "edits": [
-                {
-                    "old_text_sha256": hashlib.sha256(
-                        b"For all n, $a_n = b_n$."
-                    ).hexdigest(),
-                    "new_text_sha256": hashlib.sha256(
-                        b"For every admitted n, $a_n = b_n$."
-                    ).hexdigest(),
-                }
-            ],
+            "old_text_sha256": hashlib.sha256(
+                b"For all n, $a_n = b_n$."
+            ).hexdigest(),
+            "new_text_sha256": hashlib.sha256(
+                b"For every admitted n, $a_n = b_n$."
+            ).hexdigest(),
             "sha256": hashlib.sha256(revised.encode("utf-8")).hexdigest(),
             "byte_size": len(revised.encode("utf-8")),
         }
     ]
     tool_names = [tool.name for tool in backend.requests[0].tools]
     assert THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL in tool_names
+    edit_schema = next(
+        tool.input_schema
+        for tool in backend.requests[0].tools
+        if tool.name == THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL
+    )
+    assert edit_schema["required"] == [
+        "path",
+        "expected_sha256",
+        "old_text",
+        "new_text",
+    ]
+    assert set(edit_schema["properties"]) == set(edit_schema["required"])
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "current document SHA-256" in prompt
-    assert "ordered batch" in prompt
+    assert "one exact, unique" in prompt
 
 
 def test_same_owner_continuation_can_commit_without_forced_document_reread(
@@ -2336,14 +2337,8 @@ def test_model_chosen_partial_reread_is_evidence_not_checkpoint_authority(
                     input={
                         "path": "derivations/C1.md",
                         "expected_sha256": parent_sha256,
-                        "edits": [
-                            {
-                                "old_text": "For all n, $a_n = b_n$.",
-                                "new_text": (
-                                    "For every admitted n, $a_n = b_n$."
-                                ),
-                            }
-                        ],
+                        "old_text": "For all n, $a_n = b_n$.",
+                        "new_text": "For every admitted n, $a_n = b_n$.",
                     },
                 )
             ),
@@ -2432,9 +2427,8 @@ def test_long_theory_document_supports_search_range_read_and_local_edit(
                     input={
                         "path": "theory/workspace.md",
                         "expected_sha256": parent_sha256,
-                        "edits": [
-                            {"old_text": old_text, "new_text": new_text}
-                        ],
+                        "old_text": old_text,
+                        "new_text": new_text,
                     },
                 )
             ),
@@ -2523,12 +2517,8 @@ def test_local_theory_document_edit_rejects_stale_or_ambiguous_source(
                     input={
                         "path": "workspace.md",
                         "expected_sha256": "0" * 64,
-                        "edits": [
-                            {
-                                "old_text": "Repeated premise.",
-                                "new_text": "Revised premise.",
-                            }
-                        ],
+                        "old_text": "Repeated premise.",
+                        "new_text": "Revised premise.",
                     },
                 )
             ),
@@ -2541,12 +2531,8 @@ def test_local_theory_document_edit_rejects_stale_or_ambiguous_source(
                         "expected_sha256": hashlib.sha256(
                             parent.encode("utf-8")
                         ).hexdigest(),
-                        "edits": [
-                            {
-                                "old_text": "Repeated premise.",
-                                "new_text": "Revised premise.",
-                            }
-                        ],
+                        "old_text": "Repeated premise.",
+                        "new_text": "Revised premise.",
                     },
                 )
             ),
@@ -2582,56 +2568,54 @@ def test_local_theory_document_edit_rejects_stale_or_ambiguous_source(
     assert "edit index 0" in ambiguous["detail"]
 
 
-def test_local_theory_document_edit_batch_is_atomic_and_ordered(tmp_path) -> None:
+def test_local_theory_document_edits_are_hash_bound_and_sequential(tmp_path) -> None:
     parent = "# Claims\n\nFirst premise.\n\nSecond conclusion.\n"
     parent_sha256 = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+    intermediate = "# Claims\n\nRevised premise.\n\nSecond conclusion.\n"
+    intermediate_sha256 = hashlib.sha256(intermediate.encode("utf-8")).hexdigest()
     revised = "# Claims\n\nRevised premise.\n\nRevised conclusion.\n"
     backend = ScriptedTheoryWorkspaceBackend(
         [
             _response(
                 ClientToolCall(
-                    call_id="read-batch-document",
+                    call_id="read-sequential-document",
                     name="read_theory_workspace",
                     input={"document_paths": ["workspace.md"]},
                 )
             ),
             _response(
                 ClientToolCall(
-                    call_id="reject-whole-batch",
+                    call_id="reject-missing-edit",
                     name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
                     input={
                         "path": "workspace.md",
                         "expected_sha256": parent_sha256,
-                        "edits": [
-                            {
-                                "old_text": "First premise.",
-                                "new_text": "Revised premise.",
-                            },
-                            {
-                                "old_text": "Missing conclusion.",
-                                "new_text": "Revised conclusion.",
-                            },
-                        ],
+                        "old_text": "Missing conclusion.",
+                        "new_text": "Revised conclusion.",
                     },
                 )
             ),
             _response(
                 ClientToolCall(
-                    call_id="apply-whole-batch",
+                    call_id="edit-first-span",
                     name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
                     input={
                         "path": "workspace.md",
                         "expected_sha256": parent_sha256,
-                        "edits": [
-                            {
-                                "old_text": "First premise.",
-                                "new_text": "Revised premise.",
-                            },
-                            {
-                                "old_text": "Second conclusion.",
-                                "new_text": "Revised conclusion.",
-                            },
-                        ],
+                        "old_text": "First premise.",
+                        "new_text": "Revised premise.",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-second-span",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "workspace.md",
+                        "expected_sha256": intermediate_sha256,
+                        "old_text": "Second conclusion.",
+                        "new_text": "Revised conclusion.",
                     },
                 )
             ),
@@ -2654,13 +2638,13 @@ def test_local_theory_document_edit_batch_is_atomic_and_ordered(tmp_path) -> Non
             "theory_workspace_manifest": dict(manifest),
             "changed_documents": list(changed_documents),
         },
-        max_turns=4,
+        max_turns=5,
     )
 
     rejection = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
-    assert "observed 0 matches at edit index 1" in rejection["detail"]
+    assert "observed 0 matches at edit index 0" in rejection["detail"]
     assert (tmp_path / "theory" / "workspace.md").read_text() == revised
     assert load_theory_workspace_documents(result.core_packet) == {
         "workspace.md": revised
@@ -2668,31 +2652,28 @@ def test_local_theory_document_edit_batch_is_atomic_and_ordered(tmp_path) -> Non
     assert result.evidence["model_document_writes"] == [
         {
             "submission_index": 0,
-            "operation": "atomic_exact_text_replacement_batch",
+            "operation": "exact_text_replacement",
             "relative_path": "workspace.md",
             "parent_sha256": parent_sha256,
-            "edit_count": 2,
-            "edits": [
-                {
-                    "old_text_sha256": hashlib.sha256(
-                        b"First premise."
-                    ).hexdigest(),
-                    "new_text_sha256": hashlib.sha256(
-                        b"Revised premise."
-                    ).hexdigest(),
-                },
-                {
-                    "old_text_sha256": hashlib.sha256(
-                        b"Second conclusion."
-                    ).hexdigest(),
-                    "new_text_sha256": hashlib.sha256(
-                        b"Revised conclusion."
-                    ).hexdigest(),
-                },
-            ],
+            "old_text_sha256": hashlib.sha256(b"First premise.").hexdigest(),
+            "new_text_sha256": hashlib.sha256(b"Revised premise.").hexdigest(),
+            "sha256": intermediate_sha256,
+            "byte_size": len(intermediate.encode("utf-8")),
+        },
+        {
+            "submission_index": 1,
+            "operation": "exact_text_replacement",
+            "relative_path": "workspace.md",
+            "parent_sha256": intermediate_sha256,
+            "old_text_sha256": hashlib.sha256(
+                b"Second conclusion."
+            ).hexdigest(),
+            "new_text_sha256": hashlib.sha256(
+                b"Revised conclusion."
+            ).hexdigest(),
             "sha256": hashlib.sha256(revised.encode("utf-8")).hexdigest(),
             "byte_size": len(revised.encode("utf-8")),
-        }
+        },
     ]
 
 

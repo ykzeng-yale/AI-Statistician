@@ -307,27 +307,28 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
                     "ambiguous-edit",
                     SCIENTIFIC_SOURCE_EDIT_TOOL,
                     {
-                        "edits": [
-                            {"old_text": "missing_name", "replacement": "1"}
-                        ]
+                        "old_text": "missing_name",
+                        "replacement": "1",
                     },
                 )
             ),
             _response(
                 ClientToolCall(
-                    "exact-edit",
+                    "edit-assignment",
                     SCIENTIFIC_SOURCE_EDIT_TOOL,
                     {
-                        "edits": [
-                            {
-                                "old_text": "    value = missing_name\n",
-                                "replacement": "    value = 1\n",
-                            },
-                            {
-                                "old_text": "    return value + missing_name\n",
-                                "replacement": "    return value\n",
-                            },
-                        ]
+                        "old_text": "    value = missing_name\n",
+                        "replacement": "    value = 1\n",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "edit-return",
+                    SCIENTIFIC_SOURCE_EDIT_TOOL,
+                    {
+                        "old_text": "    return value + missing_name\n",
+                        "replacement": "    return value\n",
                     },
                 )
             ),
@@ -353,7 +354,7 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=4,
+        max_turns=5,
         max_no_progress_turns=3,
         artifact_id="question:exact-scientific-edit",
         initial_code_draft=initial,
@@ -367,20 +368,22 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
 
     assert dict(result.code_draft) == revised
     assert checked == [revised]
-    assert result.evidence["source_updates"] == 1
+    assert result.evidence["source_updates"] == 2
     assert result.evidence["runtime_edited_source"] is False
     assert "observed 2 matches" in str(backend.requests[1].messages)
     applied = json.loads(
-        backend.requests[2].messages[-1]["content"][0]["content"]
+        backend.requests[3].messages[-1]["content"][0]["content"]
     )
     assert applied["source_action"] == "atomic_exact_text_patch"
-    assert applied["edit_metadata"]["edit_count"] == 2
+    assert applied["edit_metadata"]["old_text_chars"] == len(
+        "    return value + missing_name\n"
+    )
     edit_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
         if tool.name == SCIENTIFIC_SOURCE_EDIT_TOOL
     )
-    assert edit_schema["required"] == ["edits"]
+    assert edit_schema["required"] == ["old_text", "replacement"]
 
 
 def test_same_model_authors_initial_source_before_sandbox_execution() -> None:

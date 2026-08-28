@@ -1907,9 +1907,18 @@ def run_scientific_code_workspace(
             )
 
         if call.name == SCIENTIFIC_SOURCE_EDIT_TOOL:
-            if set(tool_input) != {"edits"}:
+            allowed_fields = {
+                "old_text",
+                "replacement",
+                "expected_occurrences",
+            }
+            if (
+                not {"old_text", "replacement"}.issubset(tool_input)
+                or set(tool_input) - allowed_fields
+            ):
                 raise ClientToolInputError(
-                    "edit_current_scientific_source requires exactly one edits array"
+                    "edit_current_scientific_source requires old_text and replacement; "
+                    "expected_occurrences is optional"
                 )
             current = deepcopy(dict(state["code_draft"]))
             if not current:
@@ -1917,18 +1926,23 @@ def run_scientific_code_workspace(
                     "edit_current_scientific_source requires existing source; use "
                     "submit_scientific_source for initial authoring"
                 )
+            exact_edit = {
+                "old_text": tool_input["old_text"],
+                "replacement": tool_input["replacement"],
+            }
+            if "expected_occurrences" in tool_input:
+                exact_edit["expected_occurrences"] = tool_input[
+                    "expected_occurrences"
+                ]
             current["code"], edit_records = apply_model_exact_text_edits(
                 str(current["code"]),
-                edits=tool_input["edits"],
+                edits=[exact_edit],
                 replacement_key="replacement",
             )
             return store_model_source(
                 current,
                 source_action="atomic_exact_text_patch",
-                edit_metadata={
-                    "edit_count": len(edit_records),
-                    "edits": edit_records,
-                },
+                edit_metadata=edit_records[0],
             )
 
         if call.name == SCIENTIFIC_SOURCE_COMMIT_TOOL:
@@ -2453,33 +2467,22 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_EDIT_TOOL,
             description=(
-                "Atomically apply one or more ordered model-authored exact-text edits "
-                "to the current Python/R source without executing it. Each old_text "
-                "must match the declared number of times; runtime validates the patch "
-                "but does not interpret or repair source. Put coherent multi-hunk "
-                "changes in one call, then explicitly run the complete source."
+                "Apply one model-authored exact-text edit to the current Python/R "
+                "source without executing it. old_text must match the declared number "
+                "of times; runtime validates the edit but does not interpret or repair "
+                "source. Make another call for another local change, then explicitly "
+                "run the complete source."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["edits"],
+                "required": ["old_text", "replacement"],
                 "properties": {
-                    "edits": {
-                        "type": "array",
-                        "minItems": 1,
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["old_text", "replacement"],
-                            "properties": {
-                                "old_text": {"type": "string", "minLength": 1},
-                                "replacement": {"type": "string"},
-                                "expected_occurrences": {
-                                    "type": "integer",
-                                    "minimum": 1,
-                                },
-                            },
-                        },
+                    "old_text": {"type": "string", "minLength": 1},
+                    "replacement": {"type": "string"},
+                    "expected_occurrences": {
+                        "type": "integer",
+                        "minimum": 1,
                     },
                 },
             },

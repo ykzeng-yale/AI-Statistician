@@ -540,35 +540,24 @@ def _metric_protocol_workspace_tools(
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
             (
-                "Atomically apply an ordered batch of exact model-authored text "
-                f"replacements to the external {document_name}. Bind the batch "
-                "to the current SHA-256. Each old_text must occur exactly once unless "
+                "Apply one exact model-authored text replacement to the external "
+                f"{document_name}. Bind the edit to the current SHA-256. old_text "
+                "must occur exactly once unless "
                 "expected_occurrences declares its exact positive count, in which case "
-                "all occurrences are replaced. Runtime validates the whole batch "
-                "before updating bytes and does not interpret or author scientific "
-                "content."
+                "all occurrences are replaced. Runtime validates the edit before "
+                "updating bytes and does not interpret or author scientific content. "
+                "Make another hash-bound call for another local change."
             ),
             properties={
                 "expected_parent_sha256": hash_field,
-                "edits": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {
-                            "old_text": {"type": "string", "minLength": 1},
-                            "new_text": {"type": "string"},
-                            "expected_occurrences": {
-                                "type": "integer",
-                                "minimum": 1,
-                            },
-                        },
-                        "required": ["old_text", "new_text"],
-                    },
+                "old_text": {"type": "string", "minLength": 1},
+                "new_text": {"type": "string"},
+                "expected_occurrences": {
+                    "type": "integer",
+                    "minimum": 1,
                 },
             },
-            required=("expected_parent_sha256", "edits"),
+            required=("expected_parent_sha256", "old_text", "new_text"),
         ),
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
@@ -775,20 +764,32 @@ def _run_metric_protocol_workspace(
                 ),
             )
         if call.name == METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL:
-            require_fields("expected_parent_sha256", "edits")
+            required_fields = {"expected_parent_sha256", "old_text", "new_text"}
+            allowed_fields = {*required_fields, "expected_occurrences"}
+            if (
+                not required_fields.issubset(payload)
+                or set(payload) - allowed_fields
+            ):
+                raise ClientToolInputError(
+                    "edit_metric_protocol requires expected_parent_sha256, old_text, "
+                    "and new_text; expected_occurrences is optional"
+                )
             parent_sha256 = _metric_protocol_document_sha256(document)
             if payload.get("expected_parent_sha256") != parent_sha256:
                 raise ClientToolInputError(
                     "edit_metric_protocol parent hash is stale"
                 )
-            raw_edits = payload.get("edits")
-            if not isinstance(raw_edits, list) or not raw_edits:
-                raise ClientToolInputError(
-                    "edit_metric_protocol edits must be a nonempty array"
-                )
+            exact_edit = {
+                "old_text": payload["old_text"],
+                "new_text": payload["new_text"],
+            }
+            if "expected_occurrences" in payload:
+                exact_edit["expected_occurrences"] = payload[
+                    "expected_occurrences"
+                ]
             revised, _ = apply_model_exact_text_edits(
                 document,
-                edits=raw_edits,
+                edits=[exact_edit],
                 replacement_key="new_text",
             )
             if not revised.strip():
@@ -802,7 +803,6 @@ def _run_metric_protocol_workspace(
                 content={
                     "ok": True,
                     "edited": True,
-                    "edit_count": len(raw_edits),
                     "parent_sha256": parent_sha256,
                     "current_sha256": current_sha256,
                     "content_chars": len(document),

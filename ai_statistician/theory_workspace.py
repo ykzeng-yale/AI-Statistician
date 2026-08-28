@@ -1822,10 +1822,10 @@ def run_theory_artifact_workspace(
     )
     edit_guidance = (
         "For a localized revision to an existing mathematical document, use "
-        "edit_theory_document with the current document SHA-256 and an ordered batch "
-        "of exact, unique model-selected text replacements. The runtime validates the "
-        "whole batch against progressively revised bytes before applying it, then "
-        "returns the resulting hash; it does not interpret or rewrite mathematics. "
+        "edit_theory_document with the current document SHA-256 and one exact, unique "
+        "model-selected text replacement. Make another hash-bound call for another "
+        "local change. The runtime returns the resulting hash and does not interpret "
+        "or rewrite mathematics. "
         if require_document_authority
         else ""
     )
@@ -2992,33 +2992,26 @@ def _theory_workspace_tools(
             ClientToolDefinition(
                 name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
                 description=(
-                    "Atomically apply an ordered batch of exact model-authored "
-                    "replacements to an existing Markdown/LaTeX/BibTeX document. "
-                    "The batch is bound to the current document SHA-256; each old_text "
-                    "must occur exactly once in the progressively revised bytes. The "
-                    "runtime validates every replacement before mutating the document "
+                    "Apply one exact model-authored replacement to an existing "
+                    "Markdown/LaTeX/BibTeX document. The edit is bound to the current "
+                    "document SHA-256, and old_text must occur exactly once. The "
+                    "runtime validates the replacement before mutating the document "
                     "and never authors or interprets mathematics."
                 ),
                 input_schema={
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["path", "expected_sha256", "edits"],
+                    "required": [
+                        "path",
+                        "expected_sha256",
+                        "old_text",
+                        "new_text",
+                    ],
                     "properties": {
                         "path": {"type": "string", "minLength": 1},
                         "expected_sha256": {"type": "string", "minLength": 64, "maxLength": 64},
-                        "edits": {
-                            "type": "array",
-                            "minItems": 1,
-                            "items": {
-                                "type": "object",
-                                "additionalProperties": False,
-                                "required": ["old_text", "new_text"],
-                                "properties": {
-                                    "old_text": {"type": "string", "minLength": 1},
-                                    "new_text": {"type": "string"},
-                                },
-                            },
-                        },
+                        "old_text": {"type": "string", "minLength": 1},
+                        "new_text": {"type": "string"},
                     },
                 },
                 terminal=False,
@@ -3245,15 +3238,16 @@ def _edit_theory_workspace_document(
     current_documents: Mapping[str, str],
     raw_edit: Any,
 ) -> tuple[dict[str, str], dict[str, Any]]:
-    """Atomically apply model-selected replacements without interpreting text."""
+    """Apply one model-selected replacement without interpreting text."""
 
     if not isinstance(raw_edit, Mapping):
         raise ClientToolInputError("theory document edit must be an object")
     edit = dict(raw_edit)
-    required = {"path", "expected_sha256", "edits"}
+    required = {"path", "expected_sha256", "old_text", "new_text"}
     if set(edit) != required:
         raise ClientToolInputError(
-            "edit_theory_document requires exactly path, expected_sha256, and edits"
+            "edit_theory_document requires exactly path, expected_sha256, "
+            "old_text, and new_text"
         )
     path = _normalized_theory_document_path(edit["path"])
     if path not in current_documents:
@@ -3268,29 +3262,26 @@ def _edit_theory_workspace_document(
             f"theory document {path!r} changed since it was read; expected "
             f"{expected_sha256!r}, current {current_sha256!r}"
         )
-    raw_edits = edit["edits"]
-    if not isinstance(raw_edits, list) or not raw_edits:
-        raise ClientToolInputError("edit_theory_document edits must be a nonempty array")
     revised, _ = apply_model_exact_text_edits(
         current,
-        edits=raw_edits,
+        edits=[
+            {
+                "old_text": edit["old_text"],
+                "new_text": edit["new_text"],
+            }
+        ],
         replacement_key="new_text",
     )
     if not revised.strip():
         raise ClientToolInputError("edit_theory_document cannot leave a document empty")
-    edit_records = [
-        {"old_text_sha256": _text_sha256(row["old_text"]),
-         "new_text_sha256": _text_sha256(row["new_text"])}
-        for row in raw_edits
-    ]
     candidate = dict(current_documents)
     candidate[path] = revised
     return candidate, {
-        "operation": "atomic_exact_text_replacement_batch",
+        "operation": "exact_text_replacement",
         "relative_path": path,
         "parent_sha256": current_sha256,
-        "edit_count": len(edit_records),
-        "edits": edit_records,
+        "old_text_sha256": _text_sha256(edit["old_text"]),
+        "new_text_sha256": _text_sha256(edit["new_text"]),
         "sha256": _text_sha256(revised),
         "byte_size": len(revised.encode("utf-8")),
     }
