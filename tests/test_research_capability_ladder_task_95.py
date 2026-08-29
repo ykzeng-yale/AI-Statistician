@@ -12,7 +12,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "delong_single_auc_variance_known_result"
 
 
-def test_delong_integrated_l0_is_frozen_before_sole_draw() -> None:
+def test_delong_integrated_l0_sole_draw_is_consumed_without_credit() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -21,9 +21,9 @@ def test_delong_integrated_l0_is_frozen_before_sole_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "diagnostic_accuracy_auc_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_schema_v4_exact_haiku_single_draw"
+        "fresh_live_v1_consumed_exact_haiku_critic_scientific_inconclusive_gold_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-delong-single-auc-variance-20260829-v1"
@@ -81,30 +81,97 @@ def test_delong_integrated_l0_is_frozen_before_sole_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 8
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_product_model_calls"] == 77
+    assert evidence["runtime_client_tool_model_turns"] == 75
+    assert evidence["runtime_direct_model_calls"] == 2
+    assert evidence["runtime_client_tool_executions"] == 82
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["theory_developer_executed"] is False
-    assert evidence["generated_algorithm_executed"] is False
-    assert evidence["generated_simulation_executed"] is False
+    assert evidence["theory_developer_executed"] is True
+    assert evidence["independently_accepted_theory_packet"] is True
+    assert evidence["hidden_theory_exact_checks_passed"] == 7
+    assert evidence["hidden_theory_exact_checks_total"] == 7
+    assert evidence["hidden_theory_semantic_claims_passed"] == 10
+    assert evidence["hidden_theory_semantic_claims_total"] == 10
+    assert evidence["hidden_theory_combined_passed"] is True
+    assert evidence["generated_algorithm_execution_attempted"] is True
+    assert evidence[
+        "generated_algorithm_sandbox_accepted_before_commit_failure"
+    ] is True
+    assert evidence["generated_algorithm_explicit_commit"] is False
+    assert evidence["generated_algorithm_handoff_accepted"] is False
+    assert evidence["generated_simulation_execution_attempted"] is True
+    assert evidence[
+        "generated_simulation_sandbox_accepted_before_commit_failure"
+    ] is True
+    assert evidence["generated_simulation_explicit_commit"] is False
+    assert evidence["generated_simulation_handoff_accepted"] is False
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
     assert evidence["activation_ledger_commit"] == (
         "70c5678a3cbc1d294cbbcdfab1ba2ab34cc06dc9"
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["product_code_head"] == (
-        "70c5678a3cbc1d294cbbcdfab1ba2ab34cc06dc9"
+        "b83893652e1805668b7f58f1e8f1d91f12294aa4"
     )
     assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "critic_scientific_inconclusive"
+    )
+    assert evidence["runtime_max_iterations_reached"] is False
+    assert evidence["runtime_outer_graph_iterations"] == 6
+    assert evidence["runtime_trace_steps"] == 8
+    assert evidence["runtime_same_owner_workspace_continuations"] == 2
+    assert evidence["post_runtime_evaluator_model_calls"] == 1
+    assert evidence["hidden_expected_values_disclosed"] is False
+    assert evidence["runtime_feedback_generated"] is False
+    assert evidence["hidden_leak_match_count"] == 0
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_activation"] == "7/94"
     assert evidence["ladder_score_after_activation"] == "7/95"
+    assert evidence["ladder_score_after_consumption"] == "7/95"
+
+    run_path = Path(evidence["run_path"])
+    immutable_files = {
+        "research_agent_runtime_manifest.json": evidence[
+            "runtime_manifest_sha256"
+        ],
+        "delong_single_auc_variance_known_result_runtime_result.json": evidence[
+            "runtime_result_sha256"
+        ],
+        "research_capability_gold_evaluation.json": evidence[
+            "gold_evaluation_sha256"
+        ],
+        "runtime_llm_topology.json": evidence["runtime_topology_sha256"],
+    }
+    for name, expected_sha256 in immutable_files.items():
+        assert hashlib.sha256((run_path / name).read_bytes()).hexdigest() == (
+            expected_sha256
+        )
+    gold = json.loads(
+        (run_path / "research_capability_gold_evaluation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert gold["hidden_expected_values_disclosed"] is False
+    assert gold["runtime_feedback_generated"] is False
+    assert gold["n_tasks_passed"] == 0
+    evaluated = gold["tasks"][0]
+    assert evaluated["task_id"] == TASK_ID
+    assert evaluated["task_passed"] is False
+    assert evaluated["hidden_theory_combined_passed"] is True
+    assert evaluated["hidden_harness_execution_attempted"] is False
+    assert evaluated["hidden_empirical_execution_attempted"] is False
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -147,7 +214,7 @@ def test_delong_integrated_l0_is_frozen_before_sole_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 95
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 94
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 95
     assert readiness["fully_gold_configured_tasks"] == 95
     assert readiness["fully_gold_passed_tasks"] == 7

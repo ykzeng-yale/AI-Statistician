@@ -10130,11 +10130,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                     disallowed_unchanged_source_hashes=(
                         (parent_source_hash,) if parent_source_hash else ()
                     ),
-                    recovery_checkpoint=(
-                        progress_checkpoints.get(simulation_id)
-                        if scientific_progress_mode
-                        else None
-                    ),
+                    recovery_checkpoint=progress_checkpoints.get(simulation_id),
+                    recovery_prototype=progress_parent_rows_by_id.get(simulation_id),
                     session_dir=(
                         self.sandbox_root
                         / _safe_identifier(question.id)
@@ -12617,11 +12614,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                             and semantic_source_hashes.get(estimator_id)
                             else ()
                         ),
-                        recovery_checkpoint=(
-                            progress_checkpoints.get(estimator_id)
-                            if scientific_progress_mode
-                            else None
-                        ),
+                        recovery_checkpoint=progress_checkpoints.get(estimator_id),
+                        recovery_prototype=progress_parent_rows_by_id.get(estimator_id),
                         session_dir=(
                             self.out_dir
                             / _safe_identifier(question.id)

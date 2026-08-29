@@ -1679,6 +1679,203 @@ def test_scientific_workspace_commits_resumed_accepted_observation_without_rerun
     assert result.evidence["sandbox_checks"] == 1
 
 
+def test_source_owner_restores_parent_execution_before_checkpoint_commit(
+    tmp_path,
+) -> None:
+    source = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'value': 1.0}\n",
+    }
+
+    class SourceAgent:
+        def __init__(self, backend):
+            self.provider = backend
+
+        def iterate_code_with_tools(self, **kwargs):
+            return run_scientific_code_workspace(
+                provider=self.provider,
+                system_prompt="Use tools.",
+                user_prompt="Continue exact source.",
+                model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+                model_tier="haiku",
+                temperature=0.0,
+                max_tokens=1200,
+                max_turns=2,
+                max_no_progress_turns=2,
+                artifact_id=kwargs["artifact_id"],
+                initial_code_draft=kwargs["code_draft"],
+                initial_check_result=kwargs["initial_observation"],
+                check_candidate=kwargs["check_candidate"],
+                workspace_operation=kwargs["workspace_operation"],
+                recovery_checkpoint=kwargs["recovery_checkpoint"],
+                session_dir=kwargs["session_dir"],
+            )
+
+    executions: list[dict] = []
+
+    def execute(candidate):
+        executions.append(dict(candidate))
+        source_text = str(candidate["code"])
+        return (
+            {
+                "source_code": source_text,
+                "script_hash": stable_hash(source_text),
+                "result_hash": stable_hash({"value": 1.0}),
+                "execution_attempted": True,
+                "execution_smoke_passed": True,
+                "smoke_passed": True,
+                "returncode": 0,
+                "stdout_summary": "accepted exact source",
+            },
+            "sandbox",
+        )
+
+    first_prototype, _ = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(
+            ScriptedScientificBackend(
+                [
+                    _response(
+                        ClientToolCall(
+                            call_id="submit-source",
+                            name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                            input=source,
+                        )
+                    ),
+                    _run_response("run-source"),
+                    _response(),
+                ]
+            )
+        ),
+        question=object(),
+        artifact_id="question:source-owner-resume",
+        code_draft={},
+        source_deferred=True,
+        workspace_context={},
+        execute_candidate=execute,
+        failure_identity={"estimator_id": "source-owner-resume"},
+        session_dir=tmp_path / "source-owner-session",
+    )
+    checkpoint = first_prototype["scientific_code_workspace_failure"][
+        "recovery_checkpoint"
+    ]
+    assert checkpoint["current_source_executed"] is True
+    assert executions == [source]
+
+    resumed_prototype, _ = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(
+            ScriptedScientificBackend([_commit_response("commit-restored")])
+        ),
+        question=object(),
+        artifact_id="question:source-owner-resume",
+        code_draft=checkpoint["current_code_draft"],
+        source_deferred=False,
+        workspace_context={},
+        execute_candidate=lambda _candidate: pytest.fail(
+            "restored accepted source must not rerun"
+        ),
+        failure_identity={"estimator_id": "source-owner-resume"},
+        recovery_checkpoint=checkpoint,
+        recovery_prototype=first_prototype,
+        session_dir=tmp_path / "source-owner-session",
+    )
+
+    assert executions == [source]
+    assert "scientific_code_workspace_failure" not in resumed_prototype
+    assert resumed_prototype["source_code"] == source["code"]
+    assert resumed_prototype["scientific_code_workspace"][
+        "resumed_from_checkpoint_id"
+    ] == checkpoint["checkpoint_id"]
+    assert resumed_prototype["scientific_code_workspace"]["sandbox_checks"] == 1
+
+    tampered_prototype = dict(first_prototype)
+    tampered_prototype["source_code"] = source["code"] + "# tampered\n"
+    rejected_prototype, _ = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(ScriptedScientificBackend([])),
+        question=object(),
+        artifact_id="question:source-owner-resume",
+        code_draft=checkpoint["current_code_draft"],
+        source_deferred=False,
+        workspace_context={},
+        execute_candidate=lambda _candidate: pytest.fail(
+            "tampered recovery must fail before sandbox execution"
+        ),
+        failure_identity={"estimator_id": "source-owner-resume"},
+        recovery_checkpoint=checkpoint,
+        recovery_prototype=tampered_prototype,
+        session_dir=tmp_path / "source-owner-session",
+    )
+    assert rejected_prototype["prototype_status"] == (
+        "SCIENTIFIC_WORKSPACE_RECOVERY_PROTOTYPE_INVALID"
+    )
+    assert rejected_prototype["scientific_code_workspace_failure"][
+        "validation_errors"
+    ] == ["recovery prototype is not bound to checkpoint evidence"]
+
+
+def test_scientific_workspace_no_progress_reaches_reserved_commit_turn() -> None:
+    source = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'value': 1.0}\n",
+    }
+    source_hash = stable_hash(source)
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="empty-edit-first",
+                    name=SCIENTIFIC_SOURCE_EDIT_TOOL,
+                    input={"edits": []},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="empty-edit-duplicate",
+                    name=SCIENTIFIC_SOURCE_EDIT_TOOL,
+                    input={"edits": []},
+                )
+            ),
+            _commit_response("reserved-commit"),
+        ]
+    )
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Continue the accepted exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=5,
+        max_no_progress_turns=1,
+        artifact_id="question:accepted-no-progress-source",
+        initial_code_draft=source,
+        initial_check_result={
+            "code_draft_hash": source_hash,
+            "accepted": True,
+            "source_iteration_disposition": "accepted",
+            "stdout": "accepted exact source",
+        },
+        check_candidate=lambda _candidate: pytest.fail(
+            "accepted source must not rerun"
+        ),
+    )
+
+    assert dict(result.code_draft) == source
+    assert result.evidence["model_commit_after_observation"] is True
+    assert result.evidence["sandbox_checks"] == 0
+    assert backend.requests[-1].tool_choice == SCIENTIFIC_SOURCE_COMMIT_TOOL
+    assert "Ordinary actions are complete" in str(
+        backend.requests[-1].messages[-1]
+    )
+
+
 def test_scientific_workspace_does_not_reexecute_checkpoint_in_same_environment(
     tmp_path,
 ) -> None:

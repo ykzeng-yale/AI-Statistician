@@ -1130,6 +1130,49 @@ def test_duplicate_terminal_rejection_hits_generic_no_progress_bound() -> None:
     assert len(backend.requests) == 2
 
 
+def test_duplicate_ordinary_no_progress_uses_reserved_terminal_turn() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall("call-edit-first", "edit", {})),
+            _response(ClientToolCall("call-edit-duplicate", "edit", {})),
+            _response(ClientToolCall("call-submit", "submit", {})),
+        ]
+    )
+
+    def execute(call, _context):
+        if call.name == "submit":
+            return ClientToolExecutionResult(
+                content={"ok": True},
+                terminal=True,
+                terminal_payload={"submitted": True},
+                observation_key="submitted",
+            )
+        return ClientToolExecutionResult(
+            content={"ok": False, "error": "same invalid ordinary action"},
+            is_error=True,
+            observation_key="same-invalid-ordinary-action",
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute,
+        max_turns=5,
+        max_tool_calls=5,
+        max_no_progress_turns=1,
+    )
+
+    assert result.terminal_payload == {"submitted": True}
+    assert result.turns == 3
+    terminal_request = backend.requests[-1]
+    assert terminal_request.tool_choice == "submit"
+    assert terminal_request.disable_parallel_tool_use is True
+    assert terminal_request.metadata[
+        "client_tool_loop_terminal_only_turn"
+    ] is True
+    assert "Ordinary actions are complete" in str(terminal_request.messages[-1])
+
+
 def test_no_tool_observation_stays_in_the_same_generic_loop() -> None:
     backend = ScriptedToolTurnBackend(
         [

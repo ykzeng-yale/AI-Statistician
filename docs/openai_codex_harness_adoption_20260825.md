@@ -4472,3 +4472,49 @@ statistical intelligence, and importing Codex Core, App Server, provider transpo
 shell policy, patch grammar, hooks, goal state, or thread/worktree orchestration
 would not correct a bad derivation or a false referee judgment. Task 94 remains
 consumed at `0/1`; aggregate trustworthy capability is `7/94`.
+
+### Task 95: preserve accepted observations through the terminal lifecycle
+
+The sole frozen DeLong integrated draw validates a stronger scientific component and
+exposes a narrower harness defect. One retained TheoryDeveloper authored a 302-line
+Markdown/LaTeX derivation, an isolated referee accepted the exact checkpoint, and
+the evaluator-only authority later passed all seven mechanical checks and all ten
+calibrated semantic claims. AlgorithmEngineer and SimulationEngineer also each
+authored real Python and reached an accepted scientific-sandbox observation. The
+Simulation owner first received a raw missing-consumer-interface failure, edited its
+own source, and reran successfully.
+
+Both scientific sessions then made repeated empty ordinary edits instead of calling
+their terminal commit tool. The generic no-progress guard threw before the terminal-
+only turn already reserved by `client_tool_loop`. Same-owner continuation correctly
+restored source and transcript, but the outer wrapper did not restore the full prior
+sandbox prototype. A later explicit commit could therefore pass the inner loop yet
+fail when the wrapper found no current full execution result.
+
+The future-task correction follows Codex's retained-turn lifecycle rather than adding
+a repair layer. Repeated ordinary no-progress now transitions early to the one
+existing terminal-only turn, where no edit or execution tool is exposed. For a
+same-owner checkpoint whose current source was already executed, the wrapper restores
+the full prototype from the hash-validated parent manifest only after matching exact
+source bytes, the projected raw observation, and acceptance state. The same model
+must still explicitly commit through the existing terminal gate. Runtime neither
+edits nor auto-accepts source, and it does not rerun an already accepted candidate.
+
+This change adds no DeLong content, output patch, RepairAgent, local retry counter,
+extra reviewer, fallback, scheduler, budget increase, or model escalation. The task
+remains consumed at `0/1` because neither source produced a committed independent
+handoff in the frozen draw; hidden code and empirical harnesses correctly did not
+run. Aggregate trustworthy full-task capability remains `7/95`.
+
+The adoption boundary is unchanged. AI-Statistician reuses Codex's provider-neutral
+invariants inside its small retained client-tool loop; it does not embed Codex Core,
+App Server, Responses transport, conversation state, Guardian, shell policy,
+thread/worktree storage, or multi-agent scheduler beside the Claude-first
+`AgentRuntime`.
+
+Focused client-tool, scientific workspace, checkpoint, sandbox, and size regressions
+passed `115/115`; ladder closeout regressions passed `93/93`; and the complete
+repository passed `1054/1054` in 81.24 seconds. Compileall, JSON/diff hygiene,
+credential and task-specific production-diff scanning, hidden-leak scanning, and the
+unchanged 150,000-line production gate passed at 149,997 lines. No check made a
+product-model or evaluator-model call or reran a consumed task.

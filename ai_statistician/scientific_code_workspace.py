@@ -802,6 +802,7 @@ def run_source_owner_scientific_workspace(
     allow_current_source_run: bool = False,
     disallowed_unchanged_source_hashes: Sequence[str] = (),
     recovery_checkpoint: Mapping[str, Any] | None = None,
+    recovery_prototype: Mapping[str, Any] | None = None,
     session_dir: Path | None = None,
     research_sources: ResearchSourceSnapshot | None = None,
 ) -> tuple[dict[str, Any], list[Any]]:
@@ -829,9 +830,8 @@ def run_source_owner_scientific_workspace(
     workspace_result_blind = confirmatory_result_blind and not authoring_diagnostic_enabled
     bound_execution_fields = {}
     if "required_estimator_ids" in code_draft:
-        bound_execution_fields["required_estimator_ids"] = deepcopy(
-            list(code_draft.get("required_estimator_ids", []) or [])
-        )
+        bound_execution_fields["required_estimator_ids"] = deepcopy(list(
+            code_draft.get("required_estimator_ids", []) or []))
 
     def record_tool_calls(value: Any | Sequence[Any]) -> None:
         if isinstance(value, (list, tuple)):
@@ -841,32 +841,27 @@ def run_source_owner_scientific_workspace(
 
     def failed_prototype(status: str, **details: Any) -> dict[str, Any]:
         return {
-            **dict(failure_identity),
-            "prototype_status": status,
-            "smoke_passed": False,
-            "execution_smoke_passed": False,
-            **details,
+            **dict(failure_identity), "prototype_status": status,
+            "smoke_passed": False, "execution_smoke_passed": False, **details,
         }
+
+    def failed_checkpoint(status: str, error: str) -> tuple[dict[str, Any], list[Any]]:
+        failure = {"validation_errors": [error], "recovery_checkpoint": active_recovery_checkpoint,
+                   "runtime_edited_source": False}
+        return failed_prototype(status, scientific_code_workspace_failure=failure), tool_calls
 
     def source_draft(row: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            key: deepcopy(row[key])
-            for key in ("language", "execution_profile", "dependencies", "entrypoint", "code")
-            if key in row
-        }
+        return {key: deepcopy(row[key]) for key in
+                ("language", "execution_profile", "dependencies", "entrypoint", "code")
+                if key in row}
 
     def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
-        return scientific_source_candidate_accepted(
-            prototype,
-            confirmatory_result_blind=confirmatory_result_blind,
-        )
+        return scientific_source_candidate_accepted(prototype, confirmatory_result_blind=confirmatory_result_blind)
 
     def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
-        return scientific_workspace_prototype_observation(
-            prototype,
+        return scientific_workspace_prototype_observation(prototype,
             include_empirical_outcomes=not workspace_result_blind,
-            include_acceptance_outcomes=not confirmatory_result_blind,
-        )
+            include_acceptance_outcomes=not confirmatory_result_blind)
 
     def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
         execution_candidate = {**dict(candidate), **bound_execution_fields}
@@ -906,41 +901,47 @@ def run_source_owner_scientific_workspace(
             check["source_owner"] = deepcopy(dict(source_owner))
         return check
 
-    active_recovery_checkpoint = {}
-    if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint:
-        active_recovery_checkpoint = deepcopy(dict(recovery_checkpoint))
+    active_recovery_checkpoint = (deepcopy(dict(recovery_checkpoint))
+                                  if isinstance(recovery_checkpoint, Mapping) else {})
     if active_recovery_checkpoint:
         try:
             workspace_draft, initial_observation = load_scientific_code_workspace_checkpoint(
-                active_recovery_checkpoint, artifact_id=artifact_id
-            )
+                active_recovery_checkpoint, artifact_id=artifact_id)
         except ValueError as exc:
-            return (
-                failed_prototype(
-                    "SCIENTIFIC_WORKSPACE_CHECKPOINT_INVALID",
-                    scientific_code_workspace_failure={
-                        "validation_errors": [str(exc)],
-                        "recovery_checkpoint": active_recovery_checkpoint,
-                        "runtime_edited_source": False,
-                    },
-                ),
-                tool_calls,
-            )
+            return failed_checkpoint("SCIENTIFIC_WORKSPACE_CHECKPOINT_INVALID", str(exc))
         workspace_operation = str(active_recovery_checkpoint.get(
-            "workspace_operation", "targeted_revision"
-        ) or "targeted_revision")
+            "workspace_operation", "targeted_revision") or "targeted_revision")
         prototype = failed_prototype("MODEL_SOURCE_WORKSPACE_FAILED")
+        if active_recovery_checkpoint.get("current_source_executed") is True:
+            restored_prototype = (deepcopy(dict(recovery_prototype))
+                                  if isinstance(recovery_prototype, Mapping) else {})
+            parent_failure = restored_prototype.pop(
+                "scientific_code_workspace_failure", {})
+            parent_checkpoint = (parent_failure.get("recovery_checkpoint", {})
+                                 if isinstance(parent_failure, Mapping) else {})
+            expected_observation = initial_observation.get("prototype", {})
+            recovery_valid = (
+                parent_checkpoint.get("checkpoint_id")
+                == active_recovery_checkpoint.get("checkpoint_id")
+                and str(restored_prototype.get("source_code", "") or "")
+                == str(workspace_draft.get("code", "") or "")
+                and isinstance(expected_observation, Mapping)
+                and stable_hash(source_observation(restored_prototype))
+                == stable_hash(dict(expected_observation))
+                and source_candidate_accepted(restored_prototype)
+                == (initial_observation.get("accepted") is True)
+            )
+            if not recovery_valid:
+                return failed_checkpoint(
+                    "SCIENTIFIC_WORKSPACE_RECOVERY_PROTOTYPE_INVALID",
+                    "recovery prototype is not bound to checkpoint evidence")
+            last_checked_prototype.update(restored_prototype)
     elif source_deferred:
         if not can_use_workspace:
-            return (
-                failed_prototype(
-                    "MODEL_SOURCE_WORKSPACE_UNAVAILABLE",
-                    reason=(
-                        "Deferred source requires a callable source-owner workspace."
-                    ),
-                ),
-                tool_calls,
-            )
+            return failed_prototype(
+                "MODEL_SOURCE_WORKSPACE_UNAVAILABLE",
+                reason="Deferred source requires a callable source-owner workspace."
+            ), tool_calls
         workspace_draft: Mapping[str, Any] | None = None
         workspace_operation = "initial_authoring"
         initial_observation = {
@@ -948,9 +949,7 @@ def run_source_owner_scientific_workspace(
             "accepted": False,
             "artifact_id": artifact_id,
             "execution_attempted": False,
-            "observation": (
-                "No source exists; author and run the complete candidate here."
-            ),
+            "observation": "No source exists; author and run the complete candidate here.",
         }
         prototype = failed_prototype("MODEL_SOURCE_WORKSPACE_FAILED")
     elif external_initial_observation and can_use_workspace:

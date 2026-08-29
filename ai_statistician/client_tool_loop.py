@@ -1006,6 +1006,15 @@ def run_bounded_client_tool_loop(
         else:
             no_progress_turns += 1
         if no_progress_turns >= max_no_progress_turns:
+            if (
+                terminal_tools
+                and not terminal_continuation_turn
+                and requested_terminal_kinds == {False}
+            ):
+                max_turns = turn_index + 1
+                terminal_continuation_required = True
+                no_progress_turns = 0
+                continue
             raise loop_error(
                 "repeated client-tool turns made no new progress",
                 turns=turn_index + 1,
