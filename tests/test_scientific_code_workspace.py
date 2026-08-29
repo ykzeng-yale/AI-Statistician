@@ -1884,9 +1884,6 @@ def test_scientific_workspace_commits_within_explicit_turn_budget() -> None:
     assert result.evidence["model_commit_after_observation"] is True
     assert result.evidence["sandbox_checks"] == 0
     assert backend.requests[-1].tool_choice == "any"
-    assert backend.requests[-1].metadata[
-        "client_tool_loop_terminal_only_turn"
-    ] is False
     assert "requires top-level old_text and new_text" in str(
         backend.requests[1].messages
     )

@@ -719,9 +719,6 @@ def test_bounded_client_tool_loop_keeps_normal_final_turn_model_directed() -> No
     ]
     assert backend.requests[1].tool_choice == "any"
     assert backend.requests[1].disable_parallel_tool_use is False
-    assert backend.requests[1].metadata[
-        "client_tool_loop_terminal_only_turn"
-    ] is False
 
 
 def test_terminal_call_does_not_consume_workspace_action_budget() -> None:
@@ -794,9 +791,6 @@ def test_last_workspace_action_does_not_trigger_hidden_terminal_turn() -> None:
     assert exc.value.turns == 1
     assert executed_tools == ["edit"]
     assert len(backend.requests) == 1
-    assert backend.requests[0].metadata[
-        "client_tool_loop_terminal_only_turn"
-    ] is False
     assert "client_tool_loop_terminal_continuation" not in (
         backend.requests[0].metadata
     )
@@ -1082,10 +1076,31 @@ def test_duplicate_ordinary_no_progress_has_no_hidden_terminal_turn() -> None:
 
     assert exc.value.turns == 2
     assert len(backend.requests) == 2
-    assert all(
-        request.metadata["client_tool_loop_terminal_only_turn"] is False
-        for request in backend.requests
+
+
+def test_terminal_only_tool_surface_remains_model_directed() -> None:
+    backend = ScriptedToolTurnBackend([_response(text="The workspace is not ready.")])
+    request = replace(
+        _request(),
+        tools=(_tool("submit", terminal=True),),
+        tool_choice="auto",
+        disable_parallel_tool_use=False,
     )
+
+    with pytest.raises(ClientToolLoopError, match="model ended the workspace turn"):
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=request,
+            execute_tool=lambda call, context: pytest.fail("no tool was selected"),
+            max_turns=1,
+            max_tool_calls=1,
+            max_no_progress_turns=1,
+        )
+
+    observed = backend.requests[0]
+    assert observed.tool_choice == "auto"
+    assert observed.disable_parallel_tool_use is False
+    assert "client_tool_loop_terminal_only_turn" not in observed.metadata
 
 
 def test_no_tool_response_requires_explicit_workspace_continuation() -> None:

@@ -624,9 +624,6 @@ def run_bounded_client_tool_loop(
 
     for turn_index in range(max_turns):
         turn_tools = request.tools
-        terminal_only_turn = bool(
-            turn_tools and all(tool.terminal for tool in turn_tools)
-        )
         turn_allowed_tools = {tool.name for tool in turn_tools}
         with agent_runtime_substage(
             "client_tool_model_turn",
@@ -644,21 +641,12 @@ def run_bounded_client_tool_loop(
                         request,
                         messages=tuple(messages),
                         tools=turn_tools,
-                        tool_choice=(
-                            turn_tools[0].name
-                            if terminal_only_turn and len(turn_tools) == 1
-                            else request.tool_choice
-                        ),
-                        disable_parallel_tool_use=(
-                            True if terminal_only_turn else request.disable_parallel_tool_use
-                        ),
                         metadata={
                             **dict(request.metadata),
                             "client_tool_loop_max_turns": max_turns,
                             "client_tool_loop_max_calls": max_tool_calls,
                             "client_tool_loop_calls_before": total_calls,
                             "client_tool_loop_ordinary_calls_before": ordinary_tool_calls,
-                            "client_tool_loop_terminal_only_turn": terminal_only_turn,
                         },
                     )
                 )

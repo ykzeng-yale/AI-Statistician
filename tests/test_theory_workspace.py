@@ -1048,9 +1048,6 @@ def test_workspace_exhaustion_preserves_model_owned_checkpoint() -> None:
     assert "client_tool_loop_terminal_continuation" not in (
         backend.requests[0].metadata
     )
-    assert backend.requests[0].metadata[
-        "client_tool_loop_terminal_only_turn"
-    ] is False
     assert "client_tool_loop_terminal_decision_turn" not in backend.requests[-1].metadata
 
 
