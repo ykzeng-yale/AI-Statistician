@@ -4260,3 +4260,58 @@ harness invariant Codex leaves to its host: permissions and lifecycle are fixed 
 the environment, while the model owns substantive work. It requires no imported
 Codex Core, second scheduler, new agent, retry, fallback, repair controller, or
 mathematical rule, and it gives the consumed `0/1` draw no retroactive credit.
+
+### Post-Task-92 audit: adopt Codex review semantics, not another runtime
+
+OpenAI Codex `main` was refreshed at commit
+`5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4` on 2026-08-29. The current sources
+confirm the earlier selective-adoption boundary:
+
+- [`session/turn.rs`](https://github.com/openai/codex/blob/5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4/codex-rs/core/src/session/turn.rs)
+  implements one retained response-to-tool-to-observation loop over accumulated
+  history;
+- [`session/rollout_budget.rs`](https://github.com/openai/codex/blob/5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4/codex-rs/core/src/session/rollout_budget.rs)
+  exposes remaining capacity to the model instead of prescribing how to spend it;
+- [`tasks/review.rs`](https://github.com/openai/codex/blob/5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4/codex-rs/core/src/tasks/review.rs)
+  runs review as an isolated one-shot session with collaboration and web tools
+  disabled and without write approval; and
+- the [review rubric](https://github.com/openai/codex/blob/5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4/codex-rs/prompts/templates/review/rubric.md)
+  asks for discrete, actionable, source-located findings and explicitly does not ask
+  the reviewer to generate the fix.
+
+Task 92 exposed a domain analogue of violating that last invariant. The independent
+mathematical referee was isolated, but its prompt repeatedly asked it to reconstruct
+a complete proof. The accepted 441-line report then supplied missing conditional
+independence and projection arguments on the candidate's behalf. Some supplied
+arguments were themselves false, and the report used them to justify `ACCEPT` even
+though they were not established in the author's active source.
+
+Protocol v41 corrects the role inside the existing referee session. The referee still
+selects source ranges, recomputes decisive steps, searches for counterexamples, and
+uses optional Python/R scratch. It now audits the mathematics actually present,
+cites decisive source ranges, and reports a gap whenever acceptance would require a
+reviewer-added premise, lemma, or bridge. Independent mathematics may verify or
+falsify a written step; it cannot silently become candidate evidence. The report is
+focused findings and a verdict, not a substitute proof. Runtime still does not parse
+mathematical grammar or choose the verdict.
+
+The same Codex composition remains appropriate across the other lanes:
+
+- TheoryDeveloper owns Markdown/LaTeX and receives raw referee findings back in the
+  same retained source session.
+- Algorithm and Simulation owners edit Python/R, run the real scientific environment,
+  and revise from raw execution or evaluator observations without an Architect repair
+  hop.
+- Formalizer owns Lean source, queries Statlib/Mathlib from the current proof state,
+  compiles locally, and revises from exact Lean diagnostics; the kernel remains the
+  final authority.
+- AgentRuntime coordinates only immutable artifact checkpoints, independent review,
+  task-intent requirements, and genuine cross-workspace decisions.
+
+Embedding Codex Core, App Server, Guardian, its Responses transport, or its subagent
+scheduler would still be the wrong reuse. It would introduce another conversation
+owner, an OpenAI-specific model transport beside the required Claude production
+provider, and a second collaboration lifecycle without adding statistical semantics,
+simulation authority, Statlib retrieval, or Lean kernel evidence. The useful reusable
+unit is the harness contract already implemented in the smaller provider-neutral
+`client_tool_loop.py`, not the full Codex product runtime.

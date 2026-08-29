@@ -121,7 +121,10 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "every line of every authoritative" not in prompt
     assert "dimensional homogeneity" in normalized_prompt
     assert "weaker proxy" in normalized_prompt
-    assert "Independently reconstruct the decisive transitions" in protocol
+    assert "Audit each decisive transition as written" in protocol
+    assert "independently recompute only what is needed" in protocol
+    assert "reviewer-added mathematics" in protocol
+    assert "report the gap" in protocol
     assert "every explicitly requested conclusion or scope boundary" in protocol
     assert "boundary case" in protocol
     assert "special case" in protocol
@@ -138,6 +141,9 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
     assert "model-owned report, not a runtime claim checklist" in protocol
+    assert "exact document paths and line ranges" in protocol
+    assert "Do not reproduce the candidate or write a substitute proof" in protocol
+    assert "never author a replacement proof" in normalized_prompt
     assert "First challenge unresolved risks" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
     )
@@ -2243,6 +2249,9 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "exact inspected documents or indexed artifacts" in verdict_policy
     assert "prior reviewer prose is not independent support" in verdict_policy
     assert "downstream proof obligations" in verdict_policy
+    assert "candidate's active source itself supports" in verdict_policy
+    assert "cannot cure an omitted or unsupported step" in verdict_policy
+    assert "complete mathematical argument" not in verdict_policy
     packet, backend = _review(accept=True)
 
     assert len(prompt) < 24_000
@@ -2272,6 +2281,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "pre-review Python or R scratch results as exploratory only",
         "reconcile later observations",
         "one compact finding per actual blocker",
+        "focused, source-grounded Markdown",
+        "Do not reproduce the candidate or write a substitute proof",
     ):
         assert phrase in protocol
     assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL) == 7
@@ -2279,6 +2290,10 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
         + str(backend.requests[0].messages[0]["content"])
     )
+    source_tool_prompt = str(backend.requests[0].messages[0]["content"])
+    assert "never promote a reviewer-supplied bridge" in source_tool_prompt
+    assert "Do not write a replacement proof" in source_tool_prompt
+    assert "compare each check with exact candidate lines" in source_tool_prompt
     assert "Before candidate-document access" not in str(
         backend.requests[0].messages[0]["content"]
     )

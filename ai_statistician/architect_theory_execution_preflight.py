@@ -69,7 +69,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 27
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 40
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 41
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -115,10 +115,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "definitions, assumptions, and derivations. Build the smallest dependency "
         "graph that covers every explicitly requested conclusion or scope boundary "
         "and every active claim that can fail independently; do not review only the "
-        "headline formula. Independently reconstruct the decisive transitions in that "
-        "dependency graph. Read an entire document when its structure genuinely requires "
-        "that context, but do not paraphrase every line as a substitute for mathematical "
-        "scrutiny. The claim index is navigation, not scope: audit active named or "
+        "headline formula. Audit each decisive transition as written, and independently recompute only what is needed to test it. Never supply an omitted "
+        "premise, lemma, or replacement proof and then use the reviewer-added mathematics to ACCEPT. If a load-bearing step needs that addition, report the gap. Read an entire "
+        "document when its structure requires context, but do not paraphrase every line as "
+        "mathematical scrutiny. The claim index is navigation, not scope: audit active named or "
         "inference-bearing statements omitted from it. A correct final statement does not "
         "cancel false or unsupported intermediate steps. Every unmarked paragraph and "
         "equation in an authoritative document is active; narrative chronology or a later "
@@ -183,11 +183,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "missing evidence and leave it to the existing downstream workspace."
     ),
     (
-        "Write the mathematical judgment as one self-contained Markdown referee "
-        "report. Use exact evidence IDs once in the compact envelope and return one "
-        "compact finding per actual blocker. The model-owned report, not a runtime "
-        "claim checklist, carries the independent reconstruction and candidate "
-        "comparison. Before submission, reconcile later observations with every active "
+        "Write the mathematical judgment as one focused, source-grounded Markdown "
+        "referee report. Lead with the verdict, cite exact document paths and line ranges for decisive source claims, and return one compact finding per actual blocker. Do not "
+        "reproduce the candidate or write a substitute proof. The model-owned report, not a runtime claim checklist, carries the source audit and decisive "
+        "independent checks. Before submission, reconcile later observations with every active "
         "report claim: revise or retract contradictions, or mark the point UNCERTAIN. "
         "Resolve prior findings only from current inspected evidence. "
         "AgentRuntime binds identities and persists the report without choosing semantics."
@@ -742,8 +741,8 @@ def build_architect_theory_execution_preflight_prompt(
             ),
         },
         "verdict_policy": (
-            "Return your own overall ACCEPT or REVISE disposition, with the complete "
-            "mathematical argument in one Markdown referee report. The terminal "
+            "Return your own overall ACCEPT or REVISE disposition, with a focused "
+            "source audit in one Markdown referee report. The terminal "
             "envelope carries only that disposition, actual blocking findings, and "
             "ordered statuses for immutable prior findings. The Markdown report is "
             "the mathematical authority; the runtime does not expand the candidate's "
@@ -753,8 +752,10 @@ def build_architect_theory_execution_preflight_prompt(
             "inspected documents or indexed artifacts establish the required change; "
             "retract it only when the "
             "current derivation or independent source evidence defeats its premise. "
-            "Otherwise keep prior findings unresolved and use REVISE. Use mathematical "
-            "judgment to identify and deeply check the load-bearing dependency chain. "
+            "Otherwise keep prior findings unresolved and use REVISE. ACCEPT only when the "
+            "candidate's active source itself supports every load-bearing transition. "
+            "Reviewer scratch or independent derivation may test a written step, but cannot cure an omitted or unsupported step. Use mathematical judgment to "
+            "identify and deeply check the load-bearing dependency chain. "
             "Every blocker needs a checkable independent "
             "derivation, reduction, or counterexample grounded in exact inspected "
             "documents or indexed artifacts; quoting candidate self-critique or prior "
@@ -2997,7 +2998,7 @@ def validate_architect_theory_execution_preflight_packet(
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent mathematical referee inside an AI Statistician AgentRuntime.
 Use model-directed search and exact range reads on authoritative Markdown or LaTeX; inspect the smallest load-bearing dependency chain and highest-risk active claims.
-Reconstruct definitions and start from attempted falsification. Check object types, domains, dimensional homogeneity, and original normalizations, including variance order and limit scale.
+Audit the mathematics actually present in the source and start from attempted falsification. Independently recompute enough to test decisive steps, but never author a replacement proof or treat reviewer-added mathematics as candidate support for ACCEPT. Check object types, domains, dimensional homogeneity, and original normalizations, including variance order and limit scale.
 Scratch supports a claim only when its complete executable predicate exposes the relevant sides, residual, or witness; never relabel a weaker proxy or trust candidate text.
 Seek a model satisfying written premises while varying unconstrained objects. Every unmarked claim stays active; reconcile raw observations and never silently repair false text, describe a failed run as passed, or claim proof authority.
 """
@@ -3451,9 +3452,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         ClientToolDefinition(
             name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
             description=(
-                "Write one complete model-owned Markdown referee report to the "
-                "isolated review workspace. The exact bytes remain available for "
-                "later hash-bound edits and compact submission."
+                "Write one focused, source-grounded model-owned Markdown referee report to "
+                "the isolated review workspace. Exact bytes remain available for later "
+                "hash-bound edits and compact submission."
             ),
             input_schema={
                 "type": "object",
@@ -3529,7 +3530,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "needed for the load-bearing dependency chain; independent reads may be issued "
         "together. Read a complete document only when its structure requires that "
         "context. Inspection provenance is not correctness, so you must still "
-        "follow dependencies, reconstruct decisive transitions, and challenge them. "
+        "follow dependencies, test decisive written transitions, and challenge them. Compare every "
+        "independent check to its exact candidate range; never promote a reviewer-supplied "
+        "bridge into candidate evidence. "
         "Choose all searches and ranges yourself. When available, use "
         "search_research_sources and read_research_source for task-bound papers, code, "
         "and documentation"
@@ -3564,9 +3567,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
         "source_evidence_refs accepts only S...H... source handles. "
         "Develop the mathematical judgment in the isolated Markdown review workspace. "
-        "Independently reconstruct decisive transitions from definitions, sources, or "
-        "scratch work you choose, compare them explicitly with the candidate, and state "
-        "uncertainty where needed. Choose the tool order that best supports that judgment. Call "
+        "Independently recompute only what is needed to test decisive source transitions, "
+        "compare each check with exact candidate lines, and state uncertainty. Do not write a replacement proof: when the candidate needs a reviewer-added premise, "
+        "lemma, or bridge, return a source-grounded finding. "
+        "Choose the tool order that best supports that judgment. Call "
         "submit_theory_preflight_review with the returned review_report_sha256 plus "
         "only the compact disposition and finding envelope. A report write and terminal submission "
         "may be issued in the same turn when the terminal call is last. Do not regenerate "
