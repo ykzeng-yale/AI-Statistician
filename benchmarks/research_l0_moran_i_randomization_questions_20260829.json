@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "moran_i_randomization_expectation_known_result",
+      "title": "Moran's I expectation under fixed-value spatial randomization",
+      "description": "Focused integrated L0 known-result evaluation grounded in Moran (1950) and pinned PySAL esda source. Let y_1,...,y_n be a nonconstant finite real vector and let W=(w_ij) be a fixed finite nonnegative n by n spatial-weight matrix with zero diagonal and S_0=sum_ij w_ij>0; W need not be symmetric or row standardized. Define z_i=y_i-ybar and I=(n/S_0){sum_ij w_ij z_i z_j}/{sum_i z_i^2}. In one authoritative Markdown/LaTeX workspace, derive this normalization and, under the conditional randomization null that assigns the fixed centered values uniformly to the n labeled spatial sites while holding W fixed, derive E[I]=-1/(n-1). The derivation must explicitly establish the one-site and distinct-site centered product moments and show how the zero diagonal and S_0 cancel. State the assumptions and degenerate cases, distinguish conditional randomization from iid Gaussian or spatial-process sampling, and derive the relevant value-affine, common weight-scale, weight-transpose, and joint site-relabeling invariances. The required model-authored Python artifact is est_moran_i and must implement the frozen run_estimator(request) contract exactly. It may use NumPy but must not call a prebuilt Moran, spatial-autocorrelation, or permutation-inference routine. Exploratory Python or R may compare direct loops and matrix calculations and enumerate small permutation orbits. A separately frozen confirmatory experiment permutes fixed nonconstant values over predeclared spatial-weight designs and compares the Monte Carlo mean of the model-authored statistic with -1/(n-1), using independently owned seeds, replicate counts, checks, and Monte Carlo uncertainty. Such computation supports only the frozen designs and is not proof. Source-code replication, analytic variance, p-values, local Moran statistics, and novelty are not required, and Lean formalization is not applicable.",
+      "tags": [
+        "Moran's I",
+        "spatial autocorrelation",
+        "randomization inference",
+        "permutation expectation",
+        "known result",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "Notes on Continuous Stochastic Phenomena",
+          "authors": [
+            "P. A. P. Moran"
+          ],
+          "venue": "Biometrika 37(1/2):17-23",
+          "year": 1950,
+          "doi": "10.1093/biomet/37.1-2.17",
+          "url": "https://academic.oup.com/biomet/article-abstract/37/1-2/17/194868"
+        },
+        "open_source_implementation": {
+          "project": "PySAL esda",
+          "repository": "https://github.com/pysal/esda",
+          "commit": "dcd9c74bb2b78563c45d4f4a7977da9315d45c56",
+          "license": "BSD-3-Clause",
+          "relevant_paths": [
+            "esda/moran.py",
+            "esda/tests/test_moran.py"
+          ]
+        },
+        "public_snapshot_manifest": "benchmarks/research_sources/moran_i_20260829/source_manifest.json"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_moran_i",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.values",
+            "name": "values",
+            "meaning": "Observed finite real values in spatial-site order.",
+            "json_type": "array[number]",
+            "shape": "one list of length n, with 4 <= n <= 200",
+            "units": "arbitrary measurement units",
+            "indexing": "values[i] is assigned to row and column i of weights",
+            "edge_cases": "Entries must be exact finite JSON numbers, not booleans; the vector must be nonconstant.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.weights",
+            "name": "weights",
+            "meaning": "Fixed dense spatial-weight matrix aligned with values.",
+            "json_type": "array[array[number]]",
+            "shape": "one n by n nested list",
+            "units": "nonnegative relative spatial connectivity",
+            "indexing": "weights[i][j] is w_ij",
+            "edge_cases": "Entries must be exact finite nonnegative JSON numbers, not booleans; every diagonal entry is zero and the total weight is positive. Symmetry and row standardization are not required.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "Number of aligned spatial sites.",
+            "json_type": "integer",
+            "shape": "one integer",
+            "units": "sites",
+            "indexing": "not applicable",
+            "edge_cases": "Equals len(values) and the dimensions of weights.",
+            "normalization": "n=len(values)."
+          },
+          {
+            "clause_id": "response.mean",
+            "name": "mean",
+            "meaning": "Arithmetic mean of values.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "same as values",
+            "indexing": "not applicable",
+            "edge_cases": "Computed before centering.",
+            "normalization": "sum_i values[i]/n."
+          },
+          {
+            "clause_id": "response.s0",
+            "name": "s0",
+            "meaning": "Total spatial weight.",
+            "json_type": "number",
+            "shape": "one finite positive scalar",
+            "units": "weight units",
+            "indexing": "sum over all ordered pairs",
+            "edge_cases": "Must be positive under the request contract.",
+            "normalization": "sum_i sum_j weights[i][j]."
+          },
+          {
+            "clause_id": "response.centered_sum_squares",
+            "name": "centered_sum_squares",
+            "meaning": "Denominator formed from centered observations.",
+            "json_type": "number",
+            "shape": "one finite positive scalar",
+            "units": "squared measurement units",
+            "indexing": "sum over sites",
+            "edge_cases": "Strictly positive because values are nonconstant.",
+            "normalization": "sum_i (values[i]-mean)^2."
+          },
+          {
+            "clause_id": "response.weighted_cross_product",
+            "name": "weighted_cross_product",
+            "meaning": "Ordered-pair spatial cross product of centered values.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "weight units times squared measurement units",
+            "indexing": "sum over every ordered pair i,j",
+            "edge_cases": "Uses the supplied matrix without row standardization or symmetrization.",
+            "normalization": "sum_i sum_j weights[i][j]*(values[i]-mean)*(values[j]-mean)."
+          },
+          {
+            "clause_id": "response.moran_i",
+            "name": "moran_i",
+            "meaning": "Global Moran spatial-autocorrelation statistic.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "dimensionless",
+            "indexing": "global statistic",
+            "edge_cases": "No analytic p-value, variance, or clipping is part of this field.",
+            "normalization": "(n/s0)*weighted_cross_product/centered_sum_squares."
+          },
+          {
+            "clause_id": "response.randomization_expectation",
+            "name": "randomization_expectation",
+            "meaning": "Conditional expectation of moran_i under uniform reassignment of the fixed values to sites.",
+            "json_type": "number",
+            "shape": "one finite negative scalar",
+            "units": "dimensionless",
+            "indexing": "depends only on n under the stated null",
+            "edge_cases": "This is not an iid-normal expectation or a Monte Carlo estimate.",
+            "normalization": "-1/(n-1)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly values and weights, and the response contains exactly the seven declared fields. Missing, extra, malformed, coercible-only, nonfinite, constant-value, diagonal-weight, or nonpositive-total-weight inputs are rejected."
+          },
+          {
+            "clause_id": "invariant.centered_statistic_identity",
+            "meaning": "The returned components obey the declared centering, ordered-pair cross-product, and n/s0 normalization identities."
+          },
+          {
+            "clause_id": "invariant.value_affine_invariance",
+            "meaning": "Replacing every value by a*value+b for any finite nonzero a leaves moran_i and randomization_expectation unchanged while transforming the reported mean and quadratic components consistently."
+          },
+          {
+            "clause_id": "invariant.weight_scale_and_transpose",
+            "meaning": "Multiplying every weight by a finite positive constant or transposing the entire weight matrix leaves moran_i and randomization_expectation unchanged."
+          },
+          {
+            "clause_id": "invariant.joint_site_relabeling",
+            "meaning": "Applying the same site permutation to values and to both axes of weights leaves every scalar response unchanged."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen input, all candidate outputs agree with an independent direct-loop implementation and declared invariances under predeclared numerical tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.randomization_expectation",
+            "meaning": "Across predeclared fixed-value and fixed-weight designs, the Monte Carlo mean of moran_i under uniform value permutations is compared with -1/(n-1) using Monte Carlo standard errors."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Seeds, designs, replicate counts, completion checks, and tolerances are frozen and evaluator-owned before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment evaluates the conditional randomization expectation only; it does not claim analytic variance, exact p-values, power, local statistics, or validity for a spatial stochastic-process model."
+          },
+          {
+            "clause_id": "claim.empirical.computation_not_proof",
+            "meaning": "Finite enumeration and simulation are computational evidence only and do not prove the randomization theorem for arbitrary admissible values and weights."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "moran-i-randomization-public-sources-20260829-v1",
+  "source_horizon": "2026-08-29",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "moran-i-randomization-public-record",
+      "title": "Moran's I primary record and focused randomization scope",
+      "source_kind": "paper_metadata",
+      "relative_path": "moran_1950_public_record.md",
+      "sha256": "67261d28f6e6e6cd768fbfb2e90517baef1d5fc317ec440af27d9a1a30ecad92",
+      "model_visible": true,
+      "citation": "Moran (1950), Biometrika 37(1/2):17-23",
+      "url": "https://doi.org/10.1093/biomet/37.1-2.17",
+      "publication_date": "1950-06-01",
+      "license": "operator-authored-paraphrase"
+    },
+    {
+      "document_id": "pysal-esda-moran-global-statistic",
+      "title": "PySAL esda global Moran statistic excerpt",
+      "source_kind": "code",
+      "relative_path": "esda_moran_excerpt.py",
+      "sha256": "4a9c1cac69d6349f9f2eec71831dc94ccc0cd60e0edb909b9f2e8b4019cf8de1",
+      "model_visible": true,
+      "citation": "PySAL esda esda/moran.py",
+      "url": "https://github.com/pysal/esda/blob/dcd9c74bb2b78563c45d4f4a7977da9315d45c56/esda/moran.py",
+      "git_commit": "dcd9c74bb2b78563c45d4f4a7977da9315d45c56",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "pysal-esda-moran-public-regression",
+      "title": "PySAL esda Moran public test excerpt",
+      "source_kind": "code",
+      "relative_path": "esda_moran_test_excerpt.py",
+      "sha256": "d906e63bddcb9fd665f44bb796ff2aaba02f42ed54f7f82b97598bc10068b7c6",
+      "model_visible": true,
+      "citation": "PySAL esda esda/tests/test_moran.py",
+      "url": "https://github.com/pysal/esda/blob/dcd9c74bb2b78563c45d4f4a7977da9315d45c56/esda/tests/test_moran.py",
+      "git_commit": "dcd9c74bb2b78563c45d4f4a7977da9315d45c56",
+      "license": "BSD-3-Clause"
+    }
+  ]
+}
