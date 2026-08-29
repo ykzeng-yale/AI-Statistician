@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "bernoulli_local_alternatives_lan_known_theory_rederivation",
+      "title": "Local likelihood geometry in a binary experiment",
+      "description": "Focused known-result theory rederivation grounded in Lucien Le Cam's local asymptotic theory and Chapter 7 of A. W. van der Vaart, Asymptotic Statistics. Let p_0 be strictly between zero and one, q_0=1-p_0, and X_1,...,X_n be iid Bernoulli(p). For fixed real h, define p_{n,h}=p_0+h/sqrt(n) whenever it lies in (0,1), Z_n=sum_i(X_i-p_0)/sqrt(n p_0 q_0), and the log likelihood ratio L_{n,h}=log(d P_{p_{n,h}}^n/d P_{p_0}^n). In one authoritative Markdown/LaTeX theory workspace, derive from the exact binomial likelihood the full local quadratic expansion of L_{n,h}, including every coefficient and a justified remainder under P_{p_0}^n. State whether and why the remainder can be uniform for h in a fixed compact set. Derive the joint null limit of (Z_n,L_{n,h}); use a correctly stated likelihood-ratio argument to establish the appropriate one-way or mutual contiguity conclusion rather than merely naming a lemma; and derive the limiting law of Z_n under P_{p_{n,h}}^n by change of measure or by an independently justified triangular-array argument. For alpha in (0,1), derive the limiting null size and fixed-h local power of the upper-tail test that rejects when Z_n exceeds the (1-alpha) standard-normal quantile. Cross-check the scale and signs using the Bernoulli score, Fisher information, and the two directional Kullback-Leibler expansions. Explicitly distinguish finite-n identities from asymptotic statements. State the conditions on p_0 and h, the behavior for h=0 and negative h, and the limits of the conclusion: do not silently claim finite-sample normality or exact size, uniformity over unbounded h, behavior under fixed separated alternatives, or asymptotic optimality that has not been proved. Keep active and rejected derivations visibly distinct, perform internal contradiction checks across displayed equations, identify every imported theorem and verify its hypotheses, and disclose unresolved gaps. This L3 task evaluates persistent mathematical derivation and independent review only. Source replication, production Python/R implementation, confirmatory simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "local asymptotic normality",
+        "Bernoulli experiment",
+        "contiguity",
+        "local alternatives",
+        "likelihood ratio",
+        "asymptotic testing",
+        "known result",
+        "theory only",
+        "L3"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_title": "Locally Asymptotically Normal Families of Distributions",
+        "primary_author": "Lucien M. Le Cam",
+        "primary_publication": "University of California Publications in Statistics",
+        "primary_year": 1960,
+        "primary_volume": 3,
+        "primary_issue": 2,
+        "primary_pages": "37-98",
+        "supporting_title": "Asymptotic Statistics, Chapter 7: Local Asymptotic Normality",
+        "supporting_author": "A. W. van der Vaart",
+        "supporting_publisher": "Cambridge University Press",
+        "supporting_year": 1998,
+        "supporting_doi": "10.1017/CBO9780511802256.008",
+        "supporting_url": "https://www.cambridge.org/core/books/abs/asymptotic-statistics/local-asymptotic-normality/558B4798D5D70D9B1C3ABC15FAFE3BA7"
+      }
+    }
+  ]
+}
