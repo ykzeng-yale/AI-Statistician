@@ -9,7 +9,7 @@
   "goal_status": "active",
   "current_goal_focus": "Preserve all ninety-seven consumed draws and immutable artifacts at trustworthy full-task credit 7/97 while exact development-panel Lean closure remains 0/2. Keep one explicit Codex-style model/tool/observation session per source owner with literal caller-owned limits, no hidden terminal resampling, no synthetic turn-fraction reminders, and immutable checkpoint continuation. Next pre-freeze a disjoint integrated Theory, code, and empirical task that tests an underrepresented capability; never repair or rescore Task97 or another consumed task.",
   "latest_codex_explicit_turn_boundary": {
-    "mechanism_commit": "8185c268ee2a447915e6d20c4f8e8b08d1d0abe9",
+    "mechanism_commit": "8185c268c16cc40f259c166bad7a6de474071b3e",
     "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
     "trigger": "The shared specialist loop still sampled up to two model turns beyond max_turns, forced a terminal-only tool choice, and injected rollout-budget messages at hardcoded fractions of a turn count. Those behaviors were local approximations, not the official Codex token-budget semantics, and contradicted the project's no-hidden-retry boundary.",
     "change": "Theory, Python/R, Simulation, metric, Critic, and Lean workspaces now share one literal linear loop. Every configured model turn sees the same tools. Rejected terminal submissions are ordinary raw observations only while explicit turns remain; exhaustion preserves exact messages and current workspace state for an outer, hash-bound continuation rather than sampling again inside the harness.",

@@ -11,7 +11,7 @@ Latest incremental recheck:
 
 ## Current canonical decision
 
-Commit `8185c268ee2a447915e6d20c4f8e8b08d1d0abe9` is the current shared-loop
+Commit `8185c268c16cc40f259c166bad7a6de474071b3e` is the current shared-loop
 boundary. Each Theory, Python/R, Simulation, metric, Critic, or Lean source owner
 gets one linear retained model/tool/observation session. Every configured model
 turn sees the same authority-scoped tools; raw observations return to that same
@@ -63,7 +63,7 @@ logic rather than adding another interface, agent, retry, or scheduler.
 
 Latest selective-adoption implementation commits:
 
-- `8185c268ee2a447915e6d20c4f8e8b08d1d0abe9`: remove hidden terminal-only
+- `8185c268c16cc40f259c166bad7a6de474071b3e`: remove hidden terminal-only
   resampling, final-commit correction retries, dynamic exhaustion-time tool
   filtering, and synthetic turn-fraction reminders from the shared specialist
   loop; preserve exact checkpoint continuation instead;
