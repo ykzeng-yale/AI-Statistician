@@ -113,8 +113,10 @@ def test_lowess_task103_is_frozen_before_its_only_product_draw() -> None:
     assert evidence["fresh_live_runs"] == 0
     assert evidence["runtime_invocations"] == 0
     assert evidence["activation_push_required_before_first_runtime_model_call"] is True
-    assert evidence["activation_ledger_commit"] == "pending_activation_commit"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "866ec7a94c2f745623ff61babd53858fc39e1312"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["single_fresh_draw_only"] is True
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
     assert evidence["sonnet_product_calls"] == 0
