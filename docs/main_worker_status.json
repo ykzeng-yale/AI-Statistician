@@ -1,13 +1,13 @@
 {
-  "schema_version": 282,
+  "schema_version": 283,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "10f0be5e",
+  "validated_code_head": "e734732e",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all ninety-three consumed draws and immutable artifacts at trustworthy full-task credit 7/93 while exact development-panel Lean closure remains 0/2. Task 93 supplies one scoped theory-only pass through a real Markdown/LaTeX workspace, isolated source-grounded referee, Critic, and hidden authority without activating Algorithm, Simulation, or Lean. Its general post-run harness correction now batches independent read-only evidence calls while keeping state mutation and terminal judgment observation-ordered. Continue improving long-horizon theory and cross-lane research capability through future disjoint tasks; never repair, rerun, rescore, or model-escalate consumed tasks.",
+  "current_goal_focus": "Preserve all ninety-three consumed draws and immutable artifacts at trustworthy full-task credit 7/93 while exact development-panel Lean closure remains 0/2. Task 93 supplies one scoped theory-only pass through a real Markdown/LaTeX workspace, isolated source-grounded referee, Critic, and hidden authority without activating Algorithm, Simulation, or Lean. General post-run harness corrections now batch independent read-only evidence calls and let Theory, Python/R, metric, and Lean source owners apply ordered atomic exact-edit batches while keeping execution and terminal judgment observation-ordered. Continue improving real long-horizon theory and cross-lane research capability through future disjoint tasks; never repair, rerun, rescore, or model-escalate consumed tasks.",
   "latest_fisher_combination_theory_l0_activation": {
     "task_id": "fisher_combined_pvalue_exact_null_theory_known_result",
     "family": "independent_pvalue_combination_exact_null",
@@ -180,6 +180,24 @@
     "model_and_evaluator_calls": 0,
     "capability_boundary": "Task 93 remains immutable at 1/1, aggregate capability remains 7/93 consumed, and exact development-panel Lean closure remains 0/2.",
     "verification": "Focused Critic, theory-referee, and size regressions passed 86/86; the complete repository passed 1047/1047 in 80.70 seconds. Compileall, JSON/diff hygiene, changed-diff secret scanning, and the unchanged 150000-line production gate passed at 149996 lines. No product model, evaluator model, benchmark, or consumed artifact was invoked."
+  },
+  "latest_source_owner_atomic_edit_batch_adoption": {
+    "mechanism_commit": "e734732e2c71d68107a879b20fb839dad831645e",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "trigger": "All four substantive source-owner workspaces exposed exact edit tools but accepted only one replacement per call. Long Theory revisions, Python/R source repair, model-authored evaluator changes, and Lean repair therefore spent separate model turns and intermediate hashes even when the model already knew multiple independent hunks.",
+    "change": "One shared strict edits-array schema now carries ordered model-authored old_text/new_text replacements with optional exact occurrence counts. The existing in-memory helper validates the complete batch before caller-owned state changes. Any stale, absent, ambiguous, overlapping, or malformed hunk rejects the whole source action with its exact edit index.",
+    "workspace_bindings": {
+      "theory": "The batch is bound to the current Markdown/LaTeX/BibTeX SHA-256; edit provenance stores hashes and sizes, not mathematical content, and independent review remains mandatory.",
+      "scientific_code_and_simulation": "The batch mutates only current Python/R bytes. A separate explicit sandbox run and a later model commit after raw feedback remain required.",
+      "metric_protocol": "The batch is bound to the current external protocol SHA-256. Successful editing does not accept the preregistered scientific protocol.",
+      "formalizer": "The batch immediately checks the complete Lean source in the configured project. Edit success, elaboration, retrieval, and scratch remain non-proof until independent target review and kernel promotion."
+    },
+    "codex_reuse_boundary": "This adopts the multi-hunk model-action principle of Codex apply_patch through the existing provider-neutral exact-text helper. It imports no Codex grammar, patch parser, filesystem runtime, provider transport, scheduler, or agent. Per-artifact mutation is all-or-none.",
+    "session_boundary": "Persisted client-tool transcripts bind the complete advertised tool schemas. A pre-change session cannot silently resume under this edit ABI; contract mismatch fails closed.",
+    "excluded_changes": "No new tool name, agent, scheduler, repair controller, retry, fallback, parser for Python/R/math/Lean, task-family rule, model escalation, budget increase, or consumed-task mutation.",
+    "model_and_evaluator_calls": 0,
+    "capability_boundary": "This is deterministic harness evidence only. Aggregate trustworthy capability remains 7/93 consumed and exact development-panel Lean closure remains 0/2.",
+    "verification": "Focused shared client-tool, Theory, Python/R, metric, Lean, ResearchArchitect, and size regressions passed 258/258; the final complete repository passed 1048/1048 in 80.64 seconds. A valid-first/missing-second batch fails atomically at edit index one, while two-hunk batches succeed in one source action. Compileall, JSON/diff hygiene, changed-diff secret scanning, and the unchanged 150000-line production gate passed at 149957 lines."
   },
   "latest_theory_referee_source_audit_correction": {
     "mechanism_commit": "cca1001ad31193224f76a7a3ae48b04aecf21457",
@@ -4309,7 +4327,7 @@
       "the post-Ridge generated-code reviewer now uses the existing native client-tool loop so model-actionable terminal validation returns to the same isolated reviewer context; this is regression-tested future-task mechanism evidence and has not changed Ridge or any prior score",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24951 lines even though declaration-source inspection and canonical review are outside its central control body and fresh Algorithm/Simulation planning lives in source-owner workspaces; any further extraction must remove a measured central responsibility rather than add another outer interface"
+      "research_agent_runtime.py remains large at 24984 lines even though declaration-source inspection and canonical review are outside its central control body and fresh Algorithm/Simulation planning lives in source-owner workspaces; any further extraction must remove a measured central responsibility rather than add another outer interface"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -4326,21 +4344,21 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24947,
+    "research_agent_runtime_lines": 24984,
     "evaluation_protocol_revision_lines": 1285,
-    "scientific_code_workspace_lines": 2559,
-    "theory_workspace_lines": 3822,
+    "scientific_code_workspace_lines": 2653,
+    "theory_workspace_lines": 3690,
     "research_architect_lines": 4177,
-    "architect_theory_execution_preflight_lines": 4820,
-    "architect_metric_contract_authoring_lines": 2963,
-    "architect_coordinator_llm_lines": 3102,
+    "architect_theory_execution_preflight_lines": 4802,
+    "architect_metric_contract_authoring_lines": 2941,
+    "architect_coordinator_llm_lines": 3110,
     "formalizer_llm_lines": 2346,
-    "lean_candidate_revision_tool_loop_lines": 1894,
-    "client_tool_loop_lines": 1081,
+    "lean_candidate_revision_tool_loop_lines": 1892,
+    "client_tool_loop_lines": 1102,
     "agent_runtime_lines": 1248,
     "cli_lines": 7118,
     "top_level_python_modules": 136,
-    "top_level_package_lines": 149997,
+    "top_level_package_lines": 149957,
     "latest_runtime_manifest_bytes": 54819
   },
   "next_gates": [
