@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+
+from ai_statistician.estimator_interface_contract import (
+    frozen_estimator_execution_contract_id,
+)
+from ai_statistician.fingerprint import stable_hash
+from ai_statistician.research_gold_evaluation import (
+    _visible_question_hash_payload,
+    validate_research_gold_benchmark_manifest,
+)
+from ai_statistician.research_source_library import load_research_source_snapshot
+
+
+LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
+VISIBLE_PATH = Path(
+    "benchmarks/research_l2_ledoit_wolf_questions_20260829.json"
+)
+SOURCE_MANIFEST = Path(
+    "benchmarks/research_sources/ledoit_wolf_20260829/source_manifest.json"
+)
+GOLD_MANIFEST = Path(
+    "/Users/yukangzengcmac/.codex/evaluator_authority/AI-Statistician/"
+    "research-l2-ledoit-wolf-20260829-v1/gold_manifest.json"
+)
+TASK_ID = "ledoit_wolf_linear_shrinkage_paper_to_code"
+
+
+def test_ledoit_wolf_l2_is_frozen_before_its_only_product_draw() -> None:
+    ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
+    candidate = next(
+        row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
+    )
+    evidence = candidate["activation_evidence"]
+
+    assert candidate["level"] == "L2"
+    assert candidate["family"] == "high_dimensional_covariance_shrinkage"
+    assert candidate["status"] == "active_scored"
+    assert candidate["activation_status"] == (
+        "frozen_ready_schema_v4_protocol_v11_exact_haiku_single_draw"
+    )
+    assert evidence["codex_harness_mechanism_head"] == (
+        "2a988ca8a86030d90e790530db22ea38138f3259"
+    )
+    assert evidence["official_codex_checkout_head"] == (
+        "6478a751fde8884b2fdc76486fe23175a8e795d4"
+    )
+    assert evidence["activation_schema_version"] == 4
+    assert evidence["semantic_protocol_version"] == 11
+    assert evidence["semantic_candidate_adjudication_strategy"] == (
+        "integrated_plus_adversarial"
+    )
+    assert evidence["algorithm_authority_checks_correct"] == "13/13"
+    assert evidence["empirical_authority_checks_correct"] == "9/9"
+    assert evidence["semantic_calibration_cases_correct"] == "6/6"
+    assert evidence["semantic_candidate_mode_negative_cases_correct"] == "1/1"
+    assert evidence["semantic_successful_qualification_model_calls"] == 16
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
+    assert evidence["activation_reference_tasks_passed"] == 1
+    assert evidence["activation_negative_controls_rejected"] == 4
+    assert evidence["activation_semantic_reference_documents_passed"] == 1
+    assert evidence[
+        "activation_semantic_candidate_mode_negative_controls_rejected"
+    ] == 1
+    assert evidence["activation_semantic_model_calls"] == 0
+    assert evidence["activation_semantic_qualification_reused"] is True
+    assert evidence["hidden_gold_manifest_validated"] is True
+    assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["preactivation_product_model_calls"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_invocations"] == 0
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["sonnet_product_calls"] == 0
+    assert evidence["opus_product_calls"] == 0
+    assert evidence["formalization_requirement"] == "not_applicable"
+    assert evidence["formalizer_executed"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
+
+    question = json.loads(VISIBLE_PATH.read_text(encoding="utf-8"))["questions"][0]
+    assert question["id"] == TASK_ID
+    assert hashlib.sha256(VISIBLE_PATH.read_bytes()).hexdigest() == evidence[
+        "visible_questions_sha256"
+    ]
+    assert stable_hash(question) == evidence["visible_question_full_hash"]
+    assert stable_hash(_visible_question_hash_payload(question)) == evidence[
+        "runtime_visible_question_hash"
+    ]
+    assert frozen_estimator_execution_contract_id(
+        question["estimator_execution_contract"]
+    ) == evidence["estimator_execution_contract_id"]
+    assert question["task_intent"] == candidate["task_intent"]
+    assert question["task_intent"]["theory"] == "required"
+    assert question["task_intent"]["scientific_code"] == "required"
+    assert question["task_intent"]["empirical"] == "required"
+    assert question["task_intent"]["formal"] == "not_applicable"
+
+    source = load_research_source_snapshot(SOURCE_MANIFEST)
+    assert source.snapshot_hash == candidate["source_snapshot_hash"]
+    assert source.manifest_sha256 == candidate["source_manifest_sha256"]
+    assert len(source.documents) == 1
+
+    descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
+    assert descriptor["active_task_ids"] == [TASK_ID]
+    assert descriptor["benchmark_manifest_hash"] == candidate[
+        "gold_descriptor_hash"
+    ]
+    assert hashlib.sha256(GOLD_MANIFEST.read_bytes()).hexdigest() == candidate[
+        "gold_manifest_sha256"
+    ]
+
+    runtime_visible = json.dumps(
+        {"candidate": candidate, "question": question}, sort_keys=True
+    )
+    for hidden_name in (
+        "gold_manifest.json",
+        "reference_estimator.py",
+        "hidden_algorithm_harness.py",
+        "hidden_empirical_harness.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "candidate_mode_near_miss.md",
+    ):
+        assert hidden_name not in runtime_visible
+
+    readiness = ladder["current_readiness"]
+    assert readiness["scored_tasks_total"] == 99
+    assert readiness["unconsumed_scored_tasks"] == 1
+    assert readiness["consumed_scored_tasks"] == 98
+    assert readiness["fully_gold_configured_tasks"] == 99
+    assert readiness["fully_gold_passed_tasks"] == 7
