@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-LATEST_SHARED_MECHANISM_HEAD = "7f87e4e3fb5321387ae3ab078e96167a7ca7d5cb"
+LATEST_SHARED_MECHANISM_HEAD = "1d5b10f29129593b2554eddcb32ad0a069c503f4"
 TASK_79_ACTIVATION_LEDGER_HEAD = "a6745543c662200fb39806cea5bb970532357cf0"
 TASK_79_SHARED_MECHANISM_HEAD = "492d11120fbae8b630fa01af8bb11d6da131f5b9"
 TASK_80_ACTIVATION_LEDGER_HEAD = "eb6ddd325f7d8969c1f446c97ceb56860b9a4add"
@@ -18,7 +18,7 @@ TASK_77_ACTIVATION_LEDGER_HEAD = "a16fc8bd1ce52638770fcfec52356c7c538f6a76"
 TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
-CURRENT_SCORED_TASKS = 99
+CURRENT_SCORED_TASKS = 100
 CURRENT_CONSUMED_TASKS = 99
 CURRENT_OPERATOR_INVALID_TASKS = 17
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 9
@@ -104,7 +104,7 @@ def test_ladder_counts_scored_and_consumed_tasks_without_embedding_gold() -> Non
     )
     assert len({candidate["id"] for candidate in candidates}) == len(candidates)
     assert all(
-        candidate["activation_status"].startswith("frozen_ready_")
+        candidate["activation_status"].startswith(("frozen_ready_", "preactivated_"))
         for candidate in unconsumed
     )
     assert all(
@@ -114,7 +114,12 @@ def test_ladder_counts_scored_and_consumed_tasks_without_embedding_gold() -> Non
     for candidate in scored:
         assert candidate["gold_runtime_visibility"] == "evaluator_only_after_runtime"
         assert candidate["activation_status"].startswith(
-            ("full_task_gold_", "fresh_live_v1_", "frozen_ready_")
+            (
+                "full_task_gold_",
+                "fresh_live_v1_",
+                "frozen_ready_",
+                "preactivated_",
+            )
         )
         assert Path(candidate["visible_questions_path"]).is_file()
         assert "gold_manifest" not in candidate

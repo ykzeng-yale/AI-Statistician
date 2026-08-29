@@ -175,13 +175,3 @@ def test_statlib_qmd_l0_formal_task_records_sole_kernel_closed_draw() -> None:
         "calibration.json",
     ):
         assert hidden_name not in runtime_visible
-
-    readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 99
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 99
-    assert readiness["fully_gold_configured_tasks"] == 99
-    assert readiness["fully_gold_passed_tasks"] == 7
-    assert readiness["latest_shared_mechanism_head"] == (
-        "7f87e4e3fb5321387ae3ab078e96167a7ca7d5cb"
-    )

@@ -170,10 +170,3 @@ def test_newey_west_integrated_l0_sole_draw_is_consumed_and_failed() -> None:
         "negative_iid_only.py",
     ):
         assert hidden_identity not in runtime_visible
-
-    readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 99
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 99
-    assert readiness["fully_gold_configured_tasks"] == 99
-    assert readiness["fully_gold_passed_tasks"] == 7

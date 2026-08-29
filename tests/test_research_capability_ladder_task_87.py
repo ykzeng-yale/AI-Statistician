@@ -124,10 +124,3 @@ def test_good_turing_l0_theory_task_records_immutable_consumed_result() -> None:
         "candidate_mode_near_miss.md",
     ):
         assert hidden_name not in runtime_visible
-
-    readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 99
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 99
-    assert readiness["fully_gold_configured_tasks"] == 99
-    assert readiness["fully_gold_passed_tasks"] == 7

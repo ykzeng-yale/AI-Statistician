@@ -228,20 +228,3 @@ def test_betareg_jss_r_l1_consumed_result_is_immutable() -> None:
     assert not Path(
         "benchmarks/evaluator_only/betareg_jss_2010_20260829"
     ).exists()
-
-    readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 99
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 99
-    assert readiness["fully_gold_configured_tasks"] == 99
-    assert readiness["fully_gold_passed_tasks"] == 7
-    assert readiness["runtime_source_replication_components_ready"] == 9
-    assert readiness["source_replication_components_passed"] == 2
-    assert readiness["source_replication_full_tasks_passed"] == 1
-    assert readiness["operator_invalid_tasks"] == 17
-    active = [
-        row
-        for row in ladder["initial_candidate_queue"]
-        if row["status"] == "active_scored"
-    ]
-    assert active == []
