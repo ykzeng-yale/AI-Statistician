@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "scalar_mean_empirical_likelihood_known_theory_rederivation",
+      "title": "Nonparametric profile-likelihood inference for a scalar mean",
+      "description": "Focused L3 known-theory rederivation evaluation. The target publication identity, theorem statement, proof, reference implementation, and outcomes are withheld from runtime. Let X_1,...,X_n be iid real random variables with mean theta_0 and variance sigma^2 in (0,infinity). For a candidate theta, define the nonparametric profile likelihood ratio R_n(theta) by maximizing the product of n p_i over nonnegative masses p_i subject to sum_i p_i=1 and sum_i p_i X_i=theta. In one authoritative Markdown/LaTeX Theory workspace, derive the finite-sample optimizer and likelihood-ratio statistic from constrained optimization rather than naming a standard method. Treat strict-interior, boundary, and outside-convex-hull cases separately; derive the admissible multiplier interval, uniqueness of its root, positivity and normalization of the weights, and the zero-at-the-sample-mean identity. Then give a reviewable asymptotic expansion at theta_0 and prove the chi-square-one limit from explicit stochastic orders, stating exactly where iid sampling, a finite positive variance, convex-hull feasibility, and any stronger moment condition you invoke are used. Explain inversion into an asymptotic confidence set and distinguish pointwise asymptotic calibration from finite-sample exactness. Audit sign conventions, factors of two, root domains, degenerate samples, boundary behavior, and numerical stopping claims. Do not substitute a parametric Gaussian likelihood, Student t statistic, bootstrap calibration, package output, simulation, or theorem naming for the derivation. The required model-authored artifact is est_scalar_mean_empirical_likelihood and must implement the exact frozen run_estimator(request) contract as R source using language=r, execution_profile=scientific_wasm, and only declared base/stats dependencies; it may not call an empirical-likelihood package or optimizer that directly returns the requested method. Exploratory R or Python may test identities and numerical cases. A separately frozen confirmatory assessment uses fresh iid finite-variance samples, seeds and designs fixed before outcomes, and at least 2000 independent replicates per design. It checks exact executable identity, likelihood-ratio calibration at the true mean, and central chi-square-one acceptance with reported Monte Carlo uncertainty. These finite experiments test the implementation and asymptotic approximation on the frozen designs only; they do not prove the theorem or establish finite-sample exactness. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, numerical, or scope gap must remain explicit.",
+      "tags": [
+        "empirical_likelihood",
+        "nonparametric_likelihood",
+        "wilks_limit",
+        "r_language",
+        "known_theory_rederivation",
+        "L3"
+      ],
+      "source": {
+        "benchmark_mode": "known_theory_rederivation",
+        "model_visible_context": "problem_assumptions_and_closed_execution_contract_only",
+        "target_publication_identity": "evaluator_only_hidden",
+        "target_theorem_proof_code_and_outcomes": "evaluator_only_hidden",
+        "public_source_discovery": "disabled_for_this_blind_draw"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_scalar_mean_empirical_likelihood",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observations",
+            "name": "observations",
+            "meaning": "The ordered iid scalar observations X_1 through X_n.",
+            "json_type": "array[number]",
+            "shape": "One unnamed finite numeric vector of length 3 through 1024, with values in [-1e6,1e6] and at least two distinct values.",
+            "units": "outcome units",
+            "indexing": "Input order is retained only for the returned weights.",
+            "edge_cases": "Reject logical, character, list, named, empty, too-short, too-long, nonfinite, below-domain, above-domain, or constant vectors rather than coercing, dropping, sorting, clipping, or imputing values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.theta",
+            "name": "theta",
+            "meaning": "The finite scalar mean value at which the empirical likelihood ratio is evaluated.",
+            "json_type": "number",
+            "shape": "One unnamed finite non-Boolean numeric scalar in [-1e6,1e6], strictly between min(observations) and max(observations).",
+            "units": "outcome units",
+            "indexing": "One hypothesized population mean.",
+            "edge_cases": "Reject logical, character, list, named, nonscalar, nonfinite, out-of-domain, convex-hull-boundary, or outside-convex-hull values rather than coercing, clipping, or silently returning an infinite statistic.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n",
+            "name": "n",
+            "meaning": "The exact number of supplied observations.",
+            "json_type": "integer",
+            "shape": "One non-Boolean integer from 3 through 1024.",
+            "units": "observations",
+            "indexing": "Input length.",
+            "edge_cases": "Must not be logical or fractional.",
+            "normalization": "length(observations)"
+          },
+          {
+            "clause_id": "response.sample_mean",
+            "name": "sample_mean",
+            "meaning": "The ordinary arithmetic mean of the supplied observations.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "outcome units",
+            "indexing": "All n observations.",
+            "edge_cases": "Preserve full floating-point precision.",
+            "normalization": "sum(observations)/n"
+          },
+          {
+            "clause_id": "response.lambda",
+            "name": "lambda",
+            "meaning": "The unique scalar multiplier solving the empirical-likelihood mean constraint in the declared sign convention.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar for which every denominator 1+lambda*(observations[i]-theta) is strictly positive.",
+            "units": "inverse outcome units",
+            "indexing": "One multiplier shared by all observations.",
+            "edge_cases": "Return exactly zero up to floating-point arithmetic when theta equals sample_mean.",
+            "normalization": "The unique root of sum((observations-theta)/(1+lambda*(observations-theta)))=0 in its open admissible interval."
+          },
+          {
+            "clause_id": "response.weights",
+            "name": "weights",
+            "meaning": "The maximizing empirical probability masses in original observation order.",
+            "json_type": "array[number]",
+            "shape": "Exactly n finite strictly positive scalars summing to one.",
+            "units": "probability",
+            "indexing": "weights[i] corresponds to observations[i].",
+            "edge_cases": "Do not sort, round, truncate, or return unnormalized multiplier weights.",
+            "normalization": "weights[i]=1/(n*(1+lambda*(observations[i]-theta)))"
+          },
+          {
+            "clause_id": "response.minus2_log_ratio",
+            "name": "minus2_log_ratio",
+            "meaning": "The empirical minus-two-log profile likelihood ratio at theta relative to the unconstrained empirical distribution.",
+            "json_type": "number",
+            "shape": "One finite nonnegative non-Boolean scalar.",
+            "units": "dimensionless",
+            "indexing": "All n multiplier denominators.",
+            "edge_cases": "Return zero up to floating-point arithmetic at theta=sample_mean and do not omit the factor two.",
+            "normalization": "2*sum(log(1+lambda*(observations-theta)))"
+          },
+          {
+            "clause_id": "response.asymptotic_p_value",
+            "name": "asymptotic_p_value",
+            "meaning": "The upper-tail chi-square-one calibration of minus2_log_ratio.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [0,1].",
+            "units": "probability",
+            "indexing": "One pointwise asymptotic calibration.",
+            "edge_cases": "This is not a finite-sample exact p-value.",
+            "normalization": "stats::pchisq(minus2_log_ratio,df=1,lower.tail=FALSE)"
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request is a named R list containing exactly observations and theta, and the response is a named R list containing exactly the six declared fields. Missing, extra, malformed, coercible-only, nonfinite, constant-sample, boundary, or outside-convex-hull values are rejected."
+          },
+          {
+            "clause_id": "invariant.constraint_identity",
+            "meaning": "Returned weights are strictly positive, sum to one, and their weighted observation mean equals theta within floating-point accuracy."
+          },
+          {
+            "clause_id": "invariant.dual_likelihood_identity",
+            "meaning": "The returned multiplier satisfies its declared root equation and determines both the returned weights and minus-two-log ratio through the exact declared formulas."
+          },
+          {
+            "clause_id": "invariant.observation_permutation",
+            "meaning": "Permuting observations permutes weights in the same way while preserving n, sample_mean, lambda, minus2_log_ratio, and asymptotic_p_value."
+          },
+          {
+            "clause_id": "invariant.common_location_shift",
+            "meaning": "Adding one finite constant c to observations and theta adds c to sample_mean while preserving lambda, weights, minus2_log_ratio, and asymptotic_p_value."
+          },
+          {
+            "clause_id": "invariant.positive_scale",
+            "meaning": "For finite a>0, multiplying observations and theta by a multiplies sample_mean by a and divides lambda by a while preserving weights, minus2_log_ratio, and asymptotic_p_value."
+          },
+          {
+            "clause_id": "invariant.empirical_mean_boundary",
+            "meaning": "At theta equal to the ordinary sample mean, lambda and minus2_log_ratio are zero, weights are uniform, and asymptotic_p_value is one up to floating-point arithmetic."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls on the same valid request return the same values and do not mutate the request or its observation vector."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "For every frozen design, the assessment independently generates iid samples at the declared true mean, invokes the exact accepted estimator once per replicate, and fixes distributions, sample sizes, seed, chi-square threshold, precision rule, and replicate count before revealing outcomes."
+          },
+          {
+            "clause_id": "claim.empirical.wilks_calibration",
+            "meaning": "Across the frozen finite-variance designs, the true-mean minus-two-log ratio approaches chi-square-one behavior: its mean and central 95 percent acceptance agree with their targets within predeclared Monte Carlo and finite-sample tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.scope_boundary",
+            "meaning": "The finite simulations diagnose implementation and approximation quality only; they do not prove the limit, establish finite-sample exactness, cover infinite-variance laws, or replace unresolved theoretical and numerical gaps."
+          }
+        ]
+      }
+    }
+  ]
+}
