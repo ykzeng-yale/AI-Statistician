@@ -1,9 +1,9 @@
 {
-  "schema_version": 288,
+  "schema_version": 289,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "07448d9d",
+  "validated_code_head": "82cfc091",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -39,11 +39,13 @@
     "runtime_manifest_sha256": "66460360dab3f0f4c9c791f396216283fd87b6e3b2d8b2614d07b66bdca21046",
     "gold_evaluation_sha256": "96d2b3c01e47c95487666517938914f49c9871aeafa0aa6cb0ea76fc360008e1",
     "operator_audit": "docs/operator_audits/delong_single_auc_variance_l0_v1.md",
+    "closeout_evidence_commit": "82cfc09190312964254a69cf7c6ad17c2523d202",
     "trusted_capability_credit": "0/1; aggregate remains 7/95 consumed",
     "task_intent": "Theory, scientific code, empirical simulation, and unresolved-gap disclosure required; source replication, formalization, and novelty are not applicable.",
     "boundary": "The sole exact-Haiku product invocation and post-runtime evaluator assessment are consumed and immutable. Hidden reference text, expected values, claim identities, negatives, and judgments never entered runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden findings, or model-escalate this task."
   },
   "latest_codex_terminal_lifecycle_correction": {
+    "mechanism_commit": "82cfc09190312964254a69cf7c6ad17c2523d202",
     "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
     "trigger": "Task 95 source owners each reached an accepted sandbox observation, then repeated empty ordinary edits. The generic no-progress guard threw before the existing terminal-only turn, and the outer same-owner wrapper did not restore the full prior sandbox prototype.",
     "terminal_change": "Repeated ordinary no-progress transitions early to the one already reserved terminal-only turn. Only the terminal tool is exposed; ordinary mutation and execution remain unavailable.",
@@ -51,7 +53,7 @@
     "excluded_changes": "No Codex dependency, second scheduler, repair worker, retry budget, fallback, task-family branch, DeLong rule, output patch, automatic commit, resource increase, Sonnet call, Opus call, or model escalation.",
     "model_and_evaluator_calls": 0,
     "capability_boundary": "Task 95 remains immutable at 0/1 and aggregate trustworthy capability remains 7/95 consumed. The correction is deterministic future-task mechanism evidence only.",
-    "verification": "Focused client-tool, scientific workspace, checkpoint, sandbox, and size regressions passed 115/115; ladder closeout regressions passed 93/93; and the complete repository passed 1054/1054 in 80.90 seconds. Compileall, JSON/diff hygiene, credential and task-specific production-diff scanning, hidden-leak scanning, and the production-size gate passed at 149997 lines. No model, evaluator, benchmark, or consumed task was invoked."
+    "verification": "Focused client-tool, scientific workspace, checkpoint, sandbox, and size regressions passed 115/115; ladder closeout regressions passed 93/93; and the complete repository passed 1054/1054 in 81.00 seconds. Compileall, JSON/diff hygiene, credential and task-specific production-diff scanning, hidden-leak scanning, and the production-size gate passed at 149997 lines. No model, evaluator, benchmark, or consumed task was invoked."
   },
   "latest_newey_west_mean_hac_l0_activation": {
     "task_id": "newey_west_mean_hac_known_result",

@@ -134,6 +134,9 @@ def test_delong_integrated_l0_sole_draw_is_consumed_without_credit() -> None:
     assert evidence["hidden_expected_values_disclosed"] is False
     assert evidence["runtime_feedback_generated"] is False
     assert evidence["hidden_leak_match_count"] == 0
+    assert evidence["closeout_evidence_commit"] == (
+        "82cfc09190312964254a69cf7c6ad17c2523d202"
+    )
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False

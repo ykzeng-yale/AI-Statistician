@@ -4514,7 +4514,7 @@ thread/worktree storage, or multi-agent scheduler beside the Claude-first
 
 Focused client-tool, scientific workspace, checkpoint, sandbox, and size regressions
 passed `115/115`; ladder closeout regressions passed `93/93`; and the complete
-repository passed `1054/1054` in 81.24 seconds. Compileall, JSON/diff hygiene,
+repository passed `1054/1054` in 81.00 seconds. Compileall, JSON/diff hygiene,
 credential and task-specific production-diff scanning, hidden-leak scanning, and the
 unchanged 150,000-line production gate passed at 149,997 lines. No check made a
 product-model or evaluator-model call or reran a consumed task.

@@ -4,6 +4,7 @@
 
 - Task: `delong_single_auc_variance_known_result`
 - Frozen product code HEAD: `b83893652e1805668b7f58f1e8f1d91f12294aa4`
+- Closeout evidence commit: `82cfc09190312964254a69cf7c6ad17c2523d202`
 - Run: `runs/main_worker_research_l0_delong_single_auc_variance_20260829_v1_codex_workspace_exact_haiku`
 - Product runtime status: `BLOCKED`
 - Terminal classification: `critic_scientific_inconclusive`
@@ -161,7 +162,7 @@ The evaluator records `hidden_expected_values_disclosed=false` and
 
 Focused client-tool, scientific workspace, checkpoint, sandbox, and size regressions
 passed `115/115`; ladder closeout regressions passed `93/93`; and the complete
-repository passed `1054/1054` in 81.24 seconds. Compileall, JSON parsing, diff
+repository passed `1054/1054` in 81.00 seconds. Compileall, JSON parsing, diff
 hygiene, credential scanning, task-specific production-diff scanning, hidden-leak
 scanning, and the unchanged 150,000-line production gate passed at 149,997 lines.
 No verification command made a product or evaluator model call or reran Task 95.
