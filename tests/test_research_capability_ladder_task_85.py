@@ -177,10 +177,10 @@ def test_statlib_qmd_l0_formal_task_records_sole_kernel_closed_draw() -> None:
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 92
-    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["scored_tasks_total"] == 93
+    assert readiness["unconsumed_scored_tasks"] == 1
     assert readiness["consumed_scored_tasks"] == 92
-    assert readiness["fully_gold_configured_tasks"] == 92
+    assert readiness["fully_gold_configured_tasks"] == 93
     assert readiness["fully_gold_passed_tasks"] == 6
     assert readiness["latest_shared_mechanism_head"] == (
         "cca1001ad31193224f76a7a3ae48b04aecf21457"

@@ -4,12 +4,15 @@ import hashlib
 import json
 from pathlib import Path
 
+from ai_statistician.fingerprint import stable_hash
+from ai_statistician.research_gold_evaluation import _visible_question_hash_payload
+
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-TASK_ID = "good_turing_missing_mass_bias_theory_known_result"
+TASK_ID = "fisher_combined_pvalue_exact_null_theory_known_result"
 
 
-def test_good_turing_l0_theory_task_records_immutable_consumed_result() -> None:
+def test_fisher_combination_l0_theory_is_frozen_before_sole_draw() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -17,86 +20,67 @@ def test_good_turing_l0_theory_task_records_immutable_consumed_result() -> None:
     evidence = candidate["activation_evidence"]
 
     assert candidate["level"] == "L0"
-    assert candidate["family"] == "countable_occupancy_missing_mass_theory"
-    assert candidate["status"] == "consumed_scored"
+    assert candidate["family"] == "independent_pvalue_combination_exact_null"
+    assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "fresh_live_v1_consumed_runtime_accepted_hidden_theory_semantic_failed"
+        "frozen_ready_exact_haiku_product_draw_not_started"
     )
     assert candidate["gold_bundle_id"] == (
-        "research-l0-good-turing-missing-mass-theory-20260828-v1"
+        "research-l0-fisher-combined-pvalue-theory-20260829-v1"
     )
     assert candidate["gold_manifest_sha256"] == (
-        "0c9956c380a9ce0c3af16a430a480973b65c80f1223e7800aa18c40bf02ba390"
+        "c93ed7b5e6264a99fa0e79d1f9287e4ac8b50d2faf63a60d3c5792e9bb0e8a19"
     )
     assert candidate["gold_descriptor_hash"] == (
-        "5584a47099f192c6c3d3ba21ba61795050e632ca072951ed017cb087b061141e"
+        "a6e59a8f2003b43df9ce801aff8de673a3f05dd356f4792290c47bb1e4b271e2"
     )
     assert evidence["visible_question_activation_commit"] == (
-        "a07ccad23f964df8b8bb83e08f30bd90f21b02f6"
+        "b86b3b066f93423240fc1e86ad5de33dc2c4ad9c"
     )
     assert evidence["activation_schema_version"] == 4
-    assert evidence["mechanical_reference_checks"] == "7/7"
-    assert evidence["mechanical_negative_variants_rejected"] == "7/7"
+    assert evidence["theory_authority_exact_checks"] == 7
+    assert evidence["theory_authority_exact_checks_correct"] == 7
     assert evidence["semantic_protocol_version"] == 10
     assert evidence["semantic_activation_attempts"] == 1
     assert evidence["semantic_calibration_total_model_calls"] == 8
+    assert evidence["semantic_calibration_cases"] == 6
     assert evidence["semantic_calibration_cases_correct"] == 6
+    assert evidence["semantic_candidate_mode_negative_cases"] == 1
     assert evidence["semantic_candidate_mode_negative_cases_correct"] == 1
     assert evidence["semantic_reference_claims"] == 7
     assert evidence["semantic_reference_candidate_passed"] is True
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
-    assert evidence["activation_reference_tasks_passed"] == 0
-    assert evidence["activation_negative_controls_rejected"] == 0
     assert evidence["activation_semantic_reference_documents_passed"] == 1
-    assert (
-        evidence[
-            "activation_semantic_candidate_mode_negative_controls_rejected"
-        ]
-        == 1
-    )
+    assert evidence[
+        "activation_semantic_candidate_mode_negative_controls_rejected"
+    ] == 1
     assert evidence["activation_semantic_model_calls"] == 0
     assert evidence["activation_semantic_qualification_model_calls"] == 8
     assert evidence["activation_semantic_qualification_reused"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["activation_ledger_commit"] == (
-        "9bd948ab74ea4da67e048c6a7384c2fe8d6b7c3c"
-    )
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 8
-    assert evidence["first_runtime_model_call_occurred"] is True
-    assert evidence["fresh_live_runs"] == 1
-    assert evidence["runtime_invocations"] == 1
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_invocations"] == 0
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["theory_developer_executed"] is True
+    assert evidence["theory_developer_executed"] is False
     assert evidence["generated_algorithm_executed"] is False
     assert evidence["generated_simulation_executed"] is False
-    assert evidence["runtime_status"] == "ACCEPTED"
-    assert evidence["runtime_research_loop_complete"] is True
-    assert evidence["runtime_mode_conformant"] is True
-    assert evidence["runtime_outer_graph_iterations"] == 3
-    assert evidence["runtime_product_model_turns"] == 39
-    assert evidence["theory_workspace_model_turns"] == 10
-    assert evidence["independent_theory_preflight_model_turns"] == 6
-    assert evidence["critic_workspace_model_turns"] == 23
-    assert evidence["post_runtime_gold_model_calls"] == 1
-    assert evidence["hidden_theory_mechanical_checks"] == "7/7"
-    assert evidence["hidden_theory_semantic_claims"] == "5/7"
-    assert evidence["hidden_theory_semantic_candidate_status"] == "FAIL"
-    assert evidence["hidden_theory_combined_passed"] is False
-    assert evidence["automated_full_task_passed"] is False
+    assert evidence["activation_ledger_commit"] == "pending_activation_commit"
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
-    assert evidence["model_draw_resampling_blocked"] is True
-    assert evidence["post_run_shared_mechanism_change"].startswith("None.")
-    assert "1031/1031" in evidence["closeout_verification"]
+    assert evidence["ladder_score_before_activation"] == "6/92"
+    assert evidence["ladder_score_after_activation"] == "6/93"
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -104,26 +88,32 @@ def test_good_turing_l0_theory_task_records_immutable_consumed_result() -> None:
     )
     question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
     assert question["id"] == TASK_ID
+    assert stable_hash(question) == evidence["visible_question_full_hash"]
+    assert stable_hash(_visible_question_hash_payload(question)) == (
+        evidence["runtime_visible_question_hash"]
+    )
     assert question["task_intent"] == candidate["task_intent"]
     assert question["task_intent"]["theory"] == "required"
     assert question["task_intent"]["scientific_code"] == "not_applicable"
     assert question["task_intent"]["empirical"] == "not_applicable"
     assert question["task_intent"]["formal"] == "not_applicable"
-    assert question["source"]["doi"] == "10.1093/biomet/40.3-4.237"
-    assert "countably infinite alphabet" in question["description"]
-    assert "n-1, n, and n+1" in question["description"]
+    assert question["source"]["doi"] == "10.2307/2681650"
+    assert "upper-tail combined p-value" in question["description"]
+    assert "k=1 reduction" in question["description"]
 
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": question}, sort_keys=True
     )
-    for hidden_name in (
-        "gold_manifest.json",
-        "hidden_theory_harness.py",
+    for hidden_identity in (
         "semantic_reference.md",
         "semantic_rubric.json",
+        "semantic_calibration_cases.json",
         "candidate_mode_near_miss.md",
+        "candidate_mode_negative_cases.json",
+        "claim:upper_tail_formula",
+        "candidate-mode:fisher-polished-tail-off-by-one",
     ):
-        assert hidden_name not in runtime_visible
+        assert hidden_identity not in runtime_visible
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 93
