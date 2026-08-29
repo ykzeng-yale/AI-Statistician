@@ -1,5 +1,5 @@
 {
-  "schema_version": 309,
+  "schema_version": 310,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,24 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all one hundred three consumed draws and immutable artifacts at trustworthy full-task credit 7/103 while exact development-panel Lean closure remains 0/2. Task103 is consumed at 0/1: its exact-Haiku source crossed execution and independent review and passed all hidden numerical/local-linear checks, but missed one public closed-ABI direction; terminal Critic separately exhausted an irrelevant empty search surface. The generic capability-accurate tool and model-owned contract-review correction is pushed to the work branch and main. Never rerun Task103; future capability credit must come from a new disjoint preactivated exact-Haiku task.",
+  "current_goal_focus": "Preserve all one hundred three consumed draws and immutable artifacts at trustworthy full-task credit 7/103 while exact development-panel Lean closure remains 0/2. Task104 is the sole unconsumed task: a disjoint L3 theory-only rederivation of Bernoulli local likelihood geometry, selected to measure the persistent Markdown/LaTeX TheoryDeveloper and isolated mathematical referee without code, simulation, source replication, or Lean confounding. Its hidden schema-v4/protocol-v11 authority was frozen and qualified with exact Haiku before any product call. Push the complete activation ledger, run one canonical exact-Haiku draw, score once, and close immutably without adding a task-specific rule.",
+  "active_bernoulli_lan_task104_activation": {
+    "task_id": "bernoulli_local_alternatives_lan_known_theory_rederivation",
+    "family": "local_asymptotic_binary_experiments",
+    "level": "L3",
+    "status": "preactivated_frozen_pre_first_exact_haiku_draw",
+    "visible_question_commit": "878d3ae40e7ed70fd2cd11803b70d978a6a2c2a7",
+    "public_authority": "Le Cam (1960), Locally Asymptotically Normal Families of Distributions, plus van der Vaart (1998), Asymptotic Statistics Chapter 7.",
+    "scope": "One Bernoulli local-alternative likelihood-ratio, contiguity, Gaussian-shift, and upper-tail local-power derivation in an authoritative Markdown/LaTeX workspace. Scientific code, empirical simulation, source replication, formalization, novelty, and optimality claims are not applicable.",
+    "qualification": "The generic Markdown/claim-graph authority passed 7/7 checks and rejected 7/7 structural negatives. Protocol 11 exact-Haiku semantic qualification passed 6/6 calibration cases, rejected one realistic long-form local-shift scaling near miss, and accepted all eight reference claims in 16 evaluator calls. Product calls remain zero.",
+    "gold_manifest_sha256": "e322a00588c90da6bdaf99ebc2ebbba4172e343ff99cfc040a9f531e68d999c4",
+    "gold_manifest_stable_hash": "3e6a30ec79e2d3eed386f67d0f28243a21eca385c16b2fcc77dba4c1ac85a16b",
+    "runtime_model": "claude-haiku-4-5-20251001",
+    "preactivation_product_model_calls": 0,
+    "preactivation_evaluator_model_calls": 16,
+    "formalization_requirement": "not_applicable",
+    "boundary": "Hidden reference mathematics, rubric, calibration cases, near miss, labels, and judgments remain outside the repository and model workspace. They cannot enter prompts, RAG, feedback, revision, retry, routing, or proof evidence. The future sole product draw cannot use Sonnet, Opus, escalation, fallback, repair agents, or a second scheduler."
+  },
   "latest_lowess_local_linear_task103_evaluation": {
     "task_id": "lowess_local_linear_nonrobust_paper_to_code",
     "family": "nonparametric_local_linear_smoothing",
@@ -4839,7 +4856,7 @@
     "formalization_and_exact_proof_closure": "about 34-40%",
     "product_research_end_to_end_readiness": "about 58-63%",
     "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "7/103 consumed tasks receive trustworthy capability credit. Beta-Binomial, PyMLE source replication, Aitken GLS, Hoeffding U-statistics, Statlib QMD formal closure, Statlib constant-kernel formal closure, and Fisher combination theory retain their recorded scoped credit and caveats. The two Statlib successes are formal-only, and the Fisher success is theory-only; none alone establishes integrated Theory, Python/R, Simulation, replication, and Lean capability.",
+    "fully_gold_covered_research_tasks": "7/103 consumed tasks receive trustworthy capability credit, with one additional frozen unconsumed Task104 awaiting its sole draw. Beta-Binomial, PyMLE source replication, Aitken GLS, Hoeffding U-statistics, Statlib QMD formal closure, Statlib constant-kernel formal closure, and Fisher combination theory retain their recorded scoped credit and caveats. The two Statlib successes are formal-only, and the Fisher success is theory-only; none alone establishes integrated Theory, Python/R, Simulation, replication, and Lean capability.",
     "frozen_strict_protocol_completion_rate": "0%",
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
