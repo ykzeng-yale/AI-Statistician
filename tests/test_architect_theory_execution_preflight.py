@@ -115,12 +115,16 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
 
     assert "authoritative Markdown or LaTeX" in normalized_prompt
+    assert "exact frozen research question" in normalized_prompt
     assert "stable workspace tools" in normalized_prompt
     assert "start from attempted falsification" in normalized_prompt
     assert "smallest load-bearing dependency chain" in normalized_prompt
     assert "every line of every authoritative" not in prompt
     assert "decisive written transition" in normalized_prompt
     assert "correct endpoint" in normalized_prompt
+    assert "actual written intermediate" in normalized_prompt
+    assert "all discrete blockers first" in normalized_prompt
+    assert "without praise or a verification essay" in normalized_prompt
     assert "Audit each decisive transition as it is actually written" in protocol
     assert "reconstruct each load-bearing transition" in protocol
     assert "reviewer-added premises" in protocol
@@ -136,15 +140,51 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "confirmatory simulation" in protocol
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
-    assert "model-owned report carries the mathematical judgment" in protocol
-    assert "exact paths and line ranges returned by reads" in protocol
+    assert "model-owned report owns judgment" in protocol
+    assert "citing exact read ranges" in protocol
     assert "do not reproduce the candidate or write a substitute proof" in protocol
     assert "silently supply a repair" in normalized_prompt
     assert "types, domains, dimensions, quantifiers" in protocol
     assert "candidate side" in protocol
     assert "independently reconstructed side" in protocol
     assert len(protocol.split()) < 430
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 43
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 44
+
+
+def test_preflight_preserves_the_exact_frozen_research_target() -> None:
+    late_obligation = (
+        "LATE_PUBLIC_OBLIGATION: distinguish the exact finite statement from its "
+        "asymptotic consequence and disclose any unresolved gap."
+    )
+    description = "A" * 2_400 + " " + late_obligation
+    question = OpenResearchQuestion(
+        id="long_public_target",
+        title="Review every public obligation",
+        description=description,
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+        },
+    )
+    material = build_architect_theory_execution_preflight_material(
+        question=question,
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "dimension_requirements": dict(question.task_intent),
+        },
+    )
+    question_anchor = next(
+        row for row in material["anchor_catalog"] if row["anchor_id"] == "question"
+    )
+    prompt = build_architect_theory_execution_preflight_prompt(material)
+    prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
+
+    assert question_anchor["content"]["description"] == description
+    assert question_anchor["content"]["task_intent"] == question.task_intent
+    assert prompt_payload["source_material"]["research_question"] == (
+        question_anchor["content"]
+    )
+    assert late_obligation in prompt
 
 
 def test_source_acceptance_protocol_materializes_one_stable_boolean_abi() -> None:
@@ -2267,17 +2307,21 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "Separate mathematical coherence, proof completeness",
         "Pre-review scratch is exploratory",
         "one compact finding per blocker",
-        "focused, findings-first Markdown",
+        "findings-first Markdown review",
         "do not reproduce the candidate or write a substitute proof",
     ):
         assert phrase in protocol
     assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL) == 5
     assert len(protocol.split()) < 430
+    assert "every discrete blocker" in protocol
+    assert "executive summary" in protocol
+    assert "section-by-section verification" in protocol
     source_tool_prompt = str(backend.requests[0].messages[0]["content"])
     assert "independent read-only calls may be batched" in source_tool_prompt
     assert "scratch, report mutation, and submission" in source_tool_prompt
     assert "write a replacement proof" in source_tool_prompt
     assert "submit only its current SHA-256" in source_tool_prompt
+    assert "omit praise, strengths" in source_tool_prompt
     assert "Before candidate-document access" not in str(
         backend.requests[0].messages[0]["content"]
     )

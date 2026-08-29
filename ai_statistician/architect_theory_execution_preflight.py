@@ -68,8 +68,8 @@ from .theory_workspace import (
     theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 27
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 43
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 28
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 44
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -145,13 +145,13 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "evidence instead of manufacturing it."
     ),
     (
-        "Write one focused, findings-first Markdown referee report. Cite exact paths and "
-        "line ranges returned by reads for every decisive check, use one compact finding "
-        "per blocker, and do not reproduce the candidate or write a substitute proof. "
-        "Reconcile the final report with every later observation, resolve prior findings "
-        "only from current inspected evidence, and mark genuine uncertainty. The "
-        "model-owned report carries the mathematical judgment; AgentRuntime only binds "
-        "identities and persists it."
+        "Write a findings-first Markdown review. Return every discrete blocker that the "
+        "author would correct, one compact finding per blocker, citing exact read ranges. "
+        "Do not add an executive summary, strengths, praise, or section-by-section "
+        "verification. If no blocker survives attempted falsification, say so briefly; "
+        "do not reproduce the candidate or write a substitute proof. Reconcile later "
+        "observations, close prior findings only from current evidence, and mark genuine "
+        "uncertainty. The model-owned report owns judgment; runtime binds and persists it."
     ),
 )
 
@@ -342,7 +342,7 @@ def build_architect_theory_execution_preflight_material(
         (
             "question",
             "research_question",
-            research_question_payload(question),
+            research_question_payload(question, include_task_intent=True),
         ),
         ("theory.problem_card", "problem_card", semantic.get("problem_card", {})),
         ("theory.estimator_specs", "estimator_specs", estimator_specs),
@@ -414,7 +414,7 @@ def build_architect_theory_execution_preflight_material(
         {
             "anchor_id": anchor_id,
             "artifact_role": artifact_role,
-            "content": _compact_anchor_content(content),
+            "content": deepcopy(content) if anchor_id == "question" else _compact_anchor_content(content),
         }
         for anchor_id, artifact_role, content in sections
     ]
@@ -551,11 +551,9 @@ def build_architect_theory_execution_preflight_prompt(
         )
         if key in material
     }
-    source_material["research_question"] = _compact_value(
-        anchor_by_id.get("question", {}).get("content", {}),
-        max_depth=5,
-        list_limit=16,
-        text_limit=800,
+    # The frozen public objective is the review target, not context to summarize.
+    source_material["research_question"] = deepcopy(
+        anchor_by_id.get("question", {}).get("content", {})
     )
     source_material["upstream_research_contract"] = _compact_value(
         anchor_by_id.get("architect.upstream_research_contract", {}).get(
@@ -703,8 +701,9 @@ def build_architect_theory_execution_preflight_prompt(
             ),
         },
         "verdict_policy": (
-            "Return your own overall ACCEPT or REVISE disposition, with a focused "
-            "source audit in one Markdown referee report. The terminal "
+            "Return every discrete blocking finding and your ACCEPT or REVISE disposition "
+            "in one findings-first Markdown report; omit praise, strengths, and a "
+            "section-by-section verification narrative. The terminal "
             "envelope carries only that disposition, actual blocking findings, and "
             "ordered statuses for immutable prior findings. The Markdown report is "
             "the mathematical authority; the runtime does not expand the candidate's "
@@ -2959,7 +2958,7 @@ def validate_architect_theory_execution_preflight_packet(
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent mathematical referee inside an AI Statistician AgentRuntime.
-Use the stable workspace tools to inspect authoritative Markdown or LaTeX, trace the smallest load-bearing dependency chain, and start from attempted falsification. Compare each decisive written transition with an independent definition-derived check; do not let a correct endpoint excuse a false intermediate or silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
+The exact frozen research question is your review target. Use the stable workspace tools to inspect authoritative Markdown or LaTeX, trace the smallest load-bearing dependency chain, and start from attempted falsification. Compare each decisive written transition and the candidate's actual written intermediate with an independent definition-derived check; never mark a transition verified merely because you can reconstruct a correct endpoint. Report all discrete blockers first, without praise or a verification essay, and never silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
 Treat every tool result as an observation: never describe a rejected or failed run as passed.
 """
 
@@ -3412,9 +3411,9 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         ClientToolDefinition(
             name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
             description=(
-                "Write one focused, source-grounded model-owned Markdown referee report to "
-                "the isolated review workspace. Exact bytes remain available for later "
-                "hash-bound edits and compact submission."
+                "Write one findings-first, source-grounded model-owned Markdown report. "
+                "Return every blocker; omit praise and section-by-section verification. "
+                "Exact bytes remain available for hash-bound edits and compact submission."
             ),
             input_schema={
                 "type": "object",

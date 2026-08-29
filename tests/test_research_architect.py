@@ -1800,6 +1800,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "Use write_theory_document for a complete text file" in initial_prompt
     assert "JSON is only a compact claim index, ABI" in initial_prompt
     assert "remove or clearly reject false exploration" in initial_prompt
+    assert "re-read the exact frozen question" in initial_prompt
+    assert "never commit from first-draft memory" in initial_prompt
     assert "one atomic call" not in initial_prompt
     assert (
         "one shared budget of at most "

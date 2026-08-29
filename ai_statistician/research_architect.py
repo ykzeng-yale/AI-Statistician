@@ -2805,7 +2805,9 @@ def _initial_theory_workspace_prompt(
             else "Formalization is not requested; do not invent Lean work. "
         )
         + "Runtime applies only your exact edits and structural checks. Do not claim "
-        "confirmatory execution, Lean proof, or kernel verification."
+        "confirmatory execution, Lean proof, or kernel verification. Before checkpoint, "
+        "re-read the exact frozen question and current documents, challenge every "
+        "requested conclusion, and never commit from first-draft memory or its summary."
     )
 
 
