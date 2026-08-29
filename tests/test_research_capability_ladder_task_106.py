@@ -27,13 +27,17 @@ GOLD_ROOT = Path(
 GOLD_MANIFEST = GOLD_ROOT / "gold_manifest.json"
 TASK_ID = "normal_means_tweedie_formula_known_theory_rederivation"
 ACTIVATION_LEDGER = "0bbcbc313eb10243ce9c00a3b88221d615ce9d33"
+RUN_DIR = Path(
+    "runs/main_worker_research_l3_tweedie_normal_means_theory_20260829_v1_"
+    "codex_workspace_exact_haiku"
+)
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_tweedie_task106_is_frozen_before_its_only_product_draw() -> None:
+def test_tweedie_task106_is_consumed_after_its_only_product_draw() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -51,9 +55,10 @@ def test_tweedie_task106_is_frozen_before_its_only_product_draw() -> None:
 
     assert candidate["level"] == "L3"
     assert candidate["family"] == "gaussian_empirical_bayes_score_identities"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "preactivated_frozen_pre_first_exact_haiku_draw"
+        "fresh_live_v1_consumed_exact_haiku_runtime_and_hidden_pass_"
+        "operator_invalid_false_active_claims"
     )
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
@@ -149,23 +154,90 @@ def test_tweedie_task106_is_frozen_before_its_only_product_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 16
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["activation_ledger_commit"] == ACTIVATION_LEDGER
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["single_fresh_draw_only"] is True
-    assert evidence["planned_runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["product_code_head"] == (
+        "42f0334622f3eba49f1d2f5645fe3bff00cd6b43"
+    )
+    assert evidence["runtime_product_model_calls"] == 33
+    assert evidence["runtime_client_tool_model_turns"] == 33
+    assert evidence["runtime_direct_model_calls"] == 0
+    assert evidence["runtime_client_tool_executions"] == 39
+    assert evidence["runtime_client_tool_errors"] == 2
+    assert evidence["runtime_model_calls_by_workspace"] == {
+        "TheoryDeveloper": 11,
+        "ArchitectMetricSemanticReviewer": 16,
+        "CriticEvaluator": 6,
+    }
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_outer_graph_iterations"] == 3
+    assert evidence["runtime_same_owner_workspace_continuations"] == 0
+    assert evidence["runtime_mode_conformant"] is True
+    assert evidence["runtime_research_eval_complete"] is True
+    assert evidence["runtime_serious_theory_completed"] is True
+    assert evidence["runtime_theory_preexecution_review_accepted"] is True
+    assert evidence["runtime_critic_research_acceptance"] is True
+    assert evidence["theory_document_sha256"] == (
+        "4851470bdd9d83d4a6a87a629faf8cfc39e487a01e73a0a029223823336c53f5"
+    )
+    assert evidence["referee_report_sha256"] == (
+        "fd822483f4322e1d8246dfe5a85bb239c64f0b439d5dd9f5113b70334b77e7aa"
+    )
+    assert evidence["sole_hidden_assessment_invocations"] == 1
+    assert evidence["hidden_gold_tasks_evaluated"] == 1
+    assert evidence["hidden_evaluator_model_calls"] == 2
+    assert evidence["hidden_theory_mechanical_checks_passed"] == "7/7"
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == 8
+    assert evidence["hidden_theory_semantic_claims_violated"] == 0
+    assert evidence["hidden_theory_semantic_claims_inconclusive"] == 0
+    assert evidence["hidden_theory_semantic_passed"] is True
+    assert evidence["runtime_feedback_generated"] is False
+    assert evidence["operator_disposition"] == "OPERATOR_INVALID"
+    assert evidence["operator_invalid"] is True
+    assert Path(evidence["operator_audit"]).is_file()
     assert evidence["automatic_tier_escalation_allowed"] is False
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["automated_full_task_passed"] is True
+    assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_activation"] == "7/105"
     assert evidence["ladder_score_after_activation"] == (
         "7/106 with one frozen unconsumed task"
     )
+    assert evidence["ladder_score_after_consumption"] == "7/106"
+
+    expected_runtime_hashes = {
+        "normal_means_tweedie_formula_known_theory_rederivation_runtime_result.json": (
+            evidence["runtime_result_sha256"]
+        ),
+        "research_agent_runtime_manifest.json": evidence["runtime_manifest_sha256"],
+        "runtime_completion_summary.json": evidence[
+            "runtime_completion_summary_sha256"
+        ],
+        "runtime_failure_summary.json": evidence["runtime_failure_summary_sha256"],
+        "runtime_llm_topology.json": evidence["runtime_llm_topology_sha256"],
+        "runtime_progress.jsonl": evidence["runtime_progress_sha256"],
+        "research_capability_gold_evaluation.json": evidence[
+            "hidden_assessment_record_sha256"
+        ],
+    }
+    for name, expected in expected_runtime_hashes.items():
+        assert _sha256(RUN_DIR / name) == expected
+    assert _sha256(Path(evidence["theory_document_path"])) == evidence[
+        "theory_document_sha256"
+    ]
+    assert _sha256(Path(evidence["referee_report_path"])) == evidence[
+        "referee_report_sha256"
+    ]
 
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": visible_question}, sort_keys=True
@@ -182,7 +254,8 @@ def test_tweedie_task106_is_frozen_before_its_only_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 106
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 105
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 106
     assert readiness["fully_gold_configured_tasks"] == 106
     assert readiness["fully_gold_passed_tasks"] == 7
+    assert readiness["operator_invalid_tasks"] == 18
