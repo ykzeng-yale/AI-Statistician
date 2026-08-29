@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "ledoit_wolf_linear_shrinkage_paper_to_code",
+      "title": "Ledoit-Wolf linear covariance shrinkage from paper to code",
+      "description": "Conduct an L2 paper-to-code rederivation of Ledoit and Wolf's 2004 linear covariance shrinkage estimator using the supplied public method record, while treating all implementation source and evaluator outcomes as hidden. In one authoritative Markdown/LaTeX Theory workspace, reconstruct the normalized Frobenius-risk decomposition, the oracle affine estimator, the feasible estimators of its scalar components, the truncation that yields a convex shrinkage intensity, and the equivalent matrix computation. Establish the exact PSD and positive-definiteness conditions, feature-permutation and scale behavior, the role of centering, and the distinction between finite-sample algebra, the paper's large-dimensional risk result, and claims that are not justified pointwise. Implement the frozen est_ledoit_wolf_covariance run_estimator(request) Python contract from the mathematical source without importing a prebuilt covariance-shrinkage estimator. Use exploratory computation to challenge dimensions, centering, degeneracy, p greater than n, and numerical invariances. Then author an independently reviewed executable simulation protocol that compares the accepted estimator with the maximum-likelihood sample covariance on frozen high-dimensional covariance designs, reports Frobenius loss and conditioning with Monte Carlo uncertainty, and does not convert selected finite-design behavior into a theorem. Source replication, portfolio optimization, nonlinear shrinkage, precision-matrix inference, novelty, and Lean formalization are not required.",
+      "tags": [
+        "covariance shrinkage",
+        "high-dimensional statistics",
+        "Frobenius risk",
+        "paper to code",
+        "L2"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "A well-conditioned estimator for large-dimensional covariance matrices",
+          "authors": [
+            "Olivier Ledoit",
+            "Michael Wolf"
+          ],
+          "venue": "Journal of Multivariate Analysis 88(2):365-411",
+          "year": 2004,
+          "doi": "10.1016/S0047-259X(03)00096-4",
+          "url": "https://doi.org/10.1016/S0047-259X(03)00096-4"
+        },
+        "hidden_reference_implementation": {
+          "project": "scikit-learn",
+          "repository": "https://github.com/scikit-learn/scikit-learn",
+          "commit": "88552088fad33d6ec70e1aaf633389d08fffb970",
+          "license": "BSD-3-Clause",
+          "model_visibility": "identity only; source withheld for paper-to-code evaluation"
+        },
+        "public_snapshot_manifest": "benchmarks/research_sources/ledoit_wolf_20260829/source_manifest.json",
+        "public_snapshot_id": "ledoit-wolf-paper-to-code-public-sources-20260829-v1",
+        "public_snapshot_hash": "04c137b78f39946cd7024db37fd1554894244e9fd01abace59953b1c8c97bd47",
+        "public_snapshot_manifest_sha256": "b4d5be4189837499c9998e3aa1dede8c98f4b766397f48f6ec72f5e002ad0454"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_ledoit_wolf_covariance",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.samples",
+            "name": "samples",
+            "meaning": "Observed sample matrix with rows as observations and columns as features.",
+            "json_type": "array[array[number]]",
+            "shape": "rectangular n by p matrix with 2 <= n <= 500 and 2 <= p <= 100",
+            "units": "arbitrary common measurement scale",
+            "indexing": "samples[i][j] is feature j of observation i",
+            "edge_cases": "Every entry must be an exact finite JSON number, not a boolean, with absolute value at most 1e6. Constant columns and p greater than n are admissible.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.assume_centered",
+            "name": "assume_centered",
+            "meaning": "Whether the supplied observations are treated as having known zero mean.",
+            "json_type": "boolean",
+            "shape": "one exact JSON boolean",
+            "units": "not applicable",
+            "indexing": "shared by all observations and features",
+            "edge_cases": "When false, subtract the sample mean and return it as location. When true, use the observations unchanged and return an all-zero location.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.covariance",
+            "name": "covariance",
+            "meaning": "Ledoit-Wolf linear-shrinkage covariance estimate using the task's 1/n normalization.",
+            "json_type": "array[array[number]]",
+            "shape": "exactly p by p finite scalars",
+            "units": "squared input units",
+            "indexing": "entry [j][k] is the covariance of features j and k",
+            "edge_cases": "The matrix is symmetric and positive semidefinite up to floating-point roundoff.",
+            "normalization": "(1-shrinkage) times the 1/n empirical covariance plus shrinkage times trace(empirical covariance)/p times identity."
+          },
+          {
+            "clause_id": "response.shrinkage",
+            "name": "shrinkage",
+            "meaning": "Estimated convex weight on the spherical target.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "dimensionless",
+            "indexing": "shared by the full covariance matrix",
+            "edge_cases": "Must lie in [0,1]. Return zero when the empirical covariance already equals its spherical target and the denominator is zero.",
+            "normalization": "The feasible Ledoit-Wolf b-squared estimate divided by d-squared, clipped only to the mathematical convex interval."
+          },
+          {
+            "clause_id": "response.location",
+            "name": "location",
+            "meaning": "Location used to form the empirical covariance.",
+            "json_type": "array[number]",
+            "shape": "exactly p finite scalars",
+            "units": "input units",
+            "indexing": "entry j corresponds to feature j",
+            "edge_cases": "The sample column means when assume_centered is false and exact zeros when it is true.",
+            "normalization": "No robust or weighted location estimation is performed."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the two declared fields and the response contains exactly the three declared fields. Missing, extra, malformed, coercible-only, ragged, nonfinite, or out-of-domain inputs are rejected."
+          },
+          {
+            "clause_id": "invariant.paper_estimator_identity",
+            "meaning": "The returned covariance and shrinkage implement the feasible Ledoit-Wolf scalar estimates and the 1/n empirical covariance defined by the public method record, without calling a prebuilt shrinkage estimator."
+          },
+          {
+            "clause_id": "invariant.row_permutation",
+            "meaning": "Permuting observation rows leaves the complete response unchanged up to floating-point summation roundoff."
+          },
+          {
+            "clause_id": "invariant.feature_permutation",
+            "meaning": "Permuting features permutes location and conjugates covariance by the same permutation while preserving shrinkage."
+          },
+          {
+            "clause_id": "invariant.translation",
+            "meaning": "When assume_centered is false, adding a finite feature-specific translation changes location by that vector while preserving covariance and shrinkage. No such invariance is claimed when assume_centered is true."
+          },
+          {
+            "clause_id": "invariant.positive_scale",
+            "meaning": "Multiplying every sample entry by one positive finite scalar multiplies location by that scalar and covariance by its square while preserving shrinkage, provided both requests remain in the declared domain."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls are deterministic and do not mutate the request object."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "Frozen valid requests are compared with an independent implementation of the declared estimator, response schema, and invariances under predeclared numerical tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.high_dimensional_loss",
+            "meaning": "On evaluator-frozen Gaussian covariance designs with p comparable to or greater than n, replicate-wise Frobenius losses of shrinkage and the 1/n sample covariance are summarized with Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.conditioning",
+            "meaning": "The frozen experiment records positive-semidefiniteness, finite eigenvalue behavior, and conditioning without claiming strict improvement when the mathematical conditions for positive shrinkage are absent."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Designs, seeds, sample sizes, replicate counts, estimator requests, summaries, and tolerances are evaluator-owned and frozen before product execution."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "Selected finite Gaussian designs do not prove the paper's distribution-free asymptotic risk statement, pointwise dominance, arbitrary affine equivariance, nonlinear shrinkage, or precision-matrix inference."
+          },
+          {
+            "clause_id": "claim.empirical.computation_not_proof",
+            "meaning": "Finite execution and simulation are computational evidence only and cannot substitute for the mathematical risk derivation."
+          }
+        ]
+      }
+    }
+  ]
+}
