@@ -1,0 +1,41 @@
+Beta Regression in R source-execution environment lock
+
+Execution identity
+- Runtime language: R
+- Interpreter: R version 4.4.3 (2025-02-28)
+- Interpreter executable:
+  /Users/yukangzengcmac/.codex/external/sandwich-jss-2004-r-env/lib/R/bin/exec/R
+- Interpreter executable SHA-256:
+  d856d3fe7074578872a738f46d2b60f3ba335aa5718f5a5861849ae49caaedd6
+- Interpreter arguments: --no-echo --no-restore --no-save --no-environ
+  --no-site-file --no-init-file -f
+- Entrypoint: v034i02.R
+- Entrypoint SHA-256:
+  0725416e1d260a76acf2f27db9a028ee5cf8366a1bb766e3e8115c5b381de57d
+- Entrypoint arguments: none
+- Working directory: root of the staged source snapshot
+- Execution mode: staged copy on write
+- Declared result artifact: Rplots.pdf
+- Network access: disabled
+
+Package library
+- R_LIBS_USER:
+  /Users/yukangzengcmac/.codex/external/betareg-jss-2010-r-library
+- betareg: 2.2.0, installed from CRAN betareg_2.2-0.tar.gz
+- Formula: 1.0.0, installed from CRAN Formula_1.0-0.tar.gz
+- sandwich: 3.1.0
+- lmtest: 0.9.40
+- strucchange: 1.5.4
+- zoo: 1.8.15
+
+Archive identities
+- betareg_2.2-0.tar.gz SHA-256:
+  ce02e410447b4085275930e4a928eededc921f79962b847330e7b4df58e05094
+- Formula_1.0-0.tar.gz SHA-256:
+  7df40dbfacee15a98acb281620a33557eee09acccf30cbdf71d3f32627768d23
+
+This is a current R 4.4.3 execution of the exact JSS script with the historical
+betareg and Formula releases nearest the article. It is not a reconstruction of
+the original authors' operating system, R release, BLAS, graphics device, or all
+2010 dependency versions. Those differences must remain explicit in the final
+replication report.

@@ -1,0 +1,62 @@
+{
+  "schema_version": 3,
+  "artifact_kind": "ResearchSourceExecutionSpec",
+  "execution_id": "betareg-jss-2010-r-source-execution-20260829-v1",
+  "benchmark_id": "research-l1-betareg-jss-2010-r-20260829-v1",
+  "source_snapshot_id": "betareg-jss-2010-r-public-replication-20260829-v1",
+  "source_snapshot_hash": "3c4c642b44ea9413b8b29f456606568a356e2b9c0b6301b8829ae3d640b67c8b",
+  "source_manifest_sha256": "a3af9e0459f026a34bf305f4685676501c0422bc1ed82b22448ed80c002c2582",
+  "source_commit": "jss-v034i02-official-source-2010-04-05",
+  "entrypoint_document_id": "betareg-jss-official-r-example",
+  "environment_lock_document_id": "betareg-environment-lock",
+  "environment_root": "/Users/yukangzengcmac/.codex/external/sandwich-jss-2004-r-env",
+  "runtime_language": "r",
+  "interpreter_executable_relative_path": "lib/R/bin/exec/R",
+  "interpreter_executable_sha256": "d856d3fe7074578872a738f46d2b60f3ba335aa5718f5a5861849ae49caaedd6",
+  "environment_probe_document_id": "betareg-environment-probe",
+  "runtime_read_roots": [
+    "/Users/yukangzengcmac/.codex/external/betareg-jss-2010-r-library",
+    "/private/tmp",
+    "/private/var/select"
+  ],
+  "runtime_executables": {
+    "/bin/bash": "fde343ee184953c1fa1185abddeaa8be61c6acbebae4eb54db5d6b55b09a5755",
+    "/bin/rm": "0e7aa0987cecc8d8ca629e1c61857321e8e281a6c1d0711b21163a15e454dc9d",
+    "/bin/sh": "ad5c194b05f83bc5e793c1cd67b148a4b680467b5a5730ab1a31fe4e6460ee9f",
+    "/usr/bin/uname": "c189136263d277786f29a16eb3137de7bcf4512d2282d0036f440022f325bfc4",
+    "/usr/bin/which": "4d76dacf6a59904694cfd4c4a5660cbca67e957069660b6377a561a54e1133a2"
+  },
+  "interpreter_arguments": [
+    "--no-echo",
+    "--no-restore",
+    "--no-save",
+    "--no-environ",
+    "--no-site-file",
+    "--no-init-file",
+    "-f"
+  ],
+  "runtime_environment": {
+    "KMP_WARNINGS": "FALSE",
+    "R_DOC_DIR": "/Users/yukangzengcmac/.codex/external/sandwich-jss-2004-r-env/lib/R/doc",
+    "R_HOME": "/Users/yukangzengcmac/.codex/external/sandwich-jss-2004-r-env/lib/R",
+    "R_INCLUDE_DIR": "/Users/yukangzengcmac/.codex/external/sandwich-jss-2004-r-env/lib/R/include",
+    "R_LIBS_USER": "/Users/yukangzengcmac/.codex/external/betareg-jss-2010-r-library",
+    "R_SHARE_DIR": "/Users/yukangzengcmac/.codex/external/sandwich-jss-2004-r-env/lib/R/share"
+  },
+  "working_directory_relative": ".",
+  "arguments": [],
+  "package_distributions": {
+    "betareg": "betareg",
+    "Formula": "Formula",
+    "sandwich": "sandwich",
+    "lmtest": "lmtest",
+    "strucchange": "strucchange",
+    "zoo": "zoo"
+  },
+  "timeout_seconds": 180,
+  "max_output_bytes": 1048576,
+  "execution_workspace_mode": "staged_copy_on_write",
+  "result_artifact_paths": [
+    "Rplots.pdf"
+  ]
+}

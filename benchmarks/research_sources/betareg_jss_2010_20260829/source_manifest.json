@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "betareg-jss-2010-r-public-replication-20260829-v1",
+  "source_horizon": "2026-08-29",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "betareg-jss-source-provenance",
+      "title": "Beta Regression in R public source provenance",
+      "source_kind": "source_metadata",
+      "relative_path": "source_provenance.md",
+      "sha256": "0e329f4c9c4381394f37220cd68d60767ff72469ec9eb823649e01c8e8a8e1d2",
+      "model_visible": true,
+      "citation": "Cribari-Neto and Zeileis (2010), JSS 34(2)",
+      "url": "https://www.jstatsoft.org/article/view/v034i02",
+      "publication_date": "2010-04-05",
+      "license": "operator-authored provenance over public sources"
+    },
+    {
+      "document_id": "betareg-jss-paper-text",
+      "title": "Beta Regression in R article text",
+      "source_kind": "paper",
+      "relative_path": "jss_v034_i02_paper.txt",
+      "sha256": "0552c9a15d409ef61bf78c00ced40472a88f79188c9e53014e679c1e1df3ed87",
+      "model_visible": true,
+      "citation": "Cribari-Neto and Zeileis (2010), JSS 34(2), DOI 10.18637/jss.v034.i02",
+      "url": "https://www.jstatsoft.org/article/download/v034i02/378",
+      "publication_date": "2010-04-05",
+      "license": "JSS article text supplied for research inspection"
+    },
+    {
+      "document_id": "betareg-jss-official-r-example",
+      "title": "Official R example code from Beta Regression in R",
+      "source_kind": "code",
+      "relative_path": "v034i02.R",
+      "sha256": "0725416e1d260a76acf2f27db9a028ee5cf8366a1bb766e3e8115c5b381de57d",
+      "model_visible": true,
+      "citation": "JSS v034i02 official R example code",
+      "url": "https://www.jstatsoft.org/article/download/v034i02/2016",
+      "publication_date": "2010-04-05",
+      "license": "official article companion source"
+    },
+    {
+      "document_id": "betareg-environment-lock",
+      "title": "Pinned R execution environment lock",
+      "source_kind": "environment_lock",
+      "relative_path": "environment_lock.txt",
+      "sha256": "30455ace970e07723c7993818bd7ed4c36e1b6edab1ed0427cd96b0e392b1bca",
+      "model_visible": true,
+      "citation": "Operator-pinned Task97 execution environment",
+      "license": "operator-authored metadata"
+    },
+    {
+      "document_id": "betareg-environment-probe",
+      "title": "Pinned R package identity probe",
+      "source_kind": "environment_probe",
+      "relative_path": "environment_probe.R",
+      "sha256": "b296b22d8342404957cde29fbadbf30f4c7a84c7a7c4a8200a18158802226f2e",
+      "model_visible": true,
+      "citation": "Operator-authored Task97 environment probe",
+      "license": "project source"
+    },
+    {
+      "document_id": "betareg-package-description",
+      "title": "betareg 2.2-0 DESCRIPTION",
+      "source_kind": "package_metadata",
+      "relative_path": "betareg_DESCRIPTION.txt",
+      "sha256": "eba0e6c86ae4ee9241004cc4c91d7eea456b23e719246b0447613c8009910701",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 source archive",
+      "url": "https://stat.ethz.ch/CRAN/src/contrib/Archive/betareg/betareg_2.2-0.tar.gz",
+      "publication_date": "2010-03-12",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "formula-package-description",
+      "title": "Formula 1.0-0 DESCRIPTION",
+      "source_kind": "package_metadata",
+      "relative_path": "Formula_DESCRIPTION.txt",
+      "sha256": "c2af0fff37a7551dcf7436786b309814c7087fb52084e97408a0be20ccd13293",
+      "model_visible": true,
+      "citation": "CRAN Formula 1.0-0 source archive",
+      "url": "https://stat.ethz.ch/CRAN/src/contrib/Archive/Formula/Formula_1.0-0.tar.gz",
+      "publication_date": "2010-04-04",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-package-news",
+      "title": "betareg 2.2-0 NEWS",
+      "source_kind": "package_documentation",
+      "relative_path": "betareg_NEWS.txt",
+      "sha256": "4c1649a3b7aeca501ed788c4b4174960eb63dfb159ef27396c6a680df455b332",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 source archive",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-core-source",
+      "title": "betareg 2.2-0 core R source",
+      "source_kind": "code",
+      "relative_path": "betareg_core.R",
+      "sha256": "89d885c513163218b304008bd10268df09602d95c562b826c4e77d8d82df732f",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 R/betareg.R",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-plot-source",
+      "title": "betareg 2.2-0 plotting R source",
+      "source_kind": "code",
+      "relative_path": "betareg_plot.R",
+      "sha256": "789cbfd5e04644bd6d5fe3ef2cfbae45bfc1735cef805e68caa2f45d926b2bb4",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 R/plot.betareg.R",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-leverage-source",
+      "title": "betareg 2.2-0 leverage R source",
+      "source_kind": "code",
+      "relative_path": "betareg_leverage.R",
+      "sha256": "150d9adf3e18a5b4144cd34331564922e448953f78ee4fbd9ac5ede583475860",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 R/leverage.R",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-help",
+      "title": "betareg 2.2-0 model help",
+      "source_kind": "package_documentation",
+      "relative_path": "betareg_help.Rd",
+      "sha256": "f8c9ce1eaa837dd81a24af9b7919c6a7f9deda4ccad6d3f106ed89b911211504",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 man/betareg.Rd",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-gasoline-data-help",
+      "title": "GasolineYield data documentation",
+      "source_kind": "data_documentation",
+      "relative_path": "GasolineYield.Rd",
+      "sha256": "2925c9732706c98ef3d54358d288f8d5610f8762f4377df069f25894fed5e0ff",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 man/GasolineYield.Rd",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-food-data-help",
+      "title": "FoodExpenditure data documentation",
+      "source_kind": "data_documentation",
+      "relative_path": "FoodExpenditure.Rd",
+      "sha256": "64b403d4760de0e3c29490b53237afa3cb8ac2513ed5636c1ef1e82270d24353",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 man/FoodExpenditure.Rd",
+      "license": "GPL-2"
+    },
+    {
+      "document_id": "betareg-reading-data-help",
+      "title": "ReadingSkills data documentation",
+      "source_kind": "data_documentation",
+      "relative_path": "ReadingSkills.Rd",
+      "sha256": "1bb3bbce9def694e5033186bbc3d7c36e84562709da23c1b44718c35189c441f",
+      "model_visible": true,
+      "citation": "CRAN betareg 2.2-0 man/ReadingSkills.Rd",
+      "license": "GPL-2"
+    }
+  ]
+}

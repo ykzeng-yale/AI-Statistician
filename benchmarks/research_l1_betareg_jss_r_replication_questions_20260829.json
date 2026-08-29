@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "betareg_jss_2010_r_public_replication",
+      "title": "Exact replication and audit of the JSS beta-regression R example",
+      "description": "Conduct an L1 exact public-source replication of Francisco Cribari-Neto and Achim Zeileis's 2010 Journal of Statistical Software article, Beta Regression in R. Use only the operator-supplied hash-bound journal and historical-package source snapshot and the operator-pinned execution. Inspect the article text, provenance record, unmodified official R example, environment lock and probe, historical betareg and Formula metadata and source, and the supplied data documentation. Run the pinned journal source once with no editing, wrapper, replacement implementation, model-authored argument, or network access. In one durable Markdown report, identify the article, DOI, official PDF and R-source identities, historical package archives, source snapshot, exact entrypoint and command, interpreter, package versions, and successful source-integrity checks. Reconstruct the script's execution order and account for every printed analysis: the fixed-dispersion GasolineYield fit and observation-omission precision comparison; the FoodExpenditure OLS heteroskedasticity diagnostic; the variable-dispersion GasolineYield and FoodExpenditure likelihood-ratio comparisons and information-criterion output; the pseudo-R-squared, link, RESET-type, convergence, and FoodExpenditure log-likelihood comparisons; and the ReadingSkills OLS and variable-dispersion beta-regression coefficient tests. Interpret every reported statistic and p value at its stated threshold without converting non-rejection into evidence for a null, selecting a universally best link or dispersion model from one dataset, or making causal, package-wide, theoretical, or novelty claims. Account for all source plot-producing stages and the declared Rplots.pdf artifact, while distinguishing source-derived expectations and artifact metadata from visual or pixel-level inspection. Explain that the structural-change section generates seeded artificial data and graphical fluctuation-process output but prints no test verdict in this run. Distinguish this current R 4.4.3 execution with historical betareg 2.2-0 and Formula 1.0-0 from reconstruction of the authors' full 2010 operating system, R, BLAS, graphics device, dependency stack, every article result, or raw-PDF byte identity across reruns. No model-authored estimator, replacement simulation, new theorem, novelty claim, or Lean formalization is required. Disclose all remaining source, version, environment, numerical, visualization, inferential, and scientific-scope gaps honestly.",
+      "tags": [
+        "R",
+        "beta regression",
+        "variable dispersion",
+        "link selection",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "Beta Regression in R",
+        "authors": [
+          "Francisco Cribari-Neto",
+          "Achim Zeileis"
+        ],
+        "venue": "Journal of Statistical Software",
+        "volume": "34",
+        "issue": "2",
+        "year": 2010,
+        "pages": "1-24",
+        "doi": "10.18637/jss.v034.i02",
+        "paper_url": "https://www.jstatsoft.org/article/view/v034i02",
+        "official_pdf_url": "https://www.jstatsoft.org/article/download/v034i02/378",
+        "official_pdf_sha256": "afff539469a20ede1b0a2598269f3c8313b3c9b5bd6413f0ad7b6fdd4ccaad31",
+        "official_source_url": "https://www.jstatsoft.org/article/download/v034i02/2016",
+        "official_source_sha256": "0725416e1d260a76acf2f27db9a028ee5cf8366a1bb766e3e8115c5b381de57d",
+        "betareg_archive_sha256": "ce02e410447b4085275930e4a928eededc921f79962b847330e7b4df58e05094",
+        "formula_archive_sha256": "7df40dbfacee15a98acb281620a33557eee09acccf30cbdf71d3f32627768d23",
+        "code_license": "official journal companion source; supplied historical package source files are GPL-2",
+        "research_source_snapshot_id": "betareg-jss-2010-r-public-replication-20260829-v1",
+        "research_source_snapshot_hash": "3c4c642b44ea9413b8b29f456606568a356e2b9c0b6301b8829ae3d640b67c8b",
+        "research_source_manifest_sha256": "a3af9e0459f026a34bf305f4685676501c0422bc1ed82b22448ed80c002c2582"
+      }
+    }
+  ]
+}
