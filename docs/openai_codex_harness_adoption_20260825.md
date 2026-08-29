@@ -4679,3 +4679,53 @@ Focused cross-workspace regressions passed `196/196`, ladder regressions passed
 JSON/diff hygiene, credential and hidden-authority scans, production task-specific
 scanning, and the unchanged 150,000-line gate passed at 149,950 lines. No model,
 evaluator, benchmark, or consumed task was invoked by the mechanism verification.
+
+### Post-Task-99: artifact-scoped judgment, not a larger harness
+
+Future-task mechanism commit:
+`1d5b10f29129593b2554eddcb32ad0a069c503f4`.
+
+The official Codex material continues to support selective reuse rather than runtime
+embedding. Its
+[agent-loop account](https://openai.com/index/unrolling-the-codex-agent-loop/)
+centers a retained model interaction around a prompt, stable tools, accumulated
+observations, and an explicit next response. Its
+[harness-engineering account](https://openai.com/index/harness-engineering/)
+uses repository files and executable checks as the system of record. Codex
+[multi-agent support](https://github.com/openai/codex/blob/main/codex-rs/core/src/tools/handlers/multi_agents_spec.rs)
+gives workers separate retained threads and explicit collaboration actions. Those
+are useful invariants; Codex Core, App Server,
+Responses transport, conversation store, and scheduler would still duplicate this
+project's Claude-first `AgentRuntime` without supplying statistical or Lean authority.
+
+Task 99 exposed judgment failures rather than a missing orchestration framework. The
+referee had a long, repetitive protocol yet accepted a document containing a false
+active intermediate normalization. The Simulation reviewer credited an estimator
+artifact and public ABI that were absent from its exact dependency lineage. Critic
+listed concrete blockers but used `INCOMPLETE` for gap disclosure, apparently
+confusing incomplete research with incomplete disclosure.
+
+The shared correction therefore removes and narrows control text:
+
+- Theory-referee protocol v43 replaces seven overlapping instruction blocks with five
+  focused principles. The same model must identify exact candidate ranges and
+  reconstruct each load-bearing written transition from original definitions before
+  `ACCEPT`; a correct endpoint cannot validate a false intermediate.
+- Generated-code semantic-review schema v36 applies one generic authority rule across
+  subsystems. A verdict covers only current artifacts and exact accepted dependencies
+  actually present. Question text is an obligation, and embedded code cannot establish
+  a separately owned artifact.
+- Critic schema v4 makes `COMPLETE` mean that all known gaps were disclosed, not that
+  the research succeeded. `INCONCLUSIVE` and `REJECT` require explicit evidence-grounded
+  gaps for every blocking dimension.
+
+The immutable Task99 Critic blob is replayed only as a regression fixture: its former
+`INCOMPLETE` terminal packet is rejected under the future-task contract. Nothing is
+rerun, repaired, reevaluated, or rescored. Task99 remains `0/1`, and aggregate trusted
+capability remains `7/99`.
+
+This change adds no agent, tool, scheduler, parser, retry, fallback, model escalation,
+statistical formula, or Lean rule. Focused regressions passed `120/120`; the complete
+repository passed `1062/1062` in 81.30 seconds. Production Python decreased from
+149,950 to 149,945 lines. No model, evaluator, benchmark, hidden authority, or consumed
+task was invoked.
