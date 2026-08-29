@@ -1,13 +1,21 @@
 {
-  "schema_version": 305,
+  "schema_version": 306,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "c70aa04a",
+  "validated_code_head": "ef01e07c",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all one hundred one consumed draws and immutable artifacts at trustworthy full-task credit 7/101 while exact development-panel Lean closure remains 0/2. Task101 remains consumed at 0/1. Its postmortem showed that a hash-verified referee report was still a secondary JSON workspace artifact while the first-read finding summary could retain prior wording. Commit c70aa04a makes the exact current report a content-addressed read-only document in the same file tools and keeps JSON as an index. Validate this only on a future disjoint frozen task; do not patch, rerun, resume, model-escalate, or encode an empirical-likelihood rule.",
+  "current_goal_focus": "Preserve all one hundred one consumed draws and immutable artifacts at trustworthy full-task credit 7/101 while exact development-panel Lean closure remains 0/2. The official Codex checkout and adoption record are current at 6478a751. Commit ef01e07c removes the shared loop's residual terminal-only tool-choice override without importing Codex Core or adding a scheduler. The next capability evidence must come from a future disjoint frozen task; do not patch, rerun, resume, or rescore a consumed task.",
+  "latest_codex_terminal_tool_choice_alignment": {
+    "mechanism_commit": "ef01e07ca2c96d05c701b172caff1c818dfb826e",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "change": "The provider-neutral client-tool loop no longer forces a sole terminal tool or disables parallel tool use when every visible tool is terminal. The caller's sampling contract remains exact and an assistant-only response reaches the existing checkpoint boundary.",
+    "adoption_boundary": "Reuse Codex's model-tool-observation, file state, checkpoint, and sparse handoff principles. Do not embed Codex Core, App Server, Responses transport, thread state, shared-workspace subagents, or its scheduler beside AgentRuntime.",
+    "verification": "Focused Theory, Python/R, Lean, AgentRuntime, and shared-loop tests passed 150/150. The complete repository passed 1068/1068 in 81.28 seconds. Compileall, diff hygiene, direct-runtime-import scanning, and the 150000-line production gate passed at 149982 lines. No model or evaluator call was made.",
+    "capability_boundary": "This is deterministic future-task harness evidence only. Trustworthy full-task capability remains 7/101 and exact development-panel Lean closure remains 0/2."
+  },
   "latest_task101_referee_document_transport_change": {
     "mechanism_commit": "c70aa04a3778feb126a6dcd883f982cf6c66e354",
     "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",

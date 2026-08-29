@@ -26,6 +26,13 @@ was not semantically equivalent. Lower chronological notes that describe reserve
 terminal continuations or synthetic turn-fraction reminders are historical and
 superseded by this section.
 
+Commit `ef01e07ca2c96d05c701b172caff1c818dfb826e` removes the last
+tool-composition override from that shared loop. A workspace whose visible tools
+happen to be terminal actions now retains the caller's exact `tool_choice` and
+parallel-use setting; the runtime neither forces the sole action nor changes the
+sampling contract. A model-selected tool still executes normally, while an
+assistant-only response reaches the existing immutable checkpoint boundary.
+
 The adopted Codex principles remain model-directed tool use, stable scoped tools,
 real files and hashes, raw observations, explicit completion, isolated review, and
 sparse artifact references. Codex Core, App Server, Responses transport, thread
@@ -76,6 +83,9 @@ to rerun or rescore Task 98.
 
 Latest selective-adoption implementation commits:
 
+- `ef01e07ca2c96d05c701b172caff1c818dfb826e`: keep terminal-only tool
+  surfaces model-directed instead of privately changing tool choice or parallel
+  policy;
 - `8185c268c16cc40f259c166bad7a6de474071b3e`: remove hidden terminal-only
   resampling, final-commit correction retries, dynamic exhaustion-time tool
   filtering, and synthetic turn-fraction reminders from the shared specialist
