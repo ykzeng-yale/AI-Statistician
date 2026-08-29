@@ -544,12 +544,7 @@ def run_bounded_client_tool_loop(
     max_tool_calls: int,
     max_no_progress_turns: int,
 ) -> ClientToolLoopResult:
-    """Run one model -> tool -> observation session under caller-owned bounds.
-
-    A rejected terminal submission is a raw observation for the same model. A final
-    workspace action gets one terminal-only continuation; rejection there permits
-    one final terminal-only correction, never a separate repair phase.
-    """
+    """Run one retained model/tool session with bounded ordinary and terminal turns."""
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
         raise ValueError("client-tool loop budgets must all be positive")
@@ -569,6 +564,7 @@ def run_bounded_client_tool_loop(
     last_response: ClientToolTurnResponse | None = None
     terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
     ordinary_tool_calls = 0
+    reminder_turns = {max(1, max_turns // divisor) for divisor in (2, 4, 10)}
     terminal_continuation_required = terminal_rejection_followup_required = False
 
     def loop_error(reason: str, *, turns: int, tool_calls: int) -> ClientToolLoopError:
@@ -606,8 +602,6 @@ def run_bounded_client_tool_loop(
                 *_client_tool_content_blocks(messages[-1].get("content")),
                 {"type": "text", "text": notice},
             ]
-        # Keep one stable tool definition surface across the whole transcript so
-        # provider prompt caches retain the accumulated workspace prefix.
         turn_tools = request.tools
         terminal_only_turn = terminal_continuation_turn or bool(
             turn_tools and all(tool.terminal for tool in turn_tools))
@@ -954,6 +948,14 @@ def run_bounded_client_tool_loop(
                     )
                 terminal_payload = deepcopy(dict(execution.terminal_payload))
 
+        turns_remaining = max(0, max_turns - turn_index - 1)
+        if terminal_payload is None and turns_remaining in reminder_turns:
+            reminder = (
+                f"<rollout_budget>\n{turns_remaining} ordinary model turns and "
+                f"{max(0, max_tool_calls - ordinary_tool_calls)} ordinary workspace-action calls "
+                "remain in this retained session. This is capacity, not a quota.\n</rollout_budget>"
+            )
+            tool_result_blocks.append({"type": "text", "text": reminder})
         messages.append({"role": "user", "content": tool_result_blocks})
         if terminal_payload is not None:
             return ClientToolLoopResult(

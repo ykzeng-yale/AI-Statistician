@@ -578,6 +578,11 @@ def test_bounded_client_tool_loop_keeps_one_linear_model_tool_history() -> None:
     assert [len(request.messages) for request in backend.requests] == [1, 3, 5]
     assert backend.requests[-1].messages[0] == backend.requests[0].messages[0]
     final_context = str(backend.requests[-1].messages)
+    assert final_context.count("<rollout_budget>") == 1
+    assert (
+        "1 ordinary model turns and 1 ordinary workspace-action calls remain"
+        in final_context
+    )
     assert "call-edit-1" in final_context
     assert "call-edit-2" in final_context
     assert "'value': 1" in final_context
