@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "efron_stein_replacement_variance_theory_known_result",
+      "title": "Efron-Stein replacement and leave-one-coordinate-out variance bounds",
+      "description": "Focused known-result theory evaluation grounded in Bradley Efron and Charles Stein, The Jackknife Estimate of Variance, The Annals of Statistics 9(3):586-596 (1981), DOI 10.1214/aos/1176345462. Let n>=1, let X_1,...,X_n be independent random elements on arbitrary measurable spaces, and let X_1',...,X_n' be mutually independent copies, independent of the original vector, with X_i' distributed as X_i. For a measurable square-integrable statistic Z=f(X_1,...,X_n), let Z^(i) replace only X_i by X_i'. In one authoritative Markdown/LaTeX theory workspace, derive from first principles the Efron-Stein replacement inequality Var(Z) <= (1/2) sum_i E[(Z-Z^(i))^2]. Prove, rather than merely quote, the equivalent conditional-variance form using X_{-i}, and derive the general leave-one-coordinate-out proxy bound for arbitrary square-integrable Z_i measurable with respect to X_{-i}. Make every conditioning sigma-field and independence step explicit, and justify the martingale-difference, ANOVA/Hoeffding, or other decomposition actually used. Keep the factor 1/2 in the replacement form distinct from the proxy form. Give a nontrivial additive example where equality holds and an interaction example where the bound is strict, with exact calculations. State the minimal integrability and independence assumptions and explain why identical distribution across coordinates, symmetry of f, and bounded differences are not required. Distinguish this variance inequality from a samplewise identity, a concentration inequality, a jackknife variance-estimator unbiasedness claim, and an equality characterization for arbitrary f. Keep active and rejected derivations visibly distinct, perform internal contradiction checks across all displayed equations, and disclose unresolved gaps. This L0 task evaluates persistent mathematical derivation and independent review only. Source replication, production Python/R implementation, confirmatory simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Efron-Stein inequality",
+        "conditional variance",
+        "replacement variables",
+        "leave-one-coordinate-out",
+        "martingale differences",
+        "ANOVA decomposition",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "The Jackknife Estimate of Variance",
+        "authors": [
+          "Bradley Efron",
+          "Charles Stein"
+        ],
+        "journal": "The Annals of Statistics",
+        "year": 1981,
+        "volume": 9,
+        "issue": 3,
+        "pages": "586-596",
+        "doi": "10.1214/aos/1176345462",
+        "url": "https://doi.org/10.1214/aos/1176345462"
+      }
+    }
+  ]
+}
