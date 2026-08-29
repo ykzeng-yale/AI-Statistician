@@ -140,7 +140,7 @@ def test_chapman_r_l0_task_records_immutable_consumed_result() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 91
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 90
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 91
     assert readiness["fully_gold_configured_tasks"] == 91
-    assert readiness["fully_gold_passed_tasks"] == 5
+    assert readiness["fully_gold_passed_tasks"] == 6

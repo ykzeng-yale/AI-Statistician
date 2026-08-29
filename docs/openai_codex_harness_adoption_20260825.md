@@ -4196,3 +4196,36 @@ committed and pushed to both canonical refs, exactly one
 `claude-haiku-4-5-20251001` product invocation may run. Its result will be kept
 whether it passes or fails; no theorem-specific rule, proof hint, repair worker,
 extra verifier, retry, fallback, Sonnet evaluation, or Opus execution is allowed.
+
+### Task 91 consumed result: direct retained Formalizer closure
+
+The sole draw completed at frozen product HEAD `a892ecef` and passed both the visible
+research contract and the evaluator-only full-task authority at `1/1`. One retained
+Formalizer session used eight exact-Haiku turns and nine model-selected tools: three
+declaration inspections, two formal searches, three Lean scratch checks, and one
+source submission. The unchanged source then passed isolated semantic review,
+declaration identity, trusted-axiom, and local kernel gates. Critic accepted the
+satisfied formal contract. Architect, TheoryDeveloper, Python/R, Simulation, repair,
+retry, fallback, Sonnet, and Opus did not run.
+
+The submitted source was byte-identical to the frozen positive proof. This was
+audited rather than hidden: the visible target left only a canonical constructor
+proof after the model retrieved the two active Statlib declarations. No
+evaluator-only path, hidden filename, hidden source hash, or expected value appeared
+in the run artifacts or model tool record, and the evaluator reports that hidden
+values were not disclosed and no runtime feedback was generated. The result is
+therefore trustworthy L0 formal-loop evidence, but not evidence that the system can
+solve broad statistical formalization or long-horizon theory.
+
+This outcome strengthens the selective-adoption decision. AI Statistician needs the
+Codex invariants, not the Codex product runtime: persistent source ownership, direct
+raw observations, explicit model edits, content-addressed checkpoints, stable tools,
+sparse handoffs, and model-visible capacity. The domain harness must continue to own
+task intent, scientific provenance, independent review, hidden evaluation, frozen
+simulation, and Lean kernel promotion. Adding Codex Core or another scheduler would
+duplicate control while leaving the actual weak lanes unchanged.
+
+Closeout ladder tests passed `89/89`, the model-policy/formal-authority/tool-loop
+panel passed `72/72`, and the complete repository passed `1043/1043` in 81.21
+seconds. No closeout check invoked a product model, evaluator model, or consumed-task
+runtime.
