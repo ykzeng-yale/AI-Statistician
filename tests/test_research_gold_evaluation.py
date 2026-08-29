@@ -117,7 +117,7 @@ def test_post_runtime_gold_loader_rehydrates_exact_artifact_hashes(
         "content_hash": artifact_hash,
         "content_hash_algorithm": "sha256_stable_json_v1",
         "payload_kind": "RuntimeQuestionMetadata",
-        "path": str(blob_path),
+        "path": blob_path.name,
     }
     index_path = tmp_path / "artifact-index.json"
     index_path.write_text(
@@ -134,7 +134,7 @@ def test_post_runtime_gold_loader_rehydrates_exact_artifact_hashes(
         json.dumps(
             {
                 "blackboard_artifact_payload_policy": "content_addressed_refs",
-                "blackboard_artifact_store_index": str(index_path),
+                "blackboard_artifact_store_index": index_path.name,
                 "blackboard": {"artifacts": {"question:1": reference}},
             }
         ),
