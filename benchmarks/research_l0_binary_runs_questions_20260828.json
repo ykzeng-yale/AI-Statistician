@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "binary_runs_fixed_counts_known_result",
+      "title": "Binary runs under fixed counts",
+      "description": "Focused L0 known-result rederivation grounded in A. Wald and J. Wolfowitz, On a Test Whether Two Samples are from the Same Population, Annals of Mathematical Statistics 11 (1940), 147-162. Under the conditional null, fix integers n0,n1>=2 and draw uniformly from all binary sequences containing exactly n0 zeros and n1 ones. Let R be one plus the number of adjacent changes. In one authoritative Markdown/LaTeX Theory workspace, derive the exact finite-sample expectation and variance of R from indicator moments, explicitly treating overlapping and nonoverlapping adjacent-change pairs. State a justified large-sample scope for standardizing R and distinguish the resulting normal-approximation p-value from an exact finite-sample test. Do not assume adjacent-change indicators are independent, import the target formulas without derivation, or treat simulation as proof. Author exactly one model-owned Python estimator, est_binary_runs_summary, with run_estimator(request) implementing the frozen closed ABI below. The reported z statistic uses the uncorrected finite-sample centering and scaling derived in Theory, and its two-sided p-value uses the standard-normal approximation without a continuity correction. Exploratory Python or R may check enumeration and moments. A separately frozen confirmatory assessment executes exactly 4000 fresh uniformly shuffled sequences for each public count design (n0,n1)=(20,20) and (15,35), compares run-count moments and standardized-statistic behavior with the derived quantities, and reports Monte Carlo uncertainty. That assessment is implementation evidence, not a proof of the exact moments or asymptotic approximation. Source-code replication, novelty, sequential testing, general goodness-of-fit theory, and Lean formalization are not applicable.",
+      "tags": [
+        "runs_test",
+        "random_permutations",
+        "finite_sample_moments",
+        "known_result",
+        "L0"
+      ],
+      "source": {
+        "primary_paper": {
+          "title": "On a Test Whether Two Samples are from the Same Population",
+          "authors": [
+            "A. Wald",
+            "J. Wolfowitz"
+          ],
+          "journal": "The Annals of Mathematical Statistics",
+          "year": 1940,
+          "volume": 11,
+          "pages": "147-162",
+          "stable_url": "https://www.jstor.org/stable/2235872"
+        }
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_binary_runs_summary",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sequence",
+            "name": "sequence",
+            "meaning": "One realized binary sequence whose run count is to be summarized conditionally on its observed zero and one counts.",
+            "json_type": "array[integer]",
+            "shape": "one finite array of length 4 through 10000 with at least two zeros and at least two ones",
+            "units": "binary labels",
+            "indexing": "the supplied order is the sequence order; entries are exact JSON integers 0 or 1",
+            "edge_cases": "Reject nonarrays, booleans, floating values, strings, values outside {0,1}, lengths outside 4 through 10000, and sequences with fewer than two observations of either label. Reject rather than coerce, clip, drop, or reorder entries.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n0",
+            "name": "n0",
+            "meaning": "The number of exact zero labels in sequence.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "observations",
+            "indexing": "not applicable",
+            "edge_cases": "At least two under every accepted request.",
+            "normalization": "sum(1 for x in sequence if x==0)."
+          },
+          {
+            "clause_id": "response.n1",
+            "name": "n1",
+            "meaning": "The number of exact one labels in sequence.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "observations",
+            "indexing": "not applicable",
+            "edge_cases": "At least two under every accepted request.",
+            "normalization": "sum(1 for x in sequence if x==1)."
+          },
+          {
+            "clause_id": "response.runs",
+            "name": "runs",
+            "meaning": "The number of maximal constant-label blocks in the supplied order.",
+            "json_type": "integer",
+            "shape": "scalar",
+            "units": "runs",
+            "indexing": "adjacent pairs are sequence[i-1],sequence[i] for i=1,...,n-1",
+            "edge_cases": "Includes the initial run, so it is one plus the adjacent-change count.",
+            "normalization": "1 + sum(sequence[i] != sequence[i-1] for i in 1,...,n-1)."
+          },
+          {
+            "clause_id": "response.mean_runs",
+            "name": "mean_runs",
+            "meaning": "The exact conditional-null expectation of runs for the observed n0 and n1.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "runs",
+            "indexing": "not applicable",
+            "edge_cases": "Finite for every accepted request.",
+            "normalization": "The exact formula derived in the authoritative Theory workspace under uniform ordering conditional on n0,n1."
+          },
+          {
+            "clause_id": "response.variance_runs",
+            "name": "variance_runs",
+            "meaning": "The exact conditional-null variance of runs for the observed n0 and n1.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "runs squared",
+            "indexing": "not applicable",
+            "edge_cases": "Strictly positive and finite for every accepted request.",
+            "normalization": "The exact formula derived in the authoritative Theory workspace under uniform ordering conditional on n0,n1."
+          },
+          {
+            "clause_id": "response.z_statistic",
+            "name": "z_statistic",
+            "meaning": "The uncorrected standardized run count using the exact finite-sample conditional mean and variance.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "standard deviations",
+            "indexing": "not applicable",
+            "edge_cases": "Finite for every accepted request; no continuity correction is applied.",
+            "normalization": "(runs-mean_runs)/sqrt(variance_runs)."
+          },
+          {
+            "clause_id": "response.two_sided_p_value",
+            "name": "two_sided_p_value",
+            "meaning": "The two-sided standard-normal approximation p-value for the uncorrected z statistic.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Finite and in [0,1]; it is approximate rather than an exact permutation-tail probability.",
+            "normalization": "2*Phi(-abs(z_statistic)), equivalently erfc(abs(z_statistic)/sqrt(2))."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly sequence and the response contains exactly n0,n1,runs,mean_runs,variance_runs,z_statistic,two_sided_p_value. Missing or extra fields and invalid values are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.complement",
+            "meaning": "Replacing every label x by 1-x swaps n0 and n1 but leaves runs, mean_runs, variance_runs, z_statistic, and two_sided_p_value unchanged."
+          },
+          {
+            "clause_id": "invariant.reversal",
+            "meaning": "Reversing sequence leaves the complete response unchanged."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating_scope",
+            "meaning": "Repeated calls on the same request return identical JSON values, do not mutate the request, and evaluate only the fixed-count binary runs summary specified here."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Before outcomes, freeze the two public fixed-count designs, one seed per design, exactly 4000 fresh uniform permutations per design, one accepted-estimator invocation per replicate, and all Monte Carlo decision rules."
+          },
+          {
+            "clause_id": "claim.empirical.moment_and_standardization_behavior",
+            "meaning": "For each public count design, compare empirical run-count mean and variance with the exact conditional quantities and assess the standardized statistic's mean, variance, and nominal 0.05 two-sided normal-approximation rejection frequency with Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory result concerns only uniformly shuffled fixed-count binary sequences at the two declared count designs. It does not prove the exact formulas, establish an exact finite-sample p-value, or cover dependent orderings, estimated cut points, other sample sizes, source replication, novelty, or formal correctness."
+          }
+        ]
+      }
+    }
+  ]
+}
