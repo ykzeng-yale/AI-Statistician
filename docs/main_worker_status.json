@@ -1,13 +1,13 @@
 {
-  "schema_version": 278,
+  "schema_version": 279,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "2e5edb5b",
+  "validated_code_head": "cca1001a",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all ninety-two consumed draws and immutable artifacts at trustworthy full-task credit 6/92 while exact development-panel Lean closure remains 0/2. Task 92's sole exact-Haiku theory draw failed 0/1 and remains immutable: the active Markdown/LaTeX derivation retained false reasoning, its second independent preflight falsely accepted it, and a partial metric-only Architect contract wrongly shadowed frozen theory-only intent. Close out the evidence and shared contract-merge correction without repairing, rerunning, rescoring, or model-escalating the consumed task.",
+  "current_goal_focus": "Preserve all ninety-two consumed draws and immutable artifacts at trustworthy full-task credit 6/92 while exact development-panel Lean closure remains 0/2. Shared mechanism cca1001a keeps one AgentRuntime and direct model-owned source loops, preserves frozen task intent, and makes the isolated theory referee audit exact active source instead of supplying a replacement proof. Freeze and calibrate one disjoint known-result theory task before its first exact-Haiku product call; never repair, rerun, rescore, or model-escalate Task 92.",
   "latest_efron_stein_variance_theory_l0_activation": {
     "task_id": "efron_stein_replacement_variance_theory_known_result",
     "family": "independent_coordinate_variance_inequality",
@@ -45,6 +45,7 @@
     "operator_math_audit": "The active document contains a correct later projection route but also leaves false active conditional-independence, sigma-field measurability, and projection arguments. This is a source-owner cleanup failure plus a false acceptance by the second isolated referee; it is not a JSON-authority problem and the generated document was not manually repaired.",
     "task_intent_routing": "NONCONFORMANT in the consumed draw: a partial model-authored metric evidence-contract fragment shadowed the frozen task-intent dimensions, causing one simulation proposal and seven sandbox executions for an empirical-not-applicable task before Architect blocked.",
     "shared_routing_correction": "At the existing architect plan boundary, explicit frozen task-intent contracts now merge over partial model-authored evidence-contract fragments while retaining additional plan fields. Focused deterministic regressions reproduce the exact live shape. This adds no agent, repair worker, fallback, retry, scheduler, theorem rule, or model escalation and gives Task 92 no retroactive credit.",
+    "future_task_referee_correction": "Protocol v41 keeps the existing isolated model-owned Markdown referee session but changes its role to exact-source audit. Independent derivation and scratch can test a written transition; they cannot supply a missing premise, lemma, or replacement proof and then justify ACCEPT. This future-task-only correction does not alter, reevaluate, or credit Task 92.",
     "formalizer_executed": false,
     "generated_simulation_sandbox_executions": 7,
     "runtime_manifest_sha256": "81fbd22860c0b28991b2e189d2f5ec5672f3411d9bf9d04fd39e9cc526ea436f",
@@ -100,19 +101,30 @@
   },
   "latest_openai_codex_harness_refresh": {
     "repository": "https://github.com/openai/codex",
-    "official_main_head": "0b45b171ca7141fd7723f16adb59cd8e7c1a74c3",
-    "previous_audited_head": "eec4a23cb16de16e0c8cff7c913eed943f223df7",
+    "official_main_head": "5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4",
+    "previous_audited_head": "0b45b171ca7141fd7723f16adb59cd8e7c1a74c3",
     "core_source_hashes": {
       "session_turn": "25330893e75ffacc1458c1bafb9f57616bc9d4dc40735f125a3b16e10fae31b0",
       "rollout_budget": "1f74195f58c6a8b42ce92bdb8112389fcfa3853db870e5a5a9ae3494aaf3efe0",
       "rollout_budget_context": "24cb86cff5a16f07f4770015042d7f2bad6fb9adbde767e58ac863a39e13df31",
       "history": "ae7b1c2ed19f9e3f8fca446b3ffbe922d28194136b841328e8a65d34db6ce3e9",
-      "multi_agents": "a773a32a2ab1b0646d979706850ca2c52742c526d2649cdc9d961cacc56797bd",
+      "session_review": "a48eb502dc55e8e212fc07207c46877825d1cd232cd539ad4404d4def9715865",
+      "review_task": "2e76876cd13186952631f91bcede11a866c48df7d0f7f78aa1f62636846a02b7",
+      "review_rubric": "ec60e7f36a1d1c2679ce095c0205ecc56f7dd8fb57707a13ef362072390f219f",
       "tool_router": "6f5b3e6fcc2473c85275e69d934faf3cb95b90e9c773a055944116d517986a90"
     },
-    "delta": "The eight commits after eec4a23 primarily cover code-mode telemetry, executor hooks, permissions, optional question handling, and model-catalog-sourced proactive multi-agent instructions. The retained model/tool/output loop, rollout-budget implementation, context history, and ToolRouter authority remain unchanged except for model-catalog plumbing in turn construction.",
-    "adoption_decision": "Continue reusing Codex invariants inside the existing provider-neutral client_tool_loop: one retained source owner, immutable request tool view, raw observations, explicit model-authored edits, content-addressed checkpoints, sparse ownership changes, and model-visible remaining capacity. Collaboration policy belongs in role prompts and current artifacts; it does not justify hardcoded scientific routing content.",
+    "delta": "Current Codex retains one model-tool-observation loop and model-visible rollout capacity. Its review task runs in an isolated one-shot session with web and collaboration disabled, approval set to never, and a rubric requiring discrete source-located findings without generating the fix. These are harness-role invariants, not statistical or mathematical semantics.",
+    "adoption_decision": "Continue reusing Codex invariants inside the existing provider-neutral client_tool_loop: one retained source owner, immutable request tool view, raw observations, explicit model-authored edits, content-addressed checkpoints, sparse ownership changes, model-visible remaining capacity, and an isolated source-grounded reviewer that never repairs the source. Collaboration policy belongs in role prompts and current artifacts; it does not justify hardcoded scientific routing content.",
     "non_adoption_boundary": "Do not embed Codex Core, App Server, Responses transport, OpenAI provider state, Guardian, thread/worktree storage, multi-agent scheduler, hooks, or Codex SDK into the Claude-first canonical runtime. Those product services would duplicate control and add no statistical semantics, Simulation authority, hidden evaluator authority, or Lean kernel authority."
+  },
+  "latest_theory_referee_source_audit_correction": {
+    "mechanism_commit": "cca1001ad31193224f76a7a3ae48b04aecf21457",
+    "protocol_version": 41,
+    "trigger": "Task 92's second isolated referee authored a 441-line substitute proof, supplied missing arguments, and used those reviewer-added arguments to false-accept active source containing conditional-independence, measurability, and projection errors.",
+    "change": "The same retained referee now audits decisive transitions as written, cites exact source ranges, and returns compact blockers. Independent calculation remains model-directed and can verify or falsify source, but cannot cure a source omission for ACCEPT.",
+    "codex_basis": "OpenAI Codex review is an isolated source review with discrete source-located findings and no generated fix. AI Statistician adopts that role boundary while retaining mathematical scratch, external-source inspection, hidden semantic evaluation, and Lean kernel authority.",
+    "excluded_changes": "No new agent, scheduler, schema, repair path, retry, fallback, parser, task-family rule, model escalation, imported Codex runtime, or consumed-task mutation.",
+    "verification": "Referee regressions passed 64/64; the focused size, source-fidelity, and ladder panel passed 68/68; the complete repository passed 1045/1045 in 80.45 seconds; compileall and diff hygiene passed. Production Python remains below the unchanged 150000-line limit."
   },
   "latest_codex_rollout_budget_adoption": {
     "mechanism_commit": "63b527e54d9b5e4df4ea63a19827c8e817e688ab",
