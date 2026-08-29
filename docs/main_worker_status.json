@@ -1,9 +1,9 @@
 {
-  "schema_version": 277,
+  "schema_version": 278,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "PENDING_CLOSEOUT_COMMIT",
+  "validated_code_head": "2e5edb5b",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -51,7 +51,7 @@
     "gold_evaluation_sha256": "39466d06b0760de5c57081f56905ff9c081375ac9eb0f514445eec63d4d57d93",
     "operator_audit": "docs/operator_audits/efron_stein_variance_theory_l0_v1.md",
     "verification": "Deterministic closeout passed 187/187; size-budget and task-intent regressions passed 5/5; full repository passed 1045/1045 in 80.29 seconds. Compileall, JSON, diff hygiene, secret scanning, and task/model-specific production-diff scanning passed without a model call or consumed-task rerun.",
-    "closeout_evidence_commit": "PENDING_CLOSEOUT_COMMIT",
+    "closeout_evidence_commit": "2e5edb5b7ba46eaf89dcff14347423981847450d",
     "trusted_capability_credit": "0/1; aggregate remains 6/92 consumed",
     "boundary": "The single exact-Haiku product invocation and single evaluator-only assessment are consumed and immutable. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden findings as runtime feedback, or model-escalate this task."
   },

@@ -6,7 +6,7 @@
 - Public source: Bradley Efron and Charles Stein, [The Jackknife Estimate of
   Variance](https://doi.org/10.1214/aos/1176345462), 1981
 - Frozen product code HEAD: `03ca4b52041d1f9281e357c20093289e744a38eb`
-- Closeout evidence commit: `PENDING_CLOSEOUT_COMMIT`
+- Closeout evidence commit: `2e5edb5b7ba46eaf89dcff14347423981847450d`
 - Run: `runs/main_worker_research_l0_efron_stein_variance_theory_20260829_v1_codex_direct_exact_haiku`
 - Product runtime status: `BLOCKED`
 - Frozen automated full-task result: `0/1`

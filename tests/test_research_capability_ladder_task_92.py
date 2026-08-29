@@ -140,6 +140,9 @@ def test_efron_stein_l0_theory_task_records_sole_consumed_failure() -> None:
     assert evidence["gold_evaluation_sha256"] == (
         "39466d06b0760de5c57081f56905ff9c081375ac9eb0f514445eec63d4d57d93"
     )
+    assert evidence["closeout_evidence_commit"] == (
+        "2e5edb5b7ba46eaf89dcff14347423981847450d"
+    )
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_activation"] == "6/91"
