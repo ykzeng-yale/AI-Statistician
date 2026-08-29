@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "normal_means_tweedie_formula_known_theory_rederivation",
+      "title": "Tweedie score identities in the Gaussian normal-means model",
+      "description": "Focused known-result theory rederivation grounded in Bradley Efron, Tweedie's Formula and Selection Bias, Journal of the American Statistical Association 106(496), 2011, pages 1602-1614, DOI 10.1198/jasa.2011.tm11181. Let Theta have an arbitrary probability distribution G on the real line, not necessarily a density, and conditionally on Theta=theta let Y be normal with mean theta and known variance sigma^2>0. Write phi_sigma for the N(0,sigma^2) density, f(y)=integral phi_sigma(y-theta) G(d theta) for the strictly positive marginal density of Y, and ell(y)=log f(y). In one authoritative Markdown/LaTeX theory workspace, justify the differentiations of the Gaussian convolution and derive from Bayes' rule rather than merely quote Tweedie's formula. First obtain the exact score identity E[Theta|Y=y]=y+sigma^2 ell'(y). Then differentiate again and derive the exact posterior-variance identity Var(Theta|Y=y)=sigma^2+sigma^4 ell''(y), keeping f''/f separate from ell'' and checking every sign and scale. State conditions under which the conditional moments and differentiations are valid for a general prior measure. Use a N(m,tau^2) prior with tau^2>=0 as a full sanity check: compute f, ell', and ell'', and recover both the usual conjugate posterior mean and posterior variance, including the degenerate tau^2=0 boundary. Under explicit integration-by-parts and finite-information conditions, derive the integrated Bayes-risk identity for the posterior mean, E[(Theta-E[Theta|Y])^2]=E[Var(Theta|Y)]=sigma^2-sigma^4 integral (f'(y)^2/f(y))dy, and explain why nonnegativity implies the corresponding marginal Fisher-information bound. Keep pointwise identities, integrated identities, and empirical-Bayes approximations distinct. Explain that replacing f, ell', or ell'' by estimates from many observations creates a plug-in empirical-Bayes procedure whose derivative estimation error and dependence or selection structure require separate analysis; it does not inherit an exact finite-sample Bayes-risk guarantee merely from the oracle identity. Do not assume the posterior is Gaussian for an arbitrary G, confuse posterior variance with posterior second moment, replace ell'' by f''/f, reverse the shrinkage-score sign, claim every estimated curvature produces a nonnegative variance, require G to have a Lebesgue density, claim the one-coordinate identity proves validity under arbitrary cross-coordinate dependence or selection, or claim minimaxity, frequentist coverage, code execution, simulation validation, Lean proof, source replication, or novelty. State imported results and unresolved regularity gaps honestly. This L3 task evaluates persistent mathematical derivation and independent review only; scientific code, empirical simulation, formalization, source replication, and novelty are not applicable.",
+      "tags": [
+        "empirical Bayes",
+        "Gaussian normal means",
+        "Tweedie formula",
+        "marginal score",
+        "posterior moments",
+        "Bayes risk",
+        "Fisher information",
+        "known result",
+        "theory only",
+        "L3"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Tweedie's Formula and Selection Bias",
+        "author": "Bradley Efron",
+        "journal": "Journal of the American Statistical Association",
+        "year": 2011,
+        "volume": 106,
+        "issue": 496,
+        "pages": "1602-1614",
+        "doi": "10.1198/jasa.2011.tm11181",
+        "url": "https://doi.org/10.1198/jasa.2011.tm11181",
+        "open_access_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3325056/"
+      }
+    }
+  ]
+}
