@@ -183,5 +183,5 @@ def test_statlib_qmd_l0_formal_task_records_sole_kernel_closed_draw() -> None:
     assert readiness["fully_gold_configured_tasks"] == 89
     assert readiness["fully_gold_passed_tasks"] == 5
     assert readiness["latest_shared_mechanism_head"] == (
-        "c3a754e2cde4a264b4f9b54f14b39a78fb1bf499"
+        "63b527e54d9b5e4df4ea63a19827c8e817e688ab"
     )

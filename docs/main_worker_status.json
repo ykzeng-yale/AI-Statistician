@@ -1,13 +1,21 @@
 {
-  "schema_version": 271,
+  "schema_version": 272,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "c3a754e2",
+  "validated_code_head": "63b527e5",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-nine consumed draws and immutable artifacts at trustworthy full-task credit 5/89 while exact development-panel Lean closure remains 0/2. Task 89 used the intended theory-free Codex-shaped route but exhausted a 24-turn Algorithm source session on public-source retrieval before authoring any code. It is permanently 0/1 and cannot be rerun. Commit c3a754e2 extends the existing retained Theory, Python/R, Simulation, and Lean sessions for future unrelated tasks and makes the single-session Scientific/Lean allowance model-visible. Continue improving model-owned long-horizon workspaces and hidden-gold evaluation without adding content rules, repair layers, retries, fallback schedulers, Sonnet evaluation calls, or Opus calls.",
+  "current_goal_focus": "Preserve all eighty-nine consumed draws and immutable artifacts at trustworthy full-task credit 5/89 while exact development-panel Lean closure remains 0/2. Task 89 is permanently 0/1 and cannot be rerun. Commits c3a754e2 and 63b527e5 give future Theory, Python/R, Simulation, and Lean source owners longer retained sessions plus sparse model-visible remaining-capacity reminders without adding calls. The next disjoint benchmark must be independently justified and frozen before activation; continue improving long-horizon model-owned research and hidden-gold evaluation without content rules, repair layers, retries, fallback schedulers, Sonnet evaluation calls, or Opus calls.",
+  "latest_codex_rollout_budget_adoption": {
+    "mechanism_commit": "63b527e54d9b5e4df4ea63a19827c8e817e688ab",
+    "official_codex_reference_head": "eec4a23cb16de16e0c8cff7c913eed943f223df7",
+    "change": "The shared provider-neutral client_tool_loop emits a short rollout_budget context only when ordinary turns fall to one-half, one-quarter, or approximately one-tenth of the segment. It reports both remaining turns and remaining ordinary workspace-action calls. It consumes no model turn and does not modify any raw tool-result payload.",
+    "transport_boundary": "Initial total capacity remains in each source workspace's own prompt because existing user-message ABIs may require JSON at the beginning or end. A generic initial-message wrapper was tested and rejected after it broke those real contracts. Threshold reminders are separate text blocks after complete tool_result blocks, which preserves Python/R, Theory preflight, metric, and Lean payload identity.",
+    "authority_boundary": "Budget context is scheduling information, not scientific evidence. It chooses no search, edit, theorem, statistic, simulation, proof action, owner, or stopping verdict. Terminal continuation, independent review, hidden-gold authority, and Lean kernel promotion are unchanged.",
+    "verification": "Focused cross-workspace and core panels passed 236/236; the final complete repository passed 1041/1041 in 80.85 seconds. Compileall, diff hygiene, changed-diff secret scanning, and the strict production-size gate passed at 149999 top-level Python lines. No product or evaluator model call and no consumed-task mutation occurred."
+  },
   "latest_poisson_loglinear_irls_l0_evaluation": {
     "task_id": "poisson_loglinear_irls_known_implementation",
     "family": "poisson_loglinear_glm_irls",

@@ -4084,3 +4084,28 @@ secret scanning, the five pinned official Codex source hashes, all thirteen
 immutable Task 89 top-level artifact hashes, and the retained Algorithm transcript
 hash passed. `research_agent_runtime.py` is 24,988 lines and top-level production
 Python is 149,997 lines. No post-run product or evaluator model call occurred.
+
+### Sparse remaining-capacity reminders
+
+Commit `63b527e54d9b5e4df4ea63a19827c8e817e688ab` adopts the remaining useful
+piece of Codex's rollout-budget behavior. The shared `client_tool_loop` now adds a
+short `<rollout_budget>` text block when an ordinary retained segment reaches
+one-half, one-quarter, and approximately one-tenth of its turns. The message gives
+the model both remaining ordinary turns and ordinary workspace-action calls. It is
+inserted beside complete raw tool results, so it consumes no extra model call and
+does not alter the result payload.
+
+The initial total remains in each source workspace's own prompt. A generic initial
+user-message wrapper was deliberately rejected during regression: some existing
+workspace contracts require JSON at the beginning of the message and others require
+JSON at the end. Pretending that the Anthropic transport had Codex's separate
+developer-context item would have broken those real ABIs. Sparse post-tool reminders
+are the provider-neutral boundary that preserves Theory preflight, metric, Python/R,
+and Lean message identity.
+
+This context is scheduling information, never scientific evidence. It chooses no
+query, edit, statistic, theorem, simulation, proof action, owner, or verdict. The
+focused cross-workspace and core panels passed `236/236`; the complete repository
+passed `1041/1041` in 80.85 seconds. Compileall, diff hygiene, changed-diff secret
+scanning, and the strict architecture gate passed at 149,999 production Python
+lines. No product or evaluator model call and no consumed-task mutation occurred.
