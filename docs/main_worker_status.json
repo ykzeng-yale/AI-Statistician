@@ -1,5 +1,5 @@
 {
-  "schema_version": 293,
+  "schema_version": 294,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,20 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all ninety-seven consumed draws and immutable artifacts at trustworthy full-task credit 7/97 while exact development-panel Lean closure remains 0/2. Task97 mechanically validates the minimal Codex-style source-owner loop but remains 0/1 because its model-authored report contains material interpretation errors and the protocol-v10 single-pass semantic evaluator false-accepted them. Keep the real R execution as component evidence, never repair or rescore the task, and validate same-owner artifact self-audit plus protocol-v11 adversarial evaluation only on future disjoint frozen work.",
+  "current_goal_focus": "Preserve all ninety-seven consumed draws and immutable artifacts at trustworthy full-task credit 7/97 while exact development-panel Lean closure remains 0/2. Retire remaining recursive compatibility payloads from the central AgentRuntime before adding outer features, then pre-freeze a disjoint integrated Theory, code, and empirical task that tests an underrepresented capability. Keep Task97's R execution as component evidence, never repair or rescore it, and use protocol-v11 adversarial evaluation only on future qualified work.",
+  "latest_algorithm_handoff_payload_copy_retirement": {
+    "mechanism_commit": "PENDING_HANDOFF_CLEANUP_COMMIT",
+    "trigger": "Canonical Algorithm review already persisted one external exact-artifact materialization and AgentRuntime compacted the accepted handoff to RuntimeArtifactRef, but validation still accepted a legacy materialization containing the complete review_material and could recover the handoff implicitly from copied Architect context.",
+    "change": "Simulation handoff validation now accepts only an explicit task-owned handoff bound to RuntimeGeneratedCodeSemanticReviewMaterialization with full_review_material_persisted=false, no nested review_material, exact source/result hashes, matching packet, execution, materialization, theory, question, and sandbox identities.",
+    "removed_surfaces": [
+      "legacy nested review_material artifact recovery",
+      "implicit architect_context upstream handoff fallback",
+      "unbound materialization identity acceptance"
+    ],
+    "regression_evidence": "Canonical, context-only, legacy-payload, Simulation projection, compile, JSON, diff, secret, and unchanged size-gate checks passed; the complete repository passed 1059/1059 in 81.00 seconds with production Python at 149,977 lines.",
+    "model_calls": 0,
+    "capability_boundary": "This is central transport and provenance evidence only. It does not improve mathematical derivation, implementation semantics, simulation validity, or Lean proof capability, and it changes no consumed score."
+  },
   "latest_betareg_jss_r_source_replication_evaluation": {
     "task_id": "betareg_jss_2010_r_public_replication",
     "family": "beta_regression_r_source_replication",

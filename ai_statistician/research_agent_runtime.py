@@ -2197,23 +2197,13 @@ def _runtime_retire_resolved_generated_code_semantic_review_replan(
 
 def _runtime_validated_algorithm_handoff(
     *,
-    architect_context: Mapping[str, Any],
     blackboard: BlackboardState,
     question_id: str,
     theory_packet_id: str,
     algorithm_sandbox_manifest_id: str,
-    task: AgentTask | None = None,
-    upstream_algorithm_handoff: Mapping[str, Any] | None = None,
+    task: AgentTask,
 ) -> dict[str, Any]:
-    if upstream_algorithm_handoff is not None:
-        raw: Any = upstream_algorithm_handoff
-    elif task is not None:
-        raw = task.inputs.get(
-            "upstream_algorithm_handoff",
-            architect_context.get("upstream_algorithm_handoff", {}),
-        )
-    else:
-        raw = architect_context.get("upstream_algorithm_handoff", {})
+    raw: Any = task.inputs.get("upstream_algorithm_handoff", {})
     handoff = dict(raw) if isinstance(raw, Mapping) else {}
     manifest = blackboard.artifacts.get(algorithm_sandbox_manifest_id, {})
     execution = blackboard.artifacts.get(
@@ -2225,24 +2215,11 @@ def _runtime_validated_algorithm_handoff(
     materialization = blackboard.artifacts.get(
         str(handoff.get("materialization_id", "") or ""), {}
     )
-    legacy_review_material = (
-        materialization.get("review_material", {})
-        if isinstance(materialization, Mapping)
-        else {}
-    )
     expected_artifacts = (
         _runtime_materialized_exact_algorithm_artifacts(materialization)
         if isinstance(materialization, Mapping)
         else []
     )
-    if (
-        not expected_artifacts
-        and isinstance(legacy_review_material, Mapping)
-        and legacy_review_material
-    ):
-        expected_artifacts = _runtime_exact_algorithm_artifacts(
-            legacy_review_material
-        )
     review_input_fingerprint = str(
         materialization.get("review_input_fingerprint", "") or ""
     )
@@ -2251,10 +2228,6 @@ def _runtime_validated_algorithm_handoff(
         and review_input_fingerprint
         == execution.get("review_input_fingerprint")
         == packet.get("review_input_fingerprint")
-        and (
-            not legacy_review_material
-            or review_input_fingerprint == stable_hash(legacy_review_material)
-        )
     )
     if not (
         handoff
@@ -2262,6 +2235,10 @@ def _runtime_validated_algorithm_handoff(
         and isinstance(execution, Mapping)
         and isinstance(packet, Mapping)
         and isinstance(materialization, Mapping)
+        and materialization.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewMaterialization"
+        and materialization.get("full_review_material_persisted") is False
+        and "review_material" not in materialization
         and handoff.get("question_id") == question_id
         and handoff.get("theory_packet_id") == theory_packet_id
         and handoff.get("algorithm_sandbox_manifest_id")
@@ -2276,7 +2253,10 @@ def _runtime_validated_algorithm_handoff(
         and execution.get("source_manifest_id") == algorithm_sandbox_manifest_id
         and execution.get("source_manifest_hash") == stable_hash(manifest)
         and execution.get("review_packet_hash") == stable_hash(packet)
+        and execution.get("materialization_id")
+        == handoff.get("materialization_id")
         and execution.get("materialization_hash") == stable_hash(materialization)
+        and handoff.get("materialization_hash") == stable_hash(materialization)
         and packet.get("overall_verdict") == "ACCEPT"
         and review_input_identity_valid
         and handoff.get("exact_algorithm_artifacts") == algorithm_handoff_artifacts(expected_artifacts)
@@ -9033,7 +9013,6 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         upstream_algorithm_handoff = _runtime_validated_algorithm_handoff(
             task=task,
-            architect_context=context,
             blackboard=blackboard,
             question_id=question.id,
             theory_packet_id=packet_id,

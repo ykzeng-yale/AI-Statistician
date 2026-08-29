@@ -30,7 +30,20 @@ completion discipline inside the existing source-owner prompt plus an optional
 second evaluator-only adversarial pass. It is not another product worker or
 control plane.
 
+The post-Task-97 central cleanup removes one remaining exception to sparse
+collaboration. Algorithm-to-Simulation validation previously recovered exact
+artifacts from a legacy materialization that recursively embedded the complete
+semantic-review input, and it could discover a handoff only inside copied
+Architect context. The canonical path already stores a standalone review
+materialization plus a `RuntimeArtifactRef`; validation now requires that exact
+task-owned path and rejects nested `review_material`. This deletes compatibility
+logic rather than adding another interface, agent, retry, or scheduler.
+
 Latest selective-adoption implementation commits:
+
+- `PENDING_HANDOFF_CLEANUP_COMMIT`: require an explicit task-owned accepted
+  Algorithm handoff backed by the canonical external review materialization;
+  reject nested legacy review payloads and implicit Architect-context recovery;
 
 - `85e2bba8`: let an explicitly theory-inapplicable code/empirical task start
   the existing retained Algorithm source session from its operator-frozen
