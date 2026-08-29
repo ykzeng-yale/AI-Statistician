@@ -22,6 +22,7 @@ VISIBLE_PATH = Path(
 SOURCE_MANIFEST = Path(
     "benchmarks/research_sources/gaussian_mixture_em_20260829/source_manifest.json"
 )
+ACTIVATION_COMMIT = "16afb75ce8c33fed544972269bd3285a78d2ac96"
 
 
 def test_gaussian_mixture_em_l0_activation_is_frozen_before_product() -> None:
@@ -68,6 +69,8 @@ def test_gaussian_mixture_em_l0_activation_is_frozen_before_product() -> None:
     assert evidence["activation_semantic_qualification_reused"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_ledger_commit"] == ACTIVATION_COMMIT
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 34
     assert evidence["first_runtime_model_call_occurred"] is False
