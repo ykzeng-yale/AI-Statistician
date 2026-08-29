@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "tied_down_cusum_brownian_bridge_known_theory_rederivation",
+  "benchmark_id": "research-l3-cusum-brownian-bridge-theory-20260829-v1",
+  "level": "L3",
+  "family": "iid_location_change_functional_cusum",
+  "status": "frozen_qualified_pre_first_product_call",
+  "preselection_code_head": "5a68916ee776aad865d86ad9b745bc8422b884f9",
+  "harness_mechanism_commit": "8c0dd57d25b8b18818e0ca0c5a81c2e3315291da",
+  "visible_question_commit": "f4dfbe4bb9378cb4809b56ed75e5786e7bb3fd09",
+  "visible_questions_path": "benchmarks/research_l3_cusum_brownian_bridge_questions_20260829.json",
+  "visible_questions_sha256": "5e0193cd832ede52381e6f166088359f3fcb9ddb99296a282d26b89a8e11e5a6",
+  "visible_question_full_hash": "704b29f8bec5aadc923b76ebdb14d7a31d9895d3f0a5a9db94d5e541b916161f",
+  "runtime_visible_question_hash": "f8fe73bb18572bf348286ec22b03c8e7bc61f96f2261c7090c1005e093111b4d",
+  "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+  "gold_manifest_sha256": "a334ecce8fa0f259421e8a4bc7c3f36d202f91d3efaaff511d33a2ccbf9b759b",
+  "gold_manifest_stable_hash": "2d6fc3a2c17c1f71e6e2b4089515725bd218246bfddbfc977a704c4eef44d338",
+  "hidden_artifact_sha256": {
+    "candidate_mode_near_miss.md": "de3ada74e9ea66cf746723e41178fd7ba2097246758606638bc63dc7656682cf",
+    "candidate_mode_negative_cases.json": "12d9f406db494baa7a3cb9609bb49611dba8aab1eb9bb250df881b27a3143a78",
+    "hidden_theory_harness.py": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+    "semantic_activation_attempt_1_protocol_v11.json": "97e8d29eae5a22c586bfd821c0b26028ed06bc1f9918a9be90187736917ee595",
+    "semantic_calibration_cases.json": "369e9cfc081935d75b5bbf653e697dd55c449e3509018bf86b8ee1d70c95d320",
+    "semantic_reference.md": "255bbc497a89b02f18f5f4bbe10fecfee2a33714dd2d2012ebfce58babf0bb07",
+    "semantic_rubric.json": "9dab3e117b1af1a3655624ae9790cdea474e4b4eeb6f6276b7b991a9e3ab195d",
+    "theory_authority_calibration.json": "909621ca767117f5f825fe9f8c7516341db0b6e47d42d619f231bd246b4aaae0"
+  },
+  "mechanical_qualification": {
+    "reference_checks_passed": "7/7",
+    "negative_variants_rejected": "7/7"
+  },
+  "semantic_qualification": {
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "attempts": 1,
+    "model": "claude-haiku-4-5-20251001",
+    "model_tier": "haiku",
+    "model_calls": 16,
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "8/8",
+    "judgment_hash": "28b0c2f449c99e5933600414f90b3ce123984b94081afa64cc47865040d262a9"
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 16,
+  "formalization_requirement": "not_applicable",
+  "hidden_behavior_entailment_audit": "Every hidden claim is an explicit dependency or exclusion in the visible request: exact tie-down and floor algebra, null functional limit, bridge covariance and supremum mapping, consistent studentization, exact local drift and sign, drifted-bridge limit, fixed-change rate, and scope boundaries. No hidden code, simulation, Lean, source replication, novelty, optimality, or localization requirement is introduced.",
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "sonnet_allowed": false,
+    "opus_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "resume_or_rerun_allowed": false
+  },
+  "boundary": "This ledger exposes only hashes, counts, model identity, source identity, and task scope. Hidden reference mathematics, rubric, calibration cases, near miss, labels, model responses, and judgments remain evaluator-only. They cannot enter prompts, RAG, runtime feedback, revision, retry, routing, or proof evidence. No product call has occurred."
+}
