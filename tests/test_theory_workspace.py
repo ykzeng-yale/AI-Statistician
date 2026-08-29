@@ -2287,6 +2287,105 @@ def test_document_authority_supports_local_edit_without_forced_reread(
     assert "ordered atomic batch" in prompt
 
 
+def test_read_only_context_document_uses_file_tools_and_stays_out_of_theory(
+    tmp_path,
+) -> None:
+    parent = "# Claim C1\n\nFor all n, $a_n = b_n$.\n"
+    revised = "# Claim C1\n\nFor every admitted n, $a_n = b_n$.\n"
+    report = "# Referee report\n\nThe quantifier in Claim C1 is too broad.\n"
+    parent_sha256 = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+    report_sha256 = hashlib.sha256(report.encode("utf-8")).hexdigest()
+    report_path = "feedback/current_referee_report.md"
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-referee-report",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={
+                        "path": report_path,
+                        "line_start": 1,
+                        "line_end": 3,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="attempt-referee-edit",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": report_path,
+                        "expected_sha256": report_sha256,
+                        "edits": [
+                            {
+                                "old_text": "too broad",
+                                "new_text": "already resolved",
+                            }
+                        ],
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-authoritative-theory",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "expected_sha256": parent_sha256,
+                        "edits": [
+                            {
+                                "old_text": "For all n, $a_n = b_n$.",
+                                "new_text": (
+                                    "For every admitted n, $a_n = b_n$."
+                                ),
+                            }
+                        ],
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        initial_artifacts={
+            "problem_card": {"claim": "revised claim"},
+            "lemma_cards": [{"id": "C1"}],
+        },
+        initial_documents={"derivations/C1.md": parent},
+        read_only_documents={report_path: report},
+        max_turns=4,
+        build_candidate=lambda artifacts, changed, manifest, changed_documents: {
+            "artifacts": dict(artifacts),
+            "changed": list(changed),
+            "theory_workspace_manifest": dict(manifest),
+            "changed_documents": list(changed_documents),
+        },
+    )
+
+    first_prompt = str(backend.requests[0].messages[0]["content"])
+    assert "read_only_context_documents" in first_prompt
+    assert report_path in first_prompt
+    assert '"writable":false' in first_prompt
+    read_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert read_observation["content"] == report.rstrip()
+    assert read_observation["document_sha256"] == report_sha256
+    assert "is read-only" in str(backend.requests[2].messages[-1])
+    assert load_theory_workspace_documents(result.core_packet) == {
+        "derivations/C1.md": revised
+    }
+    assert not (tmp_path / "theory" / report_path).exists()
+    assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
+    assert backend.requests[0].metadata["read_only_document_set_hash"] == stable_hash(
+        [(report_path, report_sha256)]
+    )
+
+
 def test_same_owner_continuation_can_commit_without_forced_document_reread(
     tmp_path,
 ) -> None:

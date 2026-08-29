@@ -414,6 +414,7 @@ def run_theory_artifact_workspace(
     initial_artifacts: Mapping[str, Any],
     initial_documents: Mapping[str, str] | None = None,
     read_only_artifacts: Mapping[str, Any] | None = None,
+    read_only_documents: Mapping[str, str] | None = None,
     build_candidate: TheoryWorkspaceCandidateBuilder,
     validate_candidate: TheoryWorkspaceCandidateValidator,
     request_metadata: Mapping[str, Any] | None = None,
@@ -491,6 +492,15 @@ def run_theory_artifact_workspace(
     if not parent:
         raise ValueError("theory workspace requires initial artifacts")
     parent_documents = _normalized_theory_documents(initial_documents or {})
+    context_documents = _normalized_theory_documents(read_only_documents or {})
+    overlapping_document_paths = sorted(
+        set(parent_documents).intersection(context_documents)
+    )
+    if overlapping_document_paths:
+        raise ValueError(
+            "theory workspace read-only documents overlap writable documents: "
+            + ", ".join(overlapping_document_paths)
+        )
     if require_document_authority and workspace_dir is None:
         prior_session_root = str(
             (prior_client_tool_session_ref or {}).get("root_path", "") or ""
@@ -664,6 +674,9 @@ def run_theory_artifact_workspace(
         if name in read_only:
             return read_only[name]
         return state["artifacts"][name]
+
+    def readable_documents() -> dict[str, str]:
+        return {**state["documents"], **context_documents}
 
     def evaluate_model_write(
         candidate_artifacts: Mapping[str, Any],
@@ -867,8 +880,9 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "theory workspace document paths must be unique"
                 )
+            current_readable_documents = readable_documents()
             unknown_documents = sorted(
-                set(document_paths) - set(state["documents"])
+                set(document_paths) - set(current_readable_documents)
             )
             if unknown_documents:
                 raise ClientToolInputError(
@@ -876,7 +890,7 @@ def run_theory_artifact_workspace(
                     + ", ".join(unknown_documents)
                 )
             selected_documents = {
-                path: state["documents"][path] for path in document_paths
+                path: current_readable_documents[path] for path in document_paths
             }
             if len(_compact_json(selected)) + sum(
                 len(value) for value in selected_documents.values()
@@ -935,7 +949,7 @@ def run_theory_artifact_workspace(
             THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         }:
             observation, inspection_ref = execute_theory_document_client_tool(
-                state["documents"], tool_name=call.name, tool_input=tool_input
+                readable_documents(), tool_name=call.name, tool_input=tool_input
             )
             state["document_inspection_refs"].append(inspection_ref)
             state["reads"] += 1
@@ -1190,6 +1204,13 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "write_theory_document is unavailable"
                 )
+            requested_path = _normalized_theory_document_path(
+                tool_input.get("path", "")
+            )
+            if requested_path in context_documents:
+                raise ClientToolInputError(
+                    f"theory workspace document {requested_path!r} is read-only"
+                )
             candidate_documents, document_write_record = (
                 _replace_theory_workspace_document(
                     state["documents"],
@@ -1231,6 +1252,13 @@ def run_theory_artifact_workspace(
             if not require_document_authority:
                 raise ClientToolInputError(
                     "localized theory document editing is unavailable"
+                )
+            requested_path = _normalized_theory_document_path(
+                tool_input.get("path", "")
+            )
+            if requested_path in context_documents:
+                raise ClientToolInputError(
+                    f"theory workspace document {requested_path!r} is read-only"
                 )
             candidate_documents, edit_record = (
                 _edit_theory_workspace_document(
@@ -1713,8 +1741,19 @@ def run_theory_artifact_workspace(
             "line_count": len(
                 state["documents"][row["relative_path"]].splitlines()
             ),
+            "writable": True,
         }
         for row in document_manifest(state["documents"]).get("documents", [])
+    }
+    context_document_catalog = {
+        path: {
+            "media_type": _theory_document_media_type(path),
+            "sha256": _text_sha256(content),
+            "byte_size": len(content.encode("utf-8")),
+            "line_count": len(content.splitlines()),
+            "writable": False,
+        }
+        for path, content in sorted(context_documents.items())
     }
     write_guidance = (
         (
@@ -1870,6 +1909,15 @@ def run_theory_artifact_workspace(
                             "mathematical_documents": document_catalog,
                             **(
                                 {
+                                    "read_only_context_documents": (
+                                        context_document_catalog
+                                    )
+                                }
+                                if context_document_catalog
+                                else {}
+                            ),
+                            **(
+                                {
                                     "research_source_snapshot": (
                                         research_sources.descriptor()
                                     )
@@ -1906,6 +1954,13 @@ def run_theory_artifact_workspace(
                         }
                     )
                     + "\n\nRead the artifacts needed for mathematical judgment. "
+                    + (
+                        "Read-only context documents use the same document read and "
+                        "search tools; they are observations, not editable or "
+                        "authoritative mathematics. "
+                        if context_document_catalog
+                        else ""
+                    )
                     + source_discovery_guidance
                     + source_guidance
                     + source_execution_guidance
@@ -1977,6 +2032,12 @@ def run_theory_artifact_workspace(
             ),
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "parent_workspace_hash": parent_hash,
+            "read_only_document_set_hash": stable_hash(
+                [
+                    (path, _text_sha256(content))
+                    for path, content in sorted(context_documents.items())
+                ]
+            ),
         },
     )
     resumed_client_tool_session_ref: dict[str, Any] = {}

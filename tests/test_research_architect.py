@@ -991,6 +991,7 @@ def _metric_theory_revision_context(
     *,
     question: OpenResearchQuestion,
     parent: dict[str, object],
+    review_document_ref: dict[str, object] | None = None,
 ) -> dict[str, object]:
     source_packet_id = "theory_derivation:targeted-revision-parent"
     parent_artifact = {
@@ -1036,6 +1037,8 @@ def _metric_theory_revision_context(
         ],
         "acceptance_gate": "Fresh theory must pass independent metric review.",
     }
+    if review_document_ref:
+        feedback["review_document_ref"] = dict(review_document_ref)
     binding = build_theory_developer_revision_binding(
         revision_source="metric_protocol_preexecution_review",
         question_id=question.id,
@@ -1329,7 +1332,7 @@ def test_runtime_formal_contract_cannot_be_lowered_by_architect_plan() -> None:
 
     assert payload["required_output_contract"]["formalization_requests"]
     assert payload["authoring_policy"]["formalization_authoring_required"] is True
-    assert "formalization handoff" in prompt
+    assert "Formalization requests must name an existing theorem-card ID" in prompt
 
 
 def test_theory_validation_preserves_an_unresolved_sanity_check_for_review() -> None:
@@ -1773,28 +1776,19 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
     assert "initial_authoring_context" in initial_prompt
-    assert "scratchpad result is an exploratory diagnostic" in initial_prompt
-    assert "pre-outcome-frozen simulation lane" in initial_prompt
-    assert "The Simulation owner, not the theory document" in initial_prompt
-    assert "empirical prediction, estimand, identifiability assumption" in (
-        initial_prompt
-    )
-    assert "a case split must exhaust the asserted domain" in initial_prompt
-    assert "derivation establishes only a strict subdomain" in initial_prompt
-    assert "Use write_theory_document(path, content)" in initial_prompt
-    assert "write_theory_workspace only for compact structured handoff" in (
-        initial_prompt
-    )
-    assert "separate the argument you currently endorse from exploration" in (
-        initial_prompt
-    )
+    assert "Scratch calculations are exploratory observations only" in initial_prompt
+    assert "The Simulation owner controls executable confirmatory" in initial_prompt
+    assert "A case split must exhaust the asserted domain" in initial_prompt
+    assert "Use write_theory_document for a complete text file" in initial_prompt
+    assert "JSON is only a compact claim index, ABI" in initial_prompt
+    assert "remove or clearly reject false exploration" in initial_prompt
     assert "one atomic call" not in initial_prompt
     assert (
         "one shared budget of at most "
         f"{developer.config.theory_workspace_max_tool_calls} ordinary tool calls"
-        in initial_prompt
+        in initial_prompt.lower()
     )
-    assert "there is no separate read or write quota" in initial_prompt
+    assert "with no separate read or write quota" in initial_prompt
     assert question.description in str(provider.tool_requests[1].messages)
     assert "desired_theorem_type" in str(
         provider.tool_requests[1].messages
@@ -2375,6 +2369,17 @@ def test_theory_revision_reads_hash_bound_referee_markdown(tmp_path: Path) -> No
     path = tmp_path / "review.md"
     path.write_text(content, encoding="utf-8")
     feedback = {
+        "findings": [
+            {
+                "finding_id": "finding:scaling",
+                "severity": "high",
+                "category": "asymptotic scaling",
+                "summary": "The old summary must not replace the exact report.",
+                "observed_behavior": "The current rate is inconsistent.",
+                "expected_behavior": "Re-derive the rate from the assumptions.",
+                "evidence_refs": ["theory.document:derivation.md"],
+            }
+        ],
         "review_document_ref": {
             "path": str(path),
             "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
@@ -2387,10 +2392,21 @@ def test_theory_revision_reads_hash_bound_referee_markdown(tmp_path: Path) -> No
         {"feedback": feedback}
     )
 
-    assert observed["review_document_markdown"] == content
+    report_path = next(iter(observed["read_only_documents"]))
+    assert observed["read_only_documents"][report_path] == content
     model_ref = observed["reviewer_observations"]["review_document_ref"]
-    assert model_ref["workspace_artifact"] == "review_document_markdown"
+    assert model_ref["workspace_document_path"] == report_path
+    assert model_ref["line_count"] == 3
     assert "path" not in model_ref
+    assert "findings" not in observed["reviewer_observations"]
+    assert observed["reviewer_observations"]["finding_index"] == [
+        {
+            "finding_id": "finding:scaling",
+            "severity": "high",
+            "category": "asymptotic scaling",
+            "evidence_refs": ["theory.document:derivation.md"],
+        }
+    ]
     path.write_text("tampered", encoding="utf-8")
     with pytest.raises(ValueError, match="stale theory review document reference"):
         research_architect_module._theory_workspace_read_only_observations(
@@ -2408,7 +2424,23 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         title="Theory artifact workspace",
         description="Use one model-owned theory workspace revision.",
     )
-    context = _metric_theory_revision_context(question=question, parent=parent)
+    review_content = (
+        "# Independent referee report\n\n"
+        "REPORT_ONLY: inspect the exact current referee document.\n"
+        "The bounded-outcome premise is not explicit.\n"
+    )
+    review_path = tmp_path / "review.md"
+    review_path.write_text(review_content, encoding="utf-8")
+    context = _metric_theory_revision_context(
+        question=question,
+        parent=parent,
+        review_document_ref={
+            "path": str(review_path),
+            "sha256": hashlib.sha256(review_content.encode("utf-8")).hexdigest(),
+            "byte_size": len(review_content.encode("utf-8")),
+            "persisted": True,
+        },
+    )
     revision_inputs = build_theory_developer_revision_inputs(
         context,
         question=question,
@@ -2445,14 +2477,33 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         tool_responses=[
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="read-lemmas",
+                    call_id="read-reviewer-index",
                     name="read_theory_workspace",
+                    input={"artifact_names": ["reviewer_observations"]},
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-exact-referee-report",
+                    name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
                     input={
-                        "artifact_names": [
-                            "reviewer_observations",
-                            "lemma_cards",
-                        ]
+                        "path": (
+                            "feedback/current_referee_report-"
+                            + hashlib.sha256(
+                                review_content.encode("utf-8")
+                            ).hexdigest()[:20]
+                            + ".md"
+                        ),
+                        "line_start": 1,
+                        "line_end": 4,
                     },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="read-parent-lemmas",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["lemma_cards"]},
                 )
             ),
             _theory_tool_response(
@@ -2577,7 +2628,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert packet["lemma_cards"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
-    assert len(first_provider.tool_requests) == 3
+    assert len(first_provider.tool_requests) == 5
     assert len(second_provider.tool_requests) == 5
     assert first_provider.generator_requests == []
     assert second_provider.generator_requests == []
@@ -2602,14 +2653,19 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     first_prompt = str(first_tool_request.messages[0]["content"])
     assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt
     assert "Authoritative theory workspace catalog" in first_prompt
-    assert "First read reviewer_observations by itself" in first_prompt
-    assert "critic finding, or next action does not override" in first_prompt
-    assert "failed status or nonempty errors is diagnostic only" in first_prompt
+    assert "First read the reviewer_observations index by itself" in first_prompt
+    assert "read_only_context_documents" in first_prompt
+    assert "current_review_document" in first_prompt
+    assert "REPORT_ONLY" not in first_prompt
+    assert "REPORT_ONLY" not in str(first_provider.tool_requests[1].messages)
+    assert "REPORT_ONLY" in str(first_provider.tool_requests[2].messages)
+    assert "Propagate a chosen correction" in first_prompt
+    assert "Scratch observations are exploratory" in first_prompt
     assert revised_core["lemma_cards"][0]["id"] in str(
-        first_provider.tool_requests[1].messages
+        first_provider.tool_requests[3].messages
     )
     assert "The bounded-outcome premise is not explicit." in str(
-        first_provider.tool_requests[1].messages
+        first_provider.tool_requests[2].messages
     )
     continuation_prompt = str(
         [
@@ -2654,7 +2710,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     workspace_evidence = packet["llm_client_tool_loop"]
     assert workspace_evidence["model_owned_theory"] is True
     assert workspace_evidence["runtime_edited_theory"] is False
-    assert workspace_evidence["reads"] == 4
+    assert workspace_evidence["reads"] == 6
     assert workspace_evidence["submissions"] == 2
     assert workspace_evidence["n_model_document_writes"] == 1
     assert workspace_evidence["cumulative_tool_state_restored"] is True
@@ -2810,7 +2866,7 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     revision_instructions = " ".join(prompt_payload["instructions"])
     assert "write_theory_document" in revision_instructions
     assert "edit_theory_document" in revision_instructions
-    assert "write_theory_workspace only for compact structured handoff" in (
+    assert "write_theory_workspace only for compact handoffs" in (
         revision_instructions
     )
 

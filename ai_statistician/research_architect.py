@@ -2554,14 +2554,25 @@ def _theory_workspace_read_only_observations(
     reviewer_observations = deepcopy(dict(reviewer_observations))
     report_ref = reviewer_observations.get("review_document_ref", {})
     report_content = ""
+    report_document_path = ""
     if isinstance(report_ref, Mapping) and report_ref:
         report_content, errors = read_hash_bound_utf8_file(report_ref)
         if report_ref.get("persisted") is not True or errors:
             raise ValueError("stale theory review document reference: " + ",".join(errors))
+        report_sha256 = str(report_ref.get("sha256", "") or "")
+        report_document_path = f"feedback/current_referee_report-{report_sha256[:20]}.md"
         model_ref = deepcopy(dict(report_ref))
         model_ref.pop("path", None)
-        model_ref["workspace_artifact"] = "review_document_markdown"
+        model_ref["workspace_document_path"] = report_document_path
+        model_ref["line_count"] = len(report_content.splitlines())
         reviewer_observations["review_document_ref"] = model_ref
+        findings = reviewer_observations.pop("findings", [])
+        index_keys = ("finding_id", "severity", "category", "evidence_refs")
+        reviewer_observations["finding_index"] = [
+            {key: deepcopy(row[key]) for key in index_keys if key in row}
+            for row in findings
+            if isinstance(row, Mapping)
+        ]
     embedded_preflight = reviewer_observations.pop(
         "theory_execution_preflight_packet",
         {},
@@ -2577,7 +2588,9 @@ def _theory_workspace_read_only_observations(
         "reviewer_observations": reviewer_observations,
     }
     if report_content:
-        observations["review_document_markdown"] = report_content
+        observations["read_only_documents"] = {
+            report_document_path: report_content,
+        }
     transport_feedback = revision_inputs.get("transport_feedback", {})
     if isinstance(transport_feedback, Mapping) and transport_feedback:
         observations["transport_observations"] = deepcopy(
@@ -2768,81 +2781,32 @@ def _initial_theory_workspace_prompt(
     )
     return (
         opening
-        + "Then use your own statistical "
-        "judgment to write durable Markdown/LaTeX mathematics and only the "
-        "task-intent-required, shape-typed cross-agent handoff. The documents, "
-        "not JSON rows, are the "
-        "authority for definitions, assumptions, equation-by-equation derivations, "
-        "counterexamples, and unresolved arguments. Put every task-requested conclusion, "
-        "scope boundary, implementation meaning, and task-intent-required empirical "
-        "prediction, estimand, identifiability assumption, or interpretation in those "
-        "authoritative documents. The Simulation owner, not the theory document, owns the "
-        "full executable confirmatory protocol; a structured simulation handoff may index "
-        "or propose that later work but cannot replace the theory-level scientific claims. "
-        "Do not invent "
-        "confirmatory outcomes before execution. Give each independently falsifiable "
-        "requested conclusion a stable claim ID and document path in the compact "
-        "claim_index, including every active named intermediate inference or dependency. "
-        "Use sanity_check_index for checks; Markdown headings are optional navigation. Record only direct claim dependencies in "
-        "claim_index.depends_on so "
-        "the resulting graph remains reviewable; keep the mathematical argument in "
-        "the documents rather than copying it into the index. Before committing, compare "
-        "each active claim's quantifiers and domain with the problem card, assumptions, "
-        "and every proof branch: a case split must exhaust the asserted domain. Narrow the "
-        "claim or report an unresolved gap when the derivation establishes only a strict "
-        "subdomain. You may edit a "
-        "coherent subset and use the raw validator observation to complete or revise the "
-        "workspace in the same model session. A successful partial write remains in "
-        "the workspace even while the combined workspace is invalid, so edit only "
-        "the still-empty or intentionally revised artifacts on the next call. You "
-        f"have one shared budget of at most {max(1, int(max_tool_calls))} ordinary "
-        "tool calls for reads, searches, writes, edits, and scratch actions; there "
-        "is no separate read or write quota, so allocate those calls according to "
-        "the mathematical work. Use write_theory_document(path, content) for one complete new or "
-        "replacement Markdown/LaTeX/BibTeX document. Use edit_theory_document for a "
-        "hash-bound local text edit, and use write_theory_workspace only for compact "
-        "structured handoff values. Do not put document bodies in the structured "
-        "handoff. Every accepted call is retained. Authoritative documents must "
-        "separate the argument you currently endorse from exploration: remove false "
-        "or abandoned intermediate claims, or mark them explicitly as rejected so "
-        "they cannot read as proof steps or support the claim index. Derive "
-        "definitions and claims rather "
-        "than treating retrieval as an answer key. Keep assumptions, equations, "
-        "every authored downstream handoff mutually consistent. Treat IDs and document "
-        "paths as exact references. When estimator_specs is required, author its exact "
-        "executable estimator_interface_contract in this same workspace session; the "
-        "runtime validates its shape and claim references but does not translate or "
-        "rewrite it. If the question supplies a frozen estimator execution contract, "
-        "preserve its estimator_id, request and response field names and order, and "
-        "request bindings exactly; those are external ABI identity, while the "
-        "mathematical content remains yours. The required compact handoffs are: "
+        + "Use your own statistical judgment in durable Markdown/LaTeX. Documents are "
+        "the authority for mathematics; JSON is only a compact claim index, ABI, and "
+        "cross-agent handoff. Keep the current endorsed argument coherent, remove or "
+        "clearly reject false exploration, and make each requested conclusion's scope, "
+        "assumptions, dependencies, implementation meaning, and uncertainty reviewable. "
+        "A case split must exhaust the asserted domain; otherwise narrow the claim or "
+        "report the unresolved gap. Give falsifiable claims stable IDs and record only "
+        "direct dependencies. The Simulation owner controls executable confirmatory "
+        "protocols and outcomes. Scratch calculations are exploratory observations only. "
+        f"Use one shared budget of at most {max(1, int(max_tool_calls))} ordinary tool "
+        "calls, with no separate read or write quota. Use write_theory_document for a "
+        "complete text file, edit_theory_document for a hash-bound local edit, and "
+        "write_theory_workspace only for compact structured handoffs. Preserve any "
+        "frozen estimator ABI exactly; otherwise author required executable interfaces "
+        "without runtime translation. The required compact handoffs are: "
         + required_handoffs
         + ". Handoffs not required by this task intent may remain empty: "
         + optional_handoffs
-        + ". Do not copy a "
-        "long derivation back into JSON; structured fields are only a compact index, "
-        "ABI, and handoff. Any Python or R scratchpad result is an exploratory "
-        "diagnostic tied to its exact observation, never a confirmatory result, frozen "
-        "acceptance gate, theorem validation, or license to choose a favorable "
-        "threshold. Confirmatory evidence belongs to the later independently reviewed "
-        "and pre-outcome-frozen simulation lane. "
+        + ". "
         + (
-            "The formalization handoff and every formalization request must name an "
-            "existing theorem-card ID. "
+            "Formalization requests must name an existing theorem-card ID. "
             if formalization_authoring_required
-            else "Formalization is not requested for this task: leave "
-            "formalization_requests empty and omit formalization_handoff rather than "
-            "inventing Lean work. "
+            else "Formalization is not requested; do not invent Lean work. "
         )
-        + "Record "
-        "uncertainty explicitly. A failed scratch execution is diagnostic only; do "
-        "not promote guessed or model-computed numbers from it into observed results. "
-        "Keep PASS, FAIL, and INCONCLUSIVE sanity-check outcomes explicit. A failed "
-        "check may guide exploratory work, but it cannot support confirmatory "
-        "acceptance; revise the affected theory or report a grounded theory gap. "
-        "Do not claim execution, Lean "
-        "proof, or kernel verification. The runtime applies only your exact edits and "
-        "will not choose, fill, or rewrite any substantive field."
+        + "Runtime applies only your exact edits and structural checks. Do not claim "
+        "confirmatory execution, Lean proof, or kernel verification."
     )
 
 
@@ -2857,6 +2821,11 @@ def _theory_workspace_revision_prompt(
         revision_inputs
     )
     reviewer_observations = read_only_observations["reviewer_observations"]
+    finding_index = reviewer_observations.get(
+        "finding_index",
+        reviewer_observations.get("findings", []),
+    )
+    review_document_ref = reviewer_observations.get("review_document_ref", {})
     writable_artifacts = _theory_workspace_writable_handoff_names(
         question=question,
         formalization_authoring_required=formalization_authoring_required,
@@ -2896,82 +2865,47 @@ def _theory_workspace_revision_prompt(
                 )
                 or []
             ),
-            "n_findings": len(reviewer_observations.get("findings", []) or []),
+            "n_findings": len(finding_index or []),
+            **(
+                {
+                    "current_review_document": {
+                        key: review_document_ref[key]
+                        for key in (
+                            "workspace_document_path",
+                            "sha256",
+                            "line_count",
+                        )
+                        if key in review_document_ref
+                    }
+                }
+                if isinstance(review_document_ref, Mapping)
+                and review_document_ref.get("workspace_document_path")
+                else {}
+            ),
         },
         "workspace_artifacts": list(writable_artifacts),
         "instructions": [
             (
-                "First read prior_theory_progress_checkpoint, inspect its exact next "
-                "step, then read only the current documents and handoff artifacts "
-                "needed to continue the same revision lineage. Its tool "
-                "observations and execution counts are cumulative; do not treat "
-                "this context window as a fresh research workspace."
+                "Read prior_theory_progress_checkpoint and continue its exact lineage; "
+                "tool observations and counts are cumulative."
                 if continuing_from_progress
                 else (
-                    "First read reviewer_observations by itself. Do not request every "
-                    "workspace artifact in one read. After identifying the actual "
-                    "failed claim or execution behavior, read only the parent "
-                    "artifacts needed for that mathematical decision."
+                    "First read the reviewer_observations index by itself. When it "
+                    "names current_review_document, inspect that exact report with "
+                    "read_theory_document, then read only relevant parent material."
                 )
             ),
-            (
-                "Reviewer observations remain available as the independent source of "
-                "the revision request; when they reference review_document_markdown, "
-                "read that exact referee report before revising the failed claim."
-                if continuing_from_progress
-                else "Read any referenced review_document_markdown before revising."
-            ),
-            (
-                "Use your own statistical judgment. Reviewer observations identify "
-                "possible defects and are not an answer key or repair recipe."
-            ),
-            (
-                "Use write_theory_document for one complete new or replacement "
-                "Markdown/LaTeX/BibTeX file, edit_theory_document for a hash-bound "
-                "local text edit, and write_theory_workspace only for compact "
-                "structured handoff values whose semantics you choose to change. "
-                "Never place document bodies in the structured handoff. Unsubmitted "
-                "material remains byte-identical."
-            ),
-            (
-                "Propagate each chosen revision through the authoritative documents and "
-                "each writable structured handoff that truly depends on it. Artifacts "
-                "outside workspace_artifacts are unavailable for this task intent and "
-                "remain byte-identical. A self-critique, status label, critic finding, "
-                "or next action does not override contradictory mathematics; rewrite "
-                "every affected document before submitting."
-            ),
-            (
-                "Keep only the current endorsed argument as authoritative mathematics. "
-                "Delete abandoned or false intermediate claims, or label them "
-                "explicitly as rejected so they cannot be read as proof steps or "
-                "support a claim-index entry."
-            ),
-            (
-                "Recompute every affected sanity check and preserve PASS, FAIL, or "
-                "INCONCLUSIVE honestly. Do not relabel a failed calculation; use it as "
-                "exploratory evidence, revise the mathematics, or report a theory gap."
-            ),
-            (
-                "A scratch execution with a failed status or nonempty errors is "
-                "diagnostic only. Do not promote guessed or model-computed numbers "
-                "from it into observed results or empirical evidence."
-            ),
-            (
-                "A successful Python or R scratch observation is also exploratory. It "
-                "may falsify or motivate theory, but it cannot be relabeled "
-                "confirmatory, choose an acceptance threshold after outcomes, or "
-                "validate a theorem."
-            ),
-            (
-                "Keep unresolved concerns explicit. Do not claim execution, observed "
-                "simulation results, Lean proof, or kernel verification."
-            ),
-            (
-                "The runtime stores your artifact values unchanged and performs only "
-                "identity, budget, lineage, and schema validation. Independent review "
-                "owns acceptance."
-            ),
+            "Treat the hash-bound referee document as an observation, not an answer key "
+            "or editable theory file; use your own statistical judgment.",
+            "Use write_theory_document or hash-bound edit_theory_document for text, and "
+            "write_theory_workspace only for compact handoffs. Omitted material remains "
+            "byte-identical.",
+            "Propagate a chosen correction through every dependent authoritative claim "
+            "and writable handoff. Remove or explicitly reject false derivations.",
+            "Keep failed checks and unresolved concerns honest. Scratch observations are "
+            "exploratory, not confirmatory evidence or theorem validation.",
+            "Runtime enforces identity, budget, lineage, and schema only; independent "
+            "review owns acceptance, and kernel proof must not be claimed here.",
         ],
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
     }
@@ -3655,6 +3589,9 @@ def _generate_theory_workspace_revision(
     read_only_artifacts = _theory_workspace_read_only_observations(
         revision_inputs
     )
+    read_only_documents = deepcopy(
+        dict(read_only_artifacts.pop("read_only_documents", {}))
+    )
     if progress_checkpoint:
         read_only_artifacts["prior_theory_progress_checkpoint"] = (
             _theory_progress_prompt_artifact(progress_checkpoint)
@@ -3690,6 +3627,7 @@ def _generate_theory_workspace_revision(
         initial_artifacts=initial_artifacts,
         initial_documents=initial_documents,
         read_only_artifacts=read_only_artifacts,
+        read_only_documents=read_only_documents,
         build_candidate=build_candidate,
         validate_candidate=lambda packet: (
             _validate_theory_workspace_revision_packet(
