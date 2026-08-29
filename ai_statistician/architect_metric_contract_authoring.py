@@ -16,6 +16,7 @@ from .client_tool_loop import (
     ClientToolLoopError,
     ClientToolLoopResult,
     apply_model_exact_text_edits,
+    model_exact_text_edits_json_schema,
     persist_client_tool_session,
     run_bounded_client_tool_loop,
 )
@@ -540,24 +541,15 @@ def _metric_protocol_workspace_tools(
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
             (
-                "Apply one exact model-authored text replacement to the external "
-                f"{document_name}. Bind the edit to the current SHA-256. old_text "
-                "must occur exactly once unless "
-                "expected_occurrences declares its exact positive count, in which case "
-                "all occurrences are replaced. Runtime validates the edit before "
-                "updating bytes and does not interpret or author scientific content. "
-                "Make another hash-bound call for another local change."
+                "Apply one ordered atomic batch of exact model-authored text edits to "
+                f"the external {document_name}, bound to its current SHA-256. Runtime "
+                "applies every edit or none and never interprets scientific content."
             ),
             properties={
                 "expected_parent_sha256": hash_field,
-                "old_text": {"type": "string", "minLength": 1},
-                "new_text": {"type": "string"},
-                "expected_occurrences": {
-                    "type": "integer",
-                    "minimum": 1,
-                },
+                "edits": model_exact_text_edits_json_schema(),
             },
-            required=("expected_parent_sha256", "old_text", "new_text"),
+            required=("expected_parent_sha256", "edits"),
         ),
         _metric_protocol_tool(
             METRIC_PROTOCOL_WORKSPACE_COMMIT_TOOL,
@@ -764,32 +756,18 @@ def _run_metric_protocol_workspace(
                 ),
             )
         if call.name == METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL:
-            required_fields = {"expected_parent_sha256", "old_text", "new_text"}
-            allowed_fields = {*required_fields, "expected_occurrences"}
-            if (
-                not required_fields.issubset(payload)
-                or set(payload) - allowed_fields
-            ):
+            if set(payload) != {"expected_parent_sha256", "edits"}:
                 raise ClientToolInputError(
-                    "edit_metric_protocol requires expected_parent_sha256, old_text, "
-                    "and new_text; expected_occurrences is optional"
+                    "edit_metric_protocol requires expected_parent_sha256 and edits"
                 )
             parent_sha256 = _metric_protocol_document_sha256(document)
             if payload.get("expected_parent_sha256") != parent_sha256:
                 raise ClientToolInputError(
                     "edit_metric_protocol parent hash is stale"
                 )
-            exact_edit = {
-                "old_text": payload["old_text"],
-                "new_text": payload["new_text"],
-            }
-            if "expected_occurrences" in payload:
-                exact_edit["expected_occurrences"] = payload[
-                    "expected_occurrences"
-                ]
             revised, _ = apply_model_exact_text_edits(
                 document,
-                edits=[exact_edit],
+                edits=payload["edits"],
                 replacement_key="new_text",
             )
             if not revised.strip():

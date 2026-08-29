@@ -4391,3 +4391,42 @@ retry, fallback, mathematical parser, task-family rule, model escalation, or lar
 resource budget. Task 93 remains consumed at `1/1`, aggregate capability remains
 `7/93`, and exact development-panel Lean closure remains `0/2`. No product model,
 evaluator model, benchmark, or consumed artifact was invoked or changed.
+
+### Source-owner editing: one model action may carry multiple hunks
+
+The next shared mismatch was smaller than a scheduler but central to coding-agent
+behavior. Theory Markdown/LaTeX, Python/R source, model-authored metric protocols,
+and Lean source all exposed exact edit tools, yet each call could carry only one
+replacement. A reviewer-driven cleanup of two distant claims therefore required two
+model turns and an intermediate hash even when both changes were already known.
+That is an interface tax, not scientific reasoning.
+
+Codex's
+[`apply_patch`](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/tools/handlers/apply_patch_spec.rs)
+supports multiple hunks in one model-authored edit action. AI Statistician now adopts
+that composition without importing its freeform grammar or filesystem runtime. One
+shared `edits[]` schema carries ordered exact replacements with optional explicit
+occurrence counts. The existing helper applies the batch to an in-memory candidate;
+if any hunk is stale, missing, ambiguous, or otherwise invalid, no candidate bytes
+are committed. This is stricter per-artifact atomicity than merely executing several
+state-changing calls in one turn.
+
+The same ABI is used by all substantive source owners:
+
+- Theory binds a batch to the current Markdown/LaTeX/BibTeX SHA-256 and records only
+  content hashes and sizes in edit provenance.
+- Python/R applies a batch to current source, then still requires a separate explicit
+  run and a later commit after raw sandbox feedback.
+- Metric authoring binds a batch to the current external protocol SHA-256; editing
+  does not accept the scientific protocol.
+- Lean applies a batch and immediately checks the complete resulting source in the
+  configured project; only independent target review and kernel promotion can create
+  proof evidence.
+
+Regression cases cover a two-hunk success and an attempted batch whose first hunk is
+valid but second hunk is absent. The latter fails at edit index one and leaves the
+original parent hash available for the next call. Focused cross-workspace regressions
+passed `258/258`; the complete repository passed `1048/1048` in 81.57 seconds.
+Production Python decreased from 149,996 to 149,957 lines under the unchanged
+150,000-line gate. No model, evaluator, benchmark, consumed task, or hidden artifact
+was invoked.

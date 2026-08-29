@@ -15,6 +15,7 @@ from ai_statistician.client_tool_loop import (
     ClientToolLoopError,
     ClientToolRuntimeError,
     apply_model_exact_text_edits,
+    model_exact_text_edits_json_schema,
     load_client_tool_session,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
@@ -139,6 +140,21 @@ def test_exact_text_edits_support_count_checked_repeated_literals() -> None:
             }],
             replacement_key="new_text",
         )
+
+
+def test_exact_text_edit_batch_schema_is_shared_and_strict() -> None:
+    schema = model_exact_text_edits_json_schema()
+
+    assert schema["type"] == "array"
+    assert schema["minItems"] == 1
+    assert schema["items"]["required"] == ["old_text", "new_text"]
+    assert schema["items"]["additionalProperties"] is False
+    assert set(schema["items"]["properties"]) == {
+        "old_text",
+        "new_text",
+        "expected_occurrences",
+    }
+    assert not {"oneOf", "anyOf", "allOf"}.intersection(schema)
 
 
 def test_long_tool_observation_preserves_head_tail_and_size_metadata() -> None:

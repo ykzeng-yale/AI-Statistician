@@ -22,6 +22,7 @@ from .client_tool_loop import (
     ClientToolInputError,
     ClientToolLoopError,
     apply_model_exact_text_edits,
+    model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
@@ -2010,18 +2011,9 @@ def run_scientific_code_workspace(
             )
 
         if call.name == SCIENTIFIC_SOURCE_EDIT_TOOL:
-            allowed_fields = {
-                "old_text",
-                "replacement",
-                "expected_occurrences",
-            }
-            if (
-                not {"old_text", "replacement"}.issubset(tool_input)
-                or set(tool_input) - allowed_fields
-            ):
+            if set(tool_input) != {"edits"}:
                 raise ClientToolInputError(
-                    "edit_current_scientific_source requires old_text and replacement; "
-                    "expected_occurrences is optional"
+                    "edit_current_scientific_source requires exactly edits"
                 )
             current = deepcopy(dict(state["code_draft"]))
             if not current:
@@ -2029,23 +2021,15 @@ def run_scientific_code_workspace(
                     "edit_current_scientific_source requires existing source; use "
                     "submit_scientific_source for initial authoring"
                 )
-            exact_edit = {
-                "old_text": tool_input["old_text"],
-                "replacement": tool_input["replacement"],
-            }
-            if "expected_occurrences" in tool_input:
-                exact_edit["expected_occurrences"] = tool_input[
-                    "expected_occurrences"
-                ]
             current["code"], edit_records = apply_model_exact_text_edits(
                 str(current["code"]),
-                edits=[exact_edit],
-                replacement_key="replacement",
+                edits=tool_input["edits"],
+                replacement_key="new_text",
             )
             return store_model_source(
                 current,
-                source_action="atomic_exact_text_patch",
-                edit_metadata=edit_records[0],
+                source_action="atomic_exact_text_edits",
+                edit_metadata={"n_edits": len(edit_records), "edits": edit_records},
             )
 
         if call.name == SCIENTIFIC_SOURCE_COMMIT_TOOL:
@@ -2584,24 +2568,16 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_EDIT_TOOL,
             description=(
-                "Apply one model-authored exact-text edit to the current Python/R "
-                "source without executing it. old_text must match the declared number "
-                "of times; runtime validates the edit but does not interpret or repair "
-                "source. Make another call for another local change, then explicitly "
-                "run the complete source."
+                "Apply one ordered atomic batch of exact model-authored text edits to "
+                "the current Python/R source without executing it. Runtime applies all "
+                "edits or none and never interprets or repairs source; explicitly run "
+                "the complete result afterward."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["old_text", "replacement"],
-                "properties": {
-                    "old_text": {"type": "string", "minLength": 1},
-                    "replacement": {"type": "string"},
-                    "expected_occurrences": {
-                        "type": "integer",
-                        "minimum": 1,
-                    },
-                },
+                "required": ["edits"],
+                "properties": {"edits": model_exact_text_edits_json_schema()},
             },
             terminal=False,
         ),

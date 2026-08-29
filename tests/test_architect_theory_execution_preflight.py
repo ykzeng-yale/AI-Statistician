@@ -4381,16 +4381,12 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
     assert "required_runtime_replicates" in prompt
 
 
-def test_metric_protocol_edits_are_hash_bound_and_sequential(
+def test_metric_protocol_edit_batch_is_hash_bound_and_atomic(
     tmp_path: Path,
 ) -> None:
     initial_document = '{"a":0,"b":0}\n'
-    intermediate_document = '{"a":1,"b":0}\n'
     revised_document = '{"a":1,"b":2}\n'
     initial_sha256 = hashlib.sha256(initial_document.encode("utf-8")).hexdigest()
-    intermediate_sha256 = hashlib.sha256(
-        intermediate_document.encode("utf-8")
-    ).hexdigest()
     revised_sha256 = hashlib.sha256(revised_document.encode("utf-8")).hexdigest()
 
     def build_validated_packet(
@@ -4399,7 +4395,7 @@ def test_metric_protocol_edits_are_hash_bound_and_sequential(
         value = json.loads(content)
         return {"packet_id": "metric-authoring:atomic", **value}, []
 
-    class RecoveringSequentialEditBackend:
+    class RecoveringAtomicEditBackend:
         provider_name = "anthropic"
 
         def __init__(self) -> None:
@@ -4408,17 +4404,15 @@ def test_metric_protocol_edits_are_hash_bound_and_sequential(
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
             if len(self.requests) == 1:
-                parent_sha256 = initial_sha256
-                old_text = '"missing":0'
-                new_text = '"missing":1'
+                edits = [
+                    {"old_text": '"a":0', "new_text": '"a":1'},
+                    {"old_text": '"missing":0', "new_text": '"missing":1'},
+                ]
             elif len(self.requests) == 2:
-                parent_sha256 = initial_sha256
-                old_text = '"a":0'
-                new_text = '"a":1'
-            elif len(self.requests) == 3:
-                parent_sha256 = intermediate_sha256
-                old_text = '"b":0'
-                new_text = '"b":2'
+                edits = [
+                    {"old_text": '"a":0', "new_text": '"a":1'},
+                    {"old_text": '"b":0', "new_text": '"b":2'},
+                ]
             else:
                 return _tool_response(
                     ClientToolCall(
@@ -4432,14 +4426,13 @@ def test_metric_protocol_edits_are_hash_bound_and_sequential(
                     f"exact-edit-{len(self.requests)}",
                     METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                     {
-                        "expected_parent_sha256": parent_sha256,
-                        "old_text": old_text,
-                        "new_text": new_text,
+                        "expected_parent_sha256": initial_sha256,
+                        "edits": edits,
                     },
                 )
             )
 
-    backend = RecoveringSequentialEditBackend()
+    backend = RecoveringAtomicEditBackend()
     result = _run_metric_protocol_workspace(
         provider=backend,  # type: ignore[arg-type]
         config=ArchitectMetricContractAuthoringConfig(
@@ -4456,13 +4449,12 @@ def test_metric_protocol_edits_are_hash_bound_and_sequential(
 
     first_edit = result.loop.history[0]["tool_calls"][0]
     assert first_edit["is_error"] is True
-    assert "observed 0 matches at edit index 0" in first_edit["result_excerpt"]
-    assert result.loop.runtime_executed_tool_calls == 4
+    assert "observed 0 matches at edit index 1" in first_edit["result_excerpt"]
+    assert result.loop.runtime_executed_tool_calls == 3
     edit_schema = backend.requests[0].tools[1].input_schema
     assert edit_schema["required"] == [
         "expected_parent_sha256",
-        "old_text",
-        "new_text",
+        "edits",
     ]
     assert result.document_content == revised_document
     assert (tmp_path / "metric_protocol.json").read_text(
@@ -4525,10 +4517,12 @@ def test_fresh_metric_protocol_keeps_science_in_markdown_and_commits_metadata(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": initial_sha256,
-                            "old_text": (
-                                METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT
-                            ),
-                            "new_text": draft_protocol,
+                            "edits": [{
+                                "old_text": (
+                                    METRIC_PROTOCOL_WORKSPACE_SOURCE_INITIAL_DOCUMENT
+                                ),
+                                "new_text": draft_protocol,
+                            }],
                         },
                     )
                 )
@@ -4555,8 +4549,10 @@ def test_fresh_metric_protocol_keeps_science_in_markdown_and_commits_metadata(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": draft_sha256,
-                            "old_text": draft_protocol,
-                            "new_text": protocol,
+                            "edits": [{
+                                "old_text": draft_protocol,
+                                "new_text": protocol,
+                            }],
                         },
                     )
                 )
@@ -4667,8 +4663,10 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": scaffold_sha256,
-                            "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
-                            "new_text": invalid_document,
+                            "edits": [{
+                                "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
+                                "new_text": invalid_document,
+                            }],
                         },
                     )
                 )
@@ -4687,8 +4685,10 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": invalid_sha256,
-                            "old_text": invalid_document,
-                            "new_text": initial_document,
+                            "edits": [{
+                                "old_text": invalid_document,
+                                "new_text": initial_document,
+                            }],
                         },
                     )
                 )
@@ -4707,8 +4707,10 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": initial_sha256,
-                            "old_text": initial_document,
-                            "new_text": revised_document,
+                            "edits": [{
+                                "old_text": initial_document,
+                                "new_text": revised_document,
+                            }],
                         },
                     )
                 )
@@ -4864,8 +4866,10 @@ def test_metric_protocol_external_file_survives_truncated_edit_input(
                         METRIC_PROTOCOL_WORKSPACE_EDIT_TOOL,
                         {
                             "expected_parent_sha256": scaffold_sha256,
-                            "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
-                            "new_text": valid_document,
+                            "edits": [{
+                                "old_text": METRIC_PROTOCOL_WORKSPACE_INITIAL_DOCUMENT,
+                                "new_text": valid_document,
+                            }],
                         },
                     )
                 )

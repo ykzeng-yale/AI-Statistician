@@ -112,6 +112,25 @@ class ClientToolInputError(ValueError):
     """A caller-reviewed tool error whose bounded detail is safe for the model."""
 
 
+def model_exact_text_edits_json_schema() -> dict[str, Any]:
+    """Shared model-authored atomic exact-edit batch schema."""
+
+    return {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["old_text", "new_text"],
+            "properties": {
+                "old_text": {"type": "string", "minLength": 1},
+                "new_text": {"type": "string"},
+                "expected_occurrences": {"type": "integer", "minimum": 1},
+            },
+        },
+    }
+
+
 def apply_model_exact_text_edits(
     text: str,
     *,

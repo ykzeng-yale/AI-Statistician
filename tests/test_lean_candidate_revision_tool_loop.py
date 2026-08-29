@@ -417,18 +417,21 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
 
 
 def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_source() -> None:
-    initial = "theorem target : True := by\n  exact missing_name\n"
-    revised = "theorem target : True := by\n  exact True.intro\n"
+    initial = "-- pending\ntheorem target : True := by\n  exact missing_name\n"
+    revised = "-- checked\ntheorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
             _response(
                 ClientToolCall(
                     "edit-current-source",
                     LEAN_SOURCE_EDIT_TOOL,
-                    {
-                        "old_text": "exact missing_name",
-                        "replacement": "exact True.intro",
-                    },
+                    {"edits": [
+                        {"old_text": "-- pending", "new_text": "-- checked"},
+                        {
+                            "old_text": "exact missing_name",
+                            "new_text": "exact True.intro",
+                        },
+                    ]},
                 )
             )
         ]
@@ -468,6 +471,7 @@ def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_sourc
     assert result.source_hash == stable_hash(revised)
     assert result.evidence["source_updates"] == 1
     assert result.evidence["local_lean_checks"] == 2
+    assert result.evidence["terminal_source_action"] == "atomic_exact_text_edits"
     assert result.evidence["model_owned_lean_code"] is True
     assert result.evidence["runtime_selected_lean_code"] is False
     assert result.evidence["independent_semantic_review_required"] is True
@@ -479,8 +483,8 @@ def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_sourc
         if tool.name == LEAN_SOURCE_EDIT_TOOL
     )
     assert edit_tool.terminal is True
-    assert edit_tool.input_schema["required"] == ["old_text", "replacement"]
-    assert "never parses or alters" in edit_tool.description
+    assert edit_tool.input_schema["required"] == ["edits"]
+    assert "ordered atomic batch" in edit_tool.description
 
 
 def test_lean_candidate_tool_loop_returns_ambiguous_edit_error_to_same_model() -> None:
@@ -496,17 +500,20 @@ def test_lean_candidate_tool_loop_returns_ambiguous_edit_error_to_same_model() -
                 ClientToolCall(
                     "ambiguous-edit",
                     LEAN_SOURCE_EDIT_TOOL,
-                    {"old_text": "missing_name", "replacement": "True.intro"},
+                    {"edits": [{
+                        "old_text": "missing_name",
+                        "new_text": "True.intro",
+                    }]},
                 )
             ),
             _response(
                 ClientToolCall(
                     "unique-edit",
                     LEAN_SOURCE_EDIT_TOOL,
-                    {
+                    {"edits": [{
                         "old_text": "exact missing_name",
-                        "replacement": "exact True.intro",
-                    },
+                        "new_text": "exact True.intro",
+                    }]},
                 )
             ),
         ]
@@ -554,8 +561,7 @@ def test_exact_lean_source_edit_rejects_overlapping_matches() -> None:
     with pytest.raises(ValueError, match="observed 2 matches"):
         lean_candidate_tool_loop_module._apply_exact_source_edit(
             "aaa",
-            old_text="aa",
-            replacement="b",
+            edits=[{"old_text": "aa", "new_text": "b"}],
         )
 
 
@@ -573,10 +579,10 @@ def test_lean_candidate_tool_loop_continues_checkpoint_with_exact_edit() -> None
                 ClientToolCall(
                     "continued-edit",
                     LEAN_SOURCE_EDIT_TOOL,
-                    {
+                    {"edits": [{
                         "old_text": "exact missing_name",
-                        "replacement": "exact True.intro",
-                    },
+                        "new_text": "exact True.intro",
+                    }]},
                 )
             )
         ]

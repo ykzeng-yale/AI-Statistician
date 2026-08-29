@@ -13,6 +13,7 @@ from .client_tool_loop import (
     ClientToolInputError,
     ClientToolLoopError,
     apply_model_exact_text_edits,
+    model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
@@ -71,10 +72,9 @@ class LeanCandidateRevisionToolLoopResult:
 def _apply_exact_source_edit(
     source: str,
     *,
-    old_text: Any,
-    replacement: Any,
+    edits: Any,
 ) -> tuple[str, dict[str, Any]]:
-    """Materialize one model-authored exact-text edit without parsing Lean."""
+    """Materialize one model-authored atomic edit batch without parsing Lean."""
 
     if not source.strip():
         raise ClientToolInputError(
@@ -83,14 +83,14 @@ def _apply_exact_source_edit(
         )
     updated, metadata = apply_model_exact_text_edits(
         source,
-        edits=[{"old_text": old_text, "replacement": replacement}],
-        replacement_key="replacement",
+        edits=edits,
+        replacement_key="new_text",
     )
     if len(updated) > 20_000:
         raise ClientToolInputError(
             "edited Lean source exceeds the runtime artifact-size boundary"
         )
-    return updated, metadata[0]
+    return updated, {"n_edits": len(metadata), "edits": metadata}
 
 
 def seal_lean_candidate_workspace_checkpoint(
@@ -756,19 +756,18 @@ def run_lean_candidate_revision_tool_loop(
             )
 
         if call.name == LEAN_SOURCE_EDIT_TOOL:
-            if set(tool_input) != {"old_text", "replacement"}:
+            if set(tool_input) != {"edits"}:
                 raise ClientToolInputError(
-                    "edit_current_lean_source requires exactly old_text and replacement"
+                    "edit_current_lean_source requires exactly edits"
                 )
             updated_source, edit_metadata = _apply_exact_source_edit(
                 str(state["source"]),
-                old_text=tool_input.get("old_text"),
-                replacement=tool_input.get("replacement"),
+                edits=tool_input.get("edits"),
             )
             return execute_source_candidate(
                 source=updated_source,
                 declaration=str(state["candidate_lean_declaration"]),
-                source_action="exact_text_edit",
+                source_action="atomic_exact_text_edits",
                 edit_metadata=edit_metadata,
             )
 
@@ -1734,18 +1733,16 @@ def _lean_candidate_revision_tools(
         ClientToolDefinition(
             name=LEAN_SOURCE_EDIT_TOOL,
             description=(
-                "Apply one model-authored exact unique-text edit and immediately check "
-                "the complete result. Runtime never parses or alters the edit. Use "
-                "submit_lean_source for initial source, identity changes, or replacement."
+                "Apply one ordered atomic batch of exact model-authored text edits and "
+                "immediately check the complete result. Runtime applies every edit or "
+                "none and never parses Lean. Use submit_lean_source for initial source "
+                "or declaration-identity changes."
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["old_text", "replacement"],
-                "properties": {
-                    "old_text": {"type": "string", "minLength": 1},
-                    "replacement": {"type": "string"},
-                },
+                "required": ["edits"],
+                "properties": {"edits": model_exact_text_edits_json_schema()},
             },
             terminal=True,
         ),
