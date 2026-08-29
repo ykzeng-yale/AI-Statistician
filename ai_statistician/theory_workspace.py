@@ -69,6 +69,11 @@ THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
 THEORY_WORKSPACE_CONTENT_AUTHORITY = "model_authored_markdown_latex_documents"
 THEORY_WORKSPACE_HANDOFF_ROLE = "structured_cross_agent_index_and_abi"
+THEORY_FILE_CLAIM_KINDS = (
+    "definition", "assumption", "lemma", "theorem", "equation", "counterexample"
+)
+THEORY_FILE_CLAIM_STATUSES = ("OPEN", "SUPPORTED", "REJECTED", "INCONCLUSIVE")
+THEORY_FILE_SANITY_STATUSES = ("PASS", "FAIL", "INCONCLUSIVE")
 SOURCE_REPLICATION_CHECKPOINT_KIND = "SourceReplicationCheckpoint"
 THEORY_WORKSPACE_DOCUMENT_SUFFIXES = frozenset({".md", ".tex", ".bib"})
 MAX_THEORY_DOCUMENT_OBSERVATION_CHARS = 50_000
@@ -602,6 +607,7 @@ def run_theory_artifact_workspace(
         research_source_execution_enabled=research_source_execution is not None,
         source_replication_checkpoint_enabled=allow_source_replication_checkpoint,
         document_authority_enabled=require_document_authority,
+        writable_artifact_names=selected_writable_names,
     )
 
     def current_changed_artifact_names(
@@ -1759,32 +1765,21 @@ def run_theory_artifact_workspace(
         (
             "Use write_theory_document(path, content) to write one complete "
             "Markdown/LaTeX document or BibTeX file, and use "
-            "write_theory_workspace only for the small structured cross-agent "
-            "index or executable ABI. The text documents are the authority for "
-            "definitions, derivations, equations, counterexamples, and unresolved "
-            "reasoning; JSON artifacts are not the mathematical content. "
+            "write_theory_workspace only for the compact cross-agent index or "
+            "executable ABI. Text documents remain the mathematical authority. "
         )
         if require_document_authority
         else (
-            "Use write_theory_workspace to write complete model-owned structured "
-            "artifacts. Authoritative Markdown/LaTeX documents are unavailable in "
-            "this compatibility workspace. "
+            "Use write_theory_workspace for complete model-owned structured artifacts; "
+            "Authoritative Markdown/LaTeX documents are unavailable in this "
+            "compatibility workspace. "
         )
-    ) + (
-        "Omitted files and artifacts remain byte-identical. The runtime stores your "
-        "exact text and values without merging or inventing content. A structurally "
-        "valid write is retained and returned to you, but it does not end the "
-        "workspace or assert scientific readiness. "
-    )
+    ) + "Omitted files remain byte-identical; runtime stores values without merging or inventing content. "
     document_inspection_guidance = (
-        "For long or multi-file mathematics, use search_theory_documents to locate "
-        "a literal claim, heading, or LaTeX label and read_theory_document to inspect "
-        "the exact current line range needed for your reasoning. Both observations "
-        "name the current document SHA-256. Whole-document reads remain available "
-        "when the selected material fits one observation. Your own writes and tool "
-        "observations remain in this session, so choose whether another read would "
-        "improve the argument; runtime read counts are not a substitute for your "
-        "readiness judgment or the later independent review. "
+        "For long mathematics, use search_theory_documents for literal claims or "
+        "labels and read_theory_document for only the "
+        "needed hash-bound ranges. Choose inspections that improve the argument; "
+        "read counts never substitute for readiness judgment or independent review. "
         if require_document_authority
         else ""
     )
@@ -2768,6 +2763,7 @@ def _theory_workspace_tools(
     research_source_execution_enabled: bool = False,
     source_replication_checkpoint_enabled: bool = False,
     document_authority_enabled: bool = False,
+    writable_artifact_names: Sequence[str],
 ) -> tuple[ClientToolDefinition, ...]:
     read_tool = ClientToolDefinition(
         name="read_theory_workspace",
@@ -2900,6 +2896,13 @@ def _theory_workspace_tools(
             + (
                 "Omitted values are retained exactly, and runtime never merges or "
                 "infers content."
+            )
+            + (
+                f" Current writable names: {', '.join(writable_artifact_names)}. "
+                f"Claim kinds: {', '.join(THEORY_FILE_CLAIM_KINDS)}; claim statuses: "
+                f"{', '.join(THEORY_FILE_CLAIM_STATUSES)}; sanity statuses: "
+                f"{', '.join(THEORY_FILE_SANITY_STATUSES)}."
+                if document_authority_enabled else ""
             ),
             input_schema={
                 "type": "object",
@@ -2916,7 +2919,7 @@ def _theory_workspace_tools(
                             "properties": {
                                 "artifact_name": {
                                     "type": "string",
-                                    "minLength": 1,
+                                    "enum": list(writable_artifact_names),
                                 },
                                 "value": {
                                     "anyOf": [
@@ -3123,7 +3126,8 @@ def _replace_theory_workspace_artifacts(
         if artifact_name not in writable_artifact_shapes:
             raise ClientToolInputError(
                 f"theory artifact write {index} names unknown writable artifact "
-                f"{artifact_name!r}"
+                f"{artifact_name!r}; allowed values are "
+                + ", ".join(sorted(writable_artifact_shapes))
             )
         if artifact_name in observed_names:
             raise ClientToolInputError(

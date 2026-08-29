@@ -87,6 +87,9 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
+    THEORY_FILE_CLAIM_KINDS,
+    THEORY_FILE_CLAIM_STATUSES,
+    THEORY_FILE_SANITY_STATUSES,
     TheoryWorkspaceProgressError,
     TheoryWorkspaceResult,
     theory_workspace_document_manifest,
@@ -1780,7 +1783,13 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert write_tool.input_schema["properties"]["writes"]["items"][
         "properties"
-    ]["artifact_name"] == {"type": "string", "minLength": 1}
+    ]["artifact_name"] == {
+        "type": "string",
+        "enum": sorted({*core_artifacts, "lemma_cards"}),
+    }
+    assert ", ".join(THEORY_FILE_CLAIM_KINDS) in write_tool.description
+    assert ", ".join(THEORY_FILE_CLAIM_STATUSES) in write_tool.description
+    assert ", ".join(THEORY_FILE_SANITY_STATUSES) in write_tool.description
     initial_prompt = str(first_request.messages[0]["content"])
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
@@ -1962,7 +1971,10 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
     )
     assert write_tool.input_schema["properties"]["writes"]["items"][
         "properties"
-    ]["artifact_name"] == {"type": "string", "minLength": 1}
+    ]["artifact_name"] == {
+        "type": "string",
+        "enum": ["problem_card", "theory_derivation_packet"],
+    }
     initial_prompt = str(first_request.messages[0]["content"])
     assert "required compact handoffs are: problem_card, theory_derivation_packet" in (
         initial_prompt

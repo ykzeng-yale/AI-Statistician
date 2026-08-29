@@ -947,7 +947,7 @@ def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
     assert item_schema["required"] == ["artifact_name", "value"]
     assert item_schema["properties"]["artifact_name"] == {
         "type": "string",
-        "minLength": 1,
+        "enum": ["lemma_cards", "problem_card"],
     }
     assert item_schema["properties"]["value"]["anyOf"] == [
         {"type": "object"},
@@ -1960,6 +1960,7 @@ def test_targeted_revision_rejects_duplicate_artifact_names_atomically() -> None
 def test_theory_workspace_accepts_one_coherent_complete_write_batch() -> None:
     tools = _theory_workspace_tools(
         scratchpad_enabled=False,
+        writable_artifact_names=("problem_card", "lemma_cards", "theorem_cards"),
     )
     write_tool = next(tool for tool in tools if tool.name == THEORY_WORKSPACE_WRITE_TOOL)
 
@@ -1967,7 +1968,7 @@ def test_theory_workspace_accepts_one_coherent_complete_write_batch() -> None:
     assert "maxItems" not in writes_schema
     assert writes_schema["items"]["properties"]["artifact_name"] == {
         "type": "string",
-        "minLength": 1,
+        "enum": ["problem_card", "lemma_cards", "theorem_cards"],
     }
 
     artifacts, writes = _replace_theory_workspace_artifacts(

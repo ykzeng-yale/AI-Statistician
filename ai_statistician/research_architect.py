@@ -52,6 +52,9 @@ from .theory_workspace import (
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
+    THEORY_FILE_CLAIM_KINDS,
+    THEORY_FILE_CLAIM_STATUSES,
+    THEORY_FILE_SANITY_STATUSES,
     TheoryScratchpadConfig,
     load_theory_progress_checkpoint_state,
     load_theory_workspace_documents,
@@ -1530,13 +1533,6 @@ THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT = deepcopy(
 del THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["estimator_specs"][0][
     "estimator_interface_contract"
 ]
-
-THEORY_FILE_CLAIM_KINDS = (
-    "definition", "assumption", "lemma", "theorem", "equation", "counterexample"
-)
-THEORY_FILE_CLAIM_STATUSES = ("OPEN", "SUPPORTED", "REJECTED", "INCONCLUSIVE")
-THEORY_FILE_SANITY_STATUSES = ("PASS", "FAIL", "INCONCLUSIVE")
-
 
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT = deepcopy(
     THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
