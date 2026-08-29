@@ -3,13 +3,13 @@
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "419efdbb",
+  "validated_code_head": "18e150c1",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
   "current_goal_focus": "Preserve all ninety-seven consumed draws and immutable artifacts at trustworthy full-task credit 7/97 while exact development-panel Lean closure remains 0/2. Retire remaining recursive compatibility payloads from the central AgentRuntime before adding outer features, then pre-freeze a disjoint integrated Theory, code, and empirical task that tests an underrepresented capability. Keep Task97's R execution as component evidence, never repair or rescore it, and use protocol-v11 adversarial evaluation only on future qualified work.",
   "latest_algorithm_handoff_payload_copy_retirement": {
-    "mechanism_commit": "PENDING_HANDOFF_CLEANUP_COMMIT",
+    "mechanism_commit": "18e150c150991ca4c1eca058c993e638ee90b7a0",
     "trigger": "Canonical Algorithm review already persisted one external exact-artifact materialization and AgentRuntime compacted the accepted handoff to RuntimeArtifactRef, but validation still accepted a legacy materialization containing the complete review_material and could recover the handoff implicitly from copied Architect context.",
     "change": "Simulation handoff validation now accepts only an explicit task-owned handoff bound to RuntimeGeneratedCodeSemanticReviewMaterialization with full_review_material_persisted=false, no nested review_material, exact source/result hashes, matching packet, execution, materialization, theory, question, and sandbox identities.",
     "removed_surfaces": [

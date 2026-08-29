@@ -41,7 +41,7 @@ logic rather than adding another interface, agent, retry, or scheduler.
 
 Latest selective-adoption implementation commits:
 
-- `PENDING_HANDOFF_CLEANUP_COMMIT`: require an explicit task-owned accepted
+- `18e150c150991ca4c1eca058c993e638ee90b7a0`: require an explicit task-owned accepted
   Algorithm handoff backed by the canonical external review materialization;
   reject nested legacy review payloads and implicit Architect-context recovery;
 
