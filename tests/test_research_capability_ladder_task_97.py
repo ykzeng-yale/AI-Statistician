@@ -231,8 +231,8 @@ def test_betareg_jss_r_l1_consumed_result_is_immutable() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 99
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 98
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 99
     assert readiness["fully_gold_configured_tasks"] == 99
     assert readiness["fully_gold_passed_tasks"] == 7
     assert readiness["runtime_source_replication_components_ready"] == 9
@@ -244,6 +244,4 @@ def test_betareg_jss_r_l1_consumed_result_is_immutable() -> None:
         for row in ladder["initial_candidate_queue"]
         if row["status"] == "active_scored"
     ]
-    assert [row["id"] for row in active] == [
-        "ledoit_wolf_linear_shrinkage_paper_to_code"
-    ]
+    assert active == []

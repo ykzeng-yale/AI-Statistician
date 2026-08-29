@@ -29,7 +29,7 @@ GOLD_MANIFEST = Path(
 TASK_ID = "ledoit_wolf_linear_shrinkage_paper_to_code"
 
 
-def test_ledoit_wolf_l2_is_frozen_before_its_only_product_draw() -> None:
+def test_ledoit_wolf_l2_consumed_result_is_immutable() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -38,9 +38,10 @@ def test_ledoit_wolf_l2_is_frozen_before_its_only_product_draw() -> None:
 
     assert candidate["level"] == "L2"
     assert candidate["family"] == "high_dimensional_covariance_shrinkage"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_schema_v4_protocol_v11_exact_haiku_single_draw"
+        "fresh_live_v1_consumed_exact_haiku_runtime_blocked_gold_failed_"
+        "theory_semantics_and_uncommitted_algorithm"
     )
     assert evidence["codex_harness_mechanism_head"] == (
         "2a988ca8a86030d90e790530db22ea38138f3259"
@@ -76,14 +77,64 @@ def test_ledoit_wolf_l2_is_frozen_before_its_only_product_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_product_model_calls"] == 70
+    assert evidence["runtime_client_tool_model_turns"] == 70
+    assert evidence["runtime_direct_model_calls"] == 0
+    assert evidence["runtime_client_tool_executions"] == 80
+    assert evidence["runtime_tool_errors_returned_to_owner"] == 16
+    assert evidence["runtime_model_calls_by_subsystem"] == {
+        "AlgorithmEngineer": 13,
+        "ArchitectCoordinator": 15,
+        "CriticEvaluator": 8,
+        "GeneratedCodeSemanticReviewer": 3,
+        "SimulationEvaluator": 9,
+        "TheoryDeveloper": 22,
+    }
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["hidden_theory_exact_checks_passed"] == 7
+    assert evidence["hidden_theory_exact_checks_total"] == 7
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == 6
+    assert evidence["hidden_theory_semantic_claims_violated"] == 1
+    assert evidence["hidden_theory_semantic_claims_inconclusive"] == 1
+    assert evidence["hidden_theory_combined_passed"] is False
+    assert evidence["generated_algorithm_executed"] is True
+    assert evidence["generated_algorithm_explicit_commit"] is False
+    assert evidence["generated_algorithm_handoff_accepted"] is False
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["generated_simulation_executed"] is True
+    assert evidence["generated_simulation_explicit_commit"] is True
+    assert evidence["generated_simulation_exploratory_passed"] is True
+    assert evidence["generated_simulation_confirmatory_passed"] is False
+    assert evidence["simulation_upstream_algorithm_handoff_receipt_present"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
+    assert evidence["post_runtime_evaluator_model_calls"] == 2
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "critic_scientific_inconclusive"
+    )
+    assert evidence["critic_unresolved_gap_disclosure_present"] is False
+    assert evidence["hidden_expected_values_disclosed"] is False
+    assert evidence["runtime_feedback_generated"] is False
+    assert evidence["operator_disposition"] == "FAILED"
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
+    assert evidence["trusted_capability_credit"] is False
+    assert evidence["ladder_score_before_activation"] == "7/98"
+    assert evidence["ladder_score_after_activation"] == "7/99"
+    assert evidence["ladder_score_after_consumption"] == "7/99"
+    assert evidence["runtime_manifest_sha256"] == (
+        "234c87d87917053ad384773cc60f8cadcafdec42021677248c3b129321bb2f5d"
+    )
+    assert evidence["gold_evaluation_sha256"] == (
+        "fe6a4efb2b646b59d804321ce5391a4ae92830bff7d64012a110ce7cb1f409e8"
+    )
     assert evidence["model_draw_resampling_blocked"] is True
 
     question = json.loads(VISIBLE_PATH.read_text(encoding="utf-8"))["questions"][0]
@@ -134,7 +185,7 @@ def test_ledoit_wolf_l2_is_frozen_before_its_only_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 99
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 98
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 99
     assert readiness["fully_gold_configured_tasks"] == 99
     assert readiness["fully_gold_passed_tasks"] == 7
