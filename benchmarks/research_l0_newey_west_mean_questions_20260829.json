@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "newey_west_mean_hac_known_result",
+      "title": "Newey-West Bartlett HAC inference for a stationary mean",
+      "description": "Focused integrated L0 known-result evaluation grounded in Newey and West (1987), DOI 10.2307/1913610, and a pinned statsmodels Bartlett-HAC implementation excerpt. Let Y_1,...,Y_n be a finite segment of an equally spaced covariance-stationary scalar process with mean mu and autocovariance gamma(k)=Cov(Y_t,Y_{t-k}). In one authoritative Markdown/LaTeX workspace, derive the exact finite-n identity for Var(sqrt(n)(bar Y_n-mu)), identify the population long-run variance Omega=gamma(0)+2 sum_{k>=1} gamma(k), and state explicit dependence, moment, autocovariance-summability, bandwidth, and CLT conditions sufficient for asymptotic normal inference. For a supplied integer L, define centered sample autocovariances gamma_hat_k=n^{-1} sum_{t=k+1}^n (Y_t-bar Y_n)(Y_{t-k}-bar Y_n), Bartlett weights w_k=1-k/(L+1), and Omega_hat_L=gamma_hat_0+2 sum_{k=1}^L w_k gamma_hat_k. Derive this exact convention, establish its nonnegativity through a valid finite-sample argument, and distinguish the finite sample estimator from Omega, finite-sample unbiasedness, and asymptotic consistency when L=L_n grows. Specialize the population calculation to a stationary Gaussian AR(1), Y_t-mu=phi(Y_{t-1}-mu)+epsilon_t with |phi|<1 and innovation variance sigma_e^2, obtaining gamma(0), Omega, and the factor by which an iid standard error misses the asymptotic variance. Discuss negative as well as positive phi. The required model-authored Python artifact is est_newey_west_mean and must implement the frozen run_estimator(request) contract exactly. It may use NumPy but must not call a prebuilt HAC routine. Exploratory Python or R may compare the implementation with direct matrix calculations and inspect finite AR(1) behavior. A separately frozen confirmatory experiment uses predeclared Gaussian AR(1) designs, bandwidths fixed before candidate execution, independent exact formula checks, long-run variance accuracy, and normal-interval coverage with Monte Carlo uncertainty. Such simulation supports only those finite designs and is not proof. Source-code replication and novelty are not required, and Lean formalization is not applicable.",
+      "tags": [
+        "Newey-West",
+        "HAC covariance",
+        "long-run variance",
+        "stationary time series",
+        "AR(1)",
+        "known result",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix",
+          "authors": [
+            "Whitney K. Newey",
+            "Kenneth D. West"
+          ],
+          "journal": "Econometrica",
+          "year": 1987,
+          "volume": 55,
+          "pages": "703-708",
+          "doi": "10.2307/1913610",
+          "nber_working_paper": "10.3386/t0055",
+          "url": "https://www.nber.org/papers/t0055"
+        },
+        "implementation_convention": {
+          "title": "statsmodels Bartlett HAC implementation",
+          "repository": "https://github.com/statsmodels/statsmodels",
+          "commit": "b24082f15d7603ffb250c282f34df7df3db10cb2",
+          "url": "https://github.com/statsmodels/statsmodels/blob/b24082f15d7603ffb250c282f34df7df3db10cb2/statsmodels/stats/sandwich_covariance.py",
+          "meaning": "The model-visible excerpt fixes the Bartlett weight and lag-sum convention; the public estimator contract below is the executable authority."
+        },
+        "research_source_manifest": "benchmarks/research_sources/newey_west_mean_20260829/source_manifest.json"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_newey_west_mean",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observations",
+            "name": "observations",
+            "meaning": "One finite, equally spaced scalar time-series segment in chronological order.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=12",
+            "units": "one common measurement unit",
+            "indexing": "zero-based chronological order; missing periods are not admitted",
+            "edge_cases": "Reject booleans, strings, nested values, nonfinite values, and fewer than twelve observations; do not reorder or coerce entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.max_lag",
+            "name": "max_lag",
+            "meaning": "The fixed highest included autocovariance lag L, selected before inspecting this request's outcomes.",
+            "json_type": "integer",
+            "shape": "one exact integer satisfying 0<=L<=n-2",
+            "units": "equally spaced time steps",
+            "indexing": "lag zero is always included and positive lags run through L",
+            "edge_cases": "Reject booleans, nonintegers, negative values, and values above n-2; do not choose or modify the lag internally.",
+            "binding": "derived_once_from_frozen_design"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_observations",
+            "name": "n_observations",
+            "meaning": "The number n of supplied observations.",
+            "json_type": "integer",
+            "shape": "one integer at least twelve",
+            "units": "count",
+            "indexing": "equals len(observations)",
+            "edge_cases": "Must be a native JSON integer and must not count any padded or omitted value.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.max_lag",
+            "name": "max_lag",
+            "meaning": "The exact lag L supplied in the request.",
+            "json_type": "integer",
+            "shape": "one integer in [0,n-2]",
+            "units": "time steps",
+            "indexing": "highest returned lag",
+            "edge_cases": "Must preserve the request exactly and must not report an automatically selected bandwidth.",
+            "normalization": "No transformation."
+          },
+          {
+            "clause_id": "response.sample_mean",
+            "name": "sample_mean",
+            "meaning": "The arithmetic mean of the supplied observations.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "observation units",
+            "indexing": "uses every observation exactly once",
+            "edge_cases": "Must be a native JSON-finite number.",
+            "normalization": "sum_t observations[t]/n."
+          },
+          {
+            "clause_id": "response.autocovariances",
+            "name": "autocovariances",
+            "meaning": "The centered divisor-n sample autocovariances gamma_hat_k for lags zero through L.",
+            "json_type": "array[number]",
+            "shape": "exactly L+1 finite scalars",
+            "units": "squared observation units",
+            "indexing": "entry k is n^{-1} sum_{t=k+1}^n (Y_t-bar Y)(Y_{t-k}-bar Y)",
+            "edge_cases": "Do not divide by n-k or n-1, do not omit lag zero, and do not circularly wrap the series.",
+            "normalization": "Every lag sum uses the common divisor n."
+          },
+          {
+            "clause_id": "response.bartlett_weights",
+            "name": "bartlett_weights",
+            "meaning": "The Bartlett weights for lags zero through L.",
+            "json_type": "array[number]",
+            "shape": "exactly L+1 finite nonnegative scalars",
+            "units": "dimensionless",
+            "indexing": "entry k corresponds to autocovariances[k]",
+            "edge_cases": "The lag-zero value is one and the lag-L value is 1/(L+1); do not use 1-k/L.",
+            "normalization": "w_k=1-k/(L+1)."
+          },
+          {
+            "clause_id": "response.long_run_variance",
+            "name": "long_run_variance",
+            "meaning": "The finite-sample Bartlett HAC estimate Omega_hat_L.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar up to floating-point roundoff",
+            "units": "squared observation units",
+            "indexing": "aggregates returned lags zero through L",
+            "edge_cases": "Must use the returned centered divisor-n autocovariances and supplied L; a tiny negative roundoff no smaller than -1e-12 may be clipped to zero, but a materially negative value is invalid.",
+            "normalization": "autocovariances[0]+2*sum_{k=1}^L bartlett_weights[k]*autocovariances[k]."
+          },
+          {
+            "clause_id": "response.mean_standard_error",
+            "name": "mean_standard_error",
+            "meaning": "The HAC standard-error estimate for the sample mean.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "observation units",
+            "indexing": "uses n_observations and long_run_variance",
+            "edge_cases": "May equal zero for a constant series; do not apply a Student-t or degrees-of-freedom multiplier.",
+            "normalization": "sqrt(long_run_variance/n_observations)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly observations and max_lag, and the response contains exactly n_observations, max_lag, sample_mean, autocovariances, bartlett_weights, long_run_variance, and mean_standard_error. Missing, extra, malformed, coercible-only, or nonfinite values are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_bartlett_identity",
+            "meaning": "The response uses the exact divisor-n centered autocovariances and Bartlett weights, long_run_variance equals their declared weighted sum, and mean_standard_error squared equals long_run_variance/n up to floating-point tolerance."
+          },
+          {
+            "clause_id": "invariant.lag_zero_reduction",
+            "meaning": "When max_lag is zero, bartlett_weights is [1], long_run_variance is the divisor-n centered sample variance, and mean_standard_error is its square root divided by sqrt(n)."
+          },
+          {
+            "clause_id": "invariant.translation_invariance",
+            "meaning": "Adding a finite constant c to every observation adds c to sample_mean and leaves autocovariances, bartlett_weights, long_run_variance, and mean_standard_error unchanged."
+          },
+          {
+            "clause_id": "invariant.scale_equivariance",
+            "meaning": "Multiplying every observation by a finite nonzero scalar a multiplies sample_mean by a, every autocovariance and long_run_variance by a^2, leaves Bartlett weights unchanged, and multiplies mean_standard_error by abs(a)."
+          },
+          {
+            "clause_id": "invariant.time_reversal",
+            "meaning": "Reversing the finite observation order leaves every returned quantity unchanged under this two-sided scalar Bartlett convention."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen input, the candidate outputs agree with an independent direct lag-sum implementation and the exact public transformations under predeclared numerical tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.ar1_long_run_variance",
+            "meaning": "Across predeclared stationary Gaussian AR(1) designs with positive, zero, and negative dependence, the candidate HAC estimate is compared with the known population Omega=sigma_e^2/(1-phi)^2 using bandwidths fixed before candidate execution and Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.ar1_interval_coverage",
+            "meaning": "The frozen assessment records normal-interval coverage for mu using the candidate HAC standard error and reports Monte Carlo uncertainty; it does not require exact finite-sample 95 percent coverage."
+          },
+          {
+            "clause_id": "claim.empirical.computation_not_proof",
+            "meaning": "Finite AR(1) experiments and source agreement are computational evidence only; they do not prove positive semidefiniteness, consistency, a CLT, or validity for arbitrary stationary processes."
+          }
+        ]
+      }
+    }
+  ]
+}

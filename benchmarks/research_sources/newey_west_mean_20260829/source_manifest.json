@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "newey-west-mean-public-sources-20260829-v1",
+  "source_horizon": "2026-08-29",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "newey-west-public-record",
+      "title": "Newey-West public record and focused task scope",
+      "source_kind": "paper_metadata",
+      "relative_path": "newey_west_public_record.md",
+      "sha256": "ae7ae96009d7a92b1e599a763936c1a876f204b52dcc0cf488b7535b34a8358a",
+      "model_visible": true,
+      "citation": "Newey and West (1987), Econometrica 55:703-708",
+      "url": "https://www.nber.org/papers/t0055",
+      "publication_date": "1987-05-01",
+      "license": "operator-authored-paraphrase"
+    },
+    {
+      "document_id": "statsmodels-hac-bartlett",
+      "title": "statsmodels Bartlett HAC implementation excerpt",
+      "source_kind": "code",
+      "relative_path": "statsmodels_hac_excerpt.py",
+      "sha256": "174a855c425f96bc1709893188b55db620786d8496623bdf78aa87611f300df9",
+      "model_visible": true,
+      "citation": "statsmodels sandwich_covariance.py",
+      "url": "https://github.com/statsmodels/statsmodels/blob/b24082f15d7603ffb250c282f34df7df3db10cb2/statsmodels/stats/sandwich_covariance.py",
+      "git_commit": "b24082f15d7603ffb250c282f34df7df3db10cb2",
+      "license": "BSD-3-Clause"
+    }
+  ]
+}
