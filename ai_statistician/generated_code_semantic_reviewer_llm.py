@@ -55,11 +55,11 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 36
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 37
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.")
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v13"
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v14"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
@@ -830,11 +830,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             if isinstance(contract, Mapping)
             else ""
         )
-        contract_probe_clause_ids = tuple(sorted(
+        contract_probe_required = bool(
             frozen_estimator_execution_contract_clause_ids(contract) -
-            frozen_estimator_execution_contract_empirical_claim_ids(contract)))
+            frozen_estimator_execution_contract_empirical_claim_ids(contract)
+        )
         if contract_probe_target not in probe_targets:
-            contract_probe_target, contract_probe_clause_ids = "", ()
+            contract_probe_target, contract_probe_required = "", False
         refresh_targets = {
             str(row.get("artifact_id", "") or ""): str(
                 row.get("exact_source_code", "") or ""
@@ -881,10 +882,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "replicates": {"type": "integer", "minimum": 1},
             },
         }
-        if contract_probe_clause_ids:
-            probe_schema["required"].append("tested_contract_clause_ids")
-            probe_schema["properties"]["tested_contract_clause_ids"] = {
-                "type": "array", "enum": [list(contract_probe_clause_ids)]}
         probe_tool = ClientToolDefinition(
             name=GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL,
             description=(
@@ -899,10 +896,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "target's. Failure before target invocation is a reviewer tool error. "
                 "Only an observation that reaches the target can falsify source claims; "
                 "the probe cannot edit source, inspect confirmatory outcomes, or confer "
-                "empirical acceptance. When tested_contract_clause_ids is exposed, list "
-                "only public clause IDs for which this exact test source contains a "
-                "discriminating assertion. Runtime tracks declared coverage but does not "
-                "judge the assertion's scientific correctness."
+                "empirical acceptance. The reviewer owns test selection, contract "
+                "decomposition, and scientific interpretation; runtime records only exact "
+                "source execution and immutable lineage."
             ),
             input_schema=probe_schema,
         )
@@ -955,10 +951,14 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             else ""
                         )
                         + (
-                            " Before ACCEPT, one successful reviewer-authored probe must test "
-                            "every executable estimator-contract clause ID. Declare the complete "
-                            "list only when that exact test source contains discriminating oracles."
-                            if contract_probe_clause_ids else ""
+                            " Before ACCEPT, run at least one successful reviewer-authored "
+                            "executable-contract probe. Treat each public clause ID as an address, "
+                            "not an atomic coverage claim: independently decompose compound "
+                            "positive, malformed-input, boundary, transformation, and output "
+                            "obligations that the clause actually states. Do not infer an untested "
+                            "obligation from a neighboring passing example; record it as a finding "
+                            "instead of accepting."
+                            if contract_probe_required else ""
                         )
                         + " Prose alone cannot submit or accept a review."
                     ),
@@ -1061,8 +1061,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     raise ClientToolInputError("review probe budget exhausted")
                 probe_input = dict(call.input)
                 required = {"artifact_id", "dependencies", "code", "seed", "replicates"}
-                if contract_probe_clause_ids:
-                    required.add("tested_contract_clause_ids")
                 if set(probe_input) != required:
                     raise ClientToolInputError(
                         "review probe fields do not match the advertised exact schema"
@@ -1083,15 +1081,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 target = probe_targets.get(str(probe_input["artifact_id"] or ""))
                 if not target or probe_sandbox_dir is None:
                     raise ClientToolInputError("unknown exact estimator probe target")
-                tested_clause_ids = list(
-                    probe_input.get("tested_contract_clause_ids", [])
-                )
-                if contract_probe_clause_ids and (
-                    target["artifact_id"] != contract_probe_target
-                    or tuple(tested_clause_ids) != contract_probe_clause_ids
-                ):
+                if contract_probe_required and target["artifact_id"] != contract_probe_target:
                     raise ClientToolInputError(
-                        "contract probe must bind the advertised target and complete clause list"
+                        "contract probe must bind the advertised estimator target"
                     )
                 probe_code = str(probe_input["code"] or "")
                 execution = execute_scientific_sandbox(
@@ -1185,15 +1177,14 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             )
             if (
                 packet.get("overall_verdict") == "ACCEPT"
-                and contract_probe_clause_ids
+                and contract_probe_required
                 and not any(
                     row.get("target_artifact_id") == contract_probe_target
                     and row.get("successful_exact_invocation") is True
                     for row in probe_executions
                 )
             ):
-                errors.append("ACCEPT requires successful model-authored probe coverage "
-                              "for every executable estimator-contract clause")
+                errors.append("ACCEPT requires a successful model-authored executable-contract probe")
             reviewed_text = str(payload.get("review_document", "") or "")
             for row in probe_executions:
                 result_hash = str(row.get("result_hash", "") or "")

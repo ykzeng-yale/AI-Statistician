@@ -197,14 +197,16 @@ def _run_critic_client_tool_review(
         canonical_evidence_view=compact_view,
         environment_feedback=compact_feedback,
         client_tool_submission=True,
+        client_tool_evidence_documents_available=bool(documents),
     )
     prompt += (
         "\n\nExact evidence document catalog (content remains available without "
         "truncation):\n"
         + json.dumps(catalog, separators=(",", ":"), ensure_ascii=False)
     )
+    document_tools = theory_document_client_tools() if documents else ()
     tools = (
-        *theory_document_client_tools(),
+        *document_tools,
         ClientToolDefinition(
             name=CRITIC_EVALUATION_SUBMIT_TOOL,
             description=(
@@ -224,7 +226,7 @@ def _run_critic_client_tool_review(
         model=request_model,
         max_tokens=config.max_tokens,
         temperature=config.temperature,
-        tool_choice="any",
+        tool_choice=("any" if document_tools else CRITIC_EVALUATION_SUBMIT_TOOL),
         disable_parallel_tool_use=False,
         enable_prompt_caching=True,
         metadata={
@@ -406,6 +408,7 @@ def build_critic_evaluator_prompt(
     canonical_evidence_view: Mapping[str, Any] | None = None,
     environment_feedback: Mapping[str, Any] | None = None,
     client_tool_submission: bool = False,
+    client_tool_evidence_documents_available: bool = False,
 ) -> str:
     evidence_view = deepcopy(dict(canonical_evidence_view or {}))
     payload = {
@@ -430,15 +433,22 @@ def build_critic_evaluator_prompt(
         "required_output_contract": CRITIC_EVALUATOR_OUTPUT_CONTRACT,
         "boundary": CRITIC_EVALUATOR_BOUNDARY,
     }
-    submission_instruction = (
-        "Use the supplied read/search tools to inspect exact externalized evidence, then "
-        f"call {CRITIC_EVALUATION_SUBMIT_TOOL} with the complete required_output_contract. "
-        "Only catalog path values are valid document tool paths; source filenames and json_path values are evidence references. Batch independent read/search calls when useful, do not reread unchanged ranges, and submit the terminal judgment alone in a later turn after inspecting the retained observations. The model owns the review sequence; prose alone cannot submit a judgment."
-        if client_tool_submission
-        else (
+    if client_tool_submission and client_tool_evidence_documents_available:
+        submission_instruction = (
+            "Use the supplied read/search tools to inspect exact externalized evidence, then "
+            f"call {CRITIC_EVALUATION_SUBMIT_TOOL} with the complete required_output_contract. "
+            "Only catalog path values are valid document tool paths; source filenames and json_path values are evidence references. Batch independent read/search calls when useful, do not reread unchanged ranges, and submit the terminal judgment alone in a later turn after inspecting the retained observations. The model owns the review sequence; prose alone cannot submit a judgment."
+        )
+    elif client_tool_submission:
+        submission_instruction = (
+            "All exact evidence is already present in this request; no external evidence "
+            f"document tools are available. Call {CRITIC_EVALUATION_SUBMIT_TOOL} directly "
+            "with the complete required_output_contract. Prose alone cannot submit a judgment."
+        )
+    else:
+        submission_instruction = (
             "Return ONLY JSON matching required_output_contract, with no optional prose."
         )
-    )
     return (
         "Review this AI Statistician trace as CriticEvaluator. "
         + submission_instruction

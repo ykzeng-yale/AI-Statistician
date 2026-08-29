@@ -1460,7 +1460,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
-def test_reviewer_accept_requires_model_authored_executable_contract_coverage(
+def test_reviewer_accept_requires_model_authored_executable_contract_probe(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1482,11 +1482,6 @@ def test_reviewer_accept_requires_model_authored_executable_contract_coverage(
         ),
         "seed": 17,
         "replicates": 1,
-        "tested_contract_clause_ids": [
-            "invariant.closed_object",
-            "request.value",
-            "response.estimate",
-        ],
     }
 
     def submission(*result_hashes: str) -> dict[str, object]:
@@ -1590,11 +1585,15 @@ def test_reviewer_accept_requires_model_authored_executable_contract_coverage(
         for tool in backend.requests[0].tools
         if tool.name == "run_exact_estimator_review_probe"
     )
-    assert "tested_contract_clause_ids" in probe_schema["required"]
-    assert "every executable estimator-contract clause ID" in str(
+    assert "tested_contract_clause_ids" not in probe_schema["required"]
+    assert "tested_contract_clause_ids" not in probe_schema["properties"]
+    assert "Treat each public clause ID as an address" in str(
         backend.requests[0].messages[0]["content"]
     )
-    assert "ACCEPT requires successful model-authored probe coverage" in str(
+    assert "record it as a finding instead of accepting" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "ACCEPT requires a successful model-authored executable-contract probe" in str(
         backend.requests[1].messages
     )
     assert packet["overall_verdict"] == "ACCEPT"

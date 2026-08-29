@@ -63,7 +63,7 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness reference is [OpenAI Codex at `6478a751`](https://github.com/openai/codex/tree/6478a751fde8884b2fdc76486fe23175a8e795d4). We adopt incremental history, stable tools, raw tool-error feedback, checkpoint/resume, cancellation, and bounded context. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, and metadata.
+The general harness reference is [OpenAI Codex at `f5636bb7`](https://github.com/openai/codex/tree/f5636bb733c4653a6b91413fed1aaf8842374f2e). We adopt incremental history, stable capability-accurate tools, raw tool-error feedback, checkpoint/resume, cancellation, and bounded context. A tool is stable within one retained session but is omitted when its underlying workspace or authority is absent; an empty search surface is not a model capability. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, and metadata.
 We do not embed `codex-core`, App Server, its Responses transport, shared-directory subagents, or another scheduler. Each scientific workspace is the domain session and AgentRuntime remains the sole outer graph; any sidecar requires model, tool, lineage, isolation, and resume parity and can never become authority.
 Like Codex `run_turn`, a response without a tool call ends the workspace segment. The harness persists the exact response and state for explicit hash-verified continuation; it never appends a private tool instruction or resamples. Progress attributes the inner subsystem, agent, and stage separately from the outer task owner.
 
@@ -193,6 +193,12 @@ For rejected source, the reviewer asks whether editing only that source can clos
 all findings with theory, contract, and consumer fixed; it names no owner, route,
 or edit. Sufficient findings return to the coding workspace; otherwise one compact
 observation goes to Architect. Source stays in the store, outside the control task.
+
+The reviewer owns executable-contract decomposition. Public clause IDs are navigation
+addresses, not proof that a compound clause was tested. The model runs adversarial probes,
+separates relevant positive, malformed, boundary, transformation, and output obligations,
+and reports untested obligations. Runtime verifies execution and lineage, not semantics
+or a declared coverage list.
 
 For outer-graph completion, an Algorithm or Simulation lane is complete only when
 its active manifest has an independent `ACCEPT` bound to the current immutable

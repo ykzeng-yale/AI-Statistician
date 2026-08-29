@@ -1344,6 +1344,82 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
     assert validate_critic_evaluator_packet(packet) == []
 
 
+def test_critic_omits_document_tools_when_all_evidence_is_inline() -> None:
+    class DirectCriticBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            assert [tool.name for tool in request.tools] == [
+                CRITIC_EVALUATION_SUBMIT_TOOL
+            ]
+            assert request.tool_choice == CRITIC_EVALUATION_SUBMIT_TOOL
+            call = ClientToolCall(
+                call_id="submit-inline-critic",
+                name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                input=_critic_packet(),
+            )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": dict(call.input),
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider=self.provider_name,
+                model="claude-haiku-4-5-20251001",
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    provider = DirectCriticBackend()
+    packet = LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    ).propose(
+        question=OpenResearchQuestion(
+            id="critic-inline-evidence",
+            title="Review inline evidence",
+            description="Submit directly when no external evidence document exists.",
+        ),
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={"manifest_id": "algorithm:inline"},
+        formalization_manifest={},
+        canonical_evidence_view={
+            "artifact_kind": "CriticCanonicalEvidenceView",
+            "view_hash": "critic-inline-view",
+            "dimension_requirements": {
+                "source_replication": "not_applicable",
+                "theory": "required",
+                "scientific_code": "required",
+                "empirical": "required",
+                "formal": "not_applicable",
+            },
+        },
+    )
+
+    assert len(provider.requests) == 1
+    assert "no external evidence document tools are available" in (
+        provider.requests[0].messages[0]["content"]
+    )
+    assert packet["client_tool_loop"]["turns"] == 1
+    assert packet["client_tool_loop"]["tool_calls"] == 1
+    assert packet["client_tool_loop"]["document_access_count"] == 0
+    assert validate_critic_evaluator_packet(packet) == []
+
+
 def test_critic_terminal_submission_waits_for_same_turn_read_observation() -> None:
     report = "load-bearing source line\n" * 100
 
