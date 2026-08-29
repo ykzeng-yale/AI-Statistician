@@ -1,13 +1,13 @@
 {
-  "schema_version": 281,
+  "schema_version": 282,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "f12504b0",
+  "validated_code_head": "10f0be5e",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all ninety-three consumed draws and immutable artifacts at trustworthy full-task credit 7/93 while exact development-panel Lean closure remains 0/2. Task 93 supplies one scoped theory-only pass through a real Markdown/LaTeX workspace, isolated source-grounded referee, Critic, and hidden authority without activating Algorithm, Simulation, or Lean. Keep improving long-horizon theory, reviewer precision, and Critic efficiency through general harness mechanisms and future disjoint tasks; never repair, rerun, rescore, or model-escalate consumed tasks.",
+  "current_goal_focus": "Preserve all ninety-three consumed draws and immutable artifacts at trustworthy full-task credit 7/93 while exact development-panel Lean closure remains 0/2. Task 93 supplies one scoped theory-only pass through a real Markdown/LaTeX workspace, isolated source-grounded referee, Critic, and hidden authority without activating Algorithm, Simulation, or Lean. Its general post-run harness correction now batches independent read-only evidence calls while keeping state mutation and terminal judgment observation-ordered. Continue improving long-horizon theory and cross-lane research capability through future disjoint tasks; never repair, rerun, rescore, or model-escalate consumed tasks.",
   "latest_fisher_combination_theory_l0_activation": {
     "task_id": "fisher_combined_pvalue_exact_null_theory_known_result",
     "family": "independent_pvalue_combination_exact_null",
@@ -152,8 +152,8 @@
   },
   "latest_openai_codex_harness_refresh": {
     "repository": "https://github.com/openai/codex",
-    "official_main_head": "5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4",
-    "previous_audited_head": "0b45b171ca7141fd7723f16adb59cd8e7c1a74c3",
+    "official_main_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "previous_audited_head": "5fc7840cf6d085a7a7b3438d69a2beb934a2a5f4",
     "core_source_hashes": {
       "session_turn": "25330893e75ffacc1458c1bafb9f57616bc9d4dc40735f125a3b16e10fae31b0",
       "rollout_budget": "1f74195f58c6a8b42ce92bdb8112389fcfa3853db870e5a5a9ae3494aaf3efe0",
@@ -162,11 +162,24 @@
       "session_review": "a48eb502dc55e8e212fc07207c46877825d1cd232cd539ad4404d4def9715865",
       "review_task": "2e76876cd13186952631f91bcede11a866c48df7d0f7f78aa1f62636846a02b7",
       "review_rubric": "ec60e7f36a1d1c2679ce095c0205ecc56f7dd8fb57707a13ef362072390f219f",
-      "tool_router": "6f5b3e6fcc2473c85275e69d934faf3cb95b90e9c773a055944116d517986a90"
+      "tool_router": "6f5b3e6fcc2473c85275e69d934faf3cb95b90e9c773a055944116d517986a90",
+      "parallel_tool_runtime": "e180732c373f5fb88dbe7a2b8a66f033e17c437b4b2800eb1c8f4ab783fae0b9"
     },
-    "delta": "Current Codex retains one model-tool-observation loop and model-visible rollout capacity. Its review task runs in an isolated one-shot session with web and collaboration disabled, approval set to never, and a rubric requiring discrete source-located findings without generating the fix. These are harness-role invariants, not statistical or mathematical semantics.",
-    "adoption_decision": "Continue reusing Codex invariants inside the existing provider-neutral client_tool_loop: one retained source owner, immutable request tool view, raw observations, explicit model-authored edits, content-addressed checkpoints, sparse ownership changes, model-visible remaining capacity, and an isolated source-grounded reviewer that never repairs the source. Collaboration policy belongs in role prompts and current artifacts; it does not justify hardcoded scientific routing content.",
+    "delta": "No retained-turn, review-task, review-rubric, or parallel-tool source changed between the prior and current audited heads. Current Codex retains one model-tool-observation loop and model-visible rollout capacity. Its review task remains isolated and findings-first. Its tool runtime admits tools declared parallel-safe through a shared read lock and serializes other tools behind a write lock. These are harness-role invariants, not statistical or mathematical semantics.",
+    "adoption_decision": "Continue reusing Codex invariants inside the existing provider-neutral client_tool_loop: one retained source owner, immutable request tool view, raw observations, explicit model-authored edits, content-addressed checkpoints, sparse ownership changes, model-visible remaining capacity, batched independent read-only calls, and an isolated source-grounded reviewer that never repairs the source. State mutation and terminal judgment remain causally ordered after returned observations. Collaboration policy belongs in role prompts and current artifacts; it does not justify hardcoded scientific routing content.",
     "non_adoption_boundary": "Do not embed Codex Core, App Server, Responses transport, OpenAI provider state, Guardian, thread/worktree storage, multi-agent scheduler, hooks, or Codex SDK into the Claude-first canonical runtime. Those product services would duplicate control and add no statistical semantics, Simulation authority, hidden evaluator authority, or Lean kernel authority."
+  },
+  "latest_codex_review_read_batching_adoption": {
+    "mechanism_commit": "10f0be5e1fc21480caeb90e68f2441e4023d52dc",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "trigger": "Consumed Task 93 used a correct sparse three-step outer graph but twenty Critic turns, including repeated evidence reads and searches, plus a 253-line referee report with inaccurate final-source line numbers. These are future general harness observations and do not change the consumed score.",
+    "critic_change": "The existing retained Critic session permits multiple independent document read/search calls in one model response, returns every exact observation to the same history, and accepts terminal judgment only as the sole call of a later turn. The transport is native_same_reviewer_evidence_workspace_v2.",
+    "referee_change": "Theory-referee protocol v42 and review transport v9 tell the same model to batch independent read-only inspection, keep scratch/report mutation/terminal disposition observation-ordered, cite only exact ranges actually returned by reads, and write concise findings-first acceptance reports.",
+    "execution_boundary": "The local provider-neutral loop still executes these inexpensive synchronous file operations in order. This is model-turn batching and causal correctness, not a claim of Rust-style concurrent wall-clock execution. No Codex runtime was imported.",
+    "excluded_changes": "No new dependency, scheduler, agent, repair controller, retry, fallback, parser, mathematical rule, task-family branch, model escalation, resource-budget increase, or consumed-task mutation.",
+    "model_and_evaluator_calls": 0,
+    "capability_boundary": "Task 93 remains immutable at 1/1, aggregate capability remains 7/93 consumed, and exact development-panel Lean closure remains 0/2.",
+    "verification": "Focused Critic, theory-referee, and size regressions passed 86/86; the complete repository passed 1047/1047 in 80.70 seconds. Compileall, JSON/diff hygiene, changed-diff secret scanning, and the unchanged 150000-line production gate passed at 149996 lines. No product model, evaluator model, benchmark, or consumed artifact was invoked."
   },
   "latest_theory_referee_source_audit_correction": {
     "mechanism_commit": "cca1001ad31193224f76a7a3ae48b04aecf21457",
