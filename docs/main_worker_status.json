@@ -3,7 +3,7 @@
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "cad888f2",
+  "validated_code_head": "f12504b0",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -54,6 +54,7 @@
     "runtime_topology_sha256": "907ab441fcda3bc4e0ff12e953c01605d1a181048ee28d068a7d29f522763eca",
     "operator_audit": "docs/operator_audits/fisher_combined_pvalue_theory_l0_v1.md",
     "verification": "Ladder regressions passed 91/91 and the complete repository passed 1046/1046 in 82.29 seconds. Compileall, JSON parsing, diff hygiene, changed-diff secret scanning, exact artifact hashes, Haiku-only topology, hidden-leak scanning, and the unchanged 149999-line production Python budget passed. No closeout check made a product or evaluator model call.",
+    "closeout_evidence_commit": "f12504b0d7a0b0fadc4cf762a2bfee04f4bf00ba",
     "trusted_capability_credit": "1/1; aggregate is now 7/93 consumed",
     "task_intent": "Theory and unresolved-gap disclosure required; source replication, scientific code, empirical simulation, formalization, and novelty are not applicable.",
     "boundary": "The single exact-Haiku product invocation and single post-runtime evaluator assessment are consumed and immutable. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden findings as runtime feedback, or model-escalate this task. No Fisher-specific product harness change follows from the pass."

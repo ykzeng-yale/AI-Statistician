@@ -6,6 +6,7 @@
 - Public source: R. A. Fisher, [Answer to Question 14 on Combining
   Independent Tests of Significance](https://doi.org/10.2307/2681650), 1948
 - Frozen runtime HEAD: `cad888f239b23c023f4c416d0472d95a98d7b55c`
+- Closeout evidence commit: `f12504b0d7a0b0fadc4cf762a2bfee04f4bf00ba`
 - Run: `runs/main_worker_research_l0_fisher_combined_pvalue_theory_20260829_v1_codex_source_grounded_exact_haiku`
 - Product runtime status: `ACCEPTED`
 - Frozen automated full-task result: `1/1`

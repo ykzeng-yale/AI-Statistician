@@ -112,6 +112,9 @@ def test_fisher_combination_l0_theory_records_sole_consumed_draw() -> None:
     assert evidence["hidden_theory_semantic_claims_satisfied"] == 7
     assert evidence["hidden_theory_combined_passed"] is True
     assert evidence["hidden_runtime_feedback_generated"] is False
+    assert evidence["closeout_evidence_commit"] == (
+        "f12504b0d7a0b0fadc4cf762a2bfee04f4bf00ba"
+    )
     assert evidence["automated_full_task_passed"] is True
     assert evidence["full_task_passed"] is True
     assert evidence["trusted_capability_credit"] is True

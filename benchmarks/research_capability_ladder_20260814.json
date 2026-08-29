@@ -10278,6 +10278,7 @@
         "operator_math_audit": "PASS with non-load-bearing caveats: the exact independent-Uniform derivation, finite upper-tail formula, calibration, level, k=1 reduction, and scope boundaries are correct. The discrete-p-value discussion is broader than necessary, and the referee report's source-line numbers are inaccurate even though its mathematical checks target claims present in the source.",
         "harness_efficiency_audit": "The outer graph used only three substantive steps and correctly skipped Algorithm, Simulation, and Lean. The retained inner sessions still used 38 model turns; Critic used 20 turns with eleven repeated document reads and eight searches, while the referee produced a 253-line report. This is recorded as future general harness work, not a reason to change or rescore this consumed task.",
         "verification": "Ladder regressions passed 91/91 and the complete repository passed 1046/1046 in 82.29 seconds. Compileall, JSON parsing, diff hygiene, changed-diff secret scanning, exact artifact hashes, Haiku-only topology, hidden-leak scanning, and the unchanged 149999-line production Python budget passed. No closeout check made a product or evaluator model call.",
+        "closeout_evidence_commit": "f12504b0d7a0b0fadc4cf762a2bfee04f4bf00ba",
         "automated_full_task_passed": true,
         "full_task_passed": true,
         "trusted_capability_credit": true,
