@@ -11,10 +11,10 @@ from ai_statistician.fingerprint import stable_hash
 
 
 LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
-TASK_ID = "poisson_loglinear_irls_known_implementation"
+TASK_ID = "binary_runs_fixed_counts_known_result"
 
 
-def test_poisson_loglinear_l0_task_is_consumed_after_sole_product_draw() -> None:
+def test_binary_runs_l0_task_is_frozen_and_unconsumed() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -22,70 +22,67 @@ def test_poisson_loglinear_l0_task_is_consumed_after_sole_product_draw() -> None
     evidence = candidate["activation_evidence"]
 
     assert candidate["level"] == "L0"
-    assert candidate["family"] == "poisson_loglinear_glm_irls"
-    assert candidate["status"] == "consumed_scored"
+    assert candidate["family"] == "fixed_count_binary_runs"
+    assert candidate["status"] == "active_scored"
     assert candidate["activation_status"] == (
-        "fresh_live_v1_consumed_runtime_blocked_no_source_authored_hidden_not_attempted"
+        "frozen_ready_preactivated_unconsumed"
     )
     assert candidate["gold_bundle_id"] == (
-        "research-l0-poisson-loglinear-irls-20260828-v1"
+        "research-l0-binary-runs-20260828-v1"
     )
     assert candidate["gold_manifest_sha256"] == (
-        "cf05bcbe50992825c5dad0f0faff4b5dfb2f0f9832ab5d60fe25395d72944cd1"
+        "84c9dbbe3abe9edd9d5903761e0bea741740449fe34cd36a57084fb3bb0040d0"
     )
     assert candidate["gold_descriptor_hash"] == (
-        "08d8ca4e01cee37201e29c716add68b70df3b0de19426f4af4a6987086f7cdbd"
+        "36131f46a58951815bdd2d6941b84fe6e0b20fcffe32bb9f2ab1fd44aeb84610"
     )
     assert evidence["visible_question_activation_commit"] == (
-        "4be4516435cf70ecbc725dbe7396b59e11e4d8f7"
-    )
-    assert evidence["research_source_snapshot_hash"] == (
-        "09b04e1ea313063bf190e222424c74e29633a62b5dc4ab2592667bebec81aa2d"
+        "a15fef2f40416b354f64ffeedb00d4b88fcc3a8a"
     )
     assert evidence["activation_schema_version"] == 4
     assert evidence["reference_algorithm_contract_checks_passed"] is True
     assert evidence["reference_algorithm_valid_cases"] == 4
-    assert evidence["reference_algorithm_invalid_cases"] == 20
-    assert evidence["algorithm_negative_variants_rejected"] == 3
+    assert evidence["reference_algorithm_invalid_cases"] == 16
+    assert evidence["reference_algorithm_invariance_checks"] == 8
+    assert evidence["algorithm_negative_variants"] == 4
     assert evidence["reference_empirical_designs_passed"] == 2
-    assert evidence["reference_empirical_replicates_per_design"] == 1000
-    assert evidence["reference_empirical_invocations"] == 2000
+    assert evidence["reference_empirical_replicates_per_design"] == 4000
+    assert evidence["reference_empirical_invocations"] == 8000
+    assert evidence["semantic_protocol_version"] == 10
+    assert evidence["semantic_activation_attempts"] == 1
+    assert evidence["semantic_calibration_total_model_calls"] == 4
+    assert evidence["semantic_calibration_cases_correct"] == 2
+    assert evidence["semantic_candidate_mode_negative_cases_correct"] == 1
+    assert evidence["semantic_reference_claims"] == 6
+    assert evidence["semantic_reference_candidate_passed"] is True
+    assert evidence["semantic_calibration_model"] == (
+        "claude-haiku-4-5-20251001"
+    )
     assert evidence["activation_reference_tasks_passed"] == 1
-    assert evidence["activation_negative_controls_rejected"] == 4
+    assert evidence["activation_negative_controls_rejected"] == 5
+    assert evidence["activation_semantic_reference_documents_passed"] == 1
+    assert (
+        evidence[
+            "activation_semantic_candidate_mode_negative_controls_rejected"
+        ]
+        == 1
+    )
     assert evidence["activation_semantic_model_calls"] == 0
-    assert evidence["activation_semantic_qualification_model_calls"] == 0
+    assert evidence["activation_semantic_qualification_model_calls"] == 4
+    assert evidence["activation_semantic_qualification_reused"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
-    assert evidence["activation_ledger_commit"] == (
-        "c2a07d37e35d41429930e7fbfad6f13fe0cc733a"
-    )
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
-    assert evidence["preactivation_evaluator_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is True
-    assert evidence["fresh_live_runs"] == 1
-    assert evidence["runtime_invocations"] == 1
-    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
-    assert evidence["product_model_turns"] == 29
-    assert evidence["algorithm_client_tool_model_turns"] == 26
-    assert evidence["algorithm_source_search_calls"] == 10
-    assert evidence["algorithm_source_read_calls"] == 14
-    assert evidence["algorithm_terminal_commit_calls"] == 2
-    assert evidence["algorithm_source_updates"] == 0
-    assert evidence["algorithm_sandbox_checks"] == 0
-    assert evidence["hidden_candidate_execution_attempted"] is False
-    assert evidence["hidden_evaluator_model_calls"] == 0
-    assert evidence["sonnet_product_calls"] == 0
-    assert evidence["opus_product_calls"] == 0
+    assert evidence["preactivation_evaluator_model_calls"] == 4
+    assert evidence["first_runtime_model_call_occurred"] is False
+    assert evidence["fresh_live_runs"] == 0
+    assert evidence["runtime_invocations"] == 0
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["automated_full_task_passed"] is False
+    assert evidence["model_draw_resampling_blocked"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
-    assert evidence["model_draw_resampling_blocked"] is True
-    assert evidence["post_run_shared_mechanism_commit"] == (
-        "c3a754e2cde4a264b4f9b54f14b39a78fb1bf499"
-    )
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -94,21 +91,18 @@ def test_poisson_loglinear_l0_task_is_consumed_after_sole_product_draw() -> None
     question = json.loads(visible_path.read_text(encoding="utf-8"))["questions"][0]
     assert question["id"] == TASK_ID
     assert question["task_intent"] == candidate["task_intent"]
-    assert question["task_intent"]["theory"] == "not_applicable"
+    assert question["task_intent"]["theory"] == "required"
     assert question["task_intent"]["scientific_code"] == "required"
     assert question["task_intent"]["empirical"] == "required"
     assert question["task_intent"]["formal"] == "not_applicable"
-    assert question["source"]["research_source_snapshot_hash"] == (
-        evidence["research_source_snapshot_hash"]
-    )
     contract = question["estimator_execution_contract"]
     assert frozen_estimator_execution_contract_id(contract) == (
         evidence["estimator_execution_contract_id"]
     )
     assert stable_hash(contract) == evidence["estimator_execution_contract_hash"]
-    assert "Poisson log-link model" in question["description"]
-    assert "exactly 1000 fresh replicates" in question["description"]
-    assert "formalization" in question["description"]
+    assert "authoritative Markdown/LaTeX Theory workspace" in question["description"]
+    assert "exactly 4000 fresh" in question["description"]
+    assert "Lean formalization are not applicable" in question["description"]
 
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": question}, sort_keys=True
@@ -118,7 +112,9 @@ def test_poisson_loglinear_l0_task_is_consumed_after_sole_product_draw() -> None
         "hidden_algorithm_harness.py",
         "hidden_empirical_harness.py",
         "reference_estimator.py",
-        "negative_half_standard_errors.py",
+        "semantic_reference.md",
+        "semantic_rubric.json",
+        "candidate_mode_near_miss.md",
     ):
         assert hidden_name not in runtime_visible
 
