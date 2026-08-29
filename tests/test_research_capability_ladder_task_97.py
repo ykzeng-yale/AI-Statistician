@@ -112,7 +112,9 @@ def test_betareg_jss_r_l1_consumed_result_is_immutable() -> None:
     assert evidence["future_semantic_protocol"] == (
         "v11_integrated_plus_adversarial_exact_haiku"
     )
-    assert evidence["closeout_evidence_commit"] == "PENDING_CLOSEOUT_COMMIT"
+    assert evidence["closeout_evidence_commit"] == (
+        "419efdbbc3dfd789a30451079b78f33e8a2d8c73"
+    )
     assert evidence["automated_full_task_passed"] is True
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False

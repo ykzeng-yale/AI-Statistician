@@ -3,7 +3,7 @@
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "708fe0f3",
+  "validated_code_head": "419efdbb",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -46,7 +46,7 @@
     "runtime_topology_sha256": "1348e6f8d0a609dad94a0bee3e3653318fd506242b733d14a7712196d35c8243",
     "source_report_sha256": "09444d67efc602960153c90d2e9793b761bfb8cdb1e892d88f5e855a5e0fe10f",
     "operator_audit": "docs/operator_audits/betareg_jss_r_source_replication_l1_v1.md",
-    "closeout_evidence_commit": "PENDING_CLOSEOUT_COMMIT",
+    "closeout_evidence_commit": "419efdbbc3dfd789a30451079b78f33e8a2d8c73",
     "formalization_requirement": "not_applicable",
     "formalizer_executed": false,
     "trusted_capability_credit": "0/1; aggregate remains 7/97 consumed",
@@ -54,6 +54,7 @@
     "boundary": "The sole exact-Haiku product invocation and sole post-runtime candidate judgment are consumed and immutable. Hidden reference text, expected values, claim identities, negatives, and judgments never entered runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden or operator findings, or model-escalate this task."
   },
   "latest_semantic_adversarial_evaluator_change": {
+    "mechanism_commit": "419efdbbc3dfd789a30451079b78f33e8a2d8c73",
     "trigger": "Task97 copied the correct five-value link table but asserted the opposite local ordering; the protocol-v10 integrated exact-Haiku evaluator still returned PASS with every claim SATISFIED.",
     "source_owner_change": "The existing source-only prompt asks the same model to inspect the exact saved Markdown and challenge active comparisons, threshold decisions, labels, scope, and gaps before choosing edit or commit.",
     "evaluator_change": "Protocol v11 is optional and backward compatible. It evaluates every calibration, candidate-mode negative, reference, and candidate through one complete integrated coverage pass and one independently prompted adversarial falsification pass, then combines document and claim statuses conservatively.",
