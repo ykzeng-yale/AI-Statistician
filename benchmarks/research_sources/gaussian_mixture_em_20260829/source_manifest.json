@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "gaussian-mixture-em-public-sources-20260829-v1",
+  "source_horizon": "2026-08-29",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "dempster-laird-rubin-em-public-record",
+      "title": "EM primary record and focused Gaussian-mixture scope",
+      "source_kind": "paper_metadata",
+      "relative_path": "dempster_laird_rubin_1977_public_record.md",
+      "sha256": "070dd1333cc53354a3fed28defa4a400e8ea2ba4975554424994b7d7c518f849",
+      "model_visible": true,
+      "citation": "Dempster, Laird, and Rubin (1977), JRSS B 39(1):1-38",
+      "url": "https://doi.org/10.1111/j.2517-6161.1977.tb01600.x",
+      "publication_date": "1977-01-01",
+      "license": "operator-authored-paraphrase"
+    },
+    {
+      "document_id": "sklearn-base-em-loop",
+      "title": "scikit-learn base mixture EM-loop excerpt",
+      "source_kind": "code",
+      "relative_path": "sklearn_base_em_excerpt.py",
+      "sha256": "9b1e9b9e22f45bef2c0d77626d06e8622769f86cd01e4a09f0e903041e240a1f",
+      "model_visible": true,
+      "citation": "scikit-learn sklearn/mixture/_base.py",
+      "url": "https://github.com/scikit-learn/scikit-learn/blob/88552088fad33d6ec70e1aaf633389d08fffb970/sklearn/mixture/_base.py",
+      "git_commit": "88552088fad33d6ec70e1aaf633389d08fffb970",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "sklearn-gaussian-mixture-m-step",
+      "title": "scikit-learn Gaussian-mixture M-step excerpt",
+      "source_kind": "code",
+      "relative_path": "sklearn_gaussian_mixture_excerpt.py",
+      "sha256": "d9dd7dbc4f0dfe6678be7d5eab44fb21bfe2e007f84f49835d3e80012f6be342",
+      "model_visible": true,
+      "citation": "scikit-learn sklearn/mixture/_gaussian_mixture.py",
+      "url": "https://github.com/scikit-learn/scikit-learn/blob/88552088fad33d6ec70e1aaf633389d08fffb970/sklearn/mixture/_gaussian_mixture.py",
+      "git_commit": "88552088fad33d6ec70e1aaf633389d08fffb970",
+      "license": "BSD-3-Clause"
+    }
+  ]
+}

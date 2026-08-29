@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "gaussian_mixture_em_monotonicity_known_result",
+      "title": "Exact EM monotonicity for a two-component Gaussian mixture",
+      "description": "Focused integrated L0 known-result evaluation grounded in Dempster, Laird, and Rubin (1977) and a pinned scikit-learn Gaussian-mixture implementation. For iid finite observations x_1,...,x_n from a two-component univariate Gaussian mixture with one known common standard deviation sigma>0, unknown component means, and an interior mixing weight, develop one authoritative Markdown/LaTeX Theory workspace. Define the latent allocation model, observed log likelihood, posterior responsibilities, Q function, and entropy/lower-bound decomposition. Derive the exact E step and the closed-form M-step updates for both means and the mixing weight. Prove, by a complete Jensen or lower-bound/KL chain, that every exact E/M cycle weakly increases the observed-data log likelihood. Explain equality and fixed-point implications without claiming that every equality case is unique. Show that the likelihood values are bounded above for fixed positive sigma and therefore converge as numbers, while clearly rejecting claims that EM necessarily finds the global maximum, uniquely identifies labels, or makes the parameter sequence converge without additional conditions. The required model-authored Python artifact is est_two_component_gaussian_em and must implement the frozen run_estimator(request) contract exactly, including stable log-sum-exp responsibilities, deterministic label canonicalization, the initial likelihood followed by one entry per completed E/M cycle, and the declared convergence rule. It may use NumPy but must not call a prebuilt mixture-model or EM fitting routine. Exploratory Python or R may compare direct likelihood and lower-bound calculations and diagnose initialization. A separately frozen confirmatory experiment uses evaluator-owned seeds and separated two-component Gaussian designs to check likelihood monotonicity, deterministic execution, and label-invariant parameter recovery with Monte Carlo uncertainty. These finite experiments test the implementation only and do not prove the EM theorem or global convergence. Source-code replication, unknown-variance estimation, choosing the number of components, asymptotic inference, novelty, and Lean formalization are not required.",
+      "tags": [
+        "expectation-maximization",
+        "Gaussian mixture",
+        "latent variables",
+        "likelihood monotonicity",
+        "known result",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "Maximum Likelihood from Incomplete Data via the EM Algorithm",
+          "authors": [
+            "A. P. Dempster",
+            "N. M. Laird",
+            "D. B. Rubin"
+          ],
+          "venue": "Journal of the Royal Statistical Society, Series B 39(1):1-38",
+          "year": 1977,
+          "doi": "10.1111/j.2517-6161.1977.tb01600.x",
+          "url": "https://doi.org/10.1111/j.2517-6161.1977.tb01600.x"
+        },
+        "open_source_implementation": {
+          "project": "scikit-learn",
+          "repository": "https://github.com/scikit-learn/scikit-learn",
+          "commit": "88552088fad33d6ec70e1aaf633389d08fffb970",
+          "license": "BSD-3-Clause",
+          "relevant_paths": [
+            "sklearn/mixture/_base.py",
+            "sklearn/mixture/_gaussian_mixture.py"
+          ]
+        },
+        "public_snapshot_manifest": "benchmarks/research_sources/gaussian_mixture_em_20260829/source_manifest.json"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_two_component_gaussian_em",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.values",
+            "name": "values",
+            "meaning": "Observed univariate sample in arbitrary order.",
+            "json_type": "array[number]",
+            "shape": "one list of length n, with 8 <= n <= 2000",
+            "units": "arbitrary measurement units",
+            "indexing": "values[i] is observation i and order carries no statistical meaning",
+            "edge_cases": "Entries must be exact finite JSON numbers, not booleans, with absolute value at most 1e6.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.known_standard_deviation",
+            "name": "known_standard_deviation",
+            "meaning": "Known positive common component standard deviation.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "same as values",
+            "indexing": "shared by both components and all observations",
+            "edge_cases": "Must be an exact JSON number, not a boolean, in [1e-3,1e3]. It is fixed, not estimated.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.initial_first_weight",
+            "name": "initial_first_weight",
+            "meaning": "Initial weight attached to initial_means[0] before canonical relabeling.",
+            "json_type": "number",
+            "shape": "one finite scalar",
+            "units": "probability",
+            "indexing": "the second initial weight is one minus this value",
+            "edge_cases": "Must be an exact JSON number, not a boolean, in [1e-6,1-1e-6].",
+            "binding": "derived_once_from_frozen_design"
+          },
+          {
+            "clause_id": "request.initial_means",
+            "name": "initial_means",
+            "meaning": "Two initial component means, aligned with the initial first weight before canonical relabeling.",
+            "json_type": "array[number]",
+            "shape": "exactly two finite scalars",
+            "units": "same as values",
+            "indexing": "initial_means[0] has initial_first_weight and initial_means[1] has the complementary weight",
+            "edge_cases": "Both entries must be exact finite JSON numbers, not booleans, with absolute value at most 1e6, and they must be distinct.",
+            "binding": "derived_once_from_frozen_design"
+          },
+          {
+            "clause_id": "request.max_iterations",
+            "name": "max_iterations",
+            "meaning": "Maximum number of complete E/M cycles.",
+            "json_type": "integer",
+            "shape": "one integer",
+            "units": "E/M cycles",
+            "indexing": "cycle count starts at one after the initial likelihood",
+            "edge_cases": "Must be an exact integer, not a boolean, in [1,500].",
+            "binding": "runtime_control"
+          },
+          {
+            "clause_id": "request.tolerance",
+            "name": "tolerance",
+            "meaning": "Absolute observed-log-likelihood gain tolerance for convergence.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "log-likelihood units",
+            "indexing": "applied after every completed E/M cycle",
+            "edge_cases": "Must be an exact JSON number, not a boolean, in [0,1].",
+            "binding": "runtime_control"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.component_weights",
+            "name": "component_weights",
+            "meaning": "Final two positive mixture weights aligned with the canonical component means.",
+            "json_type": "array[number]",
+            "shape": "exactly two finite positive scalars",
+            "units": "probability",
+            "indexing": "entry k belongs to component_means[k]",
+            "edge_cases": "The two entries sum to one up to floating-point roundoff.",
+            "normalization": "After every M step, weight k is n^{-1} sum_i r_ik; the two component labels are then ordered by their means."
+          },
+          {
+            "clause_id": "response.component_means",
+            "name": "component_means",
+            "meaning": "Final two component means in deterministic nondecreasing order.",
+            "json_type": "array[number]",
+            "shape": "exactly two finite scalars",
+            "units": "same as values",
+            "indexing": "component_means[0] <= component_means[1]",
+            "edge_cases": "Equal final means are allowed even though the supplied initial means are distinct.",
+            "normalization": "Before the initial likelihood and after every M step, jointly permute means and weights so the means are nondecreasing."
+          },
+          {
+            "clause_id": "response.log_likelihood_trace",
+            "name": "log_likelihood_trace",
+            "meaning": "Observed-data log likelihood at the canonical initial parameters and after every completed E/M cycle.",
+            "json_type": "array[number]",
+            "shape": "exactly iterations+1 finite scalars",
+            "units": "natural-log likelihood",
+            "indexing": "entry zero is initial and entry t is after E/M cycle t",
+            "edge_cases": "Compute every mixture log density by a stable log-sum-exp; exact theory is nondecreasing and numerical output may differ only by floating roundoff.",
+            "normalization": "sum_i log{w_0 phi_sigma(values[i]-mean_0)+w_1 phi_sigma(values[i]-mean_1)} using natural logarithms and the normalized Gaussian density."
+          },
+          {
+            "clause_id": "response.iterations",
+            "name": "iterations",
+            "meaning": "Number of completed E/M cycles represented in the response.",
+            "json_type": "integer",
+            "shape": "one integer",
+            "units": "E/M cycles",
+            "indexing": "equals len(log_likelihood_trace)-1",
+            "edge_cases": "At least one and at most max_iterations.",
+            "normalization": "Increment once after each M step and post-update likelihood evaluation."
+          },
+          {
+            "clause_id": "response.converged",
+            "name": "converged",
+            "meaning": "Whether the declared likelihood-gain stopping rule fired.",
+            "json_type": "boolean",
+            "shape": "one boolean",
+            "units": "not applicable",
+            "indexing": "refers to the final adjacent trace pair",
+            "edge_cases": "False when max_iterations is reached before the rule fires.",
+            "normalization": "True exactly when execution stopped at the first completed cycle for which abs(trace[-1]-trace[-2]) <= tolerance."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the six declared fields and the response contains exactly the five declared fields. Missing, extra, malformed, coercible-only, nonfinite, or out-of-domain inputs are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_em_updates",
+            "meaning": "Every returned cycle uses posterior responsibilities from the previous parameters followed by the exact weighted-mean and average-responsibility maximizers for the known-sigma model."
+          },
+          {
+            "clause_id": "invariant.likelihood_monotonicity",
+            "meaning": "Adjacent observed-log-likelihood values are weakly increasing under exact arithmetic; implementation checks allow only explicitly frozen floating-point tolerance."
+          },
+          {
+            "clause_id": "invariant.label_swap",
+            "meaning": "Swapping the two supplied initial means and replacing initial_first_weight by its complement leaves the complete canonical response unchanged up to floating-point roundoff."
+          },
+          {
+            "clause_id": "invariant.sample_permutation",
+            "meaning": "Permuting values leaves the complete response unchanged up to floating-point summation roundoff."
+          },
+          {
+            "clause_id": "invariant.location_scale_equivariance",
+            "meaning": "For finite a and nonzero finite b, replacing values and initial means by a+b times themselves and sigma by abs(b) times sigma transforms final means accordingly after canonical ordering, preserves weights, iterations, and convergence, and shifts every log-likelihood trace entry by -n log(abs(b))."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen valid request, candidate output is compared with an independent stable exact-EM implementation and all declared response identities and invariances are checked under predeclared numerical tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.monotone_execution",
+            "meaning": "Across every frozen simulated dataset, the estimator trace is checked for the exact-EM weak-increase property up to predeclared floating-point tolerance."
+          },
+          {
+            "clause_id": "claim.empirical.separated_recovery",
+            "meaning": "Across predeclared separated two-component Gaussian designs with known sigma and nonadversarial frozen initializations, canonical estimates are compared with generating weights and means using label-invariant Monte Carlo summaries."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Designs, seeds, sample sizes, replicate counts, estimator requests, completion checks, summaries, and tolerances are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment checks one implementation on separated finite designs only; it does not establish global optimization, general parameter consistency, unknown-variance behavior, component-number selection, or asymptotic inference."
+          },
+          {
+            "clause_id": "claim.empirical.computation_not_proof",
+            "meaning": "Finite execution and simulation are computational evidence only and do not prove likelihood monotonicity for arbitrary admissible data and parameters."
+          }
+        ]
+      }
+    }
+  ]
+}
