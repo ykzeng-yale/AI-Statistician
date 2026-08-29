@@ -611,7 +611,7 @@ def test_bounded_client_tool_loop_stops_without_forced_terminal_phase() -> None:
 
     with pytest.raises(
         ClientToolLoopError,
-        match="repeated turns without a client tool call",
+        match="model ended the workspace turn without a client tool call",
     ) as exc:
         run_bounded_client_tool_loop(
             backend=backend,
@@ -623,8 +623,13 @@ def test_bounded_client_tool_loop_stops_without_forced_terminal_phase() -> None:
         )
 
     assert exc.value.tool_calls == 0
-    assert exc.value.turns == 3
+    assert exc.value.turns == 1
+    assert len(backend.requests) == 1
     assert exc.value.messages
+    assert exc.value.messages[-1] == {
+        "role": "assistant",
+        "content": [{"type": "text", "text": response.text}],
+    }
     assert exc.value.provider == "anthropic"
     assert exc.value.model == "claude-haiku-4-5-20251001"
     assert exc.value.transcript_fingerprint
@@ -1083,7 +1088,7 @@ def test_duplicate_ordinary_no_progress_has_no_hidden_terminal_turn() -> None:
     )
 
 
-def test_no_tool_observation_stays_in_the_same_generic_loop() -> None:
+def test_no_tool_response_requires_explicit_workspace_continuation() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {})),
@@ -1092,33 +1097,37 @@ def test_no_tool_observation_stays_in_the_same_generic_loop() -> None:
         ]
     )
 
-    result = run_bounded_client_tool_loop(
-        backend=backend,
-        request=_request(),
-        execute_tool=lambda call, context: ClientToolExecutionResult(
-            content={"ok": True},
-            state_changed=call.name == "edit",
-            terminal=call.name == "submit",
-            terminal_payload=(
-                {"submitted": True} if call.name == "submit" else None
+    with pytest.raises(
+        ClientToolLoopError,
+        match="model ended the workspace turn without a client tool call",
+    ) as exc:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=lambda call, context: ClientToolExecutionResult(
+                content={"ok": True},
+                state_changed=call.name == "edit",
+                terminal=call.name == "submit",
+                terminal_payload=(
+                    {"submitted": True} if call.name == "submit" else None
+                ),
+                observation_key=call.name,
             ),
-            observation_key=call.name,
-        ),
-        max_turns=3,
-        max_tool_calls=3,
-        max_no_progress_turns=2,
-    )
+            max_turns=3,
+            max_tool_calls=3,
+            max_no_progress_turns=2,
+        )
 
-    assert result.terminal_payload == {"submitted": True}
-    assert result.turns == 3
+    assert exc.value.turns == 2
+    assert exc.value.tool_calls == 1
+    assert len(backend.requests) == 2
     assert [tool.name for tool in backend.requests[-1].tools] == [
         "edit",
         "check",
         "submit",
     ]
-    assert "No client tool was called" in str(
-        backend.requests[-1].messages[-1]["content"]
-    )
+    assert backend.requests[-1].messages[-1]["role"] == "user"
+    assert "No client tool was called" not in str(exc.value.messages)
 
 
 def test_action_budget_keeps_tools_visible_but_does_not_execute_late_action() -> None:
@@ -1457,7 +1466,15 @@ def test_bounded_client_tool_loop_uses_existing_runtime_substage(
 
     result = run_bounded_client_tool_loop(
         backend=backend,
-        request=_request(),
+        request=replace(
+            _request(),
+            metadata={
+                "model_tier": "haiku",
+                "subsystem": "TheoryReferee",
+                "agent": "IndependentTheoryRefereeAgent",
+                "review_stage": "theory_execution_preflight",
+            },
+        ),
         execute_tool=lambda call, context: ClientToolExecutionResult(
             content={"ok": True},
             terminal=True,
@@ -1477,6 +1494,13 @@ def test_bounded_client_tool_loop_uses_existing_runtime_substage(
     ]
     assert observed[0][2]["turn_index"] == 0
     assert observed[0][2]["model"] == "claude-haiku-4-5-20251001"
+    assert observed[0][2]["workspace_subsystem"] == "TheoryReferee"
+    assert observed[0][2]["workspace_agent"] == (
+        "IndependentTheoryRefereeAgent"
+    )
+    assert observed[0][2]["workspace_stage"] == (
+        "theory_execution_preflight"
+    )
     assert observed[2][2]["tool_name"] == "submit"
     assert observed[3][2]["tool_terminal"] is True
     assert observed[3][2]["tool_result_is_error"] is False

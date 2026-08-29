@@ -63,15 +63,9 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness reference is [OpenAI Codex at `6478a751`](https://github.com/openai/codex/tree/6478a751fde8884b2fdc76486fe23175a8e795d4). We adopt its incremental session history,
-immutable per-step tool snapshot, generic tool registry, raw tool-error feedback,
-cancellation, checkpoint/resume, and bounded context discipline. The Claude transport
-also retains one Anthropic SDK client across consecutive model/tool rounds on the same
-backend, while every sampling request still binds its exact model, history, tools, and metadata. We do not embed `codex-core`, App Server, its Responses transport, shared-working-directory
-subagents, or another thread scheduler into the Claude-first runtime. Each scientific
-workspace is the domain session; AgentRuntime remains the single outer research graph.
-An optional Codex sidecar is admissible only after model, tool, lineage, isolation, and
-resume parity tests, and can never become required authority.
+The general harness reference is [OpenAI Codex at `6478a751`](https://github.com/openai/codex/tree/6478a751fde8884b2fdc76486fe23175a8e795d4). We adopt incremental history, stable tools, raw tool-error feedback, checkpoint/resume, cancellation, and bounded context. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, and metadata.
+We do not embed `codex-core`, App Server, its Responses transport, shared-directory subagents, or another scheduler. Each scientific workspace is the domain session and AgentRuntime remains the sole outer graph; any sidecar requires model, tool, lineage, isolation, and resume parity and can never become authority.
+Like Codex `run_turn`, a response without a tool call ends the workspace segment. The harness persists the exact response and state for explicit hash-verified continuation; it never appends a private tool instruction or resamples. Progress attributes the inner subsystem, agent, and stage separately from the outer task owner.
 
 ## Progressive commitment
 

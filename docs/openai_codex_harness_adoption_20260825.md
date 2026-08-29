@@ -4787,3 +4787,60 @@ JSON parsing, diff hygiene, credential/task-specific production scanning, the of
 Codex source pin and source hashes, and the unchanged 150,000-line production gate
 passed at 149,991 lines. No product model, evaluator model, hidden authority, benchmark,
 or consumed task was invoked by this mechanism work.
+
+### Natural turn termination and truthful workspace attribution
+
+The public remote and fresh local checkout remain exactly at
+[`6478a751`](https://github.com/openai/codex/commit/6478a751fde8884b2fdc76486fe23175a8e795d4).
+The current source and OpenAI's agent-loop account agree on one termination rule:
+[`run_turn`](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/session/turn.rs)
+continues after model-selected tool work and returns control when the model emits an
+assistant message without another tool call. The harness does not privately instruct
+the model to call a tool and resample the same turn.
+
+AI Statistician's shared client-tool loop still violated that rule. A no-tool response
+caused the runtime to append `No client tool was called` and sample again until its
+no-progress threshold. This added calls, overrode a model-owned stop, and blurred an
+unfinished workspace segment with a correction retry. Future workspaces now stop on
+the first no-tool response, preserve the exact assistant message and existing source
+state, and enter the existing explicit checkpoint/continuation boundary. Rejected
+tool submissions and raw compiler or sandbox failures still return to the same model
+because those are genuine environment observations inside a continuing tool turn.
+
+The Task 100 immutable trace also corrects a misleading efficiency diagnosis. Its
+reported 51 `ArchitectCoordinator` calls include roughly 50 tool turns from three
+separate independent Theory-referee workspaces. Those calls were mathematical review,
+not routine outer routing. Client-tool progress now carries the request's actual
+workspace subsystem, agent, and review stage in telemetry while retaining the outer
+task owner. This adds no model call and makes collaboration costs attributable to the
+agent that actually performed them.
+
+The current combination with Codex is therefore:
+
+- one provider-neutral retained loop shared by Theory, Python/R, Simulation, Lean,
+  and isolated reviewers;
+- small stable model tools, append-only raw observations, natural turn termination,
+  exact checkpoint identity, and explicit continuation;
+- separate source-owner sessions that exchange content-addressed artifacts rather
+  than copied chat histories;
+- an objective/evidence graph in the sole `AgentRuntime`, with direct reviewer
+  backedges and optional Formalizer work rather than Architect as a message bus;
+- verifier-owned authority for scientific execution, blind evaluation, and Lean
+  kernel evidence.
+
+Codex Core and App Server are not imported. The current Codex provider interface
+speaks the OpenAI Responses wire protocol, while the frozen product contract requires
+native Anthropic Haiku. Its thread manager and multi-agent scheduler would create a
+second control plane, and its shared-workspace child model would violate evaluator
+isolation if used without another authority layer. Symphony's useful lesson is to
+assign objectives and artifact dependencies instead of encoding every research move
+as a rigid state transition; importing its task-board scheduler would not add
+statistical reasoning.
+
+Two material gaps remain and should not be hidden by this adoption record. The
+scientific source workspace still centers one Python/R source artifact rather than a
+general multi-file repository, and the central research runtime remains much larger
+than Codex's preferred module boundaries. The right future migration is to let the
+existing source owner manipulate a file-backed workspace and to extract existing
+ownership modules from the sole runtime. Adding Codex as a sidecar, another tool
+router, or another scheduler would postpone rather than solve those problems.

@@ -573,8 +573,10 @@ def run_bounded_client_tool_loop(
 
     Every model turn sees the same tool surface. Tool results, including rejected
     terminal submissions, return to the same model context while ordinary turns
-    remain. Exhaustion preserves the exact session for explicit continuation;
-    the harness never adds a hidden terminal-only sample or correction retry.
+    remain. A model response without a tool call ends the current workspace
+    segment; the exact session is preserved for explicit continuation instead of
+    synthesizing a correction prompt or sampling again. Exhaustion follows the
+    same checkpoint boundary.
     """
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
@@ -595,6 +597,16 @@ def run_bounded_client_tool_loop(
     last_response: ClientToolTurnResponse | None = None
     terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
     ordinary_tool_calls = 0
+    progress_identity = {
+        target: str(request.metadata.get(source, "") or "")
+        for target, source in (
+            ("workspace_subsystem", "subsystem"),
+            ("workspace_agent", "agent"),
+            ("workspace_stage", "review_stage"),
+            ("workspace_operation", "workspace_operation"),
+        )
+        if str(request.metadata.get(source, "") or "").strip()
+    }
 
     def loop_error(reason: str, *, turns: int, tool_calls: int) -> ClientToolLoopError:
         return ClientToolLoopError(
@@ -622,6 +634,7 @@ def run_bounded_client_tool_loop(
                 "turn_index": turn_index,
                 "max_turns": max_turns,
                 "model": request.model,
+                **progress_identity,
             },
         ):
             provider_failure: tuple[str, str] | None = None
@@ -702,27 +715,18 @@ def run_bounded_client_tool_loop(
         history.append(turn_row)
 
         if not calls:
-            observation_key = (
-                "provider_tool_output_truncated"
+            reason = (
+                "provider turn ended at max_tokens before a complete client tool "
+                "call; pending workspace state preserved for explicit continuation"
                 if provider_output_truncated
-                else "no_tool_call:" + stable_hash([response.text, assistant_blocks])
+                else "model ended the workspace turn without a client tool call; "
+                "pending workspace state preserved for explicit continuation"
             )
-            new_observation = observation_key not in seen_observations
-            seen_observations.add(observation_key)
-            no_progress_turns = 0 if new_observation else no_progress_turns + 1
-            notice = (
-                "Provider output ended before a complete tool call; make a smaller complete call."
-                if provider_output_truncated
-                else "No client tool was called. Call a supplied tool; use a terminal tool when ready."
+            raise loop_error(
+                reason,
+                turns=turn_index + 1,
+                tool_calls=total_calls,
             )
-            messages.append({"role": "user", "content": notice})
-            if no_progress_turns >= max_no_progress_turns:
-                raise loop_error(
-                    "repeated turns without a client tool call",
-                    turns=turn_index + 1,
-                    tool_calls=total_calls,
-                )
-            continue
 
         tool_result_blocks: list[dict[str, Any]] = []
         turn_state_changed = False

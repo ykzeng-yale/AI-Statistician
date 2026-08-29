@@ -1915,15 +1915,16 @@ def test_preflight_client_tool_loop_failure_is_fail_closed() -> None:
     with pytest.raises(PacketValidationError) as exc_info:
         _tool_review(backend)
 
-    assert len(backend.requests) == 3
-    assert all(
-        [tool.name for tool in request.tools] == PREFLIGHT_CLIENT_TOOL_NAMES
-        for request in backend.requests[-2:]
+    assert len(backend.requests) == 1
+    assert [tool.name for tool in backend.requests[0].tools] == (
+        PREFLIGHT_CLIENT_TOOL_NAMES
     )
     assert "client_tool_loop_terminal_decision_reason" not in (
         backend.requests[-1].metadata
     )
-    assert "repeated turns without a client tool call" in str(exc_info.value)
+    assert "model ended the workspace turn without a client tool call" in str(
+        exc_info.value
+    )
 
 
 def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
