@@ -563,7 +563,13 @@ def run_bounded_client_tool_loop(
     max_tool_calls: int,
     max_no_progress_turns: int,
 ) -> ClientToolLoopResult:
-    """Run one retained model/tool session with bounded ordinary and terminal turns."""
+    """Run one retained model/tool session under explicit caller-owned bounds.
+
+    Every model turn sees the same tool surface. Tool results, including rejected
+    terminal submissions, return to the same model context while ordinary turns
+    remain. Exhaustion preserves the exact session for explicit continuation;
+    the harness never adds a hidden terminal-only sample or correction retry.
+    """
 
     if max_turns < 1 or max_tool_calls < 1 or max_no_progress_turns < 1:
         raise ValueError("client-tool loop budgets must all be positive")
@@ -583,8 +589,6 @@ def run_bounded_client_tool_loop(
     last_response: ClientToolTurnResponse | None = None
     terminal_tools = tuple(tool for tool in request.tools if tool.terminal)
     ordinary_tool_calls = 0
-    reminder_turns = {max(1, max_turns // divisor) for divisor in (2, 4, 10)}
-    terminal_continuation_required = terminal_rejection_followup_required = False
 
     def loop_error(reason: str, *, turns: int, tool_calls: int) -> ClientToolLoopError:
         return ClientToolLoopError(
@@ -600,32 +604,12 @@ def run_bounded_client_tool_loop(
             final_response_metadata=last_response.metadata if last_response else {},
         )
 
-    for turn_index in range(max_turns + (2 if terminal_tools else 0)):
-        terminal_continuation_turn = turn_index >= max_turns
-        terminal_rejection_followup_turn = turn_index == max_turns + 1
-        extension_required = (terminal_rejection_followup_required
-                              if terminal_rejection_followup_turn
-                              else terminal_continuation_required)
-        if terminal_continuation_turn and not extension_required:
-            break
-        if terminal_continuation_turn:
-            notice = (
-                "The previous terminal disposition was rejected. Use the raw "
-                "observation above and submit one corrected terminal disposition "
-                "now; no workspace action is available."
-                if terminal_rejection_followup_turn
-                else "Ordinary actions are complete. Submit one terminal disposition "
-                "now; no further workspace action is available."
-            )
-            messages[-1]["content"] = [
-                *_client_tool_content_blocks(messages[-1].get("content")),
-                {"type": "text", "text": notice},
-            ]
+    for turn_index in range(max_turns):
         turn_tools = request.tools
-        terminal_only_turn = terminal_continuation_turn or bool(
-            turn_tools and all(tool.terminal for tool in turn_tools))
-        allowed_definitions = terminal_tools if terminal_continuation_turn else turn_tools
-        turn_allowed_tools = {tool.name for tool in allowed_definitions}
+        terminal_only_turn = bool(
+            turn_tools and all(tool.terminal for tool in turn_tools)
+        )
+        turn_allowed_tools = {tool.name for tool in turn_tools}
         with agent_runtime_substage(
             "client_tool_model_turn",
             metadata={
@@ -642,10 +626,7 @@ def run_bounded_client_tool_loop(
                         messages=tuple(messages),
                         tools=turn_tools,
                         tool_choice=(
-                            terminal_tools[0].name
-                            if terminal_continuation_turn
-                            and len(terminal_tools) == 1
-                            else turn_tools[0].name
+                            turn_tools[0].name
                             if terminal_only_turn and len(turn_tools) == 1
                             else request.tool_choice
                         ),
@@ -659,8 +640,6 @@ def run_bounded_client_tool_loop(
                             "client_tool_loop_calls_before": total_calls,
                             "client_tool_loop_ordinary_calls_before": ordinary_tool_calls,
                             "client_tool_loop_terminal_only_turn": terminal_only_turn,
-                            "client_tool_loop_terminal_continuation": terminal_continuation_turn,
-                            "client_tool_loop_terminal_rejection_followup": terminal_rejection_followup_turn,
                         },
                     )
                 )
@@ -742,7 +721,6 @@ def run_bounded_client_tool_loop(
         tool_result_blocks: list[dict[str, Any]] = []
         turn_state_changed = False
         turn_new_observation = False
-        turn_executed_terminal_rejected = False
         terminal_payload: Mapping[str, Any] | None = None
         for call_index, call in enumerate(calls):
             call_definition = tool_definitions.get(call.name)
@@ -918,12 +896,6 @@ def run_bounded_client_tool_loop(
                     is_error=True,
                     observation_key="terminal_result_from_nonterminal_tool",
                 )
-            turn_executed_terminal_rejected |= bool(
-                executed_by_runtime
-                and call_definition is not None
-                and call_definition.terminal
-                and not execution.terminal
-            )
             observation_key = execution.observation_key or stable_hash(
                 [call.name, execution.is_error, execution.content]
             )
@@ -967,14 +939,6 @@ def run_bounded_client_tool_loop(
                     )
                 terminal_payload = deepcopy(dict(execution.terminal_payload))
 
-        turns_remaining = max(0, max_turns - turn_index - 1)
-        if terminal_payload is None and turns_remaining in reminder_turns:
-            reminder = (
-                f"<rollout_budget>\n{turns_remaining} ordinary model turns and "
-                f"{max(0, max_tool_calls - ordinary_tool_calls)} ordinary workspace-action calls "
-                "remain in this retained session. This is capacity, not a quota.\n</rollout_budget>"
-            )
-            tool_result_blocks.append({"type": "text", "text": reminder})
         messages.append({"role": "user", "content": tool_result_blocks})
         if terminal_payload is not None:
             return ClientToolLoopResult(
@@ -991,30 +955,11 @@ def run_bounded_client_tool_loop(
                 final_response_metadata=deepcopy(dict(response.metadata)),
             )
 
-        if not terminal_continuation_turn:
-            requested_terminal_kinds = {
-                tool_definitions[call.name].terminal
-                for call in calls
-                if call.name in tool_definitions
-            }
-            terminal_continuation_required = requested_terminal_kinds == {False}
-        elif not terminal_rejection_followup_turn:
-            terminal_rejection_followup_required = turn_executed_terminal_rejected
-
         if turn_state_changed or turn_new_observation:
             no_progress_turns = 0
         else:
             no_progress_turns += 1
         if no_progress_turns >= max_no_progress_turns:
-            if (
-                terminal_tools
-                and not terminal_continuation_turn
-                and requested_terminal_kinds == {False}
-            ):
-                max_turns = turn_index + 1
-                terminal_continuation_required = True
-                no_progress_turns = 0
-                continue
             raise loop_error(
                 "repeated client-tool turns made no new progress",
                 turns=turn_index + 1,

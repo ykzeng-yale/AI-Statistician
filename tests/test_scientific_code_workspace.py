@@ -1815,7 +1815,7 @@ def test_source_owner_restores_parent_execution_before_checkpoint_commit(
     ] == ["recovery prototype is not bound to checkpoint evidence"]
 
 
-def test_scientific_workspace_no_progress_reaches_reserved_commit_turn() -> None:
+def test_scientific_workspace_commits_within_explicit_turn_budget() -> None:
     source = {
         "language": "python",
         "execution_profile": "stdlib",
@@ -1853,7 +1853,7 @@ def test_scientific_workspace_no_progress_reaches_reserved_commit_turn() -> None
         temperature=0.0,
         max_tokens=1200,
         max_turns=5,
-        max_no_progress_turns=1,
+        max_no_progress_turns=2,
         artifact_id="question:accepted-no-progress-source",
         initial_code_draft=source,
         initial_check_result={
@@ -1870,8 +1870,11 @@ def test_scientific_workspace_no_progress_reaches_reserved_commit_turn() -> None
     assert dict(result.code_draft) == source
     assert result.evidence["model_commit_after_observation"] is True
     assert result.evidence["sandbox_checks"] == 0
-    assert backend.requests[-1].tool_choice == SCIENTIFIC_SOURCE_COMMIT_TOOL
-    assert "Ordinary actions are complete" in str(
+    assert backend.requests[-1].tool_choice == "any"
+    assert backend.requests[-1].metadata[
+        "client_tool_loop_terminal_only_turn"
+    ] is False
+    assert "Ordinary actions are complete" not in str(
         backend.requests[-1].messages[-1]
     )
 

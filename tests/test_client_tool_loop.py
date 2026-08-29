@@ -594,11 +594,7 @@ def test_bounded_client_tool_loop_keeps_one_linear_model_tool_history() -> None:
     assert [len(request.messages) for request in backend.requests] == [1, 3, 5]
     assert backend.requests[-1].messages[0] == backend.requests[0].messages[0]
     final_context = str(backend.requests[-1].messages)
-    assert final_context.count("<rollout_budget>") == 1
-    assert (
-        "1 ordinary model turns and 1 ordinary workspace-action calls remain"
-        in final_context
-    )
+    assert "<rollout_budget>" not in final_context
     assert "call-edit-1" in final_context
     assert "call-edit-2" in final_context
     assert "'value': 1" in final_context
@@ -755,7 +751,7 @@ def test_terminal_call_does_not_consume_workspace_action_budget() -> None:
     assert "client_tool_loop_terminal_decision_turn" not in backend.requests[1].metadata
 
 
-def test_last_workspace_action_gets_one_terminal_continuation() -> None:
+def test_last_workspace_action_does_not_trigger_hidden_terminal_turn() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {"value": 2})),
@@ -776,38 +772,28 @@ def test_last_workspace_action_gets_one_terminal_continuation() -> None:
             observation_key=call.name,
         )
 
-    result = run_bounded_client_tool_loop(
-        backend=backend,
-        request=_request(),
-        execute_tool=execute,
-        max_turns=1,
-        max_tool_calls=4,
-        max_no_progress_turns=2,
+    with pytest.raises(ClientToolLoopError, match="turn budget exhausted") as exc:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=execute,
+            max_turns=1,
+            max_tool_calls=4,
+            max_no_progress_turns=2,
+        )
+
+    assert exc.value.turns == 1
+    assert executed_tools == ["edit"]
+    assert len(backend.requests) == 1
+    assert backend.requests[0].metadata[
+        "client_tool_loop_terminal_only_turn"
+    ] is False
+    assert "client_tool_loop_terminal_continuation" not in (
+        backend.requests[0].metadata
     )
 
-    assert result.terminal_payload == {"submitted": True}
-    assert result.turns == 2
-    assert executed_tools == ["edit", "submit"]
-    terminal_request = backend.requests[1]
-    assert [tool.name for tool in terminal_request.tools] == [
-        "edit",
-        "check",
-        "submit",
-    ]
-    assert terminal_request.tool_choice == "submit"
-    assert terminal_request.disable_parallel_tool_use is True
-    assert terminal_request.metadata[
-        "client_tool_loop_terminal_only_turn"
-    ] is True
-    assert terminal_request.metadata[
-        "client_tool_loop_terminal_continuation"
-    ] is True
-    terminal_notice = terminal_request.messages[-1]["content"][-1]
-    assert terminal_notice["type"] == "text"
-    assert "Submit one terminal disposition" in terminal_notice["text"]
 
-
-def test_rejected_terminal_continuation_gets_one_same_session_followup() -> None:
+def test_rejected_terminal_at_explicit_limit_is_not_retried() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {"value": 2})),
@@ -835,105 +821,27 @@ def test_rejected_terminal_continuation_gets_one_same_session_followup() -> None
             observation_key="submitted",
         )
 
-    result = run_bounded_client_tool_loop(
-        backend=backend,
-        request=_request(),
-        execute_tool=execute,
-        max_turns=1,
-        max_tool_calls=4,
-        max_no_progress_turns=2,
-    )
+    with pytest.raises(ClientToolLoopError, match="turn budget exhausted") as exc:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=execute,
+            max_turns=2,
+            max_tool_calls=4,
+            max_no_progress_turns=2,
+        )
 
-    assert result.terminal_payload == {"submitted": True}
-    assert result.turns == 3
-    assert terminal_attempts == 2
-    assert len(backend.requests) == 3
+    assert terminal_attempts == 1
+    assert len(backend.requests) == 2
+    assert "terminal packet is incomplete" in str(exc.value.messages[-1])
     assert all(
         [tool.name for tool in request.tools] == ["edit", "check", "submit"]
-        for request in backend.requests[1:]
+        for request in backend.requests
     )
-    assert all(request.tool_choice == "submit" for request in backend.requests[1:])
-    assert backend.requests[1].metadata[
-        "client_tool_loop_terminal_rejection_followup"
-    ] is False
-    assert backend.requests[2].metadata[
-        "client_tool_loop_terminal_rejection_followup"
-    ] is True
-    assert "terminal packet is incomplete" in str(
-        backend.requests[2].messages[-1]["content"]
+    assert all(
+        "client_tool_loop_terminal_rejection_followup" not in request.metadata
+        for request in backend.requests
     )
-
-
-def test_terminal_continuation_rejection_followup_is_bounded() -> None:
-    backend = ScriptedToolTurnBackend(
-        [
-            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
-            _response(ClientToolCall("call-submit-first", "submit", {})),
-            _response(ClientToolCall("call-submit-second", "submit", {})),
-        ]
-    )
-    terminal_attempts = 0
-
-    def execute(call, _context):
-        nonlocal terminal_attempts
-        if call.name == "edit":
-            return ClientToolExecutionResult(
-                content={"ok": True},
-                state_changed=True,
-                observation_key="edited",
-            )
-        terminal_attempts += 1
-        raise ClientToolInputError(f"terminal rejection {terminal_attempts}")
-
-    with pytest.raises(ClientToolLoopError, match="turn budget exhausted"):
-        run_bounded_client_tool_loop(
-            backend=backend,
-            request=_request(),
-            execute_tool=execute,
-            max_turns=1,
-            max_tool_calls=4,
-            max_no_progress_turns=2,
-        )
-
-    assert terminal_attempts == 2
-    assert len(backend.requests) == 3
-    assert all(request.tool_choice == "submit" for request in backend.requests[1:])
-
-
-def test_terminal_continuation_cannot_execute_another_workspace_action() -> None:
-    backend = ScriptedToolTurnBackend(
-        [
-            _response(ClientToolCall("call-edit", "edit", {"value": 2})),
-            _response(ClientToolCall("call-check", "check", {})),
-        ]
-    )
-    executed_tools: list[str] = []
-
-    def execute(call, _context):
-        executed_tools.append(call.name)
-        return ClientToolExecutionResult(
-            content={"ok": True},
-            state_changed=True,
-            observation_key=call.name,
-        )
-
-    with pytest.raises(ClientToolLoopError) as raised:
-        run_bounded_client_tool_loop(
-            backend=backend,
-            request=_request(),
-            execute_tool=execute,
-            max_turns=1,
-            max_tool_calls=4,
-            max_no_progress_turns=2,
-        )
-
-    assert "terminal disposition" in raised.value.reason
-    assert executed_tools == ["edit"]
-    rejected = raised.value.history[-1]["tool_calls"][0]
-    assert rejected["executed_by_runtime"] is False
-    assert "client_tool_unavailable_this_turn" in rejected["result_excerpt"]
-    assert '"allowed_tools":["submit"]' in rejected["result_excerpt"]
-    assert len(backend.requests) == 2
 
 
 def test_rejected_terminal_is_an_ordinary_same_model_observation() -> None:
@@ -1130,7 +1038,7 @@ def test_duplicate_terminal_rejection_hits_generic_no_progress_bound() -> None:
     assert len(backend.requests) == 2
 
 
-def test_duplicate_ordinary_no_progress_uses_reserved_terminal_turn() -> None:
+def test_duplicate_ordinary_no_progress_has_no_hidden_terminal_turn() -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit-first", "edit", {})),
@@ -1153,24 +1061,22 @@ def test_duplicate_ordinary_no_progress_uses_reserved_terminal_turn() -> None:
             observation_key="same-invalid-ordinary-action",
         )
 
-    result = run_bounded_client_tool_loop(
-        backend=backend,
-        request=_request(),
-        execute_tool=execute,
-        max_turns=5,
-        max_tool_calls=5,
-        max_no_progress_turns=1,
-    )
+    with pytest.raises(ClientToolLoopError, match="no new progress") as exc:
+        run_bounded_client_tool_loop(
+            backend=backend,
+            request=_request(),
+            execute_tool=execute,
+            max_turns=5,
+            max_tool_calls=5,
+            max_no_progress_turns=1,
+        )
 
-    assert result.terminal_payload == {"submitted": True}
-    assert result.turns == 3
-    terminal_request = backend.requests[-1]
-    assert terminal_request.tool_choice == "submit"
-    assert terminal_request.disable_parallel_tool_use is True
-    assert terminal_request.metadata[
-        "client_tool_loop_terminal_only_turn"
-    ] is True
-    assert "Ordinary actions are complete" in str(terminal_request.messages[-1])
+    assert exc.value.turns == 2
+    assert len(backend.requests) == 2
+    assert all(
+        request.metadata["client_tool_loop_terminal_only_turn"] is False
+        for request in backend.requests
+    )
 
 
 def test_no_tool_observation_stays_in_the_same_generic_loop() -> None:
