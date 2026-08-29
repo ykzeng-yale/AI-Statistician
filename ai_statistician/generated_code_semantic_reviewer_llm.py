@@ -701,7 +701,10 @@ def build_generated_code_semantic_review_prompt(
         + review_scope_instruction
         + "Return compact JSON and put analysis with source lines in review_document Markdown. "
         "ACCEPT only a semantically fit artifact. The public contract is closed in both directions; "
-        "do not invent conditions. Findings are unique active blockers with observed and expected "
+        "do not invent conditions. Unless that contract explicitly delegates a clause, the reviewed "
+        "source owns every public ABI requirement, including valid-input behavior and rejection of "
+        "invalid requests; never assume an external runtime will supply missing validation. Findings "
+        "are unique active blockers with observed and expected "
         "behavior; nonblockers stay in Markdown. Review each prior finding once. The complete "
         "public contract is already bound into the review input; do not copy runtime-owned IDs "
         "into the verdict. source_revision_assessment "

@@ -6792,12 +6792,21 @@ def test_review_acceptance_does_not_reopen_the_same_algorithm_task() -> None:
         title="Generic reviewed continuation",
         description="Continue after independent source acceptance.",
     )
+    algorithm_manifest_id = "algorithm:accepted"
+    handoff_id = "accepted_algorithm_handoff:generic"
+    handoff = {
+        "artifact_kind": "RuntimeAcceptedAlgorithmHandoff",
+        "handoff_id": handoff_id,
+        "question_id": question.id,
+        "theory_packet_id": "theory:generic",
+        "algorithm_sandbox_manifest_id": algorithm_manifest_id,
+    }
     context = _full_evidence_context(question.id)
-    context["algorithm_sandbox_manifest_id"] = "algorithm:accepted"
+    context["algorithm_sandbox_manifest_id"] = algorithm_manifest_id
     context["accepted_generated_code_semantic_reviews"] = [
         {
             "source_subsystem": "AlgorithmEngineer",
-            "source_manifest_id": "algorithm:accepted",
+            "source_manifest_id": algorithm_manifest_id,
             "overall_verdict": "ACCEPT",
             "parent_artifact_ids": {"theory_packet_id": "theory:generic"},
         }
@@ -6837,6 +6846,7 @@ def test_review_acceptance_does_not_reopen_the_same_algorithm_task() -> None:
         result=AgentStepResult(
             status="REROUTE",
             rationale="Independent review accepted the current source.",
+            produced_artifacts={handoff_id: handoff},
             next_task=repeated_formal_task,
         ),
         blackboard=BlackboardState(
@@ -6856,6 +6866,20 @@ def test_review_acceptance_does_not_reopen_the_same_algorithm_task() -> None:
     observed = continued.observations[-1].payload
     assert "AlgorithmEngineer" in observed["executed_subsystems"]
     assert "FormalizationEvaluator" in observed["executed_subsystems"]
+    assert continued.next_task.inputs["upstream_algorithm_handoff"] == handoff
+    assert continued.next_task.inputs["architect_context"][
+        "upstream_algorithm_handoff"
+    ] == handoff
+    compacted = runtime_module.compact_runtime_artifact_references(
+        continued.next_task.inputs,
+        {handoff_id: handoff},
+    )
+    assert compacted["upstream_algorithm_handoff"] == (
+        runtime_artifact_reference(handoff_id, handoff)
+    )
+    assert compacted["architect_context"]["upstream_algorithm_handoff"] == (
+        runtime_artifact_reference(handoff_id, handoff)
+    )
 
 
 def test_failed_theory_revision_does_not_continue_rejected_parent_lineage() -> None:

@@ -3056,6 +3056,11 @@ def _architect_initial_routing_decision(
         upstream_algorithm_handoff = context.get(
             "upstream_algorithm_handoff", {}
         )
+        accepted_algorithm_handoff_available = bool(
+            algorithm_sandbox_manifest_id
+            and isinstance(upstream_algorithm_handoff, Mapping)
+            and upstream_algorithm_handoff
+        )
         if requires_accepted_algorithm_handoff:
             context[
                 "confirmatory_simulation_requires_accepted_algorithm_handoff"
@@ -3080,7 +3085,10 @@ def _architect_initial_routing_decision(
             "n_runs": runtime_config.n_runs,
             "seed": simulation_seed,
         }
-        if requires_accepted_algorithm_handoff:
+        if (
+            requires_accepted_algorithm_handoff
+            or accepted_algorithm_handoff_available
+        ):
             inputs["algorithm_sandbox_manifest_id"] = (
                 algorithm_sandbox_manifest_id
             )
@@ -4091,14 +4099,22 @@ def _runtime_outer_graph_context(
         "RuntimeSimulationManifest": "simulation_manifest_id",
         "RuntimeFormalizationManifest": "formalization_manifest_id",
     }
+    accepted_algorithm_handoffs: list[dict[str, Any]] = []
     for artifact_id, artifact in result.produced_artifacts.items():
         if not isinstance(artifact, Mapping):
             continue
-        context_field = context_field_by_kind.get(
-            str(artifact.get("artifact_kind", "") or "")
-        )
+        artifact_kind = str(artifact.get("artifact_kind", "") or "")
+        context_field = context_field_by_kind.get(artifact_kind)
         if context_field:
             context[context_field] = str(artifact_id)
+        if artifact_kind == "RuntimeAcceptedAlgorithmHandoff":
+            accepted_algorithm_handoffs.append(dict(artifact))
+    if len(accepted_algorithm_handoffs) == 1:
+        accepted_handoff = accepted_algorithm_handoffs[0]
+        context["upstream_algorithm_handoff"] = accepted_handoff
+        context["algorithm_sandbox_manifest_id"] = str(
+            accepted_handoff.get("algorithm_sandbox_manifest_id", "") or ""
+        )
     outcome = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeOuterGraphWorkspaceOutcome",

@@ -272,6 +272,8 @@ def test_semantic_review_delegates_load_bearing_checks_to_the_model() -> None:
     assert "rather than a fixed dimension checklist" in prompt
     assert "try to falsify public acceptance, rejection, and boundary behavior" in prompt
     assert "public contract is closed in both directions" in prompt
+    assert "source owns every public ABI requirement" in prompt
+    assert "never assume an external runtime will supply missing validation" in prompt
     assert "do not invent conditions" in prompt
     assert "Findings are unique active blockers" in prompt
     assert "nonblockers stay in Markdown" in prompt
