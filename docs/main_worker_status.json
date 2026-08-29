@@ -3,7 +3,7 @@
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "7431fa24",
+  "validated_code_head": "e5fefa19",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -27,13 +27,14 @@
     "preactivation_product_model_calls": 0,
     "preactivation_evaluator_model_calls": 24,
     "runtime_model": "claude-haiku-4-5-20251001",
-    "activation_push_confirmed_on_work_branch_and_main": false,
+    "activation_ledger_commit": "e5fefa191dc11182738e153f71559a314d52e18e",
+    "activation_push_confirmed_on_work_branch_and_main": true,
     "first_runtime_model_call_occurred": false,
     "fresh_live_runs": 0,
     "formalization_requirement": "not_applicable",
     "formalizer_executed": false,
     "task_intent": "Exact source replication and unresolved-gap disclosure required; theory development, model-authored scientific code, empirical simulation, formalization, and novelty are not applicable.",
-    "boundary": "The evaluator-only source values, semantic reference, rubric, calibration cases, near miss, and activation judgments remain outside repository and runtime visibility. Product execution is prohibited until the activation commit and its identity update are pushed to both the work branch and main."
+    "boundary": "The evaluator-only source values, semantic reference, rubric, calibration cases, near miss, and activation judgments remain outside repository and runtime visibility. Activation commit e5fefa19 is present on both the work branch and main. Exactly one fresh product invocation may begin only after this provenance update is also pushed."
   },
   "latest_moran_i_randomization_l0_activation": {
     "task_id": "moran_i_randomization_expectation_known_result",
