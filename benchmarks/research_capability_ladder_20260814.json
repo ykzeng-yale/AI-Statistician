@@ -11609,6 +11609,7 @@
         "model_draw_resampling_blocked": true,
         "operator_disposition": "FAILED",
         "operator_audit": "docs/operator_audits/scalar_mean_empirical_likelihood_l3_v1.md",
+        "closeout_evidence_commit": "61d83f04f6a58141a03b8c93946cfc1106e801a0",
         "boundary": "The blind L3 visible question and schema-v4/protocol-v11 authority were frozen and pushed before the sole exact-Haiku product invocation. Two independent Theory preflights rejected two model-authored checkpoints. A third same-owner revision ended after repeated rejected commits without a source edit, so no accepted theory, algorithm, simulation, Critic, or hidden candidate execution existed. The product draw and isolated post-runtime assessment are consumed and immutable. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden authority as runtime feedback, or model-escalate Task101."
       },
       "task_intent": {

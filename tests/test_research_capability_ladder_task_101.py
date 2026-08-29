@@ -185,6 +185,9 @@ def test_scalar_mean_empirical_likelihood_task101_is_consumed_once() -> None:
     assert evidence["ladder_score_after_consumption"] == "7/101"
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["operator_disposition"] == "FAILED"
+    assert evidence["closeout_evidence_commit"] == (
+        "61d83f04f6a58141a03b8c93946cfc1106e801a0"
+    )
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 101

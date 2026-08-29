@@ -40,6 +40,7 @@
     "formalization_requirement": "not_applicable",
     "formalizer_executed": false,
     "operator_audit": "docs/operator_audits/scalar_mean_empirical_likelihood_l3_v1.md",
+    "closeout_evidence_commit": "61d83f04f6a58141a03b8c93946cfc1106e801a0",
     "trusted_capability_credit": "0/1; aggregate remains 7/101",
     "next_shared_change": "Do not infer a new prompt rule from one failed theory family. Across disjoint future tasks, measure whether the same file-backed model voluntarily targets decisive dependency-level counterchecks and whether isolated reviewers catch earlier false transitions. Add no empirical-likelihood formula, required scratch count, repair worker, retry, fallback, scheduler, or stronger evaluation model.",
     "boundary": "The one product draw and one post-runtime assessment are consumed. Hidden authority generated no runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, or model-escalate Task101."
