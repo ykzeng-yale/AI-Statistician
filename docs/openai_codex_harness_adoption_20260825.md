@@ -4148,3 +4148,51 @@ harness.
 Closeout regressions passed `88/88`, the exact-Haiku and Claude-tier policy panel
 passed `10/10`, and the complete repository passed `1042/1042` in 81.80 seconds.
 No post-run product or evaluator model call occurred.
+
+## 2026-08-29 current Codex boundary and Statlib formal activation
+
+Official OpenAI Codex `main` was refreshed through
+[`0b45b171`](https://github.com/openai/codex/commit/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3).
+The eight commits after the prior `eec4a23c` audit primarily concern code-mode
+telemetry, executor hooks, permissions, optional question handling, and sourcing
+proactive multi-agent instructions from model metadata. The scientific-harness
+relevant files are:
+
+- `session/turn.rs`, SHA-256
+  `25330893e75ffacc1458c1bafb9f57616bc9d4dc40735f125a3b16e10fae31b0`;
+- `session/rollout_budget.rs`, unchanged SHA-256
+  `1f74195f58c6a8b42ce92bdb8112389fcfa3853db870e5a5a9ae3494aaf3efe0`;
+- `context_manager/history.rs`, unchanged SHA-256
+  `ae7b1c2ed19f9e3f8fca446b3ffbe922d28194136b841328e8a65d34db6ce3e9`;
+- `session/multi_agents.rs`, SHA-256
+  `a773a32a2ab1b0646d979706850ca2c52742c526d2649cdc9d961cacc56797bd`;
+- `tools/router.rs`, unchanged SHA-256
+  `6f5b3e6fcc2473c85275e69d934faf3cb95b90e9c773a055944116d517986a90`.
+
+The new multi-agent change reinforces a useful division: role-specific
+collaboration guidance may come from the selected model's prompt catalog, while
+the harness freezes available tools, permissions, state, and lifecycle. It does
+not turn routing policy into mathematical authority. AI Statistician already
+implements that boundary without importing Codex: one provider-neutral retained
+session owns each Markdown/LaTeX, Python/R, Simulation, or Lean workspace; raw
+environment observations return to that same owner; and only substantive
+cross-artifact decisions create a sparse handoff in the sole AgentRuntime.
+
+Task 91 activates a direct test of this composition rather than another mechanism
+patch. The visible target asks exact Haiku to complete one frozen
+`Statlib.Inference` theorem stating that the canonical measure-to-constant-kernel
+map is measurable and injective. Theory, Python/R, Simulation, source replication,
+and Architect planning are inapplicable. A hidden exact proof and four negative
+controls were checked through the production Lean identity and axiom gate at
+`5/5`; scoped generic Statlib retrieval found the map and both required results
+without closing names in the query. The schema-v4 evaluator manifest validates,
+and no product or evaluator model call has occurred.
+
+This is the maximum useful Codex reuse for the draw. Importing Codex Core, App
+Server, Responses transport, Guardian, thread/worktree storage, hooks, the Python
+SDK, or its subagent scheduler would create another conversation owner and would
+not improve theorem selection or kernel authority. After the activation ledger is
+committed and pushed to both canonical refs, exactly one
+`claude-haiku-4-5-20251001` product invocation may run. Its result will be kept
+whether it passes or fails; no theorem-specific rule, proof hint, repair worker,
+extra verifier, retry, fallback, Sonnet evaluation, or Opus execution is allowed.
