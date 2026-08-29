@@ -230,10 +230,10 @@ def test_betareg_jss_r_l1_consumed_result_is_immutable() -> None:
     ).exists()
 
     readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 97
-    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["scored_tasks_total"] == 98
+    assert readiness["unconsumed_scored_tasks"] == 1
     assert readiness["consumed_scored_tasks"] == 97
-    assert readiness["fully_gold_configured_tasks"] == 97
+    assert readiness["fully_gold_configured_tasks"] == 98
     assert readiness["fully_gold_passed_tasks"] == 7
     assert readiness["runtime_source_replication_components_ready"] == 9
     assert readiness["source_replication_components_passed"] == 2
@@ -244,4 +244,6 @@ def test_betareg_jss_r_l1_consumed_result_is_immutable() -> None:
         for row in ladder["initial_candidate_queue"]
         if row["status"] == "active_scored"
     ]
-    assert active == []
+    assert [row["id"] for row in active] == [
+        "gaussian_mixture_em_monotonicity_known_result"
+    ]
