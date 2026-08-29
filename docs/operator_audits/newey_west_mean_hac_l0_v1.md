@@ -7,7 +7,7 @@
   Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent
   Covariance Matrix*, Econometrica 55:703-708, 1987, DOI 10.2307/1913610
 - Frozen product code HEAD: `262b593f287917081b5fe51572375f946c02ca45`
-- Closeout evidence commit: `TO_BE_BOUND_AFTER_CLOSEOUT_COMMIT`
+- Closeout evidence commit: `07448d9d14eef3253bee82647eeccd535d77f107`
 - Run: `runs/main_worker_research_l0_newey_west_mean_hac_20260829_v1_codex_workspace_exact_haiku`
 - Product runtime status: `BLOCKED`
 - Frozen automated full-task result: `0/1`
