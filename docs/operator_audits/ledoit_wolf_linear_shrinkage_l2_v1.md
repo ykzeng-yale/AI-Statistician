@@ -4,7 +4,7 @@
 
 - Task: `ledoit_wolf_linear_shrinkage_paper_to_code`
 - Frozen product code HEAD: `b4f452c031c1d221cc3196a1fa829e6f42695302`
-- Closeout evidence commit: `PENDING_CLOSEOUT_COMMIT`
+- Closeout evidence commit: `4b0ca7a6c96d156d59554802225331dc25bdfeb7`
 - Run: `runs/main_worker_research_l2_ledoit_wolf_20260829_v1_codex_workspace_exact_haiku`
 - Product runtime status: `BLOCKED`
 - Frozen automated full-task result: `0/1`

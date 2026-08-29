@@ -11275,7 +11275,7 @@
         "runtime_progress_sha256": "13e7bd2d6347ddebcbd681fd422652d1d59e05c002f9e79906984467470a3913",
         "operator_disposition": "FAILED",
         "operator_audit": "docs/operator_audits/ledoit_wolf_linear_shrinkage_l2_v1.md",
-        "closeout_evidence_commit": "PENDING_CLOSEOUT_COMMIT",
+        "closeout_evidence_commit": "4b0ca7a6c96d156d59554802225331dc25bdfeb7",
         "activation_push_required_before_first_runtime_model_call": true,
         "activation_ledger_commit": "d08b8782600ab0ff246673d975153ab56e8e2bf2",
         "activation_push_confirmed_on_work_branch_and_main": true,

@@ -27,6 +27,7 @@ GOLD_MANIFEST = Path(
     "research-l2-ledoit-wolf-20260829-v1/gold_manifest.json"
 )
 TASK_ID = "ledoit_wolf_linear_shrinkage_paper_to_code"
+CLOSEOUT_COMMIT = "4b0ca7a6c96d156d59554802225331dc25bdfeb7"
 
 
 def test_ledoit_wolf_l2_consumed_result_is_immutable() -> None:
@@ -123,6 +124,7 @@ def test_ledoit_wolf_l2_consumed_result_is_immutable() -> None:
     assert evidence["hidden_expected_values_disclosed"] is False
     assert evidence["runtime_feedback_generated"] is False
     assert evidence["operator_disposition"] == "FAILED"
+    assert evidence["closeout_evidence_commit"] == CLOSEOUT_COMMIT
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
