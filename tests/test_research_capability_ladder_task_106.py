@@ -200,6 +200,9 @@ def test_tweedie_task106_is_consumed_after_its_only_product_draw() -> None:
     assert evidence["operator_disposition"] == "OPERATOR_INVALID"
     assert evidence["operator_invalid"] is True
     assert Path(evidence["operator_audit"]).is_file()
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "3f21792407ce8b575399db2ffe85090217f8d36e"
+    )
     assert evidence["automatic_tier_escalation_allowed"] is False
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0

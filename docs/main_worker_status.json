@@ -1,13 +1,13 @@
 {
-  "schema_version": 317,
+  "schema_version": 318,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "42f03346",
+  "validated_code_head": "3f217924",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all one hundred six consumed draws and immutable artifacts at trustworthy full-task credit 7/106 while exact development-panel Lean closure remains 0/2. Task106's sole exact-Haiku product draw and hidden assessment are consumed: the runtime and automated hidden evaluator passed, but operator inspection found active false claims, so trusted credit is 0/1. Improve only the shared model-owned Theory author, referee, and semantic-judge prompts; do not add task content, a mathematical parser, output repair, retry, fallback, another scheduler, mandatory formalization, Sonnet, or Opus.",
+  "current_goal_focus": "Preserve all one hundred six consumed draws and immutable artifacts at trustworthy full-task credit 7/106 while exact development-panel Lean closure remains 0/2. Task106's sole exact-Haiku product draw and hidden assessment are consumed and operator-invalid 0/1. Shared commit 3f217924 now makes the Theory author maintain publishable active mathematics and makes the same isolated referee run dependency-chain and whole-document contradiction audits without adding a harness layer. Measure it only on a new disjoint frozen exact-Haiku task; do not rerun old tasks or add task content, a mathematical parser, output repair, retry, fallback, another scheduler, mandatory formalization, Sonnet, or Opus.",
   "latest_tweedie_normal_means_task106_evaluation": {
     "task_id": "normal_means_tweedie_formula_known_theory_rederivation",
     "family": "gaussian_empirical_bayes_score_identities",
@@ -47,8 +47,20 @@
     "formalization_requirement": "not_applicable",
     "formalizer_executed": false,
     "operator_audit": "docs/operator_audits/tweedie_normal_means_theory_l3_v1.md",
+    "post_run_shared_mechanism_commit": "3f21792407ce8b575399db2ffe85090217f8d36e",
     "trusted_capability_credit": "0/1; aggregate remains 7/106",
     "boundary": "The product draw and hidden assessment are consumed. Hidden reference mathematics, rubric, calibration cases, near miss, labels, responses, and judgments remain outside the model workspace and generated no runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden authority, switch models, or add a Tweedie rule."
+  },
+  "latest_active_assertion_theory_review_correction": {
+    "mechanism_commit": "3f21792407ce8b575399db2ffe85090217f8d36e",
+    "official_codex_reference_head": "b8c86376a258e55efc8e5ecfbabc21c16c07d814",
+    "trigger": "Task106 proved that exact target delivery is necessary but insufficient. TheoryDeveloper left abandoned false algebra and materially false explanatory, measure, and regularity claims active in a 406-line authoritative document. The isolated referee read the complete document, initially recognized one active sign error, then removed it as a blocker because a later paragraph corrected the endpoint; it produced a summary-heavy positive report and missed the remaining false assertions.",
+    "change": "TheoryDeveloper's high-priority prompt now defines durable Markdown/LaTeX as the publishable current argument rather than a transcript: exploration stays in scratch or is explicitly delimited as SCRATCH/REJECTED, and later correction does not deactivate earlier false text. Referee protocol v45 uses one existing model-owned workspace and two audits: first reconstruct the requested load-bearing dependency chain, then sweep every other active definition, explanation, assumption, measure/type declaration, regularity claim, and scope statement for contradictions. Any material active falsehood blocks ACCEPT even when the requested endpoint is correct.",
+    "codex_alignment": "Official Codex main remains b8c86376. Its one-shot isolated review uses the exact supplied input and requests every discrete actionable finding, while OpenAI's harness guidance recommends a small map and progressive disclosure instead of a giant instruction manual. AI Statistician keeps those principles and shortened its net prompt/design surface rather than importing Codex Core.",
+    "coding_simulation_lean_audit": "AlgorithmEngineer and SimulationEngineer already own complete Python/R source in the common ScientificCodeWorkspace, explicitly run current bytes, receive raw sandbox or consumer observations, and author every edit. Formalizer already owns complete Lean source, searches the active Statlib/Mathlib environment, inspects proof state, compiles early, receives raw Lean/LSP diagnostics, and authors every revision. AgentRuntime preserves exact same-owner continuations and hash-bound cross-workspace artifacts. No additional Codex wrapper or scheduler is justified.",
+    "non_adoption_boundary": "No Codex Core, App Server, Responses transport, OpenAI provider, thread/worktree manager, Guardian, subagent scheduler, new agent, new tool, extra model call, output schema, mathematical parser, content repair, retry, fallback, task formula, Lean rule, mandatory formalization, Sonnet, or Opus was added. Frozen protocol-v11 evaluator semantics remain unchanged; its Task106 false positive is not retroactively rewritten.",
+    "verification": "Theory/referee/semantic focused regressions passed 146/146; the architecture-inclusive focused panel passed 154/154. The final complete repository passed 1077/1077 in 81.24 seconds. Compileall and diff hygiene passed, production Python is 149990 lines across 136 modules, and production_design.md remains under its gate at 397 lines. Verification made zero model or hidden-evaluator calls and did not run any consumed task.",
+    "capability_boundary": "This is deterministic future-task harness evidence only. Task106 remains immutable operator-invalid 0/1, trustworthy aggregate capability remains 7/106, and exact development-panel Lean closure remains 0/2. Only a new disjoint pre-frozen exact-Haiku task with newly qualified evaluator authority may measure behavioral improvement."
   },
   "latest_cusum_brownian_bridge_task105_evaluation": {
     "task_id": "tied_down_cusum_brownian_bridge_known_theory_rederivation",
