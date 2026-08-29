@@ -42,7 +42,7 @@ from .theory_workspace import (
 )
 
 
-CRITIC_EVALUATOR_SCHEMA_VERSION = 3
+CRITIC_EVALUATOR_SCHEMA_VERSION = 4
 CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE = "LLM_CRITIC_EVALUATOR_PROPOSAL_NOT_PROOF_EVIDENCE"
 CRITIC_EVALUATOR_BOUNDARY = (
     "LLM CriticEvaluator packets are observation and causal-assessment artifacts "
@@ -465,6 +465,9 @@ def build_critic_evaluator_prompt(
         "cannot validate untested transitions. Never call a rejected, failed, unavailable, or "
         "hash-mismatched probe passed. Scratch is exploratory, never proof or confirmation. "
         "Report a mathematical correction only when it is not equivalent to the observed form. "
+        "gap_disclosure.status describes whether all known gaps were disclosed, not whether "
+        "the research succeeded. It must be COMPLETE after listing every known gap, including "
+        "for an INCONCLUSIVE or REJECT disposition. "
         "Do not route, edit sources, change gates, or promote proof evidence; only AXLE/local "
         "Lean/kernel records can establish proof.\n\n"
         "Treat raw validator, compiler, execution, reviewer, and metric results as evidence, "
@@ -543,7 +546,10 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         }
     ],
     "gap_disclosure": {
-        "status": "COMPLETE | INCOMPLETE",
+        "status": (
+            "COMPLETE: all known gaps are disclosed, including for an INCONCLUSIVE "
+            "or REJECT result; this does not mean the research succeeded"
+        ),
         "disclosed_gaps": ["short gap statement or empty"],
         "evidence_refs": ["canonical evidence path or artifact id"],
         "rationale": "short rationale",
@@ -642,6 +648,7 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append("cross_workspace coordination requires a rationale")
     dimension_rows = packet.get("dimension_assessments", [])
     dimension_statuses: dict[str, str] = {}
+    dimensions_with_gaps: set[str] = set()
     if isinstance(dimension_rows, list):
         for index, row in enumerate(dimension_rows):
             if not isinstance(row, Mapping):
@@ -663,21 +670,39 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
                 errors.append(
                     f"dimension_assessments[{index}] evidence_refs must be an array"
                 )
-            if not isinstance(row.get("gaps", []), list):
+            gaps = row.get("gaps", [])
+            if not isinstance(gaps, list):
                 errors.append(f"dimension_assessments[{index}] gaps must be an array")
+            elif any(str(value).strip() for value in gaps):
+                dimensions_with_gaps.add(dimension)
     if set(dimension_statuses) != set(CRITIC_RESEARCH_DIMENSIONS):
         errors.append("dimension_assessments must cover each research dimension once")
     gap_disclosure = packet.get("gap_disclosure", {})
     gap_status = ""
+    has_disclosed_gaps = False
+    has_gap_evidence_refs = False
     if not isinstance(gap_disclosure, Mapping):
         errors.append("gap_disclosure must be an object")
     else:
         gap_status = str(gap_disclosure.get("status", "") or "").strip()
-        if gap_status not in {"COMPLETE", "INCOMPLETE"}:
-            errors.append("gap_disclosure status is invalid")
-        for field in ("disclosed_gaps", "evidence_refs"):
-            if not isinstance(gap_disclosure.get(field, []), list):
+        if gap_status != "COMPLETE":
+            errors.append(
+                "gap_disclosure status must be COMPLETE after disclosing all known "
+                "gaps; COMPLETE does not mean research success"
+            )
+        gap_arrays = {
+            field: gap_disclosure.get(field, [])
+            for field in ("disclosed_gaps", "evidence_refs")
+        }
+        for field, values in gap_arrays.items():
+            if not isinstance(values, list):
                 errors.append(f"gap_disclosure {field} must be an array")
+        has_disclosed_gaps = isinstance(gap_arrays["disclosed_gaps"], list) and any(
+            str(value).strip() for value in gap_arrays["disclosed_gaps"]
+        )
+        has_gap_evidence_refs = isinstance(gap_arrays["evidence_refs"], list) and any(
+            str(value).strip() for value in gap_arrays["evidence_refs"]
+        )
         if not str(gap_disclosure.get("rationale", "") or "").strip():
             errors.append("gap_disclosure missing rationale")
     disposition = packet.get("research_disposition", {})
@@ -767,6 +792,23 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
             errors.append("REJECT requires a contradicted dimension")
         if disposition_status == "INCONCLUSIVE" and contradicted:
             errors.append("CONTRADICTED evidence requires REJECT, not INCONCLUSIVE")
+        if disposition_status in {"INCONCLUSIVE", "REJECT"}:
+            if not has_disclosed_gaps:
+                errors.append("non-ACCEPT disposition requires at least one disclosed gap")
+            if not has_gap_evidence_refs:
+                errors.append("non-ACCEPT disposition requires gap disclosure evidence_refs")
+            missing_blocker_gaps = sorted(
+                {
+                    str(dimension)
+                    for dimension in blocking_dimensions
+                    if str(dimension) not in dimensions_with_gaps
+                }
+            )
+            if missing_blocker_gaps:
+                errors.append(
+                    "blocking dimensions require explicit dimension gaps: "
+                    + ", ".join(missing_blocker_gaps)
+                )
     if packet.get("proof_evidence_status") != CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE:
         errors.append("proof_evidence_status must preserve critic proposal boundary")
     if packet.get("kernel_verified") is not False:

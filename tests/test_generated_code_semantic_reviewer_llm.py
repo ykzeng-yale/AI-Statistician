@@ -317,6 +317,32 @@ def test_semantic_review_keeps_current_artifact_distinct_from_dependency() -> No
     assert prompt.index('"upstream_generated_dependency"') < prompt.index(
         '"current_target_artifacts"'
     )
+    assert "separately owned subsystem artifact" in prompt
+
+
+def test_simulation_review_authority_stops_at_present_artifact_lineage() -> None:
+    material = _review_material()
+    prompt = build_generated_code_semantic_review_prompt(
+        question=_question_with_estimator_contract(),
+        review_material=material,
+    )
+
+    assert "public ABI unless that exact accepted dependency is present" in prompt
+    assert "Question text and supporting context define obligations" in prompt
+
+    material["upstream_generated_dependency"] = {
+        "exact_dependency_artifacts": [
+            {
+                "artifact_id": "algorithm:accepted",
+                "exact_source_hash": "algorithm-source-hash",
+            }
+        ]
+    }
+    prompt_with_dependency = build_generated_code_semantic_review_prompt(
+        question=_question_with_estimator_contract(),
+        review_material=material,
+    )
+    assert '"artifact_id":"algorithm:accepted"' in prompt_with_dependency
 
 
 def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:

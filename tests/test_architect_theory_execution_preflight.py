@@ -115,49 +115,36 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
 
     assert "authoritative Markdown or LaTeX" in normalized_prompt
-    assert "model-directed search and exact range reads" in normalized_prompt
-    assert "highest-risk active claims" in normalized_prompt
+    assert "stable workspace tools" in normalized_prompt
     assert "start from attempted falsification" in normalized_prompt
     assert "smallest load-bearing dependency chain" in normalized_prompt
     assert "every line of every authoritative" not in prompt
-    assert "dimensional homogeneity" in normalized_prompt
-    assert "weaker proxy" in normalized_prompt
-    assert "Audit each decisive transition as written" in protocol
-    assert "independently recompute only what is needed" in protocol
-    assert "reviewer-added mathematics" in protocol
-    assert "report the gap" in protocol
-    assert "every explicitly requested conclusion or scope boundary" in protocol
+    assert "decisive written transition" in normalized_prompt
+    assert "correct endpoint" in normalized_prompt
+    assert "Audit each decisive transition as it is actually written" in protocol
+    assert "reconstruct each load-bearing transition" in protocol
+    assert "reviewer-added premises" in protocol
+    assert "every requested conclusion or scope boundary" in protocol
+    assert "question, estimand, probability law, assumptions" in protocol
     assert "boundary case" in protocol
-    assert "special case" in protocol
     assert "counterexample" in protocol
-    assert "correct final statement" in protocol
-    assert "Every unmarked paragraph and equation" in protocol
-    assert "narrative chronology or a later correction" in protocol
+    assert "correct final formula" in protocol
+    assert "Every unmarked claim remains active" in protocol
     assert "clearly delimited as REJECTED or SCRATCH" in protocol
-    assert "record it as uncertain" in protocol
-    assert "scratch results" in protocol
-    assert "frozen confirmatory" in protocol
-    assert "canned checklist" in protocol
-    assert "never silently repair false text" in normalized_prompt
+    assert "mark genuine uncertainty" in protocol
+    assert "Pre-review scratch is exploratory" in protocol
+    assert "confirmatory simulation" in protocol
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
-    assert "model-owned report, not a runtime claim checklist" in protocol
-    assert "exact document paths and line ranges" in protocol
-    assert "Do not reproduce the candidate or write a substitute proof" in protocol
-    assert "never author a replacement proof" in normalized_prompt
-    assert "Batch independent read-only searches or range reads" in normalized_prompt
-    assert "First challenge unresolved risks" in (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
-    )
-    assert "evidence authority" in ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
-    assert "level of quantifiers and domains" in protocol
-    assert "case split must exhaust the asserted domain" in protocol
-    assert "silently narrows scope" in protocol
-    assert "cannot justify a broader active claim" in protocol
-    assert "Cite only line ranges returned by an exact read observation" in protocol
-    assert "without inventing line numbers" in protocol
-    assert "findings-first and concise" in protocol
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 42
+    assert "model-owned report carries the mathematical judgment" in protocol
+    assert "exact paths and line ranges returned by reads" in protocol
+    assert "do not reproduce the candidate or write a substitute proof" in protocol
+    assert "silently supply a repair" in normalized_prompt
+    assert "types, domains, dimensions, quantifiers" in protocol
+    assert "candidate side" in protocol
+    assert "independently reconstructed side" in protocol
+    assert len(protocol.split()) < 430
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 43
 
 
 def test_source_acceptance_protocol_materializes_one_stable_boolean_abi() -> None:
@@ -1018,10 +1005,12 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
         "model_tool_request"
     )
     assert _preflight_scratchpad_evidence_errors(packet) == []
-    assert "describe a failed run as passed" in " ".join(
+    assert "never describe a rejected or failed run as passed" in " ".join(
         backend.requests[0].system_prompt.split()
     )
-    assert "must not call it passed" in backend.requests[0].messages[0]["content"]
+    assert "model-authored discriminating checks" in (
+        backend.requests[0].messages[0]["content"]
+    )
     scratch_tool = next(
         tool
         for tool in backend.requests[0].tools
@@ -2265,43 +2254,29 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     for phrase in (
         "structured handoff is only an index",
         "model-directed search and exact range reads",
-        "load-bearing definitions",
-        "claim index is navigation, not scope",
+        "smallest dependency graph",
         "inference-bearing statement",
-        "correct final statement does not cancel",
-        "Try to falsify each load-bearing conclusion",
+        "correct final formula",
+        "Try to falsify the chain",
         "order-of-magnitude check",
-        "compatible mathematical types, domains",
-        "weaker consequence cannot support a compound claim",
-        "standard result is not an independent check",
-        "reconstruct the transition from its original definition",
-        "transformed measure, domain, and normalizing constants",
-        "reconcile each claimed fluctuation rate",
-        "internally inconsistent scale is a blocker",
-        "exact symbolic reduction",
-        "not a prewritten verdict",
-        "final estimator or output distribution cannot establish",
-        "complete semantic chain",
-        "canned checklist",
-        "mathematical coherence from proof completeness",
-        "pre-review Python or R scratch results as exploratory only",
-        "reconcile later observations",
-        "one compact finding per actual blocker",
-        "focused, source-grounded Markdown",
-        "Do not reproduce the candidate or write a substitute proof",
+        "types, domains, dimensions, quantifiers",
+        "reconstruct each load-bearing transition from its original definitions",
+        "candidate side, independently reconstructed side",
+        "Scratch and retrieval are observations",
+        "Separate mathematical coherence, proof completeness",
+        "Pre-review scratch is exploratory",
+        "one compact finding per blocker",
+        "focused, findings-first Markdown",
+        "do not reproduce the candidate or write a substitute proof",
     ):
         assert phrase in protocol
-    assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL) == 7
-    assert "Choose the tool order that best supports that judgment" in (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
-        + str(backend.requests[0].messages[0]["content"])
-    )
+    assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL) == 5
+    assert len(protocol.split()) < 430
     source_tool_prompt = str(backend.requests[0].messages[0]["content"])
-    assert "never promote a reviewer-supplied bridge" in source_tool_prompt
-    assert "Do not write a replacement proof" in source_tool_prompt
-    assert "compare each check with exact candidate lines" in source_tool_prompt
-    assert "batch independent read-only searches or range reads" in source_tool_prompt
-    assert "Keep scratch and report mutation separate" in source_tool_prompt
+    assert "independent read-only calls may be batched" in source_tool_prompt
+    assert "scratch, report mutation, and submission" in source_tool_prompt
+    assert "write a replacement proof" in source_tool_prompt
+    assert "submit only its current SHA-256" in source_tool_prompt
     assert "Before candidate-document access" not in str(
         backend.requests[0].messages[0]["content"]
     )
@@ -2364,14 +2339,10 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert backend.requests[0].max_tokens == 7000
     assert "review_output_token_cap" not in backend.requests[0].metadata
     request_content = backend.requests[0].messages[0]["content"]
-    assert "mathematical coherence from proof completeness" in request_content
-    assert "exact symbolic reduction" in request_content
-    assert "complete executable predicate" in (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT
-    )
-    assert "variance order and limit scale" in " ".join(
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT.split()
-    )
+    assert "Separate mathematical coherence, proof completeness" in request_content
+    assert "discriminating symbolic reduction" in request_content
+    assert "compute the complete predicate from definitions" in request_content
+    assert "normalizing constants" in request_content
     submit_schema = _submit_schema(backend.requests[0])
     assert "do not carry downstream proof obligations" in (
         prompt_payload["verdict_policy"]
@@ -2640,7 +2611,7 @@ def test_preflight_reviewer_reads_late_hash_bound_theory_document(
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     assert marker not in initial_prompt
     prompt_payload = json.loads(
-        initial_prompt.split("\n\nThe prompt contains", 1)[0]
+        initial_prompt.split("\n\nThis is a hash-bound catalog", 1)[0]
     )
     document_catalog = prompt_payload["source_material"][
         "authoritative_theory_documents"

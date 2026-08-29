@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from ai_statistician.critic_evaluator_llm import validate_critic_evaluator_packet
 from ai_statistician.estimator_interface_contract import (
     frozen_estimator_execution_contract_id,
 )
@@ -28,6 +29,11 @@ GOLD_MANIFEST = Path(
 )
 TASK_ID = "ledoit_wolf_linear_shrinkage_paper_to_code"
 CLOSEOUT_COMMIT = "4b0ca7a6c96d156d59554802225331dc25bdfeb7"
+CRITIC_PROPOSAL_BLOB = Path(
+    "runs/main_worker_research_l2_ledoit_wolf_20260829_v1_"
+    "codex_workspace_exact_haiku/runtime_artifact_store/blobs/b1/"
+    "b1d695e1f73c890d80091435ccda5f2540c5b3191bb9d4a7f432e2b5c7e6b023.json"
+)
 
 
 def test_ledoit_wolf_l2_consumed_result_is_immutable() -> None:
@@ -188,10 +194,21 @@ def test_ledoit_wolf_l2_consumed_result_is_immutable() -> None:
         "candidate_mode_near_miss.md",
     ):
         assert hidden_name not in runtime_visible
-
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 99
     assert readiness["unconsumed_scored_tasks"] == 0
     assert readiness["consumed_scored_tasks"] == 99
     assert readiness["fully_gold_configured_tasks"] == 99
     assert readiness["fully_gold_passed_tasks"] == 7
+
+
+def test_task99_critic_gap_status_cannot_terminate_future_packets() -> None:
+    packet = json.loads(CRITIC_PROPOSAL_BLOB.read_text(encoding="utf-8"))
+
+    assert packet["research_disposition"]["status"] == "INCONCLUSIVE"
+    assert packet["gap_disclosure"]["disclosed_gaps"]
+    assert packet["gap_disclosure"]["status"] == "INCOMPLETE"
+    assert (
+        "gap_disclosure status must be COMPLETE after disclosing all known gaps; "
+        "COMPLETE does not mean research success"
+    ) in validate_critic_evaluator_packet(packet)

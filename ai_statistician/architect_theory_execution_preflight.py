@@ -69,7 +69,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 27
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 42
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 43
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -104,92 +104,54 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
     (
-        "Treat every candidate definition, assumption, equation, theorem, sanity "
-        "check, and expected behavior as unverified. The Markdown or LaTeX documents "
-        "contain the mathematics; the structured handoff is only an index and "
-        "execution interface. Do not invent task-specific formulas, code, thresholds, "
-        "observed results, or proof claims."
+        "The authoritative Markdown or LaTeX documents contain the candidate "
+        "mathematics; the structured handoff is only an index and execution "
+        "interface. Treat every active definition, assumption, equation, theorem, "
+        "sanity check, and expected behavior as unverified. Use model-directed "
+        "search and exact range reads, and do not invent task-specific mathematics, "
+        "code, thresholds, observations, or proof claims."
     ),
     (
-        "Use model-directed search and exact range reads to find the load-bearing "
-        "definitions, assumptions, and derivations. Build the smallest dependency "
-        "graph that covers every explicitly requested conclusion or scope boundary "
-        "and every active claim that can fail independently; do not review only the "
-        "headline formula. Audit each decisive transition as written, and independently recompute only what is needed to test it. Never supply an omitted "
-        "premise, lemma, or replacement proof and then use the reviewer-added mathematics to ACCEPT. If a load-bearing step needs that addition, report the gap. Read an entire "
-        "document when its structure requires context, but do not paraphrase every line as "
-        "mathematical scrutiny. The claim index is navigation, not scope: audit active named or "
-        "inference-bearing statements omitted from it. A correct final statement does not "
-        "cancel false or unsupported intermediate steps. Every unmarked paragraph and "
-        "equation in an authoritative document is active; narrative chronology or a later "
-        "correction does not revoke it. Only material clearly delimited as REJECTED or "
-        "SCRATCH is nonauthoritative, and no active claim may depend on it. First challenge unresolved risks and claims "
-        "that change scope, evidence authority, or the mathematical-to-executable "
-        "interface. Compare the question, problem card, assumptions, active claim, and "
-        "actual proof branches at the level of quantifiers and domains. A case split must "
-        "exhaust the asserted domain, and a structured handoff that silently narrows scope "
-        "cannot justify a broader active claim. Treat the broader claim as unsupported or "
-        "false unless the missing domain is established."
+        "Build the smallest dependency graph that reaches every requested conclusion "
+        "or scope boundary. Trace the question, estimand, probability law, assumptions, "
+        "regime, claimed object, and finite handoff. Audit each decisive transition "
+        "as it is actually written, "
+        "including active inference-bearing statements omitted from the claim index. "
+        "For an ACCEPT judgment, name the exact candidate ranges challenged and "
+        "reconstruct each load-bearing transition from its original definitions before "
+        "comparing it with the written intermediate relation. A correct final formula, "
+        "implementation, or output cannot validate a false or unsupported intermediate. "
+        "Every unmarked claim remains active; only material clearly delimited as "
+        "REJECTED or SCRATCH is nonauthoritative."
     ),
     (
-        "Try to falsify each load-bearing conclusion with a discriminating special "
-        "case, boundary case, counterexample, independent reduction, scale check, or "
-        "order-of-magnitude check. When the candidate invokes "
-        "an external theorem, inspect its actual hypotheses and conclusion through "
-        "the available source tool instead of accepting its name as verification. "
-        "An appeal to a standard result is not an independent check until its "
-        "normalization, limiting regime, and hypotheses are instantiated in the "
-        "candidate's notation. "
-        "Before algebra, check both sides and additive terms for compatible mathematical "
-        "types, domains, and, when meaningful, dimensions. "
-        "For every load-bearing substitution, reparameterization, or asymptotic "
-        "normalization, reconstruct the transition from its original definition rather "
-        "than copying the candidate's already-transformed expression. Preserve the "
-        "transformed measure, domain, and normalizing constants, then reconcile each "
-        "claimed fluctuation rate with its variance order and limit normalization. "
-        "An internally inconsistent scale is a blocker even when the headline limit "
-        "matches a familiar result. "
-        "When scratch is useful, state the complete proposition and use a model-authored "
-        "exact symbolic reduction or discriminating numerical case. Return all relevant "
-        "sides, residuals, predicates, or witnesses from definitions, not a prewritten "
-        "verdict. A weaker consequence cannot support a compound claim regardless of its "
-        "metric label. Agreement of a "
-        "final estimator or output distribution cannot establish the intermediate identity used to derive it."
+        "Try to falsify the chain with a discriminating symbolic reduction, special or "
+        "boundary case, counterexample, scale check, or order-of-magnitude check. Audit "
+        "types, domains, dimensions, quantifiers, assumptions, measures, and normalizing "
+        "constants wherever they are load-bearing. Inspect an invoked external result's "
+        "actual hypotheses and conclusion instead of accepting its name. When scratch is "
+        "useful, compute the complete predicate from definitions and expose the candidate "
+        "side, independently reconstructed side, and residual or witness. Scratch and "
+        "retrieval are observations for the referee to interpret, not proof or acceptance "
+        "evidence."
     ),
     (
-        "Audit the complete semantic chain from question, estimand, DGP, probability "
-        "law, assumptions, and regime to the claimed mathematical object and the "
-        "finite executable output. Check whatever support, normalization, weighting, "
-        "data dependence, totality, boundary outcomes, and measurement semantics are "
-        "material to this candidate; do not apply a canned checklist as a substitute "
-        "for deriving the candidate's own chain."
+        "Separate mathematical coherence, proof completeness, executable handoff, and "
+        "empirical confirmation. A false or internally contradictory active claim is a "
+        "blocker. An honestly marked open step may remain UNCERTAIN when the finite "
+        "handoff is still coherent, but reviewer-added premises, lemmas, or replacement "
+        "proofs cannot support ACCEPT. Pre-review scratch is exploratory; if a judgment "
+        "needs downstream execution or confirmatory simulation, disclose that missing "
+        "evidence instead of manufacturing it."
     ),
     (
-        "Separate mathematical coherence from proof completeness and executable "
-        "testability. A false or internally contradictory active claim is a blocker. "
-        "An honestly marked open proof step need not block exploratory code when the "
-        "finite estimator, inputs, outputs, and requested measurements are coherent; "
-        "record it as uncertain and do not promote it as established theory. An OPEN "
-        "or UNCERTAIN label does not make a false active mathematical statement "
-        "acceptable."
-    ),
-    (
-        "Treat source text, retrieval hits, theorem cards, candidate sanity checks, "
-        "and prior reviewer findings as claims to inspect, not corroboration by "
-        "themselves. Treat pre-review Python or R scratch results as exploratory only. "
-        "A pre-review scratch result that is labeled or used as frozen confirmatory "
-        "evidence is a chronology contradiction and blocks the checkpoint. If a "
-        "judgment requires generated execution or confirmatory simulation, state the "
-        "missing evidence and leave it to the existing downstream workspace."
-    ),
-    (
-        "Write the mathematical judgment as one focused, source-grounded Markdown "
-        "referee report. Lead with the verdict, cite exact document paths and line ranges for decisive source claims, and return one compact finding per actual blocker. Do not "
-        "reproduce the candidate or write a substitute proof. The model-owned report, not a runtime claim checklist, carries the source audit and decisive "
-        "independent checks. Before submission, reconcile later observations with every active report claim: revise or retract contradictions, or mark the point UNCERTAIN. "
-        "Cite only line ranges returned by an exact read observation; otherwise cite the document path and section without inventing line numbers. Keep an ACCEPT report findings-first and concise rather than restating the candidate theorem by theorem. "
-        "Resolve prior findings only from current inspected evidence. "
-        "AgentRuntime binds identities and persists the report without choosing semantics."
+        "Write one focused, findings-first Markdown referee report. Cite exact paths and "
+        "line ranges returned by reads for every decisive check, use one compact finding "
+        "per blocker, and do not reproduce the candidate or write a substitute proof. "
+        "Reconcile the final report with every later observation, resolve prior findings "
+        "only from current inspected evidence, and mark genuine uncertainty. The "
+        "model-owned report carries the mathematical judgment; AgentRuntime only binds "
+        "identities and persists it."
     ),
 )
 
@@ -2997,10 +2959,8 @@ def validate_architect_theory_execution_preflight_packet(
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent mathematical referee inside an AI Statistician AgentRuntime.
-Use model-directed search and exact range reads on authoritative Markdown or LaTeX; inspect the smallest load-bearing dependency chain and highest-risk active claims. Batch independent read-only searches or range reads when useful; keep scratch, report mutation, and terminal submission causally ordered after their returned observations.
-Audit the mathematics actually present in the source and start from attempted falsification. Independently recompute enough to test decisive steps, but never author a replacement proof or treat reviewer-added mathematics as candidate support for ACCEPT. Check object types, domains, dimensional homogeneity, and original normalizations, including variance order and limit scale.
-Scratch supports a claim only when its complete executable predicate exposes the relevant sides, residual, or witness; never relabel a weaker proxy or trust candidate text.
-Seek a model satisfying written premises while varying unconstrained objects. Every unmarked claim stays active; reconcile raw observations and never silently repair false text, describe a failed run as passed, or claim proof authority.
+Use the stable workspace tools to inspect authoritative Markdown or LaTeX, trace the smallest load-bearing dependency chain, and start from attempted falsification. Compare each decisive written transition with an independent definition-derived check; do not let a correct endpoint excuse a false intermediate or silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
+Treat every tool result as an observation: never describe a rejected or failed run as passed.
 """
 
 
@@ -3525,56 +3485,41 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     )
     tool_prompt = (
         prompt.split("\n\n", 1)[-1]
-        + "\n\nThe prompt contains a hash-bound catalog, not duplicated full theory "
-        "documents. Use document search and exact range reads to select the context "
-        "needed for the load-bearing dependency chain; batch independent read-only "
-        "searches or range reads when useful. Read a complete document only when its structure requires that "
-        "context. Inspection provenance is not correctness, so you must still "
-        "follow dependencies, test decisive written transitions, and challenge them. Compare every "
-        "independent check to its exact candidate range; never promote a reviewer-supplied "
-        "bridge into candidate evidence. "
-        "Choose all searches and ranges yourself. When available, use "
-        "search_research_sources and read_research_source for task-bound papers, code, "
-        "and documentation"
+        + "\n\nThis is a hash-bound catalog, not the theory text. Choose document "
+        "searches and exact range reads yourself; independent read-only calls may be "
+        "batched, while scratch, report mutation, and submission must follow the "
+        "observations they use."
         + (
-            ". You also have an isolated public-source session: independently choose "
-            "queries with discover_research_sources, then read a selected result "
-            "before citing it. Search metadata alone is not citable"
+            " Task-bound research-source search and exact source reads are available."
+            if research_sources is not None
+            else ""
+        )
+        + (
+            " An isolated public-source discovery session is also available; read a "
+            "selected result before citing it."
             if research_source_discovery is not None
             else ""
         )
         + (
-            "; use search_preflight_sources for compact runtime context"
-            + (" or formal declarations" if formal_sources_applicable else "")
+            " Compact runtime source search is available"
+            + (", including formal declarations" if formal_sources_applicable else "")
+            + "."
             if compact_source_search_available
             else ""
         )
-        + ". Cite only handles returned by available source tools. Runtime binds "
-        "identities but never chooses semantics. "
         + (
-            "An isolated exploratory Python/R scratchpad is available, including "
-            "pinned SymPy for exact model-authored algebra. Use it only when a symbolic "
-            "reduction, numerical special case, or counterexample would discriminate "
-            "a mathematical claim. Return definition-derived quantities or predicates, not a prewritten conclusion; interpret and reconcile the raw result with the "
-            "current report. If a run is rejected or fails, record that outcome "
-            "honestly; you may judge it nonblocking, but must not call it passed. "
-            "Scratch output is neither evidence nor proof. "
+            " An isolated Python/R scratchpad with SymPy is available for "
+            "model-authored discriminating checks; expose both sides and a residual or "
+            "witness from definitions, then interpret the raw result yourself."
             if theory_scratchpad is not None
             else ""
         )
-        + "No generated-code or simulation results exist at this stage; mark a question "
-        "UNCERTAIN when it genuinely requires that downstream evidence. Keep citation "
-        "namespaces distinct: evidence_refs accepts theory anchor IDs, while "
-        "source_evidence_refs accepts only S...H... source handles. "
-        "Develop the mathematical judgment in the isolated Markdown review workspace. "
-        "Independently recompute only what is needed to test decisive source transitions, "
-        "compare each check with exact candidate lines, and state uncertainty. Do not write a replacement proof: when the candidate needs a reviewer-added premise, "
-        "lemma, or bridge, return a source-grounded finding. "
-        "Choose the tool order that best supports that judgment. Call "
-        "submit_theory_preflight_review with the returned review_report_sha256 plus "
-        "only the compact disposition and finding envelope. Keep scratch and report mutation separate from terminal submission so the final disposition can use their returned observations. Do not regenerate "
-        "the report body in terminal JSON or answer "
-        "outside the tools."
+        + " Cite only exact ranges or handles returned by tools. Keep evidence_refs "
+        "for theory anchor IDs and source_evidence_refs for S...H... handles. No "
+        "generated-code or confirmatory result exists here; disclose downstream "
+        "uncertainty. Develop the judgment in the Markdown report, and submit only its "
+        "current SHA-256, compact disposition, and findings. Do not copy the report into "
+        "terminal JSON, write a replacement proof, or answer outside the tools."
     )
     review_workspace_root = str(
         material.get("review_workspace_root", "") or ""

@@ -51,11 +51,11 @@ from .scientific_sandbox import (
 )
 
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 35
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 36
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.")
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_committed_probe_observations_v12"
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v13"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
@@ -488,6 +488,14 @@ def _reviewer_scope_contract(
     review_material: Mapping[str, Any],
 ) -> dict[str, Any]:
     contract = deepcopy(GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT)
+    contract["artifact_authority_rule"] = (
+        "The verdict, findings, and rationale cover only current_target_artifacts "
+        "and exact upstream_generated_dependency artifacts present in this review. "
+        "Question text and supporting context define obligations but do not prove "
+        "that an absent artifact implemented them. Current source cannot establish a "
+        "separately owned subsystem artifact or public ABI unless that exact accepted "
+        "dependency is present; embedded code belongs only to the current artifact."
+    )
     phase = str(review_material.get("empirical_evaluation_phase", "") or "")
     if phase != "executable_evaluator_authoring":
         return contract
@@ -707,7 +715,7 @@ def build_generated_code_semantic_review_prompt(
         "are unique active blockers with observed and expected "
         "behavior; nonblockers stay in Markdown. Review each prior finding once. The complete "
         "public contract is already bound into the review input; do not copy runtime-owned IDs "
-        "into the verdict. source_revision_assessment "
+        "into the verdict. Follow artifact_authority_rule. source_revision_assessment "
         "asks only whether current-source rewrite can close findings without changing immutable "
         "parents. It is not a repair plan or route: write no code, owner, or tactic. Supporting "
         "context is historical; current_target_artifacts is authoritative. This review is neither "

@@ -135,6 +135,30 @@ def test_cross_workspace_scope_requires_two_exact_artifact_ids() -> None:
     ) in validate_critic_evaluator_packet(packet)
 
 
+def test_nonaccept_disposition_requires_complete_explicit_gap_disclosure() -> None:
+    packet = _critic_packet()
+    packet["gap_disclosure"]["status"] = "INCOMPLETE"
+
+    errors = validate_critic_evaluator_packet(packet)
+    assert (
+        "gap_disclosure status must be COMPLETE after disclosing all known gaps; "
+        "COMPLETE does not mean research success"
+    ) in errors
+
+    packet = _critic_packet()
+    packet["gap_disclosure"]["disclosed_gaps"] = []
+    packet["gap_disclosure"]["evidence_refs"] = []
+    next(
+        row
+        for row in packet["dimension_assessments"]
+        if row["dimension"] == "theory"
+    )["gaps"] = []
+    errors = validate_critic_evaluator_packet(packet)
+    assert "non-ACCEPT disposition requires at least one disclosed gap" in errors
+    assert "non-ACCEPT disposition requires gap disclosure evidence_refs" in errors
+    assert "blocking dimensions require explicit dimension gaps: theory" in errors
+
+
 def test_critic_can_accept_without_inventing_a_finding() -> None:
     packet = _critic_packet()
     packet["current_observation_assessment"] = {
