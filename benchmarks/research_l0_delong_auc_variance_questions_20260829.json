@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "delong_single_auc_variance_known_result",
+      "title": "DeLong variance and normal interval for one empirical ROC AUC",
+      "description": "Focused integrated L0 known-result evaluation grounded in DeLong, DeLong, and Clarke-Pearson (1988), Sun and Xu (2014), and pinned pROC v1.19.1 source. Let X_1,...,X_m be independent case scores and Y_1,...,Y_n independent control scores, with the two samples independent and larger scores indicating cases. Use h(x,y)=1{x>y}+0.5*1{x=y} and theta=E h(X,Y)=P(X>Y)+0.5 P(X=Y). In one authoritative Markdown/LaTeX workspace, derive the empirical AUC as a two-sample U-statistic, its unbiasedness, case and control structural components, the exact finite-sample variance decomposition including the order-1/(mn) degenerate contribution, and the two-sample projection CLT when m/(m+n) tends to lambda in (0,1). Derive the DeLong leading variance estimator from sample variances of the placements, state assumptions sufficient for consistency and normal inference, and distinguish that asymptotic standard-error estimator from exact finite-sample variance or exact coverage. Establish the population AUC Phi((mu_X-mu_Y)/sqrt(sigma_X^2+sigma_Y^2)) for independent Gaussian scores, including the equal-variance reduction. Treat ties explicitly and state the limits of clipping a normal interval to [0,1]. The required model-authored Python artifact is est_delong_auc and must implement the frozen run_estimator(request) contract exactly. It may use NumPy or SciPy but must not call a prebuilt ROC-AUC, DeLong, ranking, or confidence-interval routine. Exploratory Python or R may compare direct pairwise and midrank calculations and inspect special cases. A separately frozen confirmatory experiment uses predeclared continuous Gaussian and tie-heavy ordinal designs, independent exact formula checks, AUC bias, standard-error calibration, and normal-interval coverage with Monte Carlo uncertainty. Such computation supports only the frozen designs and is not proof. Source-code replication and novelty are not required, and Lean formalization is not applicable.",
+      "tags": [
+        "DeLong variance",
+        "ROC AUC",
+        "two-sample U-statistic",
+        "diagnostic accuracy",
+        "structural components",
+        "known result",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "Comparing the Areas under Two or More Correlated Receiver Operating Characteristic Curves: A Nonparametric Approach",
+          "authors": [
+            "Elizabeth R. DeLong",
+            "David M. DeLong",
+            "Daniel L. Clarke-Pearson"
+          ],
+          "journal": "Biometrics",
+          "year": 1988,
+          "volume": 44,
+          "issue": 3,
+          "pages": "837-845",
+          "doi": "10.2307/2531595",
+          "url": "https://doi.org/10.2307/2531595"
+        },
+        "algorithm_paper": {
+          "title": "Fast Implementation of DeLong's Algorithm for Comparing the Areas Under Correlated Receiver Operating Characteristic Curves",
+          "authors": [
+            "Xu Sun",
+            "Weichao Xu"
+          ],
+          "journal": "IEEE Signal Processing Letters",
+          "year": 2014,
+          "volume": 21,
+          "issue": 11,
+          "pages": "1389-1393",
+          "doi": "10.1109/LSP.2014.2337313",
+          "url": "https://pamixsun.github.io/papers/sun2014fast.pdf"
+        },
+        "implementation_convention": {
+          "title": "pROC DeLong placements and single-AUC confidence interval",
+          "repository": "https://github.com/xrobin/pROC",
+          "release": "v1.19.1",
+          "commit": "be0475b49cb353318703f9e48aa9eb9cd125d677",
+          "url": "https://github.com/xrobin/pROC/tree/be0475b49cb353318703f9e48aa9eb9cd125d677",
+          "meaning": "The model-visible excerpts fix the tie-aware structural-component and variance conventions; the public estimator contract below is executable authority."
+        },
+        "research_source_manifest": "benchmarks/research_sources/delong_auc_20260829/source_manifest.json"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_delong_auc",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.case_scores",
+            "name": "case_scores",
+            "meaning": "Independent scalar scores from the case population; a larger score indicates stronger evidence for case status.",
+            "json_type": "array[number]",
+            "shape": "length m with m>=2",
+            "units": "one common score scale",
+            "indexing": "input order is observational only and has no inferential meaning",
+            "edge_cases": "Reject booleans, strings, nested values, nonfinite values, and fewer than two scores; preserve ties and do not coerce entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.control_scores",
+            "name": "control_scores",
+            "meaning": "Independent scalar scores from the control population on the same scale and direction as case_scores.",
+            "json_type": "array[number]",
+            "shape": "length n with n>=2",
+            "units": "the case-score units",
+            "indexing": "input order is observational only and has no inferential meaning",
+            "edge_cases": "Reject booleans, strings, nested values, nonfinite values, and fewer than two scores; preserve ties and do not coerce entries.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.confidence_level",
+            "name": "confidence_level",
+            "meaning": "The two-sided normal-interval confidence level fixed before observing this request.",
+            "json_type": "number",
+            "shape": "one finite scalar strictly between zero and one",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Reject booleans, strings, nonfinite values, zero, one, and values outside (0,1); do not silently replace or round the level.",
+            "binding": "derived_once_from_frozen_design"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.n_cases",
+            "name": "n_cases",
+            "meaning": "The number m of supplied case scores.",
+            "json_type": "integer",
+            "shape": "one native integer at least two",
+            "units": "count",
+            "indexing": "equals len(case_scores)",
+            "edge_cases": "Must not count omitted or padded scores.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.n_controls",
+            "name": "n_controls",
+            "meaning": "The number n of supplied control scores.",
+            "json_type": "integer",
+            "shape": "one native integer at least two",
+            "units": "count",
+            "indexing": "equals len(control_scores)",
+            "edge_cases": "Must not count omitted or padded scores.",
+            "normalization": "No normalization."
+          },
+          {
+            "clause_id": "response.confidence_level",
+            "name": "confidence_level",
+            "meaning": "The exact confidence level supplied in the request.",
+            "json_type": "number",
+            "shape": "one finite scalar in (0,1)",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "Must preserve the request exactly.",
+            "normalization": "No transformation."
+          },
+          {
+            "clause_id": "response.auc",
+            "name": "auc",
+            "meaning": "The empirical tie-aware ROC area theta_hat.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "averages every case-control pair exactly once",
+            "edge_cases": "Use half credit for exact ties and do not reverse the declared score direction.",
+            "normalization": "(mn)^{-1} sum_i sum_j h(case_scores[i],control_scores[j])."
+          },
+          {
+            "clause_id": "response.case_placements",
+            "name": "case_placements",
+            "meaning": "The structural component V10_i for each case in original input order.",
+            "json_type": "array[number]",
+            "shape": "exactly m finite scalars in [0,1]",
+            "units": "probability",
+            "indexing": "entry i corresponds to case_scores[i]",
+            "edge_cases": "Each entry averages h(case_scores[i],control_scores[j]) over all n controls with half credit for ties.",
+            "normalization": "n^{-1} sum_j h(case_scores[i],control_scores[j])."
+          },
+          {
+            "clause_id": "response.control_placements",
+            "name": "control_placements",
+            "meaning": "The structural component V01_j for each control in original input order.",
+            "json_type": "array[number]",
+            "shape": "exactly n finite scalars in [0,1]",
+            "units": "probability",
+            "indexing": "entry j corresponds to control_scores[j]",
+            "edge_cases": "Each entry averages h(case_scores[i],control_scores[j]) over all m cases with half credit for ties.",
+            "normalization": "m^{-1} sum_i h(case_scores[i],control_scores[j])."
+          },
+          {
+            "clause_id": "response.case_component_variance",
+            "name": "case_component_variance",
+            "meaning": "The unbiased sample variance of the m case placements.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared probability",
+            "indexing": "centered at auc",
+            "edge_cases": "Use divisor m-1, not m.",
+            "normalization": "sum_i (case_placements[i]-auc)^2/(m-1)."
+          },
+          {
+            "clause_id": "response.control_component_variance",
+            "name": "control_component_variance",
+            "meaning": "The unbiased sample variance of the n control placements.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared probability",
+            "indexing": "centered at auc",
+            "edge_cases": "Use divisor n-1, not n.",
+            "normalization": "sum_j (control_placements[j]-auc)^2/(n-1)."
+          },
+          {
+            "clause_id": "response.auc_variance",
+            "name": "auc_variance",
+            "meaning": "The DeLong leading variance estimate for auc.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "squared probability",
+            "indexing": "combines both structural-component samples",
+            "edge_cases": "Do not pool placements or add a pairwise Bernoulli variance term.",
+            "normalization": "case_component_variance/m + control_component_variance/n."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The nonnegative square root of auc_variance.",
+            "json_type": "number",
+            "shape": "one finite nonnegative scalar",
+            "units": "probability",
+            "indexing": "not applicable",
+            "edge_cases": "May be zero when all placements are equal.",
+            "normalization": "sqrt(auc_variance)."
+          },
+          {
+            "clause_id": "response.ci_lower",
+            "name": "ci_lower",
+            "meaning": "The lower endpoint of the clipped two-sided normal interval.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "lower endpoint",
+            "edge_cases": "Clip only after forming auc-z*standard_error.",
+            "normalization": "max(0,auc-Phi^{-1}((1+confidence_level)/2)*standard_error)."
+          },
+          {
+            "clause_id": "response.ci_upper",
+            "name": "ci_upper",
+            "meaning": "The upper endpoint of the clipped two-sided normal interval.",
+            "json_type": "number",
+            "shape": "one finite scalar in [0,1]",
+            "units": "probability",
+            "indexing": "upper endpoint",
+            "edge_cases": "Clip only after forming auc+z*standard_error.",
+            "normalization": "min(1,auc+Phi^{-1}((1+confidence_level)/2)*standard_error)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly case_scores, control_scores, and confidence_level, and the response contains exactly the twelve declared fields. Missing, extra, malformed, coercible-only, or nonfinite values are rejected."
+          },
+          {
+            "clause_id": "invariant.structural_component_identity",
+            "meaning": "The mean of case_placements and the mean of control_placements both equal auc up to floating-point tolerance, with exact half credit for ties."
+          },
+          {
+            "clause_id": "invariant.variance_identity",
+            "meaning": "The two component variances use divisors m-1 and n-1, auc_variance equals case_component_variance/m plus control_component_variance/n, and standard_error squared equals auc_variance up to floating-point tolerance."
+          },
+          {
+            "clause_id": "invariant.monotone_affine_invariance",
+            "meaning": "Applying the same positive affine score transformation a*s+b with a>0 to cases and controls leaves all returned quantities except the unchanged counts and confidence level numerically unchanged."
+          },
+          {
+            "clause_id": "invariant.sample_order_invariance",
+            "meaning": "Permuting either input sample leaves every scalar output unchanged; the corresponding placement array changes only by the same permutation."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen input, all candidate outputs agree with an independent direct pairwise implementation and the public transformations under predeclared numerical tolerances."
+          },
+          {
+            "clause_id": "claim.empirical.population_auc",
+            "meaning": "Across predeclared independent Gaussian and tie-heavy ordinal designs, mean estimated AUC is compared with an independently computed population AUC and Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.standard_error_calibration",
+            "meaning": "Across the frozen designs, the average DeLong standard error is compared with the empirical sampling standard deviation of auc."
+          },
+          {
+            "clause_id": "claim.empirical.interval_coverage",
+            "meaning": "The frozen assessment records clipped normal-interval coverage and its Monte Carlo standard error; it does not require exact finite-sample nominal coverage."
+          },
+          {
+            "clause_id": "claim.empirical.computation_not_proof",
+            "meaning": "Finite source checks and simulations are computational evidence only; they do not prove U-statistic asymptotics, DeLong consistency, or validity for arbitrary score distributions."
+          }
+        ]
+      }
+    }
+  ]
+}

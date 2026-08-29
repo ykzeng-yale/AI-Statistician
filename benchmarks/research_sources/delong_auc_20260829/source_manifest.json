@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "delong-single-auc-public-sources-20260829-v1",
+  "source_horizon": "2026-08-29",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "delong-single-auc-public-record",
+      "title": "DeLong single-AUC public record and focused task scope",
+      "source_kind": "paper_metadata",
+      "relative_path": "delong_public_record.md",
+      "sha256": "2de0f95e38aeca3ebc1e94719c14630ca9e2522fb69577311976e2468ff34149",
+      "model_visible": true,
+      "citation": "DeLong, DeLong, and Clarke-Pearson (1988), Biometrics 44(3):837-845; Sun and Xu (2014), IEEE Signal Processing Letters 21(11):1389-1393",
+      "url": "https://doi.org/10.2307/2531595",
+      "publication_date": "1988-09-01",
+      "license": "operator-authored-paraphrase"
+    },
+    {
+      "document_id": "proc-delong-single-auc-variance",
+      "title": "pROC single-AUC DeLong variance excerpt",
+      "source_kind": "code",
+      "relative_path": "pROC_delong_variance_excerpt.R",
+      "sha256": "8bf51a955757a29399ee8ecac2e79eb9f9ce04da99d356e038ad021c0e669f10",
+      "model_visible": true,
+      "citation": "pROC v1.19.1 R/delong.R",
+      "url": "https://github.com/xrobin/pROC/blob/be0475b49cb353318703f9e48aa9eb9cd125d677/R/delong.R",
+      "git_commit": "be0475b49cb353318703f9e48aa9eb9cd125d677",
+      "license": "GPL-3.0-or-later"
+    },
+    {
+      "document_id": "proc-delong-tie-aware-placements",
+      "title": "pROC tie-aware DeLong placement excerpt",
+      "source_kind": "code",
+      "relative_path": "pROC_delong_placements_excerpt.cpp",
+      "sha256": "c751134cebee8c2caf2abe84366387ab6b03702a80a11eae1d21eed70eb41af3",
+      "model_visible": true,
+      "citation": "pROC v1.19.1 src/delong.cpp",
+      "url": "https://github.com/xrobin/pROC/blob/be0475b49cb353318703f9e48aa9eb9cd125d677/src/delong.cpp",
+      "git_commit": "be0475b49cb353318703f9e48aa9eb9cd125d677",
+      "license": "GPL-3.0-or-later"
+    }
+  ]
+}
