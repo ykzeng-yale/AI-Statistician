@@ -10772,7 +10772,7 @@
         "operator_disposition": "FAILED",
         "post_run_shared_change": "None. The public closed estimator ABI, model-owned probe tools, and reviewer instructions already required valid and rejected requests in both directions. The generated source and isolated reviewer both missed part of that public contract. The failure is retained as model/reviewer capability evidence; no Moran rule, validator branch, repair harness, retry, fallback, extra reviewer, scheduler, model escalation, or consumed-task rerun was added.",
         "verification": "Focused Task 76/83-96 closeout regressions passed 15/15, and the complete repository passed 1055/1055 in 82.07 seconds. Compileall, JSON parsing, diff hygiene, credential scanning, product-source-diff scanning, hidden-leak scanning, and the unchanged 150000-line production gate passed at 149997 lines. No verification command made a product or evaluator model call or reran the consumed task.",
-        "closeout_evidence_commit": "pending_provenance_binding",
+        "closeout_evidence_commit": "9862788bc9618c38501f57dc8c7301b56a5b481c",
         "runtime_manifest_sha256": "17cf828e419801775e4c17f194547b00e883448a85fc8f8afb7b5149405c539b",
         "runtime_result_sha256": "57a37e1ac09f40e7e66bac75671a5acfa59c20dd4f0ae59e647facfebc0f569c",
         "gold_evaluation_sha256": "1a2e5c1f7977858a13ebb94f81e45a6dec5030258f3d434a3099a6f5858e6d0b",

@@ -160,6 +160,9 @@ def test_moran_i_integrated_l0_consumed_result_is_immutable() -> None:
     assert evidence["runtime_feedback_generated"] is False
     assert evidence["hidden_leak_match_count"] == 0
     assert evidence["operator_disposition"] == "FAILED"
+    assert evidence["closeout_evidence_commit"] == (
+        "9862788bc9618c38501f57dc8c7301b56a5b481c"
+    )
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False

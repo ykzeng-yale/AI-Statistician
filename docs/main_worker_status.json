@@ -3,7 +3,7 @@
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "82cfc091",
+  "validated_code_head": "9862788b",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -41,7 +41,7 @@
     "runtime_manifest_sha256": "17cf828e419801775e4c17f194547b00e883448a85fc8f8afb7b5149405c539b",
     "gold_evaluation_sha256": "1a2e5c1f7977858a13ebb94f81e45a6dec5030258f3d434a3099a6f5858e6d0b",
     "operator_audit": "docs/operator_audits/moran_i_randomization_l0_v1.md",
-    "closeout_evidence_commit": "pending_provenance_binding",
+    "closeout_evidence_commit": "9862788bc9618c38501f57dc8c7301b56a5b481c",
     "trusted_capability_credit": "0/1; aggregate remains 7/96 consumed",
     "task_intent": "Theory, scientific code, empirical simulation, and unresolved-gap disclosure required; source replication, formalization, and novelty are not applicable.",
     "boundary": "The sole exact-Haiku product invocation and post-runtime evaluator assessment are consumed and immutable. Hidden reference text, expected values, claim identities, negatives, and judgments never entered runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden findings, or model-escalate this task."

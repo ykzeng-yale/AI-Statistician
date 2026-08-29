@@ -4,7 +4,7 @@
 
 - Task: `moran_i_randomization_expectation_known_result`
 - Frozen product code HEAD: `11db881dccc077a640db535b25b74186528658d8`
-- Closeout evidence commit: `pending_provenance_binding`
+- Closeout evidence commit: `9862788bc9618c38501f57dc8c7301b56a5b481c`
 - Run: `runs/main_worker_research_l0_moran_i_randomization_20260829_v1_codex_workspace_exact_haiku`
 - Product runtime status: `ACCEPTED`
 - Frozen automated full-task result: `0/1`
