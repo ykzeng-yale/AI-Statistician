@@ -63,7 +63,7 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness reference is [OpenAI Codex at `f5636bb7`](https://github.com/openai/codex/tree/f5636bb733c4653a6b91413fed1aaf8842374f2e). We adopt incremental history, stable capability-accurate tools, raw tool-error feedback, checkpoint/resume, cancellation, and bounded context. A tool is stable within one retained session but is omitted when its underlying workspace or authority is absent; an empty search surface is not a model capability. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, and metadata.
+The general harness reference is [OpenAI Codex at `b8c86376`](https://github.com/openai/codex/tree/b8c86376a258e55efc8e5ecfbabc21c16c07d814). We adopt incremental history, stable capability-accurate tools, raw tool-error feedback, checkpoint/resume, cancellation, bounded context, and isolated findings-first review over the exact target. Repository documents are a map and system of record, not one giant injected manual. A tool is stable within one retained session but is omitted when its underlying workspace or authority is absent; an empty search surface is not a model capability. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, and metadata.
 We do not embed `codex-core`, App Server, its Responses transport, shared-directory subagents, or another scheduler. Each scientific workspace is the domain session and AgentRuntime remains the sole outer graph; any sidecar requires model, tool, lineage, isolation, and resume parity and can never become authority.
 Like Codex `run_turn`, a response without a tool call ends the workspace segment. The harness persists the exact response and state for explicit hash-verified continuation; it never appends a private tool instruction or resamples. Progress attributes the inner subsystem, agent, and stage separately from the outer task owner.
 
@@ -126,6 +126,7 @@ It owns exact definitions, assumptions and use sites, equation/lemma dependencie
 executable procedure semantics, counterexamples, gaps, and revision lineage. There is no JSON-only core-theory fallback: a provider without native client-tool turns fails closed before mathematical authoring.
 Compact packets are handoff indexes. Serious theory has no per-field caps; the
 validator checks only typed handoff structure, while formal artifacts depend on intent.
+Durable Markdown/LaTeX is the publishable current argument, not a transcript of false starts. Exploration stays in scratch or is explicitly delimited as `SCRATCH` or `REJECTED`; a later correction does not silently deactivate earlier active text.
 
 Discovery and revision share exact parent and reviewer artifacts. Only model-authored
 edits apply, raw validation returns to the same model, and the editor contains no
@@ -141,12 +142,9 @@ reserved terminal disposition. A commit proposes independent review; it is not e
 Supporting Theory completion compiles the validated Architect plan into the next
 workspace; required review and genuine conflicts retain their authority paths.
 
-When prior work is permitted, the same TheoryDeveloper session can inspect a frozen
-snapshot or model-selected public paper/repository text without a LiteratureAgent.
-An independent referee gets a separate opaque-handle session and chooses its own
-queries and writes one authoritative Markdown report. Its compact envelope contains
-only the report hash, inspected references, disposition, actual blockers, and prior-
-finding statuses. Runtime checks identity and traceability, not mathematics; evaluator gold remains excluded from all live discovery.
+When prior work is permitted, the same TheoryDeveloper session can inspect a frozen snapshot or model-selected public paper/repository text without a LiteratureAgent.
+An independent referee gets a separate opaque-handle session and chooses its own queries. It first reconstructs the requested load-bearing chain, then sweeps every other active assertion for contradictory definitions, explanations, assumptions, measure/type declarations, regularity, and scope.
+It writes one findings-first authoritative Markdown report. Its compact envelope contains only the report hash, inspected references, disposition, actual blockers, and prior-finding statuses. Runtime checks identity and traceability, not mathematics; evaluator gold remains excluded from all live discovery.
 
 ## Scientific coding workspace
 

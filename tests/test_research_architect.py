@@ -1801,7 +1801,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "JSON is only a compact claim index, ABI" in initial_prompt
     assert "remove or clearly reject false exploration" in initial_prompt
     assert "re-read the exact frozen question" in initial_prompt
-    assert "never commit from first-draft memory" in initial_prompt
+    assert "whole-document contradiction sweep" in initial_prompt
+    assert "never commit from first-draft memory" in initial_prompt.lower()
     assert "one atomic call" not in initial_prompt
     assert (
         "one shared budget of at most "
@@ -2187,9 +2188,13 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     )
 
     assert "skeptical referee" in prompt
-    assert "recompute pivotal identities" in prompt
-    assert "test small and boundary cases" in prompt
-    assert "object types, domains, and dimensions" in prompt
+    assert "publishable current argument" in prompt
+    assert "not a transcript of abandoned attempts" in prompt
+    assert "later correction does not deactivate" in prompt
+    assert "recompute the load-bearing chain" in prompt
+    assert "sweep every other active definition" in prompt
+    assert "test small and boundary cases" in prompt.lower()
+    assert "object types, domains, measures, and dimensions" in prompt
     assert "weaker proxy" in prompt
     assert "group distributions or baselines" not in prompt
     assert "mark them unresolved" in prompt

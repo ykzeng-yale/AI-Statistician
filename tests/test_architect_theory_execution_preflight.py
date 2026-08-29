@@ -117,23 +117,25 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "authoritative Markdown or LaTeX" in normalized_prompt
     assert "exact frozen research question" in normalized_prompt
     assert "stable workspace tools" in normalized_prompt
-    assert "start from attempted falsification" in normalized_prompt
-    assert "smallest load-bearing dependency chain" in normalized_prompt
+    assert "First reconstruct the requested load-bearing chain" in normalized_prompt
+    assert "sweep every other active assertion" in normalized_prompt
     assert "every line of every authoritative" not in prompt
-    assert "decisive written transition" in normalized_prompt
-    assert "correct endpoint" in normalized_prompt
-    assert "actual written intermediate" in normalized_prompt
-    assert "all discrete blockers first" in normalized_prompt
+    assert "later correction does not deactivate" in normalized_prompt
+    assert "material active falsehood blocks ACCEPT" in normalized_prompt
+    assert "every discrete blocker first" in normalized_prompt
     assert "without praise or a verification essay" in normalized_prompt
-    assert "Audit each decisive transition as it is actually written" in protocol
-    assert "reconstruct each load-bearing transition" in protocol
+    assert "Reconstruct each load-bearing transition" in protocol
     assert "reviewer-added premises" in protocol
     assert "every requested conclusion or scope boundary" in protocol
     assert "question, estimand, probability law, assumptions" in protocol
     assert "boundary case" in protocol
     assert "counterexample" in protocol
-    assert "correct final formula" in protocol
-    assert "Every unmarked claim remains active" in protocol
+    assert "correct endpoint" in protocol
+    assert "complete active document" in protocol
+    assert "explanatory justifications" in protocol
+    assert "measure and type declarations" in protocol
+    assert "materially false active assertion blocks ACCEPT" in protocol
+    assert "later correction does not deactivate" in protocol
     assert "clearly delimited as REJECTED or SCRATCH" in protocol
     assert "mark genuine uncertainty" in protocol
     assert "Pre-review scratch is exploratory" in protocol
@@ -144,11 +146,8 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "citing exact read ranges" in protocol
     assert "do not reproduce the candidate or write a substitute proof" in protocol
     assert "silently supply a repair" in normalized_prompt
-    assert "types, domains, dimensions, quantifiers" in protocol
-    assert "candidate side" in protocol
-    assert "independently reconstructed side" in protocol
     assert len(protocol.split()) < 430
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 44
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 45
 
 
 def test_preflight_preserves_the_exact_frozen_research_target() -> None:
@@ -2281,12 +2280,13 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     prompt = build_architect_theory_execution_preflight_prompt(material)
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     verdict_policy = prompt_payload["verdict_policy"]
-    assert "checkable independent derivation" in verdict_policy
-    assert "exact inspected documents or indexed artifacts" in verdict_policy
-    assert "prior reviewer prose is not independent support" in verdict_policy
+    assert "both protocol audits" in verdict_policy
+    assert "material active falsehood" in verdict_policy
+    assert "correct endpoint" in verdict_policy
+    assert "later correction" in verdict_policy
+    assert "exact inspected range" in verdict_policy
+    assert "checkable derivation" in verdict_policy
     assert "downstream proof obligations" in verdict_policy
-    assert "candidate's active source itself supports" in verdict_policy
-    assert "cannot cure an omitted or unsupported step" in verdict_policy
     assert "complete mathematical argument" not in verdict_policy
     packet, backend = _review(accept=True)
 
@@ -2295,14 +2295,15 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     for phrase in (
         "structured handoff is only an index",
         "model-directed search and exact range reads",
+        "Run two distinct audits",
         "smallest dependency graph",
-        "inference-bearing statement",
-        "correct final formula",
-        "Try to falsify the chain",
+        "correct endpoint",
+        "complete active document",
+        "explanatory justifications",
+        "measure and type declarations",
         "order-of-magnitude check",
-        "types, domains, dimensions, quantifiers",
-        "reconstruct each load-bearing transition from its original definitions",
-        "candidate side, independently reconstructed side",
+        "Reconstruct each load-bearing transition from its original definitions",
+        "later correction does not deactivate",
         "Scratch and retrieval are observations",
         "Separate mathematical coherence, proof completeness",
         "Pre-review scratch is exploratory",
@@ -2321,7 +2322,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "scratch, report mutation, and submission" in source_tool_prompt
     assert "write a replacement proof" in source_tool_prompt
     assert "submit only its current SHA-256" in source_tool_prompt
-    assert "omit praise, strengths" in source_tool_prompt
+    assert "strengths, praise" in source_tool_prompt
     assert "Before candidate-document access" not in str(
         backend.requests[0].messages[0]["content"]
     )
@@ -2385,11 +2386,11 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "review_output_token_cap" not in backend.requests[0].metadata
     request_content = backend.requests[0].messages[0]["content"]
     assert "Separate mathematical coherence, proof completeness" in request_content
-    assert "discriminating symbolic reduction" in request_content
-    assert "compute the complete predicate from definitions" in request_content
-    assert "normalizing constants" in request_content
+    assert "symbolic reduction" in request_content
+    assert "measure and type declarations" in request_content
+    assert "complete active document" in request_content
     submit_schema = _submit_schema(backend.requests[0])
-    assert "do not carry downstream proof obligations" in (
+    assert "downstream proof obligations separate" in (
         prompt_payload["verdict_policy"]
     )
     assert submit_schema["properties"]["overall_verdict"]["enum"] == [

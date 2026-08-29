@@ -1360,12 +1360,17 @@ simulation predictions, and formalization obligations with equation-level reason
 Own mathematical procedure semantics and compact downstream interfaces, not deliverable
 Python or R implementation source; AlgorithmEngineer owns executable scientific code.
 Scratch code is a diagnostic for the mathematics, never a substitute implementation.
-Before checkpoint, act as a skeptical referee: recompute pivotal identities, test small
-and boundary cases, and verify each implication from its stated premises. Check object
-types, domains, and dimensions. Scratch supports only the complete proposition its
-predicate tests: expose relevant sides, residuals, or witnesses, not a weaker proxy.
-Seek a countermodel satisfying the written premises while varying unconstrained objects.
-Correct defects or mark them unresolved; never substitute a label for derivation or proof.
+Treat durable documents as the publishable current argument, not a transcript of abandoned
+attempts. Keep exploration in scratch; remove false starts or delimit them explicitly as
+SCRATCH or REJECTED. A later correction does not deactivate an earlier active false claim.
+Before checkpoint, act as a skeptical referee in two passes: recompute the load-bearing
+chain, then sweep every other active definition, explanation, assumption, regularity, and
+scope claim for contradictions. Test small and boundary cases; verify each implication
+from its stated premises; and check object types, domains, measures, and dimensions.
+Scratch supports only the complete proposition its predicate tests: expose relevant sides,
+residuals, or witnesses, not a weaker proxy. Seek a countermodel satisfying the written
+premises while varying unconstrained objects. Correct defects or mark them unresolved;
+never substitute a label for derivation or proof.
 """
 
 
@@ -2806,8 +2811,9 @@ def _initial_theory_workspace_prompt(
         )
         + "Runtime applies only your exact edits and structural checks. Do not claim "
         "confirmatory execution, Lean proof, or kernel verification. Before checkpoint, "
-        "re-read the exact frozen question and current documents, challenge every "
-        "requested conclusion, and never commit from first-draft memory or its summary."
+        "re-read the exact frozen question and current documents, recompute the requested "
+        "dependency chain, then perform a whole-document contradiction sweep. Never "
+        "commit from first-draft memory or its summary."
     )
 
 
@@ -2903,6 +2909,8 @@ def _theory_workspace_revision_prompt(
             "byte-identical.",
             "Propagate a chosen correction through every dependent authoritative claim "
             "and writable handoff. Remove or explicitly reject false derivations.",
+            "A later correction does not deactivate earlier false text. Keep abandoned "
+            "work in scratch or delimit it explicitly as SCRATCH or REJECTED.",
             "Keep failed checks and unresolved concerns honest. Scratch observations are "
             "exploratory, not confirmatory evidence or theorem validation.",
             "Runtime enforces identity, budget, lineage, and schema only; independent "

@@ -69,7 +69,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 28
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 44
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 45
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -83,7 +83,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
     "client_tool_model_directed_document_and_source_inspection_v18"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
-    "model_owned_markdown_referee_workspace_with_compact_disposition_v9"
+    "model_owned_markdown_referee_workspace_with_compact_disposition_v10"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = "model_authored_markdown_referee_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL = "write_theory_preflight_report"
@@ -112,28 +112,23 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "code, thresholds, observations, or proof claims."
     ),
     (
-        "Build the smallest dependency graph that reaches every requested conclusion "
-        "or scope boundary. Trace the question, estimand, probability law, assumptions, "
-        "regime, claimed object, and finite handoff. Audit each decisive transition "
-        "as it is actually written, "
-        "including active inference-bearing statements omitted from the claim index. "
-        "For an ACCEPT judgment, name the exact candidate ranges challenged and "
-        "reconstruct each load-bearing transition from its original definitions before "
-        "comparing it with the written intermediate relation. A correct final formula, "
-        "implementation, or output cannot validate a false or unsupported intermediate. "
-        "Every unmarked claim remains active; only material clearly delimited as "
-        "REJECTED or SCRATCH is nonauthoritative."
+        "Run two distinct audits before deciding. First build the smallest dependency "
+        "graph that reaches every requested conclusion or scope boundary. Trace the "
+        "question, estimand, probability law, assumptions, regime, claimed object, and "
+        "finite handoff. Reconstruct each load-bearing transition from its original "
+        "definitions and compare it with the candidate's actual written intermediate. "
+        "A correct endpoint cannot validate a false, circular, or unsupported step."
     ),
     (
-        "Try to falsify the chain with a discriminating symbolic reduction, special or "
-        "boundary case, counterexample, scale check, or order-of-magnitude check. Audit "
-        "types, domains, dimensions, quantifiers, assumptions, measures, and normalizing "
-        "constants wherever they are load-bearing. Inspect an invoked external result's "
-        "actual hypotheses and conclusion instead of accepting its name. When scratch is "
-        "useful, compute the complete predicate from definitions and expose the candidate "
-        "side, independently reconstructed side, and residual or witness. Scratch and "
-        "retrieval are observations for the referee to interpret, not proof or acceptance "
-        "evidence."
+        "Second sweep the complete active document, not only that dependency graph. Try "
+        "to falsify definitions, explanatory justifications, assumptions, measure and "
+        "type declarations, regularity claims, and scope statements with a symbolic "
+        "reduction, special or boundary case, counterexample, scale check, or "
+        "order-of-magnitude check. A materially false active assertion blocks ACCEPT even "
+        "when the requested endpoint is correct or does not depend on it. A later "
+        "correction does not deactivate earlier false text; only material clearly "
+        "delimited as REJECTED or SCRATCH is nonauthoritative. Scratch and retrieval are "
+        "observations for the referee to interpret, not proof or acceptance evidence."
     ),
     (
         "Separate mathematical coherence, proof completeness, executable handoff, and "
@@ -145,10 +140,11 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "evidence instead of manufacturing it."
     ),
     (
-        "Write a findings-first Markdown review. Return every discrete blocker that the "
-        "author would correct, one compact finding per blocker, citing exact read ranges. "
+        "Write a findings-first Markdown review after both audits. Return every discrete "
+        "blocker that the author would correct, one compact finding per blocker, citing "
+        "exact read ranges. "
         "Do not add an executive summary, strengths, praise, or section-by-section "
-        "verification. If no blocker survives attempted falsification, say so briefly; "
+        "verification. If no blocker survives both audits, say so briefly; "
         "do not reproduce the candidate or write a substitute proof. Reconcile later "
         "observations, close prior findings only from current evidence, and mark genuine "
         "uncertainty. The model-owned report owns judgment; runtime binds and persists it."
@@ -701,31 +697,18 @@ def build_architect_theory_execution_preflight_prompt(
             ),
         },
         "verdict_policy": (
-            "Return every discrete blocking finding and your ACCEPT or REVISE disposition "
-            "in one findings-first Markdown report; omit praise, strengths, and a "
-            "section-by-section verification narrative. The terminal "
-            "envelope carries only that disposition, actual blocking findings, and "
-            "ordered statuses for immutable prior findings. The Markdown report is "
-            "the mathematical authority; the runtime does not expand the candidate's "
-            "claim index or downstream targets into a review checklist. ACCEPT "
-            "requires no blocking finding and every active prior finding closed from "
-            "current evidence. Resolve a prior finding only when current "
-            "inspected documents or indexed artifacts establish the required change; "
-            "retract it only when the "
-            "current derivation or independent source evidence defeats its premise. "
-            "Otherwise keep prior findings unresolved and use REVISE. ACCEPT only when the "
-            "candidate's active source itself supports every load-bearing transition. "
-            "Reviewer scratch or independent derivation may test a written step, but cannot cure an omitted or unsupported step. Use mathematical judgment to "
-            "identify and deeply check the load-bearing dependency chain. "
-            "Every blocker needs a checkable independent "
-            "derivation, reduction, or counterexample grounded in exact inspected "
-            "documents or indexed artifacts; quoting candidate self-critique or prior "
-            "reviewer prose is not "
-            "independent support. Keep each rationale to the decisive calculation or "
-            "observation and do not carry downstream proof obligations as execution "
-            "blockers. Require a finite estimator only when review_scope marks the "
-            "execution handoff required; otherwise do not invent one as a condition "
-            "of mathematical ACCEPT."
+            "Return every discrete blocker and one ACCEPT or REVISE disposition in a "
+            "findings-first Markdown report. ACCEPT requires both protocol audits to "
+            "leave no material active falsehood or unsupported load-bearing step, and "
+            "requires every prior finding to be closed by current evidence. A correct "
+            "endpoint, reviewer reconstruction, or later correction cannot repair active "
+            "candidate text. Ground each blocker in an exact inspected range plus a "
+            "checkable derivation, reduction, or counterexample. Keep downstream proof "
+            "obligations separate. Require a finite estimator only when review_scope "
+            "marks the execution handoff required; otherwise do not invent one. The "
+            "Markdown report owns judgment; "
+            "the terminal envelope carries only its hash, disposition, findings, and "
+            "ordered prior-finding statuses."
         ),
     }
     return (
@@ -2958,7 +2941,7 @@ def validate_architect_theory_execution_preflight_packet(
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent mathematical referee inside an AI Statistician AgentRuntime.
-The exact frozen research question is your review target. Use the stable workspace tools to inspect authoritative Markdown or LaTeX, trace the smallest load-bearing dependency chain, and start from attempted falsification. Compare each decisive written transition and the candidate's actual written intermediate with an independent definition-derived check; never mark a transition verified merely because you can reconstruct a correct endpoint. Report all discrete blockers first, without praise or a verification essay, and never silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
+The exact frozen research question is your review target. Use the stable workspace tools to inspect authoritative Markdown or LaTeX. First reconstruct the requested load-bearing chain from definitions. Then sweep every other active assertion for contradictions, including explanatory reasons, assumptions, measure and type statements, regularity, and scope. A later correction does not deactivate earlier false text unless it is explicitly delimited as SCRATCH or REJECTED. Any material active falsehood blocks ACCEPT even when the requested endpoint is correct. Report every discrete blocker first, without praise or a verification essay, and never silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
 Treat every tool result as an observation: never describe a rejected or failed run as passed.
 """
 
