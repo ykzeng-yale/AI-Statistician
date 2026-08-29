@@ -72,12 +72,15 @@ def test_binary_runs_l0_task_is_frozen_and_unconsumed() -> None:
     assert evidence["activation_semantic_qualification_reused"] is True
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
+    assert evidence["activation_ledger_commit"] == (
+        "fa3e0f930da1c709d068ae1f467eb4d46e37c037"
+    )
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 4
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
     assert evidence["runtime_invocations"] == 0
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
     assert evidence["model_draw_resampling_blocked"] is False
