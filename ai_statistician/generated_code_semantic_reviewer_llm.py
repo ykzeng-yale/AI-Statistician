@@ -17,6 +17,10 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
+from .estimator_interface_contract import (
+    frozen_estimator_execution_contract_clause_ids,
+    frozen_estimator_execution_contract_empirical_claim_ids,
+)
 from .fingerprint import stable_hash
 from .structured_output_retry import PacketValidationError
 from .metric_protocol_finding_ledger import (
@@ -820,6 +824,17 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             if probe_sandbox_dir is not None
             else {}
         )
+        contract = question.estimator_execution_contract
+        contract_probe_target = (
+            str(contract.get("estimator_id", "") or "").strip()
+            if isinstance(contract, Mapping)
+            else ""
+        )
+        contract_probe_clause_ids = tuple(sorted(
+            frozen_estimator_execution_contract_clause_ids(contract) -
+            frozen_estimator_execution_contract_empirical_claim_ids(contract)))
+        if contract_probe_target not in probe_targets:
+            contract_probe_target, contract_probe_clause_ids = "", ()
         refresh_targets = {
             str(row.get("artifact_id", "") or ""): str(
                 row.get("exact_source_code", "") or ""
@@ -850,10 +865,26 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             input_schema={
                 "type": "object", "additionalProperties": False,
                 "required": ["artifact_id"],
-                "properties": {"artifact_id": {
-                    "type": "string", "enum": list(refresh_targets)}},
+                "properties": {"artifact_id": {"type": "string",
+                                                  "enum": list(refresh_targets)}},
             },
         )
+        probe_schema: dict[str, Any] = {
+            "type": "object", "additionalProperties": False,
+            "required": ["artifact_id", "dependencies", "code", "seed", "replicates"],
+            "properties": {
+                "artifact_id": {"type": "string", "enum": list(probe_targets)},
+                "dependencies": {"type": "array", "items": {"type": "string"},
+                                 "uniqueItems": True},
+                "code": {"type": "string", "minLength": 1},
+                "seed": {"type": "integer"},
+                "replicates": {"type": "integer", "minimum": 1},
+            },
+        }
+        if contract_probe_clause_ids:
+            probe_schema["required"].append("tested_contract_clause_ids")
+            probe_schema["properties"]["tested_contract_clause_ids"] = {
+                "type": "array", "enum": [list(contract_probe_clause_ids)]}
         probe_tool = ClientToolDefinition(
             name=GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL,
             description=(
@@ -868,30 +899,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "target's. Failure before target invocation is a reviewer tool error. "
                 "Only an observation that reaches the target can falsify source claims; "
                 "the probe cannot edit source, inspect confirmatory outcomes, or confer "
-                "empirical acceptance."
+                "empirical acceptance. When tested_contract_clause_ids is exposed, list "
+                "only public clause IDs for which this exact test source contains a "
+                "discriminating assertion. Runtime tracks declared coverage but does not "
+                "judge the assertion's scientific correctness."
             ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": [
-                    "artifact_id",
-                    "dependencies",
-                    "code",
-                    "seed",
-                    "replicates",
-                ],
-                "properties": {
-                    "artifact_id": {"type": "string", "enum": list(probe_targets)},
-                    "dependencies": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "uniqueItems": True,
-                    },
-                    "code": {"type": "string", "minLength": 1},
-                    "seed": {"type": "integer"},
-                    "replicates": {"type": "integer", "minimum": 1},
-                },
-            },
+            input_schema=probe_schema,
         )
         tools = source_tools + ((refresh_tool,) if refresh_targets else ()) + (
             (probe_tool,) if probe_targets else ()
@@ -940,6 +953,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             "reconcile metrics with the verdict, and never ignore a contradiction."
                             if probe_targets
                             else ""
+                        )
+                        + (
+                            " Before ACCEPT, one successful reviewer-authored probe must test "
+                            "every executable estimator-contract clause ID. Declare the complete "
+                            "list only when that exact test source contains discriminating oracles."
+                            if contract_probe_clause_ids else ""
                         )
                         + " Prose alone cannot submit or accept a review."
                     ),
@@ -1042,10 +1061,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     raise ClientToolInputError("review probe budget exhausted")
                 probe_input = dict(call.input)
                 required = {"artifact_id", "dependencies", "code", "seed", "replicates"}
+                if contract_probe_clause_ids:
+                    required.add("tested_contract_clause_ids")
                 if set(probe_input) != required:
                     raise ClientToolInputError(
-                        "review probe requires exactly artifact_id, dependencies, "
-                        "code, seed, and replicates"
+                        "review probe fields do not match the advertised exact schema"
                     )
                 if not isinstance(probe_input["dependencies"], list) or not str(
                     probe_input["code"] or ""
@@ -1063,6 +1083,16 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 target = probe_targets.get(str(probe_input["artifact_id"] or ""))
                 if not target or probe_sandbox_dir is None:
                     raise ClientToolInputError("unknown exact estimator probe target")
+                tested_clause_ids = list(
+                    probe_input.get("tested_contract_clause_ids", [])
+                )
+                if contract_probe_clause_ids and (
+                    target["artifact_id"] != contract_probe_target
+                    or tuple(tested_clause_ids) != contract_probe_clause_ids
+                ):
+                    raise ClientToolInputError(
+                        "contract probe must bind the advertised target and complete clause list"
+                    )
                 probe_code = str(probe_input["code"] or "")
                 execution = execute_scientific_sandbox(
                     sandbox_dir=(
@@ -1153,6 +1183,17 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
+            if (
+                packet.get("overall_verdict") == "ACCEPT"
+                and contract_probe_clause_ids
+                and not any(
+                    row.get("target_artifact_id") == contract_probe_target
+                    and row.get("successful_exact_invocation") is True
+                    for row in probe_executions
+                )
+            ):
+                errors.append("ACCEPT requires successful model-authored probe coverage "
+                              "for every executable estimator-contract clause")
             reviewed_text = str(payload.get("review_document", "") or "")
             for row in probe_executions:
                 result_hash = str(row.get("result_hash", "") or "")

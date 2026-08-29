@@ -4729,3 +4729,61 @@ statistical formula, or Lean rule. Focused regressions passed `120/120`; the com
 repository passed `1062/1062` in 81.30 seconds. Production Python decreased from
 149,950 to 149,945 lines. No model, evaluator, benchmark, hidden authority, or consumed
 task was invoked.
+
+### Post-Task-100: executable contract tests and terminal consistency
+
+The official checkout was fetched and inspected again on 2026-08-29. Local `HEAD`,
+`origin/main`, and the public remote all remain
+[`6478a751`](https://github.com/openai/codex/commit/6478a751fde8884b2fdc76486fe23175a8e795d4).
+The relevant upstream mechanisms are unchanged:
+
+- [`run_turn`](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/session/turn.rs)
+  retains one model-client session and continues only when model tool work needs a
+  follow-up observation.
+- [`ToolCallRuntime`](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/tools/parallel.rs)
+  converts model-actionable tool failure into a tool result for that same context.
+- [`apply_patch`](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/tools/handlers/apply_patch_spec.rs)
+  gives the model a direct source action over external files.
+- [review mode](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/tasks/review.rs)
+  uses a separately retained reviewer conversation and returns its independent result
+  to the parent context.
+
+Task 100 confirms that AI Statistician already has these mechanics but still needs
+scientific test completeness. The Algorithm source owner wrote and executed exact
+Python, and the isolated semantic reviewer wrote a persistent multi-case probe against
+that exact source. The reviewer nevertheless omitted two explicit invalid-input
+obligations and accepted the implementation. Hidden authority later found both defects.
+The terminal Critic also disclosed that the required frozen implementation was absent
+while marking `scientific_code` as `SUPPORTED` and returning `ACCEPT`.
+
+The future-task correction stays inside the two existing model-owned sessions:
+
+- When a frozen `run_estimator` contract is present, the existing reviewer-authored
+  Python/R probe tool exposes its executable clause IDs. The model declares only the
+  clauses for which its exact test source contains a discriminating oracle. An `ACCEPT`
+  submission requires one successful comprehensive probe covering every request,
+  response, and invariant clause. Empirical claims remain owned by the separate blinded
+  evaluator.
+- Runtime stores source/result hashes and the model-declared coverage identity. It does
+  not generate a test, choose a case, inspect test syntax, infer statistics, or claim
+  that declared coverage proves semantic correctness.
+- A Critic dimension containing an unresolved `gaps` entry can no longer be
+  `SUPPORTED` or `NOT_REQUESTED`. Partial evidence is `INCONCLUSIVE`; honest scope
+  limitations that do not weaken support remain prose in the rationale.
+
+This is the repository-as-system-of-record principle from Codex applied to a frozen
+scientific ABI: the model writes the executable test, the environment returns raw
+observations, and the harness enforces only identity, completeness, and terminal
+consistency. No public clause is invented in Python. No source is repaired by runtime,
+and no agent, workspace, retry budget, fallback, scheduler, model escalation, Codex
+Core, App Server, Responses transport, thread store, Guardian, or worktree controller
+is added. Task 100 remains immutable at `0/1`; it was not rerun, resumed, repaired,
+reevaluated, or rescored.
+
+Focused reviewer, Critic, and architecture regressions passed `63/63`; the broader
+runtime and ladder panel passed `184/184`; model-policy regressions passed `36/36`;
+and the complete repository passed `1065/1065` in 81.42 seconds. Compileall, tracked
+JSON parsing, diff hygiene, credential/task-specific production scanning, the official
+Codex source pin and source hashes, and the unchanged 150,000-line production gate
+passed at 149,991 lines. No product model, evaluator model, hidden authority, benchmark,
+or consumed task was invoked by this mechanism work.

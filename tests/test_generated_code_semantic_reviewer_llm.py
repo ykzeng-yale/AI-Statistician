@@ -1460,6 +1460,149 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
+def test_reviewer_accept_requires_model_authored_executable_contract_coverage(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    estimator_source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': float(request['value'])}\n"
+    )
+    material = _algorithm_review_material(
+        language="python",
+        source=estimator_source,
+        dependencies=[],
+    )
+    contract_probe = {
+        "artifact_id": "candidate",
+        "dependencies": [],
+        "code": (
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    return {'ok': estimators['candidate']({'value': 2})['estimate'] == 2.0}\n"
+        ),
+        "seed": 17,
+        "replicates": 1,
+        "tested_contract_clause_ids": [
+            "invariant.closed_object",
+            "request.value",
+            "response.estimate",
+        ],
+    }
+
+    def submission(*result_hashes: str) -> dict[str, object]:
+        return {
+            "prior_finding_reviews": [],
+            "overall_verdict": "ACCEPT",
+            "review_document": (
+                "# Review\n\nThe exact contract probes completed: "
+                + ", ".join(result_hashes)
+            ),
+            "findings": [],
+            "source_revision_assessment": {
+                "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+                "rationale": "No current-source defect was found.",
+                "evidence_refs": [],
+            },
+        }
+
+    class ContractCoverageBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            sequence = (
+                (
+                    "submit_generated_code_semantic_review",
+                    submission(),
+                ),
+                ("run_exact_estimator_review_probe", contract_probe),
+                (
+                    "submit_generated_code_semantic_review",
+                    submission("probe-result-1"),
+                ),
+            )
+            name, payload = sequence[len(self.requests) - 1]
+            call_id = f"review-call-{len(self.requests)}"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call_id,
+                        "name": name,
+                        "input": payload,
+                    },
+                ),
+                tool_calls=(
+                    ClientToolCall(call_id=call_id, name=name, input=payload),
+                ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    executions = []
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        executions.append(kwargs)
+        index = len(executions)
+        return SimpleNamespace(
+            status="EXECUTED",
+            metrics={"ok": True},
+            errors=(),
+            stdout_summary="",
+            stderr_summary="",
+            estimator_binding_errors=(),
+            estimator_runtime_failure_ids=(),
+            estimator_invocation_counts={"candidate": 1},
+            estimator_runtime_errors=(),
+            request_hash=f"probe-request-{index}",
+            result_hash=f"probe-result-{index}",
+            code_path=str(tmp_path / f"probe-source-{index}"),
+            result_path=str(tmp_path / f"probe-result-{index}"),
+        )
+
+    monkeypatch.setattr(
+        reviewer_module,
+        "execute_scientific_sandbox",
+        fake_execute_scientific_sandbox,
+    )
+    backend = ContractCoverageBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=_question_with_estimator_contract(),
+        review_material=material,
+        trusted_lineage=_algorithm_lineage(),
+        probe_sandbox_dir=tmp_path,
+    )
+
+    probe_schema = next(
+        tool.input_schema
+        for tool in backend.requests[0].tools
+        if tool.name == "run_exact_estimator_review_probe"
+    )
+    assert "tested_contract_clause_ids" in probe_schema["required"]
+    assert "every executable estimator-contract clause ID" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "ACCEPT requires successful model-authored probe coverage" in str(
+        backend.requests[1].messages
+    )
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["client_tool_loop"]["validation_submissions"] == 2
+    probe_rows = packet["client_tool_loop"]["review_probe_executions"]
+    assert len(probe_rows) == 1
+
+
 def test_failed_optional_probe_does_not_control_model_owned_acceptance(
     monkeypatch,
     tmp_path,

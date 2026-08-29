@@ -449,6 +449,8 @@ def build_critic_evaluator_prompt(
         "NO_BLOCKING_FAILURE, an empty observed_failure, and no critic_findings. Assess every "
         "required dimension and obey dimension_requirements: ACCEPT requires required="
         "SUPPORTED; optional gaps must be disclosed; not_applicable means NOT_REQUESTED. "
+        "SUPPORTED means the frozen requirement is met with no unresolved gap, so gaps must "
+        "be empty. Use INCONCLUSIVE for evidence deficits; put scope limits in rationale. "
         "For source_replication, audit the hash-loaded model-authored Markdown report "
         "against the immutable execution observation and every exact author-read source "
         "range exposed in that dimension. A zero return code establishes execution only; "
@@ -542,7 +544,7 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
             "status": "SUPPORTED | INCONCLUSIVE | CONTRADICTED | NOT_REQUESTED",
             "evidence_refs": ["canonical evidence path or artifact id"],
             "rationale": "short evidence-grounded rationale",
-            "gaps": ["unresolved gap or empty"],
+            "gaps": ["unresolved evidence deficit; empty for SUPPORTED or NOT_REQUESTED"],
         }
     ],
     "gap_disclosure": {
@@ -675,6 +677,9 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
                 errors.append(f"dimension_assessments[{index}] gaps must be an array")
             elif any(str(value).strip() for value in gaps):
                 dimensions_with_gaps.add(dimension)
+                if status in {"SUPPORTED", "NOT_REQUESTED"}:
+                    errors.append(f"dimension_assessments[{index}] {status} cannot "
+                                  "contain unresolved gaps")
     if set(dimension_statuses) != set(CRITIC_RESEARCH_DIMENSIONS):
         errors.append("dimension_assessments must cover each research dimension once")
     gap_disclosure = packet.get("gap_disclosure", {})

@@ -204,6 +204,53 @@ def test_critic_can_accept_without_inventing_a_finding() -> None:
     assert '"theory":"INCONCLUSIVE"' in mismatch
 
 
+def test_supported_dimension_cannot_disclose_an_unresolved_gap() -> None:
+    packet = _critic_packet()
+    packet["current_observation_assessment"] = {
+        "observed_status": "NO_BLOCKING_FAILURE",
+        "observed_failure": "",
+        "evidence_refs": ["canonical:view"],
+        "causal_hypotheses": [],
+        "independent_missing_evidence": [],
+    }
+    packet["coordination_assessment"] = {
+        "scope": "none",
+        "conflicting_artifact_ids": [],
+        "rationale": "No incompatible artifact claims were observed.",
+    }
+    packet["critic_findings"] = []
+    for row in packet["dimension_assessments"]:
+        if row["dimension"] in {"theory", "scientific_code", "empirical"}:
+            row["status"] = "SUPPORTED"
+            row["gaps"] = []
+    scientific_code = next(
+        row
+        for row in packet["dimension_assessments"]
+        if row["dimension"] == "scientific_code"
+    )
+    scientific_code["gaps"] = [
+        "The required executable implementation is not yet available."
+    ]
+    packet["gap_disclosure"] = {
+        "status": "COMPLETE",
+        "disclosed_gaps": list(scientific_code["gaps"]),
+        "evidence_refs": ["canonical:view/scientific_code"],
+        "rationale": "All known gaps are disclosed.",
+    }
+    packet["research_disposition"] = {
+        "status": "ACCEPT",
+        "blocking_dimensions": [],
+        "rationale": "All required dimensions are supported.",
+    }
+
+    errors = validate_critic_evaluator_packet(packet)
+
+    assert (
+        "dimension_assessments[2] SUPPORTED cannot contain unresolved gaps"
+        in errors
+    )
+
+
 def test_canonical_evidence_view_excludes_legacy_simulation_flags() -> None:
     view = build_critic_canonical_evidence_view(
         question_id="generic",
