@@ -93,8 +93,10 @@ def test_newey_west_integrated_l0_is_frozen_before_sole_draw() -> None:
     assert evidence["theory_developer_executed"] is False
     assert evidence["generated_algorithm_executed"] is False
     assert evidence["generated_simulation_executed"] is False
-    assert evidence["activation_ledger_commit"] == "pending_activation_commit"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "67f0b88b05094e568cd44091dec2a21234d583ca"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False

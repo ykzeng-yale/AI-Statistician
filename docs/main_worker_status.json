@@ -26,8 +26,8 @@
     "preactivation_product_model_calls": 0,
     "preactivation_evaluator_model_calls": 23,
     "runtime_model": "claude-haiku-4-5-20251001",
-    "activation_ledger_commit": "pending_activation_commit",
-    "activation_push_confirmed_on_work_branch_and_main": false,
+    "activation_ledger_commit": "67f0b88b05094e568cd44091dec2a21234d583ca",
+    "activation_push_confirmed_on_work_branch_and_main": true,
     "task_intent": "Theory, scientific code, empirical simulation, and unresolved-gap disclosure required; source replication, formalization, and novelty are not applicable.",
     "boundary": "After the activation ledger is committed and pushed to both canonical refs, exactly one fresh exact-Haiku product invocation may run. Hidden reference text, claim identities, expected values, negative source, and judgments remain evaluator-only until AgentRuntime terminates. Preserve the result whether pass or fail; never rerun, resume, repair, reevaluate, rescore, resample, manually patch, or model-escalate this task."
   },
