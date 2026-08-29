@@ -4013,3 +4013,74 @@ the unchanged architecture budget passed at 149,995 production Python lines. No
 model or hidden-evaluator call occurred, no consumed task was touched, aggregate
 trusted capability remains `5/88`, and exact development-panel Lean closure remains
 `0/2`.
+
+## 2026-08-28 Codex turn-budget adoption and Task 89
+
+Official OpenAI Codex `main` was fetched through
+[`eec4a23c`](https://github.com/openai/codex/commit/eec4a23cb16de16e0c8cff7c913eed943f223df7). The delta after the
+previously audited `0ae94fdd` concerns MCP elicitation and does not add a
+scientific control plane. The relevant current sources remain:
+
+- [`session/turn.rs`](https://github.com/openai/codex/blob/eec4a23c/codex-rs/core/src/session/turn.rs),
+  SHA-256 `1115de11ed3c746161d62adc5f27c9ab8bb06c182ecc9cf273086030b451335b`;
+- [`session/rollout_budget.rs`](https://github.com/openai/codex/blob/eec4a23c/codex-rs/core/src/session/rollout_budget.rs),
+  SHA-256 `1f74195f58c6a8b42ce92bdb8112389fcfa3853db870e5a5a9ae3494aaf3efe0`;
+- [`context/rollout_budget.rs`](https://github.com/openai/codex/blob/eec4a23c/codex-rs/core/src/context/rollout_budget.rs),
+  SHA-256 `24cb86cff5a16f07f4770015042d7f2bad6fb9adbde767e58ac863a39e13df31`;
+- [`context_manager/history.rs`](https://github.com/openai/codex/blob/eec4a23c/codex-rs/core/src/context_manager/history.rs),
+  SHA-256 `ae7b1c2ed19f9e3f8fca446b3ffbe922d28194136b841328e8a65d34db6ce3e9`.
+
+Codex keeps one turn-scoped model client session across function calls, records
+each tool output into history, continues while the model needs tool follow-up,
+and rolls context over when token limits require it. Its rollout-budget mechanism
+makes remaining capacity model-visible; it does not replace a normal coding tool
+surface with a content-specific repair policy.
+
+Task 89 exposed the corresponding weakness in AI Statistician's otherwise correct
+retained Scientific workspace. Exact Haiku used all 24 ordinary Algorithm turns on
+10 public-source searches and 14 exact source reads. It authored no Python, ran no
+sandbox, and then entered a commit-only terminal continuation whose precondition
+could not be satisfied. The two raw commit rejections were honest, but no ordinary
+source action remained. Simulation and hidden candidate execution therefore never
+started. Runtime and gold authority failed closed at `0/1`; aggregate trustworthy
+capability remains `5/89`.
+
+Commit `c3a754e2cde4a264b4f9b54f14b39a78fb1bf499` applies the narrow reusable
+correction for future tasks:
+
+| Workspace | Retained segment | Authoritative content and feedback |
+| --- | ---: | --- |
+| TheoryDeveloper | 48 turns, 96 shared ordinary tool calls | Markdown/LaTeX/BibTeX files, source reads, Python/R scratch, validator observations |
+| AlgorithmEngineer | 48 turns | Exact Python/R source, public source reads, raw sandbox output, explicit commit |
+| SimulationEngineer | 48 turns | Exact Python/R simulation source, raw diagnostic output, separately frozen confirmatory authority |
+| Formalizer | 48 turns | Exact Lean source, proof-state/RAG queries, local Lean observations, terminal source or formal gap |
+
+The Scientific and Lean initial contexts now state that retrieval, authoring,
+execution/checking, and terminal submission share one allowance. These are maxima,
+not scheduled calls: a successful checkpoint or commit still terminates immediately.
+No task formula, Lean grammar, source patch, hidden feedback, retry, fallback, repair
+worker, additional reviewer, scheduler, provider, or model escalation was added.
+
+Collaboration remains artifact-shaped. Theory may run concurrently with early
+scientific diagnostics when the task has an executable claim; Simulation consumes
+only an accepted immutable Algorithm handoff; heavy Lean starts when requested and
+the statement is stable; a compiler, sandbox, or proof-state observation returns to
+the same source owner. `AgentRuntime` changes owner only for a substantive
+cross-artifact decision. Formalization remains optional unless frozen task intent
+requires it.
+
+This is the maximum useful Codex combination at present. Codex Core, App Server,
+Responses transport, OpenAI provider state, Guardian, hooks, thread/worktree
+management, subagents, and its scheduler would duplicate the canonical Anthropic
+runtime without adding statistical semantics, Simulation authority, independent
+gold authority, or Lean kernel authority, so they remain excluded. Task 89 itself
+is consumed and may never be rerun, resumed, repaired, reevaluated, rescored,
+resampled, or supplied its hidden/operator findings as source-owner feedback.
+
+Closeout verification passed the ladder regressions at `87/87`, the
+exact-Haiku/Opus-rejection policy panel at `7/7`, and the complete repository at
+`1041/1041` in 80.99 seconds. Compileall, JSON parsing, diff hygiene, changed-diff
+secret scanning, the five pinned official Codex source hashes, all thirteen
+immutable Task 89 top-level artifact hashes, and the retained Algorithm transcript
+hash passed. `research_agent_runtime.py` is 24,988 lines and top-level production
+Python is 149,997 lines. No post-run product or evaluator model call occurred.

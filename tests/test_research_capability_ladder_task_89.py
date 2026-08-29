@@ -14,7 +14,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "poisson_loglinear_irls_known_implementation"
 
 
-def test_poisson_loglinear_l0_task_is_frozen_before_product_draw() -> None:
+def test_poisson_loglinear_l0_task_is_consumed_after_sole_product_draw() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -23,9 +23,9 @@ def test_poisson_loglinear_l0_task_is_frozen_before_product_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "poisson_loglinear_glm_irls"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_haiku_product_draw_not_started"
+        "fresh_live_v1_consumed_runtime_blocked_no_source_authored_hidden_not_attempted"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-poisson-loglinear-irls-20260828-v1"
@@ -62,10 +62,19 @@ def test_poisson_loglinear_l0_task_is_frozen_before_product_draw() -> None:
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 0
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["product_model_turns"] == 29
+    assert evidence["algorithm_client_tool_model_turns"] == 26
+    assert evidence["algorithm_source_search_calls"] == 10
+    assert evidence["algorithm_source_read_calls"] == 14
+    assert evidence["algorithm_terminal_commit_calls"] == 2
+    assert evidence["algorithm_source_updates"] == 0
+    assert evidence["algorithm_sandbox_checks"] == 0
+    assert evidence["hidden_candidate_execution_attempted"] is False
+    assert evidence["hidden_evaluator_model_calls"] == 0
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
@@ -73,6 +82,10 @@ def test_poisson_loglinear_l0_task_is_frozen_before_product_draw() -> None:
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "c3a754e2cde4a264b4f9b54f14b39a78fb1bf499"
+    )
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -111,7 +124,7 @@ def test_poisson_loglinear_l0_task_is_frozen_before_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 89
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 88
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 89
     assert readiness["fully_gold_configured_tasks"] == 89
     assert readiness["fully_gold_passed_tasks"] == 5
