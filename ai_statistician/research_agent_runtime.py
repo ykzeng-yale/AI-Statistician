@@ -8893,6 +8893,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         semantic_reviewer_available: bool = False,
         semantic_review_max_revisions: int = 1,
         timeout_s: int = 60,
+        research_sources: ResearchSourceSnapshot | None = None,
     ) -> None:
         self.proposal_agent = proposal_agent
         self.sandbox_root = sandbox_root
@@ -8902,6 +8903,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             int(semantic_review_max_revisions or 0),
         )
         self.timeout_s = max(1, int(timeout_s or 60))
+        self.research_sources = research_sources
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -10144,6 +10146,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                             [question.id, simulation_id, "SimulationEvaluator"]
                         )[:12]
                     ),
+                    research_sources=self.research_sources,
                 )
             )
             generated_simulation_tool_calls.extend(source_tool_calls)
@@ -11663,6 +11666,7 @@ class AlgorithmEngineerRuntimeSubsystem:
         timeout_s: int = 60,
         semantic_reviewer_available: bool = False,
         semantic_review_max_revisions: int = 1,
+        research_sources: ResearchSourceSnapshot | None = None,
     ) -> None:
         self.out_dir = out_dir
         self.n_runs = n_runs
@@ -11674,6 +11678,7 @@ class AlgorithmEngineerRuntimeSubsystem:
             0,
             int(semantic_review_max_revisions or 0),
         )
+        self.research_sources = research_sources
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -12629,6 +12634,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                                 [question.id, estimator_id, "AlgorithmEngineer"]
                             )[:12]
                         ),
+                        research_sources=self.research_sources,
                     )
                 )
                 tool_calls.extend(source_tool_calls)
@@ -20228,6 +20234,7 @@ def run_research_agent_runtime(
                 semantic_review_max_revisions=(
                     config.generated_code_semantic_review_max_revisions
                 ),
+                research_sources=configured_research_sources,
             ),
             "AlgorithmEngineer": AlgorithmEngineerRuntimeSubsystem(
                 out_dir=out_dir / "algorithm_sandbox",
@@ -20240,6 +20247,7 @@ def run_research_agent_runtime(
                 semantic_review_max_revisions=(
                     config.generated_code_semantic_review_max_revisions
                 ),
+                research_sources=configured_research_sources,
             ),
             **formalizer_workspace_runtime_bindings(formalizer_workspace),
             "CriticEvaluator": CriticEvaluatorRuntimeSubsystem(

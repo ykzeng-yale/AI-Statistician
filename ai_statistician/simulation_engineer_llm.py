@@ -4,8 +4,7 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .generated_metric_contract import (
@@ -39,9 +38,7 @@ from .scientific_sandbox import (
 from .scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
-    ScientificCodeWorkspaceResult,
-    externalize_scientific_workspace_documents,
-    run_scientific_code_workspace,
+    ScientificCodeWorkspaceAgent,
 )
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
@@ -118,8 +115,19 @@ class SimulationEngineerConfig:
     client_tool_code_max_no_progress_turns: int = 2
 
 
-class LLMSimulationEngineerAgent:
+class LLMSimulationEngineerAgent(ScientificCodeWorkspaceAgent):
     """Generator-backed SimulatorEngineer proposal worker."""
+
+    @property
+    def scientific_workspace_system_prompt(self) -> str:
+        return SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+
+    scientific_workspace_instruction = (
+        "Continue the bound simulation workspace for this research task."
+    )
+    scientific_workspace_subsystem = "SimulationEvaluator"
+    scientific_workspace_agent = "LLMSimulationEngineerAgent"
+    scientific_workspace_allow_dependency_handoff = True
 
     def __init__(
         self,
@@ -386,73 +394,6 @@ class LLMSimulationEngineerAgent:
             validation_label="LLM SimulatorEngineer packet",
             max_validation_retries=self.config.max_validation_retries,
         )
-
-    def iterate_code_with_tools(
-        self,
-        *,
-        question: OpenResearchQuestion,
-        artifact_id: str,
-        code_draft: Mapping[str, Any] | None,
-        initial_observation: Mapping[str, Any],
-        workspace_context: Mapping[str, Any],
-        check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
-        workspace_operation: str = "targeted_revision",
-        allow_current_source_run: bool = False,
-        recovery_checkpoint: Mapping[str, Any] | None = None,
-        session_dir: Path | None = None,
-    ) -> ScientificCodeWorkspaceResult:
-        """Run one direct model -> sandbox -> same-model source loop."""
-
-        if not self.config.use_client_tool_code_workspace:
-            raise ValueError("SimulationEngineer client-tool code workspace is disabled")
-        model = resolve_generator_model(
-            provider_name=self.config.provider_name,
-            requested_model=self.config.model,
-            model_tier=self.config.model_tier,
-        )
-        prompt_context, context_documents = (
-            externalize_scientific_workspace_documents(workspace_context)
-        )
-        return run_scientific_code_workspace(
-            provider=self.provider,
-            system_prompt=SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
-            user_prompt=(
-                "Continue the bound simulation workspace for this research task. The "
-                "runtime executes source unchanged and supplies no correction rule.\n"
-                + json.dumps(
-                    {
-                        "question": research_question_payload(question),
-                        "workspace_context": prompt_context,
-                    },
-                    separators=(",", ":"),
-                    default=str,
-                )
-            ),
-            model=model,
-            model_tier=self.config.model_tier,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
-            max_turns=max(1, self.config.client_tool_code_max_turns),
-            max_no_progress_turns=max(
-                1, self.config.client_tool_code_max_no_progress_turns
-            ),
-            artifact_id=artifact_id,
-            initial_code_draft=code_draft,
-            initial_check_result=initial_observation,
-            check_candidate=check_candidate,
-            workspace_operation=workspace_operation,
-            allow_current_source_run=allow_current_source_run,
-            allow_dependency_handoff=True,
-            recovery_checkpoint=recovery_checkpoint,
-            session_dir=session_dir,
-            context_documents=context_documents,
-            request_metadata={
-                "subsystem": "SimulationEvaluator",
-                "agent": "LLMSimulationEngineerAgent",
-                "phase": "scientific_code_workspace",
-            },
-        )
-
 
 def build_simulation_engineer_prompt(
     *,

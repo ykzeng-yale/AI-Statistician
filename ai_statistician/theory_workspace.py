@@ -2094,7 +2094,7 @@ def run_theory_artifact_workspace(
                     [exc.reason, *state["last_validation_errors"]]
                 )
             ),
-            history=_theory_workspace_evidence_history(exc.history),
+            history=workspace_evidence_history(exc.history),
             last_invalid_packet=(
                 deepcopy(dict(state["last_candidate"]))
                 if state["last_candidate"]
@@ -2153,7 +2153,7 @@ def run_theory_artifact_workspace(
                 validation_label="source replication workspace checkpoint",
                 attempts=loop.turns,
                 errors=terminal_errors,
-                history=_theory_workspace_evidence_history(loop.history),
+                history=workspace_evidence_history(loop.history),
                 last_invalid_packet=packet or None,
                 recovery_checkpoint=recovery_checkpoint(),
             )
@@ -2213,7 +2213,7 @@ def run_theory_artifact_workspace(
             "model": loop.model,
             "model_tier": model_tier,
             "provider_usage": dict(loop.provider_usage),
-            "history": _theory_workspace_evidence_history(loop.history),
+            "history": workspace_evidence_history(loop.history),
             "transcript_fingerprint": loop.transcript_fingerprint,
             **client_tool_session_evidence,
             "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
@@ -2238,7 +2238,7 @@ def run_theory_artifact_workspace(
                 validation_label="LLM TheoryDeveloper progress checkpoint",
                 attempts=loop.turns,
                 errors=["terminal theory progress payload is invalid"],
-                history=_theory_workspace_evidence_history(loop.history),
+                history=workspace_evidence_history(loop.history),
                 recovery_checkpoint=recovery_checkpoint(),
             )
         progress = deepcopy(dict(raw_progress))
@@ -2305,7 +2305,7 @@ def run_theory_artifact_workspace(
             "model": loop.model,
             "model_tier": model_tier,
             "provider_usage": dict(loop.provider_usage),
-            "history": _theory_workspace_evidence_history(loop.history),
+            "history": workspace_evidence_history(loop.history),
             "transcript_fingerprint": loop.transcript_fingerprint,
             **client_tool_session_evidence,
             "disposition": "THEORY_PROGRESS_CHECKPOINT",
@@ -2333,7 +2333,7 @@ def run_theory_artifact_workspace(
                 validation_label="LLM TheoryDeveloper artifact workspace",
                 attempts=loop.turns,
                 errors=["terminal theory-gap payload is invalid"],
-                history=_theory_workspace_evidence_history(loop.history),
+                history=workspace_evidence_history(loop.history),
                 recovery_checkpoint=recovery_checkpoint(),
             )
         gap = deepcopy(dict(theory_gap))
@@ -2394,7 +2394,7 @@ def run_theory_artifact_workspace(
             "model": loop.model,
             "model_tier": model_tier,
             "provider_usage": dict(loop.provider_usage),
-            "history": _theory_workspace_evidence_history(loop.history),
+            "history": workspace_evidence_history(loop.history),
             "transcript_fingerprint": loop.transcript_fingerprint,
             **client_tool_session_evidence,
             "disposition": "THEORY_GAP",
@@ -2414,7 +2414,7 @@ def run_theory_artifact_workspace(
             validation_label="LLM TheoryDeveloper artifact workspace",
             attempts=loop.turns,
             errors=["terminal theory workspace packet is not an object"],
-            history=_theory_workspace_evidence_history(loop.history),
+            history=workspace_evidence_history(loop.history),
         )
     packet = deepcopy(dict(core_packet))
     packet_hash = stable_hash(packet)
@@ -2443,7 +2443,7 @@ def run_theory_artifact_workspace(
                 terminal_errors
                 or ["terminal theory workspace packet hash does not match"]
             ),
-            history=_theory_workspace_evidence_history(loop.history),
+            history=workspace_evidence_history(loop.history),
             last_invalid_packet=packet,
             recovery_checkpoint=recovery_checkpoint(),
         )
@@ -2530,7 +2530,7 @@ def run_theory_artifact_workspace(
         "model": loop.model,
         "model_tier": model_tier,
         "provider_usage": dict(loop.provider_usage),
-        "history": _theory_workspace_evidence_history(loop.history),
+        "history": workspace_evidence_history(loop.history),
         "transcript_fingerprint": loop.transcript_fingerprint,
         **client_tool_session_evidence,
         "disposition": "THEORY_CHECKPOINT_COMMITTED",
@@ -2552,6 +2552,37 @@ def theory_document_evidence_history(
 ) -> list[dict[str, Any]]:
     """Omit exact Theory text from telemetry while retaining tool lineage."""
 
+    return _redact_workspace_history(history, {
+        name: "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]"
+        for name in (
+            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        )
+    })
+
+
+def workspace_evidence_history(
+    history: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    theory_message = "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]"
+    source_message = "[research source text omitted from persisted evidence; raw execution also omitted from transcript; use snapshot/document/range or source-replication refs]"
+    redactions = {
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL: theory_message,
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL: theory_message,
+        **{name: source_message for name in (
+            RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
+            RESEARCH_SOURCE_RUN_TOOL, RESEARCH_SOURCE_RESULT_READ_TOOL,
+            RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+            RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+        )},
+        "read_theory_workspace": "[theory workspace content omitted from persisted evidence; use hash-bound artifact or document inspection refs]",
+    }
+    return _redact_workspace_history(history, redactions)
+
+
+def _redact_workspace_history(
+    history: Sequence[Mapping[str, Any]], redactions: Mapping[str, str]
+) -> list[dict[str, Any]]:
     persisted = [deepcopy(dict(row)) for row in history]
     for turn in persisted:
         tool_calls = turn.get("tool_calls", [])
@@ -2560,48 +2591,9 @@ def theory_document_evidence_history(
         for tool_call in tool_calls:
             if not isinstance(tool_call, dict):
                 continue
-            if str(tool_call.get("name", "") or "") in {
-                THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-                THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-            }:
-                tool_call["result_excerpt"] = (
-                    "[theory document content omitted from persisted evidence; use "
-                    "the hash-bound document inspection refs]"
-                )
-    return persisted
-
-
-def _theory_workspace_evidence_history(
-    history: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    persisted = theory_document_evidence_history(history)
-    source_tools = {
-        RESEARCH_SOURCE_SEARCH_TOOL,
-        RESEARCH_SOURCE_READ_TOOL,
-        RESEARCH_SOURCE_RUN_TOOL,
-        RESEARCH_SOURCE_RESULT_READ_TOOL,
-        RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
-        RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
-    }
-    for turn in persisted:
-        tool_calls = turn.get("tool_calls", [])
-        if not isinstance(tool_calls, list):
-            continue
-        for tool_call in tool_calls:
-            if not isinstance(tool_call, dict):
-                continue
-            tool_name = str(tool_call.get("name", "") or "")
-            if tool_name in source_tools:
-                tool_call["result_excerpt"] = (
-                    "[research source text omitted from persisted evidence; raw "
-                    "execution also omitted from transcript; use snapshot/document/"
-                    "range or source-replication refs]"
-                )
-            elif tool_name == "read_theory_workspace":
-                tool_call["result_excerpt"] = (
-                    "[theory workspace content omitted from persisted evidence; use "
-                    "hash-bound artifact or document inspection refs]"
-                )
+            replacement = redactions.get(str(tool_call.get("name", "") or ""))
+            if replacement:
+                tool_call["result_excerpt"] = replacement
     return persisted
 
 

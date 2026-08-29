@@ -30,6 +30,12 @@ from ai_statistician.scientific_code_workspace import (
     scientific_source_candidate_accepted,
     scientific_workspace_prototype_observation,
 )
+from ai_statistician.research_source_library import (
+    RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_SEARCH_TOOL,
+    ResearchSourceDocument,
+    ResearchSourceSnapshot,
+)
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
@@ -173,6 +179,84 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
     assert dict(result.code_draft) == authored
     assert content.strip() not in str(result.evidence)
     assert "theory document content omitted" in str(result.evidence["history"])
+
+
+def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) -> None:
+    source = "Published method.\nUse a finite sample average.\n"
+    document = ResearchSourceDocument(
+        document_id="published-method",
+        title="Published method",
+        source_kind="paper",
+        relative_path="published.md",
+        sha256=stable_hash(source),
+        lines=tuple(source.splitlines()),
+    )
+    snapshot = ResearchSourceSnapshot(
+        snapshot_id="scientific-public-sources",
+        source_horizon="2025-12-31",
+        snapshot_hash=stable_hash(document.public_descriptor()),
+        manifest_sha256="manifest-hash",
+        documents=(document,),
+        manifest_path=tmp_path / "sources.json",
+        source_root=tmp_path,
+    )
+    authored = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return {'ok': True}\n",
+    }
+    backend = ScriptedScientificBackend([
+        _response(ClientToolCall(
+            call_id="search", name=RESEARCH_SOURCE_SEARCH_TOOL,
+            input={"query": "finite sample average"},
+        )),
+        _response(ClientToolCall(
+            call_id="read", name=RESEARCH_SOURCE_READ_TOOL,
+            input={"document_id": "published-method", "line_start": 1, "line_end": 2},
+        )),
+        _response(ClientToolCall(
+            call_id="submit", name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL, input=authored,
+        )),
+        _run_response(),
+        _commit_response(),
+    ])
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Inspect public sources, then implement.",
+        user_prompt="Implement the published method.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=5,
+        max_no_progress_turns=2,
+        artifact_id="question:public-source",
+        initial_code_draft=None,
+        initial_check_result={"accepted": False},
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)), "accepted": True,
+        },
+        workspace_operation="initial_authoring",
+        research_sources=snapshot,
+    )
+
+    assert [tool.name for tool in backend.requests[0].tools[:2]] == [
+        RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
+    ]
+    assert [row["tool"] for row in result.evidence["research_source_refs"]] == [
+        RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
+    ]
+    assert result.evidence["research_source_snapshot"]["snapshot_hash"] == (
+        snapshot.snapshot_hash
+    )
+    assert result.evidence["research_source_ref_fingerprint"] == stable_hash(
+        result.evidence["research_source_refs"]
+    )
+    assert source.strip() not in str(result.evidence["history"])
+    assert "research source text omitted" in str(result.evidence["history"])
 
 
 def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> None:

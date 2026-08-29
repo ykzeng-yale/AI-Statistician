@@ -27,7 +27,19 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
-from .model_backend import ClientToolDefinition, ClientToolTurnRequest
+from .model_backend import (
+    ClientToolDefinition,
+    ClientToolTurnRequest,
+    resolve_generator_model,
+)
+from .research_schema import OpenResearchQuestion, research_question_payload
+from .research_source_library import (
+    RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_SEARCH_TOOL,
+    ResearchSourceSnapshot,
+    execute_research_source_client_tool,
+    research_source_client_tools,
+)
 from .scientific_sandbox import (
     PYTHON_SCIENTIFIC_DEPENDENCIES,
     R_SCIENTIFIC_DEPENDENCIES,
@@ -53,14 +65,10 @@ SCIENTIFIC_SOURCE_COMMIT_TOOL = "commit_scientific_source"
 SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
 SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL = "report_bound_dependency_failure"
 SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
-SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = (
-    "return_to_bound_dependency_owner"
-)
+SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = "return_to_bound_dependency_owner"
 SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND = "ScientificCodeWorkspaceCheckpoint"
 SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY = "scientific_consumer_revision"
-_SCIENTIFIC_PACKAGES = (
-    PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
-)
+_SCIENTIFIC_PACKAGES = PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
 _OUTCOME_DERIVED_SHAPE_FIELDS = frozenset(
     {"length", "dimensions", "field_count", "truncated_field_count"}
 )
@@ -71,6 +79,83 @@ class ScientificCodeWorkspaceResult:
     code_draft: Mapping[str, Any]
     check_result: Mapping[str, Any]
     evidence: Mapping[str, Any]
+
+
+class ScientificCodeWorkspaceAgent:
+    """Shared retained source session for Python/R workspace owners."""
+
+    scientific_workspace_system_prompt = ""
+    scientific_workspace_instruction = ""
+    scientific_workspace_subsystem = ""
+    scientific_workspace_agent = ""
+    scientific_workspace_allow_dependency_handoff = False
+
+    def iterate_code_with_tools(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        artifact_id: str,
+        code_draft: Mapping[str, Any] | None,
+        initial_observation: Mapping[str, Any],
+        workspace_context: Mapping[str, Any],
+        check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        workspace_operation: str = "targeted_revision",
+        allow_current_source_run: bool = False,
+        recovery_checkpoint: Mapping[str, Any] | None = None,
+        session_dir: Path | None = None,
+        research_sources: ResearchSourceSnapshot | None = None,
+    ) -> ScientificCodeWorkspaceResult:
+        config = self.config
+        if not config.use_client_tool_code_workspace:
+            raise ValueError(
+                f"{self.scientific_workspace_subsystem} client-tool code workspace is disabled"
+            )
+        model = resolve_generator_model(
+            provider_name=config.provider_name,
+            requested_model=config.model,
+            model_tier=config.model_tier,
+        )
+        prompt_context, context_documents = externalize_scientific_workspace_documents(
+            workspace_context
+        )
+        return run_scientific_code_workspace(
+            provider=self.provider,
+            system_prompt=self.scientific_workspace_system_prompt,
+            user_prompt=(
+                self.scientific_workspace_instruction
+                + " The runtime executes source unchanged and supplies no correction rule.\n"
+                + json.dumps(
+                    {
+                        "question": research_question_payload(question),
+                        "workspace_context": prompt_context,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
+            ),
+            model=model,
+            model_tier=config.model_tier,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            max_turns=max(1, config.client_tool_code_max_turns),
+            max_no_progress_turns=max(1, config.client_tool_code_max_no_progress_turns),
+            artifact_id=artifact_id,
+            initial_code_draft=code_draft,
+            initial_check_result=initial_observation,
+            check_candidate=check_candidate,
+            workspace_operation=workspace_operation,
+            allow_current_source_run=allow_current_source_run,
+            allow_dependency_handoff=self.scientific_workspace_allow_dependency_handoff,
+            recovery_checkpoint=recovery_checkpoint,
+            session_dir=session_dir,
+            context_documents=context_documents,
+            research_sources=research_sources,
+            request_metadata={
+                "subsystem": self.scientific_workspace_subsystem,
+                "agent": self.scientific_workspace_agent,
+                "phase": "scientific_code_workspace",
+            },
+        )
 
 
 def externalize_scientific_workspace_documents(
@@ -717,6 +802,7 @@ def run_source_owner_scientific_workspace(
     disallowed_unchanged_source_hashes: Sequence[str] = (),
     recovery_checkpoint: Mapping[str, Any] | None = None,
     session_dir: Path | None = None,
+    research_sources: ResearchSourceSnapshot | None = None,
 ) -> tuple[dict[str, Any], list[Any]]:
     """Run one source owner's direct model/tool feedback loop."""
 
@@ -911,6 +997,7 @@ def run_source_owner_scientific_workspace(
             allow_current_source_run=allow_current_source_run,
             recovery_checkpoint=(active_recovery_checkpoint or None),
             session_dir=session_dir,
+            research_sources=research_sources,
         )
     except PacketValidationError as exc:
         if last_checked_prototype:
@@ -918,7 +1005,7 @@ def run_source_owner_scientific_workspace(
         prototype["scientific_code_workspace_failure"] = {
             "validation_errors": list(exc.errors),
             "attempts": exc.attempts,
-            "history": theory_documents.theory_document_evidence_history(
+            "history": theory_documents.workspace_evidence_history(
                 exc.history
             ),
             "recovery_checkpoint": dict(exc.recovery_checkpoint or {}),
@@ -1656,6 +1743,7 @@ def run_scientific_code_workspace(
     recovery_checkpoint: Mapping[str, Any] | None = None,
     session_dir: Path | None = None,
     context_documents: Mapping[str, str] | None = None,
+    research_sources: ResearchSourceSnapshot | None = None,
 ) -> ScientificCodeWorkspaceResult:
     """Let one model own complete scientific source across raw sandbox feedback."""
 
@@ -1747,7 +1835,9 @@ def run_scientific_code_workspace(
         allow_current_source_run=bool(parent_draft) and allow_current_source_run,
         allow_dependency_handoff=allow_dependency_handoff,
         context_documents_available=bool(context_documents),
+        research_sources_available=research_sources is not None,
     )
+    research_source_refs: list[dict[str, Any]] = []
 
     def execute_checked_draft(
         draft: Mapping[str, Any],
@@ -1886,6 +1976,19 @@ def run_scientific_code_workspace(
 
     def execute_tool(call, context):
         tool_input = dict(call.input)
+        if call.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}:
+            assert research_sources is not None
+            try:
+                observation, source_ref = execute_research_source_client_tool(
+                    research_sources, tool_name=call.name, tool_input=tool_input
+                )
+            except ValueError as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            research_source_refs.append(source_ref)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key=call.name + ":" + stable_hash(source_ref),
+            )
         if call.name in {
             theory_documents.THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
             theory_documents.THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
@@ -2138,6 +2241,12 @@ def run_scientific_code_workspace(
                 + "\n\nInitial workspace observation:\n"
                 + _compact_json(initial_check_result)
                 + (
+                    "\n\nPublic research source snapshot:\n"
+                    + _compact_json(research_sources.descriptor())
+                    if research_sources is not None
+                    else ""
+                )
+                + (
                     "\n\nThis is a hash-bound continuation of checkpoint "
                     + resumed_checkpoint_id
                     + ". Continue from the exact current source and observation; "
@@ -2270,7 +2379,7 @@ def run_scientific_code_workspace(
             validation_label="LLM scientific code workspace",
             attempts=exc.turns,
             errors=[exc.reason],
-            history=theory_documents.theory_document_evidence_history(
+            history=theory_documents.workspace_evidence_history(
                 exc.history
             ),
             recovery_checkpoint=checkpoint,
@@ -2303,7 +2412,7 @@ def run_scientific_code_workspace(
                 "terminal payload is not bound to an accepted candidate or exact "
                 "dependency source owner"
             ],
-            history=theory_documents.theory_document_evidence_history(
+            history=theory_documents.workspace_evidence_history(
                 loop.history
             ),
         )
@@ -2353,9 +2462,14 @@ def run_scientific_code_workspace(
         "model": loop.model,
         "model_tier": model_tier,
         "provider_usage": dict(loop.provider_usage),
-        "history": theory_documents.theory_document_evidence_history(
+        "history": theory_documents.workspace_evidence_history(
             loop.history
         ),
+        "research_source_snapshot": (
+            research_sources.descriptor() if research_sources is not None else {}
+        ),
+        "research_source_refs": research_source_refs,
+        "research_source_ref_fingerprint": stable_hash(research_source_refs),
         "transcript_fingerprint": loop.transcript_fingerprint,
         "model_owned_source": True,
         "runtime_edited_source": False,
@@ -2409,6 +2523,7 @@ def _scientific_code_tools(
     allow_current_source_run: bool,
     allow_dependency_handoff: bool,
     context_documents_available: bool = False,
+    research_sources_available: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
         ClientToolDefinition(
@@ -2526,6 +2641,8 @@ def _scientific_code_tools(
             terminal=True,
         ),
     ]
+    if research_sources_available:
+        tools[0:0] = research_source_client_tools()
     if context_documents_available:
         tools[0:0] = theory_documents.theory_document_client_tools()
     reason_schema = {
