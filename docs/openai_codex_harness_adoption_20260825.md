@@ -4315,3 +4315,44 @@ provider, and a second collaboration lifecycle without adding statistical semant
 simulation authority, Statlib retrieval, or Lean kernel evidence. The useful reusable
 unit is the harness contract already implemented in the smaller provider-neutral
 `client_tool_loop.py`, not the full Codex product runtime.
+
+### Task 93 live validation: source ownership passed, review efficiency did not
+
+The sole frozen Fisher-combination theory draw passed both the visible research
+contract and evaluator-only full-task authority at `1/1`. One retained
+TheoryDeveloper session authored and committed a 314-line Markdown/LaTeX
+derivation. A separately isolated referee read the exact artifact, used its own
+scientific scratch, and accepted it. The outer AgentRuntime then compiled the
+frozen theory-only path directly to Critic. AlgorithmEngineer, SimulationEngineer,
+Formalizer, Lean, repair workers, retries, fallbacks, Sonnet, and Opus did not run.
+
+All seven hidden exact checks and all seven calibrated semantic claims passed.
+Operator inspection agrees that the independent-Uniform transformation,
+chi-square sum law, finite upper-tail formula, exact calibration, level result,
+`k=1` reduction, and global-null scope are correct. It preserves two local caveats:
+the discrete-p-value discussion is broader than necessary, and the referee's
+source-line numbers do not match the final file. Neither defect supplies or changes
+a load-bearing derivation.
+
+The run validates Codex's retained source-owner and isolated-review boundaries, but
+it also prevents an overly optimistic harness claim. The three-step outer graph was
+sparse; the inner sessions were not. They used 38 exact-Haiku turns: eight for
+TheoryDeveloper, ten for the referee, and twenty for Critic. Critic read the same
+document eleven times and searched it eight times, while the referee produced a
+253-line report. Source-grounded protocol v41 stopped the reviewer from silently
+becoming source authority, but the live behavior is still less focused and less
+precisely localized than Codex review semantics intend.
+
+No Task 93-specific product change follows from this observation. Future general
+work should preserve retained read history, ask for discrete decisive findings,
+and let a reviewer or Critic terminate cleanly once its evidence contract is met.
+It should not add a formula parser, deterministic mathematical linter, forced tool
+schedule, extra reviewer, repair controller, retry, fallback, model escalation, or
+the Codex scheduler. The single draw and hidden assessment are consumed at `1/1`,
+raising trustworthy aggregate capability to `7/93`; they may never be rerun,
+resumed, repaired, reevaluated, rescored, or exposed as hidden feedback.
+
+Closeout ladder regressions passed `91/91` and the complete repository passed
+`1046/1046` in 82.29 seconds. Compileall, JSON/diff hygiene, changed-diff secret
+scanning, immutable hashes, exact-Haiku topology, hidden-leak scanning, and the
+149,999-line production Python budget passed. No closeout check made a model call.

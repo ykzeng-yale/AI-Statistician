@@ -12,7 +12,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "fisher_combined_pvalue_exact_null_theory_known_result"
 
 
-def test_fisher_combination_l0_theory_is_frozen_before_sole_draw() -> None:
+def test_fisher_combination_l0_theory_records_sole_consumed_draw() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -21,9 +21,9 @@ def test_fisher_combination_l0_theory_is_frozen_before_sole_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "independent_pvalue_combination_exact_null"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_haiku_product_draw_not_started"
+        "fresh_live_v1_consumed_exact_haiku_gold_passed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-fisher-combined-pvalue-theory-20260829-v1"
@@ -63,15 +63,20 @@ def test_fisher_combination_l0_theory_is_frozen_before_sole_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 8
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["product_model_response_events"] == 38
+    assert evidence["theory_developer_model_turns"] == 8
+    assert evidence["theory_referee_model_turns"] == 10
+    assert evidence["critic_evaluator_model_turns"] == 20
+    assert evidence["post_runtime_evaluator_model_calls"] == 1
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["theory_developer_executed"] is False
+    assert evidence["theory_developer_executed"] is True
     assert evidence["generated_algorithm_executed"] is False
     assert evidence["generated_simulation_executed"] is False
     assert evidence["activation_ledger_commit"] == (
@@ -79,10 +84,40 @@ def test_fisher_combination_l0_theory_is_frozen_before_sole_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["model_draw_resampling_blocked"] is True
-    assert evidence["full_task_passed"] is False
-    assert evidence["trusted_capability_credit"] is False
+    assert evidence["product_code_head"] == (
+        "cad888f239b23c023f4c416d0472d95a98d7b55c"
+    )
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_outer_graph_iterations"] == 3
+    assert evidence["runtime_research_contract_passed"] is True
+    assert evidence["runtime_mode_conformant"] is True
+    assert evidence["runtime_manifest_sha256"] == (
+        "dcd86e1212c082d118972a2d56aa72be779764a7976811ea1bcf8ea5069d7311"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "01957035c87a39820332e2a65c89a6da4f8ff783c82d503a674c1bff55fc767e"
+    )
+    assert evidence["gold_evaluation_sha256"] == (
+        "a72072ab8e4b9428df0038f97f84900e63ad81e3b10e5899fbbcaaf9f9f68759"
+    )
+    assert evidence["accepted_theory_document_sha256"] == (
+        "6903156402f2444728308d7b4971c052fa2e7e71ca1c9430249115a263cc5379"
+    )
+    assert evidence["accepted_theory_document_lines"] == 314
+    assert evidence["theory_referee_report_sha256"] == (
+        "27290010a0e26154b7953dff20889f3903b5186de0a265e00eb6cdf8eda00a2d"
+    )
+    assert evidence["theory_referee_report_lines"] == 253
+    assert evidence["hidden_theory_exact_checks_passed"] == 7
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == 7
+    assert evidence["hidden_theory_combined_passed"] is True
+    assert evidence["hidden_runtime_feedback_generated"] is False
+    assert evidence["automated_full_task_passed"] is True
+    assert evidence["full_task_passed"] is True
+    assert evidence["trusted_capability_credit"] is True
     assert evidence["ladder_score_before_activation"] == "6/92"
     assert evidence["ladder_score_after_activation"] == "6/93"
+    assert evidence["ladder_score_after_consumption"] == "7/93"
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -119,7 +154,7 @@ def test_fisher_combination_l0_theory_is_frozen_before_sole_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 93
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 92
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 93
     assert readiness["fully_gold_configured_tasks"] == 93
-    assert readiness["fully_gold_passed_tasks"] == 6
+    assert readiness["fully_gold_passed_tasks"] == 7
