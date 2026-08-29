@@ -743,6 +743,56 @@ def test_theory_only_path_compiles_directly_to_critic() -> None:
     ) == "SimulationEvaluator"
 
 
+def test_partial_architect_contract_cannot_shadow_frozen_theory_only_intent() -> None:
+    requested_contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        recommended_research_path="simulation_first",
+        evaluation_mode="research_eval",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    context = {
+        "runtime_requested_evidence_contract": requested_contract,
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "empirical_metric_protocol_phase": (
+                    "theory_informed_authoring_required"
+                ),
+                "metric_protocol_execution_authorized": False,
+            },
+            "subsystem_execution_plan": [
+                {"subsystem": "SimulationEvaluator"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+        },
+    }
+
+    effective_contract = runtime_module._architect_runtime_plan(context)[
+        "evidence_contract"
+    ]
+
+    assert effective_contract["empirical_metric_protocol_phase"] == (
+        "theory_informed_authoring_required"
+    )
+    assert effective_contract["dimension_requirements"] == {
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    assert effective_contract[
+        "research_evaluation_requires_generated_simulation_code"
+    ] is False
+    assert runtime_module._compiled_post_theory_workspace_owner(
+        context,
+        implementation_gaps=[],
+    ) == "CriticEvaluator"
+
+
 def test_accepted_theory_only_preflight_compiles_without_empirical_gate() -> None:
     question = OpenResearchQuestion(
         id="accepted-theory-only-preflight",
@@ -769,6 +819,18 @@ def test_accepted_theory_only_preflight_compiles_without_empirical_gate() -> Non
     )
     context = {
         "runtime_requested_evidence_contract": contract,
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                "empirical_metric_protocol_phase": (
+                    "theory_informed_authoring_required"
+                ),
+                "metric_protocol_execution_authorized": False,
+            },
+            "subsystem_execution_plan": [
+                {"subsystem": "SimulationEvaluator"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+        },
         "architect_metric_protocol_theory_material": {
             "source_theory_packet_id": theory_packet_id,
             "source_theory_packet_hash": theory_packet_hash,

@@ -920,9 +920,12 @@ def _architect_theory_preflight_accepted_result(
             failure_classification="architect_theory_preflight_acceptance_invalid",
         )
 
+    requested_contract = context.get("runtime_requested_evidence_contract", {})
+    task_intent_owned = isinstance(requested_contract, Mapping) and bool(_runtime_contract_dimension_requirements(requested_contract))
+    model_plan_owns_route = not task_intent_owned and isinstance(context.get("architect_runtime_plan"), Mapping)
     owner_source, routing_source = (
         ("model_authored_architect_plan", "architect_plan_workspace_transition")
-        if isinstance(context.get("architect_runtime_plan"), Mapping)
+        if model_plan_owns_route
         else ("operator_frozen_task_intent", "frozen_task_intent_workspace_transition")
     )
     preflight_packet_id = str(preflight_packet.get("packet_id", "") or "")
@@ -22137,7 +22140,12 @@ def _critic_evidence_contract_decision(
 def _architect_runtime_plan(context: Mapping[str, Any]) -> dict[str, Any]:
     plan = context.get("architect_runtime_plan")
     if isinstance(plan, Mapping):
-        return dict(plan)
+        effective_plan = dict(plan)
+        requested = context.get("runtime_requested_evidence_contract", {})
+        if isinstance(requested, Mapping) and _runtime_contract_dimension_requirements(requested):
+            plan_contract = effective_plan.get("evidence_contract", {})
+            effective_plan["evidence_contract"] = {**(dict(plan_contract) if isinstance(plan_contract, Mapping) else {}), **requested}
+        return effective_plan
     contract = context.get("runtime_requested_evidence_contract")
     if isinstance(contract, Mapping) and contract:
         return {
@@ -22146,23 +22154,11 @@ def _architect_runtime_plan(context: Mapping[str, Any]) -> dict[str, Any]:
             "evidence_gates": [
                 {
                     "artifact_kind": "runtime requested evidence contract",
-                    "required_evidence": (
-                        "follow formal_verification_policy and "
-                        "recommended_research_path until an Architect packet "
-                        "overrides them"
-                    ),
-                    "not_evidence": (
-                        "requested policy/path is orchestration control, not "
-                        "proof, simulation, or implementation evidence"
-                    ),
+                    "required_evidence": "follow formal_verification_policy and recommended_research_path until an Architect packet overrides them",
+                    "not_evidence": "requested policy/path is orchestration control, not proof, simulation, or implementation evidence",
                 }
             ],
-            "boundary": (
-                "Runtime requested evidence contract is orchestration control "
-                "metadata. It does not prove or validate any statistical claim "
-                "and must not replace live Architect reasoning in capability "
-                "evaluations."
-            ),
+            "boundary": "Runtime requested evidence contract is orchestration control metadata. It does not prove or validate any statistical claim and must not replace live Architect reasoning in capability evaluations.",
         }
     return {}
 

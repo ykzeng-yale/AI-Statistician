@@ -4229,3 +4229,34 @@ Closeout ladder tests passed `89/89`, the model-policy/formal-authority/tool-loo
 panel passed `72/72`, and the complete repository passed `1043/1043` in 81.21
 seconds. No closeout check invoked a product model, evaluator model, or consumed-task
 runtime.
+
+### Task 92 consumed result: the workspace worked, the reasoning did not
+
+The sole Efron-Stein theory draw gives the complementary result. One retained
+TheoryDeveloper session authored and revised a real Markdown/LaTeX document through
+35 exact-Haiku model turns and 35 model-selected tools. The first isolated referee
+caught a conditioning error and returned its exact report to the same source owner;
+the owner removed substantial material and committed a new immutable checkpoint.
+This is the Codex-style harness behavior AI Statistician needs. Runtime did not
+write mathematics, regenerate JSON content, or route ordinary source edits through
+another repair worker.
+
+The scientific result still failed. The second isolated referee accepted the
+469-line revision, but the hidden calibrated authority rejected one of eight claims,
+and operator inspection found false active conditional-independence, measurability,
+and projection reasoning beside a correct later route. The lesson is not to replace
+Markdown with a larger schema or to add an Efron-Stein linter. A general coding-agent
+loop can produce a substantial but wrong proof, and an independent model reviewer
+can falsely accept it. Hidden evaluation must remain independent, and future
+disjoint theory tests should continue to measure whether the model leaves a clean
+active derivation rather than receiving a post-hoc task rule.
+
+The draw also exposed one genuine harness defect. A partial model-authored metric
+contract shadowed the frozen theory-only task intent and activated Simulation despite
+`empirical=not_applicable`. The shared correction stays at the existing outer plan
+boundary: explicit task-intent dimensions overlay partial plan fragments while
+their additional fields remain available. This is exactly the kind of deterministic
+harness invariant Codex leaves to its host: permissions and lifecycle are fixed by
+the environment, while the model owns substantive work. It requires no imported
+Codex Core, second scheduler, new agent, retry, fallback, repair controller, or
+mathematical rule, and it gives the consumed `0/1` draw no retroactive credit.

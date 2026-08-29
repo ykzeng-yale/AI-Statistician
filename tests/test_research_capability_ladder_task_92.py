@@ -12,7 +12,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "efron_stein_replacement_variance_theory_known_result"
 
 
-def test_efron_stein_l0_theory_task_is_frozen_before_sole_product_draw() -> None:
+def test_efron_stein_l0_theory_task_records_sole_consumed_failure() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -21,9 +21,9 @@ def test_efron_stein_l0_theory_task_is_frozen_before_sole_product_draw() -> None
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "independent_coordinate_variance_inequality"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_exact_haiku_product_draw_not_started"
+        "fresh_live_v1_consumed_exact_haiku_blocked_gold_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-efron-stein-variance-theory-20260829-v1"
@@ -66,26 +66,90 @@ def test_efron_stein_l0_theory_task_is_frozen_before_sole_product_draw() -> None
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 8
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["theory_developer_executed"] is False
+    assert evidence["theory_developer_executed"] is True
     assert evidence["generated_algorithm_executed"] is False
-    assert evidence["generated_simulation_executed"] is False
+    assert evidence["generated_simulation_executed"] is True
     assert evidence["activation_ledger_commit"] == (
         "a9fa2b9efbda4933326f0a20a0bfdf8fe17a9280"
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["product_code_head"] == (
+        "03ca4b52041d1f9281e357c20093289e744a38eb"
+    )
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_research_eval_result"] == "0/1"
+    assert evidence["post_runtime_gold_result"] == "0/1"
+    assert evidence["post_runtime_gold_assessments"] == 1
+    assert evidence["post_runtime_evaluator_model_calls"] == 1
+    assert evidence["product_model_calls"] == 60
+    assert evidence["theory_developer_workspace_model_turns"] == 35
+    assert evidence["theory_developer_workspace_tool_calls"] == 35
+    assert evidence["theory_preflight_reviewer_model_turns"] == 22
+    assert evidence["theory_preflight_reviewer_tool_calls"] == 22
+    assert evidence["theory_preflight_reviews"] == 2
+    assert evidence["theory_preflight_rejections"] == 1
+    assert evidence["theory_preflight_acceptances"] == 1
+    assert evidence["simulation_engineer_model_calls"] == 1
+    assert evidence["generated_simulation_sandbox_executions"] == 7
+    assert evidence["generated_code_semantic_reviewer_model_calls"] == 1
+    assert evidence["architect_feedback_route_model_calls"] == 1
+    assert evidence["critic_model_calls"] == 0
+    assert evidence["runtime_outer_graph_iterations"] == 7
+    assert evidence["runtime_traces"] == 7
+    assert evidence["runtime_task_handoffs"] == 6
+    assert evidence["runtime_observations"] == 10
+    assert evidence["accepted_theory_packet_hash"] == (
+        "954644b9fddeb412c5a7dac4ef785ee81a639039f975b3d10e340967895edf40"
+    )
+    assert evidence["accepted_theory_document_count"] == 1
+    assert evidence["accepted_theory_document_set_hash"] == (
+        "b405afa6402c70b5d08f3c28d51d29a59ed60ca7651f810ae7abb8daab8764fd"
+    )
+    assert evidence["accepted_theory_document_sha256"] == (
+        "4011a401514c3274dc665f5a8c78a744ba23a202efc44444296422d61515483e"
+    )
+    assert evidence["accepted_theory_document_lines"] == 469
+    assert evidence["hidden_theory_semantic_candidate_status"] == "FAIL"
+    assert evidence["hidden_theory_semantic_claims"] == 8
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == 7
+    assert evidence["hidden_theory_semantic_claims_violated"] == 1
+    assert evidence["hidden_theory_semantic_violated_claim"] == (
+        "general_proxy_bound"
+    )
+    assert evidence["hidden_gold_content_visible_to_model"] is False
+    assert evidence["hidden_leakage_scan_match_count"] == 0
+    assert evidence["hidden_expected_values_disclosed"] is False
+    assert evidence["runtime_feedback_generated_from_hidden_gold"] is False
+    assert evidence["unresolved_gap_disclosure_present"] is False
+    assert evidence["task_intent_routing_conformant"] is False
+    assert evidence["runtime_manifest_sha256"] == (
+        "81fbd22860c0b28991b2e189d2f5ec5672f3411d9bf9d04fd39e9cc526ea436f"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "0741621aa15b7a667c3a27c1f62e326d165a2ac8cf86f391be49fe076a70e821"
+    )
+    assert evidence["gold_evaluation_sha256"] == (
+        "39466d06b0760de5c57081f56905ff9c081375ac9eb0f514445eec63d4d57d93"
+    )
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_activation"] == "6/91"
     assert evidence["ladder_score_after_activation"] == "6/92"
+    assert evidence["ladder_score_after_consumption"] == "6/92"
+    assert evidence["post_run_shared_mechanism_change"].startswith(
+        "The existing architect plan boundary"
+    )
+    for forbidden in ("rerun", "resume", "repair", "rescore", "resample"):
+        assert forbidden in evidence["boundary"]
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -122,7 +186,7 @@ def test_efron_stein_l0_theory_task_is_frozen_before_sole_product_draw() -> None
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 92
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 91
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 92
     assert readiness["fully_gold_configured_tasks"] == 92
     assert readiness["fully_gold_passed_tasks"] == 6
