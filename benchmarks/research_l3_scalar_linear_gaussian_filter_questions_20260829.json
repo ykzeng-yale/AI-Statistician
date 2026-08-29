@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "scalar_linear_gaussian_filter_known_theory_rederivation",
+      "title": "Recursive inference in a scalar linear-Gaussian state model",
+      "description": "Focused L3 known-theory rederivation evaluation. The target publication identity, theorem statement, proof, reference implementation, and outcomes are withheld from runtime. Let X_0 have distribution N(m_0,P_0), and for t=1,...,T let X_t=X_{t-1}+eta_t and Y_t=X_t+epsilon_t, where P_0, q=Var(eta_t), and r=Var(epsilon_t) are known and strictly positive. The initial state and all process and observation errors are mutually independent, and the errors are iid within their sequences. In one authoritative Markdown/LaTeX Theory workspace, derive the complete one-step prediction and filtering recursion from conditional Gaussian algebra, not by naming a standard filter. Prove by induction the conditional means and variances, identify the innovation law and likelihood factorization, and justify when standardized innovations are independent N(0,1). Derive the conditional-MSE optimality of each filtered mean and the exact conditional coverage of the requested state interval. Audit indexing, sigma-fields, positivity, initial conditions, and every normalization. Distinguish filtering from smoothing and forecasting, and do not claim unknown-variance estimation, non-Gaussian exactness, nonlinear filtering, asymptotic parameter inference, or independence after data-dependent variance fitting. The required model-authored Python artifact is est_scalar_gaussian_filter and must implement the exact frozen run_estimator(request) contract without calling a prebuilt state-space or filtering routine. Exploratory Python or R may test identities and edge cases. A separately frozen confirmatory evaluator uses fresh linear-Gaussian trajectories, seeds fixed before outcomes, and at least 1500 independent replicates per design. It checks exact executable identity, standardized-innovation calibration and lag behavior, final-state interval coverage with Monte Carlo uncertainty, and paired filtering error against raw observations. These finite experiments test the implementation on the frozen designs only; they do not prove the theory or extend its scope. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "state_space",
+        "linear_Gaussian_filtering",
+        "innovation_likelihood",
+        "known_theory_rederivation",
+        "python_language",
+        "L3"
+      ],
+      "source": {
+        "benchmark_mode": "known_theory_rederivation",
+        "model_visible_context": "problem_assumptions_and_closed_execution_contract_only",
+        "target_publication_identity": "evaluator_only_hidden",
+        "target_theorem_proof_code_and_outcomes": "evaluator_only_hidden",
+        "public_source_discovery": "disabled_for_this_blind_draw"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_scalar_gaussian_filter",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observations",
+            "name": "observations",
+            "meaning": "The ordered scalar observations Y_1 through Y_T.",
+            "json_type": "array[number]",
+            "shape": "One list of length 1 through 512 containing finite non-Boolean numbers in [-1e6,1e6].",
+            "units": "state units",
+            "indexing": "observations[0] is Y_1; no observation corresponds to X_0.",
+            "edge_cases": "Reject Boolean, string, null, object, nested, empty, nonfinite, below-domain, or above-domain values rather than coercing, dropping, sorting, clipping, or imputing them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.initial_mean",
+            "name": "initial_mean",
+            "meaning": "The prior mean m_0 of X_0 before observing Y_1.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [-1e6,1e6].",
+            "units": "state units",
+            "indexing": "Time zero prior quantity.",
+            "edge_cases": "Reject nonnumeric, Boolean, nonfinite, or out-of-domain values rather than coercing or clipping them.",
+            "binding": "derived_once_from_frozen_design"
+          },
+          {
+            "clause_id": "request.initial_variance",
+            "name": "initial_variance",
+            "meaning": "The known strictly positive prior variance P_0 of X_0.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [1e-8,1e6].",
+            "units": "squared state units",
+            "indexing": "Time zero prior quantity.",
+            "edge_cases": "Reject zero, negative, nonnumeric, Boolean, nonfinite, or out-of-domain values rather than coercing, taking an absolute value, or clipping.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.process_variance",
+            "name": "process_variance",
+            "meaning": "The known strictly positive q=Var(eta_t), common to every state transition.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [1e-8,1e6].",
+            "units": "squared state units per transition",
+            "indexing": "The first process error moves X_0 to X_1.",
+            "edge_cases": "Reject zero, negative, nonnumeric, Boolean, nonfinite, or out-of-domain values rather than coercing, taking an absolute value, or clipping.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.observation_variance",
+            "name": "observation_variance",
+            "meaning": "The known strictly positive r=Var(epsilon_t), common to every observation.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [1e-8,1e6].",
+            "units": "squared observation units",
+            "indexing": "Shared by Y_1 through Y_T.",
+            "edge_cases": "Reject zero, negative, nonnumeric, Boolean, nonfinite, or out-of-domain values rather than coercing, taking an absolute value, or clipping.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.interval_level",
+            "name": "interval_level",
+            "meaning": "The central posterior probability requested for every filtered state interval.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [0.5,0.9999].",
+            "units": "probability",
+            "indexing": "One level shared by all time points.",
+            "edge_cases": "Reject values outside the closed domain, strings, Boolean values, null, arrays, objects, or nonfinite values rather than coercing or clipping.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.predicted_means",
+            "name": "predicted_means",
+            "meaning": "The conditional means of X_t given Y_1 through Y_{t-1}.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite scalars.",
+            "units": "state units",
+            "indexing": "Entry zero predicts X_1 from the prior at time zero.",
+            "edge_cases": "Preserve full floating-point values without rounding.",
+            "normalization": "Use the exact model-implied one-step conditional mean before assimilating observations[t]."
+          },
+          {
+            "clause_id": "response.predicted_variances",
+            "name": "predicted_variances",
+            "meaning": "The conditional variances of X_t given observations strictly before time t.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite strictly positive scalars.",
+            "units": "squared state units",
+            "indexing": "Entry zero predicts X_1 from P_0 and the first transition error.",
+            "edge_cases": "Do not omit process uncertainty or return standard deviations.",
+            "normalization": "Use variance, not precision or standard deviation."
+          },
+          {
+            "clause_id": "response.innovations",
+            "name": "innovations",
+            "meaning": "Observation minus its one-step conditional mean.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite scalars.",
+            "units": "observation units",
+            "indexing": "Entry t uses observations[t] and predicted_means[t].",
+            "edge_cases": "Retain sign and full precision.",
+            "normalization": "Observation-minus-prediction orientation."
+          },
+          {
+            "clause_id": "response.innovation_variances",
+            "name": "innovation_variances",
+            "meaning": "The conditional variances of the innovations.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite strictly positive scalars.",
+            "units": "squared observation units",
+            "indexing": "Entry t is conditioned on observations strictly before time t.",
+            "edge_cases": "Return variance, not standard deviation.",
+            "normalization": "Include both one-step state prediction uncertainty and observation noise."
+          },
+          {
+            "clause_id": "response.gains",
+            "name": "gains",
+            "meaning": "The scalar coefficient multiplying each innovation in the filtered-mean update.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite scalars strictly between zero and one.",
+            "units": "dimensionless",
+            "indexing": "Entry t updates the prediction at time t.",
+            "edge_cases": "Do not return a precision or its complement.",
+            "normalization": "Use the exact conditional-Gaussian coefficient."
+          },
+          {
+            "clause_id": "response.filtered_means",
+            "name": "filtered_means",
+            "meaning": "The conditional means of X_t given Y_1 through Y_t.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite scalars.",
+            "units": "state units",
+            "indexing": "Entry t is after assimilating observations[t].",
+            "edge_cases": "Return filtered rather than smoothed or forecast states.",
+            "normalization": "Update the matching one-step prediction with the matching innovation and gain."
+          },
+          {
+            "clause_id": "response.filtered_variances",
+            "name": "filtered_variances",
+            "meaning": "The conditional variances of X_t given Y_1 through Y_t.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite strictly positive scalars.",
+            "units": "squared state units",
+            "indexing": "Entry t is after assimilating observations[t].",
+            "edge_cases": "Return variance, not standard deviation, and preserve positivity.",
+            "normalization": "Use the exact scalar conditional-Gaussian posterior variance."
+          },
+          {
+            "clause_id": "response.standardized_innovations",
+            "name": "standardized_innovations",
+            "meaning": "Each innovation divided by its positive conditional standard deviation.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite scalars.",
+            "units": "dimensionless",
+            "indexing": "Entry t uses innovations[t] and innovation_variances[t].",
+            "edge_cases": "Do not center or rescale the sequence using sample estimates.",
+            "normalization": "Use the model-implied conditional variance separately at every time point."
+          },
+          {
+            "clause_id": "response.interval_lower",
+            "name": "interval_lower",
+            "meaning": "Lower endpoint of the requested central filtered-state interval.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite scalars.",
+            "units": "state units",
+            "indexing": "Entry t uses the filtered distribution at time t.",
+            "edge_cases": "The endpoint must not exceed the matching filtered mean.",
+            "normalization": "Use the standard-normal central quantile implied by interval_level."
+          },
+          {
+            "clause_id": "response.interval_upper",
+            "name": "interval_upper",
+            "meaning": "Upper endpoint of the requested central filtered-state interval.",
+            "json_type": "array[number]",
+            "shape": "Exactly T finite scalars.",
+            "units": "state units",
+            "indexing": "Entry t uses the filtered distribution at time t.",
+            "edge_cases": "The endpoint must not be below the matching filtered mean.",
+            "normalization": "Use the same central standard-normal quantile as interval_lower."
+          },
+          {
+            "clause_id": "response.log_likelihood",
+            "name": "log_likelihood",
+            "meaning": "The joint log density of Y_1 through Y_T under the supplied known model.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "natural-log density",
+            "indexing": "Factorized in chronological innovation order.",
+            "edge_cases": "Include every Gaussian normalizing constant and use natural logarithms.",
+            "normalization": "Sum the exact one-step Gaussian innovation log densities."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the six declared fields and the response exactly the eleven declared fields. Missing, extra, malformed, coercible-only, nonfinite, or out-of-domain values are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_filter_recursion",
+            "meaning": "Every response sequence is generated by the exact one-step prediction and conditional-Gaussian filtering recursion for the declared random-walk state model, with process noise entering before Y_t."
+          },
+          {
+            "clause_id": "invariant.filter_not_smoother",
+            "meaning": "Entry t may use observations only through time t; later observations never alter an earlier filtered entry."
+          },
+          {
+            "clause_id": "invariant.translation_equivariance",
+            "meaning": "Adding the same finite constant to initial_mean and every observation adds it to predicted means, filtered means, and interval endpoints while leaving innovations, variances, gains, standardized innovations, and log_likelihood unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_scale_equivariance",
+            "meaning": "Multiplying observations and initial_mean by positive b and all three variances by b^2 scales means, innovations, and intervals by b, scales variances by b^2, preserves gains and standardized innovations, and shifts log_likelihood by -T log(b)."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, read files, invoke subprocesses, or use the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen valid request, the candidate is compared with an independent exact scalar conditional-Gaussian implementation across every response sequence and invariant."
+          },
+          {
+            "clause_id": "claim.empirical.innovation_calibration",
+            "meaning": "Across fresh trajectories from each frozen declared model, standardized innovations are assessed for zero mean, unit second moment, and negligible lag-one correlation using predeclared Monte Carlo uncertainty bounds."
+          },
+          {
+            "clause_id": "claim.empirical.interval_coverage",
+            "meaning": "Across independent fresh trajectories, the final filtered interval's state coverage is compared with interval_level using a predeclared Monte Carlo standard-error bound."
+          },
+          {
+            "clause_id": "claim.empirical.filtering_error",
+            "meaning": "Across each frozen model, squared filtered-state error is paired with squared raw-observation error and must show positive mean improvement by a predeclared standard-error margin."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "State-model designs, lengths, seeds, at least 1500 independent replicates per design, estimator requests, summaries, and acceptance bounds are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment assesses one implementation under finitely many scalar linear-Gaussian known-variance designs only. It is not proof and does not validate smoothing, parameter estimation, nonlinear or non-Gaussian filtering, missing observations, or asymptotic inference."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs one chronological finite pass and returns exactly one response without optimization, randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
