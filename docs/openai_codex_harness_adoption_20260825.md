@@ -4939,3 +4939,48 @@ The Theory panel passed 94/94 and the final complete repository passed 1074/1074
 81.32 seconds with zero model or evaluator calls. Production Python remains below the
 existing regression budget at 149998 lines. Task104 is not rerun or rescored; only a
 future disjoint pre-frozen task may measure the behavior.
+
+### Post-Task-105: exact review targets and findings-first output
+
+The official remote was fetched again at
+[`b8c86376`](https://github.com/openai/codex/commit/b8c86376a258e55efc8e5ecfbabc21c16c07d814).
+Its review task still creates a separate one-shot conversation over the exact supplied
+review input, disables inappropriate tools and approvals, installs an explicit review
+rubric, and returns the review result without generating a fix. The rubric makes
+findings primary: return every discrete actionable issue, avoid praise, and prefer no
+finding to unsupported speculation.
+
+Task105 exposed where AI-Statistician had violated the more basic exact-target rule.
+Its public research description was 2,631 characters. The preflight material first
+compacted ordinary anchor strings and the prompt then compacted the question again to
+800 characters. The isolated referee saw the candidate's full 368-line theory document
+but only the beginning of the question it was meant to adjudicate. The omitted tail
+contained most of the task's exact-versus-asymptotic, studentization, local-drift,
+fixed-change, sign, and negative-claim obligations. A model cannot reliably audit
+fidelity to requirements removed by its harness.
+
+Commit `00b21b64` makes the frozen public objective an exact review target rather than
+summarizable context. The full question payload and task intent remain byte-for-byte
+available in referee material and prompt. The existing TheoryDeveloper is also told to
+re-read that exact target and its current authoritative documents before checkpoint.
+No requirement-to-claim parser or runtime-authored mathematical checklist was added.
+
+The isolated referee remains a model-owned Markdown workspace with stable read, search,
+scratch, report-edit, and terminal-disposition tools. Its protocol now asks for every
+discrete blocker first and removes executive summaries, strengths, praise, and
+section-by-section verification filler. It compares the candidate's actual written
+intermediate against its independent reconstruction; it does not silently replace a
+bad derivation with a correct one. Runtime validates only target identity, document
+hashes, evidence references, and disposition consistency.
+
+This selectively reuses Codex review invariants, not Codex runtime. AI-Statistician
+still does not import Codex Core, App Server, Responses transport, OpenAI provider
+state, thread/worktree management, Guardian, or its multi-agent scheduler. Those would
+duplicate the Anthropic-backed scientific control plane and add no statistical,
+simulation, hidden-evaluator, or Lean-kernel authority.
+
+The Theory/referee regressions passed 130/130 and the complete repository passed
+1076/1076 in 80.90 seconds. Compileall, 150 tracked JSON files, diff hygiene,
+credential and task-content scanning, and the 150,000-line production gate passed at
+149,999 lines. No product or evaluator call occurred. Task105 remains immutable 0/1;
+this is future-task harness evidence, not retroactive capability credit.

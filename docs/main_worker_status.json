@@ -1,13 +1,13 @@
 {
-  "schema_version": 314,
+  "schema_version": 315,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "8c0dd57d",
+  "validated_code_head": "00b21b64",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all one hundred five consumed draws and immutable artifacts at trustworthy full-task credit 7/105 while exact development-panel Lean closure remains 0/2. Task105 confirmed that the Codex-aligned model-visible Theory contract and hash-verified persisted-state loader work in a fresh theory-only run, but hidden semantic authority rejected the accepted document and operator inspection confirmed substantive derivation plus referee failures. Audit and improve only the shared long-horizon Theory/referee workspace contract, without adding CUSUM content, output repair, retry, fallback, scheduler, formalization gate, Sonnet, or Opus; evaluate any future change only on a new disjoint frozen task.",
+  "current_goal_focus": "Preserve all one hundred five consumed draws and immutable artifacts at trustworthy full-task credit 7/105 while exact development-panel Lean closure remains 0/2. Commit 00b21b64 fixes the shared Task105 diagnosis: the independent referee had received only the first 800 characters of a 2631-character frozen public objective. Future Theory authors re-check the exact objective before checkpoint, and isolated referees receive it without compaction and report findings first. This is deterministic harness evidence only. Prepare the next disjoint frozen evaluation without adding task content, output repair, retry, fallback, scheduler, mandatory formalization, Sonnet, or Opus.",
   "latest_cusum_brownian_bridge_task105_evaluation": {
     "task_id": "tied_down_cusum_brownian_bridge_known_theory_rederivation",
     "family": "iid_location_change_functional_cusum",
@@ -47,6 +47,17 @@
     "operator_audit": "docs/operator_audits/tied_down_cusum_brownian_bridge_theory_l3_v1.md",
     "trusted_capability_credit": "0/1; aggregate remains 7/105",
     "boundary": "The product draw and hidden assessment are consumed. Hidden reference mathematics, rubric, calibration cases, near miss, labels, model responses, and judgments remain outside the model workspace and generated no runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, switch models, expose hidden authority, or add a CUSUM rule."
+  },
+  "latest_codex_exact_theory_review_target_correction": {
+    "mechanism_commit": "00b21b64a953aac67843800c0584bf6ffba33c10",
+    "official_codex_reference_head": "b8c86376a258e55efc8e5ecfbabc21c16c07d814",
+    "trigger": "Task105's frozen public description contained 2631 characters, but its independent-referee prompt retained only the first 800 and ended before the central exact-versus-asymptotic, studentization, local-drift, fixed-change, sign, and negative-claim obligations. The model read the full candidate and ran scratch calculations, yet it was not given the exact full review target and false-accepted a celebratory section-by-section report.",
+    "codex_alignment": "Official Codex runs review as an isolated one-shot conversation over the exact review input and instructs the reviewer to return every discrete actionable finding, avoid praise, and not generate the fix. AI-Statistician now preserves the complete frozen research-question payload plus task intent in referee material and prompt, while keeping the existing isolated read-only review workspace and model-owned Markdown judgment.",
+    "theory_owner_change": "The existing TheoryDeveloper prompt now asks the same source owner to re-read the exact frozen question and current documents before checkpoint and challenge every requested conclusion instead of committing from first-draft memory or its compact summary.",
+    "referee_change": "Protocol v44 makes findings primary, forbids executive-summary, strengths, praise, and section-by-section verification filler, and tells the model to compare the candidate's actual intermediate with an independently reconstructed transition rather than validating a correct endpoint in the abstract.",
+    "non_adoption_boundary": "No new tool, agent, schema field, model call, repair path, retry, fallback, router, scheduler, task formula, mathematical parser, Codex Core, App Server, Responses transport, OpenAI provider state, Sonnet, or Opus was added. Formalization remains controlled by frozen task intent.",
+    "verification": "Theory/referee regressions passed 130/130 and the complete repository passed 1076/1076 in 80.90 seconds. Compileall, 150 tracked JSON files, diff hygiene, changed-diff credential and task-content scans, and the strict production budget passed at 149999 lines. Verification made zero product or evaluator calls and did not rerun, resume, repair, reevaluate, rescore, or resample Task105.",
+    "capability_boundary": "This establishes only the future-task exact-target and review-output contract. Task105 remains immutable 0/1, trustworthy aggregate capability remains 7/105, and exact development-panel Lean closure remains 0/2."
   },
   "latest_codex_turn_specific_theory_tool_plan": {
     "mechanism_commit": "8c0dd57d25b8b18818e0ca0c5a81c2e3315291da",

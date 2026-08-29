@@ -120,6 +120,30 @@ parser, repair layer, retry, fallback, scheduler, or stronger evaluation model.
 Any correction can receive capability evidence only on a new disjoint frozen
 task.
 
+## Post-run shared harness correction
+
+Public trace inspection found a concrete harness defect behind part of the false
+acceptance. The frozen task description was 2,631 characters, but the independent
+referee prompt compacted its `research_question.description` to 800 characters.
+The visible target therefore ended during the workspace-authoring sentence, before
+the later exact-versus-asymptotic, studentization, local-drift, fixed-change, sign,
+and negative-claim obligations. Reading all 368 candidate lines could not restore a
+review target the referee had never received.
+
+Future-task commit `00b21b64` preserves the complete frozen question and task intent
+through the referee material and prompt. It also adopts the useful part of official
+Codex review discipline: isolated review over the exact target, every discrete
+finding first, no praise or section-by-section verification essay, and no source
+repair by the reviewer. The existing TheoryDeveloper is asked to re-read the exact
+question and current documents before checkpoint. The model still owns all
+mathematics and edits; runtime still owns only identity, persistence, execution, and
+evidence boundaries.
+
+The Theory/referee panel passed 130/130 and the complete repository passed 1076/1076.
+No product or evaluator model was called. Task105 was not rerun, resumed, repaired,
+reevaluated, rescored, or resampled and remains immutable 0/1. This regression evidence
+does not show that a future referee will find every mathematical defect.
+
 ## Immutable hashes
 
 - Runtime result:
