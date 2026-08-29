@@ -24,7 +24,7 @@ SOURCE_MANIFEST = Path(
 )
 ACTIVATION_COMMIT = "16afb75ce8c33fed544972269bd3285a78d2ac96"
 PRODUCT_CODE_HEAD = "d40f1b5c3473e15e883dcb3095c98e41f4f5542a"
-CLOSEOUT_COMMIT = "pending_closeout_commit"
+CLOSEOUT_COMMIT = "061229673e27a7f719fc5ca6ee6c12fbb39e4b2c"
 
 
 def test_gaussian_mixture_em_l0_consumed_result_is_immutable() -> None:

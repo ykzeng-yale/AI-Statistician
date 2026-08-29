@@ -4,7 +4,7 @@
 
 - Task: `gaussian_mixture_em_monotonicity_known_result`
 - Frozen product code HEAD: `d40f1b5c3473e15e883dcb3095c98e41f4f5542a`
-- Closeout evidence commit: `pending_closeout_commit`
+- Closeout evidence commit: `061229673e27a7f719fc5ca6ee6c12fbb39e4b2c`
 - Run: `runs/main_worker_research_l0_gaussian_mixture_em_20260829_v1_codex_workspace_exact_haiku`
 - Product runtime status: `BLOCKED`
 - Frozen automated full-task result: `0/1`

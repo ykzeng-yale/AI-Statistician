@@ -11138,7 +11138,7 @@
         "hidden_theory_exact_result_sha256": "2448162397b7703a7f48b7085f566f96c6179c7bac3eeaf4f72af86fd45a11b6",
         "hidden_theory_semantic_result_sha256": "8336dc89f9d2408957cd514a7a3bd20000a4397aeaa319eacac379749893c4d1",
         "verification": "Focused ladder and gold-authority regressions passed 158/158, and the complete repository passed 1058/1058 in 80.75 seconds. Compileall, JSON parsing, diff hygiene, credential scanning, product-source-diff scanning, hidden-leak scanning, and the unchanged 150000-line production gate passed at 149922 lines; research_agent_runtime.py remained 24957 lines. No verification command made a product or evaluator model call or reran the consumed task.",
-        "closeout_evidence_commit": "pending_closeout_commit",
+        "closeout_evidence_commit": "061229673e27a7f719fc5ca6ee6c12fbb39e4b2c",
         "automated_full_task_passed": false,
         "full_task_passed": false,
         "trusted_capability_credit": false,
