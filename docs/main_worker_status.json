@@ -1,13 +1,13 @@
 {
-  "schema_version": 267,
+  "schema_version": 268,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "b8583b9e",
+  "validated_code_head": "d7583629",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-eight consumed draws and immutable artifacts at trustworthy full-task credit 5/88 while exact development-panel Lean closure remains 0/2. Task 88 tested the desired Codex-shaped collaboration with persistent Markdown/LaTeX Theory, one model-owned Python source loop, raw environment feedback, isolated review, sparse handoffs, optional formalization by task intent, and hidden authority. It failed at 0/1 after substantive Theory and Algorithm work because source owners and reviewers missed coordinate-residual and KKT errors. The future-only shared correction removes one pointless Architect call after a current-source-only lineage is exhausted; it adds no repair layer, content rule, retry, extra budget, provider, scheduler, Sonnet evaluation call, or Opus call. Do not reopen Task 88; improve only genuinely shared environments and freeze a disjoint evaluator before another draw.",
+  "current_goal_focus": "Preserve all eighty-eight consumed draws and immutable artifacts at trustworthy full-task credit 5/88 while exact development-panel Lean closure remains 0/2. Commits c28e2e58 and d7583629 apply the current OpenAI Codex harness principle without importing its control plane: independent source review plus AlgorithmEngineer and SimulationEngineer can search and read the same hash-bound public source snapshot inside their retained model/tool sessions, then edit and execute Python/R source from raw observations. The two scientific agents now share one source-workspace harness instead of duplicate launchers. No repair layer, task rule, retry, extra budget, provider, scheduler, Sonnet evaluation call, or Opus call was added. Do not reopen Tasks 1-88; next resolve the generic task-intent edge that still assumes Theory for code-only work, then freeze a disjoint evaluator before another draw.",
   "latest_good_turing_missing_mass_theory_l0_evaluation": {
     "task_id": "good_turing_missing_mass_bias_theory_known_result",
     "family": "countable_occupancy_missing_mass_theory",

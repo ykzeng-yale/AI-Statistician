@@ -3925,3 +3925,35 @@ The routing change passed 154/154 focused regressions; Task 88 closeout passed
 production Python remains within the unchanged architecture budget at 149,973
 lines. These are regression and provenance results, not new scientific capability
 credit; the immutable aggregate remains 5/88.
+
+## 2026-08-28 direct public sources in scientific source sessions
+
+Official Codex `main` remains at
+[`0ae94fdd`](https://github.com/openai/codex/commit/0ae94fdd49b05ee7faa4d984d06a68492cb32b54)
+after a fresh fetch. Its reusable harness invariant is still the small loop in
+`session/turn.rs`: one retained model session selects a function call, receives the
+tool output on the next sample, and ends on a final assistant message. It does not
+provide statistical semantics, a simulation authority, or a Lean proof authority.
+
+Commit `c28e2e58` first made the frozen public-source search/read contract shared and
+gave the isolated generated-code reviewer access to the same hash-bound snapshot as
+TheoryDeveloper. Commit `d7583629` now gives AlgorithmEngineer and
+SimulationEngineer those tools directly inside their own retained source sessions.
+The model may search a paper or reference implementation, inspect exact line ranges,
+edit complete Python/R source, execute it, and consume raw sandbox feedback without a
+SourceAgent, Architect relay, packet repair, or source-specific correction rule.
+Source snapshot identity and selected refs are recorded separately from source text;
+telemetry redacts exact excerpts while retaining transcript and ref fingerprints.
+
+The two coding agents previously duplicated their complete session launcher. They
+now inherit one `ScientificCodeWorkspaceAgent` implementation and declare only their
+prompt, identity, and whether a real dependency handoff is available. This is a
+subtractive Codex adoption: no Codex crate, App Server, Responses transport, OpenAI
+provider state, thread/worktree layer, Guardian, multi-agent scheduler, fallback,
+retry, repair worker, model escalation, or task-family logic was imported.
+
+Affected regressions passed 173/173 and the complete repository passed 1036/1036 in
+85.53 seconds. Compileall, diff hygiene, changed-diff secret/model-policy checks, and
+the unchanged architecture budgets passed at 149,997 top-level production Python
+lines. No product model, hidden evaluator, benchmark draw, or consumed task was run;
+trusted capability remains 5/88 and exact development-panel closure remains 0/2.
