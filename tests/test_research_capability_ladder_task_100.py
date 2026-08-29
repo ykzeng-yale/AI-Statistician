@@ -117,9 +117,3 @@ def test_scalar_linear_gaussian_filter_task100_is_consumed_once() -> None:
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_after_consumption"] == "7/100"
-    readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 101
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 101
-    assert readiness["fully_gold_configured_tasks"] == 101
-    assert readiness["fully_gold_passed_tasks"] == 7

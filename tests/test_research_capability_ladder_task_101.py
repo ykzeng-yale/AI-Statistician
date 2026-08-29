@@ -189,13 +189,6 @@ def test_scalar_mean_empirical_likelihood_task101_is_consumed_once() -> None:
         "61d83f04f6a58141a03b8c93946cfc1106e801a0"
     )
 
-    readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 101
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 101
-    assert readiness["fully_gold_configured_tasks"] == 101
-    assert readiness["fully_gold_passed_tasks"] == 7
-
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": visible_question}, sort_keys=True
     )

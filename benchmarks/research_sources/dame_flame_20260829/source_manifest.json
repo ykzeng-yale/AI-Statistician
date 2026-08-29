@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "dame-flame-nonadaptive-paper-to-code-public-sources-20260829-v1",
+  "source_horizon": "2026-08-29",
+  "snapshot_hash": "fb339b4145e760ab7a1b9013751335f148be110f3a49c21bf69fa0d6e5872bc9",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "dame-flame-nonadaptive-method-record",
+      "title": "Non-adaptive FLAME matching method record",
+      "source_kind": "paper_method_index",
+      "relative_path": "dame_flame_nonadaptive_method_record.md",
+      "sha256": "1da5e44262c3beae1ad18efd8b9baebff8a6bbf8e3cc5a508a566a5abf97587b",
+      "model_visible": true,
+      "citation": "Gupta et al. (2025), Journal of Statistical Software 113(2)",
+      "url": "https://www.jstatsoft.org/article/view/v113i02",
+      "publication_date": "2025-07-31",
+      "license": "operator-authored method index"
+    },
+    {
+      "document_id": "dame-flame-jss-replication-toy",
+      "title": "JSS Section 3.1 public toy matching data",
+      "source_kind": "public_replication_data",
+      "relative_path": "jss_replication_toy.json",
+      "sha256": "6f066852cbdfeb778b753da517a3a04cb7c0faab4f91a99e4ea7606a678c3fa4",
+      "model_visible": true,
+      "citation": "Gupta et al. (2025), JSS 113(2), Section 3.1",
+      "url": "https://www.jstatsoft.org/article/view/v113i02",
+      "publication_date": "2025-07-31",
+      "license": "JSS replication material; operator-transcribed public input"
+    }
+  ]
+}

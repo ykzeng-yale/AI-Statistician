@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "dame_flame_nonadaptive_matching_paper_to_code",
+      "title": "Non-adaptive FLAME main matching groups from paper to code",
+      "description": "Conduct a focused L2 paper-to-code reproduction of the non-adaptive, without-replacement FLAME matching slice described in the supplied Gupta et al. (2025) method record and public toy data. The author implementation and all evaluator outputs are hidden. Theory derivation and confirmatory simulation are not requested: treat the published algorithm slice and the closed ABI below as public authority. Author one model-owned Python estimator named est_flame_nonadaptive_matching exposing run_estimator(request). Starting from exact matching on every discrete covariate, assign each unit its first admissible mixed-treatment main group, remove matched units, and iteratively drop the least-weighted active covariate with the declared deterministic tie rule. Stop when all units are matched, either treatment arm is absent from the unmatched pool, or only one covariate remains. Return the canonical group partition, unmatched rows, performed drop order, and within-group treated-minus-control outcome contrasts. Challenge exact matches, delayed matches, unmatched rows, tied weights, row and feature permutations, outcome transformations, and malformed closed-schema inputs using model-authored scratch execution. Do not import or call dame-flame, another matching package, hidden author source, or a prebuilt FLAME/DAME implementation. Do not claim adaptive FLAME, DAME search, replacement matching, missing-data handling, uncertainty quantification, causal identification, source replication, novelty, or formal verification. Every unresolved ABI, algorithmic, or scope gap must remain explicit.",
+      "tags": [
+        "causal matching",
+        "discrete covariates",
+        "FLAME",
+        "paper to code",
+        "L2"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "required",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "dame-flame: A Python Package Providing Fast Interpretable Matching for Causal Inference",
+          "authors": [
+            "Neha Gupta",
+            "Tianyu Zang",
+            "Awa Dieng",
+            "Skyler Speakman",
+            "Alexander Volfovsky"
+          ],
+          "venue": "Journal of Statistical Software 113(2)",
+          "year": 2025,
+          "doi": "10.18637/jss.v113.i02",
+          "url": "https://www.jstatsoft.org/article/view/v113i02"
+        },
+        "hidden_reference_implementation": {
+          "project": "DAME-FLAME-Python-Package",
+          "repository": "https://github.com/almost-matching-exactly/DAME-FLAME-Python-Package",
+          "commit": "6dcbc3c3945f1eb4f89f8386ef6418e72755ba73",
+          "license": "MIT",
+          "model_visibility": "identity only; source and outputs withheld for paper-to-code evaluation"
+        },
+        "public_snapshot_manifest": "benchmarks/research_sources/dame_flame_20260829/source_manifest.json",
+        "public_snapshot_id": "dame-flame-nonadaptive-paper-to-code-public-sources-20260829-v1",
+        "public_snapshot_hash": "fb339b4145e760ab7a1b9013751335f148be110f3a49c21bf69fa0d6e5872bc9",
+        "public_snapshot_manifest_sha256": "1be8a4ec421299d35a446ebf35255d8f1bbd06c3d76d2ea887cbaf36c3d3e963"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_flame_nonadaptive_matching",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.units",
+            "name": "units",
+            "meaning": "Observational rows whose order defines the public unit indices. Every row contains exactly covariates, treatment, and outcome.",
+            "json_type": "array[object]",
+            "shape": "2 through 200 rows; each covariates value is a length-p array with 2<=p<=20",
+            "units": "covariates are categorical labels; outcome has the supplied measurement unit",
+            "indexing": "outer index is the unit index and inner covariate index is the original feature index",
+            "edge_cases": "Each unit object is closed. Covariates are exact nonboolean JSON integers with absolute value at most 1e6, treatment is the exact nonboolean integer 0 or 1 with both arms present globally, and outcome is a finite nonboolean JSON number with absolute value at most 1e12. Reject malformed, ragged, coercible-only, nonfinite, or out-of-domain values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.covariate_weights",
+            "name": "covariate_weights",
+            "meaning": "Non-adaptive feature-importance weights aligned with the covariate columns; smaller weight is dropped earlier.",
+            "json_type": "array[number]",
+            "shape": "exactly p finite nonnegative values whose sum differs from one by at most 1e-9",
+            "units": "dimensionless",
+            "indexing": "weight j belongs to covariate column j",
+            "edge_cases": "Reject booleans, negative or nonfinite values, wrong length, or a sum outside the declared tolerance. Equal weights are allowed and break toward the smaller original feature index.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.matched_groups",
+            "name": "matched_groups",
+            "meaning": "Canonical main matched groups in first-match order.",
+            "json_type": "array[object]",
+            "shape": "zero or more closed objects containing exactly iteration, unit_indices, active_covariates, and treatment_effect",
+            "units": "treatment_effect has outcome units; other fields are indices",
+            "indexing": "groups sort by iteration then smallest member; unit_indices and active_covariates are strictly increasing original zero-based indices",
+            "edge_cases": "Every group has at least two units and both treatment arms. Its units agree on every active covariate, iteration zero denotes exact matching on all p covariates, and treatment_effect is the finite treated mean minus control mean within that group.",
+            "normalization": "A unit appears only in its first admissible main group and never in a later group."
+          },
+          {
+            "clause_id": "response.unmatched_unit_indices",
+            "name": "unmatched_unit_indices",
+            "meaning": "Input rows that never receive an admissible main matched group before the frozen stopping rule fires.",
+            "json_type": "array[integer]",
+            "shape": "strictly increasing subset of 0 through n-1",
+            "units": "row indices",
+            "indexing": "original input order",
+            "edge_cases": "Together with all matched group members, these indices partition every input row exactly once.",
+            "normalization": "No auxiliary or replacement matches are reported."
+          },
+          {
+            "clause_id": "response.drop_order",
+            "name": "drop_order",
+            "meaning": "Original covariate indices actually removed after iteration-zero exact matching.",
+            "json_type": "array[integer]",
+            "shape": "unique subset of 0 through p-1 in chronological removal order",
+            "units": "covariate indices",
+            "indexing": "original feature order",
+            "edge_cases": "At each performed step choose the smallest pair (weight,index) among active features. Stop before dropping the final active feature and do not record drops after the unmatched pool lacks either treatment arm.",
+            "normalization": "The array may be empty when exact matching resolves all possible main groups or a treatment arm is already absent from the residual pool."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_partition_contract",
+            "meaning": "The request and response contain exactly their declared fields. Every accepted response is a deterministic partition of all input rows into disjoint admissible main groups plus unmatched indices, with no coercion, silent row removal, duplicate membership, auxiliary matching, or request mutation."
+          },
+          {
+            "clause_id": "invariant.first_match_and_drop_semantics",
+            "meaning": "The procedure exact-matches all p features at iteration zero, then repeatedly removes the least pair (weight,index), matches only the current unmatched pool, and permanently assigns the first admissible mixed-treatment group. It stops on complete matching, loss of either residual treatment arm, or one remaining active feature."
+          },
+          {
+            "clause_id": "invariant.group_contrast",
+            "meaning": "For each reported group, treatment_effect equals the arithmetic mean outcome among treated members minus the arithmetic mean outcome among control members, computed only from that group's first-match membership."
+          },
+          {
+            "clause_id": "invariant.row_and_feature_equivariance",
+            "meaning": "Permuting rows merely relabels unit membership. Permuting covariates and their aligned weights together relabels active_covariates and drop_order while preserving the matched partition and group contrasts."
+          },
+          {
+            "clause_id": "invariant.outcome_affine_and_scope",
+            "meaning": "Adding one finite constant to every outcome preserves all contrasts; multiplying all outcomes by one finite scalar multiplies every contrast by that scalar. Matching depends only on covariates, treatment, and fixed weights. The result does not claim adaptive FLAME, DAME, causal identification, uncertainty, source replication, novelty, or proof."
+          }
+        ],
+        "empirical_claims": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "source": "Gupta et al. (2025), JSS 113(2), Section 3.1 toy data",
+  "columns": ["x1", "x2", "x3", "x4", "treated", "outcome"],
+  "rows": [
+    [0, 1, 1, 1, 0, 5.1],
+    [0, 0, 1, 0, 0, 5.11],
+    [1, 0, 1, 1, 1, 6.5],
+    [1, 1, 1, 1, 1, 6.0]
+  ],
+  "operator_nonadaptive_covariate_weights": [0.01, 0.4, 0.3, 0.29],
+  "note": "The public input is supplied for model-side exploration. Author and evaluator outputs are withheld."
+}
