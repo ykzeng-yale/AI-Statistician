@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "tied_down_cusum_brownian_bridge_known_theory_rederivation",
+      "title": "Tied-down partial sums under a local location change",
+      "description": "Focused known-result theory rederivation grounded in Ian B. MacNeill, Tests for Change of Parameter at Unknown Times and Distributions of Some Related Functionals on Brownian Motion, The Annals of Statistics 2(5), 1974, pages 950-962. Let epsilon_1,epsilon_2,... be iid with mean zero and variance sigma^2 strictly between zero and infinity. For t in [0,1], put k_n(t)=floor(nt). Under the null let X_{n,i}=mu+epsilon_i. Under a local change at a fixed tau in (0,1), let X_{n,i}=mu+delta/sqrt(n) times 1{i>floor(n tau)}+epsilon_i for fixed real delta. Define the tied-down process C_n(t)=[sum_{i<=k_n(t)}(X_{n,i}-mu)-(k_n(t)/n)sum_{i<=n}(X_{n,i}-mu)]/(sigma sqrt(n)); also explain its exact equivalence to centering the first k_n(t) observations by the full-sample mean. In one authoritative Markdown/LaTeX theory workspace, derive the exact decomposition of C_n through the ordinary partial-sum process, quantify the floor-function discrepancy, and use a correctly stated functional central limit theorem plus continuous mapping to obtain the null Brownian-bridge limit in D[0,1]. Derive the limiting covariance, endpoint constraints, and the weak limit of sup_{0<=t<=1}|C_n(t)|, explaining why the supremum mapping is valid and why normal or bridge critical values are asymptotic rather than finite-sample exact. Replace sigma by the usual sample standard deviation and state conditions under which the same limits follow. Under the displayed local change, derive rather than guess the complete deterministic triangular drift, including its sign on both sides of tau, and obtain the drifted-bridge limit. Contrast this with a fixed nonzero location change, state the resulting order of the CUSUM maximum, and distinguish detection consistency from any unproved change-point estimator limit. Track the sign convention consistently: for the displayed definition, an upward post-tau change produces a negative triangular drift. State every imported theorem and verify its hypotheses; distinguish finite-n equalities from weak limits; keep rejected calculations out of active claims; and disclose unresolved gaps. Do not claim finite-sample Gaussianity, a Brownian-motion rather than Brownian-bridge null limit, a distribution-free result after arbitrary variance estimation, endpoint change detection, serial-dependence robustness, optimality, or a change-point localization law that has not been derived. This L3 task evaluates persistent mathematical derivation and independent review only. Source replication, production Python/R implementation, confirmatory simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "change point",
+        "CUSUM",
+        "Brownian bridge",
+        "functional central limit theorem",
+        "local alternative",
+        "partial sums",
+        "known result",
+        "theory only",
+        "L3"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Tests for Change of Parameter at Unknown Times and Distributions of Some Related Functionals on Brownian Motion",
+        "author": "Ian B. MacNeill",
+        "journal": "The Annals of Statistics",
+        "year": 1974,
+        "volume": 2,
+        "issue": 5,
+        "pages": "950-962",
+        "doi": "10.1214/aos/1176342816",
+        "url": "https://doi.org/10.1214/aos/1176342816"
+      }
+    }
+  ]
+}
