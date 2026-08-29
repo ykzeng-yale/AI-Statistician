@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "lowess-local-linear-paper-to-code-public-sources-20260829-v1",
+  "source_horizon": "2026-08-29",
+  "snapshot_hash": "86843627f0f8756d8c43ec72f1b9e05e8d90e258a7e29ab6531ab9eab8714ace",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "lowess-local-linear-method-record",
+      "title": "Non-robust LOWESS local-linear method record",
+      "source_kind": "paper_method_index",
+      "relative_path": "lowess_local_linear_method_record.md",
+      "sha256": "fa8b5d81c50846e18b0fc91630574eea144fcdaa9db02bf07b42cac10f636e57",
+      "model_visible": true,
+      "citation": "Cleveland (1979), JASA 74(368), 829-836; statsmodels v0.14.6",
+      "url": "https://www.statsmodels.org/stable/generated/statsmodels.nonparametric.smoothers_lowess.lowess.html",
+      "publication_date": "1979-12-01",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "operator-authored method index"
+    },
+    {
+      "document_id": "lowess-local-linear-public-scratch-inputs",
+      "title": "Public LOWESS scratch inputs without expected outputs",
+      "source_kind": "public_replication_data",
+      "relative_path": "public_scratch_inputs.json",
+      "sha256": "e9c566635b372cb57a0d788727cecf253e05f03eb922366c7eadc17d4cba77ab",
+      "model_visible": true,
+      "citation": "Operator-authored inputs for Cleveland (1979) non-robust LOWESS slice",
+      "url": "https://www.tandfonline.com/doi/abs/10.1080/01621459.1979.10481038",
+      "publication_date": "2026-08-29",
+      "license": "operator-authored public benchmark input"
+    }
+  ]
+}

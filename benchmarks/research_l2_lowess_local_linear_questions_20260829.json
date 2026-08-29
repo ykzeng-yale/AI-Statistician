@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "lowess_local_linear_nonrobust_paper_to_code",
+      "title": "Non-robust LOWESS local-linear smoothing from paper to code",
+      "description": "Conduct a focused L2 paper-to-code reproduction of the non-robust local-linear LOWESS slice specified in the supplied Cleveland (1979) method record and public scratch inputs. The pinned statsmodels implementation and all evaluator outputs are hidden. Theory derivation, bandwidth selection, and confirmatory simulation are not requested: treat the published algorithm slice and the closed ABI below as public authority. Author one model-owned Python estimator named est_lowess_local_linear exposing run_estimator(request). For every observed target, select the declared number of nearest predictors with the public distance tie rule, form tricube weights, fit the weighted local line, and return fitted values in canonical sorted-predictor order. Challenge local versus global behavior, exact affine-response reproduction, row permutation, positive affine predictor transformations, response translation and scaling, deterministic nonmutation, neighborhood boundaries, and malformed closed-schema inputs using model-authored scratch execution. Do not import or call statsmodels, another smoothing package, hidden implementation source, or a prebuilt LOWESS/LOESS routine. Do not claim robust residual iterations, delta interpolation, repeated-x behavior, missing-data handling, arbitrary evaluation points, bandwidth optimality, uncertainty quantification, asymptotic guarantees, source-code replication, novelty, or formal verification. Every unresolved ABI, algorithmic, numerical, or scope gap must remain explicit.",
+      "tags": [
+        "nonparametric regression",
+        "LOWESS",
+        "local linear smoothing",
+        "paper to code",
+        "L2"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "required",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_paper": {
+          "title": "Robust Locally Weighted Regression and Smoothing Scatterplots",
+          "authors": [
+            "William S. Cleveland"
+          ],
+          "venue": "Journal of the American Statistical Association 74(368)",
+          "year": 1979,
+          "doi": "10.1080/01621459.1979.10481038",
+          "url": "https://www.tandfonline.com/doi/abs/10.1080/01621459.1979.10481038"
+        },
+        "hidden_reference_implementation": {
+          "project": "statsmodels",
+          "repository": "https://github.com/statsmodels/statsmodels",
+          "version": "0.14.6",
+          "commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+          "license": "BSD-3-Clause",
+          "model_visibility": "identity only; source and outputs withheld for paper-to-code evaluation"
+        },
+        "public_snapshot_manifest": "benchmarks/research_sources/lowess_local_linear_20260829/source_manifest.json",
+        "public_snapshot_id": "lowess-local-linear-paper-to-code-public-sources-20260829-v1",
+        "public_snapshot_hash": "86843627f0f8756d8c43ec72f1b9e05e8d90e258a7e29ab6531ab9eab8714ace",
+        "public_snapshot_manifest_sha256": "98f98ac73e90ed9e74833c45a4416a680519f98572b7fd76266fd4cd313c7571"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_lowess_local_linear",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.x",
+            "name": "x",
+            "meaning": "Distinct one-dimensional predictor observations paired positionally with y.",
+            "json_type": "array[number]",
+            "shape": "4 through 200 finite values",
+            "units": "predictor units",
+            "indexing": "input row order; x[i] is paired with y[i]",
+            "edge_cases": "The request object is closed. Every value must be an exact nonboolean JSON number with absolute value at most 1e6, and all values must be distinct under numeric equality. Reject strings, booleans, nonfinite values, duplicates, coercible-only inputs, or out-of-domain values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.y",
+            "name": "y",
+            "meaning": "Finite responses paired positionally with x.",
+            "json_type": "array[number]",
+            "shape": "exactly the same length as x",
+            "units": "response units",
+            "indexing": "input row order; y[i] is paired with x[i]",
+            "edge_cases": "Every value must be an exact nonboolean finite JSON number with absolute value at most 1e12. Reject wrong length, strings, booleans, nonfinite values, coercible-only inputs, or out-of-domain values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.neighbors",
+            "name": "neighbors",
+            "meaning": "The exact number k of nearest observations used in each local fit.",
+            "json_type": "integer",
+            "shape": "one exact nonboolean integer satisfying 4 <= neighbors <= len(x)",
+            "units": "observations",
+            "indexing": "global smoothing parameter for this request",
+            "edge_cases": "Reject booleans, floats even when integral, values below 4, values above n, strings, or missing values.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.x_sorted",
+            "name": "x_sorted",
+            "meaning": "The input predictor values in strictly increasing numeric order.",
+            "json_type": "array[number]",
+            "shape": "exactly n finite values",
+            "units": "predictor units",
+            "indexing": "position j aligns with fitted[j]",
+            "edge_cases": "Must be a sorted numeric copy of x with no omission, duplication, or mutation.",
+            "normalization": "Strictly increasing canonical order independent of input row order."
+          },
+          {
+            "clause_id": "response.fitted",
+            "name": "fitted",
+            "meaning": "Non-robust tricube-weighted local-linear fitted values at x_sorted.",
+            "json_type": "array[number]",
+            "shape": "exactly n finite values",
+            "units": "response units",
+            "indexing": "fitted[j] is the local fit evaluated at x_sorted[j]",
+            "edge_cases": "Every local neighborhood uses exactly neighbors observations, resolves equal distances toward smaller x, and uses zero tricube weight at the neighborhood radius.",
+            "normalization": "No robust residual reweighting, interpolation, missing-row removal, or extrapolation."
+          },
+          {
+            "clause_id": "response.neighbors",
+            "name": "neighbors",
+            "meaning": "The validated neighborhood size used by every local fit.",
+            "json_type": "integer",
+            "shape": "one integer",
+            "units": "observations",
+            "indexing": "global smoothing parameter",
+            "edge_cases": "Must equal request.neighbors exactly.",
+            "normalization": "Returned without coercion or adaptation."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_deterministic_contract",
+            "meaning": "The request and response contain exactly their declared fields. Repeated calls are deterministic, do not mutate the request, and reject every malformed or out-of-domain request rather than coercing or silently dropping values."
+          },
+          {
+            "clause_id": "invariant.neighborhood_and_tricube",
+            "meaning": "At each observed target, select exactly k indices by increasing (absolute distance, predictor value), let h be the greatest selected distance, and use weight (1-(distance/h)^3)^3 for distance below h and zero at h."
+          },
+          {
+            "clause_id": "invariant.local_linear_projection",
+            "meaning": "Each fitted value is the weighted least-squares line evaluated at its target, equivalently the normalized centered projection formula in the public method record. An affine response is reproduced exactly up to floating-point error."
+          },
+          {
+            "clause_id": "invariant.row_and_predictor_equivariance",
+            "meaning": "Paired-row permutation leaves the canonical output unchanged. Replacing x by a*x+b for finite a>0 relabels x_sorted by the same transformation while preserving fitted values and neighborhood size."
+          },
+          {
+            "clause_id": "invariant.response_affine_and_scope",
+            "meaning": "Adding one finite constant to every y adds it to every fit; multiplying every y by one finite scalar multiplies every fit by that scalar. The result does not claim robust LOWESS, repeated-x behavior, missing-data handling, optimal bandwidth, uncertainty, asymptotics, source replication, novelty, or proof."
+          }
+        ],
+        "empirical_claims": []
+      }
+    }
+  ]
+}
