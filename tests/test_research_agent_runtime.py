@@ -6820,7 +6820,39 @@ def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion(
     )
 
 
-def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> None:
+@pytest.mark.parametrize(
+    (
+        "resolution_scope",
+        "max_revisions",
+        "expected_status",
+        "expected_owner",
+        "expected_action",
+    ),
+    (
+        (
+            "CROSS_ARTIFACT_RESOLUTION_REQUIRED",
+            3,
+            "REROUTE",
+            "ArchitectCoordinator",
+            "architect_replan",
+        ),
+        (
+            "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            0,
+            "BLOCKED",
+            None,
+            "lineage_exhausted_block",
+        ),
+    ),
+)
+def test_rejected_review_handoffs_only_for_cross_artifact_work(
+    tmp_path: Path,
+    resolution_scope: str,
+    max_revisions: int,
+    expected_status: str,
+    expected_owner: str | None,
+    expected_action: str,
+) -> None:
     question = OpenResearchQuestion(
         id="cross-artifact-runtime-review",
         title="Resolve a cross-artifact semantic conflict",
@@ -6892,33 +6924,57 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
         architect_context={},
         deferred_next_task=deferred_task,
         blackboard_artifacts=base_artifacts,
-        max_revisions=3,
+        max_revisions=max_revisions,
     )
     assert dispatch is not None
+    cross_artifact = resolution_scope == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
+    evidence_refs = (
+        ["/theory_packet", "/architect_frozen_evidence_contract"]
+        if cross_artifact
+        else ["/exact_executed_artifacts/0/exact_source_code"]
+    )
     response = {
         "prior_finding_reviews": [],
         "overall_verdict": "REVISE",
-        "review_document": "# Review\n\nThe immutable parents conflict.",
+        "review_document": (
+            "# Review\n\nThe immutable parents conflict."
+            if cross_artifact
+            else "# Review\n\nThe current source does not implement its contract."
+        ),
         "findings": [
             {
                 "severity": "high",
-                "category": "cross_artifact_conflict",
-                "summary": "The immutable theory and frozen meaning conflict.",
-                "observed_behavior": "Source implements one supplied meaning.",
-                "expected_behavior": "The parent artifacts must identify one meaning.",
-                "evidence_refs": [
-                    "/theory_packet",
-                    "/architect_frozen_evidence_contract",
-                ],
+                "category": (
+                    "cross_artifact_conflict"
+                    if cross_artifact
+                    else "implementation_semantics"
+                ),
+                "summary": (
+                    "The immutable theory and frozen meaning conflict."
+                    if cross_artifact
+                    else "The exact source implements the wrong declared meaning."
+                ),
+                "observed_behavior": (
+                    "Source implements one supplied meaning."
+                    if cross_artifact
+                    else "The source emits a constant unrelated to its contract."
+                ),
+                "expected_behavior": (
+                    "The parent artifacts must identify one meaning."
+                    if cross_artifact
+                    else "The current source must implement the frozen interface."
+                ),
+                "evidence_refs": evidence_refs,
             }
         ],
         "source_revision_assessment": {
-            "resolution_scope": "CROSS_ARTIFACT_RESOLUTION_REQUIRED",
-            "rationale": "Editing this source cannot reconcile immutable parents.",
-            "evidence_refs": [
-                "/theory_packet",
-                "/architect_frozen_evidence_contract",
-            ],
+            "resolution_scope": resolution_scope,
+            "rationale": (
+                "Editing this source cannot reconcile immutable parents."
+                if cross_artifact
+                else "Editing only this source can resolve the finding."
+            ),
+            "evidence_refs": evidence_refs,
         },
     }
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
@@ -6936,26 +6992,35 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
 
     outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
-        max_revisions=3,
+        max_revisions=max_revisions,
     ).run(dispatch["next_task"], blackboard)
 
-    assert outcome.status == "REROUTE"
-    assert outcome.failure_classification == (
-        "generated_code_semantic_review_requires_cross_artifact_resolution"
+    assert outcome.status == expected_status
+    assert (outcome.next_task.owner_subsystem if outcome.next_task else None) == (
+        expected_owner
     )
-    assert outcome.next_task is not None
-    assert outcome.next_task.owner_subsystem == "ArchitectCoordinator"
-    unresolved_feedback = outcome.next_task.inputs["environment_feedback"]
-    assert unresolved_feedback["observation_artifact_ref"]["artifact_kind"] == (
-        "RuntimeArtifactRef"
-    )
-    resolved_feedback = resolve_runtime_artifact_references(
-        unresolved_feedback,
-        {**blackboard.artifacts, **outcome.produced_artifacts},
-    )
-    assert resolved_feedback["observation_artifact_ref"][
-        "source_revision_assessment"
-    ]["resolution_scope"] == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
+    if cross_artifact:
+        assert outcome.failure_classification == (
+            "generated_code_semantic_review_requires_cross_artifact_resolution"
+        )
+        assert outcome.next_task is not None
+        unresolved_feedback = outcome.next_task.inputs["environment_feedback"]
+        assert unresolved_feedback["observation_artifact_ref"]["artifact_kind"] == (
+            "RuntimeArtifactRef"
+        )
+        resolved_feedback = resolve_runtime_artifact_references(
+            unresolved_feedback,
+            {**blackboard.artifacts, **outcome.produced_artifacts},
+        )
+        assert resolved_feedback["observation_artifact_ref"][
+            "source_revision_assessment"
+        ]["resolution_scope"] == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
+    else:
+        assert outcome.failure_classification == (
+            "generated_code_semantic_review_lineage_budget_exhausted"
+        )
+        assert outcome.next_task is None
+        assert "no Architect call" in outcome.rationale
     execution = next(
         artifact
         for artifact in outcome.produced_artifacts.values()
@@ -6963,7 +7028,7 @@ def test_cross_artifact_review_skips_another_source_regeneration(tmp_path) -> No
         == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
     )
     assert execution["semantic_review_lineage_budget"]["selected_action"] == (
-        "architect_replan"
+        expected_action
     )
 
 

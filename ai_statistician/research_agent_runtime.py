@@ -8038,6 +8038,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             and source_revision_assessment.get("resolution_scope")
             == SOURCE_REVISION_SCOPE_PARENT_CHANGE
         )
+        current_source_rewrite_sufficient = bool(
+            reviewer_verdict == "REVISE"
+            and source_revision_assessment.get("resolution_scope")
+            == SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE
+        )
         reviewer_model = str(review_packet.get("model", "") or "")
         reviewer_tier = str(review_packet.get("model_tier", "") or "")
         reviewer_agent = str(review_packet.get("source_agent", "") or "")
@@ -8500,7 +8505,39 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             lineage_budget_exhausted = (
                 lineage_budget_state.get("lineage_budget_exhausted") is True
             )
-            if cross_artifact_revision_required or lineage_budget_exhausted:
+            if lineage_budget_exhausted and current_source_rewrite_sufficient:
+                failure_classification = (
+                    "generated_code_semantic_review_lineage_budget_exhausted"
+                )
+                rationale = (
+                    "Independent semantic review found a current-source-only defect, "
+                    "but the same source-owner lineage has exhausted its bounded "
+                    "candidate regenerations. The exact rejected artifact and findings "
+                    "remain recorded; no Architect call or runtime-authored edit can "
+                    "supply another legitimate source owner."
+                )
+                lineage_ledger = (
+                    record_generated_code_semantic_review_lineage_action(
+                        lineage_budget_state,
+                        action="lineage_exhausted_block",
+                    )
+                )
+                execution_manifest["semantic_review_lineage_budget"][
+                    "selected_action"
+                ] = "lineage_exhausted_block"
+                execution_manifest[
+                    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
+                ] = lineage_ledger
+                execution_manifest["routing_authority_on_revise"] = (
+                    "terminal_reviewer_observation_after_source_budget"
+                )
+                feedback["routing_authority"] = (
+                    "terminal_reviewer_observation_after_source_budget"
+                )
+                feedback["model_route_required_for_cross_owner_revision"] = False
+                next_task = None
+                status = "BLOCKED"
+            elif cross_artifact_revision_required or lineage_budget_exhausted:
                 if cross_artifact_revision_required:
                     failure_classification = (
                         "generated_code_semantic_review_requires_cross_artifact_resolution"
@@ -8663,6 +8700,9 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "routing_authority_on_revise": (
                     "architect_model_after_source_sufficiency_observation"
                     if cross_artifact_revision_required
+                    else "terminal_reviewer_observation_after_source_budget"
+                    if lineage_budget_state.get("lineage_budget_exhausted") is True
+                    and current_source_rewrite_sufficient
                     else "architect_model_after_candidate_budget"
                     if lineage_budget_state.get("lineage_budget_exhausted") is True
                     else "immutable_source_producer_lineage"
