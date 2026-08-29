@@ -110,6 +110,9 @@ def test_scalar_linear_gaussian_filter_task100_is_consumed_once() -> None:
     assert evidence["hidden_empirical_checks_total"] == 11
     assert evidence["critic_research_acceptance"] is True
     assert evidence["critic_contract_gap_conflicted_with_acceptance"] is True
+    assert evidence["closeout_evidence_commit"] == (
+        "34b3136cce4cf5332b2d33959289a0bc819c3c74"
+    )
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
