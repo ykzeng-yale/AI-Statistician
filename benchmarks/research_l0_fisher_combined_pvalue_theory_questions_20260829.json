@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "fisher_combined_pvalue_exact_null_theory_known_result",
+      "title": "Fisher combined p-value exact null distribution",
+      "description": "Focused known-result theory evaluation grounded in R. A. Fisher, Answer to Question 14 on Combining Independent Tests of Significance, The American Statistician 2(5) (1948), pages 30-31, DOI 10.2307/2681650. Fix an integer k>=1. Under the global intersection null, let P_1,...,P_k be mutually independent and exactly Uniform(0,1) p-values, as obtained from independent continuously distributed null test statistics with correctly calibrated tail probabilities. Define T=-2 sum_{i=1}^k log(P_i)=-2 log(prod_{i=1}^k P_i). In one authoritative Markdown/LaTeX theory workspace, derive from first principles the exact null law of each transformed summand and of T, including all transformation, independence, and parameterization steps. Derive the exact upper-tail combined p-value both as a chi-square survival probability and in its finite closed form for integer k, then prove its exact null calibration and the level-alpha property for every alpha in [0,1]. Check the k=1 reduction and state how the statistic orders evidence through the product of the component p-values. Treat P_i=0 and P_i=1 endpoints carefully even though the exact continuous null assigns zero probability to any single endpoint. State precisely which assumptions support equality in distribution: do not claim the same exact chi-square law from marginal validity or super-uniformity alone, from discrete nonrandomized p-values, or under unspecified dependence. Distinguish testing the global intersection null from estimating an effect, identifying which component null is false, or combining directional evidence. Keep active and rejected calculations visibly distinct and disclose unresolved gaps. This L0 task evaluates mathematical derivation and independent review only. Source replication, Python/R implementation, simulation, Lean formalization, and novelty claims are not applicable.",
+      "tags": [
+        "Fisher combination test",
+        "p-value combination",
+        "chi-square distribution",
+        "probability integral transform",
+        "global null",
+        "known result",
+        "theory only",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Answer to Question 14 on Combining Independent Tests of Significance",
+        "authors": [
+          "R. A. Fisher"
+        ],
+        "journal": "The American Statistician",
+        "year": 1948,
+        "volume": 2,
+        "issue": 5,
+        "pages": "30-31",
+        "doi": "10.2307/2681650",
+        "url": "https://digital.library.adelaide.edu.au/items/5e3aac61-be5f-4552-885b-dd8ec2125d49"
+      }
+    }
+  ]
+}
