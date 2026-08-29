@@ -1,5 +1,5 @@
 {
-  "schema_version": 286,
+  "schema_version": 287,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -26,8 +26,9 @@
     "preactivation_product_model_calls": 0,
     "preactivation_evaluator_model_calls": 8,
     "runtime_model": "claude-haiku-4-5-20251001",
-    "activation_ledger_commit": "pending_activation_commit",
-    "activation_push_confirmed_on_work_branch_and_main": false,
+    "activation_ledger_commit": "70c5678a3cbc1d294cbbcdfab1ba2ab34cc06dc9",
+    "activation_push_confirmed_on_work_branch_and_main": true,
+    "product_code_head": "70c5678a3cbc1d294cbbcdfab1ba2ab34cc06dc9",
     "trusted_capability_credit": "not yet consumed; aggregate remains 7/94 consumed and the activated ladder is 7/95",
     "task_intent": "Theory, scientific code, empirical simulation, and unresolved-gap disclosure required; source replication, formalization, and novelty are not applicable.",
     "boundary": "No product-model call may occur before this activation ledger and its exact provenance binding are committed and pushed to both branches. After that, exactly one fresh exact-Haiku product invocation is allowed; never resample it or expose hidden authority to the runtime."
