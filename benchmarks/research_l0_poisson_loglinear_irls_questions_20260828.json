@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "poisson_loglinear_irls_known_implementation",
+      "title": "Poisson log-linear MLE with exposure and model-based uncertainty",
+      "description": "Focused L0 known-implementation evaluation grounded in Nelder and Wedderburn, Generalized Linear Models, JRSS Series A 135(3), 1972, 370-384, and the model-visible statsmodels 0.14.6 GLM source snapshot. Theory derivation is not requested: treat the statistical target and executable ABI below as frozen public authority. Author exactly one model-owned Python estimator, est_poisson_loglinear_irls, using language=python and execution_profile=scientific_wasm. It may use the declared scientific Python stack and the supplied source snapshot, but it must expose run_estimator(request) and return the closed response object. For n observations and p covariates, fit the unpenalized Poisson log-link model log(mu_i)=log(exposure_i)+beta_0+x_i^T beta by maximum likelihood, with an intercept added internally. Return parameters with the intercept first, model-based standard errors from the inverse observed Fisher information X_tilde^T diag(mu_hat) X_tilde, the full Poisson log likelihood including -log(y_i!), Poisson deviance with the conventional zero-count contribution, a convergence flag, and the number of fitting iterations. Reject malformed values, nonfinite values, invalid counts or exposure, n<=p+1, p outside 1 through 4, rank-deficient augmented designs, all-zero responses, and cases without a finite well-conditioned interior solution rather than coercing, clipping, silently dropping rows, or returning pseudo-inverse estimates. Preserve input objects, determinism, covariate-column permutation equivariance, and the exposure-rescaling identity: multiplying every exposure by c>0 shifts only the fitted intercept by -log(c). Exploratory diagnostics may use separate data and are not confirmatory evidence. A separately frozen confirmatory assessment must execute exactly 1000 fresh replicates for each of two public designs without filtering, replacement, or outcome-dependent resampling. Design A uses n=160, one Uniform(-1,1) covariate, unit exposure, and true parameters (-0.2,0.7). Design B uses n=220, one standard-normal covariate, one Bernoulli(0.4)-0.4 covariate, exposure exp(U) for U~Uniform(-0.5,0.5), and true parameters (0.25,-0.35,0.45). Conditional on each generated design and exposure vector, counts are independent Poisson with the declared means. For each design and parameter, require absolute empirical bias no larger than four estimated Monte Carlo standard errors of the empirical mean, empirical coverage of the model-based 95% Wald interval between 0.92 and 0.98, and mean reported standard error divided by empirical standard deviation between 0.85 and 1.15. Freeze seeds, exact estimator invocation, all metric definitions, and decisions before confirmatory outcomes. Report every invocation and any failure. Do not claim causal interpretation, overdispersion robustness, sandwich validity, penalized estimation, zero-inflation handling, source replication, theorem proof, formalization, or novelty. Simulation is implementation evidence, not mathematical proof, and every unresolved ABI, numerical, convergence, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "poisson_regression",
+        "generalized_linear_models",
+        "irls",
+        "count_data",
+        "scientific_python",
+        "L0"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "primary_reference": {
+          "title": "Generalized Linear Models",
+          "authors": [
+            "J. A. Nelder",
+            "R. W. M. Wedderburn"
+          ],
+          "journal": "Journal of the Royal Statistical Society: Series A (General)",
+          "year": 1972,
+          "volume": 135,
+          "issue": 3,
+          "pages": "370-384",
+          "doi": "10.2307/2344614",
+          "publisher_url": "https://academic.oup.com/jrsssa/article/135/3/370/7110572"
+        },
+        "software_reference": {
+          "repository": "https://github.com/statsmodels/statsmodels",
+          "release": "v0.14.6",
+          "commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+          "license": "BSD-3-Clause"
+        },
+        "research_source_snapshot_id": "poisson-loglinear-irls-statsmodels-v0.14.6",
+        "research_source_snapshot_hash": "09b04e1ea313063bf190e222424c74e29633a62b5dc4ab2592667bebec81aa2d",
+        "research_source_manifest_sha256": "1b8fa94975eab79091b864bfbd9580788d7008b8cbe7c65579dfbe92c1ba4eec"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_poisson_loglinear_irls",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.design",
+            "name": "design",
+            "meaning": "Finite n by p covariate matrix without an intercept column; the estimator adds the intercept internally.",
+            "json_type": "array[array[number]]",
+            "shape": "rectangular n by p with 1<=p<=4 and n>p+1",
+            "units": "declared covariate units",
+            "indexing": "outer index is observation order; inner index is covariate-column order",
+            "edge_cases": "Reject booleans, ragged rows, empty rows, nonnumeric or nonfinite values, p outside 1 through 4, n<=p+1, or rank-deficient augmented design rather than coercing or dropping rows.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.counts",
+            "name": "counts",
+            "meaning": "Observed Poisson counts aligned one-to-one with the design rows.",
+            "json_type": "array[integer]",
+            "shape": "length n",
+            "units": "events",
+            "indexing": "observation order matching design",
+            "edge_cases": "Reject booleans, nonnumeric, nonfinite, fractional, negative, wrong-length, or all-zero counts rather than coercing, clipping, or silently omitting observations.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.exposure",
+            "name": "exposure",
+            "meaning": "Known strictly positive exposure whose natural logarithm is the fixed model offset.",
+            "json_type": "array[number]",
+            "shape": "length n",
+            "units": "exposure units",
+            "indexing": "observation order matching design",
+            "edge_cases": "Reject booleans, nonnumeric, nonfinite, nonpositive, or wrong-length values rather than coercing, clipping, or replacing them.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.parameters",
+            "name": "parameters",
+            "meaning": "Finite maximum-likelihood coefficient vector with the intercept first followed by coefficients in input-column order.",
+            "json_type": "array[number]",
+            "shape": "length p+1",
+            "units": "log-rate per declared covariate unit; intercept is log-rate at zero covariates and unit exposure",
+            "indexing": "index 0 is intercept; indexes 1 through p match design columns",
+            "edge_cases": "Do not return a pseudo-inverse or clipped finite vector when a finite well-conditioned interior MLE is unavailable.",
+            "normalization": "Unique finite maximizer of sum_i[y_i*(log(exposure_i)+x_tilde_i^T parameters)-exp(log(exposure_i)+x_tilde_i^T parameters)-lgamma(y_i+1)]."
+          },
+          {
+            "clause_id": "response.standard_errors",
+            "name": "standard_errors",
+            "meaning": "Positive model-based standard errors aligned with parameters.",
+            "json_type": "array[number]",
+            "shape": "length p+1",
+            "units": "same units as the aligned parameter",
+            "indexing": "same intercept-first order as parameters",
+            "edge_cases": "Reject a singular, nonfinite, or ill-conditioned information matrix rather than returning pseudo-inverse, zero, negative, or nonfinite standard errors.",
+            "normalization": "Square roots of the diagonal of inverse(X_tilde^T diag(mu_hat) X_tilde)."
+          },
+          {
+            "clause_id": "response.log_likelihood",
+            "name": "log_likelihood",
+            "meaning": "Full fitted Poisson log likelihood including the factorial normalizing constants.",
+            "json_type": "number",
+            "shape": "scalar",
+            "units": "log likelihood",
+            "indexing": "not_applicable",
+            "edge_cases": "Must be JSON-finite for every accepted response.",
+            "normalization": "sum_i[y_i*log(mu_hat_i)-mu_hat_i-lgamma(y_i+1)]."
+          },
+          {
+            "clause_id": "response.deviance",
+            "name": "deviance",
+            "meaning": "Poisson deviance relative to the saturated model.",
+            "json_type": "number",
+            "shape": "nonnegative scalar up to floating-point tolerance",
+            "units": "deviance units",
+            "indexing": "not_applicable",
+            "edge_cases": "Use zero contribution y_i*log(y_i/mu_hat_i)=0 when y_i=0; reject nonfinite output.",
+            "normalization": "2*sum_i[y_i*log(y_i/mu_hat_i)-(y_i-mu_hat_i)], with the logarithmic term zero for y_i=0."
+          },
+          {
+            "clause_id": "response.converged",
+            "name": "converged",
+            "meaning": "Whether the returned finite parameter vector satisfies the estimator's numerical convergence check.",
+            "json_type": "boolean",
+            "shape": "scalar",
+            "units": "not_applicable",
+            "indexing": "not_applicable",
+            "edge_cases": "An accepted response must set converged=true; reject or raise on nonconvergence rather than returning a provisional fit.",
+            "normalization": "True only after the fitted Poisson score and parameter update satisfy a strict deterministic convergence rule."
+          },
+          {
+            "clause_id": "response.iterations",
+            "name": "iterations",
+            "meaning": "Number of fitting updates used to reach the returned solution.",
+            "json_type": "integer",
+            "shape": "positive scalar integer",
+            "units": "iterations",
+            "indexing": "not_applicable",
+            "edge_cases": "Must be a positive nonboolean integer for an accepted converged response.",
+            "normalization": "Count each completed Newton, Fisher-scoring, IRLS, or equivalent likelihood-optimization update once."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly design, counts, and exposure, and the response contains exactly parameters, standard_errors, log_likelihood, deviance, converged, and iterations. Missing, extra, malformed, out-of-domain, rank-deficient, singular, or nonconverged inputs are rejected rather than ignored or coerced."
+          },
+          {
+            "clause_id": "invariant.poisson_mle_and_information",
+            "meaning": "For every accepted request, parameters solve the stated unpenalized Poisson offset likelihood to numerical precision, fitted means equal exposure*exp(intercept+design*coefficients), and standard errors use the inverse full-rank model information without dispersion inflation or sandwich replacement."
+          },
+          {
+            "clause_id": "invariant.likelihood_and_deviance",
+            "meaning": "The reported full log likelihood and Poisson deviance are recomputed from the returned parameters using the public definitions, including factorial constants and the y=0 convention."
+          },
+          {
+            "clause_id": "invariant.exposure_and_column_equivariance",
+            "meaning": "Multiplying all exposures by one finite c>0 shifts only the fitted intercept by -log(c); permuting design columns permutes only the corresponding nonintercept parameters and standard errors, while fitted likelihood and deviance remain unchanged up to numerical precision."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating_scope",
+            "meaning": "Repeated calls on the same valid request return the same JSON values, do not mutate request data, and evaluate only the stated ordinary independent-Poisson log-link model without penalization, overdispersion correction, zero-inflation, causal interpretation, or hidden row filtering."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Confirmatory evaluation freezes one seed per public design before outcomes, executes exactly 1000 fresh replicates for each of Designs A and B, invokes the accepted estimator exactly once per replicate without filtering or replacement, and reports all 2000 invocation outcomes and failures."
+          },
+          {
+            "clause_id": "claim.empirical.design_a",
+            "meaning": "Design A uses n=160, one Uniform(-1,1) covariate, unit exposure, true intercept -0.2 and slope 0.7, and conditionally independent Poisson counts. For both parameters, absolute empirical bias is at most four estimated Monte Carlo standard errors of the empirical mean, 95% model-based Wald coverage lies in [0.92,0.98], and mean reported standard error divided by empirical standard deviation lies in [0.85,1.15]."
+          },
+          {
+            "clause_id": "claim.empirical.design_b",
+            "meaning": "Design B uses n=220, one standard-normal covariate, one Bernoulli(0.4)-0.4 covariate, exposure exp(U) with U~Uniform(-0.5,0.5), true parameters (0.25,-0.35,0.45), and conditionally independent Poisson counts. For all three parameters, absolute empirical bias is at most four estimated Monte Carlo standard errors of the empirical mean, 95% model-based Wald coverage lies in [0.92,0.98], and mean reported standard error divided by empirical standard deviation lies in [0.85,1.15]."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The confirmatory result concerns only the two declared independent-Poisson designs and model-based Wald intervals; it does not establish robustness to overdispersion, dependence, misspecification, zero inflation, separation, causal interpretation, or other sample sizes and covariate distributions."
+          }
+        ]
+      }
+    }
+  ]
+}
