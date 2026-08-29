@@ -225,7 +225,7 @@ def _run_critic_client_tool_review(
         max_tokens=config.max_tokens,
         temperature=config.temperature,
         tool_choice="any",
-        disable_parallel_tool_use=True,
+        disable_parallel_tool_use=False,
         enable_prompt_caching=True,
         metadata={
             "subsystem": "CriticEvaluator",
@@ -240,12 +240,8 @@ def _run_critic_client_tool_review(
         },
     )
     document_accesses: list[dict[str, Any]] = []
-    canonical_view_hash = str(
-        canonical_evidence_view.get("view_hash", "") or ""
-    ) or stable_hash(dict(canonical_evidence_view))
-    dimension_requirements = canonical_evidence_view.get(
-        "dimension_requirements", {}
-    )
+    canonical_view_hash = str(canonical_evidence_view.get("view_hash", "") or "") or stable_hash(dict(canonical_evidence_view))
+    dimension_requirements = canonical_evidence_view.get("dimension_requirements", {})
 
     def normalize_submission(
         payload: Mapping[str, Any], *, model: str, provider_name: str
@@ -262,7 +258,7 @@ def _run_critic_client_tool_review(
         )
 
     def execute_tool(
-        call: ClientToolCall, _context: ClientToolExecutionContext
+        call: ClientToolCall, context: ClientToolExecutionContext
     ) -> ClientToolExecutionResult:
         if call.name == CRITIC_EVIDENCE_READ_TOOL:
             if set(call.input) != {"path", "line_start", "line_end"}:
@@ -298,6 +294,8 @@ def _run_critic_client_tool_review(
             )
         if call.name != CRITIC_EVALUATION_SUBMIT_TOOL:
             raise ClientToolInputError("unsupported CriticEvaluator tool")
+        if context.calls_in_turn != 1:
+            raise ClientToolInputError("critic terminal submission must be the only call in its turn; first inspect the returned read/search observations, then submit the judgment in a later turn")
         payload = dict(call.input)
         packet = normalize_submission(
             payload,
@@ -356,7 +354,7 @@ def _run_critic_client_tool_review(
             errors=["accepted client-tool submission payload is malformed"],
         )
     transport = {
-        "transport": "native_same_reviewer_evidence_workspace_v1",
+        "transport": "native_same_reviewer_evidence_workspace_v2",
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -435,7 +433,7 @@ def build_critic_evaluator_prompt(
     submission_instruction = (
         "Use the supplied read/search tools to inspect exact externalized evidence, then "
         f"call {CRITIC_EVALUATION_SUBMIT_TOOL} with the complete required_output_contract. "
-        "The model owns the review sequence; prose alone cannot submit a judgment."
+        "Only catalog path values are valid document tool paths; source filenames and json_path values are evidence references. Batch independent read/search calls when useful, do not reread unchanged ranges, and submit the terminal judgment alone in a later turn after inspecting the retained observations. The model owns the review sequence; prose alone cannot submit a judgment."
         if client_tool_submission
         else (
             "Return ONLY JSON matching required_output_contract, with no optional prose."

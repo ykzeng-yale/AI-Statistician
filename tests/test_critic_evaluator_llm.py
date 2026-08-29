@@ -1164,42 +1164,46 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
                 match = re.search(r'"path":"(evidence/[^"]+\.md)"', request.messages[0]["content"])
                 assert match is not None
                 self.document_id = match.group(1)
-                call = ClientToolCall(
-                    call_id="read-report",
-                    name=CRITIC_EVIDENCE_READ_TOOL,
-                    input={
-                        "path": self.document_id,
-                        "line_start": 1,
-                        "line_end": 40,
-                    },
-                )
-            elif turn == 2:
-                assert "The first section makes one unsupported global claim." in str(request.messages)
-                call = ClientToolCall(
-                    call_id="search-report",
-                    name=CRITIC_EVIDENCE_SEARCH_TOOL,
-                    input={
-                        "query": "caveat",
-                        "document_paths": [self.document_id],
-                    },
+                calls = (
+                    ClientToolCall(
+                        call_id="read-report",
+                        name=CRITIC_EVIDENCE_READ_TOOL,
+                        input={
+                            "path": self.document_id,
+                            "line_start": 1,
+                            "line_end": 40,
+                        },
+                    ),
+                    ClientToolCall(
+                        call_id="search-report",
+                        name=CRITIC_EVIDENCE_SEARCH_TOOL,
+                        input={
+                            "query": "caveat",
+                            "document_paths": [self.document_id],
+                        },
+                    ),
                 )
             else:
+                assert "The first section makes one unsupported global claim." in str(request.messages)
                 assert "A later caveat does not erase the earlier claim." in str(request.messages)
-                call = ClientToolCall(
-                    call_id="submit-critic",
-                    name=CRITIC_EVALUATION_SUBMIT_TOOL,
-                    input=_critic_packet(),
+                calls = (
+                    ClientToolCall(
+                        call_id="submit-critic",
+                        name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                        input=_critic_packet(),
+                    ),
                 )
             return ClientToolTurnResponse(
-                content_blocks=(
+                content_blocks=tuple(
                     {
                         "type": "tool_use",
                         "id": call.call_id,
                         "name": call.name,
                         "input": dict(call.input),
-                    },
+                    }
+                    for call in calls
                 ),
-                tool_calls=(call,),
+                tool_calls=calls,
                 text="",
                 provider=self.provider_name,
                 model="claude-haiku-4-5-20251001",
@@ -1250,17 +1254,130 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
         canonical_evidence_view=canonical_view,
     )
 
-    assert len(provider.requests) == 3
+    assert len(provider.requests) == 2
     first_prompt = provider.requests[0].messages[0]["content"]
     assert "ordinary evidence line" not in first_prompt
     assert "content_externalized_without_loss" in first_prompt
+    assert "Only catalog path values are valid document tool paths" in first_prompt
+    assert "Batch independent read/search calls" in first_prompt
+    assert provider.requests[0].disable_parallel_tool_use is False
     assert packet["canonical_evidence_view_hash"] == "canonical-view-hash"
     loop = packet["client_tool_loop"]
-    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v1"
+    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v2"
+    assert loop["turns"] == 2
+    assert loop["tool_calls"] == 3
     assert loop["document_access_count"] == 2
     assert loop["inspected_document_paths"] == [provider.document_id]
-    assert loop["provider_usage"] == {"input_tokens": 30, "output_tokens": 15}
+    assert loop["provider_usage"] == {"input_tokens": 20, "output_tokens": 10}
     assert loop["full_packet_regeneration_used"] is False
+    assert validate_critic_evaluator_packet(packet) == []
+
+
+def test_critic_terminal_submission_waits_for_same_turn_read_observation() -> None:
+    report = "load-bearing source line\n" * 100
+
+    class ReadThenSubmitCriticBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.document_id = ""
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                match = re.search(
+                    r'"path":"(evidence/[^"]+\.md)"',
+                    request.messages[0]["content"],
+                )
+                assert match is not None
+                self.document_id = match.group(1)
+                calls = (
+                    ClientToolCall(
+                        call_id="read-before-submit",
+                        name=CRITIC_EVIDENCE_READ_TOOL,
+                        input={
+                            "path": self.document_id,
+                            "line_start": 1,
+                            "line_end": 10,
+                        },
+                    ),
+                    ClientToolCall(
+                        call_id="premature-submit",
+                        name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                        input=_critic_packet(),
+                    ),
+                )
+            else:
+                assert "critic terminal submission must be the only call" in str(
+                    request.messages
+                )
+                calls = (
+                    ClientToolCall(
+                        call_id="informed-submit",
+                        name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                        input=_critic_packet(),
+                    ),
+                )
+            return ClientToolTurnResponse(
+                content_blocks=tuple(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": dict(call.input),
+                    }
+                    for call in calls
+                ),
+                tool_calls=calls,
+                text="",
+                provider=self.provider_name,
+                model="claude-haiku-4-5-20251001",
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    provider = ReadThenSubmitCriticBackend()
+    packet = LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    ).propose(
+        question=OpenResearchQuestion(
+            id="critic-causal-terminal",
+            title="Review exact evidence before judgment",
+            description="Make the terminal judgment after receiving evidence.",
+        ),
+        retrieval_manifest={},
+        theory_packet={"packet_id": "theory:causal-terminal"},
+        simulation_manifest={},
+        algorithm_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view={
+            "artifact_kind": "CriticCanonicalEvidenceView",
+            "view_hash": "critic-causal-terminal-view",
+            "dimension_requirements": {
+                "source_replication": "not_applicable",
+                "theory": "required",
+                "scientific_code": "required",
+                "empirical": "required",
+                "formal": "not_applicable",
+            },
+            "theory": {
+                "artifact_id": "theory:causal-terminal",
+                "authoritative_documents": [
+                    {"relative_path": "workspace.md", "content": report}
+                ],
+            },
+        },
+    )
+
+    assert len(provider.requests) == 2
+    assert packet["client_tool_loop"]["turns"] == 2
+    assert packet["client_tool_loop"]["tool_calls"] == 3
+    assert packet["client_tool_loop"]["document_access_count"] == 1
     assert validate_critic_evaluator_packet(packet) == []
 
 

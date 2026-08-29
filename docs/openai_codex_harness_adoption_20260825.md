@@ -4356,3 +4356,38 @@ Closeout ladder regressions passed `91/91` and the complete repository passed
 `1046/1046` in 82.29 seconds. Compileall, JSON/diff hygiene, changed-diff secret
 scanning, immutable hashes, exact-Haiku topology, hidden-leak scanning, and the
 149,999-line production Python budget passed. No closeout check made a model call.
+
+### Post-Task-93 correction: batch independent reads, isolate judgment
+
+OpenAI Codex `origin/main` was refreshed again at
+`6478a751fde8884b2fdc76486fe23175a8e795d4` on 2026-08-29. There are no changes
+from the prior audited `5fc7840c` head in the retained turn, review task, review
+rubric, or parallel-tool sources. The current
+[`tools/parallel.rs`](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/tools/parallel.rs)
+still gives tools declared safe for parallel execution a shared read lock and
+serializes other tools behind a write lock. The reusable principle is narrow:
+independent observations may be gathered together, while state mutation and a
+terminal judgment must remain causally ordered after observations.
+
+The existing provider-neutral Critic session now permits multiple independent
+document read/search calls in one model response. Runtime executes those calls,
+returns both exact observations to the same retained history, and requires the
+terminal Critic submission to be the sole call of a later turn. This removes model
+round trips without allowing a judgment to pretend it has seen same-turn results.
+The local synchronous executor still processes the small file reads in order; this
+change is model-turn batching, not a claim of Rust-style concurrent wall-clock
+execution.
+
+Theory-referee protocol v42 applies the same composition without adding a runtime
+rule for mathematical content. The model may batch independent read-only searches
+or ranges, but scratch, report edits, and terminal disposition remain observation
+ordered. Source citations must use ranges actually returned by exact reads; when a
+claim was not localized, the report names the document and section rather than
+inventing a line number. An accepting report is findings-first and concise rather
+than a theorem-by-theorem substitute proof.
+
+This correction adds no Codex dependency, scheduler, agent, repair controller,
+retry, fallback, mathematical parser, task-family rule, model escalation, or larger
+resource budget. Task 93 remains consumed at `1/1`, aggregate capability remains
+`7/93`, and exact development-panel Lean closure remains `0/2`. No product model,
+evaluator model, benchmark, or consumed artifact was invoked or changed.

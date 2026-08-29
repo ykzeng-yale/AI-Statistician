@@ -69,7 +69,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 27
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 41
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 42
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -83,7 +83,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
     "client_tool_model_directed_document_and_source_inspection_v18"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
-    "model_owned_markdown_referee_workspace_with_compact_disposition_v8"
+    "model_owned_markdown_referee_workspace_with_compact_disposition_v9"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = "model_authored_markdown_referee_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL = "write_theory_preflight_report"
@@ -186,8 +186,8 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "Write the mathematical judgment as one focused, source-grounded Markdown "
         "referee report. Lead with the verdict, cite exact document paths and line ranges for decisive source claims, and return one compact finding per actual blocker. Do not "
         "reproduce the candidate or write a substitute proof. The model-owned report, not a runtime claim checklist, carries the source audit and decisive "
-        "independent checks. Before submission, reconcile later observations with every active "
-        "report claim: revise or retract contradictions, or mark the point UNCERTAIN. "
+        "independent checks. Before submission, reconcile later observations with every active report claim: revise or retract contradictions, or mark the point UNCERTAIN. "
+        "Cite only line ranges returned by an exact read observation; otherwise cite the document path and section without inventing line numbers. Keep an ACCEPT report findings-first and concise rather than restating the candidate theorem by theorem. "
         "Resolve prior findings only from current inspected evidence. "
         "AgentRuntime binds identities and persists the report without choosing semantics."
     ),
@@ -2997,7 +2997,7 @@ def validate_architect_theory_execution_preflight_packet(
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent mathematical referee inside an AI Statistician AgentRuntime.
-Use model-directed search and exact range reads on authoritative Markdown or LaTeX; inspect the smallest load-bearing dependency chain and highest-risk active claims.
+Use model-directed search and exact range reads on authoritative Markdown or LaTeX; inspect the smallest load-bearing dependency chain and highest-risk active claims. Batch independent read-only searches or range reads when useful; keep scratch, report mutation, and terminal submission causally ordered after their returned observations.
 Audit the mathematics actually present in the source and start from attempted falsification. Independently recompute enough to test decisive steps, but never author a replacement proof or treat reviewer-added mathematics as candidate support for ACCEPT. Check object types, domains, dimensional homogeneity, and original normalizations, including variance order and limit scale.
 Scratch supports a claim only when its complete executable predicate exposes the relevant sides, residual, or witness; never relabel a weaker proxy or trust candidate text.
 Seek a model satisfying written premises while varying unconstrained objects. Every unmarked claim stays active; reconcile raw observations and never silently repair false text, describe a failed run as passed, or claim proof authority.
@@ -3527,8 +3527,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         prompt.split("\n\n", 1)[-1]
         + "\n\nThe prompt contains a hash-bound catalog, not duplicated full theory "
         "documents. Use document search and exact range reads to select the context "
-        "needed for the load-bearing dependency chain; independent reads may be issued "
-        "together. Read a complete document only when its structure requires that "
+        "needed for the load-bearing dependency chain; batch independent read-only "
+        "searches or range reads when useful. Read a complete document only when its structure requires that "
         "context. Inspection provenance is not correctness, so you must still "
         "follow dependencies, test decisive written transitions, and challenge them. Compare every "
         "independent check to its exact candidate range; never promote a reviewer-supplied "
@@ -3572,8 +3572,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         "lemma, or bridge, return a source-grounded finding. "
         "Choose the tool order that best supports that judgment. Call "
         "submit_theory_preflight_review with the returned review_report_sha256 plus "
-        "only the compact disposition and finding envelope. A report write and terminal submission "
-        "may be issued in the same turn when the terminal call is last. Do not regenerate "
+        "only the compact disposition and finding envelope. Keep scratch and report mutation separate from terminal submission so the final disposition can use their returned observations. Do not regenerate "
         "the report body in terminal JSON or answer "
         "outside the tools."
     )

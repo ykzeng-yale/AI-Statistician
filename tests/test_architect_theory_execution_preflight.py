@@ -27,6 +27,7 @@ from ai_statistician.architect_metric_contract_authoring import (
 )
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT,
@@ -144,6 +145,7 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "exact document paths and line ranges" in protocol
     assert "Do not reproduce the candidate or write a substitute proof" in protocol
     assert "never author a replacement proof" in normalized_prompt
+    assert "Batch independent read-only searches or range reads" in normalized_prompt
     assert "First challenge unresolved risks" in (
         ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL[1]
     )
@@ -152,6 +154,10 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "case split must exhaust the asserted domain" in protocol
     assert "silently narrows scope" in protocol
     assert "cannot justify a broader active claim" in protocol
+    assert "Cite only line ranges returned by an exact read observation" in protocol
+    assert "without inventing line numbers" in protocol
+    assert "findings-first and concise" in protocol
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 42
 
 
 def test_source_acceptance_protocol_materializes_one_stable_boolean_abi() -> None:
@@ -2294,6 +2300,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "never promote a reviewer-supplied bridge" in source_tool_prompt
     assert "Do not write a replacement proof" in source_tool_prompt
     assert "compare each check with exact candidate lines" in source_tool_prompt
+    assert "batch independent read-only searches or range reads" in source_tool_prompt
+    assert "Keep scratch and report mutation separate" in source_tool_prompt
     assert "Before candidate-document access" not in str(
         backend.requests[0].messages[0]["content"]
     )
