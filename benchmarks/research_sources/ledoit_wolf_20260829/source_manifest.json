@@ -2,7 +2,7 @@
   "schema_version": 1,
   "snapshot_id": "ledoit-wolf-paper-to-code-public-sources-20260829-v1",
   "source_horizon": "2026-08-29",
-  "snapshot_hash": "04c137b78f39946cd7024db37fd1554894244e9fd01abace59953b1c8c97bd47",
+  "snapshot_hash": "32f1d89170684bb2cec46a09743d02d296c4b5788307e4694d976159f2177136",
   "source_root": "public_sources",
   "documents": [
     {
@@ -10,7 +10,7 @@
       "title": "Ledoit-Wolf linear covariance shrinkage method record",
       "source_kind": "paper_method_index",
       "relative_path": "ledoit_wolf_2004_method_record.md",
-      "sha256": "87253fdec8837bcab38d69b4b5165e74de664e3c2515ce84505d1e095b305a7d",
+      "sha256": "23b39e33325e24b770d23dd3173da71324acf2a729e68516872855f8e2b94178",
       "model_visible": true,
       "citation": "Ledoit and Wolf (2004), Journal of Multivariate Analysis 88(2):365-411",
       "url": "https://doi.org/10.1016/S0047-259X(03)00096-4",

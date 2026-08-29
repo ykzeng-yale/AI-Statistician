@@ -15,13 +15,30 @@ hidden benchmark cases, expected numerical results, or evaluator thresholds.
 
 ## Statistical object
 
-Let `x_1,...,x_n` be independent `p`-vectors with covariance `Sigma` and finite
-fourth moments. For a known zero mean use `z_k=x_k`; otherwise use
+The paper's exact finite-sample oracle analysis takes `x_1,...,x_n` to be
+independent mean-zero `p`-vectors with covariance `Sigma` and finite fourth
+moments, and uses
+
+```math
+S=\frac1n\sum_{k=1}^n x_kx_k^\top.
+```
+
+Thus `E[S]=Sigma` in that derivation. The executable task also supports unknown
+location. When `assume_centered=false`, it instead forms
 
 ```math
 z_k=x_k-\bar x,\qquad
-S=\frac1n\sum_{k=1}^n z_kz_k^\top.
+S_z=\frac1n\sum_{k=1}^n z_kz_k^\top
 ```
+
+and applies the same feasible shrinkage computation to `S_z`. This practical
+centering convention must not be silently inserted into the paper's exact
+finite-sample Pythagorean identity: under iid sampling with an unknown mean,
+`E[S_z]=(n-1)Sigma/n`, so the unbiasedness argument is no longer literal. Mean
+estimation may be asymptotically negligible in an appropriate regime, but that is
+different from an exact finite-sample equality. In the formulas below, `S` denotes
+the paper's mean-zero covariance unless the implementation-centered matrix `S_z`
+is named explicitly.
 
 The task deliberately uses the maximum-likelihood normalization `1/n`, not the
 unbiased `1/(n-1)` normalization. Define the normalized Frobenius inner product
@@ -83,7 +100,9 @@ equals its spherical target, so the returned covariance is unchanged.
 
 ## Equivalent matrix computation
 
-For a centered `n` by `p` data matrix `Z`, let `Z2` denote elementwise squares.
+For the `n` by `p` matrix `Z` actually supplied to the covariance computation
+(`Z=X` under known zero mean and `Z=X-1\bar x^\top` after sample centering), let
+`Z2` denote elementwise squares and write `S_Z=Z^\top Z/n`.
 The following scalar identities are useful for a vectorized implementation:
 
 ```math
@@ -92,14 +111,14 @@ D_0=\frac1{n^2}\sum_{i,j}(Z^\top Z)_{ij}^2,
 ```
 
 ```math
-m=\frac1p\operatorname{tr}(S),qquad
+m=\frac1p\operatorname{tr}(S_Z),\qquad
 \widetilde b^2
 =\frac1{pn}\left(\frac{B_0}{n}-D_0\right),
 ```
 
 ```math
 \hat d^2
-=\frac1p\left(D_0-2m\operatorname{tr}(S)+pm^2\right).
+=\frac1p\left(D_0-2m\operatorname{tr}(S_Z)+pm^2\right).
 ```
 
 These identities are mathematical input to the task, not hidden source code.
@@ -114,7 +133,9 @@ is at least `hat lambda*m`, so the estimate is positive definite even when `p>n`
 This statement does not imply strict positive definiteness when the shrinkage
 intensity is zero or all observations have zero scale.
 
-Centering makes the unknown-mean estimator translation invariant. Simultaneous
+Sample centering makes the unknown-mean implementation translation invariant,
+but it does not preserve the exact finite-sample unbiasedness premise used in the
+paper's oracle projection. Simultaneous
 positive rescaling of every entry scales the covariance by the square of the
 factor while leaving the dimensionless shrinkage intensity unchanged. Feature
 permutations conjugate the covariance by the same permutation and preserve the
