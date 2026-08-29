@@ -1,13 +1,23 @@
 {
-  "schema_version": 304,
+  "schema_version": 305,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "22673253",
+  "validated_code_head": "c70aa04a",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all one hundred one consumed draws and immutable artifacts at trustworthy full-task credit 7/101 while exact development-panel Lean closure remains 0/2. Task101 remains consumed at 0/1: its 441-line Markdown/LaTeX Theory received two direct independent-review rejections, and a third exact-Haiku same-owner revision repeated an unchanged rejected commit. Treat this as live evidence that the Codex-aligned retained harness and fail-closed boundary work while long-horizon Theory correctness remains unreliable; do not patch, rerun, resume, model-escalate, or encode an empirical-likelihood rule.",
+  "current_goal_focus": "Preserve all one hundred one consumed draws and immutable artifacts at trustworthy full-task credit 7/101 while exact development-panel Lean closure remains 0/2. Task101 remains consumed at 0/1. Its postmortem showed that a hash-verified referee report was still a secondary JSON workspace artifact while the first-read finding summary could retain prior wording. Commit c70aa04a makes the exact current report a content-addressed read-only document in the same file tools and keeps JSON as an index. Validate this only on a future disjoint frozen task; do not patch, rerun, resume, model-escalate, or encode an empirical-likelihood rule.",
+  "latest_task101_referee_document_transport_change": {
+    "mechanism_commit": "c70aa04a3778feb126a6dcd883f982cf6c66e354",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "trigger": "Task101's second independent Markdown report changed the exact current critique while the compact active-finding row retained the prior wording. The third TheoryDeveloper revision read that index and the theory document but never opened the exact second report, then twice attempted an unchanged commit.",
+    "change": "The exact hash-bound referee Markdown now enters TheoryDeveloper as a content-addressed read-only context document exposed through the existing read_theory_document and search_theory_documents tools. The model-facing JSON contains report path, SHA-256, line count, and compact finding identity only. Read-only context cannot be written or edited and is excluded from the authoritative theory manifest. Initial and revision prompts were shortened to model-owned scientific principles instead of content-level repair instructions.",
+    "codex_alignment": "This applies Codex's file-first, model-tool-observation pattern at the collaboration edge: substantive external text remains an inspectable file, the model chooses when and how to use it, and the harness enforces only immutability, identity, and authority boundaries.",
+    "non_adoption_boundary": "No Codex Core, App Server, Responses transport, thread manager, scheduler, agent, retry, fallback, repair layer, forced-read gate, mathematical rule, task-family branch, model escalation, Sonnet, or Opus was added.",
+    "verification": "Theory and Architect passed 94/94; related preflight and runtime tests passed 71/71; the final focused transport panel passed 87/87. The complete repository passed 1067/1067 in 80.97 seconds. Compileall, diff hygiene, task-specific production scanning, and the unchanged 150000-line production gate passed at 149994 lines. Verification used zero model or evaluator calls.",
+    "capability_boundary": "This is deterministic future-task harness evidence only. Task101 remains immutable at 0/1, aggregate trustworthy capability remains 7/101, and exact development-panel Lean closure remains 0/2."
+  },
   "latest_codex_natural_turn_harness_change": {
     "mechanism_commit": "22673253fad6adeaf5578cd34753b73ab00860e7",
     "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",

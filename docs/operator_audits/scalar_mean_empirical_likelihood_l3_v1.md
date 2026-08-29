@@ -32,7 +32,7 @@ The retained workspace mechanism behaved as designed:
 - TheoryDeveloper authored a 441-line Markdown/LaTeX document rather than a JSON math
   answer.
 - The first two checkpoints entered separate artifact-grounded reviewer sessions.
-- Both reviewers rejected, and each exact report returned directly to the same Theory
+- Both reviewers rejected, and each report was hash-verified for the same Theory
   workspace without an Architect model call, repair worker, or runtime-authored patch.
 - Progress recorded 40 TheoryDeveloper turns, 25 independent-referee turns, and one
   Architect planning call under their truthful workspace identities.
@@ -46,10 +46,13 @@ second scheduler.
 ## Decisive Failure
 
 Both referee reports found a blocking inconsistency in the asymptotic derivation. The
-third Theory revision read the workspace, read the exact documents, and ran scratch
-calculations. It then submitted `commit_theory_checkpoint` twice without a substantive
-document edit. Both submissions returned the same validation observation. The generic
-no-progress guard stopped the repeated action and preserved a recovery checkpoint.
+third Theory revision read the structured reviewer index, several ranges of the theory
+document, and scratch observations, but did not open the exact second referee Markdown.
+The index retained the prior finding wording while the current report localized the
+remaining contradiction differently. The model then submitted
+`commit_theory_checkpoint` twice without a substantive document edit. Both submissions
+returned the same validation observation. The generic no-progress guard stopped the
+repeated action and preserved a recovery checkpoint.
 
 The terminal classification is
 `theory_developer_packet_validation_failed`, with observation
@@ -75,6 +78,20 @@ task-specific rule. The scientifically honest conclusions are:
 4. Any future Theory improvement should be evaluated across disjoint tasks and should
    let the model choose claim-level falsification work; it must not encode an empirical-
    likelihood equation, expected conclusion, or benchmark-specific checklist.
+
+## Future-Task Harness Correction
+
+Commit `c70aa04a3778feb126a6dcd883f982cf6c66e354` makes the exact current
+referee Markdown a content-addressed read-only document in the existing Theory file
+tools. The JSON observation is now only a report/finding index. The report body is
+absent from the opening prompt and enters the retained source-owner session only after
+a model-selected file read; it cannot be edited and never enters the authoritative
+theory manifest. The revision prompt was shortened rather than supplemented with a
+content-level repair recipe or forced-read validator.
+
+This deterministic correction made zero model calls and does not alter this consumed
+draw. The full repository passed `1067/1067`; production Python remains under the
+unchanged 150,000-line gate at 149,994 lines.
 
 ## Evidence Hashes
 

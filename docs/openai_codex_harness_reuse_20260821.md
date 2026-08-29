@@ -1307,3 +1307,32 @@ with the exact `fc0e1da5...` document and no absolute model-visible path; it did
 not rerun or rescore the task. The focused panel passed `284/284`, the complete
 repository passed `907/907`, and the unchanged architecture budgets passed at
 24,998 runtime lines and 149,992 top-level production Python lines.
+
+### Exact referee documents after the one-hundred-first draw
+
+Task101 showed that the prior file-verification correction was necessary but not
+sufficient. The current report bytes were hash-bound, yet its Markdown body was a
+secondary structured-workspace artifact. The first object TheoryDeveloper read was a
+finding ledger whose stable row retained prior wording after the second referee report
+changed the exact current critique. The model read that index and theory ranges, never
+opened the current report, and twice attempted an unchanged commit. The consumed task
+remains `0/1`; this is transport evidence, not a diagnosis that the rejected mathematics
+would otherwise have passed.
+
+Commit `c70aa04a3778feb126a6dcd883f982cf6c66e354` completes the file-first
+boundary. `run_theory_artifact_workspace` now accepts generic read-only text documents
+through the same `read_theory_document` and `search_theory_documents` tools used for
+authoritative mathematics. Referee JSON carries only identity, severity/category,
+evidence references, document path, SHA-256, and line count. The exact report body is
+absent from the opening prompt, appears only after a model-selected file read, cannot be
+written or edited, and is excluded from the theory manifest.
+
+No read-count gate forces the model to inspect the report, and no report content is
+translated into a repair recipe. Initial and revision prompts were shortened to the
+scientific ownership and evidence principles that the harness must preserve. This is
+the useful Codex reuse boundary: stable generic tools, external files, raw observations,
+model-owned edits, and immutable authority, without Codex Core, App Server, Responses
+transport, another scheduler, retry, fallback, repair agent, task rule, or stronger
+model. The full repository passed `1067/1067` in 80.97 seconds; production Python passed
+the unchanged 150,000-line gate at 149,994 lines. Task101 and aggregate credit remain
+unchanged at `0/1` and `7/101`.
