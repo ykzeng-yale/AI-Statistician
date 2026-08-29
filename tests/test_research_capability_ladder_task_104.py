@@ -228,7 +228,7 @@ def test_bernoulli_lan_task104_is_consumed_after_its_only_product_draw() -> None
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 105
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 104
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 105
     assert readiness["fully_gold_configured_tasks"] == 105
     assert readiness["fully_gold_passed_tasks"] == 7

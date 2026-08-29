@@ -27,13 +27,17 @@ GOLD_ROOT = Path(
 GOLD_MANIFEST = GOLD_ROOT / "gold_manifest.json"
 TASK_ID = "tied_down_cusum_brownian_bridge_known_theory_rederivation"
 ACTIVATION_LEDGER = "dc349a4ac3f0e9884574a2f1c006d3dacc73ae00"
+RUN_DIR = Path(
+    "runs/main_worker_research_l3_cusum_brownian_bridge_theory_20260829_v1_"
+    "codex_workspace_exact_haiku"
+)
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_cusum_task105_is_frozen_before_its_only_product_draw() -> None:
+def test_cusum_task105_is_consumed_after_its_only_product_draw() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -51,9 +55,10 @@ def test_cusum_task105_is_frozen_before_its_only_product_draw() -> None:
 
     assert candidate["level"] == "L3"
     assert candidate["family"] == "iid_location_change_functional_cusum"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "preactivated_frozen_pre_first_exact_haiku_draw"
+        "fresh_live_v1_consumed_exact_haiku_runtime_accepted_"
+        "hidden_theory_semantic_failed"
     )
     assert candidate["task_intent"] == {
         "source_replication": "not_applicable",
@@ -149,23 +154,106 @@ def test_cusum_task105_is_frozen_before_its_only_product_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 16
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["activation_ledger_commit"] == ACTIVATION_LEDGER
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["single_fresh_draw_only"] is True
-    assert evidence["planned_runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
+    assert evidence["product_code_head"] == (
+        "453e7146cda57640c62d9630358a7a3c7297718d"
+    )
+    assert evidence["runtime_product_model_calls"] == 49
+    assert evidence["runtime_client_tool_model_turns"] == 49
+    assert evidence["runtime_direct_model_calls"] == 0
+    assert evidence["runtime_client_tool_executions"] == 58
+    assert evidence["runtime_client_tool_errors"] == 6
+    assert evidence["runtime_model_calls_by_workspace"] == {
+        "TheoryDeveloper": 11,
+        "ArchitectMetricSemanticReviewer": 18,
+        "CriticEvaluator": 20,
+    }
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_outer_graph_iterations"] == 3
+    assert evidence["runtime_same_owner_workspace_continuations"] == 0
+    assert evidence["runtime_mode_conformant"] is True
+    assert evidence["runtime_research_eval_complete"] is True
+    assert evidence["runtime_serious_theory_completed"] is True
+    assert evidence["runtime_theory_preexecution_review_accepted"] is True
+    assert evidence["runtime_critic_research_acceptance"] is True
+    assert evidence["theory_document_sha256"] == (
+        "a3ccebb881a51fd10fb30e4ba0a8dbd12b3d9201a72d9a66de57072750c9431b"
+    )
+    assert evidence["referee_report_sha256"] == (
+        "a96f927339934d9b78ae0fd67ccdfcd60c9bfc8e87159b6c83d23c84abe39234"
+    )
+    assert evidence["sole_hidden_assessment_invocations"] == 1
+    assert evidence["hidden_gold_tasks_evaluated"] == 1
+    assert evidence["hidden_evaluator_model_calls"] == 2
+    assert evidence["hidden_theory_mechanical_checks_passed"] == "7/7"
+    assert evidence["hidden_theory_semantic_claims_satisfied"] == 5
+    assert evidence["hidden_theory_semantic_claims_violated"] == 2
+    assert evidence["hidden_theory_semantic_claims_inconclusive"] == 1
+    assert evidence["hidden_theory_semantic_passed"] is False
+    assert evidence["runtime_feedback_generated"] is False
+    assert evidence["operator_disposition"] == "FAILED"
+    assert Path(evidence["operator_audit"]).is_file()
     assert evidence["automatic_tier_escalation_allowed"] is False
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["automated_full_task_passed"] is False
+    assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_activation"] == "7/104"
     assert evidence["ladder_score_after_activation"] == (
         "7/105 with one frozen unconsumed task"
     )
+    assert evidence["ladder_score_after_consumption"] == "7/105"
+
+    expected_runtime_hashes = {
+        "tied_down_cusum_brownian_bridge_known_theory_rederivation_runtime_result.json": (
+            "b5728c88984cefd69d46ed12badbfdd6b1d963ca4cf7167d6c7260eb568e42a9"
+        ),
+        "research_agent_runtime_manifest.json": (
+            "f44a4a60fc27c3603732de276ffe949c4b50ff50900db92cd48c0ddd5dbfae9c"
+        ),
+        "research_capability_gold_evaluation.json": (
+            "2b5990882ff49bb2d2995482ef9148d7969f8c376679959310cb3fdd17ac7957"
+        ),
+        "runtime_completion_summary.json": (
+            "5f8d99cfe4de1bceb07b428bc91e22cfb93cfec68d37e1b3fbcb5fe5e2ae6b4c"
+        ),
+        "runtime_failure_summary.json": (
+            "24cb04a35027713ddc327549df51ae6eeb6939955b1649c1b2c05b34e73c0ac6"
+        ),
+        "runtime_llm_topology.json": (
+            "b5b107b4a68b017114f674089fa87b3d41b5de91401d29eaaf01aaf19980ed48"
+        ),
+        "runtime_progress.jsonl": (
+            "186ad1314d79186d53907abfe18bd5cd3e7e2d168d5084254b301916e19f0824"
+        ),
+    }
+    for name, expected_hash in expected_runtime_hashes.items():
+        assert _sha256(RUN_DIR / name) == expected_hash
+
+    assessment = json.loads(
+        (RUN_DIR / "research_capability_gold_evaluation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    task_assessment = assessment["tasks"][0]
+    assert assessment["n_tasks_evaluated"] == 1
+    assert assessment["n_tasks_passed"] == 0
+    assert assessment["all_active_tasks_passed"] is False
+    assert assessment["runtime_feedback_generated"] is False
+    assert task_assessment["hidden_theory_execution_passed"] is True
+    assert task_assessment["hidden_theory_semantic_candidate_model_calls"] == 2
+    assert task_assessment["hidden_theory_semantic_passed"] is False
+    assert task_assessment["task_passed"] is False
 
     runtime_visible = json.dumps(
         {"candidate": candidate, "question": visible_question}, sort_keys=True
@@ -182,7 +270,7 @@ def test_cusum_task105_is_frozen_before_its_only_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 105
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 104
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 105
     assert readiness["fully_gold_configured_tasks"] == 105
     assert readiness["fully_gold_passed_tasks"] == 7
