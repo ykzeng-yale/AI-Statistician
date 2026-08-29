@@ -4911,3 +4911,31 @@ authority, or Lean kernel evidence.
 The shared panel passed 157/157 and the final complete repository passed 1074/1074
 in 80.83 seconds with zero model or hidden-evaluator calls. Task104 remains immutable
 0/1; the mechanism change is future-task evidence only.
+
+### Turn-specific Theory handoff exposure
+
+Commit `8c0dd57d` closes the remaining model-visible contract asymmetry without adding
+another interface. The existing `write_theory_workspace` specification is now built
+from the writable artifacts selected for the current task. Its `artifact_name` field
+is an exact enum rather than an arbitrary string, and the same tool description names
+the canonical claim kinds, claim statuses, and sanity statuses enforced by runtime.
+An unknown name also returns the exact allowed set to the retained source owner.
+
+This follows Codex `spec_plan` and registry ownership more closely: the tool surface
+describes capabilities executable in that turn. It is not a new planner or repair
+path. A theory-only task sees only `problem_card` and `theory_derivation_packet`; a
+formal or empirical task sees additional handoffs only when its frozen intent
+requires them. The Markdown/LaTeX document remains mathematical authority, while the
+structured values remain a compact cross-agent index and executable ABI.
+
+The same audit found no corresponding change to make in the other source-owning
+loops. Scientific coding already exposes exact Python/R language, sandbox profile,
+dependency, entrypoint, edit, run, commit, and dependency-handoff contracts. Lean
+already exposes source submission/editing, scratch compilation, formal-environment
+and proof search, proof-state/declaration inspection, and explicit formal-gap tools.
+Both return raw execution observations to the same retained model session.
+
+The Theory panel passed 94/94 and the final complete repository passed 1074/1074 in
+81.32 seconds with zero model or evaluator calls. Production Python remains below the
+existing regression budget at 149998 lines. Task104 is not rerun or rescored; only a
+future disjoint pre-frozen task may measure the behavior.

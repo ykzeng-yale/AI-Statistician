@@ -1,13 +1,24 @@
 {
-  "schema_version": 311,
+  "schema_version": 312,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "9bf3a789",
+  "validated_code_head": "8c0dd57d",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all one hundred four consumed draws and immutable artifacts at trustworthy full-task credit 7/104 while exact development-panel Lean closure remains 0/2. Task104 is closed at 0/1: it demonstrated a real persistent Markdown/LaTeX TheoryDeveloper-referee-revision loop, then failed on an undiscoverable structured-handoff enum; the sole post-runtime assessment also failed before hidden candidate evaluation because the operator bypassed persisted-result hydration. Shared future-task contracts are fixed without LAN content, retry, fallback, or another scheduler. Select no new scored task until a disjoint visible scope and hidden authority are frozen before any product call.",
+  "current_goal_focus": "Preserve all one hundred four consumed draws and immutable artifacts at trustworthy full-task credit 7/104 while exact development-panel Lean closure remains 0/2. The existing Theory write tool now exposes the exact current writable handoff names and canonical index enums before a call, matching the already model-actionable scientific-code and Lean workspaces without adding a tool, retry, repair, or scheduler. Select one disjoint next task only after its visible scope and external hidden authority are frozen and independently qualified before any product call.",
+  "latest_codex_turn_specific_theory_tool_plan": {
+    "mechanism_commit": "8c0dd57d25b8b18818e0ca0c5a81c2e3315291da",
+    "official_codex_reference_head": "b8c86376a258e55efc8e5ecfbabc21c16c07d814",
+    "trigger": "Task104 repeatedly guessed hidden structured-handoff states. Post-run errors now name allowed values, but the Theory write tool still advertised every artifact name as an unconstrained string and omitted its canonical index vocabulary before the call.",
+    "cross_workspace_audit": "Scientific-code already exposes exact Python/R language, profile, dependency, entrypoint, edit, run, commit, and dependency-handoff schemas. Lean already exposes submit, edit, scratch, environment search, proof search, state/declaration inspection, and formal-gap schemas. Both return raw environment observations to the same source owner. Only Theory retained a generic write surface.",
+    "change": "The existing write_theory_workspace tool is built from live task capability: artifact_name is an enum of only the currently writable handoffs, and the tool description carries the single canonical claim-kind, claim-status, and sanity-status vocabulary owned by the workspace contract. Unknown names also return their exact allowed values.",
+    "codex_alignment": "This selectively adopts Codex spec_plan and registry ownership: model-visible capabilities are derived from the executable tools registered for that turn. The existing retained Anthropic client-tool session, AgentRuntime, independent referee, and evidence boundaries remain authoritative.",
+    "non_adoption_boundary": "No new tool, agent, model call, retry, content repair, fallback, router, scheduler, Codex Core, App Server, Responses transport, LAN formula, statistical rule, Lean grammar rule, Sonnet, or Opus was added.",
+    "verification": "The complete TheoryDeveloper and Theory workspace panel passed 94/94. The final complete repository passed 1074/1074 in 81.32 seconds; compileall and diff hygiene passed, with production Python at 149998 lines. Verification made zero model or hidden-evaluator calls and did not rerun any consumed task.",
+    "capability_boundary": "This proves only a deterministic future-task harness contract. Task104 remains immutable 0/1, aggregate trustworthy capability remains 7/104, and exact development-panel Lean closure remains 0/2."
+  },
   "latest_bernoulli_lan_task104_evaluation": {
     "task_id": "bernoulli_local_alternatives_lan_known_theory_rederivation",
     "family": "local_asymptotic_binary_experiments",
