@@ -4,6 +4,7 @@
 
 - Task: `statlib_measure_constant_kernel_embedding_formal_known_result`
 - Frozen product code HEAD: `a892ecef72a889f8ae6d55f9410ae2d0d595beed`
+- Closeout evidence commit: `47a835bc6cf5c68b50767fc986b1ba234c548bdd`
 - Run: `runs/main_worker_research_l0_statlib_kernel_embedding_formal_20260829_v1_codex_direct_exact_haiku`
 - Product runtime status: `ACCEPTED`
 - Frozen automated full-task result: `1/1`

@@ -10024,7 +10024,7 @@
         "candidate_materialization_manifest_sha256": "6963cc88c503a688090cfcc1533c57f2205b57ed4ad98eb58571472223f1cea0",
         "post_run_shared_mechanism_change": "none; the retained Formalizer session, raw Statlib search and Lean feedback, independent target review, and exact kernel gate succeeded without a theorem rule, repair worker, retry, fallback, model escalation, or imported Codex control plane",
         "operator_audit": "docs/operator_audits/statlib_kernel_embedding_formal_l0_v1.md",
-        "closeout_evidence_commit": "pending_binding_commit",
+        "closeout_evidence_commit": "47a835bc6cf5c68b50767fc986b1ba234c548bdd",
         "automated_full_task_passed": true,
         "full_task_passed": true,
         "trusted_capability_credit": true,

@@ -45,6 +45,7 @@
     "hidden_boundary_audit": "The visible prefix left a canonical constructor proof after active Statlib retrieval. Zero evaluator-only paths, hidden filenames, gold hashes, or hidden contents occurred in run artifacts or model observations; the evaluator records hidden_expected_values_disclosed=false and runtime_feedback_generated=false. Byte equality is retained as an explicit observation and is not claimed as broad proof generalization.",
     "runtime_manifest_sha256": "620c233ee8861c0d75b68bfdd142d28f34c8c82e960b730a030367d325a6b069",
     "gold_evaluation_sha256": "6aacb81c6d3728fab811cf64dce4bdaee11fb0f728e63ef5d7553d037f29728c",
+    "closeout_evidence_commit": "47a835bc6cf5c68b50767fc986b1ba234c548bdd",
     "operator_audit": "docs/operator_audits/statlib_kernel_embedding_formal_l0_v1.md",
     "verification": "Closeout ladder tests passed 89/89; the exact model-policy, formal-authority, and shared tool-loop panel passed 72/72; the complete repository passed 1043/1043 in 81.21 seconds. No closeout test made a product/evaluator model call or reran the consumed draw.",
     "trusted_capability_credit": "1/1; aggregate is now 6/91 consumed",

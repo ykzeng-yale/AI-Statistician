@@ -139,6 +139,9 @@ def test_statlib_kernel_embedding_l0_records_sole_kernel_closed_draw() -> None:
     assert evidence["gold_evaluation_sha256"] == (
         "6aacb81c6d3728fab811cf64dce4bdaee11fb0f728e63ef5d7553d037f29728c"
     )
+    assert evidence["closeout_evidence_commit"] == (
+        "47a835bc6cf5c68b50767fc986b1ba234c548bdd"
+    )
     assert evidence["automated_full_task_passed"] is True
     assert evidence["full_task_passed"] is True
     assert evidence["trusted_capability_credit"] is True
