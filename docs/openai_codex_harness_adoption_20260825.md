@@ -4854,3 +4854,60 @@ than Codex's preferred module boundaries. The right future migration is to let t
 existing source owner manipulate a file-backed workspace and to extract existing
 ownership modules from the sole runtime. Adding Codex as a sidecar, another tool
 router, or another scheduler would postpone rather than solve those problems.
+
+### Post-Task-104: model-actionable contracts and one persisted-state boundary
+
+The public remote was fetched again on 2026-08-29 at
+[`b8c86376`](https://github.com/openai/codex/commit/b8c86376a258e55efc8e5ecfbabc21c16c07d814).
+The relevant upstream design remains selective and small:
+
+- [`spec_plan.rs`](https://github.com/openai/codex/blob/b8c86376a258e55efc8e5ecfbabc21c16c07d814/codex-rs/core/src/tools/spec_plan.rs)
+  constructs the model-visible tool plan from the capabilities registered for the
+  current turn; its tests separately assert visible and executable registries.
+- [`run_turn`](https://github.com/openai/codex/blob/b8c86376a258e55efc8e5ecfbabc21c16c07d814/codex-rs/core/src/session/turn.rs)
+  retains the model context across model-selected tools and their observations.
+- [`parallel.rs`](https://github.com/openai/codex/blob/b8c86376a258e55efc8e5ecfbabc21c16c07d814/codex-rs/core/src/tools/parallel.rs)
+  returns model-actionable tool failures as observations in that same turn.
+- [`4210c08d`](https://github.com/openai/codex/commit/4210c08defe92fe8828f789b6f9fda287ad3709e)
+  preserves trusted turn lineage across automatic continuations, while
+  [`f5636bb7`](https://github.com/openai/codex/commit/f5636bb733c4653a6b91413fed1aaf8842374f2e)
+  restores only settings snapshots owned by the resumed thread.
+
+Task104 exercised the corresponding AI Statistician path at long horizon: 80 retained
+TheoryDeveloper turns, 16 isolated referee turns, and 95 tool executions. The referee
+caught a real likelihood-expansion scaling error, and the exact finding returned to
+the same source owner. The owner revised the persistent Markdown workspace. It then
+failed for a harness reason: the validator repeatedly said `invalid status` without
+naming the actual handoff enum. More budget, another agent, or a repair controller
+would only repeat an undiscoverable ABI.
+
+Future-task mechanism commit `36a3dbbe` therefore changes the existing observation,
+not the research controller. Invalid claim kind/status and sanity status now report
+the exact canonical allowed values plus the received value. The model remains the
+only author of the handoff and mathematics; runtime neither maps a guessed status nor
+edits content.
+
+The same task exposed a persisted-state ownership defect. Content-addressed runtime
+results were loadable only through a private CLI helper, so an operator passed raw
+`RuntimeArtifactRef` rows to the in-memory evaluator and the sole assessment failed
+closed before hidden candidate evaluation. `AgentRuntime` now owns one public loader
+used by both resume and post-runtime evaluation. It verifies the artifact-store index,
+reference identity, declared hash algorithm, payload hash, and payload kind before
+hydration. The consumed assessment is not rerun.
+
+Follow-up `9bf3a789` resolves relative persisted paths from the result directory
+through its ancestors. State reconstruction therefore follows result lineage rather
+than the operator's current working directory. This is path ownership, not another
+artifact layer.
+
+This is the useful Codex combination: truthful tool exposure, model-actionable raw
+feedback, retained owner context, explicit continuation lineage, and one verifiable
+state-reconstruction path. Codex Core, App Server, Responses transport, OpenAI model
+state, thread/worktree management, Guardian, and Codex's multi-agent scheduler remain
+excluded. They would duplicate the sole Anthropic-backed AgentRuntime and would not
+provide statistical semantics, blinded empirical authority, independent referee
+authority, or Lean kernel evidence.
+
+The shared panel passed 157/157 and the final complete repository passed 1074/1074
+in 80.83 seconds with zero model or hidden-evaluator calls. Task104 remains immutable
+0/1; the mechanism change is future-task evidence only.

@@ -109,10 +109,8 @@ def _runtime_stored_path(raw_path: str, *, base_dir: Path) -> Path | None:
     if not raw_path:
         return None
     path = Path(raw_path)
-    candidates = (
-        (path,)
-        if path.is_absolute()
-        else tuple(parent / path for parent in (base_dir, *base_dir.parents))
+    candidates = (path,) if path.is_absolute() else tuple(
+        parent / path for parent in (base_dir, *base_dir.parents)
     )
     return next((candidate for candidate in candidates if candidate.exists()), None)
 
