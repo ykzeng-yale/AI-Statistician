@@ -160,3 +160,13 @@ rewrite source, infer a repair, add a retry budget, or change this consumed scor
 The evaluator records `hidden_expected_values_disclosed=false` and
 `runtime_feedback_generated=false`. A product-artifact leak scan is recorded as
 zero matches.
+
+## Verification
+
+Focused shared client-tool, scientific workspace, Theory, Lean, and preflight
+regressions passed `196/196`. Ladder and closeout regressions passed `97/97`. The
+complete repository passed `1059/1059` in 80.83 seconds. Compileall, JSON parsing,
+diff hygiene, credential scanning, hidden-authority path scanning, task-specific
+production-diff scanning, and the unchanged 150,000-line production gate passed at
+149,950 lines; `research_agent_runtime.py` remained 24,973 lines. No verification
+command made a product or evaluator model call or reran Task 99.

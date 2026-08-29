@@ -4599,6 +4599,9 @@ product-model or evaluator-model call or reran a consumed task.
 
 ### Task 99: prefer the smallest provider-native edit surface
 
+Future-task mechanism commit:
+`7f87e4e3fb5321387ae3ab078e96167a7ca7d5cb`.
+
 The official OpenAI Codex checkout was fetched again on 2026-08-29. Local `HEAD`
 and `origin/main` are both
 `6478a751fde8884b2fdc76486fe23175a8e795d4`. Its freeform
@@ -4670,3 +4673,9 @@ transport, thread/worktree persistence, shell policy, Guardian, hooks, and its
 multi-agent scheduler remain excluded because adding them beside `AgentRuntime`
 would create a second control plane without adding statistical reasoning, empirical
 blinding, or Lean kernel authority.
+
+Focused cross-workspace regressions passed `196/196`, ladder regressions passed
+`97/97`, and the complete repository passed `1059/1059` in 80.83 seconds. Compileall,
+JSON/diff hygiene, credential and hidden-authority scans, production task-specific
+scanning, and the unchanged 150,000-line gate passed at 149,950 lines. No model,
+evaluator, benchmark, or consumed task was invoked by the mechanism verification.

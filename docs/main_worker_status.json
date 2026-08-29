@@ -1,13 +1,13 @@
 {
-  "schema_version": 299,
+  "schema_version": 300,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "2a988ca8",
+  "validated_code_head": "7f87e4e3",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all ninety-nine consumed draws and immutable artifacts at trustworthy full-task credit 7/99 while exact development-panel Lean closure remains 0/2. Task99 is consumed at 0/1 after one exact-Haiku draw and one hidden assessment. Its durable Markdown/LaTeX Theory workspace worked mechanically, but theory semantics, explicit Algorithm commit, accepted handoff, confirmatory simulation, reviewer scope, and unresolved-gap disclosure failed. Correct only shared future-task source-owner ergonomics; never repair or rescore Task99.",
+  "current_goal_focus": "Preserve all ninety-nine consumed draws and immutable artifacts at trustworthy full-task credit 7/99 while exact development-panel Lean closure remains 0/2. Task99 is consumed at 0/1 after one exact-Haiku draw and one hidden assessment. Its durable Markdown/LaTeX Theory workspace worked mechanically, but theory semantics, explicit Algorithm commit, accepted handoff, confirmatory simulation, reviewer scope, and unresolved-gap disclosure failed. Shared future-task scientific edit ergonomics are corrected at 7f87e4e3 without rerun or rescore; next work must target scientific capability, not another transport layer.",
   "latest_ledoit_wolf_l2_evaluation": {
     "task_id": "ledoit_wolf_linear_shrinkage_paper_to_code",
     "family": "high_dimensional_covariance_shrinkage",
@@ -31,8 +31,34 @@
     "operator_audit": "docs/operator_audits/ledoit_wolf_linear_shrinkage_l2_v1.md",
     "closeout_evidence_commit": "4b0ca7a6c96d156d59554802225331dc25bdfeb7",
     "trusted_capability_credit": "0/1; aggregate remains 7/99",
-    "next_shared_change": "For future disjoint tasks only, replace the scientific source tool's nested edits-array transport with one flat exact replacement per call. Preserve explicit model run and commit; add no covariance rule, repair parser, retry, fallback, scheduler, model escalation, or consumed-task rerun.",
+    "post_run_shared_mechanism_commit": "7f87e4e3fb5321387ae3ab078e96167a7ca7d5cb",
+    "verification": "Focused shared workspace regressions passed 196/196; ladder and closeout regressions passed 97/97; the complete repository passed 1059/1059 in 80.83 seconds; compileall, JSON, diff, credential, hidden-authority, task-specific production-diff, and unchanged size checks passed at 149950 production Python lines and 24973 research_agent_runtime.py lines. No verification call used a model or reran Task99.",
+    "next_shared_change": "Implemented for future tasks only: scientific source editing now accepts one flat exact replacement per call while preserving explicit model run and commit. Add no covariance rule, repair parser, retry, fallback, scheduler, model escalation, or consumed-task rerun.",
     "boundary": "The one product draw and one post-runtime hidden assessment are consumed. Hidden authority generated no runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, or model-escalate Task99."
+  },
+  "latest_codex_scientific_edit_transport_correction": {
+    "mechanism_commit": "7f87e4e3fb5321387ae3ab078e96167a7ca7d5cb",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "trigger": "Task99 AlgorithmEngineer successfully executed a model-authored source, then repeatedly encoded the nested edits array as a JSON string. Runtime correctly rejected the malformed transport and did not decode or repair it, but the source owner never reached explicit commit.",
+    "change": "Only the Python/R scientific source edit tool now accepts one top-level old_text/new_text replacement with optional expected_occurrences. Multiple replacements use multiple ordinary calls. Theory, metric, and Lean edit tools remain unchanged because this draw did not establish them as blockers.",
+    "codex_alignment": "Official Codex exposes one direct freeform apply_patch action. Anthropic function tools do not expose that custom grammar, so the smallest provider-native equivalent is a flat exact replacement, not another patch parser or scheduler.",
+    "preserved_surfaces": [
+      "same source-owning model and retained transcript",
+      "exact byte matching and raw rejection observations",
+      "separate run_current_scientific_source execution",
+      "explicit commit_scientific_source after accepted execution",
+      "independent semantic review and content-addressed handoff"
+    ],
+    "excluded_changes": [
+      "JSON-string decoding or malformed-input repair",
+      "scientific or task-family rules",
+      "extra model call, retry, fallback, agent, or scheduler",
+      "Codex Core, App Server, provider transport, thread storage, or worktree management",
+      "Task99 rerun, resume, reevaluation, rescore, or model escalation"
+    ],
+    "verification": "196 shared client-tool, scientific workspace, Theory, Lean, and preflight regressions passed; 97 ladder regressions passed; the complete repository passed 1059/1059 in 80.83 seconds. Compileall, JSON parsing, diff hygiene, credential and hidden-authority scans, task-specific production-diff scanning, and the unchanged 150000-line gate passed at 149950 lines with research_agent_runtime.py at 24973 lines.",
+    "model_and_evaluator_calls": 0,
+    "capability_boundary": "This is deterministic future-task harness evidence only. Task99 remains immutable at 0/1 and aggregate trusted capability remains 7/99."
   },
   "latest_gaussian_mixture_em_l0_evaluation": {
     "task_id": "gaussian_mixture_em_monotonicity_known_result",

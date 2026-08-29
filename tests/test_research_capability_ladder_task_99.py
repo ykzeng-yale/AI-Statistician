@@ -125,6 +125,10 @@ def test_ledoit_wolf_l2_consumed_result_is_immutable() -> None:
     assert evidence["runtime_feedback_generated"] is False
     assert evidence["operator_disposition"] == "FAILED"
     assert evidence["closeout_evidence_commit"] == CLOSEOUT_COMMIT
+    assert evidence["post_run_shared_mechanism_commit"] == (
+        "7f87e4e3fb5321387ae3ab078e96167a7ca7d5cb"
+    )
+    assert "1059/1059" in evidence["verification"]
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False

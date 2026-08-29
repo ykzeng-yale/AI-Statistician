@@ -98,5 +98,5 @@ def test_pingouin_rmcorr_l1_provider_environment_failure_is_consumed() -> None:
     assert readiness["fully_gold_configured_tasks"] == 99
     assert readiness["fully_gold_passed_tasks"] == 7
     assert readiness["latest_shared_mechanism_head"] == (
-        "2a988ca8a86030d90e790530db22ea38138f3259"
+        "7f87e4e3fb5321387ae3ab078e96167a7ca7d5cb"
     )
