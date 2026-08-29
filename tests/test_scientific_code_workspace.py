@@ -393,28 +393,28 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
                     "ambiguous-edit",
                     SCIENTIFIC_SOURCE_EDIT_TOOL,
                     {
-                        "edits": [{
-                            "old_text": "missing_name",
-                            "new_text": "1",
-                        }],
+                        "old_text": "missing_name",
+                        "new_text": "1",
                     },
                 )
             ),
             _response(
                 ClientToolCall(
-                    "edit-both-spans",
+                    "edit-first-span",
                     SCIENTIFIC_SOURCE_EDIT_TOOL,
                     {
-                        "edits": [
-                            {
-                                "old_text": "    value = missing_name\n",
-                                "new_text": "    value = 1\n",
-                            },
-                            {
-                                "old_text": "    return value + missing_name\n",
-                                "new_text": "    return value\n",
-                            },
-                        ],
+                        "old_text": "    value = missing_name\n",
+                        "new_text": "    value = 1\n",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "edit-second-span",
+                    SCIENTIFIC_SOURCE_EDIT_TOOL,
+                    {
+                        "old_text": "    return value + missing_name\n",
+                        "new_text": "    return value\n",
                     },
                 )
             ),
@@ -440,7 +440,7 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=4,
+        max_turns=5,
         max_no_progress_turns=3,
         artifact_id="question:exact-scientific-edit",
         initial_code_draft=initial,
@@ -454,24 +454,37 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
 
     assert dict(result.code_draft) == revised
     assert checked == [revised]
-    assert result.evidence["source_updates"] == 1
+    assert result.evidence["source_updates"] == 2
     assert result.evidence["runtime_edited_source"] is False
     assert "observed 2 matches" in str(backend.requests[1].messages)
-    applied = json.loads(
+    first_applied = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
-    assert applied["source_action"] == "atomic_exact_text_edits"
-    assert applied["edit_metadata"]["n_edits"] == 2
-    assert [row["old_text_chars"] for row in applied["edit_metadata"]["edits"]] == [
-        len("    value = missing_name\n"),
-        len("    return value + missing_name\n"),
-    ]
+    second_applied = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert first_applied["source_action"] == "atomic_exact_text_edits"
+    assert second_applied["source_action"] == "atomic_exact_text_edits"
+    assert first_applied["edit_metadata"]["n_edits"] == 1
+    assert second_applied["edit_metadata"]["n_edits"] == 1
+    assert first_applied["edit_metadata"]["edits"][0]["old_text_chars"] == len(
+        "    value = missing_name\n"
+    )
+    assert second_applied["edit_metadata"]["edits"][0]["old_text_chars"] == len(
+        "    return value + missing_name\n"
+    )
     edit_schema = next(
         tool.input_schema
         for tool in backend.requests[0].tools
         if tool.name == SCIENTIFIC_SOURCE_EDIT_TOOL
     )
-    assert edit_schema["required"] == ["edits"]
+    assert edit_schema["required"] == ["old_text", "new_text"]
+    assert set(edit_schema["properties"]) == {
+        "old_text",
+        "new_text",
+        "expected_occurrences",
+    }
+    assert "edits" not in edit_schema["properties"]
 
 
 def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
@@ -1828,16 +1841,16 @@ def test_scientific_workspace_commits_within_explicit_turn_budget() -> None:
         [
             _response(
                 ClientToolCall(
-                    call_id="empty-edit-first",
+                    call_id="legacy-encoded-edit-first",
                     name=SCIENTIFIC_SOURCE_EDIT_TOOL,
-                    input={"edits": []},
+                    input={"edits": "[]"},
                 )
             ),
             _response(
                 ClientToolCall(
-                    call_id="empty-edit-duplicate",
+                    call_id="legacy-encoded-edit-duplicate",
                     name=SCIENTIFIC_SOURCE_EDIT_TOOL,
-                    input={"edits": []},
+                    input={"edits": "[]"},
                 )
             ),
             _commit_response("reserved-commit"),
@@ -1874,6 +1887,9 @@ def test_scientific_workspace_commits_within_explicit_turn_budget() -> None:
     assert backend.requests[-1].metadata[
         "client_tool_loop_terminal_only_turn"
     ] is False
+    assert "requires top-level old_text and new_text" in str(
+        backend.requests[1].messages
+    )
     assert "Ordinary actions are complete" not in str(
         backend.requests[-1].messages[-1]
     )

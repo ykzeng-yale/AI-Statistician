@@ -4596,3 +4596,77 @@ repository passed `1054/1054` in 81.00 seconds. Compileall, JSON/diff hygiene,
 credential and task-specific production-diff scanning, hidden-leak scanning, and the
 unchanged 150,000-line production gate passed at 149,997 lines. No check made a
 product-model or evaluator-model call or reran a consumed task.
+
+### Task 99: prefer the smallest provider-native edit surface
+
+The official OpenAI Codex checkout was fetched again on 2026-08-29. Local `HEAD`
+and `origin/main` are both
+`6478a751fde8884b2fdc76486fe23175a8e795d4`. Its freeform
+[`apply_patch`](https://github.com/openai/codex/blob/6478a751fde8884b2fdc76486fe23175a8e795d4/codex-rs/core/src/tools/handlers/apply_patch_spec.rs)
+still gives the coding model one direct grammar-constrained source action. Codex's
+collaboration and compaction implementation also keeps each worker's retained
+conversation separate, exchanges explicit messages or external state, and treats
+read-only concurrency differently from mutation. These are harness invariants, not
+reasons to import Codex's scheduler or provider stack.
+
+The sole frozen Ledoit-Wolf draw confirms both the value and the limit of that
+approach. One TheoryDeveloper maintained a 454-line Markdown/LaTeX workspace, used
+source and scratch tools, and explicitly committed. One AlgorithmEngineer authored
+and successfully executed Python. One SimulationEngineer authored and executed a
+separate source. All 70 product model turns used exact Haiku in retained sessions,
+with raw observations returned to the same owners. No RepairAgent, fallback, second
+scheduler, model escalation, or Lean lane ran.
+
+Scientific quality still failed. The theory document double-applied the `n^2`
+normalization in its displayed matrix derivation, abandoned the proof while retaining
+the final formula, and overstated exploratory numerical evidence. The isolated
+preflight missed this. Algorithm source did not reach explicit commit. Simulation
+had no accepted Algorithm handoff, while its reviewer nevertheless overclaimed that
+the Simulation artifact established estimator identity and every ABI invariant.
+The post-runtime calibrated authority correctly failed theory semantics, and the full
+task remains consumed at `0/1`; aggregate trusted capability is `7/99`.
+
+The live Algorithm transcript identifies one shared interface tax. The existing
+scientific edit tool expected a nested `edits[]` array. Exact Haiku repeatedly
+supplied the intended array as a JSON-encoded string, received the raw schema error,
+and made no progress. Parsing that string would be a repair fallback. Importing
+Codex's freeform grammar is not available through Anthropic function tools and would
+add a second patch transport.
+
+For future tasks only, Python/R source editing therefore uses one flat provider-
+native call with top-level `old_text`, `new_text`, and optional
+`expected_occurrences`. Multiple replacements use multiple ordinary calls. Runtime
+still performs only exact byte matching, never interprets source, never executes on
+edit, and never commits automatically. The same source-owning model must run the
+complete bytes, read raw sandbox feedback, and explicitly commit before independent
+review and content-addressed handoff.
+
+This correction deliberately does not migrate Theory, metric, or Lean batch editors
+without live evidence that their current surface is the blocker. It adds no
+Ledoit-Wolf formula, statistical grammar, source decoder, repair route, retry budget,
+reviewer vote, fallback, Architect branch, extra agent, or model escalation. Task 99
+cannot be rerun, resumed, repaired, reevaluated, or rescored.
+
+The broader collaboration mapping remains:
+
+- Theory owns durable Markdown/LaTeX claims and derivations; Python/R scratch is a
+  direct theory tool, not empirical authority.
+- Algorithm and Simulation each own executable files and raw environment loops.
+  Simulation consumes an accepted Algorithm `ArtifactRef`; it does not regenerate the
+  estimator or ask Architect to repair ordinary source errors.
+- Lean owns one file/project/compiler loop after a theorem statement is stable. Its
+  kernel result is a separate evidence dimension and is optional unless task intent
+  requires formal closure.
+- Independent reviewers inspect immutable source identities and report findings only.
+  They do not route work, mutate source, or expand their authority to another lane.
+- Architect selects task intent, resolves genuine cross-lane conflicts, and stops the
+  research graph. It is not a message bus for ordinary edits, execution failures, or
+  compiler diagnostics.
+
+That is the useful combination with Codex: model-owned retained workspaces, small
+stable tools, raw observations, explicit state transitions, sparse artifact
+collaboration, and verifier-owned authority. Codex Core, App Server, Responses
+transport, thread/worktree persistence, shell policy, Guardian, hooks, and its
+multi-agent scheduler remain excluded because adding them beside `AgentRuntime`
+would create a second control plane without adding statistical reasoning, empirical
+blinding, or Lean kernel authority.

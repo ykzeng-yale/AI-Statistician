@@ -22,7 +22,7 @@ from .client_tool_loop import (
     ClientToolInputError,
     ClientToolLoopError,
     apply_model_exact_text_edits,
-    model_exact_text_edits_json_schema,
+    model_exact_text_edit_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
@@ -2010,9 +2010,15 @@ def run_scientific_code_workspace(
             )
 
         if call.name == SCIENTIFIC_SOURCE_EDIT_TOOL:
-            if set(tool_input) != {"edits"}:
+            required_fields = {"old_text", "new_text"}
+            optional_fields = {"expected_occurrences"}
+            if (
+                not required_fields.issubset(tool_input)
+                or set(tool_input) - required_fields - optional_fields
+            ):
                 raise ClientToolInputError(
-                    "edit_current_scientific_source requires exactly edits"
+                    "edit_current_scientific_source requires top-level old_text and "
+                    "new_text; expected_occurrences is optional"
                 )
             current = deepcopy(dict(state["code_draft"]))
             if not current:
@@ -2022,7 +2028,7 @@ def run_scientific_code_workspace(
                 )
             current["code"], edit_records = apply_model_exact_text_edits(
                 str(current["code"]),
-                edits=tool_input["edits"],
+                edits=[tool_input],
                 replacement_key="new_text",
             )
             return store_model_source(
@@ -2208,7 +2214,8 @@ def run_scientific_code_workspace(
                     + "\n\nRetain observed source hashes and sandbox results. Do "
                     "not resubmit a previously observed byte-identical candidate. "
                     "Source submission and exact edits do not execute. You may make "
-                    "several edits, then call run_current_scientific_source only when "
+                    "several one-replacement edit calls, then call "
+                    "run_current_scientific_source only when "
                     "you want raw sandbox feedback. Commit remains separate and "
                     "requires an accepted execution observation."
                 )
@@ -2567,17 +2574,13 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_EDIT_TOOL,
             description=(
-                "Apply one ordered atomic batch of exact model-authored text edits to "
-                "the current Python/R source without executing it. Runtime applies all "
-                "edits or none and never interprets or repairs source; explicitly run "
-                "the complete result afterward."
+                "Apply one exact model-authored replacement to the current Python/R "
+                "source without executing it. Supply old_text and new_text directly as "
+                "top-level strings, not as a JSON-encoded value or edits array. Runtime "
+                "never interprets or repairs source; use multiple calls for multiple "
+                "replacements and explicitly run the complete result afterward."
             ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["edits"],
-                "properties": {"edits": model_exact_text_edits_json_schema()},
-            },
+            input_schema=model_exact_text_edit_json_schema(),
             terminal=False,
         ),
         ClientToolDefinition(

@@ -15,6 +15,7 @@ from ai_statistician.client_tool_loop import (
     ClientToolLoopError,
     ClientToolRuntimeError,
     apply_model_exact_text_edits,
+    model_exact_text_edit_json_schema,
     model_exact_text_edits_json_schema,
     load_client_tool_session,
     persist_client_tool_session,
@@ -143,13 +144,16 @@ def test_exact_text_edits_support_count_checked_repeated_literals() -> None:
 
 
 def test_exact_text_edit_batch_schema_is_shared_and_strict() -> None:
+    single = model_exact_text_edit_json_schema()
     schema = model_exact_text_edits_json_schema()
 
+    assert single["type"] == "object"
+    assert single["required"] == ["old_text", "new_text"]
+    assert single["additionalProperties"] is False
     assert schema["type"] == "array"
     assert schema["minItems"] == 1
-    assert schema["items"]["required"] == ["old_text", "new_text"]
-    assert schema["items"]["additionalProperties"] is False
-    assert set(schema["items"]["properties"]) == {
+    assert schema["items"] == single
+    assert set(single["properties"]) == {
         "old_text",
         "new_text",
         "expected_occurrences",
