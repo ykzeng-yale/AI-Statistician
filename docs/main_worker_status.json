@@ -1,13 +1,24 @@
 {
-  "schema_version": 302,
+  "schema_version": 303,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "34b3136c",
+  "validated_code_head": "6a145918",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all one hundred consumed draws and immutable artifacts at trustworthy full-task credit 7/100 while exact development-panel Lean closure remains 0/2. Task100 is consumed at 0/1 after one exact-Haiku draw and one isolated hidden assessment. Its long-horizon Markdown/LaTeX Theory, exact valid-domain estimator behavior, accepted Algorithm handoff, confirmatory Simulation, and hidden empirical behavior all passed, but the source and independent reviewer missed two public closed-input ABI directions. Critic also disclosed that the required frozen contract deliverable was absent while still returning ACCEPT. Next work must improve the same coding-agent harness on a disjoint future task through model-authored public-contract tests and generic acceptance consistency, not patch Task100 or add a repair/scheduler layer.",
+  "current_goal_focus": "Preserve all one hundred consumed draws and immutable artifacts at trustworthy full-task credit 7/100 while exact development-panel Lean closure remains 0/2. Task100 remains consumed at 0/1. Commit 6a145918 adds only future-task model-authored public-contract probe completeness and generic Critic consistency inside the existing retained reviewer sessions. The next capability evidence must come from one independently selected, pre-frozen, disjoint exact-Haiku task; do not patch or rerun Task100, add a repair/scheduler layer, or treat deterministic harness tests as E2E capability.",
+  "latest_codex_executable_contract_review_change": {
+    "mechanism_commit": "6a14591835303b5c218a209787088e9662ee38df",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "trigger": "Consumed Task100 showed that an independent source reviewer can write and run a real exact-estimator probe yet omit public closed-input contract directions and still return ACCEPT; its terminal Critic also reported the required deliverable absent while marking scientific_code SUPPORTED.",
+    "change": "For future tasks with a frozen estimator execution contract, the existing isolated reviewer session receives the complete public executable clause IDs and must author one successful exact-source Python/R probe declaring comprehensive discriminating coverage before ACCEPT. Empirical claim IDs remain blinded evaluator authority. The terminal Critic now rejects SUPPORTED or NOT_REQUESTED dimensions that contain unresolved gaps.",
+    "codex_alignment": "This selectively applies the official Codex retained-session and repository-as-system-of-record pattern: one model writes executable tests, the real environment returns raw observations to that same session, and an isolated reviewer owns its judgment. Runtime validates target identity, public clause-list completeness, and terminal logical consistency only; it does not generate tests, inspect assertions, repair source, or encode statistical semantics.",
+    "non_adoption_boundary": "No Codex Core, App Server, Responses transport, thread store, Guardian, worktree controller, scheduler, agent, retry, fallback, repair layer, model escalation, task-family rule, Lean grammar rule, or Opus call was added.",
+    "verification": "Focused reviewer, Critic, and architecture regressions passed 63/63; broader runtime and ladder regressions passed 184/184; model-policy regressions passed 36/36; the complete repository passed 1065/1065 in 81.42 seconds. Compileall, tracked JSON parsing, diff hygiene, credential and task-specific production scanning, official Codex source pin/hash checks, and the unchanged 150000-line gate passed at 149991 production Python lines.",
+    "model_and_evaluator_calls": 0,
+    "capability_boundary": "This is deterministic future-task harness evidence only. Task100 remains immutable at 0/1, aggregate trustworthy capability remains 7/100, and exact development-panel Lean closure remains 0/2. No consumed task was rerun, resumed, repaired, reevaluated, rescored, or resampled."
+  },
   "latest_scalar_linear_gaussian_filter_l3_evaluation": {
     "task_id": "scalar_linear_gaussian_filter_known_theory_rederivation",
     "family": "scalar_linear_gaussian_state_space_filtering",
@@ -4720,11 +4731,11 @@
     "agent_runtime_lines": 1248,
     "cli_lines": 7118,
     "top_level_python_modules": 136,
-    "top_level_package_lines": 149945,
+    "top_level_package_lines": 149991,
     "latest_runtime_manifest_bytes": 40955
   },
   "next_gates": [
-    "Preserve Task100 at immutable 0/1 and aggregate 7/100. Its 480-line Markdown/LaTeX theory passed 7/7 mechanical and 8/8 semantic hidden authority; its estimator passed every valid-domain numerical and invariance check; and hidden empirical authority passed 11/11 over 4,500 calls. Scientific code still failed the public closed-input ABI, the isolated reviewer false-accepted it, and Critic accepted while declaring the required frozen deliverable absent. Improve only future-task model-authored public-contract testing and generic acceptance consistency. Never rerun, resume, repair, reevaluate, rescore, resample, patch its source, expose hidden findings, add a state-space rule, retry, fallback, scheduler, Sonnet evaluation, or Opus call.",
+    "Preserve Task100 at immutable 0/1 and aggregate 7/100. Its 480-line Markdown/LaTeX theory passed 7/7 mechanical and 8/8 semantic hidden authority; its estimator passed every valid-domain numerical and invariance check; and hidden empirical authority passed 11/11 over 4,500 calls. Scientific code still failed the public closed-input ABI, the isolated reviewer false-accepted it, and Critic accepted while declaring the required frozen deliverable absent. Treat commit 6a145918 only as deterministic future-task evidence for model-authored public-contract probe completeness and generic acceptance consistency; validate it on a disjoint pre-frozen task. Never rerun, resume, repair, reevaluate, rescore, resample, patch Task100 source, expose hidden findings, add a state-space rule, retry, fallback, scheduler, Sonnet evaluation, or Opus call.",
     "Preserve Task98 at immutable 0/1 and aggregate 7/98. Its Markdown/LaTeX Theory and hidden empirical behavior are component evidence, but the exact source violated the frozen invalid-request ABI and outer-graph lane coverage dropped its accepted Algorithm handoff before Simulation. Treat commit 2a988ca8 only as future-task shared ArtifactRef transport and generic reviewer-attention evidence. Never rerun, resume, repair, reevaluate, rescore, resample, patch its source, expose hidden findings, add an EM rule, retry, fallback, scheduler, Sonnet evaluation, or Opus call.",
     "Preserve Task97 at immutable 0/1. Its exact R source execution is component evidence, but the report's link ordering, Breusch-Pagan threshold, information-criterion label, and scope disclosure are operator-invalid, and protocol v10 false-accepted all twelve claims. Never rerun, resume, repair, reevaluate, rescore, resample, patch the report, or feed hidden/operator findings to its source owner.",
     "Use the same-owner saved-artifact self-audit prompt and protocol-v11 integrated-plus-adversarial semantic evaluator only as future-task shared mechanism evidence. A future disjoint activation must qualify the exact two-pass path before its first product call; do not apply v11 post hoc to Task97 or any consumed artifact.",
