@@ -92,10 +92,10 @@ def test_pingouin_rmcorr_l1_provider_environment_failure_is_consumed() -> None:
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 91
-    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["scored_tasks_total"] == 92
+    assert readiness["unconsumed_scored_tasks"] == 1
     assert readiness["consumed_scored_tasks"] == 91
-    assert readiness["fully_gold_configured_tasks"] == 91
+    assert readiness["fully_gold_configured_tasks"] == 92
     assert readiness["fully_gold_passed_tasks"] == 6
     assert readiness["latest_shared_mechanism_head"] == (
         "63b527e54d9b5e4df4ea63a19827c8e817e688ab"
