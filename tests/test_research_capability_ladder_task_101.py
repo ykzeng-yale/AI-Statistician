@@ -111,7 +111,16 @@ def test_scalar_mean_empirical_likelihood_task101_is_frozen_before_use() -> None
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 16
     assert evidence["activation_push_required_before_first_runtime_model_call"] is True
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "22673253fad6adeaf5578cd34753b73ab00860e7"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["codex_harness_mechanism_head"] == (
+        "22673253fad6adeaf5578cd34753b73ab00860e7"
+    )
+    assert evidence["official_codex_checkout_head"] == (
+        "6478a751fde8884b2fdc76486fe23175a8e795d4"
+    )
     assert evidence["first_runtime_model_call_occurred"] is False
     assert evidence["fresh_live_runs"] == 0
     assert evidence["runtime_invocations"] == 0
