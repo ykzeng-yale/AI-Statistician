@@ -4430,3 +4430,45 @@ passed `258/258`; the complete repository passed `1048/1048` in 81.57 seconds.
 Production Python decreased from 149,996 to 149,957 lines under the unchanged
 150,000-line gate. No model, evaluator, benchmark, consumed task, or hidden artifact
 was invoked.
+
+### Task 94: coding mechanics worked; scientific ownership and review failed
+
+The sole frozen Newey-West integrated draw supplies a deliberately negative result.
+The retained TheoryDeveloper session used ordinary Markdown files, exact source
+reads, model-authored edits, immutable checkpoints, and batched three independent
+searches plus two independent reads. Two isolated referees saw exact hash-bound
+source. AgentRuntime remained the only outer scheduler, every executed model call
+used exact Haiku, and no runtime component wrote mathematics or source. These are
+the Codex-derived mechanics we intended to validate.
+
+The task still failed before AlgorithmEngineer. The theory source left the exact
+Bartlett positive-semidefiniteness identity incomplete, used inadequate assumptions
+for a dependent CLT and HAC consistency, oversimplified finite-sample bias, and
+reversed the negative-AR(1) effective-sample-size interpretation. The referee caught
+only part of this. TheoryDeveloper also authored an unexecuted Python implementation
+inside Markdown; that source violated the frozen divisor and closed-ABI conventions.
+Runtime correctly gave it no generated-code or empirical authority.
+
+One harness judgment was too rigid. After a referee-driven edit changed the exact
+Theory source hash, the second review retained the prior finding IDs. Runtime treated
+finding-ID closure as the only progress signal and blocked even though the retained
+source owner had a new lineage and the outer budget remained. Future tasks now
+separate semantic finding closure from hash-bound source progress: a fresh review of
+a genuinely changed source may return to the same Theory workspace under the one
+existing `AgentRuntime.max_iterations` budget. An unchanged source or missing prior
+hash still fails closed. This is continuation, not a retry subsystem.
+
+Role ownership is also explicit: TheoryDeveloper owns mathematical procedure
+semantics and compact downstream interfaces; AlgorithmEngineer owns executable
+Python/R. Theory scratch remains a mathematical diagnostic and cannot become
+generated-code evidence. This changes no Task 94 artifact and adds no Newey-West
+formula, equation parser, repair worker, reviewer vote, fallback, local retry budget,
+model escalation, or second scheduler.
+
+The Codex conclusion is therefore unchanged but sharper. Retained sessions,
+file-backed source, exact observations, batched independent reads, atomic edits,
+checkpoints, and isolated review are useful harness primitives. They do not replace
+statistical intelligence, and importing Codex Core, App Server, provider transport,
+shell policy, patch grammar, hooks, goal state, or thread/worktree orchestration
+would not correct a bad derivation or a false referee judgment. Task 94 remains
+consumed at `0/1`; aggregate trustworthy capability is `7/94`.

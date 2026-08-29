@@ -5021,7 +5021,13 @@ def test_metric_review_exhaustion_blocks_in_source_workspace() -> None:
     )
 
 
-def test_preflight_stops_when_no_prior_finding_closes() -> None:
+@pytest.mark.parametrize(
+    "prior_reviewed_source_hash",
+    [None, "revised-theory-hash"],
+)
+def test_preflight_stops_when_no_prior_finding_closes(
+    prior_reviewed_source_hash: str | None,
+) -> None:
     rejected_packet, _backend = _review(accept=False)
     finding_id = rejected_packet["active_unresolved_finding_ids"][0]
     history = [
@@ -5063,6 +5069,24 @@ def test_preflight_stops_when_no_prior_finding_closes() -> None:
         }
     ]
 
+    architect_context = {
+        "theory_packet_id": "theory_derivation:generic-revision",
+        "architect_metric_protocol_gate": {
+            "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+            "source_theory_packet_id": "theory_derivation:generic-revision",
+            "upstream_theory_revision_count": 1,
+            "execution_authorized": False,
+        },
+    }
+    if prior_reviewed_source_hash is not None:
+        architect_context["architect_metric_protocol_prior_rejection"] = {
+            "artifact_kind": "RuntimeArchitectMetricProtocolPriorRejectionContext",
+            "final_review": {
+                "source_theory_packet_id": "theory_derivation:generic-revision",
+                "source_theory_packet_hash": prior_reviewed_source_hash,
+            },
+        }
+
     result = architect_preexecution_metric_protocol_rejection_result(
         task=AgentTask(
             task_id="architect:generic-preflight-stalled",
@@ -5071,17 +5095,7 @@ def test_preflight_stops_when_no_prior_finding_closes() -> None:
         ),
         question=_question(),
         semantic_review_history=history,
-        architect_context={
-            "theory_packet_id": "theory_derivation:generic-revision",
-            "architect_metric_protocol_gate": {
-                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
-                "source_theory_packet_id": (
-                    "theory_derivation:generic-revision"
-                ),
-                "upstream_theory_revision_count": 1,
-                "execution_authorized": False,
-            },
-        },
+        architect_context=architect_context,
     )
 
     assert result.status == "BLOCKED"
@@ -5090,6 +5104,7 @@ def test_preflight_stops_when_no_prior_finding_closes() -> None:
         "architect_theory_execution_preflight_stalled"
     )
     manifest = next(iter(result.produced_artifacts.values()))
+    assert manifest["source_theory_lineage_changed"] is False
     assert manifest["preflight_revision_stalled"] is True
     assert manifest["upstream_theory_revision_routed"] is False
     assert manifest["architect_route_requested"] is False
@@ -5097,7 +5112,7 @@ def test_preflight_stops_when_no_prior_finding_closes() -> None:
     assert manifest["runtime_selected_owner"] is False
 
 
-def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
+def test_changed_preflight_source_can_continue_without_finding_id_closure() -> None:
     rejected_packet, _backend = _review(accept=False)
     prior_finding_id = rejected_packet["active_unresolved_finding_ids"][0]
     new_finding_id = "theory:newly_discovered_support_gap"
@@ -5174,6 +5189,15 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
         semantic_review_history=history,
         architect_context={
             "theory_packet_id": "theory_derivation:generic-revision",
+            "architect_metric_protocol_prior_rejection": {
+                "artifact_kind": (
+                    "RuntimeArchitectMetricProtocolPriorRejectionContext"
+                ),
+                "final_review": {
+                    "source_theory_packet_id": "theory_derivation:prior",
+                    "source_theory_packet_hash": "prior-theory-hash",
+                },
+            },
             "architect_metric_protocol_gate": {
                 "artifact_kind": "RuntimeArchitectMetricProtocolGate",
                 "source_theory_packet_id": (
@@ -5185,18 +5209,28 @@ def test_preflight_new_findings_do_not_mask_unresolved_prior_lineage() -> None:
         },
     )
 
-    assert result.status == "BLOCKED"
-    assert result.next_task is None
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
     assert result.failure_classification == (
-        "architect_theory_execution_preflight_stalled"
+        "theory_execution_preflight_returned_to_source_workspace"
     )
     manifest = next(iter(result.produced_artifacts.values()))
-    assert manifest["preflight_revision_progressed"] is False
-    assert manifest["preflight_revision_stalled"] is True
-    assert manifest["upstream_theory_revision_routed"] is False
+    assert manifest["prior_finding_progress_made"] is False
+    assert manifest["source_theory_lineage_changed"] is True
+    assert manifest["preflight_revision_progressed"] is True
+    assert manifest["preflight_revision_stalled"] is False
+    assert manifest["upstream_theory_revision_routed"] is True
     assert manifest["architect_route_requested"] is False
     assert "source_workspace_return_requested" not in manifest
     assert manifest["runtime_selected_owner"] is False
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["progress_observation"] == {
+        "prior_finding_progress_made": False,
+        "source_theory_lineage_changed": True,
+        "same_lineage_no_progress_observed": False,
+        "runtime_selected_disposition": False,
+    }
 
 
 def test_preflight_progress_can_continue_after_many_revision_rounds() -> None:

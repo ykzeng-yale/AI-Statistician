@@ -12,7 +12,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "newey_west_mean_hac_known_result"
 
 
-def test_newey_west_integrated_l0_is_frozen_before_sole_draw() -> None:
+def test_newey_west_integrated_l0_sole_draw_is_consumed_and_failed() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -21,9 +21,9 @@ def test_newey_west_integrated_l0_is_frozen_before_sole_draw() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "stationary_mean_hac_inference"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_schema_v4_exact_haiku_single_draw"
+        "fresh_live_v1_consumed_exact_haiku_theory_preflight_blocked_gold_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-newey-west-mean-hac-20260829-v1"
@@ -82,15 +82,15 @@ def test_newey_west_integrated_l0_is_frozen_before_sole_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 23
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
     assert evidence["runtime_model"] == "claude-haiku-4-5-20251001"
     assert evidence["sonnet_product_calls"] == 0
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["theory_developer_executed"] is False
+    assert evidence["theory_developer_executed"] is True
     assert evidence["generated_algorithm_executed"] is False
     assert evidence["generated_simulation_executed"] is False
     assert evidence["activation_ledger_commit"] == (
@@ -98,11 +98,43 @@ def test_newey_west_integrated_l0_is_frozen_before_sole_draw() -> None:
     )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["product_code_head"] == (
+        "262b593f287917081b5fe51572375f946c02ca45"
+    )
+    assert evidence["runtime_status"] == "BLOCKED"
+    assert evidence["runtime_terminal_classification"] == (
+        "architect_theory_execution_preflight_stalled"
+    )
+    assert evidence["runtime_outer_graph_iterations"] == 5
+    assert evidence["product_model_response_events"] == 54
+    assert evidence["product_model_call_breakdown"] == {
+        "theory_developer": 30,
+        "independent_theory_preflight": 24,
+    }
+    assert evidence["client_tool_executions"] == 64
+    assert evidence["codex_style_read_batches_observed"] is True
+    assert evidence["independently_accepted_theory_packet"] is False
+    assert evidence["hidden_theory_execution_attempted"] is False
+    assert evidence["hidden_algorithm_execution_attempted"] is False
+    assert evidence["hidden_empirical_execution_attempted"] is False
+    assert evidence["post_runtime_evaluator_model_calls"] == 0
+    assert evidence["hidden_leak_match_count"] == 0
+    assert evidence["operator_disposition"] == "FAILED"
+    assert evidence["operator_audit_path"] == (
+        "docs/operator_audits/newey_west_mean_hac_l0_v1.md"
+    )
+    assert evidence["runtime_manifest_sha256"] == (
+        "40ba5feab05a9267d5f6913221bcd2c83c00c5da6f69345e9783adb5cb1468e2"
+    )
+    assert evidence["gold_evaluation_sha256"] == (
+        "c3b3a0772fc081bd618dc86ff6e0314ea350a39bb49e49294eaf08ab6f266195"
+    )
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_activation"] == "7/93"
     assert evidence["ladder_score_after_activation"] == "7/94"
+    assert evidence["ladder_score_after_consumption"] == "7/94"
 
     visible_path = Path(candidate["visible_questions_path"])
     assert hashlib.sha256(visible_path.read_bytes()).hexdigest() == (
@@ -141,7 +173,7 @@ def test_newey_west_integrated_l0_is_frozen_before_sole_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 94
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 93
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 94
     assert readiness["fully_gold_configured_tasks"] == 94
     assert readiness["fully_gold_passed_tasks"] == 7

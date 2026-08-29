@@ -900,15 +900,6 @@ def architect_preexecution_metric_protocol_rejection_result(
         prior_finding_progress_made = bool(
             prior_finding_resolution_summary.get("progress_made", False)
         )
-    preflight_revision_progressed = bool(
-        not theory_execution_preflight_rejected
-        or not prior_active_finding_ids
-        or prior_finding_progress_made
-    )
-    theory_revision_continuation_authorized = bool(
-        theory_execution_preflight_rejected
-        and preflight_revision_progressed
-    )
     source_theory_packet_id = str(
         final_review.get("source_theory_packet_id", "")
         or metric_gate.get("source_theory_packet_id", "")
@@ -917,6 +908,41 @@ def architect_preexecution_metric_protocol_rejection_result(
     )
     source_theory_packet_hash = str(
         final_review.get("source_theory_packet_hash", "") or ""
+    )
+    prior_rejection_context = context.get(
+        "architect_metric_protocol_prior_rejection", {}
+    )
+    prior_rejection_context = (
+        dict(prior_rejection_context)
+        if isinstance(prior_rejection_context, Mapping)
+        else {}
+    )
+    prior_review = prior_rejection_context.get("final_review", {})
+    prior_review = dict(prior_review) if isinstance(prior_review, Mapping) else {}
+    prior_reviewed_source_theory_packet_id = str(
+        prior_review.get("source_theory_packet_id", "") or ""
+    )
+    prior_reviewed_source_theory_packet_hash = str(
+        prior_review.get("source_theory_packet_hash", "") or ""
+    )
+    source_theory_lineage_changed = bool(
+        theory_execution_preflight_rejected
+        and prior_active_finding_ids
+        and source_theory_packet_id
+        and source_theory_packet_hash
+        and prior_reviewed_source_theory_packet_hash
+        and source_theory_packet_hash
+        != prior_reviewed_source_theory_packet_hash
+    )
+    preflight_revision_progressed = bool(
+        not theory_execution_preflight_rejected
+        or not prior_active_finding_ids
+        or prior_finding_progress_made
+        or source_theory_lineage_changed
+    )
+    theory_revision_continuation_authorized = bool(
+        theory_execution_preflight_rejected
+        and preflight_revision_progressed
     )
     review_document_ref = deepcopy(dict(final_review.get("review_report", {}) or {}))
     manifest = {
@@ -954,6 +980,14 @@ def architect_preexecution_metric_protocol_rejection_result(
             if str(value).strip()
         ],
         "prior_finding_resolution_summary": prior_finding_resolution_summary,
+        "prior_finding_progress_made": prior_finding_progress_made,
+        "prior_reviewed_source_theory_packet_id": (
+            prior_reviewed_source_theory_packet_id
+        ),
+        "prior_reviewed_source_theory_packet_hash": (
+            prior_reviewed_source_theory_packet_hash
+        ),
+        "source_theory_lineage_changed": source_theory_lineage_changed,
         "preflight_revision_progressed": preflight_revision_progressed,
         "preflight_revision_stalled": bool(
             theory_execution_preflight_rejected
@@ -1041,8 +1075,8 @@ def architect_preexecution_metric_protocol_rejection_result(
         failure_classification = "architect_theory_execution_preflight_stalled"
         rationale = (
             "Fresh independent review closed none of the prior theory-preflight "
-            "findings, so the lineage is stagnant. No coding or simulation execution "
-            "is authorized."
+            "findings, and the runtime has no hash-bound evidence of a changed source "
+            "lineage. No coding or simulation execution is authorized."
         )
     if theory_revision_continuation_authorized:
         next_revision_count = upstream_theory_revision_count + 1
@@ -1150,7 +1184,8 @@ def architect_preexecution_metric_protocol_rejection_result(
                 "historical_error_is_not_an_active_blocker_unless_reobserved": True,
             },
             "progress_observation": {
-                "prior_finding_progress_made": preflight_revision_progressed,
+                "prior_finding_progress_made": prior_finding_progress_made,
+                "source_theory_lineage_changed": source_theory_lineage_changed,
                 "same_lineage_no_progress_observed": bool(
                     theory_execution_preflight_rejected
                     and not preflight_revision_progressed

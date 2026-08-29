@@ -63,7 +63,7 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness reference is [OpenAI Codex at `3ae4225b`](https://github.com/openai/codex/tree/3ae4225b1761c135c6d3bbc1ea0cfcfc95752cdc). We adopt its incremental session history,
+The general harness reference is [OpenAI Codex at `6478a751`](https://github.com/openai/codex/tree/6478a751fde8884b2fdc76486fe23175a8e795d4). We adopt its incremental session history,
 immutable per-step tool snapshot, generic tool registry, raw tool-error feedback,
 cancellation, checkpoint/resume, and bounded context discipline. The Claude transport
 also retains one Anthropic SDK client across consecutive model/tool rounds on the same
