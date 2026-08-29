@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "normal_means_tweedie_formula_known_theory_rederivation",
+  "benchmark_id": "research-l3-tweedie-normal-means-theory-20260829-v1",
+  "level": "L3",
+  "family": "gaussian_empirical_bayes_score_identities",
+  "status": "frozen_qualified_pre_first_product_call",
+  "preselection_code_head": "5d145a6899182b54c9f35d446b7addc6b8611f9c",
+  "harness_mechanism_commit": "00b21b64a953aac67843800c0584bf6ffba33c10",
+  "visible_question_commit": "70e834a1ff69b1194880871e16472f4cc58291dc",
+  "visible_questions_path": "benchmarks/research_l3_tweedie_normal_means_questions_20260829.json",
+  "visible_questions_sha256": "d09ba6908800fcb1938dcfd7137566c49e48d8ffecaaa8eb7f82fbc9aa5bd837",
+  "visible_question_full_hash": "cd320a1468fb34730e5da4fe262796ec4642cbaccebbc4441314422164932cf7",
+  "runtime_visible_question_hash": "f4e6a6569aaf3a75ba3c4610d412587c293af6b8950c1d7a59f8d9e21ce5c4eb",
+  "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+  "gold_manifest_sha256": "95adcc002664508b28c955f0998eb0fe2f20d58434e925a5cad7fe8c7dc6f931",
+  "gold_manifest_stable_hash": "9fd8d080073e5541cf594288e591ad07ddda1c98b68ca0975872e238affade20",
+  "hidden_artifact_sha256": {
+    "candidate_mode_near_miss.md": "3a1c4c149b7d1e6a17f6de30a84bb386b9073cbf3c37599ba54485a28239e42a",
+    "candidate_mode_negative_cases.json": "9342dcd9b8ee2d19dccb24c6789ff2be90d12ee421daa24e0bf798f0e3778aa5",
+    "hidden_theory_harness.py": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+    "semantic_activation_attempt_1_protocol_v11.json": "eb747ba50929e2616b99dde63eec61571124fced38a0a6d10415ae27ce718e55",
+    "semantic_calibration_cases.json": "42be0218c6a59e8a431bcb094049d69125160183d03a21bd958fdff60fb5dec9",
+    "semantic_reference.md": "4dc414debcaacbfa9c82395dc28fd64471a72cb8604a551af6f11ce60c2b0a9d",
+    "semantic_rubric.json": "42cb113693cc8fb5c52b9f5447306380b7a208aa9ee2c24737cf8b187533ed6c",
+    "theory_authority_calibration.json": "83b44a40e405c9aa9308c7ab0f45f0f48a0d888ded6572d7eb0cfc311888ed32"
+  },
+  "mechanical_qualification": {
+    "reference_checks_passed": "7/7",
+    "negative_variants_rejected": "7/7"
+  },
+  "semantic_qualification": {
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "attempts": 1,
+    "model": "claude-haiku-4-5-20251001",
+    "model_tier": "haiku",
+    "model_calls": 16,
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "8/8",
+    "judgment_hash": "ac50d63a2260fd4824f9e4ac989374bca4b99c2ccad4b8991360c8d60d9b852b"
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 16,
+  "formalization_requirement": "not_applicable",
+  "hidden_behavior_entailment_audit": "Every hidden claim is an explicit obligation or exclusion in the visible request: arbitrary-prior Gaussian-mixture setup, posterior mean score identity, posterior variance curvature identity and the distinction between f''/f and log-density curvature, normal-prior and point-mass checks, integrated Bayes risk with boundary assumptions, the marginal Fisher-information bound, oracle-versus-plug-in scope, selection and dependence caveats, and explicit nonclaims. No hidden code, simulation, Lean, source replication, novelty, minimax, coverage, or Gaussian-posterior requirement is introduced.",
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "sonnet_allowed": false,
+    "opus_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "resume_or_rerun_allowed": false
+  },
+  "boundary": "This ledger exposes only hashes, counts, model identity, source identity, and task scope. Hidden reference mathematics, rubric, calibration cases, near miss, labels, model responses, and judgments remain evaluator-only. They cannot enter prompts, RAG, runtime feedback, revision, retry, routing, or proof evidence. No product call has occurred."
+}
