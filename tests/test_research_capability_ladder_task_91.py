@@ -65,8 +65,10 @@ def test_statlib_kernel_embedding_l0_is_frozen_before_sole_product_draw() -> Non
     assert evidence["generated_simulation_executed"] is False
     assert evidence["second_kernel_or_statement_verifier_added"] is False
     assert evidence["activation_push_required_before_first_runtime_model_call"] is True
-    assert evidence["activation_ledger_commit"] == ""
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "56db75e8b4639dbb78c901955e84598591dc7d12"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False

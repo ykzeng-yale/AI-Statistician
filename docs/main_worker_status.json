@@ -26,7 +26,8 @@
     "runtime_model": "claude-haiku-4-5-20251001",
     "preactivation_product_model_calls": 0,
     "preactivation_evaluator_model_calls": 0,
-    "activation_push_confirmed_on_work_branch_and_main": false,
+    "activation_ledger_commit": "56db75e8b4639dbb78c901955e84598591dc7d12",
+    "activation_push_confirmed_on_work_branch_and_main": true,
     "formalizer_executed": false,
     "trusted_capability_credit": "not yet consumed; aggregate remains 5/90 consumed and readiness is 5/91",
     "boundary": "Hidden proof bytes, closing declaration names, negative sources, and calibration outcomes remain outside repository, runtime RAG, and model workspaces. After activation is pushed, exactly one product invocation may run and its outcome becomes immutable."
