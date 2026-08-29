@@ -280,6 +280,8 @@ from .theory_revision_lineage import (
     theory_developer_revision_binding_errors,
 )
 from .estimator_interface_contract import (
+    frozen_estimator_execution_contract_errors,
+    frozen_estimator_execution_contract_id,
     project_executable_estimator_spec,
 )
 from .research_knowledge import retrieve_problem_knowledge
@@ -311,9 +313,9 @@ from .simulation_engineer_llm import (
 from .task_family import primary_task_family_from_question
 from .theory_derivation_trace import (
     THEORY_TRACE_ALIGNMENT_BOUNDARY,
-    THEORY_TRACE_CONSUMPTION_BOUNDARY,
     document_authoritative_theory_context,
     theory_trace_alignment_contract,
+    theory_trace_consumption_contract,
 )
 
 
@@ -575,6 +577,7 @@ def _runtime_architect_context_with_requested_evidence_contract(
     evaluation_mode: str = "debug",
     formal_target_semantic_review_required: bool = False,
     task_intent: Mapping[str, Any] | None = None,
+    estimator_execution_contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = dict(context or {})
     requested_contract = _runtime_requested_evidence_contract(
@@ -616,6 +619,38 @@ def _runtime_architect_context_with_requested_evidence_contract(
         ] = False
     payload["runtime_requested_evidence_contract"] = requested_contract
     payload["runtime_evaluation_mode"] = str(evaluation_mode or "debug")
+    requirements = research_dimension_requirements(task_intent)
+    if (
+        requirements
+        and requirements["theory"] == "not_applicable"
+        and (
+            requirements["scientific_code"] == "required"
+            or requirements["empirical"] == "required"
+        )
+    ):
+        frozen_contract = dict(estimator_execution_contract or {})
+        errors = frozen_estimator_execution_contract_errors(
+            frozen_contract,
+            label="theory-free estimator_execution_contract",
+            required=True,
+        )
+        errors += (
+            ["theory-free empirical execution requires frozen empirical_claims"]
+            if requirements["empirical"] == "required"
+            and not frozen_contract.get("empirical_claims")
+            else []
+        )
+        if errors:
+            raise ValueError("; ".join(errors))
+        contract_id = frozen_estimator_execution_contract_id(frozen_contract)
+        payload["estimator_execution_contract_id"] = contract_id
+        payload["estimator_execution_contract_hash"] = stable_hash(frozen_contract)
+        if requirements["scientific_code"] == "required":
+            payload["implementation_gaps"] = [
+                {"estimator_id": str(frozen_contract["estimator_id"]),
+                 "status": "REQUIRES_MODEL_OWNED_SCIENTIFIC_SOURCE",
+                 "estimator_execution_contract_id": contract_id}
+            ]
     return payload
 
 
@@ -3566,6 +3601,7 @@ def _architect_feasible_initial_subsystem(
         if isinstance(evidence_contract, Mapping)
         else {}
     )
+    theory_not_applicable = dimension_requirements.get("theory") == "not_applicable"
     source_replication_refs = architect_context.get(
         "source_replication_refs", []
     )
@@ -3588,6 +3624,8 @@ def _architect_feasible_initial_subsystem(
     ):
         return "TheoryDeveloper"
     subsystem_dimension = {
+        "RetrievalMemory": "theory",
+        "TheoryDeveloper": "theory",
         "AlgorithmEngineer": "scientific_code",
         "SimulationEvaluator": "empirical",
         "FormalizationEvaluator": "formal",
@@ -3601,11 +3639,24 @@ def _architect_feasible_initial_subsystem(
     if requested in {"RetrievalMemory", "TheoryDeveloper"}:
         return requested
     if requested == "SimulationEvaluator":
-        if _architect_context_theory_packet_id(architect_context):
-            return "SimulationEvaluator"
-        return "TheoryDeveloper"
+        if (
+            dimension_requirements.get("scientific_code") == "required"
+            and not _architect_blackboard_artifact_present(
+                blackboard, _architect_context_algorithm_sandbox_manifest_id(architect_context)
+            )
+        ):
+            return "AlgorithmEngineer"
+        if (
+            not theory_not_applicable
+            and not _architect_context_theory_packet_id(architect_context)
+        ):
+            return "TheoryDeveloper"
+        return "SimulationEvaluator"
     if requested == "AlgorithmEngineer":
-        if not _architect_context_theory_packet_id(architect_context):
+        if (
+            not theory_not_applicable
+            and not _architect_context_theory_packet_id(architect_context)
+        ):
             return "TheoryDeveloper"
         if not _architect_context_implementation_gaps(
             architect_context,
@@ -3615,9 +3666,9 @@ def _architect_feasible_initial_subsystem(
         return "AlgorithmEngineer"
     if requested == "FormalizationEvaluator":
         theory_packet_id = _architect_context_theory_packet_id(architect_context)
-        if not theory_packet_id or not _architect_blackboard_artifact_present(
-            blackboard,
-            theory_packet_id,
+        if not theory_not_applicable and (
+            not theory_packet_id
+            or not _architect_blackboard_artifact_present(blackboard, theory_packet_id)
         ):
             return "TheoryDeveloper"
         return "FormalizationEvaluator"
@@ -3625,15 +3676,7 @@ def _architect_feasible_initial_subsystem(
         theory_packet_id = _architect_context_theory_packet_id(architect_context)
         theory_needed = bool(
             not dimension_requirements
-            or any(
-                dimension_requirements.get(dimension) == "required"
-                for dimension in (
-                    "theory",
-                    "scientific_code",
-                    "empirical",
-                    "formal",
-                )
-            )
+            or dimension_requirements.get("theory") == "required"
         )
         if theory_needed and not _architect_blackboard_artifact_present(
             blackboard,
@@ -4000,11 +4043,9 @@ def _runtime_workspace_parent_artifact_ids(
 
     parent_fields = {
         "TheoryDeveloper": ("retrieval_memory_manifest_id",),
-        "AlgorithmEngineer": ("theory_packet_id",),
-        "SimulationEvaluator": (
-            "theory_packet_id",
-            "algorithm_sandbox_manifest_id",
-        ),
+        "AlgorithmEngineer": ("theory_packet_id", "estimator_execution_contract_id"),
+        "SimulationEvaluator": ("theory_packet_id", "estimator_execution_contract_id",
+                                "algorithm_sandbox_manifest_id"),
         "FormalizationEvaluator": ("theory_packet_id",),
     }.get(subsystem_name, ())
     return {
@@ -4141,9 +4182,8 @@ def _runtime_outer_graph_continuation(
         "BLOCKED",
         "FAILED",
     }:
-        # Every primary evidence lane depends on a currently accepted theory
-        # artifact. An older rejected parent is not a substitute for a failed
-        # model-owned revision.
+        # A theory-dependent lane cannot substitute an older rejected parent for
+        # a failed model-owned revision.
         return None
     context, outcome = _runtime_outer_graph_context(
         task=task,
@@ -4180,8 +4220,15 @@ def _runtime_outer_graph_continuation(
             )
         )
     )
+    dimension_requirements = _runtime_contract_dimension_requirements(
+        plan_context["evidence_contract"]
+    )
+    theory_required = not dimension_requirements or (
+        dimension_requirements.get("theory") != "not_applicable"
+    )
     if (
         next_owner in RUNTIME_PRIMARY_EVIDENCE_SUBSYSTEMS
+        and theory_required
         and not theory_artifact_available
     ):
         return None
@@ -4415,7 +4462,7 @@ def _runtime_architect_initial_lane_coverage(
         return None
     context_value = next_task.inputs.get("architect_context", {})
     context = dict(context_value) if isinstance(context_value, Mapping) else {}
-    primary, _plan_context = _runtime_outer_graph_plan(context)
+    primary, plan_context = _runtime_outer_graph_plan(context)
     if proposed_owner not in primary:
         return None
     visited = _runtime_executed_subsystems(architect_context=context)
@@ -4426,9 +4473,13 @@ def _runtime_architect_initial_lane_coverage(
         return None
 
     theory_packet_id = _architect_context_theory_packet_id(context)
+    dimension_requirements = _runtime_contract_dimension_requirements(
+        plan_context["evidence_contract"]
+    )
     theory_available = bool(
-        theory_packet_id
-        and _architect_blackboard_artifact_present(blackboard, theory_packet_id)
+        (theory_packet_id
+         and _architect_blackboard_artifact_present(blackboard, theory_packet_id))
+        or dimension_requirements.get("theory") == "not_applicable"
     )
     runnable = [
         subsystem
@@ -6479,65 +6530,6 @@ def _packet_validation_error_truncation_detected(
     return False
 
 
-def _runtime_theory_trace_consumption_contract(
-    *,
-    consumer_subsystem: str,
-    source_theory_packet_id: str,
-    theory_packet: Mapping[str, Any],
-) -> dict[str, Any]:
-    packet = theory_packet if isinstance(theory_packet, Mapping) else {}
-    contract = (
-        packet.get("theory_derivation_contract", {})
-        if isinstance(packet.get("theory_derivation_contract", {}), Mapping)
-        else {}
-    )
-    derivation = (
-        packet.get("theory_derivation_packet", {})
-        if isinstance(packet.get("theory_derivation_packet", {}), Mapping)
-        else {}
-    )
-    n_derivation_steps = _runtime_safe_int(
-        contract.get(
-            "n_derivation_steps",
-            _runtime_safe_list_len(derivation.get("derivation_steps", [])),
-        )
-    )
-    n_equation_chain_steps = _runtime_safe_int(
-        contract.get(
-            "n_equation_chain_steps",
-            _runtime_safe_list_len(derivation.get("equation_chain", [])),
-        )
-    )
-    n_assumption_ledger_rows = _runtime_safe_int(
-        contract.get(
-            "n_assumption_ledger_rows",
-            _runtime_safe_list_len(derivation.get("assumption_ledger", [])),
-        )
-    )
-    has_formalization_handoff = bool(
-        contract.get("has_formalization_handoff", False)
-        or (
-            isinstance(derivation.get("formalization_handoff", {}), Mapping)
-            and derivation.get("formalization_handoff")
-        )
-    )
-    return {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "TheoryTraceConsumptionContract",
-        "contract_source": "agent_runtime_handoff",
-        "source_theory_packet_id": source_theory_packet_id,
-        "consumer_subsystem": consumer_subsystem,
-        "theory_derivation_trace_supplied": bool(packet and source_theory_packet_id),
-        "n_derivation_steps_supplied": n_derivation_steps,
-        "n_equation_chain_steps_supplied": n_equation_chain_steps,
-        "n_assumption_ledger_rows_supplied": n_assumption_ledger_rows,
-        "has_formalization_handoff": has_formalization_handoff,
-        "target_ids": _source_theorem_target_ids_from_row(packet),
-        "proof_evidence_status": "THEORY_TRACE_CONSUMPTION_NOT_PROOF_EVIDENCE",
-        "boundary": THEORY_TRACE_CONSUMPTION_BOUNDARY,
-    }
-
-
 def _runtime_handoff_artifact_missing_result_if_needed(
     *,
     source_subsystem: str,
@@ -7596,6 +7588,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         theory_packet = bound_artifact(
             id_field="theory_packet_id",
             hash_field="theory_packet_hash",
+            required=research_dimension_requirements(question.task_intent).get("theory")
+            != "not_applicable",
         )
         proposal_packet = bound_artifact(
             id_field="proposal_packet_id",
@@ -8954,7 +8948,8 @@ class SimulationEvaluatorRuntimeSubsystem:
         simulation_control = _architect_control_payload(context, "SimulationEvaluator")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
-        if not packet_id:
+        dimension_requirements = research_dimension_requirements(question.task_intent)
+        if not packet_id and dimension_requirements.get("theory") != "not_applicable":
             next_task = AgentTask(
                 task_id=f"theory:{question.id}:{stable_hash(task.task_id)[:8]}",
                 owner_subsystem="TheoryDeveloper",
@@ -9107,10 +9102,9 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         if metric_protocol_guard is not None:
             return metric_protocol_guard
-        runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
+        runtime_theory_trace_contract = theory_trace_consumption_contract(
+            packet if isinstance(packet, Mapping) else {},
             consumer_subsystem="SimulationEngineer",
-            source_theory_packet_id=packet_id,
-            theory_packet=packet if isinstance(packet, Mapping) else {},
         )
         research_bundle = derive_runtime_research_problem(
             question=question,
@@ -11812,10 +11806,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                 theory_packet=packet if isinstance(packet, Mapping) else {},
             )
         )
-        runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
+        runtime_theory_trace_contract = theory_trace_consumption_contract(
+            packet if isinstance(packet, Mapping) else {},
             consumer_subsystem="AlgorithmEngineer",
-            source_theory_packet_id=packet_id,
-            theory_packet=packet if isinstance(packet, Mapping) else {},
         )
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         simulation_manifest = blackboard.artifacts.get(simulation_manifest_id, {})
@@ -13949,10 +13942,9 @@ class FormalizerWorkspaceRuntimeSubsystem:
         )
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
-        runtime_theory_trace_contract = _runtime_theory_trace_consumption_contract(
+        runtime_theory_trace_contract = theory_trace_consumption_contract(
+            packet if isinstance(packet, Mapping) else {},
             consumer_subsystem="FormalizerProofEngineer",
-            source_theory_packet_id=packet_id,
-            theory_packet=packet if isinstance(packet, Mapping) else {},
         )
         simulation_manifest_id = str(task.inputs.get("simulation_manifest_id", ""))
         algorithm_sandbox_manifest_id = str(task.inputs.get("algorithm_sandbox_manifest_id", ""))
@@ -20145,6 +20137,7 @@ def run_research_agent_runtime(
                     config.formal_target_semantic_review_required
                 ),
                 task_intent=question.task_intent,
+                estimator_execution_contract=question.estimator_execution_contract,
             )
         )
         resume_pending_task = initial_task_overrides.get(question.id)
@@ -23526,10 +23519,6 @@ def generated_sandbox_workspace_closure_counts(
             if closed:
                 counts[counter_key] += 1
     return counts
-
-
-def _runtime_safe_list_len(value: Any) -> int:
-    return len(value) if isinstance(value, list) else 0
 
 
 def _runtime_safe_int(value: Any) -> int:

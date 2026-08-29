@@ -3044,7 +3044,15 @@ def _required_architect_plan_subsystems(
     required: set[str] = set()
     evaluation_mode = str(evidence_contract.get("evaluation_mode", "") or "")
     if evaluation_mode in RESEARCH_EVALUATION_MODES:
-        required.update(("RetrievalMemory", "TheoryDeveloper", "CriticEvaluator"))
+        required.add("CriticEvaluator")
+        dimensions = evidence_contract.get("dimension_requirements", {})
+        if (
+            not isinstance(dimensions, Mapping)
+            or not dimensions
+            or evidence_contract.get("independent_theory_review_required") is True
+            or evidence_contract.get("source_replication_requirement") == "required"
+        ):
+            required.update(("RetrievalMemory", "TheoryDeveloper"))
         if _research_evaluation_contract_flag(
             evidence_contract,
             "generated_simulation_code",
@@ -3075,7 +3083,7 @@ def _required_architect_plan_subsystems(
     ):
         required.add("FormalizationEvaluator")
     if evidence_contract.get("source_replication_requirement") == "required":
-        required.add("TheoryDeveloper")
+        required.update(("RetrievalMemory", "TheoryDeveloper"))
     return tuple(
         subsystem
         for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS

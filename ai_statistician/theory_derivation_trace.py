@@ -326,6 +326,7 @@ def theory_trace_consumption_contract(
             else []
         ),
         "has_formalization_handoff": bool(trace.get("formalization_handoff")),
+        "proof_evidence_status": "THEORY_TRACE_CONSUMPTION_NOT_PROOF_EVIDENCE",
         "boundary": THEORY_TRACE_CONSUMPTION_BOUNDARY,
     }
 

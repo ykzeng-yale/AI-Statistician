@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import ai_statistician.architect_coordinator_llm as architect_module
 import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.agent_runtime import (
     AgentStepResult,
@@ -131,6 +132,311 @@ def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
                 evaluation_claude_model="claude-sonnet-4-5-20250929",
             )
         )
+
+
+def _theory_free_estimator_execution_contract() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "estimator_id": "est_public_mean",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+            {
+                "clause_id": "request.sample",
+                "name": "sample",
+                "meaning": "Observed finite real-valued sample.",
+                "json_type": "array[number]",
+                "shape": "length n with n >= 2",
+                "units": "measurement units",
+                "indexing": "observation order",
+                "edge_cases": "Reject nonfinite values and n < 2.",
+                "binding": "per_replicate_data",
+            }
+        ],
+        "response_fields": [
+            {
+                "clause_id": "response.estimate",
+                "name": "estimate",
+                "meaning": "Arithmetic mean of the supplied sample.",
+                "json_type": "number",
+                "shape": "scalar",
+                "units": "measurement units",
+                "indexing": "not_applicable",
+                "edge_cases": "Must be JSON-finite.",
+                "normalization": "sum(sample) / n",
+            }
+        ],
+        "invariants": [
+            {
+                "clause_id": "invariant.translation",
+                "meaning": "Adding c to every observation adds c to the estimate.",
+            }
+        ],
+        "empirical_claims": [
+            {
+                "clause_id": "claim.empirical.mean_behavior",
+                "meaning": "Assess mean behavior with frozen Monte Carlo uncertainty.",
+            }
+        ],
+    }
+
+
+def _theory_free_code_question() -> OpenResearchQuestion:
+    return OpenResearchQuestion(
+        id="theory-free-public-abi",
+        title="Implement one frozen public ABI",
+        description="Author and evaluate source without inventing a theory packet.",
+        task_intent={
+            "source_replication": "not_applicable",
+            "theory": "not_applicable",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+        estimator_execution_contract=_theory_free_estimator_execution_contract(),
+    )
+
+
+def test_theory_free_code_context_is_seeded_from_frozen_public_abi() -> None:
+    question = _theory_free_code_question()
+
+    context = runtime_module._runtime_architect_context_with_requested_evidence_contract(
+        {},
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+        estimator_execution_contract=question.estimator_execution_contract,
+    )
+
+    contract_id = context["estimator_execution_contract_id"]
+    assert contract_id.startswith("frozen_estimator_execution_contract:")
+    assert context["estimator_execution_contract_hash"] == runtime_module.stable_hash(
+        question.estimator_execution_contract
+    )
+    assert context["implementation_gaps"] == [
+        {
+            "estimator_id": "est_public_mean",
+            "status": "REQUIRES_MODEL_OWNED_SCIENTIFIC_SOURCE",
+            "estimator_execution_contract_id": contract_id,
+        }
+    ]
+    assert architect_module._required_architect_plan_subsystems(
+        context["runtime_requested_evidence_contract"]
+    ) == (
+        "AlgorithmEngineer",
+        "SimulationEvaluator",
+        "GeneratedCodeSemanticReviewer",
+        "CriticEvaluator",
+    )
+
+
+def test_theory_free_code_context_fails_closed_without_executable_authority() -> None:
+    question = _theory_free_code_question()
+
+    with pytest.raises(ValueError, match="estimator_execution_contract is required"):
+        runtime_module._runtime_architect_context_with_requested_evidence_contract(
+            {},
+            formal_verification_policy="optional",
+            evaluation_mode="research_eval",
+            task_intent=question.task_intent,
+        )
+
+    no_empirical_claim = _theory_free_estimator_execution_contract()
+    no_empirical_claim["empirical_claims"] = []
+    with pytest.raises(ValueError, match="requires frozen empirical_claims"):
+        runtime_module._runtime_architect_context_with_requested_evidence_contract(
+            {},
+            formal_verification_policy="optional",
+            evaluation_mode="research_eval",
+            task_intent=question.task_intent,
+            estimator_execution_contract=no_empirical_claim,
+        )
+
+
+def test_theory_free_routing_starts_with_code_then_simulation() -> None:
+    question = _theory_free_code_question()
+    context = runtime_module._runtime_architect_context_with_requested_evidence_contract(
+        {},
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+        estimator_execution_contract=question.estimator_execution_contract,
+    )
+    blackboard = BlackboardState(project_id=question.id)
+
+    for requested in ("RetrievalMemory", "TheoryDeveloper", "SimulationEvaluator"):
+        assert runtime_module._architect_feasible_initial_subsystem(
+            requested,
+            architect_context=context,
+            blackboard=blackboard,
+            question_id=question.id,
+        ) == "AlgorithmEngineer"
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "AlgorithmEngineer",
+        architect_context=context,
+        blackboard=blackboard,
+        question_id=question.id,
+    ) == "AlgorithmEngineer"
+
+    manifest_id = "algorithm_manifest:theory-free"
+    context["algorithm_sandbox_manifest_id"] = manifest_id
+    blackboard.artifacts[manifest_id] = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": manifest_id,
+    }
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "SimulationEvaluator",
+        architect_context=context,
+        blackboard=blackboard,
+        question_id=question.id,
+    ) == "SimulationEvaluator"
+    assert runtime_module._runtime_workspace_parent_artifact_ids(
+        "AlgorithmEngineer", context
+    ) == {
+        "estimator_execution_contract_id": context[
+            "estimator_execution_contract_id"
+        ]
+    }
+
+
+def test_theory_free_source_review_binds_frozen_abi_lineage(
+    tmp_path: Path,
+) -> None:
+    question = _theory_free_code_question()
+    context = runtime_module._runtime_architect_context_with_requested_evidence_contract(
+        {},
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+        estimator_execution_contract=question.estimator_execution_contract,
+    )
+    source = (
+        "def run_estimator(request):\n"
+        "    sample = request['sample']\n"
+        "    return {'estimate': sum(sample) / len(sample)}\n"
+    )
+    result_payload = {"estimate": 2.0}
+    source_path = tmp_path / "estimator.py"
+    result_path = tmp_path / "result.json"
+    source_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    manifest_id = "algorithm_manifest:theory-free"
+    proposal_id = "algorithm_proposal:theory-free"
+    source_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": manifest_id,
+        "prototypes": [
+            {
+                "estimator_id": "est_public_mean",
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "script_path": str(source_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(result_payload),
+                "metrics": result_payload,
+                "runtime_seed": 7,
+                "runtime_replicates": 8,
+            }
+        ],
+    }
+    proposal_packet = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": proposal_id,
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": "haiku",
+    }
+    source_task = AgentTask(
+        task_id="algorithm:theory-free",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Author and execute the frozen public estimator ABI.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+            "implementation_gaps": context["implementation_gaps"],
+        },
+    )
+    deferred_task = AgentTask(
+        task_id="simulation:theory-free",
+        owner_subsystem="SimulationEvaluator",
+        objective="Evaluate the independently accepted estimator source.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "algorithm_sandbox_manifest_id": manifest_id,
+            "architect_context": context,
+        },
+    )
+    base_artifacts = {
+        manifest_id: source_manifest,
+        proposal_id: proposal_packet,
+    }
+    dispatch = _runtime_generated_code_semantic_review_dispatch(
+        task=source_task,
+        question=question,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest=source_manifest,
+        theory_packet={},
+        proposal_packet=proposal_packet,
+        architect_context=context,
+        deferred_next_task=deferred_task,
+        blackboard_artifacts=base_artifacts,
+        max_revisions=1,
+    )
+    assert dispatch is not None
+    work_order = dispatch["work_order"]
+    assert work_order["theory_packet_id"] == ""
+    assert work_order["research_evaluation"] is True
+
+    backend = StaticReviewClientToolBackend(
+        {
+            "prior_finding_reviews": [],
+            "overall_verdict": "ACCEPT",
+            "review_document": (
+                "# Independent Review\n\nThe exact source implements the frozen "
+                "public estimator ABI and returns the declared response field."
+            ),
+            "findings": [],
+            "source_revision_assessment": {
+                "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+                "rationale": "No source or parent revision is required.",
+                "evidence_refs": [
+                    "/exact_executed_artifacts/0/exact_source_code"
+                ],
+            },
+        }
+    )
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+    blackboard = BlackboardState(project_id=question.id)
+    blackboard.artifacts.update(base_artifacts)
+    blackboard.artifacts.update(dispatch["artifacts"])
+
+    outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=reviewer,
+        max_revisions=1,
+    ).run(dispatch["next_task"], blackboard)
+
+    assert outcome.status == "REROUTE", (
+        outcome.rationale,
+        outcome.failure_classification,
+        outcome.observations,
+    )
+    assert outcome.next_task is not None
+    assert outcome.next_task.owner_subsystem == "SimulationEvaluator"
+    accepted = outcome.next_task.inputs["accepted_generated_code_semantic_reviews"]
+    assert accepted[-1]["parent_artifact_ids"] == {
+        "estimator_execution_contract_id": context[
+            "estimator_execution_contract_id"
+        ]
+    }
 
 
 def test_theory_topology_records_shared_workspace_budget() -> None:
