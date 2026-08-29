@@ -82,8 +82,13 @@ def test_moran_i_integrated_l0_is_frozen_before_its_sole_draw() -> None:
     assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["activation_ledger_commit"] == "pending_activation_commit"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "9092ea5da6519fc3f931f0bd3332ecd6f2aaefe3"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
+    assert evidence["product_code_head"] == (
+        "9092ea5da6519fc3f931f0bd3332ecd6f2aaefe3"
+    )
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["automated_full_task_passed"] is False
     assert evidence["full_task_passed"] is False
