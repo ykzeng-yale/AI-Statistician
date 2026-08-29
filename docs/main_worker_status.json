@@ -14,6 +14,8 @@
     "level": "L3",
     "status": "preactivated_frozen_pre_first_exact_haiku_draw",
     "visible_question_commit": "878d3ae40e7ed70fd2cd11803b70d978a6a2c2a7",
+    "activation_ledger_commit": "ecce029fbfdd0c5b6fa6e6b49a8b5b9f5e69f0e7",
+    "activation_push_confirmed_on_work_branch_and_main": true,
     "public_authority": "Le Cam (1960), Locally Asymptotically Normal Families of Distributions, plus van der Vaart (1998), Asymptotic Statistics Chapter 7.",
     "scope": "One Bernoulli local-alternative likelihood-ratio, contiguity, Gaussian-shift, and upper-tail local-power derivation in an authoritative Markdown/LaTeX workspace. Scientific code, empirical simulation, source replication, formalization, novelty, and optimality claims are not applicable.",
     "qualification": "The generic Markdown/claim-graph authority passed 7/7 checks and rejected 7/7 structural negatives. Protocol 11 exact-Haiku semantic qualification passed 6/6 calibration cases, rejected one realistic long-form local-shift scaling near miss, and accepted all eight reference claims in 16 evaluator calls. Product calls remain zero.",
