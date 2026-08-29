@@ -1,13 +1,37 @@
 {
-  "schema_version": 294,
+  "schema_version": 295,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "18e150c1",
+  "validated_code_head": "8185c268",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all ninety-seven consumed draws and immutable artifacts at trustworthy full-task credit 7/97 while exact development-panel Lean closure remains 0/2. Retire remaining recursive compatibility payloads from the central AgentRuntime before adding outer features, then pre-freeze a disjoint integrated Theory, code, and empirical task that tests an underrepresented capability. Keep Task97's R execution as component evidence, never repair or rescore it, and use protocol-v11 adversarial evaluation only on future qualified work.",
+  "current_goal_focus": "Preserve all ninety-seven consumed draws and immutable artifacts at trustworthy full-task credit 7/97 while exact development-panel Lean closure remains 0/2. Keep one explicit Codex-style model/tool/observation session per source owner with literal caller-owned limits, no hidden terminal resampling, no synthetic turn-fraction reminders, and immutable checkpoint continuation. Next pre-freeze a disjoint integrated Theory, code, and empirical task that tests an underrepresented capability; never repair or rescore Task97 or another consumed task.",
+  "latest_codex_explicit_turn_boundary": {
+    "mechanism_commit": "8185c268ee2a447915e6d20c4f8e8b08d1d0abe9",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "trigger": "The shared specialist loop still sampled up to two model turns beyond max_turns, forced a terminal-only tool choice, and injected rollout-budget messages at hardcoded fractions of a turn count. Those behaviors were local approximations, not the official Codex token-budget semantics, and contradicted the project's no-hidden-retry boundary.",
+    "change": "Theory, Python/R, Simulation, metric, Critic, and Lean workspaces now share one literal linear loop. Every configured model turn sees the same tools. Rejected terminal submissions are ordinary raw observations only while explicit turns remain; exhaustion preserves exact messages and current workspace state for an outer, hash-bound continuation rather than sampling again inside the harness.",
+    "removed_surfaces": [
+      "automatic terminal-only continuation after max_turns",
+      "automatic second correction sample after a rejected final commit",
+      "dynamic terminal-only tool filtering and forced tool choice",
+      "hardcoded one-half, one-quarter, and one-tenth turn reminders"
+    ],
+    "preserved_surfaces": [
+      "same source-owning model and retained transcript",
+      "stable authority-scoped tools",
+      "raw environment observations",
+      "explicit model commit or honest gap action",
+      "content-addressed session and workspace checkpoints",
+      "caller-owned safety and execution bounds",
+      "isolated review and verifier authority"
+    ],
+    "verification": "Focused shared-loop, Theory, scientific-code, Lean, preflight, metric-review, code-review, and Critic regressions passed 266/266. The complete repository passed 1057/1057 in 81.06 seconds; compileall, JSON parsing, diff hygiene, and the production-size gate passed with 149922 top-level production Python lines.",
+    "model_and_evaluator_calls": 0,
+    "capability_boundary": "This deletes harness policy and cannot alter any consumed score or establish better theory, code, simulation, or proof capability. A future disjoint pre-frozen task must provide live evidence."
+  },
   "latest_algorithm_handoff_payload_copy_retirement": {
     "mechanism_commit": "18e150c150991ca4c1eca058c993e638ee90b7a0",
     "trigger": "Canonical Algorithm review already persisted one external exact-artifact materialization and AgentRuntime compacted the accepted handoff to RuntimeArtifactRef, but validation still accepted a legacy materialization containing the complete review_material and could recover the handoff implicitly from copied Architect context.",
@@ -140,7 +164,7 @@
     "model_execution": "Seventy-seven product calls used exact Haiku: seventy-five retained client-tool turns and two direct planning envelopes. Sonnet and Opus calls were zero.",
     "theory_result": "One retained TheoryDeveloper authored a 302-line Markdown/LaTeX document and one isolated referee accepted it. Hidden evaluation passed 7/7 mechanical checks and 10/10 calibrated semantic claims.",
     "scientific_source_result": "Algorithm and Simulation owners each reached an accepted real sandbox observation, but neither explicitly committed its source or produced an independently accepted handoff. Hidden algorithm and empirical harnesses therefore did not run.",
-    "shared_future_task_correction": "Repeated ordinary no-progress now reaches the existing terminal-only turn. An executed same-owner checkpoint restores its full prototype only from the exact hash-validated parent row after source, observation, and acceptance match; the same model must still explicitly commit. No output repair, retry, extra agent, fallback, scheduler, larger budget, or task-specific rule was added.",
+    "shared_future_task_correction": "Historical Task95 diagnosis. Its later terminal-only continuation experiment is superseded by commit 8185c268: current workspaces never sample beyond the explicit turn bound, and unfinished accepted state is preserved only through the existing hash-bound checkpoint for an outer explicit continuation. No Task95 artifact or score changed.",
     "runtime_manifest_sha256": "66460360dab3f0f4c9c791f396216283fd87b6e3b2d8b2614d07b66bdca21046",
     "gold_evaluation_sha256": "96d2b3c01e47c95487666517938914f49c9871aeafa0aa6cb0ea76fc360008e1",
     "operator_audit": "docs/operator_audits/delong_single_auc_variance_l0_v1.md",
@@ -148,17 +172,6 @@
     "trusted_capability_credit": "0/1; aggregate remains 7/95 consumed",
     "task_intent": "Theory, scientific code, empirical simulation, and unresolved-gap disclosure required; source replication, formalization, and novelty are not applicable.",
     "boundary": "The sole exact-Haiku product invocation and post-runtime evaluator assessment are consumed and immutable. Hidden reference text, expected values, claim identities, negatives, and judgments never entered runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden findings, or model-escalate this task."
-  },
-  "latest_codex_terminal_lifecycle_correction": {
-    "mechanism_commit": "82cfc09190312964254a69cf7c6ad17c2523d202",
-    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
-    "trigger": "Task 95 source owners each reached an accepted sandbox observation, then repeated empty ordinary edits. The generic no-progress guard threw before the existing terminal-only turn, and the outer same-owner wrapper did not restore the full prior sandbox prototype.",
-    "terminal_change": "Repeated ordinary no-progress transitions early to the one already reserved terminal-only turn. Only the terminal tool is exposed; ordinary mutation and execution remain unavailable.",
-    "checkpoint_change": "When a checkpoint says the current source was executed, the wrapper restores the full prototype only from the blackboard-validated parent manifest and only after exact source bytes, projected observation, and acceptance state match. The source-owning model must still explicitly commit through the existing gate.",
-    "excluded_changes": "No Codex dependency, second scheduler, repair worker, retry budget, fallback, task-family branch, DeLong rule, output patch, automatic commit, resource increase, Sonnet call, Opus call, or model escalation.",
-    "model_and_evaluator_calls": 0,
-    "capability_boundary": "Task 95 remains immutable at 0/1 and aggregate trustworthy capability remains 7/95 consumed. The correction is deterministic future-task mechanism evidence only.",
-    "verification": "Focused client-tool, scientific workspace, checkpoint, sandbox, and size regressions passed 115/115; ladder closeout regressions passed 93/93; and the complete repository passed 1054/1054 in 81.00 seconds. Compileall, JSON/diff hygiene, credential and task-specific production-diff scanning, hidden-leak scanning, and the production-size gate passed at 149997 lines. No model, evaluator, benchmark, or consumed task was invoked."
   },
   "latest_newey_west_mean_hac_l0_activation": {
     "task_id": "newey_west_mean_hac_known_result",
@@ -406,14 +419,6 @@
     "codex_basis": "OpenAI Codex review is an isolated source review with discrete source-located findings and no generated fix. AI Statistician adopts that role boundary while retaining mathematical scratch, external-source inspection, hidden semantic evaluation, and Lean kernel authority.",
     "excluded_changes": "No new agent, scheduler, schema, repair path, retry, fallback, parser, task-family rule, model escalation, imported Codex runtime, or consumed-task mutation.",
     "verification": "Referee regressions passed 64/64; the focused size, source-fidelity, and ladder panel passed 68/68; the complete repository passed 1045/1045 in 80.45 seconds; compileall and diff hygiene passed. Production Python remains below the unchanged 150000-line limit."
-  },
-  "latest_codex_rollout_budget_adoption": {
-    "mechanism_commit": "63b527e54d9b5e4df4ea63a19827c8e817e688ab",
-    "official_codex_reference_head": "eec4a23cb16de16e0c8cff7c913eed943f223df7",
-    "change": "The shared provider-neutral client_tool_loop emits a short rollout_budget context only when ordinary turns fall to one-half, one-quarter, or approximately one-tenth of the segment. It reports both remaining turns and remaining ordinary workspace-action calls. It consumes no model turn and does not modify any raw tool-result payload.",
-    "transport_boundary": "Initial total capacity remains in each source workspace's own prompt because existing user-message ABIs may require JSON at the beginning or end. A generic initial-message wrapper was tested and rejected after it broke those real contracts. Threshold reminders are separate text blocks after complete tool_result blocks, which preserves Python/R, Theory preflight, metric, and Lean payload identity.",
-    "authority_boundary": "Budget context is scheduling information, not scientific evidence. It chooses no search, edit, theorem, statistic, simulation, proof action, owner, or stopping verdict. Terminal continuation, independent review, hidden-gold authority, and Lean kernel promotion are unchanged.",
-    "verification": "Focused cross-workspace and core panels passed 236/236; the final complete repository passed 1041/1041 in 80.85 seconds. Compileall, diff hygiene, changed-diff secret scanning, and the strict production-size gate passed at 149999 top-level Python lines. No product or evaluator model call and no consumed-task mutation occurred."
   },
   "latest_binary_runs_fixed_counts_l0_evaluation": {
     "task_id": "binary_runs_fixed_counts_known_result",
@@ -4618,7 +4623,7 @@
     "Treat commit bd8961ab as future-task persistence evidence only. Keep full raw tool observations inside source-owner execution and exact artifacts; compact only duplicate trace text with external output identity, and never use log size as scientific acceptance or as a reason to hide an unreferenced failure.",
     "Treat commit dd3cb36c as future-task shared artifact-boundary evidence only. Model sampling receives one bounded identity/hash/ABI dependency projection while exact reviewed source and raw outcomes remain content-addressed and available to the runtime executor; do not reintroduce payload copying, a fallback simulator, or another scheduler.",
     "Preserve paired ratio-of-means L0 v1 at raw 0/1 without rerun, resume, manual checkpoint commit, output repair, hidden rescore, or component promotion. Its 8,425-byte model-authored Markdown/LaTeX file is useful diagnostic evidence but was never independently accepted.",
-    "Treat commit 3bfa8daa as future-task shared-loop evidence only. Ordinary action capacity and one same-model terminal disposition are now separate, but the terminal phase cannot execute more research actions and must not become another retry or scheduler layer.",
+    "Treat commit 3bfa8daa and later terminal-only experiments as historical evidence superseded by 8185c268. Current source-owner loops have one literal model-turn boundary, stable tools, no hidden terminal or correction sample, and checkpoint unfinished state for explicit outer continuation.",
     "Preserve Fisher-z L0 v1 at raw 0/1 without rerun, resume, output repair, or rescore. Keep its hidden algorithm 13/13 and empirical 9/9 as component evidence, and keep the calibrated theory semantic FAIL plus operator-identified covariance and delta-method defects as a hard negative for the general TheoryDeveloper/referee loop.",
     "Use the Fisher-z referee false acceptance to improve model-owned long-horizon derivation and adversarial review, not to add Gaussian formulas, covariance parsers, repeated model voting, post-hoc mathematical validators, or hidden feedback. The reviewer must reconstruct decisive claim dependencies and may use source/scratch tools, but it remains responsible for the mathematical verdict.",
     "Treat commit fbea1af3 as future-task interface evidence only: one model-authored portfolio replicate count is copied unchanged into evaluator rows and still undergoes independent pre-outcome review. Never use the correction to regenerate or rescore the consumed Fisher-z packet.",
@@ -4662,7 +4667,7 @@
     "Improve Formalizer through direct proof-state retrieval and source iteration, but keep it parallel or downstream for non-formal product tasks and mandatory only when frozen task intent requires proof.",
     "Delete or extract existing central runtime responsibilities before adding any new outer control feature.",
     "Preserve Task 73 at immutable 0/1. Its hidden algorithm 8/8 and empirical 10/10 are component evidence only; never rerun, resume, repair, hidden-evaluate again, rescore, resample, or feed hidden/operator findings to its source owners. Commit bfae4e13 is future-task lifecycle evidence only.",
-    "Use the next disjoint evaluation to measure an underrepresented capability such as long-horizon Theory revision, paper-to-code reproduction, confirmatory simulation ownership, or optional proof-state-driven Lean work. Freeze visible scope and evaluator-only authority before any product call, and do not select another task merely to demonstrate the R source executor or terminal-continuation mechanism.",
+    "Use the next disjoint evaluation to measure an underrepresented capability such as long-horizon Theory revision, paper-to-code reproduction, confirmatory simulation ownership, or optional proof-state-driven Lean work. Freeze visible scope and evaluator-only authority before any product call, and do not select another task merely to demonstrate a workspace transport mechanism.",
     "Continue selective Codex reuse at the invariant level: one source owner, stable tools, raw observations, durable external artifacts, and clean termination. Do not embed Codex Core, App Server, Responses transport, SDK threads, worktree management, or multi-agent scheduling into the Anthropic-backed scientific runtime."
   ]
 }

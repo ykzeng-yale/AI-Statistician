@@ -9,6 +9,28 @@ Latest incremental recheck:
 `6478a751fde8884b2fdc76486fe23175a8e795d4` (fresh official
 `origin/main` fetch on 2026-08-29).
 
+## Current canonical decision
+
+Commit `8185c268ee2a447915e6d20c4f8e8b08d1d0abe9` is the current shared-loop
+boundary. Each Theory, Python/R, Simulation, metric, Critic, or Lean source owner
+gets one linear retained model/tool/observation session. Every configured model
+turn sees the same authority-scoped tools; raw observations return to that same
+model; explicit commit or gap actions remain model-owned; and unfinished state is
+preserved through an immutable checkpoint.
+
+The harness does not sample beyond the caller's explicit turn bound, reserve a
+terminal-only correction, change the tool surface at exhaustion, or inject budget
+messages at hardcoded fractions of a turn count. Official Codex rollout reminders
+are tied to an explicit shared token budget; the retired AI-Statistician imitation
+was not semantically equivalent. Lower chronological notes that describe reserved
+terminal continuations or synthetic turn-fraction reminders are historical and
+superseded by this section.
+
+The adopted Codex principles remain model-directed tool use, stable scoped tools,
+real files and hashes, raw observations, explicit completion, isolated review, and
+sparse artifact references. Codex Core, App Server, Responses transport, thread
+storage, worktree management, Guardian, hooks, and its scheduler remain excluded.
+
 The earlier expanded hash stored for short commit `31d338a1` was incorrect. The
 actual commit is `31d338a1ea89cd65a48d8ac07f50bb3917009806`; this audit and the
 current ladder use the corrected provenance identity.
@@ -41,6 +63,10 @@ logic rather than adding another interface, agent, retry, or scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `8185c268ee2a447915e6d20c4f8e8b08d1d0abe9`: remove hidden terminal-only
+  resampling, final-commit correction retries, dynamic exhaustion-time tool
+  filtering, and synthetic turn-fraction reminders from the shared specialist
+  loop; preserve exact checkpoint continuation instead;
 - `18e150c150991ca4c1eca058c993e638ee90b7a0`: require an explicit task-owned accepted
   Algorithm handoff backed by the canonical external review materialization;
   reject nested legacy review payloads and implicit Architect-context recovery;
