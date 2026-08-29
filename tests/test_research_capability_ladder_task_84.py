@@ -127,7 +127,7 @@ def test_karlin_rubin_l0_theory_task_is_consumed_and_immutable() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 88
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 87
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 88
     assert readiness["fully_gold_configured_tasks"] == 88
     assert readiness["fully_gold_passed_tasks"] == 5

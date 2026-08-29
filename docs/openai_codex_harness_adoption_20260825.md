@@ -3860,3 +3860,68 @@ speculative provider fallback whose state should be imported. The other commit f
 image and audio payloads from App Server function-call notifications, a transport-only
 concern outside the text and artifact-reference scientific workspaces. No additional
 code, abstraction, provider, scheduler, or dependency is warranted.
+
+## 2026-08-28 current upstream and exhausted same-owner reviews
+
+Official Codex `main` was refreshed through
+[`0ae94fdd`](https://github.com/openai/codex/commit/0ae94fdd49b05ee7faa4d984d06a68492cb32b54).
+The three commits after `0d226929` run cleanup hooks for interrupted turns and
+subagents and answer terminal queries from TTY subprocesses. They improve Codex
+product lifecycle behavior, but do not change its harness principle or supply a
+scientific control plane that AI Statistician should import.
+
+The reusable core remains deliberately small. In
+[`session/turn.rs`](https://github.com/openai/codex/blob/0ae94fdd49b05ee7faa4d984d06a68492cb32b54/codex-rs/core/src/session/turn.rs),
+one retained model session chooses function calls, receives their outputs on the
+next sampling request, and stops on a final assistant message. In
+[`context_manager/history.rs`](https://github.com/openai/codex/blob/0ae94fdd49b05ee7faa4d984d06a68492cb32b54/codex-rs/core/src/context_manager/history.rs),
+history snapshots, world-state baselines, and output truncation remain harness
+state rather than tool-specific content logic.
+
+Task 88 exercised that pattern across persistent Markdown/LaTeX Theory and Python
+source workspaces. The source owners had 127 client-tool model turns and 135 tool
+executions, received raw paper, scratch, execution, and review observations, and
+performed one same-owner Theory revision plus one Algorithm regeneration. The run
+still failed: Theory and source contained coordinate-residual and KKT errors, and
+independent Haiku reviewers missed their roots. This is model reasoning evidence,
+not evidence that another middle layer or a task formula is needed.
+
+The run did expose one harness-only inefficiency. Both final Algorithm reviews said
+`CURRENT_SOURCE_REWRITE_SUFFICIENT`, but after the source-owner candidate budget was
+exhausted the old runtime called Architect. Architect could not invent a new source
+owner and blocked one step later. Commit
+`b8583b9e40dbbcc00cb335fdb78b6c2f2cb3b3da` now terminates future equivalent
+lineages on the exact reviewer observation. Only true cross-artifact or ambiguous
+ownership conflicts reach Architect. This is the Codex principle applied narrowly:
+keep work with its environment-owning model; hand off only when another workspace
+must make a substantive decision.
+
+No Codex crate, SDK, OpenAI transport, App Server, Guardian, thread/worktree layer,
+multi-agent scheduler, provider fallback, repair agent, retry, task-specific rule,
+or extra model budget was added. The existing Anthropic-backed
+`client_tool_loop.py`, one AgentRuntime, external hash-bound artifacts, independent
+review, hidden statistical authority, and Lean kernel gate remain canonical.
+
+The canonical collaboration contract is therefore workspace-shaped, not a fixed
+scientific pipeline:
+
+- TheoryDeveloper retains a file workspace with Markdown/LaTeX editing, source
+  retrieval, Python/R scratch, explicit checkpoint, and honest gap reporting.
+- AlgorithmEngineer and SimulationEngineer retain scientific source workspaces;
+  each model selects edits and executions and receives exact stdout, stderr, and
+  result artifacts. Simulation may start once a claim is executable and need not
+  wait for every theorem, while frozen confirmation remains independently gated.
+- Formalizer retains a Lean source workspace with declaration retrieval, goal and
+  source inspection, scratch elaboration, exact source submission, and formal-gap
+  reporting. It is selected by task intent, can run alongside stable theory work,
+  and blocks only a formal-required claim; the Lean kernel remains final authority.
+- AgentRuntime owns task intent, identities, content hashes, permissions, budgets,
+  and evidence promotion. It performs a handoff only when another workspace owns
+  a substantive unresolved artifact, never to translate a compiler error or write
+  a scientific repair.
+
+The routing change passed 154/154 focused regressions; Task 88 closeout passed
+86/86 ladder checks; and the complete repository passed 1033/1033. Top-level
+production Python remains within the unchanged architecture budget at 149,973
+lines. These are regression and provenance results, not new scientific capability
+credit; the immutable aggregate remains 5/88.

@@ -178,10 +178,10 @@ def test_statlib_qmd_l0_formal_task_records_sole_kernel_closed_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 88
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 87
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 88
     assert readiness["fully_gold_configured_tasks"] == 88
     assert readiness["fully_gold_passed_tasks"] == 5
     assert readiness["latest_shared_mechanism_head"] == (
-        "9606ac34c19129ee7ec53808a8ccfb7b6b018374"
+        "b8583b9e40dbbcc00cb335fdb78b6c2f2cb3b3da"
     )
