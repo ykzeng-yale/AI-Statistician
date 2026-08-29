@@ -2678,6 +2678,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
 def test_default_theory_workspace_budget_allows_observation_recovery() -> None:
     config = ResearchArchitectConfig()
 
+    assert config.theory_workspace_max_turns == 48
     assert config.theory_workspace_max_tool_calls >= (
         2 * config.theory_workspace_max_turns
     )

@@ -1140,6 +1140,7 @@ def run_lean_candidate_revision_tool_loop(
                 "role": "user",
                 "content": (
                     user_prompt
+                    + f"\n\nThis retained Lean session has up to {max_turns} model/tool turns; retrieval, source revision, checks, and terminal submission share that allowance."
                     + "\n\nInitial authoritative Lean workspace state:\n"
                     + json.dumps(
                         initial_workspace,

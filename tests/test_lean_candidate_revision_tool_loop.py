@@ -4443,3 +4443,5 @@ def test_formalizer_client_tool_revision_rebuilds_only_bound_candidate_source(
     assert backend.requests[0].metadata["client_tool_loop_max_turns"] == (
         FormalizerConfig().client_tool_lean_candidate_max_turns
     )
+    assert FormalizerConfig().client_tool_lean_candidate_max_turns == 48
+    assert "up to 48 model/tool turns" in str(backend.requests[0].messages)

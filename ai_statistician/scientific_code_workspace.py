@@ -2221,6 +2221,7 @@ def run_scientific_code_workspace(
                 "role": "user",
                 "content": (
                     user_prompt
+                    + f"\n\nThis retained source session has up to {max_turns} model/tool turns; retrieval, authoring, execution, and explicit commit share that allowance."
                     + "\n\nRetain observed source hashes and sandbox results. Do "
                     "not resubmit a previously observed byte-identical candidate. "
                     "Source submission and exact edits do not execute. You may make "

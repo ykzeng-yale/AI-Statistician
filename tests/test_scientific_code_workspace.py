@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig
 from ai_statistician.client_tool_loop import (
     CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
@@ -30,6 +31,7 @@ from ai_statistician.scientific_code_workspace import (
     scientific_source_candidate_accepted,
     scientific_workspace_prototype_observation,
 )
+from ai_statistician.simulation_engineer_llm import SimulationEngineerConfig
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
@@ -1427,7 +1429,11 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         13,
     ]
     first_prompt = str(backend.requests[0].messages)
+    assert AlgorithmEngineerConfig().client_tool_code_max_turns == 48
+    assert SimulationEngineerConfig().client_tool_code_max_turns == 48
     assert "at most 5 total model/tool turns" not in first_prompt
+    assert "up to 7 model/tool turns" in first_prompt
+    assert "retrieval, authoring, execution, and explicit commit" in first_prompt
     assert "Retain observed source hashes and sandbox results" in first_prompt
     assert "attempt': 0" in str(backend.requests[-1].messages)
     assert "attempt': 3" in str(backend.requests[-1].messages)

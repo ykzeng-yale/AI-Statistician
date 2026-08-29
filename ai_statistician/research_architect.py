@@ -223,8 +223,8 @@ class ResearchArchitectConfig:
     serious_max_tokens: int = 10000
     temperature: float = 0.2
     provider_name: str = "anthropic"
-    theory_workspace_max_turns: int = 24
-    theory_workspace_max_tool_calls: int = 48
+    theory_workspace_max_turns: int = 48
+    theory_workspace_max_tool_calls: int = 96
     theory_workspace_max_no_progress_turns: int = 2
 
 

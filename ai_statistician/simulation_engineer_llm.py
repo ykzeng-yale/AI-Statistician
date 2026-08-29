@@ -111,7 +111,7 @@ class SimulationEngineerConfig:
     provider_name: str = "anthropic"
     max_validation_retries: int = 1
     use_client_tool_code_workspace: bool = True
-    client_tool_code_max_turns: int = 24
+    client_tool_code_max_turns: int = 48
     client_tool_code_max_no_progress_turns: int = 2
 
 

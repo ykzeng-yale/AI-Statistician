@@ -96,7 +96,7 @@ class FormalizerConfig:
     provider_name: str = "anthropic"
     max_validation_retries: int = 1
     use_client_tool_lean_candidate_workspace: bool = True
-    client_tool_lean_candidate_max_turns: int = 20
+    client_tool_lean_candidate_max_turns: int = 48
     client_tool_lean_candidate_max_no_progress_turns: int = 2
 
 
