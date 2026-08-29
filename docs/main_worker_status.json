@@ -1,5 +1,5 @@
 {
-  "schema_version": 265,
+  "schema_version": 266,
   "updated_at": "2026-08-28",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,7 +7,7 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all eighty-seven consumed draws and immutable artifacts at trustworthy full-task credit 5/87, while exact development-panel Lean closure remains 0/2. Task 87 validates the intended minimal theory harness topology: one persistent Markdown/LaTeX TheoryDeveloper workspace, one independent artifact-grounded referee, and one terminal Critic in three outer nodes, with code, simulation, and formalization correctly not requested. Runtime nevertheless false-accepted active mathematical contradictions and an unsupported consistency suggestion; calibrated hidden semantics failed 5/7. Existing generic prompts already require whole-document contradiction scans and independent reconstruction, so do not add a Good-Turing rule, synonymous guardrail, extra reviewer, retry, fallback, repair worker, scheduler, or model escalation. Keep production Sonnet-or-below and every test or scored evaluation exact Haiku.",
+  "current_goal_focus": "Preserve all eighty-seven consumed draws and immutable artifacts at trustworthy full-task credit 5/87 while exact development-panel Lean closure remains 0/2. Task 88 is a newly frozen, disjoint L2 paper-to-code evaluation of Gaussian elastic-net coordinate descent from the Friedman-Hastie-Tibshirani paper and diabetes data. It tests the Codex-shaped collaboration we actually want: persistent Markdown/LaTeX theory, one model-owned Python source loop with raw execution feedback, independent source review, model-owned exploratory and confirmatory simulation, sparse outer handoffs, and a terminal evidence critic. Formalization and hidden author-source replication are explicitly not applicable. Bind and push provenance before exactly one exact-Haiku product draw and one hidden assessment; do not add an elastic-net rule, retry, fallback, repair worker, scheduler, Sonnet evaluation call, or Opus call.",
   "latest_good_turing_missing_mass_theory_l0_evaluation": {
     "task_id": "good_turing_missing_mass_bias_theory_known_result",
     "family": "countable_occupancy_missing_mass_theory",
@@ -37,6 +37,30 @@
     "post_run_shared_mechanism_change": "None. No product mechanism changed from this consumed result.",
     "closeout_verification": "Focused ladder and hidden-evaluation regressions passed 131/131; the complete repository passed 1031/1031 in 80.93 seconds. Compileall, JSON, diff hygiene, changed-file secret scanning, exact-Haiku model policy, and immutable artifact hashes passed. No post-run product or evaluator model call occurred.",
     "boundary": "The sole product invocation and sole post-runtime hidden assessment are immutable. Never rerun, resume, repair, reevaluate, rescore, resample, or feed hidden/operator findings to Task 87 source owners."
+  },
+  "latest_glmnet_gaussian_l2_activation": {
+    "task_id": "glmnet_gaussian_elastic_net_paper_to_code",
+    "family": "gaussian_elastic_net_coordinate_descent",
+    "level": "L2",
+    "status": "frozen_ready_exact_haiku_product_draw_not_started",
+    "visible_question_activation_commit": "23e7afc2376a49fac7e9994b9a6ca5f3ea3c19f9",
+    "activation_ledger_commit": "pending_current_activation_commit",
+    "visible_questions_sha256": "b99b4d42cabbef33781bf2b6c229c9b2540fa4089df34a2b1ae31679cf1e0f98",
+    "runtime_visible_question_hash": "461cf550fc28d916d3ed396aa0e2fb29cae41ccd732828da6ebbf3533e60a716",
+    "research_source_snapshot_hash": "e0fc962da5417a3cb22832f21b79c9a1bae8d8136be549bd75bc38b3ec714779",
+    "estimator_execution_contract_id": "frozen_estimator_execution_contract:6741ecd0330782bfd6b2",
+    "gold_manifest_file_sha256": "2fc7c5496f206114ee3497681f80a298b10ff4fb0f65773e2f3665167ff53acd",
+    "gold_manifest_stable_hash": "c816d74c01b35240984073ab426d751208b4b1db440620705e2247c631f8edb2",
+    "qualification": "The production scientific WebAssembly sandbox accepted the reference estimator on the complete closed ABI, KKT, invariance, invalid-input, and diabetes suite; all three behavioral negative estimators were rejected. Two 1000-replicate reference designs passed. Exact Haiku semantic qualification passed 6/6 calibration cases, rejected one complete-document near miss, and accepted the reference in one preactivation attempt. Revalidation reused that record with zero new model calls.",
+    "runtime_model_policy": "The future sole product invocation and sole semantic hidden assessment use exact claude-haiku-4-5-20251001. Automatic tier escalation is forbidden; Sonnet and Opus calls are zero.",
+    "harness_topology": "One existing AgentRuntime coordinates persistent TheoryDeveloper, Python AlgorithmEngineer, SimulationEngineer, independent artifact review, and Critic workspaces. Each source owner selects tools and receives raw observations in the same retained session. The outer runtime owns only identity, hashes, task intent, budgets, immutable source acceptance, sparse handoffs, and evidence promotion.",
+    "formalization_requirement": "not_applicable",
+    "formalizer_executed": false,
+    "preactivation_product_model_calls": 0,
+    "preactivation_evaluator_model_calls": 8,
+    "activation_push_confirmed_on_work_branch_and_main": false,
+    "trusted_capability_credit": "not yet scored; aggregate remains 5/87 consumed with one unconsumed task",
+    "boundary": "The visible paper/data snapshot and public estimator/empirical contract are frozen. Hidden author source, reference implementation, cases, seeds, outcomes, semantic labels, and evaluator results remain outside repository RAG and model workspaces. No product call occurs until the activation ledger and its exact provenance binding are pushed to both canonical refs."
   },
   "latest_chapman_capture_recapture_r_l0_evaluation": {
     "task_id": "chapman_capture_recapture_bias_r_known_result",
