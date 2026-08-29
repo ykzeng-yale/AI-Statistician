@@ -13,6 +13,8 @@ from typing import Any, Mapping
 from .agent_runtime import (
     AgentTask,
     agent_task_from_payload,
+    load_persisted_runtime_result,
+    load_runtime_blackboard_artifact_payloads,
     restore_agent_task_continuation,
 )
 from .algorithms import audit_algorithm_registry
@@ -405,7 +407,7 @@ def _runtime_resume_blackboard_artifacts(
         blackboard_artifacts = blackboard.get("artifacts", {})
         if not isinstance(blackboard_artifacts, Mapping):
             return {}
-        rehydrated_artifacts = _load_runtime_blackboard_artifact_payloads(
+        rehydrated_artifacts = load_runtime_blackboard_artifact_payloads(
             result_payload=result_payload,
             result_path=result_path,
         )
@@ -421,74 +423,6 @@ def _runtime_resume_blackboard_artifacts(
         )
         return rehydrated_artifacts
     return {}
-
-
-def _load_runtime_blackboard_artifact_payloads(
-    *,
-    result_payload: Mapping[str, Any],
-    result_path: Path,
-) -> dict[str, Any]:
-    blackboard = result_payload.get("blackboard", {})
-    artifacts = (
-        blackboard.get("artifacts", {})
-        if isinstance(blackboard, Mapping)
-        else {}
-    )
-    if not isinstance(artifacts, Mapping):
-        raise ValueError(f"{result_path} has no runtime artifact map")
-    if (
-        result_payload.get("blackboard_artifact_payload_policy")
-        != "content_addressed_refs"
-    ):
-        return {
-            str(artifact_id): deepcopy(artifact)
-            for artifact_id, artifact in artifacts.items()
-        }
-
-    loaded: dict[str, Any] = {}
-    for raw_artifact_id, raw_reference in artifacts.items():
-        artifact_id = str(raw_artifact_id)
-        if not isinstance(raw_reference, Mapping) or (
-            raw_reference.get("artifact_kind") != "RuntimeArtifactRef"
-        ):
-            raise ValueError(
-                f"{result_path} artifact {artifact_id} is not a stored reference"
-            )
-        if str(raw_reference.get("artifact_id", "") or "") != artifact_id:
-            raise ValueError(
-                f"{result_path} artifact reference identity mismatch: {artifact_id}"
-            )
-        artifact_path = _resolve_runtime_resume_path(
-            str(raw_reference.get("path", "") or ""),
-            base_dir=result_path.parent,
-        )
-        if artifact_path is None:
-            raise ValueError(
-                f"{result_path} artifact payload is unavailable: {artifact_id}"
-            )
-        try:
-            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ValueError(
-                f"{result_path} artifact payload is unreadable: {artifact_id}"
-            ) from exc
-        if stable_hash(artifact) != str(
-            raw_reference.get("content_hash", "") or ""
-        ):
-            raise ValueError(
-                f"{result_path} artifact payload hash mismatch: {artifact_id}"
-            )
-        expected_kind = str(raw_reference.get("payload_kind", "") or "")
-        if expected_kind and (
-            not isinstance(artifact, Mapping)
-            or str(artifact.get("artifact_kind", "") or "")
-            != expected_kind
-        ):
-            raise ValueError(
-                f"{result_path} artifact payload kind mismatch: {artifact_id}"
-            )
-        loaded[artifact_id] = artifact
-    return loaded
 
 
 def _runtime_resume_prior_ledger_artifacts(
@@ -4051,34 +3985,10 @@ def _post_runtime_gold_evaluation_results(
     )
     if not isinstance(result_paths, list):
         raise ValueError("runtime manifest per-question result paths are invalid")
-    results: list[dict[str, Any]] = []
-    for raw_path in result_paths:
-        result_path = Path(str(raw_path)).resolve()
-        try:
-            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ValueError(
-                f"post-runtime result is unreadable: {result_path}"
-            ) from exc
-        if not isinstance(result_payload, dict):
-            raise ValueError(
-                f"post-runtime result must be an object: {result_path}"
-            )
-        blackboard = result_payload.get("blackboard", {})
-        if not isinstance(blackboard, Mapping):
-            raise ValueError(
-                f"post-runtime result has no blackboard: {result_path}"
-            )
-        hydrated = _load_runtime_blackboard_artifact_payloads(
-            result_payload=result_payload,
-            result_path=result_path,
-        )
-        result_payload["blackboard"] = {
-            **dict(blackboard),
-            "artifacts": hydrated,
-        }
-        results.append(result_payload)
-    return results
+    return [
+        load_persisted_runtime_result(Path(str(raw_path)))
+        for raw_path in result_paths
+    ]
 
 
 def _selected_research_eval_requires_formal_lane(

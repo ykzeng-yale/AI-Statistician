@@ -918,6 +918,15 @@ def test_file_authority_claim_dependencies_are_closed_and_acyclic(
         )
     assert validate_theory_packet(packet) == []
 
+    invalid_status = json.loads(json.dumps(packet))
+    invalid_status["theory_derivation_packet"]["claim_index"][0][
+        "status"
+    ] = "derived"
+    assert (
+        "claim_index[0].status must be one of OPEN, SUPPORTED, REJECTED, "
+        "INCONCLUSIVE; received 'derived'"
+    ) in validate_theory_packet(invalid_status)
+
     unknown = json.loads(json.dumps(packet))
     unknown_claims = unknown["theory_derivation_packet"]["claim_index"]
     unknown_claims[0]["depends_on"] = ["missing-claim"]

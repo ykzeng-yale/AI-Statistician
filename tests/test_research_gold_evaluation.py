@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import ai_statistician.research_gold_evaluation as gold_evaluation_module
+from ai_statistician.agent_runtime import load_persisted_runtime_result
 from ai_statistician.cli import _post_runtime_gold_evaluation_results
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.estimator_interface_contract import (
@@ -110,22 +111,31 @@ def test_post_runtime_gold_loader_rehydrates_exact_artifact_hashes(
     artifact_hash = stable_hash(artifact)
     blob_path = tmp_path / "artifact.json"
     blob_path.write_text(json.dumps(artifact), encoding="utf-8")
+    reference = {
+        "artifact_kind": "RuntimeArtifactRef",
+        "artifact_id": "question:1",
+        "content_hash": artifact_hash,
+        "content_hash_algorithm": "sha256_stable_json_v1",
+        "payload_kind": "RuntimeQuestionMetadata",
+        "path": str(blob_path),
+    }
+    index_path = tmp_path / "artifact-index.json"
+    index_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "RuntimeArtifactStoreIndex",
+                "artifacts": {"question:1": reference},
+            }
+        ),
+        encoding="utf-8",
+    )
     result_path = tmp_path / "runtime_result.json"
     result_path.write_text(
         json.dumps(
             {
                 "blackboard_artifact_payload_policy": "content_addressed_refs",
-                "blackboard": {
-                    "artifacts": {
-                        "question:1": {
-                            "artifact_kind": "RuntimeArtifactRef",
-                            "artifact_id": "question:1",
-                            "content_hash": artifact_hash,
-                            "payload_kind": "RuntimeQuestionMetadata",
-                            "path": str(blob_path),
-                        }
-                    }
-                },
+                "blackboard_artifact_store_index": str(index_path),
+                "blackboard": {"artifacts": {"question:1": reference}},
             }
         ),
         encoding="utf-8",
@@ -136,12 +146,21 @@ def test_post_runtime_gold_loader_rehydrates_exact_artifact_hashes(
     )
 
     assert results[0]["blackboard"]["artifacts"] == {"question:1": artifact}
+    assert load_persisted_runtime_result(result_path) == results[0]
 
     blob_path.write_text(json.dumps({**artifact, "tampered": True}), encoding="utf-8")
     with pytest.raises(ValueError, match="artifact payload hash mismatch"):
         _post_runtime_gold_evaluation_results(
             {"artifacts": {"per_question_results": [str(result_path)]}}
         )
+
+    blob_path.write_text(json.dumps(artifact), encoding="utf-8")
+    index_path.write_text(
+        json.dumps({"artifact_kind": "RuntimeArtifactStoreIndex", "artifacts": {}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="artifact store index mismatch"):
+        load_persisted_runtime_result(result_path)
 
 
 def _model_source() -> str:

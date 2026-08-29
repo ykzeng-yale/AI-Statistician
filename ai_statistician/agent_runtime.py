@@ -5,6 +5,8 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
+import json
+from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Iterator, Literal, Mapping, Protocol
 
@@ -101,6 +103,94 @@ def _runtime_iteration_budget_scope(task: AgentTask, result: AgentStepResult) ->
 
 class RuntimeArtifactReferenceError(ValueError):
     """A task-bound artifact reference is missing, stale, or cyclic."""
+
+
+def _runtime_stored_path(raw_path: str, *, base_dir: Path) -> Path | None:
+    if not raw_path:
+        return None
+    path = Path(raw_path)
+    candidates = (path,) if path.is_absolute() else (base_dir / path, path)
+    return next((candidate for candidate in candidates if candidate.exists()), None)
+
+
+def load_runtime_blackboard_artifact_payloads(
+    *, result_payload: Mapping[str, Any], result_path: Path
+) -> dict[str, Any]:
+    """Hydrate one persisted blackboard while verifying stored identities."""
+
+    blackboard = result_payload.get("blackboard", {})
+    artifacts = blackboard.get("artifacts", {}) if isinstance(blackboard, Mapping) else {}
+    if not isinstance(artifacts, Mapping):
+        raise ValueError(f"{result_path} has no runtime artifact map")
+    if result_payload.get("blackboard_artifact_payload_policy") != "content_addressed_refs":
+        return {str(artifact_id): deepcopy(value) for artifact_id, value in artifacts.items()}
+
+    raw_index_path = str(result_payload.get("blackboard_artifact_store_index", "") or "")
+    if raw_index_path:
+        index_path = _runtime_stored_path(raw_index_path, base_dir=result_path.parent)
+        if index_path is None:
+            raise ValueError(f"{result_path} artifact store index is unavailable")
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"{result_path} artifact store index is unreadable") from exc
+        indexed = index.get("artifacts", {}) if isinstance(index, Mapping) else {}
+        if (
+            not isinstance(index, Mapping)
+            or index.get("artifact_kind") != "RuntimeArtifactStoreIndex"
+            or not isinstance(indexed, Mapping)
+            or stable_hash(dict(indexed)) != stable_hash(dict(artifacts))
+        ):
+            raise ValueError(f"{result_path} artifact store index mismatch")
+
+    loaded: dict[str, Any] = {}
+    for raw_artifact_id, raw_reference in artifacts.items():
+        artifact_id = str(raw_artifact_id)
+        if not isinstance(raw_reference, Mapping) or raw_reference.get("artifact_kind") != "RuntimeArtifactRef":
+            raise ValueError(f"{result_path} artifact {artifact_id} is not a stored reference")
+        if str(raw_reference.get("artifact_id", "") or "") != artifact_id:
+            raise ValueError(f"{result_path} artifact reference identity mismatch: {artifact_id}")
+        algorithm = str(raw_reference.get("content_hash_algorithm", "") or "")
+        if algorithm and algorithm != "sha256_stable_json_v1":
+            raise ValueError(f"{result_path} artifact hash algorithm mismatch: {artifact_id}")
+        artifact_path = _runtime_stored_path(
+            str(raw_reference.get("path", "") or ""), base_dir=result_path.parent
+        )
+        if artifact_path is None:
+            raise ValueError(f"{result_path} artifact payload is unavailable: {artifact_id}")
+        try:
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"{result_path} artifact payload is unreadable: {artifact_id}") from exc
+        if stable_hash(artifact) != str(raw_reference.get("content_hash", "") or ""):
+            raise ValueError(f"{result_path} artifact payload hash mismatch: {artifact_id}")
+        expected_kind = str(raw_reference.get("payload_kind", "") or "")
+        if expected_kind and (
+            not isinstance(artifact, Mapping)
+            or str(artifact.get("artifact_kind", "") or "") != expected_kind
+        ):
+            raise ValueError(f"{result_path} artifact payload kind mismatch: {artifact_id}")
+        loaded[artifact_id] = artifact
+    return loaded
+
+
+def load_persisted_runtime_result(result_path: Path) -> dict[str, Any]:
+    """Load one persisted result through its canonical artifact-store boundary."""
+
+    result_path = result_path.resolve()
+    try:
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"persisted runtime result is unreadable: {result_path}") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("blackboard"), Mapping):
+        raise ValueError(f"persisted runtime result has no blackboard: {result_path}")
+    payload["blackboard"] = {
+        **dict(payload["blackboard"]),
+        "artifacts": load_runtime_blackboard_artifact_payloads(
+            result_payload=payload, result_path=result_path
+        ),
+    }
+    return payload
 
 
 def runtime_artifact_reference(

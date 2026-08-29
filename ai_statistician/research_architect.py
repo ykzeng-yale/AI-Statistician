@@ -1531,6 +1531,13 @@ del THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["estimator_specs"][0][
     "estimator_interface_contract"
 ]
 
+THEORY_FILE_CLAIM_KINDS = (
+    "definition", "assumption", "lemma", "theorem", "equation", "counterexample"
+)
+THEORY_FILE_CLAIM_STATUSES = ("OPEN", "SUPPORTED", "REJECTED", "INCONCLUSIVE")
+THEORY_FILE_SANITY_STATUSES = ("PASS", "FAIL", "INCONCLUSIVE")
+
+
 THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT = deepcopy(
     THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
 )
@@ -1549,10 +1556,10 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
     "claim_index": [
         {
             "id": "stable claim or equation id",
-            "kind": "definition|assumption|lemma|theorem|equation|counterexample",
+            "kind": "|".join(THEORY_FILE_CLAIM_KINDS),
             "document_path": "workspace-relative .md or .tex path",
             "depends_on": ["direct predecessor claim_index ids"],
-            "status": "OPEN|SUPPORTED|REJECTED|INCONCLUSIVE",
+            "status": "|".join(THEORY_FILE_CLAIM_STATUSES),
         }
     ],
     "sanity_check_index": [
@@ -1560,7 +1567,7 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
             "id": "stable check id",
             "claim_ref": "claim_index id",
             "document_path": "workspace-relative .md or .tex path",
-            "status": "PASS|FAIL|INCONCLUSIVE",
+            "status": "|".join(THEORY_FILE_SANITY_STATUSES),
         }
     ],
     "formalization_handoff": deepcopy(
@@ -1771,22 +1778,18 @@ def _file_theory_index_errors(
         path = str(row.get("document_path", "") or "").strip()
         if path and path not in document_paths:
             errors.append(f"claim_index[{index}] references an unknown document")
-        if str(row.get("kind", "") or "") not in {
-            "definition",
-            "assumption",
-            "lemma",
-            "theorem",
-            "equation",
-            "counterexample",
-        }:
-            errors.append(f"claim_index[{index}] has invalid kind")
-        if str(row.get("status", "") or "") not in {
-            "OPEN",
-            "SUPPORTED",
-            "REJECTED",
-            "INCONCLUSIVE",
-        }:
-            errors.append(f"claim_index[{index}] has invalid status")
+        kind = str(row.get("kind", "") or "")
+        if kind not in THEORY_FILE_CLAIM_KINDS:
+            errors.append(
+                f"claim_index[{index}].kind must be one of "
+                f"{', '.join(THEORY_FILE_CLAIM_KINDS)}; received {kind!r}"
+            )
+        status = str(row.get("status", "") or "")
+        if status not in THEORY_FILE_CLAIM_STATUSES:
+            errors.append(
+                f"claim_index[{index}].status must be one of "
+                f"{', '.join(THEORY_FILE_CLAIM_STATUSES)}; received {status!r}"
+            )
     if len(claim_ids) != len(set(claim_ids)):
         errors.append("claim_index ids must be unique")
     claim_id_set = set(claim_ids)
@@ -1845,12 +1848,12 @@ def _file_theory_index_errors(
             errors.append(
                 f"sanity_check_index[{index}] references an unknown document"
             )
-        if str(row.get("status", "") or "") not in {
-            "PASS",
-            "FAIL",
-            "INCONCLUSIVE",
-        }:
-            errors.append(f"sanity_check_index[{index}] has invalid status")
+        status = str(row.get("status", "") or "")
+        if status not in THEORY_FILE_SANITY_STATUSES:
+            errors.append(
+                f"sanity_check_index[{index}].status must be one of "
+                f"{', '.join(THEORY_FILE_SANITY_STATUSES)}; received {status!r}"
+            )
     if len(check_ids) != len(set(check_ids)):
         errors.append("sanity_check_index ids must be unique")
     indexed_ids = set(claim_ids)
