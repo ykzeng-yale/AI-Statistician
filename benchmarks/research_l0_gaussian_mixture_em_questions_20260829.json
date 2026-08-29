@@ -61,7 +61,7 @@
             "shape": "one list of length n, with 8 <= n <= 2000",
             "units": "arbitrary measurement units",
             "indexing": "values[i] is observation i and order carries no statistical meaning",
-            "edge_cases": "Entries must be exact finite JSON numbers, not booleans, with absolute value at most 1e6.",
+            "edge_cases": "Entries must be exact finite JSON numbers, not booleans, with absolute value at most 1e6. The range of the combined values and initial_means entries must not exceed 30 times known_standard_deviation.",
             "binding": "per_replicate_data"
           },
           {
@@ -94,7 +94,7 @@
             "shape": "exactly two finite scalars",
             "units": "same as values",
             "indexing": "initial_means[0] has initial_first_weight and initial_means[1] has the complementary weight",
-            "edge_cases": "Both entries must be exact finite JSON numbers, not booleans, with absolute value at most 1e6, and they must be distinct.",
+            "edge_cases": "Both entries must be exact finite JSON numbers, not booleans, with absolute value at most 1e6, and they must be distinct. The range of the combined values and initial_means entries must not exceed 30 times known_standard_deviation.",
             "binding": "derived_once_from_frozen_design"
           },
           {
@@ -200,7 +200,7 @@
           },
           {
             "clause_id": "invariant.location_scale_equivariance",
-            "meaning": "For finite a and nonzero finite b, replacing values and initial means by a+b times themselves and sigma by abs(b) times sigma transforms final means accordingly after canonical ordering, preserves weights, iterations, and convergence, and shifts every log-likelihood trace entry by -n log(abs(b))."
+            "meaning": "For finite a and nonzero finite b such that the transformed request remains in the declared domain, replacing values and initial means by a+b times themselves and sigma by abs(b) times sigma transforms final means accordingly after canonical ordering, preserves weights, iterations, and convergence, and shifts every log-likelihood trace entry by -n log(abs(b))."
           }
         ],
         "empirical_claims": [
