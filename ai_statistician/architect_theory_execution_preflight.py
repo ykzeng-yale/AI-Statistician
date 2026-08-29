@@ -41,6 +41,8 @@ from .research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceSnapshot,
+    execute_research_source_client_tool,
+    research_source_client_tools,
 )
 from .research_source_discovery import (
     RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
@@ -60,7 +62,6 @@ from .theory_workspace import (
     execute_theory_scratchpad_tool,
     load_theory_workspace_document_rows,
     read_theory_document_lines,
-    research_source_client_tools,
     research_source_discovery_client_tools,
     search_theory_document_lines,
     theory_document_client_tools,
@@ -1416,52 +1417,30 @@ def _research_source_preflight_observation(
     exclude_hit_ids: set[str] | None = None,
     prior_source_refs: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    if operation not in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}:
+        raise ClientToolInputError("unsupported research source operation")
+    try:
+        visible, _ = execute_research_source_client_tool(
+            research_sources,
+            tool_name=operation,
+            tool_input=tool_input,
+        )
+    except ValueError as exc:
+        raise ClientToolInputError(str(exc)) from exc
+
     if operation == RESEARCH_SOURCE_SEARCH_TOOL:
-        query = tool_input.get("query")
-        top_k = tool_input.get("top_k", 5)
-        if not isinstance(query, str):
-            raise ClientToolInputError("research source query must be text")
-        if isinstance(top_k, bool) or not isinstance(top_k, int):
-            raise ClientToolInputError(
-                "research source top_k must be an integer"
-            )
-        try:
-            visible = research_sources.search(query, top_k=top_k)
-        except ValueError as exc:
-            raise ClientToolInputError(str(exc)) from exc
         source_scope = "research_sources"
         retrieval_fusion = "hash_bound_research_source_search_v1"
         raw_hits = list(visible.get("hits", []) or [])
-        operation_query = str(visible.get("query", query) or query)
-    elif operation == RESEARCH_SOURCE_READ_TOOL:
-        document_id = tool_input.get("document_id")
-        line_start = tool_input.get("line_start")
-        line_end = tool_input.get("line_end")
-        if not isinstance(document_id, str):
-            raise ClientToolInputError(
-                "research source document_id must be text"
-            )
-        if any(
-            isinstance(value, bool) or not isinstance(value, int)
-            for value in (line_start, line_end)
-        ):
-            raise ClientToolInputError(
-                "research source line_start and line_end must be integers"
-            )
-        try:
-            visible = research_sources.read(
-                document_id,
-                line_start=line_start,
-                line_end=line_end,
-            )
-        except ValueError as exc:
-            raise ClientToolInputError(str(exc)) from exc
+        operation_query = str(visible.get("query", "") or "")
+    else:
         source_scope = "research_source_read"
         retrieval_fusion = "hash_bound_research_source_exact_read_v1"
         raw_hits = [visible]
-        operation_query = f"{document_id}:{line_start}-{line_end}"
-    else:
-        raise ClientToolInputError("unsupported research source operation")
+        operation_query = (
+            f"{visible['document_id']}:{visible['line_start']}-"
+            f"{visible['line_end']}"
+        )
 
     excluded = set(exclude_hit_ids or set())
     source_refs = dict(prior_source_refs or {})

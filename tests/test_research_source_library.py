@@ -10,13 +10,17 @@ import pytest
 
 from ai_statistician.research_source_library import (
     MAX_SOURCE_RESULT_TEXT_BYTES,
+    RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+    RESEARCH_SOURCE_SEARCH_TOOL,
     SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
     _source_execution_sandbox_profile,
+    execute_research_source_client_tool,
     execute_research_source,
     load_research_source_execution_spec,
     load_research_source_snapshot,
     read_source_replication_result,
+    research_source_client_tools,
     source_replication_model_observation,
 )
 
@@ -84,6 +88,43 @@ def test_hash_bound_source_snapshot_supports_exact_search_and_read(tmp_path) -> 
     assert descriptor["source_horizon"] == "2025-12-31"
     assert descriptor["model_visible"] is True
     assert "relative_path" not in descriptor
+
+
+def test_shared_source_client_tools_return_hash_bound_refs(tmp_path) -> None:
+    manifest_path, source_text = _source_snapshot(tmp_path)
+    snapshot = load_research_source_snapshot(manifest_path)
+
+    assert [tool.name for tool in research_source_client_tools()] == [
+        RESEARCH_SOURCE_SEARCH_TOOL,
+        RESEARCH_SOURCE_READ_TOOL,
+    ]
+    search, search_ref = execute_research_source_client_tool(
+        snapshot,
+        tool_name=RESEARCH_SOURCE_SEARCH_TOOL,
+        tool_input={"query": "finite fourth moments", "top_k": 2},
+    )
+    read, read_ref = execute_research_source_client_tool(
+        snapshot,
+        tool_name=RESEARCH_SOURCE_READ_TOOL,
+        tool_input={
+            "document_id": "published-result",
+            "line_start": 3,
+            "line_end": 5,
+        },
+    )
+
+    assert search_ref["snapshot_hash"] == snapshot.snapshot_hash
+    assert search_ref["hits"][0]["document_id"] == "published-result"
+    assert read["content"] == "\n".join(source_text.splitlines()[2:5])
+    assert read_ref["snapshot_hash"] == snapshot.snapshot_hash
+    assert read_ref["content_sha256"] == read["content_sha256"]
+    assert search["proof_evidence_status"] == RESEARCH_SOURCE_NOT_PROOF_EVIDENCE
+    with pytest.raises(ValueError, match="accepts query"):
+        execute_research_source_client_tool(
+            snapshot,
+            tool_name=RESEARCH_SOURCE_SEARCH_TOOL,
+            tool_input={"query": "mean", "hidden": True},
+        )
 
 
 def test_source_search_returns_distinct_documents_before_repeated_ranges(

@@ -22,16 +22,16 @@ from .client_tool_loop import (
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 from .research_source_library import (
-    MAX_SOURCE_SEARCH_HITS,
-    RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_RESULT_READ_TOOL,
     RESEARCH_SOURCE_RUN_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceExecutionSpec,
     ResearchSourceSnapshot,
+    execute_research_source_client_tool,
     execute_research_source,
     read_source_replication_result,
+    research_source_client_tools,
     source_replication_model_observation,
 )
 from .research_source_discovery import (
@@ -943,97 +943,25 @@ def run_theory_artifact_workspace(
                 observation_key="theory-document:" + stable_hash(inspection_ref),
             )
 
-        if call.name == RESEARCH_SOURCE_SEARCH_TOOL:
+        if call.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}:
             if research_sources is None:
                 raise ClientToolInputError("research source snapshot is unavailable")
-            if set(tool_input) - {"query", "top_k"}:
-                raise ClientToolInputError(
-                    "search_research_sources accepts query and optional top_k"
-                )
-            query = tool_input.get("query")
-            top_k = tool_input.get("top_k", 5)
-            if not isinstance(query, str):
-                raise ClientToolInputError("research source query must be text")
-            if isinstance(top_k, bool) or not isinstance(top_k, int):
-                raise ClientToolInputError("research source top_k must be an integer")
             try:
-                observation = research_sources.search(query, top_k=top_k)
-            except ValueError as exc:
-                raise ClientToolInputError(str(exc)) from exc
-            source_ref = {
-                "tool": RESEARCH_SOURCE_SEARCH_TOOL,
-                "snapshot_id": observation["snapshot_id"],
-                "snapshot_hash": observation["snapshot_hash"],
-                "query_hash": observation["query_hash"],
-                "retrieval_policy": observation["retrieval_policy"],
-                "hits": [
-                    {
-                        key: hit[key]
-                        for key in (
-                            "document_id",
-                            "sha256",
-                            "line_start",
-                            "line_end",
-                            "score",
-                            "matched_terms",
-                        )
-                        if key in hit
-                    }
-                    for hit in observation["hits"]
-                ],
-                "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
-            }
-            state["source_search_refs"].append(source_ref)
-            return ClientToolExecutionResult(
-                content=observation,
-                observation_key="research-source-search:" + stable_hash(source_ref),
-            )
-
-        if call.name == RESEARCH_SOURCE_READ_TOOL:
-            if research_sources is None:
-                raise ClientToolInputError("research source snapshot is unavailable")
-            if set(tool_input) != {"document_id", "line_start", "line_end"}:
-                raise ClientToolInputError(
-                    "read_research_source requires document_id, line_start, and line_end"
-                )
-            document_id = tool_input.get("document_id")
-            line_start = tool_input.get("line_start")
-            line_end = tool_input.get("line_end")
-            if not isinstance(document_id, str):
-                raise ClientToolInputError(
-                    "research source document_id must be text"
-                )
-            if any(
-                isinstance(value, bool) or not isinstance(value, int)
-                for value in (line_start, line_end)
-            ):
-                raise ClientToolInputError(
-                    "research source line_start and line_end must be integers"
-                )
-            try:
-                observation = research_sources.read(
-                    document_id,
-                    line_start=line_start,
-                    line_end=line_end,
+                observation, source_ref = execute_research_source_client_tool(
+                    research_sources,
+                    tool_name=call.name,
+                    tool_input=tool_input,
                 )
             except ValueError as exc:
                 raise ClientToolInputError(str(exc)) from exc
-            source_ref = {
-                "tool": RESEARCH_SOURCE_READ_TOOL,
-                "snapshot_id": observation["snapshot_id"],
-                "snapshot_hash": observation["snapshot_hash"],
-                "document_id": observation["document_id"],
-                "document_sha256": observation["sha256"],
-                "line_start": observation["line_start"],
-                "line_end": observation["line_end"],
-                "content_sha256": observation["content_sha256"],
-                "citation_ref": observation["citation_ref"],
-                "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
-            }
-            state["source_read_refs"].append(source_ref)
+            state[
+                "source_search_refs"
+                if call.name == RESEARCH_SOURCE_SEARCH_TOOL
+                else "source_read_refs"
+            ].append(source_ref)
             return ClientToolExecutionResult(
                 content=observation,
-                observation_key="research-source-read:" + stable_hash(source_ref),
+                observation_key=call.name + ":" + stable_hash(source_ref),
             )
 
         if call.name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL:
@@ -2719,49 +2647,6 @@ def theory_document_client_tools() -> tuple[ClientToolDefinition, ...]:
                 "required": ["path", "line_start", "line_end"],
                 "properties": {
                     "path": {"type": "string", "minLength": 1},
-                    "line_start": {"type": "integer", "minimum": 1},
-                    "line_end": {"type": "integer", "minimum": 1},
-                },
-            },
-        ),
-    )
-
-
-def research_source_client_tools() -> tuple[ClientToolDefinition, ...]:
-    return (
-        ClientToolDefinition(
-            name=RESEARCH_SOURCE_SEARCH_TOOL,
-            description=(
-                "Search exact UTF-8 paper, code, and documentation text in "
-                "the configured hash-bound model-visible source snapshot. "
-                "Returns line-addressed excerpts to this same model session."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["query"],
-                "properties": {
-                    "query": {"type": "string", "minLength": 1},
-                    "top_k": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": MAX_SOURCE_SEARCH_HITS,
-                    },
-                },
-            },
-        ),
-        ClientToolDefinition(
-            name=RESEARCH_SOURCE_READ_TOOL,
-            description=(
-                "Read an exact inclusive line range from one document in "
-                "the configured hash-bound research source snapshot."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["document_id", "line_start", "line_end"],
-                "properties": {
-                    "document_id": {"type": "string", "minLength": 1},
                     "line_start": {"type": "integer", "minimum": 1},
                     "line_end": {"type": "integer", "minimum": 1},
                 },

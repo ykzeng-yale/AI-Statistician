@@ -39,6 +39,10 @@ from ai_statistician.research_schema import (
     OpenResearchQuestion,
     research_question_payload,
 )
+from ai_statistician.research_source_library import (
+    ResearchSourceDocument,
+    ResearchSourceSnapshot,
+)
 
 
 _LEGACY_REVIEW_DIMENSIONS = (
@@ -197,6 +201,32 @@ def _trusted_lineage() -> dict[str, object]:
         "source_model_tier": "haiku",
         "reviewed_artifacts": [{"artifact_id": "simulation:1"}],
     }
+
+
+def _research_source_snapshot(tmp_path) -> ResearchSourceSnapshot:
+    source = (
+        "Published estimator definition.\n"
+        "The estimator uses the sample average under finite variance.\n"
+        "The reference implementation rejects nonnumeric observations.\n"
+    )
+    document = ResearchSourceDocument(
+        document_id="published-estimator",
+        title="Published estimator",
+        source_kind="paper",
+        relative_path="published-estimator.md",
+        sha256=stable_hash(source),
+        citation="Example (2025)",
+        lines=tuple(source.splitlines()),
+    )
+    return ResearchSourceSnapshot(
+        snapshot_id="semantic-review-public-sources",
+        source_horizon="2025-12-31",
+        snapshot_hash=stable_hash(document.public_descriptor()),
+        manifest_sha256="manifest-hash",
+        documents=(document,),
+        manifest_path=tmp_path / "sources.json",
+        source_root=tmp_path,
+    )
 
 
 def _algorithm_review_material(
@@ -739,6 +769,103 @@ def test_anthropic_reviewer_uses_native_client_tool_submission() -> None:
     assert backend.requests[0].model == "claude-haiku-4-5-20251001"
     assert backend.requests[0].metadata["client_tool_transport"] is True
     assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
+
+
+def test_reviewer_can_search_and_read_frozen_public_sources(tmp_path) -> None:
+    submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": (
+            "# Review\n\nThe executed source matches the cited public definition."
+        ),
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No active defect requires a parent change.",
+        },
+    }
+
+    class SourceGroundedBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            calls = (
+                (
+                    "search_research_sources",
+                    {"query": "estimator finite variance", "top_k": 2},
+                ),
+                (
+                    "read_research_source",
+                    {
+                        "document_id": "published-estimator",
+                        "line_start": 1,
+                        "line_end": 3,
+                    },
+                ),
+                ("submit_generated_code_semantic_review", submission),
+            )
+            name, payload = calls[len(self.requests) - 1]
+            call = ClientToolCall(
+                call_id=f"source-review-{len(self.requests)}",
+                name=name,
+                input=payload,
+            )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": name,
+                        "input": payload,
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    snapshot = _research_source_snapshot(tmp_path)
+    backend = SourceGroundedBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    ).review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+        research_sources=snapshot,
+    )
+
+    assert len(backend.requests) == 3
+    assert backend.requests[0].tool_choice == "any"
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        "search_research_sources",
+        "read_research_source",
+        "submit_generated_code_semantic_review",
+    ]
+    observations = json.dumps(backend.requests[-1].messages)
+    assert "finite variance" in observations
+    assert "rejects nonnumeric observations" in observations
+    loop = packet["client_tool_loop"]
+    assert loop["research_source_snapshot"]["snapshot_hash"] == snapshot.snapshot_hash
+    assert [row["tool"] for row in loop["research_source_refs"]] == [
+        "search_research_sources",
+        "read_research_source",
+    ]
+    assert loop["research_source_ref_fingerprint"] == stable_hash(
+        loop["research_source_refs"]
+    )
 
 
 def test_generated_code_reviewer_rejects_one_shot_transport() -> None:

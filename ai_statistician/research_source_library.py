@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
     resource = None
 
 from .fingerprint import stable_hash
+from .model_backend import ClientToolDefinition
 from .retrieval import tokens
 
 
@@ -50,6 +51,49 @@ SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS = frozenset("""HOME LANG LC_ALL PAT
     R_HISTFILE R_PROFILE_USER TMPDIR TZ OMP_NUM_THREADS OPENBLAS_NUM_THREADS
     MKL_NUM_THREADS NUMEXPR_NUM_THREADS PYTHONPATH""".split())
 PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
+
+
+def research_source_client_tools() -> tuple[ClientToolDefinition, ...]:
+    return (
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_SEARCH_TOOL,
+            description=(
+                "Search exact UTF-8 paper, code, and documentation text in "
+                "the configured hash-bound model-visible source snapshot. "
+                "Returns line-addressed excerpts to this same model session."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["query"],
+                "properties": {
+                    "query": {"type": "string", "minLength": 1},
+                    "top_k": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_SOURCE_SEARCH_HITS,
+                    },
+                },
+            },
+        ),
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_READ_TOOL,
+            description=(
+                "Read an exact inclusive line range from one document in "
+                "the configured hash-bound research source snapshot."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["document_id", "line_start", "line_end"],
+                "properties": {
+                    "document_id": {"type": "string", "minLength": 1},
+                    "line_start": {"type": "integer", "minimum": 1},
+                    "line_end": {"type": "integer", "minimum": 1},
+                },
+            },
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -265,7 +309,7 @@ class ResearchSourceSnapshot:
             "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
             "boundary": (
                 "Search hits are exact excerpts from the hash-bound source snapshot. "
-                "The TheoryDeveloper must inspect and interpret them; retrieval is "
+                "The calling model must inspect and interpret them; retrieval is "
                 "neither mathematical proof nor independent scientific review."
             ),
         }
@@ -325,9 +369,78 @@ class ResearchSourceSnapshot:
             "boundary": (
                 "This is an exact line-addressed observation from a hash-bound source. "
                 "Citation does not establish that the source claim is correct or that "
-                "the TheoryDeveloper's use of it is valid."
+                "the calling model's use of it is valid."
             ),
         }
+
+
+def execute_research_source_client_tool(
+    research_sources: ResearchSourceSnapshot,
+    *,
+    tool_name: str,
+    tool_input: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Execute the shared hash-bound source search/read contract."""
+
+    if tool_name == RESEARCH_SOURCE_SEARCH_TOOL:
+        if set(tool_input) - {"query", "top_k"}:
+            raise ValueError("search_research_sources accepts query and optional top_k")
+        query = tool_input.get("query")
+        top_k = tool_input.get("top_k", 5)
+        if not isinstance(query, str):
+            raise ValueError("research source query must be text")
+        if isinstance(top_k, bool) or not isinstance(top_k, int):
+            raise ValueError("research source top_k must be an integer")
+        observation = research_sources.search(query, top_k=top_k)
+        hit_keys = (
+            "document_id", "sha256", "line_start", "line_end", "score",
+            "matched_terms",
+        )
+        source_ref = {
+            "tool": tool_name,
+            **{
+                key: observation[key]
+                for key in (
+                    "snapshot_id", "snapshot_hash", "query_hash", "retrieval_policy"
+                )
+            },
+            "hits": [
+                {key: hit[key] for key in hit_keys if key in hit}
+                for hit in observation["hits"]
+            ],
+            "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+        }
+        return observation, source_ref
+
+    if tool_name != RESEARCH_SOURCE_READ_TOOL:
+        raise ValueError("unsupported research source client tool")
+    if set(tool_input) != {"document_id", "line_start", "line_end"}:
+        raise ValueError("read_research_source requires all three declared inputs")
+    document_id = tool_input.get("document_id")
+    line_start = tool_input.get("line_start")
+    line_end = tool_input.get("line_end")
+    if not isinstance(document_id, str):
+        raise ValueError("research source document_id must be text")
+    if any(
+        isinstance(value, bool) or not isinstance(value, int)
+        for value in (line_start, line_end)
+    ):
+        raise ValueError("research source line_start and line_end must be integers")
+    observation = research_sources.read(
+        document_id, line_start=line_start, line_end=line_end
+    )
+    return observation, {
+        "tool": tool_name,
+        **{
+            key: observation[key]
+            for key in (
+                "snapshot_id", "snapshot_hash", "document_id", "line_start",
+                "line_end", "content_sha256", "citation_ref",
+            )
+        },
+        "document_sha256": observation["sha256"],
+        "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+    }
 
 
 @dataclass(frozen=True)

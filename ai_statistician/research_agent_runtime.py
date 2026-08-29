@@ -7499,11 +7499,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         max_revisions: int = 1,
         probe_sandbox_root: Path | None = None,
         probe_timeout_s: int = 60,
+        research_sources: ResearchSourceSnapshot | None = None,
     ) -> None:
         self.reviewer = reviewer
         self.max_revisions = max(0, int(max_revisions or 0))
         self.probe_sandbox_root = probe_sandbox_root
         self.probe_timeout_s = max(1, int(probe_timeout_s or 1))
+        self.research_sources = research_sources
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -7874,6 +7876,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                         else None
                     ),
                     probe_timeout_s=self.probe_timeout_s,
+                    research_sources=self.research_sources,
                 )
         except PacketValidationError as exc:
             last_invalid_packet = (
@@ -20256,6 +20259,7 @@ def run_research_agent_runtime(
                         out_dir / "generated_code_review_probe_sandbox"
                     ),
                     probe_timeout_s=config.generated_simulation_timeout_seconds,
+                    research_sources=configured_research_sources,
                 )
             )
         if formal_target_semantic_reviewer is not None:

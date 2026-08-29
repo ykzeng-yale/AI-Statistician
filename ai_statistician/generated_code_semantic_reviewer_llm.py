@@ -35,6 +35,13 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
+from .research_source_library import (
+    RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_SEARCH_TOOL,
+    ResearchSourceSnapshot,
+    execute_research_source_client_tool,
+    research_source_client_tools,
+)
 from .scientific_sandbox import (
     SCIENTIFIC_SANDBOX_LANGUAGES,
     ScientificEstimatorBinding,
@@ -53,6 +60,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_rev
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
 GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES = 6
+GENERATED_CODE_SEMANTIC_REVIEW_MAX_RESEARCH_SOURCE_CALLS = 8
 GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
     "in_scope": (
         "implemented statistical object and metric meaning", "declared assumptions and theory alignment",
@@ -744,6 +752,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         trusted_lineage: Mapping[str, Any],
         probe_sandbox_dir: Path | None = None,
         probe_timeout_s: int = 60,
+        research_sources: ResearchSourceSnapshot | None = None,
     ) -> dict[str, Any]:
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -773,6 +782,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             provider_name=provider_name,
             probe_sandbox_dir=probe_sandbox_dir,
             probe_timeout_s=probe_timeout_s,
+            research_sources=research_sources,
         )
 
     def _review_with_client_tool_submission(
@@ -786,6 +796,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         provider_name: str,
         probe_sandbox_dir: Path | None,
         probe_timeout_s: int,
+        research_sources: ResearchSourceSnapshot | None,
     ) -> dict[str, Any]:
         """Keep executable falsification and verdict in one reviewer session."""
 
@@ -807,6 +818,18 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             and str(row.get("artifact_id", "") or "")
             and str(row.get("exact_source_code", "") or "")
         } if _active_prior_findings(review_material) else {}
+        source_tools = research_source_client_tools() if research_sources else ()
+        source_budget = GENERATED_CODE_SEMANTIC_REVIEW_MAX_RESEARCH_SOURCE_CALLS if source_tools else 0
+        source_descriptor = (
+            research_sources.descriptor() if research_sources else {"configured": False}
+        )
+        source_guidance = (
+            "\n\nYou may search and read the frozen public research-source snapshot "
+            "when paper, code, or documentation text would improve your judgment. "
+            "Choose queries and passages yourself; retrieved text is evidence, not "
+            "proof or automatic acceptance."
+            if source_tools else ""
+        )
         refresh_tool = ClientToolDefinition(
             name=GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL,
             description=(
@@ -859,7 +882,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 },
             },
         )
-        tools = ((refresh_tool,) if refresh_targets else ()) + (
+        tools = source_tools + ((refresh_tool,) if refresh_targets else ()) + (
             (probe_tool,) if probe_targets else ()
         ) + (
             ClientToolDefinition(
@@ -882,6 +905,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     "role": "user",
                     "content": (
                         prompt
+                        + source_guidance
                         + "\n\nWhen your independent review is complete, call "
                         + GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL
                         + ". If runtime rejects the submission, read the returned "
@@ -915,7 +939,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             tool_choice=(
-                "any" if (probe_targets or refresh_targets)
+                "any" if (source_tools or probe_targets or refresh_targets)
                 else GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL
             ),
             disable_parallel_tool_use=True,
@@ -936,6 +960,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         )
         validation_history: list[dict[str, Any]] = []
         probe_executions: list[dict[str, Any]] = []
+        research_source_refs: list[dict[str, Any]] = []
         refreshed_source_ids: set[str] = set()
         last_errors: list[str] = []
         last_invalid_packet: dict[str, Any] | None = None
@@ -962,6 +987,23 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             context: ClientToolExecutionContext,
         ) -> ClientToolExecutionResult:
             nonlocal last_errors, last_invalid_packet
+            if call.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}:
+                assert research_sources is not None
+                if len(research_source_refs) >= source_budget:
+                    raise ClientToolInputError("review research source budget exhausted")
+                try:
+                    observation, source_ref = execute_research_source_client_tool(
+                        research_sources,
+                        tool_name=call.name,
+                        tool_input=dict(call.input),
+                    )
+                except ValueError as exc:
+                    raise ClientToolInputError(str(exc)) from exc
+                research_source_refs.append(source_ref)
+                return ClientToolExecutionResult(
+                    content=observation,
+                    observation_key=call.name + ":" + stable_hash(source_ref),
+                )
             if call.name == GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL:
                 artifact_id = str(call.input.get("artifact_id", "") or "")
                 source = refresh_targets.get(artifact_id, "")
@@ -1149,17 +1191,17 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 ),
             )
 
+        observation_budget = source_budget + len(refresh_targets) + (
+            GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES if probe_targets else 0
+        )
         try:
             loop = run_bounded_client_tool_loop(
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=(GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES if probe_targets else 0)
-                + len(refresh_targets)
-                + 1
+                max_turns=observation_budget + 1
                 + max(0, int(self.config.max_validation_retries)),
-                max_tool_calls=(GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES if probe_targets else 0)
-                + len(refresh_targets) + 1,
+                max_tool_calls=observation_budget + 1,
                 max_no_progress_turns=1,
             )
         except ClientToolLoopError as exc:
@@ -1198,6 +1240,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             ),
             "review_probe_executions": probe_executions,
             "review_probe_execution_fingerprint": stable_hash(probe_executions),
+            "research_source_snapshot": source_descriptor,
+            "research_source_refs": research_source_refs,
+            "research_source_ref_fingerprint": stable_hash(research_source_refs),
             "fresh_current_source_observation_required": bool(refresh_targets),
             "refreshed_current_source_artifact_ids": sorted(refreshed_source_ids),
             "full_packet_regeneration_used": False,

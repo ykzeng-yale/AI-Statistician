@@ -66,8 +66,10 @@ class StaticReviewClientToolBackend:
 
     def __init__(self, response: dict[str, object]) -> None:
         self.response = response
+        self.requests = []
 
     def generate_client_tool_turn(self, request):
+        self.requests.append(request)
         call = ClientToolCall(
             call_id="static-runtime-review",
             name="submit_generated_code_semantic_review",
@@ -6325,8 +6327,9 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
             ],
         },
     }
+    backend = StaticReviewClientToolBackend(response)
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-            provider=StaticReviewClientToolBackend(response),
+        provider=backend,
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
@@ -6337,10 +6340,18 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
     blackboard = BlackboardState(project_id=question.id)
     blackboard.artifacts.update(base_artifacts)
     blackboard.artifacts.update(dispatch["artifacts"])
+    research_sources = SimpleNamespace(
+        snapshot_hash="public-source-snapshot-hash",
+        descriptor=lambda: {
+            "snapshot_id": "public-source-snapshot",
+            "snapshot_hash": "public-source-snapshot-hash",
+        },
+    )
 
     outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
         max_revisions=1,
+        research_sources=research_sources,
     ).run(dispatch["next_task"], blackboard)
 
     assert outcome.status == "REROUTE", (
@@ -6358,6 +6369,10 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
     ]
     assert len(review_documents) == 1
     assert review_documents[0]["content"].startswith("# Independent Review")
+    assert [tool.name for tool in backend.requests[0].tools[:2]] == [
+        "search_research_sources",
+        "read_research_source",
+    ]
     next_context = outcome.next_task.inputs["architect_context"]
     assert outcome.next_task.inputs["simulation_manifest_id"] == (
         simulation_manifest_id
