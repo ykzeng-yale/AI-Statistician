@@ -23,6 +23,19 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
 THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 10
+THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 11
+THEORY_SEMANTIC_CANDIDATE_STRATEGIES = frozenset({"integrated_single", "integrated_plus_adversarial"})
+
+
+def _semantic_protocol_version(candidate_adjudication_strategy: str) -> int:
+    if candidate_adjudication_strategy == "integrated_single":
+        return THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION
+    if candidate_adjudication_strategy == "integrated_plus_adversarial":
+        return THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION
+    raise ValueError(
+        "candidate adjudication strategy must be integrated_single or "
+        "integrated_plus_adversarial"
+    )
 
 
 def _theory_semantic_gold_judge_schema(
@@ -233,6 +246,16 @@ def _generate_semantic_assessment_batch(
             "Select only supplied evidence_ref values, preferring a violating paragraph over "
             "support. Do not copy or rewrite excerpts; the evaluator resolves references and "
             "combines document-wide and per-claim status."
+            + (
+                " This is an independent adversarial verification pass. Assume the prior "
+                "coverage assessment may have overlooked a small but material active "
+                "falsehood. Recompute comparisons and threshold decisions from the supplied "
+                "reference, inspect prose adjacent to copied tables or equations, and try to "
+                "falsify every SATISFIED conclusion before returning PASS. Do not defer to a "
+                "plausible overall narrative or to the prior pass."
+                if phase.endswith("_adversarial")
+                else ""
+            )
         ),
         user_prompt=json.dumps(payload, ensure_ascii=False, default=str),
         model=model,
@@ -284,6 +307,77 @@ def _generate_semantic_assessment_batch(
     return packet, response
 
 
+def _combine_semantic_assessment_packets(
+    primary_packet: Mapping[str, Any],
+    adversarial_packet: Mapping[str, Any],
+    *,
+    claim_ids: Sequence[str],
+    required_case_ids: Sequence[str],
+) -> dict[str, Any]:
+    def by_id(rows: Sequence[Mapping[str, Any]], field: str) -> dict[str, Mapping[str, Any]]:
+        return {str(row.get(field, "") or ""): row for row in rows}
+
+    primary_by_case = by_id(primary_packet["assessments"], "case_id")
+    adversarial_by_case = by_id(adversarial_packet["assessments"], "case_id")
+    claim_priority = {"SATISFIED": 0, "INCONCLUSIVE": 1, "VIOLATED": 2}
+    document_priority = {"PASS": 0, "INCONCLUSIVE": 1, "FAIL": 2}
+    assessments: list[dict[str, Any]] = []
+    for case_id in required_case_ids:
+        primary = primary_by_case[case_id]
+        adversarial = adversarial_by_case[case_id]
+        primary_claims = by_id(primary["claim_assessments"], "claim_id")
+        adversarial_claims = by_id(adversarial["claim_assessments"], "claim_id")
+        claims: list[dict[str, Any]] = []
+        for claim_id in claim_ids:
+            decisive = max(
+                (primary_claims[claim_id], adversarial_claims[claim_id]),
+                key=lambda row: claim_priority[str(row["status"])],
+            )
+            claims.append(
+                {"claim_id": claim_id, "status": str(decisive["status"]),
+                 "decisive_excerpt": str(decisive["decisive_excerpt"])}
+            )
+        decisive_document = max(
+            (primary, adversarial),
+            key=lambda row: document_priority[str(row["document_status"])],
+        )
+        document_status = str(decisive_document["document_status"])
+        claim_status = _derived_document_status([row["status"] for row in claims], expected_claim_count=len(claim_ids))
+        assessments.append(
+            {
+                "case_id": case_id,
+                "status": _combined_document_status(document_status, claim_status),
+                "document_status": document_status,
+                "document_decisive_excerpt": str(decisive_document["document_decisive_excerpt"]),
+                "claim_assessments": claims,
+            }
+        )
+    return {"assessments": assessments}
+
+
+def _generate_semantic_assessment_passes(
+    *,
+    candidate_adjudication_strategy: str,
+    **kwargs: Any,
+) -> tuple[dict[str, Any], list[Any]]:
+    _semantic_protocol_version(candidate_adjudication_strategy)
+    primary_packet, primary_response = _generate_semantic_assessment_batch(**kwargs)
+    if candidate_adjudication_strategy == "integrated_single":
+        return primary_packet, [primary_response]
+    adversarial_packet, adversarial_response = _generate_semantic_assessment_batch(
+        **{**kwargs, "phase": f"{kwargs['phase']}_adversarial"}
+    )
+    return (
+        _combine_semantic_assessment_packets(
+            primary_packet,
+            adversarial_packet,
+            claim_ids=kwargs["claim_ids"],
+            required_case_ids=kwargs["required_case_ids"],
+        ),
+        [primary_response, adversarial_response],
+    )
+
+
 def theory_semantic_activation_judgment_errors(
     judgment: Mapping[str, Any],
     *,
@@ -295,12 +389,14 @@ def theory_semantic_activation_judgment_errors(
     model: str,
     model_tier: str,
     semantic_artifact_role: str,
+    candidate_adjudication_strategy: str = "integrated_single",
 ) -> list[str]:
     """Validate a frozen evaluator qualification without rerunning the model."""
 
     errors: list[str] = []
+    protocol_version = _semantic_protocol_version(candidate_adjudication_strategy)
     expected_values = {
-        "protocol_version": THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION,
+        "protocol_version": protocol_version,
         "task_id_hash": stable_hash(task_id),
         "semantic_artifact_role": semantic_artifact_role,
         "model": model,
@@ -309,9 +405,7 @@ def theory_semantic_activation_judgment_errors(
         "reference_documents_hash": stable_hash(reference_documents),
         "candidate_documents_hash": stable_hash(reference_documents),
         "calibration_cases_hash": stable_hash(calibration_cases),
-        "candidate_mode_negative_cases_hash": stable_hash(
-            candidate_mode_negative_cases
-        ),
+        "candidate_mode_negative_cases_hash": stable_hash(candidate_mode_negative_cases),
         "n_claims": len(_rubric_claim_ids(rubric)),
         "n_calibration_cases": len(calibration_cases),
         "n_candidate_mode_negative_cases": len(candidate_mode_negative_cases),
@@ -319,54 +413,46 @@ def theory_semantic_activation_judgment_errors(
     for field, expected in expected_values.items():
         if judgment.get(field) != expected:
             errors.append(f"activation judgment {field} mismatch")
-    calibration_results = judgment.get("calibration_results", [])
-    if (
-        not isinstance(calibration_results, list)
-        or len(calibration_results) != len(calibration_cases)
-        or any(
-            not isinstance(row, Mapping) or row.get("correct") is not True
-            for row in calibration_results
+    if candidate_adjudication_strategy != "integrated_single" and judgment.get(
+        "candidate_adjudication_strategy"
+    ) != candidate_adjudication_strategy:
+        errors.append("activation judgment candidate adjudication strategy mismatch")
+
+    def exact_correct_results(field: str, expected_count: int) -> bool:
+        rows = judgment.get(field, [])
+        return isinstance(rows, list) and len(rows) == expected_count and all(
+            isinstance(row, Mapping) and row.get("correct") is True for row in rows
         )
-    ):
+
+    calibration_results = judgment.get("calibration_results", [])
+    if not exact_correct_results("calibration_results", len(calibration_cases)):
         errors.append("activation calibration did not pass every frozen case")
     negative_results = judgment.get("candidate_mode_negative_results", [])
-    if (
-        not isinstance(negative_results, list)
-        or len(negative_results) != len(candidate_mode_negative_cases)
-        or any(
-            not isinstance(row, Mapping) or row.get("correct") is not True
-            for row in negative_results
-        )
+    if not exact_correct_results(
+        "candidate_mode_negative_results", len(candidate_mode_negative_cases)
     ):
         errors.append("activation candidate-mode controls did not all pass")
-    if int(judgment.get("n_calibration_cases_correct", 0) or 0) != len(
-        calibration_cases
-    ):
-        errors.append("activation calibration correct count mismatch")
-    if int(
-        judgment.get("n_candidate_mode_negative_cases_correct", 0) or 0
-    ) != len(candidate_mode_negative_cases):
-        errors.append("activation candidate-mode correct count mismatch")
-    for field in (
-        "semantic_judge_calibrated",
-        "candidate_mode_negative_controls_passed",
-        "passed",
-    ):
+    expected_counts = {
+        "n_calibration_cases_correct": len(calibration_cases),
+        "n_candidate_mode_negative_cases_correct": len(candidate_mode_negative_cases),
+    }
+    for field, expected in expected_counts.items():
+        if int(judgment.get(field, 0) or 0) != expected:
+            errors.append(f"activation {field} mismatch")
+    for field in ("semantic_judge_calibrated", "candidate_mode_negative_controls_passed", "passed"):
         if judgment.get(field) is not True:
             errors.append(f"activation judgment {field} is not true")
-    if judgment.get("candidate_status") != "PASS":
-        errors.append("activation reference candidate status is not PASS")
-    if judgment.get("candidate_document_status") != "PASS":
-        errors.append("activation reference document status is not PASS")
-    expected_calls = 1 + len(calibration_cases) + len(
-        candidate_mode_negative_cases
-    )
-    if int(judgment.get("n_model_calls", 0) or 0) != expected_calls:
-        errors.append("activation model call count mismatch")
-    if int(judgment.get("calibration_model_calls", 0) or 0) != len(
-        calibration_cases
-    ):
-        errors.append("activation calibration model call count mismatch")
+    for field in ("candidate_status", "candidate_document_status"):
+        if judgment.get(field) != "PASS":
+            errors.append(f"activation reference {field} is not PASS")
+    passes_per_case = 2 if candidate_adjudication_strategy == "integrated_plus_adversarial" else 1
+    call_counts = {
+        "n_model_calls": passes_per_case * (1 + len(calibration_cases) + len(candidate_mode_negative_cases)),
+        "calibration_model_calls": passes_per_case * len(calibration_cases),
+    }
+    for field, expected in call_counts.items():
+        if int(judgment.get(field, 0) or 0) != expected:
+            errors.append(f"activation {field} mismatch")
     recorded_hash = str(judgment.get("judgment_hash", "") or "")
     hash_payload = deepcopy(dict(judgment))
     hash_payload.pop("judgment_hash", None)
@@ -390,22 +476,40 @@ def run_theory_semantic_gold_judge(
     max_tokens: int = 6000,
     semantic_artifact_role: str = "theory",
     activation_judgment: Mapping[str, Any] | None = None,
+    candidate_adjudication_strategy: str = "integrated_single",
 ) -> dict[str, Any]:
     """Judge one frozen document after an isolated hidden-case calibration."""
 
     artifact_role = str(semantic_artifact_role).strip()
     if not artifact_role:
         raise ValueError("semantic artifact role must be nonempty")
+    protocol_version = _semantic_protocol_version(candidate_adjudication_strategy)
     claim_ids = _rubric_claim_ids(rubric)
     case_ids = _calibration_case_ids(calibration_cases)
     calibration_responses: list[Any] = []
-    negative_case_ids = (
-        _calibration_case_ids(candidate_mode_negative_cases)
-        if candidate_mode_negative_cases
-        else []
-    )
+    negative_case_ids = _calibration_case_ids(candidate_mode_negative_cases) if candidate_mode_negative_cases else []
     candidate_mode_negative_responses: list[Any] = []
     activation_model_calls = 0
+
+    def assess(case_id: str, documents: Sequence[Mapping[str, Any]], phase: str) -> tuple[dict[str, Any], list[Any]]:
+        packet, responses = _generate_semantic_assessment_passes(
+            candidate_adjudication_strategy=candidate_adjudication_strategy,
+            provider=provider,
+            task_id=task_id,
+            visible_question=visible_question,
+            reference_documents=reference_documents,
+            rubric=rubric,
+            document_cases=[{"case_id": case_id, "documents": deepcopy(list(documents))}],
+            required_case_ids=[case_id],
+            claim_ids=claim_ids,
+            model=model,
+            model_tier=model_tier,
+            max_tokens=max_tokens,
+            artifact_role=artifact_role,
+            phase=phase,
+        )
+        return deepcopy(packet["assessments"][0]), responses
+
     if activation_judgment is not None:
         activation_errors = theory_semantic_activation_judgment_errors(
             activation_judgment,
@@ -417,228 +521,103 @@ def run_theory_semantic_gold_judge(
             model=model,
             model_tier=model_tier,
             semantic_artifact_role=artifact_role,
+            candidate_adjudication_strategy=candidate_adjudication_strategy,
         )
         if activation_errors:
             raise ValueError(
                 "invalid hidden semantic activation judgment: "
                 + "; ".join(activation_errors)
             )
-        calibration_results = deepcopy(
-            list(activation_judgment.get("calibration_results", []) or [])
-        )
+        calibration_results = deepcopy(list(activation_judgment.get("calibration_results", []) or []))
         candidate_mode_negative_results = deepcopy(
-            list(
-                activation_judgment.get(
-                    "candidate_mode_negative_results", []
-                )
-                or []
-            )
+            list(activation_judgment.get("candidate_mode_negative_results", []) or [])
         )
         candidate_mode_negative_controls_passed = True
         calibrated = True
-        activation_model_calls = int(
-            activation_judgment.get("n_model_calls", 0) or 0
-        )
+        activation_model_calls = int(activation_judgment.get("n_model_calls", 0) or 0)
     else:
-        model_case_ids = [
-            f"case_{index:04d}" for index in range(1, len(case_ids) + 1)
-        ]
+        model_case_ids = [f"case_{index:04d}" for index in range(1, len(case_ids) + 1)]
         case_id_by_model_case_id = dict(zip(model_case_ids, case_ids))
         calibration_assessments: list[dict[str, Any]] = []
         for model_case_id, row in zip(model_case_ids, calibration_cases):
-            calibration_packet, calibration_response = (
-                _generate_semantic_assessment_batch(
-                    provider=provider,
-                    task_id=task_id,
-                    visible_question=visible_question,
-                    reference_documents=reference_documents,
-                    rubric=rubric,
-                    document_cases=[
-                        {
-                            "case_id": model_case_id,
-                            "documents": deepcopy(
-                                list(row.get("documents", []) or [])
-                            ),
-                        }
-                    ],
-                    required_case_ids=[model_case_id],
-                    claim_ids=claim_ids,
-                    model=model,
-                    model_tier=model_tier,
-                    max_tokens=max_tokens,
-                    artifact_role=artifact_role,
-                    phase="calibration",
-                )
+            assessment, case_responses = assess(
+                model_case_id, row.get("documents", []) or [], "calibration"
             )
-            calibration_assessments.extend(calibration_packet["assessments"])
-            calibration_responses.append(calibration_response)
+            calibration_assessments.append(assessment)
+            calibration_responses.extend(case_responses)
         assessment_by_case = {
             case_id_by_model_case_id[str(row["case_id"])]: str(row["status"])
             for row in calibration_assessments
         }
-        expected_by_case = {
-            str(row["case_id"]): str(row["expected_status"])
-            for row in calibration_cases
-        }
+        expected_by_case = {str(row["case_id"]): str(row["expected_status"]) for row in calibration_cases}
         calibration_results = [
             {
                 "case_id_hash": stable_hash(case_id),
-                "correct": (
-                    assessment_by_case[case_id] == expected_by_case[case_id]
-                ),
+                "correct": assessment_by_case[case_id] == expected_by_case[case_id],
             }
             for case_id in case_ids
         ]
-        calibrated = bool(
-            calibration_results
-            and all(row["correct"] for row in calibration_results)
-        )
+        calibrated = bool(calibration_results and all(row["correct"] for row in calibration_results))
         candidate_mode_negative_results: list[dict[str, Any]] = []
-        for case_id, row in zip(
-            negative_case_ids, candidate_mode_negative_cases
-        ):
-            negative_packet, negative_response = (
-                _generate_semantic_assessment_batch(
-                    provider=provider,
-                    task_id=task_id,
-                    visible_question=visible_question,
-                    reference_documents=reference_documents,
-                    rubric=rubric,
-                    document_cases=[
-                        {
-                            "case_id": "candidate",
-                            "documents": deepcopy(
-                                list(row.get("documents", []) or [])
-                            ),
-                        }
-                    ],
-                    required_case_ids=["candidate"],
-                    claim_ids=claim_ids,
-                    model=model,
-                    model_tier=model_tier,
-                    max_tokens=max_tokens,
-                    artifact_role=artifact_role,
-                    phase="candidate_mode_negative",
-                )
-            )
-            observed_status = str(
-                negative_packet["assessments"][0]["status"]
+        for case_id, row in zip(negative_case_ids, candidate_mode_negative_cases):
+            assessment, case_responses = assess(
+                "candidate", row.get("documents", []) or [], "candidate_mode_negative"
             )
             candidate_mode_negative_results.append(
                 {
                     "case_id_hash": stable_hash(case_id),
-                    "correct": observed_status
-                    == str(row["expected_status"]),
+                    "correct": str(assessment["status"]) == str(row["expected_status"]),
                 }
             )
-            candidate_mode_negative_responses.append(negative_response)
+            candidate_mode_negative_responses.extend(case_responses)
         candidate_mode_negative_controls_passed = all(
-            row["correct"] is True
-            for row in candidate_mode_negative_results
+            row["correct"] is True for row in candidate_mode_negative_results
         )
-        calibrated = bool(
-            calibrated and candidate_mode_negative_controls_passed
-        )
-    candidate_packet, candidate_response = _generate_semantic_assessment_batch(
-        provider=provider,
-        task_id=task_id,
-        visible_question=visible_question,
-        reference_documents=reference_documents,
-        rubric=rubric,
-        document_cases=[
-            {
-                "case_id": "candidate",
-                "documents": deepcopy(list(candidate_documents)),
-            }
-        ],
-        required_case_ids=["candidate"],
-        claim_ids=claim_ids,
-        model=model,
-        model_tier=model_tier,
-        max_tokens=max_tokens,
-        artifact_role=artifact_role,
-        phase="candidate_integrated",
+        calibrated = bool(calibrated and candidate_mode_negative_controls_passed)
+    candidate_assessment, candidate_responses = assess(
+        "candidate", candidate_documents, "candidate_integrated"
     )
-    candidate_assessment = deepcopy(candidate_packet["assessments"][0])
-    candidate_errors = validate_theory_semantic_gold_judgment(
-        {"assessments": [candidate_assessment]},
-        claim_ids=claim_ids,
-        required_case_ids=["candidate"],
-    )
-    if candidate_errors:
-        raise ValueError("invalid combined hidden candidate semantic judgment: " + "; ".join(candidate_errors))
     candidate_status = str(candidate_assessment["status"])
     passed = bool(calibrated and candidate_status == "PASS")
-    candidate_provider = str(candidate_response.provider or "")
-    candidate_model = str(candidate_response.model or "")
-    activation_provider = str(
-        activation_judgment.get("provider", "") if activation_judgment else ""
-    )
-    activation_model = str(
-        activation_judgment.get("model", "") if activation_judgment else ""
-    )
-    activation_judgment_hash = str(
-        activation_judgment.get("judgment_hash", "")
-        if activation_judgment
-        else ""
-    )
+    candidate_provider = str(candidate_responses[-1].provider or "")
+    candidate_model = str(candidate_responses[-1].model or "")
+    activation_provider = str(activation_judgment.get("provider", "") if activation_judgment else "")
+    activation_model = str(activation_judgment.get("model", "") if activation_judgment else "")
+    activation_judgment_hash = str(activation_judgment.get("judgment_hash", "") if activation_judgment else "")
+    calibration_texts = [response.text for response in calibration_responses]
+    negative_texts = [response.text for response in candidate_mode_negative_responses]
+    candidate_texts = [response.text for response in candidate_responses]
     calibration_fingerprint = (
-        str(
-            activation_judgment.get(
-                "calibration_raw_response_fingerprint", ""
-            )
-            or ""
-        )
+        str(activation_judgment.get("calibration_raw_response_fingerprint", "") or "")
         if activation_judgment
-        else stable_hash([response.text for response in calibration_responses])
+        else stable_hash(calibration_texts)
     )
     negative_fingerprint = (
-        str(
-            activation_judgment.get(
-                "candidate_mode_negative_raw_response_fingerprint", ""
-            )
-            or ""
-        )
+        str(activation_judgment.get("candidate_mode_negative_raw_response_fingerprint", "") or "")
         if activation_judgment
-        else stable_hash(
-            [response.text for response in candidate_mode_negative_responses]
-        )
+        else stable_hash(negative_texts)
     )
     body = {
-        "artifact_kind": (
-            "HiddenTheorySemanticGoldJudgment"
-            if artifact_role == "theory"
-            else "HiddenScientificDocumentSemanticGoldJudgment"
-        ),
+        "artifact_kind": "HiddenTheorySemanticGoldJudgment"
+        if artifact_role == "theory"
+        else "HiddenScientificDocumentSemanticGoldJudgment",
         "semantic_artifact_role": artifact_role,
-        "protocol_version": THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION,
+        "protocol_version": protocol_version,
+        "candidate_adjudication_strategy": candidate_adjudication_strategy,
         "task_id_hash": stable_hash(task_id),
         "provider": str(
-            candidate_provider
-            or activation_provider
-            or (
-                calibration_responses[0].provider
-                if calibration_responses
-                else ""
-            )
+            candidate_provider or activation_provider
+            or (calibration_responses[0].provider if calibration_responses else "")
             or getattr(provider, "provider_name", "")
         ),
         "model": str(
-            candidate_model
-            or activation_model
-            or (
-                calibration_responses[0].model
-                if calibration_responses
-                else ""
-            )
-            or model
+            candidate_model or activation_model
+            or (calibration_responses[0].model if calibration_responses else "") or model
         ),
         "model_tier": model_tier,
-        "n_model_calls": (
-            1
-            + len(calibration_responses)
-            + len(candidate_mode_negative_responses)
-        ),
+        "n_model_calls": len(candidate_responses)
+        + len(calibration_responses)
+        + len(candidate_mode_negative_responses),
         "calibration_candidate_context_isolated": True,
         "calibration_case_ids_opaque": True,
         "calibration_claim_assessments_requested": True,
@@ -646,47 +625,36 @@ def run_theory_semantic_gold_judge(
         "calibration_reused_from_activation": bool(activation_judgment),
         "activation_model_calls": activation_model_calls,
         "activation_judgment_hash": activation_judgment_hash,
-        "candidate_mode_negative_cases_configured": bool(
-            candidate_mode_negative_cases
-        ),
+        "candidate_mode_negative_cases_configured": bool(candidate_mode_negative_cases),
         "candidate_mode_negative_case_ids_opaque": True,
         "candidate_mode_negative_claim_assessments_requested": True,
         "candidate_mode_negative_integrated_context": True,
-        "candidate_mode_negative_model_calls": len(
-            candidate_mode_negative_responses
-        ),
+        "candidate_mode_negative_model_calls": len(candidate_mode_negative_responses),
         "n_candidate_mode_negative_cases": len(negative_case_ids),
         "n_candidate_mode_negative_cases_correct": sum(
             row["correct"] is True for row in candidate_mode_negative_results
         ),
         "candidate_mode_negative_results": candidate_mode_negative_results,
-        "candidate_mode_negative_controls_passed": (
-            candidate_mode_negative_controls_passed
-        ),
+        "candidate_mode_negative_controls_passed": candidate_mode_negative_controls_passed,
         "candidate_claim_assessments_requested": True,
         "candidate_document_status_requested": True,
         "candidate_claim_scope_isolated": False,
         "candidate_integrated_context": True,
-        "candidate_claim_model_calls": 1,
-        "candidate_integrated_model_calls": 1,
+        "candidate_claim_model_calls": len(candidate_responses),
+        "candidate_integrated_model_calls": len(candidate_responses),
+        "candidate_adversarial_model_calls": int(candidate_adjudication_strategy == "integrated_plus_adversarial"),
         "rubric_hash": stable_hash(rubric),
         "reference_documents_hash": stable_hash(reference_documents),
         "candidate_documents_hash": stable_hash(candidate_documents),
         "calibration_cases_hash": stable_hash(calibration_cases),
-        "candidate_mode_negative_cases_hash": stable_hash(
-            candidate_mode_negative_cases
-        ),
+        "candidate_mode_negative_cases_hash": stable_hash(candidate_mode_negative_cases),
         "n_claims": len(claim_ids),
         "n_calibration_cases": len(case_ids),
-        "n_calibration_cases_correct": sum(
-            row["correct"] is True for row in calibration_results
-        ),
+        "n_calibration_cases_correct": sum(row["correct"] is True for row in calibration_results),
         "calibration_results": calibration_results,
         "semantic_judge_calibrated": calibrated,
         "candidate_status": candidate_status,
-        "candidate_document_status": str(
-            candidate_assessment.get("document_status", "") or ""
-        ),
+        "candidate_document_status": str(candidate_assessment.get("document_status", "") or ""),
         "candidate_document_decisive_excerpt_hash": stable_hash(
             candidate_assessment.get("document_decisive_excerpt", "")
         ),
@@ -701,15 +669,13 @@ def run_theory_semantic_gold_judge(
         ],
         "passed": passed,
         "calibration_raw_response_fingerprint": calibration_fingerprint,
-        "candidate_mode_negative_raw_response_fingerprint": (
-            negative_fingerprint
-        ),
-        "candidate_raw_response_fingerprint": stable_hash(candidate_response.text),
+        "candidate_mode_negative_raw_response_fingerprint": negative_fingerprint,
+        "candidate_raw_response_fingerprint": stable_hash(candidate_texts),
         "raw_response_fingerprint": stable_hash({
             "activation_judgment_hash": activation_judgment_hash,
             "calibration": calibration_fingerprint,
             "candidate_mode_negative": negative_fingerprint,
-            "candidate": candidate_response.text,
+            "candidate": candidate_texts,
         }),
         "proof_evidence_status": "SEMANTIC_GOLD_JUDGMENT_NOT_PROOF_EVIDENCE",
         "boundary": THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY,
@@ -729,7 +695,11 @@ def validate_theory_semantic_gold_judgment(
     assessments = packet.get("assessments", [])
     if not isinstance(assessments, list):
         return ["assessments must be an array"]
-    expected_case_ids = list(required_case_ids) if required_case_ids is not None else [*calibration_case_ids, "candidate"]
+    expected_case_ids = (
+        list(required_case_ids)
+        if required_case_ids is not None
+        else [*calibration_case_ids, "candidate"]
+    )
     observed_case_ids = [
         str(row.get("case_id", "") or "")
         for row in assessments

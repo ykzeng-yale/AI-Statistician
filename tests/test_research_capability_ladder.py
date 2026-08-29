@@ -19,8 +19,8 @@ TASK_75_SHARED_MECHANISM_HEAD = "af132404602d0c9ce621b47c979a90424ffa4536"
 TASK_74_SHARED_MECHANISM_HEAD = "7d9278b769be47b2c119c08d5b63832974940afb"
 TASK_68_SHARED_MECHANISM_HEAD = "f2e39edbea3c6f0122a14827d8d996c1854966bd"
 CURRENT_SCORED_TASKS = 97
-CURRENT_CONSUMED_TASKS = 96
-CURRENT_OPERATOR_INVALID_TASKS = 16
+CURRENT_CONSUMED_TASKS = 97
+CURRENT_OPERATOR_INVALID_TASKS = 17
 CURRENT_SOURCE_REPLICATION_COMPONENTS_READY = 9
 TASK_63_SHARED_MECHANISM_HEAD = "b567aaa68195e85cc6f799f727b415903251af46"
 TASK_62_INTEGRATED_SEMANTIC_HEAD = "2696ebb5b9bec0e8a7f15d61dfc44ff288f35b60"
@@ -3600,7 +3600,7 @@ def test_pymle_l1_draw_is_consumed_as_first_source_replication_pass() -> None:
     readiness = ladder["current_readiness"]
     assert readiness["consumed_scored_tasks"] == CURRENT_CONSUMED_TASKS
     assert readiness["fully_gold_passed_tasks"] == 7
-    assert readiness["source_replication_components_passed"] == 1
+    assert readiness["source_replication_components_passed"] == 2
     assert readiness["source_replication_full_tasks_passed"] == 1
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -5437,7 +5437,7 @@ def test_pyod_abod_l1_records_one_consumed_semantic_failure() -> None:
     assert readiness["runtime_source_replication_components_ready"] == (
         CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
     )
-    assert readiness["source_replication_components_passed"] == 1
+    assert readiness["source_replication_components_passed"] == 2
     assert readiness["source_replication_full_tasks_passed"] == 1
 
     visible_path = Path(candidate["visible_questions_path"])
@@ -5909,7 +5909,7 @@ def test_rdrobust_senate_l1_records_consumed_operator_false_acceptance() -> None
     assert readiness["runtime_source_replication_components_ready"] == (
         CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
     )
-    assert readiness["source_replication_components_passed"] == 1
+    assert readiness["source_replication_components_passed"] == 2
     assert readiness["source_replication_full_tasks_passed"] == 1
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD
 
@@ -6039,7 +6039,7 @@ def test_statsmodels_adf_kpss_l1_records_consumed_operator_false_acceptance() ->
     assert readiness["runtime_source_replication_components_ready"] == (
         CURRENT_SOURCE_REPLICATION_COMPONENTS_READY
     )
-    assert readiness["source_replication_components_passed"] == 1
+    assert readiness["source_replication_components_passed"] == 2
     assert readiness["source_replication_full_tasks_passed"] == 1
     assert readiness["operator_invalid_tasks"] == CURRENT_OPERATOR_INVALID_TASKS
     assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_HEAD

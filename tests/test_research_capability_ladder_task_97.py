@@ -21,7 +21,7 @@ SOURCE_ROOT = Path("benchmarks/research_sources/betareg_jss_2010_20260829")
 ACTIVATION_COMMIT = "e5fefa191dc11182738e153f71559a314d52e18e"
 
 
-def test_betareg_jss_r_l1_is_frozen_before_its_single_product_draw() -> None:
+def test_betareg_jss_r_l1_consumed_result_is_immutable() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -30,9 +30,10 @@ def test_betareg_jss_r_l1_is_frozen_before_its_single_product_draw() -> None:
 
     assert candidate["level"] == "L1"
     assert candidate["family"] == "beta_regression_r_source_replication"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_task_97_exact_jss_r_source_replication"
+        "fresh_live_v1_consumed_exact_haiku_runtime_accepted_automated_"
+        "gold_pass_operator_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l1-betareg-jss-2010-r-20260829-v1"
@@ -70,16 +71,105 @@ def test_betareg_jss_r_l1_is_frozen_before_its_single_product_draw() -> None:
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 24
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
+    assert evidence["product_code_head"] == (
+        "708fe0f359056a353edad5ee1b6059e313fd95c0"
+    )
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_outer_graph_iterations"] == 1
+    assert evidence["runtime_trace_steps"] == 1
+    assert evidence["runtime_same_owner_workspace_continuations"] == 0
+    assert evidence["runtime_product_model_calls"] == 17
+    assert evidence["runtime_client_tool_model_turns"] == 17
+    assert evidence["runtime_direct_model_calls"] == 0
+    assert evidence["runtime_client_tool_executions"] == 21
+    assert evidence["runtime_model_calls_by_subsystem"] == {
+        "TheoryDeveloper": 17
+    }
+    assert evidence["sonnet_product_calls"] == 0
+    assert evidence["opus_product_calls"] == 0
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
+    assert evidence["architect_executed"] is False
+    assert evidence["algorithm_engineer_executed"] is False
+    assert evidence["simulation_engineer_executed"] is False
     assert evidence["model_draw_resampling_blocked"] is True
+    assert evidence["source_replication_execution_passed"] is True
+    assert evidence["source_replication_component_passed"] is True
+    assert evidence["automated_gold_tasks_passed"] == 1
+    assert evidence["automated_gold_tasks_total"] == 1
+    assert evidence["hidden_source_checks_passed"] == 13
+    assert evidence["hidden_source_checks_total"] == 13
+    assert evidence["hidden_source_semantic_claims_passed"] == 12
+    assert evidence["hidden_source_semantic_claims_total"] == 12
+    assert evidence["post_runtime_evaluator_model_calls"] == 1
+    assert evidence["hidden_expected_values_disclosed"] is False
+    assert evidence["runtime_feedback_generated"] is False
+    assert evidence["operator_disposition"] == "FAILED"
+    assert evidence["automated_semantic_evaluator_false_positive"] is True
+    assert evidence["future_semantic_protocol"] == (
+        "v11_integrated_plus_adversarial_exact_haiku"
+    )
+    assert evidence["closeout_evidence_commit"] == "PENDING_CLOSEOUT_COMMIT"
+    assert evidence["automated_full_task_passed"] is True
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
     assert evidence["ladder_score_before_activation"] == "7/96"
     assert evidence["ladder_score_after_activation"] == "7/97"
+    assert evidence["ladder_score_after_consumption"] == "7/97"
+
+    run_path = Path(evidence["run_path"])
+    immutable_files = {
+        "research_agent_runtime_manifest.json": evidence[
+            "runtime_manifest_sha256"
+        ],
+        "betareg_jss_2010_r_public_replication_runtime_result.json": evidence[
+            "runtime_result_sha256"
+        ],
+        "research_capability_gold_evaluation.json": evidence[
+            "gold_evaluation_sha256"
+        ],
+        "runtime_llm_topology.json": evidence["runtime_topology_sha256"],
+    }
+    for name, expected_sha256 in immutable_files.items():
+        assert hashlib.sha256((run_path / name).read_bytes()).hexdigest() == (
+            expected_sha256
+        )
+
+    gold = json.loads(
+        (run_path / "research_capability_gold_evaluation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert gold["n_tasks_passed"] == 1
+    assert gold["hidden_expected_values_disclosed"] is False
+    assert gold["runtime_feedback_generated"] is False
+    evaluated = gold["tasks"][0]
+    assert evaluated["task_passed"] is True
+    assert evaluated["hidden_source_replication_combined_passed"] is True
+    assert evaluated["hidden_source_report_semantic_candidate_model_calls"] == 1
+    assert evaluated["hidden_source_report_semantic_candidate_status"] == "PASS"
+    assert sum(
+        row["status"] == "SATISFIED"
+        for row in evaluated[
+            "hidden_source_report_semantic_claim_assessments"
+        ]
+    ) == 12
+
+    report = next(run_path.glob("theory_workspaces/*/source_replication_report.md"))
+    assert hashlib.sha256(report.read_bytes()).hexdigest() == evidence[
+        "source_report_sha256"
+    ]
+    report_text = report.read_text(encoding="utf-8")
+    assert "loglog link produces the highest log-likelihood" in report_text
+    assert "50.01105" in report_text
+    operator_audit = Path(evidence["operator_audit"])
+    assert operator_audit.is_file()
+    assert "`FAILED` for full-task capability credit" in (
+        operator_audit.read_text(encoding="utf-8")
+    )
 
     assert hashlib.sha256(VISIBLE_PATH.read_bytes()).hexdigest() == evidence[
         "visible_questions_sha256"
@@ -139,14 +229,17 @@ def test_betareg_jss_r_l1_is_frozen_before_its_single_product_draw() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 97
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 96
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 97
     assert readiness["fully_gold_configured_tasks"] == 97
     assert readiness["fully_gold_passed_tasks"] == 7
     assert readiness["runtime_source_replication_components_ready"] == 9
+    assert readiness["source_replication_components_passed"] == 2
+    assert readiness["source_replication_full_tasks_passed"] == 1
+    assert readiness["operator_invalid_tasks"] == 17
     active = [
         row
         for row in ladder["initial_candidate_queue"]
         if row["status"] == "active_scored"
     ]
-    assert [row["id"] for row in active] == [TASK_ID]
+    assert active == []

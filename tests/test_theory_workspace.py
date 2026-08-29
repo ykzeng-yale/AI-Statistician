@@ -852,6 +852,9 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
     assert SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL in {
         tool.name for tool in backend.requests[0].tools
     }
+    opening_request = json.dumps(backend.requests[0].messages)
+    assert "inspect the exact saved report in this same session" in opening_request
+    assert "locally false interpretation" in opening_request
 
 
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:

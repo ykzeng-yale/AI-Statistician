@@ -167,6 +167,7 @@ def _run(
     include_candidate_mode_negative: bool = False,
     candidate_is_reference: bool = False,
     activation_judgment: dict[str, object] | None = None,
+    candidate_adjudication_strategy: str = "integrated_single",
 ) -> dict[str, object]:
     reference_documents = [
         {"path": "reference.md", "sha256": "reference", "content": "reference"}
@@ -224,6 +225,7 @@ def _run(
         ),
         semantic_artifact_role=semantic_artifact_role,
         activation_judgment=activation_judgment,
+        candidate_adjudication_strategy=candidate_adjudication_strategy,
     )
 
 
@@ -384,6 +386,52 @@ def test_candidate_mode_negative_uses_exact_integrated_candidate_schema() -> Non
     assert '"case_id": "candidate"' in negative_request.user_prompt
     assert '"claim:definition"' in negative_request.user_prompt
     assert '"claim:limit"' in negative_request.user_prompt
+
+
+def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> None:
+    calibration_packets = _keyed_calibration_packets()
+    provider = _RecordingProvider(
+        [
+            calibration_packets[0],
+            calibration_packets[0],
+            calibration_packets[1],
+            calibration_packets[1],
+            _keyed_candidate_packet(),
+            _keyed_candidate_packet(violated="claim:limit"),
+        ]
+    )
+
+    result = _run(
+        provider,
+        candidate_adjudication_strategy="integrated_plus_adversarial",
+    )
+
+    assert result["protocol_version"] == 11
+    assert result["candidate_adjudication_strategy"] == (
+        "integrated_plus_adversarial"
+    )
+    assert result["semantic_judge_calibrated"] is True
+    assert result["candidate_status"] == "FAIL"
+    assert result["candidate_claim_status_counts"]["VIOLATED"] == 1
+    assert result["passed"] is False
+    assert result["n_model_calls"] == 6
+    assert result["calibration_model_calls"] == 4
+    assert result["candidate_integrated_model_calls"] == 2
+    assert result["candidate_adversarial_model_calls"] == 1
+    assert [
+        request.metadata["semantic_adjudication_phase"]
+        for request in provider.requests
+    ] == [
+        "calibration",
+        "calibration_adversarial",
+        "calibration",
+        "calibration_adversarial",
+        "candidate_integrated",
+        "candidate_integrated_adversarial",
+    ]
+    assert "Assume the prior coverage assessment may have overlooked" in (
+        provider.requests[-1].system_prompt
+    )
 
 
 def test_candidate_pass_cannot_override_candidate_mode_negative_false_accept() -> None:

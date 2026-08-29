@@ -536,6 +536,7 @@ def _add_source_report_semantic_evaluator(path: Path, tmp_path: Path) -> Path:
         "model_tier": "haiku",
         "model": "claude-haiku-4-5-20251001",
         "automatic_tier_escalation_allowed": False,
+        "candidate_adjudication_strategy": "integrated_single",
         "max_tokens": 2000,
         "timeout_seconds": 30,
         "reference_documents": [
@@ -861,6 +862,7 @@ def test_source_replication_separates_identity_from_report_semantics(
 
     def semantic_runner(**kwargs) -> dict:
         assert kwargs["semantic_artifact_role"] == "source_replication_report"
+        assert kwargs["candidate_adjudication_strategy"] == "integrated_single"
         assert kwargs["model"] == "claude-haiku-4-5-20251001"
         assert kwargs["model_tier"] == "haiku"
         assert len(kwargs["candidate_documents"]) == 2

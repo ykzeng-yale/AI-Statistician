@@ -6,8 +6,8 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`0ae94fdd49b05ee7faa4d984d06a68492cb32b54` (fresh official
-`origin/main` fetch on 2026-08-28).
+`6478a751fde8884b2fdc76486fe23175a8e795d4` (fresh official
+`origin/main` fetch on 2026-08-29).
 
 The earlier expanded hash stored for short commit `31d338a1` was incorrect. The
 actual commit is `31d338a1ea89cd65a48d8ac07f50bb3917009806`; this audit and the
@@ -18,6 +18,17 @@ a delegated worker receives explicit authority-scoped tools and artifact context
 while one model session consumes its own tool observations. It does not supply a
 scientific planner, Theory method, Simulation evaluator, Lean policy, or reason to
 embed Codex's thread manager as a second scheduler.
+
+Task 97 supplies a concrete live qualification of that boundary. One persistent
+source-owning Haiku session completed an exact JSS R replication in one outer
+runtime step with stable read/search/execute/write/commit tools and no Architect,
+Simulation, Formalizer, repair, fallback, or second scheduler. The inner harness
+worked, but the model committed a long report without inspecting its saved text
+and left material local interpretation errors. A single integrated Haiku gold
+judgment then false-accepted those errors. The shared correction is therefore
+completion discipline inside the existing source-owner prompt plus an optional
+second evaluator-only adversarial pass. It is not another product worker or
+control plane.
 
 Latest selective-adoption implementation commits:
 
@@ -199,6 +210,17 @@ second orchestration plane here.
    no-network launch check: it does not test scientific content, spend a model
    call, create a retry path, or treat provider availability as capability
    evidence.
+8. **Let the source owner verify its exact saved artifact before commit.** A
+   complete first write is not readiness. The same model should inspect the
+   persisted Markdown, source, raw output, and visible request, then choose an
+   edit or terminal commit. The runtime does not parse scientific content or
+   force a blind rewrite.
+9. **Separate evaluator coverage from falsification.** A long integrated rubric
+   judgment preserves cross-claim context, but one attention pass can miss a
+   locally false sentence beside a correct table. Optional protocol v11 adds one
+   independent adversarial view over the same full candidate and combines the
+   two conservatively. It remains post-runtime evaluator authority and cannot
+   repair the product artifact.
 
 The Pingouin Task 83 invocation exposed why this belongs at the harness
 boundary. Codex's bundled Python could import the repository but not the

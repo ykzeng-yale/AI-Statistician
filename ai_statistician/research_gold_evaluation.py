@@ -26,6 +26,7 @@ from .scientific_sandbox import (
 )
 from .theory_derivation_trace import document_authoritative_theory_context
 from .theory_semantic_gold_judge import (
+    THEORY_SEMANTIC_CANDIDATE_STRATEGIES,
     run_theory_semantic_gold_judge,
     theory_semantic_activation_judgment_errors,
 )
@@ -1550,6 +1551,13 @@ def _load_hidden_semantic_activation_judgment(
         model=str(evaluator.get("model", "") or ""),
         model_tier=str(evaluator.get("model_tier", "") or ""),
         semantic_artifact_role=semantic_artifact_role,
+        candidate_adjudication_strategy=str(
+            evaluator.get(
+                "candidate_adjudication_strategy",
+                "integrated_single",
+            )
+            or "integrated_single"
+        ),
     )
     model_calls = record.get("model_calls", [])
     if (
@@ -1620,6 +1628,13 @@ def _run_hidden_document_semantic_evaluation(
             "max_tokens": int(evaluator.get("max_tokens", 6000) or 6000),
             "semantic_artifact_role": semantic_artifact_role,
             "activation_judgment": activation_judgment,
+            "candidate_adjudication_strategy": str(
+                evaluator.get(
+                    "candidate_adjudication_strategy",
+                    "integrated_single",
+                )
+                or "integrated_single"
+            ),
         }
         if run_semantic_judge is not None:
             return dict(run_semantic_judge(**kwargs)), ""
@@ -2686,6 +2701,15 @@ def _hidden_theory_semantic_evaluator_validation_errors(
         and evaluator.get("automatic_tier_escalation_allowed") is False
     ):
         errors.append(f"{label} must use exact Haiku without escalation")
+    candidate_strategy = str(
+        evaluator.get(
+            "candidate_adjudication_strategy",
+            "integrated_single",
+        )
+        or "integrated_single"
+    )
+    if candidate_strategy not in THEORY_SEMANTIC_CANDIDATE_STRATEGIES:
+        errors.append(f"{label} candidate adjudication strategy is invalid")
     references = evaluator.get("reference_documents", [])
     if not isinstance(references, list) or not references:
         errors.append(f"{label} reference_documents are missing")
