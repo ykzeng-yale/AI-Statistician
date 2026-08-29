@@ -6,7 +6,8 @@ Baseline source audit: [`openai/codex`](https://github.com/openai/codex) at
 `4213b38f3c555049bf6f494065698a3dfe587c16` (Apache-2.0).
 
 Latest incremental recheck:
-`7625343977154efed8c0dadba956374992a1580b`.
+`0ae94fdd49b05ee7faa4d984d06a68492cb32b54` (fresh official
+`origin/main` fetch on 2026-08-28).
 
 The earlier expanded hash stored for short commit `31d338a1` was incorrect. The
 actual commit is `31d338a1ea89cd65a48d8ac07f50bb3917009806`; this audit and the
@@ -20,6 +21,11 @@ embed Codex's thread manager as a second scheduler.
 
 Latest selective-adoption implementation commits:
 
+- `85e2bba8`: let an explicitly theory-inapplicable code/empirical task start
+  the existing retained Algorithm source session from its operator-frozen
+  executable ABI, then preserve independent exact-source review, immutable ABI
+  parent identity, Simulation handoff, and final criticism without manufacturing
+  a Theory artifact or adding another scheduler;
 - `492d1112`: keep exact public-contract clause identity in the existing
   Algorithm review terminal schema as a model-authored attention record, while
   leaving source analysis, probes, findings, and verdict to the same reviewer
@@ -153,6 +159,15 @@ turn, `ToolRouter` maps model items to generic calls, and completed tool calls s
 `needs_follow_up` so their observations re-enter the same ordered history. None
 of those layers defines what code, mathematics, simulation result, or Lean proof
 should say. That separation is the reusable harness contract.
+
+The five-commit upstream delta from `f9cdc90c` to `0ae94fdd` retains the last
+selected step context for a turn, runs executor hooks on interruption, filters
+media notifications, allows browser cleanup on subagent stop, and handles TTY
+subprocess terminal queries. Only the first reinforces a current AI Statistician
+invariant: a retained source session continues against one explicit environment
+and tool context. The other changes belong to Codex product lifecycle or UI
+infrastructure and do not warrant a scientific agent, provider, hook runner, or
+second orchestration plane here.
 
 ## Adopted principles
 
@@ -3957,3 +3972,44 @@ Affected regressions passed 173/173 and the complete repository passed 1036/1036
 the unchanged architecture budgets passed at 149,997 top-level production Python
 lines. No product model, hidden evaluator, benchmark draw, or consumed task was run;
 trusted capability remains 5/88 and exact development-panel closure remains 0/2.
+
+## 2026-08-28 task-intent routing without a synthetic Theory lane
+
+The retained source harness still had one outer-graph contradiction. An explicitly
+theory-inapplicable task that required model-authored scientific code and empirical
+evaluation was routed through TheoryDeveloper because the old primary-lane guard
+treated every Algorithm or Simulation artifact as theory-derived. That generated
+work the evaluator had declared inapplicable and made the outer graph, rather than
+the source-owning model, choose scientific content prerequisites.
+
+Commit `85e2bba8` removes that forced middle lane without weakening authority. A
+future task may use the direct path only when its public task intent says
+`theory=not_applicable` and its operator-frozen estimator execution contract is
+complete. Runtime validates that contract before any model call, records its exact
+content hash and estimator identity, and opens the existing retained Algorithm
+source session. Empirical-required tasks also need frozen public empirical claims.
+Missing authority fails closed rather than inviting the model or runtime to invent
+an ABI.
+
+The exact executed source still enters an isolated semantic-review session. An
+accepted review records the frozen ABI as the immutable parent, then hands the
+accepted Algorithm manifest to the retained Simulation source session and terminal
+Critic. Legacy tasks and theory-required tasks keep their Theory prerequisite;
+source-replication and formal-required routes are unchanged. No synthetic Theory
+packet, task-family rule, repair action, retry, fallback, extra model call, or new
+agent was added.
+
+This is the useful Codex composition rule in concrete form: each source workspace
+owns its model/tool/observation loop, while the outer harness owns only intent,
+authority, identity, hashes, permissions, and evidence promotion. Importing Codex
+Core, App Server, Responses transport, provider state, hooks, threads, worktrees,
+Guardian, or its multi-agent scheduler would create a second control plane without
+adding statistical or Lean authority, so those components remain excluded.
+
+Theory-free routing and exact-source-review regressions passed `4/4`; the focused
+runtime panel passed `157/157`; and the complete repository passed `1040/1040` in
+81.24 seconds. Compileall, diff and JSON hygiene, model policy, secret scanning, and
+the unchanged architecture budget passed at 149,995 production Python lines. No
+model or hidden-evaluator call occurred, no consumed task was touched, aggregate
+trusted capability remains `5/88`, and exact development-panel Lean closure remains
+`0/2`.
