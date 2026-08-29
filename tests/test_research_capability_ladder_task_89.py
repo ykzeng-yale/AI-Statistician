@@ -57,9 +57,9 @@ def test_poisson_loglinear_l0_task_is_frozen_before_product_draw() -> None:
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
     assert evidence["activation_ledger_commit"] == (
-        "pending_current_activation_commit"
+        "c2a07d37e35d41429930e7fbfad6f13fe0cc733a"
     )
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 0
     assert evidence["first_runtime_model_call_occurred"] is False
