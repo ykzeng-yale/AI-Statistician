@@ -10,6 +10,7 @@ from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     estimator_interface_contract_errors as shared_estimator_interface_contract_errors,
     estimator_interface_contract_id,
+    project_executable_estimator_interface_contract,
     project_executable_estimator_spec,
     theory_estimator_interface_contracts,
 )
@@ -981,8 +982,8 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
             "REJECTED_ALGORITHM_REDEFINITION"
         ):
             errors.append(
-                "AlgorithmEngineer cannot redefine the TheoryDeveloper estimator "
-                "interface contract"
+                "AlgorithmEngineer cannot redefine the upstream estimator interface "
+                "contract"
             )
     for row in packet.get("sandbox_code_drafts", []) or []:
         if not isinstance(row, Mapping):
@@ -1114,19 +1115,20 @@ def _validate_capability_eval_generated_algorithm_packet(
             )
         )
         authority = row.get("estimator_interface_contract_authority", {})
-        if not isinstance(authority, Mapping) or authority.get("owner_agent") != (
-            "TheoryDeveloper"
-        ):
+        authority = authority if isinstance(authority, Mapping) else {}
+        if authority.get("owner_agent") not in ("TheoryDeveloper", "FrozenResearchQuestion"):
             errors.append(
-                "capability_eval estimator interface must be owned by TheoryDeveloper"
+                "capability_eval estimator interface must be bound to an immutable "
+                "TheoryDeveloper or frozen-question contract"
             )
         elif authority.get("transport_status") not in {
             "RUNTIME_BOUND_FROM_THEORY",
+            "RUNTIME_BOUND_FROM_FROZEN_QUESTION",
             "EXACT_MODEL_COPY",
         }:
             errors.append(
-                "capability_eval estimator interface must be an exact immutable "
-                "TheoryDeveloper contract"
+                "capability_eval estimator interface must preserve its exact "
+                "immutable upstream contract"
             )
     gap_ids = {
         str(row.get("estimator_id", row.get("id", ""))).strip()
@@ -1174,6 +1176,7 @@ def _normalize_algorithm_packet(
     body = dict(payload)
     _normalize_algorithm_estimator_interface_contracts(
         body,
+        question=question,
         theory_packet=theory_packet,
     )
     raw_metric_contracts = body.get("metric_contracts", [])
@@ -1263,12 +1266,26 @@ def _normalize_algorithm_packet(
 def _normalize_algorithm_estimator_interface_contracts(
     body: dict[str, Any],
     *,
+    question: OpenResearchQuestion,
     theory_packet: Mapping[str, Any],
 ) -> None:
     targets = body.get("implementation_targets", [])
     if not isinstance(targets, list):
         return
-    theory_contracts = theory_estimator_interface_contracts(theory_packet)
+    upstream_contracts = theory_estimator_interface_contracts(theory_packet)
+    frozen_contract = question.estimator_execution_contract
+    if frozen_contract:
+        frozen_interface = project_executable_estimator_interface_contract(
+            frozen_contract
+        )
+        upstream_contracts[str(frozen_contract["estimator_id"])] = {
+            "contract": frozen_interface,
+            "contract_id": estimator_interface_contract_id(frozen_interface),
+            "source_ref": "question#/estimator_execution_contract",
+            "owner_agent": "FrozenResearchQuestion",
+            "source_hash": stable_hash(frozen_contract),
+            "bound_status": "RUNTIME_BOUND_FROM_FROZEN_QUESTION",
+        }
     source_theory_packet_id = str(theory_packet.get("packet_id", "") or "")
     source_theory_packet_hash = stable_hash(theory_packet)
     normalized_targets: list[Any] = []
@@ -1279,38 +1296,31 @@ def _normalize_algorithm_estimator_interface_contracts(
         normalized = dict(row)
         estimator_id = str(normalized.get("estimator_id", "") or "").strip()
         supplied_interface = normalized.get("estimator_interface_contract")
-        theory_contract = theory_contracts.get(estimator_id)
-        if theory_contract is not None:
-            exact_interface = deepcopy(theory_contract["contract"])
+        upstream_contract = upstream_contracts.get(estimator_id)
+        if upstream_contract is not None:
+            exact_interface = deepcopy(upstream_contract["contract"])
             if not isinstance(supplied_interface, Mapping):
-                transport_status = "RUNTIME_BOUND_FROM_THEORY"
+                transport_status = upstream_contract.get(
+                    "bound_status", "RUNTIME_BOUND_FROM_THEORY"
+                )
             elif dict(supplied_interface) == exact_interface:
                 transport_status = "EXACT_MODEL_COPY"
             else:
                 transport_status = "REJECTED_ALGORITHM_REDEFINITION"
             normalized["estimator_interface_contract"] = exact_interface
-            normalized["estimator_interface_contract_id"] = theory_contract[
+            normalized["estimator_interface_contract_id"] = upstream_contract[
                 "contract_id"
             ]
             normalized["estimator_interface_contract_authority"] = {
-                "owner_agent": "TheoryDeveloper",
+                "owner_agent": upstream_contract.get(
+                    "owner_agent", "TheoryDeveloper"
+                ),
                 "source_theory_packet_id": source_theory_packet_id,
-                "source_theory_packet_hash": source_theory_packet_hash,
-                "source_estimator_ref": theory_contract["source_ref"],
+                "source_theory_packet_hash": upstream_contract.get(
+                    "source_hash", source_theory_packet_hash
+                ),
+                "source_estimator_ref": upstream_contract["source_ref"],
                 "transport_status": transport_status,
-            }
-        elif isinstance(supplied_interface, Mapping):
-            interface_row = deepcopy(dict(supplied_interface))
-            normalized["estimator_interface_contract"] = interface_row
-            normalized["estimator_interface_contract_id"] = (
-                estimator_interface_contract_id(interface_row)
-            )
-            normalized["estimator_interface_contract_authority"] = {
-                "owner_agent": "UNBOUND_LEGACY",
-                "source_theory_packet_id": source_theory_packet_id,
-                "source_theory_packet_hash": source_theory_packet_hash,
-                "source_estimator_ref": "",
-                "transport_status": "UNBOUND_LEGACY_ALGORITHM_CONTRACT",
             }
         normalized_targets.append(normalized)
     body["implementation_targets"] = normalized_targets

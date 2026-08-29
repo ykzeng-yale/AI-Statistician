@@ -128,6 +128,28 @@ def test_interface_handoff_excludes_source_and_execution_results() -> None:
     assert "sample_size_order" not in serialized
 
 
+def test_interface_handoff_accepts_frozen_question_authority_without_theory() -> None:
+    source_handoff = _accepted_algorithm_handoff()
+    source_handoff["theory_packet_id"] = ""
+    source_handoff["exact_algorithm_artifacts"][0][
+        "estimator_interface_contract_authority"
+    ] = {
+        "owner_agent": "FrozenResearchQuestion",
+        "source_theory_packet_id": "",
+        "source_theory_packet_hash": "frozen-contract-hash",
+        "source_estimator_ref": "question#/estimator_execution_contract",
+        "transport_status": "RUNTIME_BOUND_FROM_FROZEN_QUESTION",
+    }
+
+    handoff = build_accepted_implementation_interface_handoff(source_handoff)
+
+    assert accepted_implementation_interface_handoff_errors(
+        handoff,
+        question_id="question:domain-neutral",
+        theory_packet_id="",
+    ) == []
+
+
 def test_interface_handoff_rejects_result_or_source_injection() -> None:
     handoff = build_accepted_implementation_interface_handoff(
         _accepted_algorithm_handoff()
@@ -230,7 +252,7 @@ def test_interface_handoff_rejects_tampered_contract_identity() -> None:
     assert any("contract identity hash mismatch" in error for error in errors)
 
 
-def test_interface_handoff_rejects_non_theory_owned_or_extended_abi() -> None:
+def test_interface_handoff_rejects_unknown_abi_authority_or_extended_abi() -> None:
     handoff = build_accepted_implementation_interface_handoff(
         _accepted_algorithm_handoff()
     )
@@ -258,4 +280,4 @@ def test_interface_handoff_rejects_non_theory_owned_or_extended_abi() -> None:
     )
 
     assert any("unexpected fields" in error for error in errors)
-    assert any("TheoryDeveloper-owned ABI" in error for error in errors)
+    assert any("unknown ABI authority" in error for error in errors)

@@ -14,7 +14,9 @@ from ai_statistician.estimator_interface_contract import (
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
     build_algorithm_engineer_prompt,
+    materialize_algorithm_source_workspace_packet,
 )
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_agent_runtime import (
     _question_from_payload,
     _question_to_payload,
@@ -297,6 +299,55 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
         question,
         include_estimator_execution_contract=False,
     )
+
+
+def test_theory_free_source_materialization_binds_frozen_question_abi() -> None:
+    contract = _frozen_contract()
+    source = "def run_estimator(request): return {'estimate': 0.0}\n"
+    packet = materialize_algorithm_source_workspace_packet(
+        question=OpenResearchQuestion(
+            id="theory-free",
+            title="Theory-free code task",
+            description="Implement one frozen public ABI.",
+            task_intent={
+                "theory": "not_applicable",
+                "scientific_code": "required",
+            },
+            estimator_execution_contract=contract,
+        ),
+        theory_packet={},
+        implementation_gaps=[{"estimator_id": "est_example"}],
+        source_rows=[
+            {
+                "estimator_id": "est_example",
+                "source_code": source,
+                "script_hash": stable_hash(source),
+                "smoke_passed": True,
+                "scientific_code_workspace": {
+                    "artifact_id": "theory-free:est_example",
+                    "provider": "anthropic",
+                    "model": "claude-haiku-4-5-20251001",
+                    "model_tier": "haiku",
+                    "accepted": True,
+                    "model_owned_source": True,
+                    "runtime_edited_source": False,
+                    "transcript_fingerprint": "transcript:theory-free",
+                },
+            }
+        ],
+    )
+
+    target = packet["implementation_targets"][0]
+    assert target["estimator_interface_contract"]["response_fields"][0][
+        "derivation_ref"
+    ] == "response.estimate"
+    assert target["estimator_interface_contract_authority"] == {
+        "owner_agent": "FrozenResearchQuestion",
+        "source_theory_packet_id": "",
+        "source_theory_packet_hash": stable_hash(contract),
+        "source_estimator_ref": "question#/estimator_execution_contract",
+        "transport_status": "RUNTIME_BOUND_FROM_FROZEN_QUESTION",
+    }
 
 
 def test_absent_frozen_contract_does_not_change_legacy_question_payload() -> None:

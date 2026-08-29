@@ -296,9 +296,10 @@ def project_executable_estimator_interface_contract(
             if not isinstance(row, Mapping):
                 projected.append(deepcopy(row))
                 continue
-            projected.append(
-                {key: deepcopy(row[key]) for key in keys if key in row}
-            )
+            projected_row = {key: deepcopy(row[key]) for key in keys if key in row}
+            if "derivation_ref" in keys and not projected_row.get("derivation_ref"):
+                projected_row["derivation_ref"] = deepcopy(row.get("clause_id", ""))
+            projected.append(projected_row)
         return projected
 
     return {

@@ -381,10 +381,9 @@ def accepted_implementation_interface_handoff_errors(
                     "accepted implementation interface row "
                     f"{index} authority fields mismatch"
                 )
-            if authority.get("owner_agent") != "TheoryDeveloper":
+            if authority.get("owner_agent") not in ("TheoryDeveloper", "FrozenResearchQuestion"):
                 errors.append(
-                    "accepted implementation interface requires "
-                    "TheoryDeveloper-owned ABI semantics"
+                    "accepted implementation interface has unknown ABI authority"
                 )
             if str(authority.get("source_theory_packet_id", "") or "") != str(
                 theory_packet_id
