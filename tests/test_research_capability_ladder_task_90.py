@@ -14,7 +14,7 @@ LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 TASK_ID = "binary_runs_fixed_counts_known_result"
 
 
-def test_binary_runs_l0_task_is_frozen_and_unconsumed() -> None:
+def test_binary_runs_l0_task_is_consumed_after_sole_product_draw() -> None:
     ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
     candidate = next(
         row for row in ladder["initial_candidate_queue"] if row["id"] == TASK_ID
@@ -23,9 +23,9 @@ def test_binary_runs_l0_task_is_frozen_and_unconsumed() -> None:
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "fixed_count_binary_runs"
-    assert candidate["status"] == "active_scored"
+    assert candidate["status"] == "consumed_scored"
     assert candidate["activation_status"] == (
-        "frozen_ready_preactivated_unconsumed"
+        "fresh_live_v1_consumed_runtime_accepted_hidden_algorithm_boundary_failed"
     )
     assert candidate["gold_bundle_id"] == (
         "research-l0-binary-runs-20260828-v1"
@@ -77,13 +77,48 @@ def test_binary_runs_l0_task_is_frozen_and_unconsumed() -> None:
     )
     assert evidence["preactivation_product_model_calls"] == 0
     assert evidence["preactivation_evaluator_model_calls"] == 4
-    assert evidence["first_runtime_model_call_occurred"] is False
-    assert evidence["fresh_live_runs"] == 0
-    assert evidence["runtime_invocations"] == 0
+    assert evidence["first_runtime_model_call_occurred"] is True
+    assert evidence["fresh_live_runs"] == 1
+    assert evidence["runtime_invocations"] == 1
+    assert evidence["product_head"] == (
+        "c350162ca75ed0ad8aba81ea78143ec84eaf18bf"
+    )
+    assert evidence["runtime_status"] == "ACCEPTED"
+    assert evidence["runtime_research_evaluation"] == (
+        "1/1_complete_conformant_ready"
+    )
+    assert evidence["hidden_full_task_result"] == "0/1"
+    assert evidence["product_model_turns"] == 69
+    assert evidence["architect_plan_model_turns"] == 1
+    assert evidence["isolated_theory_preflight_model_turns"] == 10
+    assert evidence["theory_developer_model_turns"] == 21
+    assert evidence["algorithm_engineer_model_turns"] == 5
+    assert evidence["simulation_evaluator_model_turns"] == 14
+    assert evidence["generated_code_semantic_reviewer_model_turns"] == 4
+    assert evidence["critic_evaluator_model_turns"] == 14
+    assert evidence["hidden_evaluator_model_calls"] == 1
+    assert evidence["sonnet_product_calls"] == 0
+    assert evidence["opus_product_calls"] == 0
+    assert evidence["accepted_theory_document_count"] == 2
+    assert evidence["hidden_theory_semantic_passed"] is True
+    assert evidence["hidden_theory_claims_satisfied"] == 6
+    assert evidence["hidden_algorithm_execution_passed"] is True
+    assert evidence["hidden_algorithm_acceptance_checks_passed"] is False
+    assert evidence["hidden_empirical_checks_passed"] is True
+    assert evidence["hidden_empirical_checks_total"] == 13
+    assert evidence["runtime_manifest_sha256"] == (
+        "efdf56f023fd8adbeb3565c79ecdd2da3a3551e6ede7ba3bf6bc43a303826ea7"
+    )
+    assert evidence["runtime_result_sha256"] == (
+        "32d63df04c1ba0993b7448bd3e6579182a3f71bfa02ed02a2ad9a12976325638"
+    )
+    assert evidence["hidden_gold_evaluation_sha256"] == (
+        "05cf766ff6ad9ea388d420a91be2fd3e8e460d735ba232183606c98f87d582fa"
+    )
     assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["formalization_requirement"] == "not_applicable"
     assert evidence["formalizer_executed"] is False
-    assert evidence["model_draw_resampling_blocked"] is False
+    assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
 
@@ -123,7 +158,7 @@ def test_binary_runs_l0_task_is_frozen_and_unconsumed() -> None:
 
     readiness = ladder["current_readiness"]
     assert readiness["scored_tasks_total"] == 90
-    assert readiness["unconsumed_scored_tasks"] == 1
-    assert readiness["consumed_scored_tasks"] == 89
+    assert readiness["unconsumed_scored_tasks"] == 0
+    assert readiness["consumed_scored_tasks"] == 90
     assert readiness["fully_gold_configured_tasks"] == 90
     assert readiness["fully_gold_passed_tasks"] == 5

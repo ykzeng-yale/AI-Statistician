@@ -4109,3 +4109,42 @@ focused cross-workspace and core panels passed `236/236`; the complete repositor
 passed `1041/1041` in 80.85 seconds. Compileall, diff hygiene, changed-diff secret
 scanning, and the strict architecture gate passed at 149,999 production Python
 lines. No product or evaluator model call and no consumed-task mutation occurred.
+
+### Task 90 live validation: keep the loop, preserve the miss
+
+The sole fixed-count binary-runs draw validates the current Codex combination under
+a full Theory, Python, Simulation, review, and Critic path. One AgentRuntime retained
+each source owner across its own tool calls and raw observations. TheoryDeveloper
+authored 535 lines across two Markdown/LaTeX documents and used scratch execution;
+an isolated referee read and tested those exact files; AlgorithmEngineer authored,
+executed, and committed Python in five turns; SimulationEvaluator iterated directly
+on exploratory and confirmatory source; and Critic inspected exact artifacts. Routine
+compiler or source feedback never returned through Architect. Formalization was not
+applicable and did not run.
+
+Runtime accepted the research candidate and the visible completion contract passed
+`1/1`. Hidden Theory accepted all six claims, and all thirteen hidden empirical
+checks passed. Complete gold authority still failed `0/1`: the estimator and its
+independent reviewer both missed two explicit public closed-ABI edge semantics. The
+reviewer was not deprived of tools. In two turns it authored and ran a broad Python
+probe with 30 target invocations, then overstated the resulting coverage.
+
+No harness code changes follow from that one draw. Encoding the missed Python cases
+in AgentRuntime, feeding hidden findings back, forcing a second reviewer, or adding a
+repair controller would contradict the very Codex principle being adopted. The
+right invariant is model-owned test selection under a stable general tool surface,
+with hidden authority free to reject a plausible but incomplete review. Task 90 is
+therefore consumed at `0/1`, and aggregate trustworthy capability is `5/90`.
+
+This also sharpens the non-adoption boundary. Codex Core, App Server, Responses
+transport, Guardian, provider state, thread/worktree control, subagents, and its
+scheduler would not have supplied the missing statistical or ABI judgment. They
+would duplicate the existing outer runtime. Continue borrowing Codex's retained
+turn semantics, raw tool observations, explicit patches, externalized history,
+model-visible capacity, and clean termination, while leaving scientific ownership,
+independent evaluation, frozen simulation, and Lean kernel authority in the domain
+harness.
+
+Closeout regressions passed `88/88`, the exact-Haiku and Claude-tier policy panel
+passed `10/10`, and the complete repository passed `1042/1042` in 81.80 seconds.
+No post-run product or evaluator model call occurred.
