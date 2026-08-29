@@ -1,13 +1,13 @@
 {
-  "schema_version": 297,
+  "schema_version": 298,
   "updated_at": "2026-08-29",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "8185c268",
+  "validated_code_head": "2a988ca8",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
-  "current_goal_focus": "Preserve all ninety-eight consumed draws and immutable artifacts at trustworthy full-task credit 7/98 while exact development-panel Lean closure remains 0/2. Task98 is consumed at 0/1: its long-form Theory and hidden empirical behavior passed, while the public closed-input contract and Algorithm-to-Simulation artifact continuity failed. Close the frozen evidence first, then correct only the shared future-task ArtifactRef handoff and generic contract-review instruction without rerunning, repairing, rescoring, or model-escalating Task98.",
+  "current_goal_focus": "Preserve all ninety-eight consumed draws and immutable artifacts at trustworthy full-task credit 7/98 while exact development-panel Lean closure remains 0/2. Task98 stays consumed at 0/1. Its shared future-task ArtifactRef handoff and generic public-ABI review defects are regression-fixed at 2a988ca8 without rerun or rescore. Next capability evidence must come from a newly frozen disjoint task chosen for an underrepresented scientific workspace, not from another transport demonstration.",
   "latest_gaussian_mixture_em_l0_evaluation": {
     "task_id": "gaussian_mixture_em_monotonicity_known_result",
     "family": "latent_variable_likelihood_optimization",
@@ -47,6 +47,23 @@
     "trusted_capability_credit": "0/1; aggregate remains 7/98",
     "next_shared_change": "For future tasks only, bind the existing content-addressed accepted algorithm handoff into the Simulation task and require the existing generic reviewer to treat every frozen public ABI clause as authoritative in both valid and invalid directions. Add no EM rule, repair agent, retry, fallback, extra scheduler, or model escalation.",
     "boundary": "The one product draw and one post-runtime hidden assessment are consumed. Hidden authority generated no runtime feedback. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, or model-escalate Task98."
+  },
+  "latest_algorithm_handoff_outer_graph_projection": {
+    "mechanism_commit": "2a988ca8a86030d90e790530db22ea38138f3259",
+    "official_codex_reference_head": "6478a751fde8884b2fdc76486fe23175a8e795d4",
+    "trigger": "A fresh accepted Algorithm handoff was correctly materialized and independently reviewed, but frozen outer-graph lane coverage rebuilt an exploratory Simulation task without that current dependency. Simulation therefore opened a second estimator-authoring path even though the accepted source artifact already existed.",
+    "change": "Outer-graph context now preserves the single accepted Algorithm artifact produced by the current step, and Simulation routing carries any available accepted handoff whether execution is exploratory or confirmatory. AgentRuntime's existing recursive compactor persists both occurrences as one hash-bound RuntimeArtifactRef before the next task is recorded. Confirmatory required-dependency semantics and Simulation's exact question, theory, manifest, materialization, packet, execution, source, and result-hash validator are unchanged.",
+    "reviewer_change": "The existing independent generated-code reviewer is told that every public ABI clause not explicitly delegated by the frozen contract belongs to the reviewed source, including valid-input behavior and invalid-request rejection. The model still chooses probes, findings, and verdict; runtime does not encode an input grammar or content rule.",
+    "codex_alignment": "This adopts Codex's sparse external-state collaboration invariant inside the existing Anthropic-backed runtime: the current workspace emits an immutable artifact, the task transports a content-addressed reference, and the consuming model receives the resolved artifact plus raw environment feedback in its own retained session.",
+    "excluded_changes": [
+      "task-family or estimator-specific source rules",
+      "automatic repair or source mutation",
+      "extra model call, retry, fallback, scheduler, or Architect decision",
+      "Codex Core, App Server, Responses transport, SDK thread, or provider dependency"
+    ],
+    "verification": "The focused handoff, Simulation projection, semantic-review, outer-graph, and runtime files passed; compileall and diff hygiene passed; the complete repository passed 1058/1058 in 80.76 seconds with production Python at 149941 lines and research_agent_runtime.py at 24973 lines. No verification command called a model or executed a consumed benchmark.",
+    "model_calls": 0,
+    "consumed_task_boundary": "Task98 remains immutable at 0/1 and aggregate capability credit remains 7/98. This commit is deterministic future-task mechanism evidence only."
   },
   "latest_codex_explicit_turn_boundary": {
     "mechanism_commit": "8185c268c16cc40f259c166bad7a6de474071b3e",
@@ -4606,6 +4623,7 @@
     "latest_runtime_manifest_bytes": 41725
   },
   "next_gates": [
+    "Preserve Task98 at immutable 0/1 and aggregate 7/98. Its Markdown/LaTeX Theory and hidden empirical behavior are component evidence, but the exact source violated the frozen invalid-request ABI and outer-graph lane coverage dropped its accepted Algorithm handoff before Simulation. Treat commit 2a988ca8 only as future-task shared ArtifactRef transport and generic reviewer-attention evidence. Never rerun, resume, repair, reevaluate, rescore, resample, patch its source, expose hidden findings, add an EM rule, retry, fallback, scheduler, Sonnet evaluation, or Opus call.",
     "Preserve Task97 at immutable 0/1. Its exact R source execution is component evidence, but the report's link ordering, Breusch-Pagan threshold, information-criterion label, and scope disclosure are operator-invalid, and protocol v10 false-accepted all twelve claims. Never rerun, resume, repair, reevaluate, rescore, resample, patch the report, or feed hidden/operator findings to its source owner.",
     "Use the same-owner saved-artifact self-audit prompt and protocol-v11 integrated-plus-adversarial semantic evaluator only as future-task shared mechanism evidence. A future disjoint activation must qualify the exact two-pass path before its first product call; do not apply v11 post hoc to Task97 or any consumed artifact.",
     "Preserve DeLong Task 95 at immutable 0/1 and aggregate 7/95. Its independently accepted 302-line Markdown/LaTeX theory passed 7/7 mechanical and 10/10 semantic hidden checks, and both scientific owners reached accepted sandbox observations, but neither explicitly committed or produced an independent handoff. Treat the terminal-turn and exact parent-prototype restoration correction only as future-task harness evidence. Never rerun, resume, repair, reevaluate, rescore, resample, manually commit its source, expose hidden findings, add a DeLong rule, retry, fallback, scheduler, Sonnet evaluation, or Opus call.",

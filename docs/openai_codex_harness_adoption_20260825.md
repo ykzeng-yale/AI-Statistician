@@ -61,6 +61,19 @@ materialization plus a `RuntimeArtifactRef`; validation now requires that exact
 task-owned path and rejects nested `review_material`. This deletes compatibility
 logic rather than adding another interface, agent, retry, or scheduler.
 
+Task 98 then exposed a narrower transition defect: independent review produced
+the accepted Algorithm artifact correctly, but required-lane coverage rebuilt an
+exploratory Simulation task without that just-produced dependency. Commit
+`2a988ca8a86030d90e790530db22ea38138f3259` makes the existing outer graph carry
+the current accepted artifact into the next workspace; AgentRuntime's existing
+compaction persists both task and context occurrences as the same hash-bound
+`RuntimeArtifactRef`. Confirmatory dependency requirements and Simulation's exact
+lineage validator remain unchanged. The same commit tells the generic source
+reviewer that every undelegated public ABI clause, including invalid-request
+rejection, belongs to the reviewed source. It adds no statistical rule, repair
+path, model call, retry, scheduler, or compatibility payload, and it is not used
+to rerun or rescore Task 98.
+
 Latest selective-adoption implementation commits:
 
 - `8185c268c16cc40f259c166bad7a6de474071b3e`: remove hidden terminal-only
@@ -70,6 +83,10 @@ Latest selective-adoption implementation commits:
 - `18e150c150991ca4c1eca058c993e638ee90b7a0`: require an explicit task-owned accepted
   Algorithm handoff backed by the canonical external review materialization;
   reject nested legacy review payloads and implicit Architect-context recovery;
+- `2a988ca8a86030d90e790530db22ea38138f3259`: preserve the accepted Algorithm
+  artifact when frozen lane coverage advances to Simulation, rely on the existing
+  content-addressed task compactor for sparse transport, and make undelegated
+  public ABI ownership explicit to the independent reviewer;
 
 - `85e2bba8`: let an explicitly theory-inapplicable code/empirical task start
   the existing retained Algorithm source session from its operator-frozen
