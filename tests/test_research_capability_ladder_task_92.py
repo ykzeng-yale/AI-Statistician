@@ -77,8 +77,10 @@ def test_efron_stein_l0_theory_task_is_frozen_before_sole_product_draw() -> None
     assert evidence["theory_developer_executed"] is False
     assert evidence["generated_algorithm_executed"] is False
     assert evidence["generated_simulation_executed"] is False
-    assert evidence["activation_ledger_commit"] == "pending_activation_commit"
-    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is False
+    assert evidence["activation_ledger_commit"] == (
+        "a9fa2b9efbda4933326f0a20a0bfdf8fe17a9280"
+    )
+    assert evidence["activation_push_confirmed_on_work_branch_and_main"] is True
     assert evidence["model_draw_resampling_blocked"] is True
     assert evidence["full_task_passed"] is False
     assert evidence["trusted_capability_credit"] is False
