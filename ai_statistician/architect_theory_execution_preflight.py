@@ -117,10 +117,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "question, estimand, probability law, assumptions, regime, claimed object, and "
         "finite handoff. Reconstruct each load-bearing transition from its original "
         "definitions while preserving domains, measures or densities, conditioning, normalizations, dimensions, and limit order, then compare it with the "
-        "candidate's actual written intermediate. When the candidate rewrites an aggregate "
-        "as summands, an influence/action representation, a normalization, or an asymptotic "
-        "equivalent, expand both forms from common definitions and compare sign and scale "
-        "term by term; agreement of a final variance or rate is insufficient. A reduction or counterexample to a "
+        "candidate's actual written intermediate. When the candidate rewrites an aggregate as summands, an influence/action representation, a normalization, or an asymptotic equivalent, expand both forms from common definitions and compare sign and scale term by term; agreement of a final variance or rate is insufficient. A reduction or counterexample to a "
         "different object is not evidence against the candidate. A correct endpoint "
         "cannot validate a false, circular, or unsupported step."
     ),

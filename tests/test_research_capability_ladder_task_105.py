@@ -269,8 +269,8 @@ def test_cusum_task105_is_consumed_after_its_only_product_draw() -> None:
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 107
+    assert readiness["scored_tasks_total"] == 108
     assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 107
-    assert readiness["fully_gold_configured_tasks"] == 107
+    assert readiness["consumed_scored_tasks"] == 108
+    assert readiness["fully_gold_configured_tasks"] == 108
     assert readiness["fully_gold_passed_tasks"] == 7

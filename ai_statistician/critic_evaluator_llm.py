@@ -51,12 +51,11 @@ CRITIC_EVALUATOR_BOUNDARY = (
     "plans to theorem proof evidence. Proof evidence requires explicit "
     "AXLE/local Lean/kernel verification records."
 )
-CRITIC_RESEARCH_DIMENSIONS = (
-    "source_replication", "theory", "scientific_code", "empirical", "formal"
-)
+CRITIC_RESEARCH_DIMENSIONS = ("source_replication", "theory", "scientific_code", "empirical", "formal")
 CRITIC_DIMENSION_STATUSES = frozenset({"SUPPORTED", "INCONCLUSIVE", "CONTRADICTED", "NOT_REQUESTED"})
 CRITIC_RESEARCH_DISPOSITIONS = frozenset({"ACCEPT", "INCONCLUSIVE", "REJECT"})
 CRITIC_DIMENSION_REQUIREMENTS = frozenset({"required", "optional", "not_applicable"})
+CRITIC_GAP_DISCLOSURE_COMPLETE = "COMPLETE"
 CRITIC_EVIDENCE_READ_TOOL = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
 CRITIC_EVIDENCE_SEARCH_TOOL = THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL
 CRITIC_EVALUATION_SUBMIT_TOOL = "submit_critic_evaluation"
@@ -477,11 +476,7 @@ def build_critic_evaluator_prompt(
         "cannot validate untested transitions. Never call a rejected, failed, unavailable, or "
         "hash-mismatched probe passed. Scratch is exploratory, never proof or confirmation. "
         "Report a mathematical correction only when it is not equivalent to the observed form. "
-        "When aggregate, summand, influence/action, normalized, or asymptotic forms are "
-        "claimed equivalent, expand them from common definitions and compare sign and "
-        "scale term by term; a matching endpoint variance or rate is not enough. An "
-        "acknowledged unresolved load-bearing transition remains a theory gap unless a "
-        "complete independent derivation bypasses it. "
+        "When aggregate, summand, influence/action, normalized, or asymptotic forms are claimed equivalent, expand them from common definitions and compare sign and scale term by term; a matching endpoint variance or rate is not enough. An acknowledged unresolved load-bearing transition remains a theory gap unless a complete independent derivation bypasses it. "
         "gap_disclosure.status describes whether all known gaps were disclosed, not whether "
         "the research succeeded. It must be COMPLETE after listing every known gap, including "
         "for an INCONCLUSIVE or REJECT disposition. "
@@ -563,7 +558,7 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         }
     ],
     "gap_disclosure": {
-        "status": "COMPLETE",
+        "status": CRITIC_GAP_DISCLOSURE_COMPLETE,
         "disclosed_gaps": ["short gap statement or empty"],
         "evidence_refs": ["canonical evidence path or artifact id"],
         "rationale": "short rationale",
@@ -596,14 +591,7 @@ CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
         "evidence_boundary_audit": {"type": "array", "minItems": 1},
         "critic_findings": {"type": "array"},
         "dimension_assessments": {"type": "array", "minItems": 5},
-        "gap_disclosure": {
-            "type": "object",
-            "additionalProperties": True,
-            "required": ["status"],
-            "properties": {
-                "status": {"type": "string", "enum": ["COMPLETE"]},
-            },
-        },
+        "gap_disclosure": {"type": "object", "additionalProperties": True, "required": ["status"], "properties": {"status": {"type": "string", "enum": [CRITIC_GAP_DISCLOSURE_COMPLETE]}}},
         "research_disposition": {"type": "object"},
     },
 }
@@ -709,7 +697,7 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
         errors.append("gap_disclosure must be an object")
     else:
         gap_status = str(gap_disclosure.get("status", "") or "").strip()
-        if gap_status != "COMPLETE":
+        if gap_status != CRITIC_GAP_DISCLOSURE_COMPLETE:
             errors.append(
                 "gap_disclosure status must be COMPLETE after disclosing all known "
                 "gaps; COMPLETE does not mean research success"
@@ -794,7 +782,7 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
             not required_dimensions_supported
             or not not_applicable_dimensions_marked
             or bool(contradicted)
-            or gap_status != "COMPLETE"
+            or gap_status != CRITIC_GAP_DISCLOSURE_COMPLETE
             or blocking_dimensions
         ):
             mismatch = {

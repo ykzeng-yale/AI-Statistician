@@ -12,6 +12,7 @@ from ai_statistician.critic_evaluator_llm import (
     CRITIC_EVALUATOR_JSON_SCHEMA,
     CRITIC_EVALUATOR_OUTPUT_CONTRACT,
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
+    CRITIC_GAP_DISCLOSURE_COMPLETE,
     CriticEvaluatorConfig,
     LLMCriticEvaluatorAgent,
     build_critic_canonical_evidence_view,
@@ -161,13 +162,13 @@ def test_nonaccept_disposition_requires_complete_explicit_gap_disclosure() -> No
     assert "blocking dimensions require explicit dimension gaps: theory" in errors
 
 
-def test_gap_disclosure_tool_contract_matches_validator_literal() -> None:
+def test_gap_disclosure_tool_contract_and_validator_share_one_enum() -> None:
     assert CRITIC_EVALUATOR_OUTPUT_CONTRACT["gap_disclosure"]["status"] == (
-        "COMPLETE"
+        CRITIC_GAP_DISCLOSURE_COMPLETE
     )
     assert CRITIC_EVALUATOR_JSON_SCHEMA["properties"]["gap_disclosure"][
         "properties"
-    ]["status"]["enum"] == ["COMPLETE"]
+    ]["status"]["enum"] == [CRITIC_GAP_DISCLOSURE_COMPLETE]
     assert validate_critic_evaluator_packet(_critic_packet()) == []
 
 

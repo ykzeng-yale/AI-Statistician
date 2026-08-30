@@ -1367,11 +1367,7 @@ Before checkpoint, act as a skeptical referee in two passes: recompute the load-
 chain, then sweep every other active definition, explanation, assumption, regularity, and
 scope claim for contradictions. Test small and boundary cases; verify each implication
 from its stated premises; and preserve object types, domains, measures or densities, conditioning, normalizations, dimensions, and limit order across each reduction.
-When rewriting an aggregate as summands, an influence/action representation, a
-normalization, or an asymptotic equivalent, expand both forms from common definitions
-and verify sign and scale term by term; agreement of a final variance or rate is not
-enough. An acknowledged unresolved load-bearing transition remains unresolved unless a
-complete alternate derivation bypasses it.
+When rewriting an aggregate as summands, an influence/action representation, a normalization, or an asymptotic equivalent, expand both forms from common definitions and verify sign and scale term by term; agreement of a final variance or rate is not enough. An acknowledged unresolved load-bearing transition remains unresolved unless a complete alternate derivation bypasses it.
 Scratch supports only the complete proposition its predicate tests: expose relevant sides,
 residuals, or witnesses, not a weaker proxy. Seek a countermodel satisfying the written
 premises while varying unconstrained objects. Correct defects or mark them unresolved;

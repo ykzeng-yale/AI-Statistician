@@ -2,7 +2,7 @@
 
 Updated: 2026-08-29
 
-Current upstream reference: [`openai/codex` at `b8c86376`](https://github.com/openai/codex/tree/b8c86376a258e55efc8e5ecfbabc21c16c07d814), Apache-2.0.
+Current upstream reference: [`openai/codex` at `0b45b171`](https://github.com/openai/codex/tree/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3), Apache-2.0.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -52,12 +52,17 @@ without duplicating the control plane.
    budgets, blinding, frozen task intent, and verifier authority are mechanical.
    Research content, tool choice, derivation order, experiments, and proof strategy
    remain model-owned.
+9. **One schema defines each tool ABI.** The model-visible contract, executable
+   argument validation, and terminal disposition must agree. A prose example is not
+   a second enum. This is the direct lesson from Task108's Critic transport failure
+   and Codex's separation of tool specifications from registered runtimes.
 
 ## Implementation Map
 
 | Codex primitive | AI Statistician implementation |
 |---|---|
 | `run_turn` model/tool continuation | `client_tool_loop.run_bounded_client_tool_loop` |
+| `ToolRouter` model-visible specification plus executable registry | ordered `ClientToolDefinition` values plus the workspace execution callback |
 | turn-scoped model-visible tool plan | `ClientToolTurnRequest` plus workspace-specific `ClientToolDefinition` values |
 | function-call output returned to the model | `ClientToolExecutionResult` appended to the same Anthropic message history |
 | model-actionable versus fatal tool failure | `ClientToolInputError` versus `ClientToolRuntimeError` |
@@ -72,6 +77,33 @@ Simulation, Lean, and isolated reviewers configure domain tools and terminal act
 they do not implement competing agent loops. The session contract fingerprint binds
 the exact model, system prompt, tool schemas, sampling settings, and workspace
 identity before a checkpoint can resume.
+
+This mapping does not justify a new global tool framework. The current shared loop
+already separates advertised definitions from execution. A registry extraction is
+worth doing only when a measured workspace defect shows duplicated dispatch or ABI
+drift that the extraction actually removes.
+
+## Workspace Responsibilities
+
+| Workspace | Model-owned work | Harness-owned authority |
+|---|---|---|
+| TheoryDeveloper | Search sources, write and locally revise Markdown/LaTeX, run scratch calculations, retract claims, expose unresolved gaps | File identity, immutable checkpoints, source horizon, budgets, and artifact hashes |
+| AlgorithmEngineer | Write Python/R source, execute current bytes, inspect raw stderr and tests, revise the same source | Isolated scientific environment, resource and secret policy, source lineage |
+| SimulationEngineer | Write or extend simulation source, run exploratory diagnostics, inspect consumer output | Frozen confirmatory protocol, hidden cohorts, metric authority, execution evidence |
+| Formalizer | Search Statlib/Mathlib and project declarations, inspect goals, write Lean, compile, and revise from raw diagnostics | Active Lean project identity, theorem target hash, kernel and axiom authority |
+| Independent reviewer | Read exact immutable candidate and report discrete findings | Clean context, read-only candidate, reviewer identity, no source edits |
+| Architect | Choose initial evidence requirements and resolve genuine cross-workspace conflicts | One outer graph, task intent, stopping and resource ownership |
+
+Every authoring workspace therefore has the same small inner shape:
+
+```text
+model chooses read/search/edit/execute
+  -> domain environment returns the raw observation
+  -> the same retained model context decides the next action
+  -> explicit checkpoint, honest gap, or natural stop
+```
+
+There is no content-level repair harness between those steps.
 
 ## Research Collaboration
 
@@ -103,10 +135,32 @@ Architect handles initial planning, true cross-workspace conflicts, resource
 allocation, and stopping. It is not a message bus for compiler errors, reviewer
 findings with an unambiguous source owner, or local source revision.
 
+Codex Multi-Agent V2 makes two distinctions that AI Statistician should preserve
+without importing its scheduler:
+
+- A spawned worker may inherit no turns, a bounded tail, or full history. Independent
+  scientific reviewers should receive no author conversation history, only the exact
+  objective and immutable artifact references. Source-owner continuation should
+  resume its own bounded history and checkpoint.
+- A queued `send_message` does not itself start another turn, while a
+  `followup_task` does. In AI Statistician, an informational message is context only;
+  an explicit typed `AgentTask` is what authorizes work. Neither one is evidence until
+  its referenced artifact is executed, reviewed, or kernel-verified by the relevant
+  authority.
+
+The current outer runtime has one explicit `next_task`. Consequently,
+`dual_track` currently describes dependency policy, not concurrent execution. Do not
+hide that fact or add a second scheduler. If independent Theory, empirical, and Lean
+work later demonstrate a real wall-clock bottleneck, extend the same runtime with a
+minimal ready set of hash-bound tasks, deterministic join semantics, and no shared
+mutable workspace. That change needs a concurrency test and a measured benefit.
+
 ## Deliberate Exclusions
 
 - **Codex Core or App Server:** would duplicate session ownership and use a different
   provider protocol.
+- **Codex SDK as a wrapper:** it is a client for Codex's App Server, not a small
+  provider-neutral loop; adopting it would reintroduce the duplicated runtime above.
 - **Codex multi-agent scheduler or Symphony:** would create a second outer graph and
   does not add statistical reasoning or evidence authority.
 - **Shared evaluator worktrees:** would weaken hidden-gold and reviewer isolation.
@@ -123,11 +177,13 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 The inner harness is no longer the main architecture blocker. It already preserves
 same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity,
-and isolated review. Recent theory evaluations instead exposed model/reviewer
-scientific errors inside valid harness traces, including active false assertions in a
-publishable Markdown argument. The future-task correction asks the existing author
-and referee sessions to audit both the load-bearing chain and all remaining active
-claims; it adds no parser, repair worker, scheduler, formula, or model escalation.
+and isolated review. Task108 produced a 460-line Markdown/LaTeX derivation and an
+independent report through valid retained loops, yet both author and referee accepted
+false active empirical-process equations and an influence-function sign
+contradiction. The Critic then encountered a model-visible enum that disagreed with
+its validator. Commit `8e3a58c7` fixes that shared ABI and strengthens generic
+term-by-term sign/scale review for future tasks; it does not repair or rescore Task108
+and adds no parser, repair worker, scheduler, formula, or model escalation.
 
 Remaining capability gaps are scientific rather than reasons to import Codex:
 
@@ -144,9 +200,11 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn` at the audited pin](https://github.com/openai/codex/blob/b8c86376a258e55efc8e5ecfbabc21c16c07d814/codex-rs/core/src/session/turn.rs)
-- [tool runtime at the audited pin](https://github.com/openai/codex/blob/b8c86376a258e55efc8e5ecfbabc21c16c07d814/codex-rs/core/src/tools/parallel.rs)
-- [review rubric at the audited pin](https://github.com/openai/codex/blob/b8c86376a258e55efc8e5ecfbabc21c16c07d814/codex-rs/prompts/templates/review/rubric.md)
+- [`run_turn` at the audited pin](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter` at the audited pin](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/tools/router.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [App Server protocol](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)
