@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
 )
@@ -44,7 +45,10 @@ from ai_statistician.formalizer_llm import (
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
 )
-from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.research_schema import (
+    OpenResearchQuestion,
+    research_workspace_authorization_fingerprint,
+)
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
@@ -961,6 +965,19 @@ def test_formal_gap_preserves_prior_model_source_and_exact_lean_observation() ->
 
 def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() -> None:
     source = "theorem target : True := by\n  sorry\n"
+    tool_environment_identity = {
+        "lean_project": "/project/lean",
+        "formal_source_retriever": {
+            "source_snapshot_identities": {
+                "statlib": {"git_commit": "statlib-active"}
+            }
+        },
+    }
+    question = OpenResearchQuestion(
+        id="resumed-gap",
+        title="Resume an exact target",
+        description="Continue the same target or report a concrete gap.",
+    )
     backend = ScriptedLeanToolBackend(
         [
             _response(
@@ -989,11 +1006,7 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
     )
 
     packet, evidence = agent.run_lean_candidate_workspace_with_client_tools(
-        question=OpenResearchQuestion(
-            id="resumed-gap",
-            title="Resume an exact target",
-            description="Continue the same target or report a concrete gap.",
-        ),
+        question=question,
         theory_packet={"packet_id": "theory:resumed-gap"},
         parent_packet={
             "artifact_kind": "FormalizerProofEngineerProposalPacket",
@@ -1029,6 +1042,7 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
             "local_lean_stderr": "target depends on axioms: [sorryAx]",
         },
         search_formal_environment=lambda query, k: [],
+        tool_environment_identity=tool_environment_identity,
     )
 
     assert LEAN_FORMAL_GAP_TOOL in {
@@ -1046,6 +1060,36 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
     assert evidence["model_explicit_submit"] is False
     assert evidence["model_owned_lean_code"] is True
     assert evidence["kernel_verified"] is False
+    request_metadata = backend.requests[0].metadata
+    assert request_metadata["formal_tool_environment_fingerprint"] == (
+        stable_hash(tool_environment_identity)
+    )
+    assert request_metadata[
+        CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY
+    ] == research_workspace_authorization_fingerprint(
+        question,
+        {},
+        {
+            "subsystem": "FormalizationEvaluator",
+            "candidate_id": "target-candidate",
+            "theory_document_set_hash": "",
+            "tool_environment_fingerprint": stable_hash(
+                tool_environment_identity
+            ),
+        },
+    )
+    assert request_metadata[
+        CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY
+    ] != research_workspace_authorization_fingerprint(
+        question,
+        {},
+        {
+            "subsystem": "FormalizationEvaluator",
+            "candidate_id": "target-candidate",
+            "theory_document_set_hash": "",
+            "tool_environment_fingerprint": stable_hash({}),
+        },
+    )
     target = packet["formal_targets"][0]
     assert target["formal_target_role"] == (
         FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP
@@ -3578,11 +3622,15 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             self.inspection_symbol = inspection_symbol
             self.check_result = {}
             self.declaration_result = {}
+            self.tool_environment_identity = {}
 
         def run_lean_candidate_workspace_with_client_tools(self, **kwargs):
             assert kwargs["candidate_id"] == candidate_id
             assert kwargs["initial_source"] == source
             assert "reviewed_parent_source_hash" not in kwargs
+            self.tool_environment_identity = dict(
+                kwargs["tool_environment_identity"]
+            )
             checkpoint = kwargs["environment_feedback"].get(
                 "formalizer_recovery_checkpoint", {}
             )
@@ -3692,6 +3740,15 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert evidence["resumed_from_model_checkpoint"] is False
     assert agent.declaration_result["status"] == "OBSERVED"
     assert proof_state_provider.calls[0]["symbol"] == "Example.Source"
+    assert agent.tool_environment_identity["lean_project"] == str(
+        tmp_path.resolve()
+    )
+    assert agent.tool_environment_identity["formal_source_retriever"] == {
+        "configured": False
+    }
+    assert agent.tool_environment_identity["proof_state_provider"]["name"] == (
+        "fake_lean_lsp_mcp"
+    )
     inspected_path = proof_state_provider.calls[0]["artifact_path"]
     assert stable_hash(
         Path(inspected_path).read_text(encoding="utf-8")

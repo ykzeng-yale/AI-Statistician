@@ -19,6 +19,7 @@ from ai_statistician.formal_source_topology import (
     FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
     FORMAL_SOURCE_TOPOLOGY_EVIDENCE_STATUS,
     canonicalize_formal_source_scope_ids,
+    configured_nonimportable_source_activation,
     configured_formal_source_entry_modules,
     expand_formal_source_scope_ids,
     identify_formal_source_topology,
@@ -49,6 +50,9 @@ def test_git_remote_metadata_strips_credentials_without_rewriting_identity() -> 
 
 def test_configured_entry_modules_resolve_canonical_ids_and_aliases() -> None:
     assert configured_formal_source_entry_modules("statlib") == ("Statlib",)
+    assert configured_formal_source_entry_modules(
+        "statlib_upstream_discovery"
+    ) == ()
     assert configured_formal_source_entry_modules(
         "empirical_process_lean"
     ) == ("StatInference",)
@@ -163,6 +167,12 @@ def test_active_project_scope_includes_only_declared_foundation_dependencies() -
         "statlib",
     )
     assert expand_formal_source_scope_ids(("statlib",)) == ("statlib",)
+    assert canonicalize_formal_source_scope_ids(("statlib_upstream",)) == (
+        "statlib_upstream_discovery",
+    )
+    assert expand_formal_source_scope_ids(("statlib_upstream",)) == (
+        "statlib_upstream_discovery",
+    )
     assert expand_formal_source_scope_ids(("lean_stat_learning_theory",)) == (
         "lean_stat_learning_theory",
     )
@@ -181,6 +191,24 @@ def test_active_project_scope_includes_only_declared_foundation_dependencies() -
     assert active.as_prompt_payload()["source_scope_expansion_policy"] == (
         FORMAL_SOURCE_SCOPE_EXPANSION_POLICY
     )
+
+
+def test_upstream_statlib_activation_is_discovery_only_and_nonimportable() -> None:
+    activation = configured_nonimportable_source_activation(
+        "statlib_latest_discovery"
+    )
+
+    assert activation == {
+        "role": "upstream_statistics_discovery_snapshot",
+        "relation_to_active_project": "external_unported_snapshot",
+        "compatibility_status": "not_in_active_project_requires_port",
+        "classification": "non_importable_discovery_port_candidate",
+        "activation_gate": (
+            "discovery only port into active toolchain and import closure then "
+            "reelaborate locally"
+        ),
+    }
+    assert "kernel" not in " ".join(activation.values()).lower()
 
 
 def test_external_companion_prompt_requires_port_and_local_reelaboration() -> None:

@@ -190,6 +190,25 @@ def fallback_formal_source_topology(source_id: str) -> FormalSourceTopology | No
     return None
 
 
+def configured_nonimportable_source_activation(
+    source_id: str,
+) -> dict[str, str]:
+    """Label configured discovery hits that cannot be imported by the active project."""
+
+    topology = fallback_formal_source_topology(source_id)
+    if topology is None or topology.relation_to_active_project != (
+        "external_unported_snapshot"
+    ):
+        return {}
+    return {
+        "role": topology.role,
+        "relation_to_active_project": topology.relation_to_active_project,
+        "compatibility_status": "not_in_active_project_requires_port",
+        "classification": "non_importable_discovery_port_candidate",
+        "activation_gate": " ".join(topology.reuse_policy.split("_")),
+    }
+
+
 def configured_formal_source_entry_modules(source_id: str) -> tuple[str, ...]:
     """Return canonical Lean entry modules for a configured source or alias."""
 

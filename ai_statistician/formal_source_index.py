@@ -902,6 +902,29 @@ def formal_source_snapshot_for_retriever(
     return {}
 
 
+def formal_source_snapshot_identities_for_retriever(
+    retriever: object,
+) -> dict[str, object]:
+    """Project exact corpus identity without exposing host filesystem paths."""
+
+    source_ids = sorted({
+        str(row.source_id)
+        for row in (getattr(retriever, "declarations", ()) or ())
+        if str(getattr(row, "source_id", "") or "")
+    })
+    fields = (
+        "source_type", "exists", "mode", "git_commit", "git_tree",
+        "git_dirty", "inventory_fingerprint", "dirty_fingerprint",
+        "entry_modules", "corpus_scope_policy",
+    )
+    return {
+        source_id: {field: snapshot[field] for field in fields if field in snapshot}
+        for source_id in source_ids
+        for snapshot in (formal_source_snapshot_for_retriever(retriever, source_id),)
+        if snapshot
+    }
+
+
 def resolve_active_project_formal_source_file(
     *,
     retriever: object,
@@ -989,11 +1012,7 @@ def build_formal_source_search_backend(
 
     roots = _deduplicate_formal_source_roots(roots)
     cache_file = Path(cache_path) if cache_path is not None else None
-    source_snapshots = (
-        _formal_source_root_snapshots(roots)
-        if db_path is not None
-        else {}
-    )
+    source_snapshots = _formal_source_root_snapshots(roots)
     if db_path is not None:
         target_db = Path(db_path)
         if cache_file is not None and cache_file.exists() and not refresh_cache:
@@ -1102,6 +1121,7 @@ def build_formal_source_search_backend(
         retriever,
         scoped_premise_retrievers,
     )
+    setattr(retriever, "source_snapshots", source_snapshots)
     return retriever
 
 

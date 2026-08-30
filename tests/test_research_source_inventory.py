@@ -7,6 +7,7 @@ from ai_statistician.research_source_inventory import (
     MATHLIB_ROOT,
     SOURCE_INVENTORY_TARGETS,
     STATLIB_ROOT,
+    STATLIB_UPSTREAM_ROOT,
     _inventory_target,
     _mathlib_root_candidates,
     _statlib_root_candidates,
@@ -44,6 +45,23 @@ def test_statlib_inventory_recognizes_the_public_module_layout() -> None:
     if Path(target.location).exists():
         assert row.availability_status == "local_ready"
         assert row.ok is True
+
+
+def test_upstream_statlib_is_separate_optional_retrieval_inventory() -> None:
+    target = next(
+        target
+        for target in SOURCE_INVENTORY_TARGETS
+        if target.id == "statlib_upstream_discovery"
+    )
+
+    assert Path(target.location) == STATLIB_UPSTREAM_ROOT / "Statlib"
+    assert target.source_type == "lean_library"
+    assert target.local_required is False
+    assert target.usage_policy == "retrieval_only_no_training_export"
+    if Path(target.location).exists():
+        row = _inventory_target(target)
+        assert row.availability_status == "local_ready"
+        assert row.git_commit
 
 
 def test_legacy_statinference_is_inventory_not_live_library() -> None:

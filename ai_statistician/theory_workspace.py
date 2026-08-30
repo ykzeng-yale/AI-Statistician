@@ -1811,7 +1811,29 @@ def run_theory_artifact_workspace(
         if integrated_source_replication_required
         else ""
     )
-    root_authorization_fingerprint = client_tool_authorization_fingerprint(request_metadata) or stable_hash(["theory", workspace_id, question_id])
+    root_authorization_fingerprint = client_tool_authorization_fingerprint(
+        request_metadata
+    ) or stable_hash(["theory", workspace_id, question_id])
+    source_environment_identity = {}
+    if research_sources is not None:
+        source_environment_identity["research_source_snapshot"] = (
+            research_sources.descriptor()
+        )
+    if research_source_discovery is not None:
+        source_environment_identity["public_research_source_discovery"] = dict(
+            research_source_discovery.descriptor()
+        )
+    if research_source_execution is not None and research_sources is not None:
+        source_environment_identity["research_source_execution"] = (
+            research_source_execution.descriptor(research_sources)
+        )
+    if source_environment_identity:
+        root_authorization_fingerprint = stable_hash(
+            {
+                "root_authorization_fingerprint": root_authorization_fingerprint,
+                "source_environment": source_environment_identity,
+            }
+        )
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
         messages=(

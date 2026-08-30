@@ -12,6 +12,7 @@ from .formal_source_index import (
     FormalSourceRetriever,
     FormalSourceSqliteIndex,
     diversify_formal_source_hits,
+    formal_source_snapshot_identities_for_retriever,
 )
 from .formal_source_topology import (
     FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
@@ -573,6 +574,9 @@ def _formal_source_hybrid_descriptor(retriever: object) -> dict[str, object]:
         "retrieval_backend": str(getattr(retriever, "source", "") or ""),
         "n_declarations": len(declarations),
         "declarations_by_source_id": dict(sorted(source_counts.items())),
+        "source_snapshot_identities": (
+            formal_source_snapshot_identities_for_retriever(retriever)
+        ),
         "source_scoped_search": callable(
             getattr(retriever, "search_with_source_scope", None)
         ),

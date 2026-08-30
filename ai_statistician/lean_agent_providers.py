@@ -13,7 +13,10 @@ from types import ModuleType
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
-from .formal_source_index import FormalDeclaration
+from .formal_source_index import (
+    FormalDeclaration,
+    formal_source_snapshot_identities_for_retriever,
+)
 from .formal_source_topology import (
     FORMAL_SOURCE_SCOPE_EXPANSION_POLICY,
     canonicalize_formal_source_scope_ids,
@@ -1600,9 +1603,14 @@ def provider_descriptor(provider: Any) -> dict[str, Any]:
             }
         if isinstance(value, Mapping):
             return dict(value)
+    source_snapshot_identities = (
+        formal_source_snapshot_identities_for_retriever(provider)
+    )
     return {
         "name": str(getattr(provider, "name", type(provider).__name__)),
         "type": f"{type(provider).__module__}.{type(provider).__name__}",
+        **({"source_snapshot_identities": source_snapshot_identities}
+           if source_snapshot_identities else {}),
         "boundary": LEAN_PROVIDER_BOUNDARY,
     }
 

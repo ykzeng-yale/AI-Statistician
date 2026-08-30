@@ -20,6 +20,18 @@
       "reuse_policy": "reuse_public_api_through_target_import_closure_then_reelaborate_locally"
     },
     {
+      "source_id": "statlib_upstream_discovery",
+      "aliases": [
+        "statlib_upstream",
+        "statlib_latest_discovery"
+      ],
+      "role": "upstream_statistics_discovery_snapshot",
+      "relation_to_active_project": "external_unported_snapshot",
+      "entry_modules": [],
+      "git_remotes": [],
+      "reuse_policy": "discovery_only_port_into_active_toolchain_and_import_closure_then_reelaborate_locally"
+    },
+    {
       "source_id": "empirical_process_lean",
       "aliases": [
         "local_statinference_repo"

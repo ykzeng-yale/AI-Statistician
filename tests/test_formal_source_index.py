@@ -30,6 +30,7 @@ from ai_statistician.formal_source_hybrid import (
     _FusionAccumulator,
 )
 from ai_statistician.formal_source_graph import FormalSourceGraphRetriever
+from ai_statistician.lean_agent_providers import provider_descriptor
 from ai_statistician.formal_source_prompt_context import (
     FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS,
     compact_formal_source_grounding_hits_for_prompt,
@@ -55,8 +56,88 @@ def test_default_formal_source_roots_exclude_historical_snapshots() -> None:
     source_ids = {root.id for root in DEFAULT_FORMAL_SOURCE_ROOTS}
 
     assert "empirical_process_lean" in source_ids
+    assert "statlib_upstream_discovery" in source_ids
     assert "local_statinference_repo" not in source_ids
     assert "legacy_ai_statistician_statinference" not in source_ids
+
+
+def test_upstream_statlib_unique_api_is_searchable_but_labeled_for_port(
+    tmp_path: Path,
+) -> None:
+    active = tmp_path / "active" / "Statlib"
+    upstream = tmp_path / "upstream" / "Statlib"
+    active.mkdir(parents=True)
+    upstream.mkdir(parents=True)
+    shared_source = (
+        "namespace Statlib\n"
+        "theorem shared_api : True := by trivial\n"
+        "end Statlib\n"
+    )
+    (active.parent / "Statlib.lean").write_text(
+        "import Statlib.Shared\n",
+        encoding="utf-8",
+    )
+    (active / "Shared.lean").write_text(shared_source, encoding="utf-8")
+    (upstream / "Shared.lean").write_text(shared_source, encoding="utf-8")
+    (upstream / "EVariable.lean").write_text(
+        "namespace Statlib\n"
+        "structure IsEVar where\n"
+        "  valid : True\n"
+        "end Statlib\n",
+        encoding="utf-8",
+    )
+    roots = (
+        FormalSourceRoot("statlib", str(active)),
+        FormalSourceRoot("statlib_upstream_discovery", str(upstream)),
+    )
+    retriever = build_formal_source_search_backend(
+        roots=roots,
+        include_graph=False,
+    )
+    declarations = retriever.declarations
+
+    hits = retriever.search_with_source_scope(
+        "IsEVar e variable",
+        source_scope_ids=("statlib_upstream",),
+        k=3,
+    )
+
+    assert hits
+    assert hits[0].declaration.name == "Statlib.IsEVar"
+    assert hits[0].declaration.source_id == "statlib_upstream_discovery"
+    payload = _formal_source_hit_to_json(hits[0])
+    assert payload["source_activation"]["classification"] == (
+        "non_importable_discovery_port_candidate"
+    )
+    compact = compact_formal_source_grounding_hits_for_prompt(
+        [{"query_role": "model_selected_lean_query", "hits": [payload]}]
+    )
+    assert compact[0]["hits"][0]["source_activation"][
+        "relation_to_active_project"
+    ] == "external_unported_snapshot"
+    identities = provider_descriptor(retriever)["source_snapshot_identities"]
+    assert identities["statlib"]["entry_modules"] == ["Statlib"]
+    assert identities["statlib_upstream_discovery"]["entry_modules"] == []
+    assert "location" not in identities["statlib_upstream_discovery"]
+    active_hits = retriever.search_with_source_scope(
+        "IsEVar e variable",
+        source_scope_ids=("statlib",),
+        k=3,
+    )
+    assert all(hit.declaration.source_id == "statlib" for hit in active_hits)
+
+    shared = [
+        row for row in declarations if row.name == "Statlib.shared_api"
+    ]
+    fusion = _FusionAccumulator()
+    for declaration in shared:
+        fusion.add(
+            declaration,
+            score=1.0,
+            matched_terms=("shared",),
+            provider="fixture",
+        )
+    assert fusion.hits()[0].declaration.source_id == "statlib"
 
 
 def test_active_project_source_resolution_uses_bound_dependency_snapshot(
@@ -983,6 +1064,65 @@ def test_sqlite_hybrid_builds_python_fallback_only_after_database_failure(
 
     assert hits[0].declaration.name == "Demo.variance_bound"
     assert isinstance(retriever.fallback_retriever, FormalSourceRetriever)
+
+
+def test_hybrid_descriptor_binds_safe_source_snapshot_identities(
+    tmp_path: Path,
+) -> None:
+    declarations = [
+        FormalDeclaration(
+            source_id=source_id,
+            source_type="lean_library",
+            path="Demo.lean",
+            line=1,
+            kind="theorem",
+            name=f"{source_id}.result",
+            namespace=source_id,
+            signature=f"theorem {source_id}.result : True",
+        )
+        for source_id in ("statlib", "statlib_upstream_discovery")
+    ]
+    snapshots = {
+        "statlib": {
+            "location": "/private/active/Statlib",
+            "source_type": "lean_library",
+            "exists": True,
+            "mode": "git_tree",
+            "git_commit": "active-commit",
+            "git_tree": "active-tree",
+            "git_dirty": False,
+            "entry_modules": ["Statlib"],
+            "corpus_scope_policy": "configured_entry_import_closure_v1",
+        },
+        "statlib_upstream_discovery": {
+            "location": "/private/upstream/Statlib",
+            "source_type": "lean_library",
+            "exists": True,
+            "mode": "git_tree",
+            "git_commit": "upstream-commit",
+            "git_tree": "upstream-tree",
+            "git_dirty": False,
+            "entry_modules": [],
+            "corpus_scope_policy": "directory_inventory_v1",
+        },
+    }
+    sqlite_index = FormalSourceSqliteIndex.build(
+        declarations,
+        tmp_path / "snapshots.sqlite",
+        source_snapshots=snapshots,
+    )
+
+    identities = FormalSourceHybridRetriever(
+        declarations, sqlite_index
+    ).descriptor()["source_snapshot_identities"]
+
+    assert identities["statlib"]["git_commit"] == "active-commit"
+    assert identities["statlib_upstream_discovery"]["git_commit"] == (
+        "upstream-commit"
+    )
+    assert identities["statlib"]["entry_modules"] == ["Statlib"]
+    assert "location" not in identities["statlib"]
+    assert "git_root" not in identities["statlib_upstream_discovery"]
 
 
 def test_readme_reference_does_not_spill_across_duplicate_short_names(

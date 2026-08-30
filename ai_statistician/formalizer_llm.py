@@ -248,6 +248,7 @@ class LLMFormalizerProofEngineerAgent:
         inspect_lean_state: LeanStateInspection | None = None,
         inspect_lean_declaration: LeanDeclarationInspection | None = None,
         session_dir: Path | None = None,
+        tool_environment_identity: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Author or revise one hash-bound target through model-selected tools."""
 
@@ -306,6 +307,15 @@ class LLMFormalizerProofEngineerAgent:
             if theory_document_manifest
             else ""
         )
+        tool_environment_fingerprint = stable_hash(
+            dict(tool_environment_identity or {})
+        )
+        workspace_identity = {
+            "subsystem": "FormalizationEvaluator",
+            "candidate_id": candidate_id,
+            "theory_document_set_hash": theory_document_set_hash,
+            "tool_environment_fingerprint": tool_environment_fingerprint,
+        }
         loop = run_lean_candidate_revision_tool_loop(
             provider=self.provider,
             system_prompt=(
@@ -374,10 +384,14 @@ class LLMFormalizerProofEngineerAgent:
             session_dir=session_dir,
             authoritative_theory_document_rows=theory_document_rows,
             request_metadata={
-                CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: research_workspace_authorization_fingerprint(
-                    question, environment_feedback, {"subsystem": "FormalizationEvaluator",
-                                                      "candidate_id": candidate_id, "theory_document_set_hash": theory_document_set_hash},
+                CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: (
+                    research_workspace_authorization_fingerprint(
+                        question,
+                        environment_feedback,
+                        workspace_identity,
+                    )
                 ),
+                "formal_tool_environment_fingerprint": tool_environment_fingerprint,
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
                 "formalizer_phase": (

@@ -169,6 +169,13 @@ STATLIB_ROOT = _resolve_source_root(
     "AI_STATISTICIAN_STATLIB_ROOT",
     _statlib_root_candidates(EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT),
 )
+STATLIB_UPSTREAM_ROOT = _resolve_source_root(
+    "AI_STATISTICIAN_STATLIB_UPSTREAM_ROOT",
+    (
+        PROJECT_EXTERNAL_ROOT / "statlib-upstream",
+        EXTERNAL_ROOT / "statlib",
+    ),
+)
 FORMAL_SLT_ROOT = _resolve_source_root(
     "AI_STATISTICIAN_FORMAL_SLT_ROOT",
     (
@@ -388,6 +395,17 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         ),
         license_policy="Apache-2.0",
         usage_policy="retrieval_and_training_allowed",
+        remote_url=STATLIB_URL,
+        local_required=False,
+    ),
+    SourceInventoryTarget(
+        id="statlib_upstream_discovery",
+        source_type="lean_library",
+        location=str(STATLIB_UPSTREAM_ROOT / "Statlib"),
+        required_extensions=(".lean",),
+        keywords=("EVariable", "IsEVar", "DPI", "Utility", "EReal"),
+        license_policy="Apache-2.0",
+        usage_policy="retrieval_only_no_training_export",
         remote_url=STATLIB_URL,
         local_required=False,
     ),

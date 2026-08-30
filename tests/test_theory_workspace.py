@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolInputError,
@@ -254,6 +255,17 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     ]
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     assert research_sources.snapshot_hash in initial_prompt
+    expected_authorization = stable_hash({
+        "root_authorization_fingerprint": stable_hash(
+            ["theory", "theory-workspace:q1", "q1"]
+        ),
+        "source_environment": {
+            "research_source_snapshot": research_sources.descriptor()
+        },
+    })
+    assert backend.requests[0].metadata[
+        CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY
+    ] == expected_authorization
     assert "Cite the exact citation_ref" in initial_prompt
     assert "most specific primary definition or implementation" in initial_prompt
     assert "do not substitute a nearby model family" in initial_prompt

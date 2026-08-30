@@ -88,7 +88,7 @@ without duplicating the control plane.
 Simulation, Lean, and isolated reviewers configure domain tools and terminal actions;
 they do not implement competing agent loops. The session contract fingerprint binds
 the exact model, system prompt, tool schemas, sampling settings, workspace identity,
-and root authorization fingerprint before a checkpoint can resume.
+immutable source/tool-environment snapshot, and root authorization fingerprint before a checkpoint can resume.
 Hidden semantic evaluator qualification follows the same lifecycle separation: it
 runs in an evaluator-owned session and is written as a hash-bound activation record.
 The product CLI verifies and reuses that record before runtime; it cannot qualify a

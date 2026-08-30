@@ -237,7 +237,10 @@ from .formal_source_prompt_context import (
     prompt_safe_formal_source_provenance,
     unique_formal_source_hit_payloads,
 )
-from .formal_source_topology import active_project_formal_source_scope_ids
+from .formal_source_topology import (
+    active_project_formal_source_scope_ids,
+    configured_nonimportable_source_activation,
+)
 from .lean_proof_state_trace_rag import (
     ai4slt_proof_state_trace_rag_descriptor,
     attach_ai4slt_proof_state_trace_rag,
@@ -18413,6 +18416,26 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     else None
                 ),
                 inspect_lean_declaration=inspect_lean_declaration,
+                tool_environment_identity={
+                    "lean_project": str(
+                        Path(lean_candidate_lean_project).resolve()
+                    ),
+                    "formal_source_retriever": (
+                        provider_descriptor(formal_source_retriever)
+                        if formal_source_retriever is not None
+                        else {"configured": False}
+                    ),
+                    "proof_search_provider": (
+                        provider_descriptor(proof_search_provider)
+                        if proof_search_provider is not None
+                        else {"configured": False}
+                    ),
+                    "proof_state_provider": (
+                        provider_descriptor(proof_state_provider)
+                        if proof_state_provider is not None
+                        else {"configured": False}
+                    ),
+                },
                 session_dir=(
                     Path(lean_candidate_root)
                     / _safe_identifier(question.id)
@@ -22977,6 +23000,11 @@ def _formal_source_hit_to_json(
         "score": round(hit.score, 4),
         "matched_terms": list(hit.matched_terms),
     }
+    source_activation = configured_nonimportable_source_activation(
+        declaration.source_id
+    )
+    if source_activation:
+        row["source_activation"] = source_activation
     provenance = getattr(hit, "provenance", {})
     if isinstance(provenance, Mapping) and provenance:
         row["provenance"] = prompt_safe_formal_source_provenance(provenance)
