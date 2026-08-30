@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "known_propensity_ipw_missing_mean_known_result",
+      "title": "Known-propensity inverse weighting for a mean with missing outcomes",
+      "description": "Focused integrated L0 known-result evaluation grounded in Horvitz and Thompson (1952), Rubin (1976), and Robins, Rotnitzky, and Zhao (1994). Let (X_i,Y_i,R_i), i=1,...,n, be iid, where Y_i is a real full-data outcome and R_i is its response indicator. Assume missing at random R_i independent of Y_i conditional on X_i, with known response probability pi(X_i)=P(R_i=1|X_i) bounded away from zero. The target is mu=E[Y_i]. In one authoritative Markdown/LaTeX Theory workspace, derive the conditional compensation identity, identification E[R_i Y_i/pi(X_i)]=mu, exact finite-sample unbiasedness of the unnormalized inverse-probability-weighted estimator, its exact asymptotic linear representation and influence function, the iid central limit theorem under an explicit weighted second-moment condition, the variance E[Y_i^2/pi(X_i)]-mu^2, consistency of the sample-variance standard error, and the resulting asymptotic Wald interval. Expand the weighted contribution, influence-function, variance, and standard-error forms from common definitions and audit every sign and normalization. Explain why a complete-case mean can be biased under covariate-dependent MAR, why positivity matters, and why known propensities differ from estimated propensities. Do not replace the estimator by a self-normalized Hajek ratio, outcome-regression imputation, AIPW, clipping, trimming, or weight estimation. Do not claim semiparametric efficiency, exact finite-sample normality or coverage, MNAR validity, causal identification, or robustness to propensity misspecification. The required model-authored Python artifact is est_known_propensity_ipw_mean and must implement the exact frozen run_estimator(request) contract. Exploratory Python or R may check identities and edge cases. A separately frozen confirmatory evaluator uses fresh iid MCAR and covariate-dependent MAR samples, exact response probabilities, seeds fixed before outcomes, and at least 2000 independent replicates per design. It checks exact executable identity, empirical bias, standard-error calibration, and Wald coverage with Monte Carlo uncertainty. These finite experiments test the implementation only on frozen designs and do not prove the mathematical result or extend its scope. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "missing_data",
+        "inverse_probability_weighting",
+        "known_propensity",
+        "asymptotic_linearity",
+        "python_language",
+        "L0"
+      ],
+      "source": {
+        "benchmark_mode": "known_result",
+        "model_visible_context": "published_authorities_assumptions_closed_execution_contract_and_empirical_claims",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Robins, Rotnitzky, and Zhao (1994), DOI 10.1080/01621459.1994.10476818",
+        "missingness_authority": "Rubin (1976), DOI 10.1093/biomet/63.3.581",
+        "weighting_authority": "Horvitz and Thompson (1952), DOI 10.1080/01621459.1952.10483446",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_known_propensity_ipw_mean",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observed_outcomes",
+            "name": "observed_outcomes",
+            "meaning": "The observed outcome values, with the evaluator-owned numeric placeholder zero at every unobserved position.",
+            "json_type": "array[number]",
+            "shape": "One list of length 2 through 2048 containing finite non-Boolean numbers in [-1e6,1e6].",
+            "units": "outcome units",
+            "indexing": "Entry i corresponds to response_indicators[i] and response_probabilities[i].",
+            "edge_cases": "Require observed_outcomes[i] to equal exactly zero whenever response_indicators[i] is zero. Reject Boolean, string, null, object, nested, empty, nonfinite, out-of-domain, or misaligned values rather than coercing, dropping, sorting, clipping, or imputing them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.response_indicators",
+            "name": "response_indicators",
+            "meaning": "The response indicators R_i, equal to one exactly when outcome i is observed.",
+            "json_type": "array[integer]",
+            "shape": "One list with the same length as observed_outcomes, containing only exact integer zeros and ones and at least two ones.",
+            "units": "binary indicator",
+            "indexing": "Entry i describes observed_outcomes[i].",
+            "edge_cases": "Reject Boolean, floating, string, null, values outside {0,1}, fewer than two observed outcomes, or length mismatch rather than coercing values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.response_probabilities",
+            "name": "response_probabilities",
+            "meaning": "The known response probabilities pi(X_i) for the corresponding units.",
+            "json_type": "array[number]",
+            "shape": "One list with the same length as observed_outcomes, containing finite non-Boolean numbers in [0.05,1].",
+            "units": "probability",
+            "indexing": "Entry i is the response probability for unit i and is used whether R_i is zero or one.",
+            "edge_cases": "Reject zero, values below 0.05, values above one, Boolean, string, null, nested, nonfinite, or length-mismatched values rather than clipping, normalizing, estimating, or coercing them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.confidence_level",
+            "name": "confidence_level",
+            "meaning": "The requested central asymptotic Wald confidence level.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar in [0.5,0.999].",
+            "units": "probability",
+            "indexing": "One level shared by the returned interval.",
+            "edge_cases": "Reject values outside the closed domain, strings, Boolean, null, arrays, objects, or nonfinite values rather than coercing or clipping them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.estimate",
+            "name": "estimate",
+            "meaning": "The unnormalized IPW mean n^{-1} sum_i R_i Y_i/pi_i.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "outcome units",
+            "indexing": "Uses all n aligned positions and divides by n, not by a random sum of weights or observed count.",
+            "edge_cases": "Return full floating-point precision without clipping or rounding.",
+            "normalization": "The exact Horvitz-Thompson-style unnormalized sample mean of weighted contributions."
+          },
+          {
+            "clause_id": "response.influence_variance",
+            "name": "influence_variance",
+            "meaning": "The unbiased sample variance of the n weighted contributions R_i Y_i/pi_i around estimate.",
+            "json_type": "number",
+            "shape": "One finite nonnegative non-Boolean scalar.",
+            "units": "squared outcome units",
+            "indexing": "Uses every unit-level contribution, including zero contributions from nonresponders.",
+            "edge_cases": "Do not return the variance of the estimator, a second moment, a complete-case variance, or a standard deviation.",
+            "normalization": "Divide the centered sum of squares by n-1."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The plug-in asymptotic standard error of estimate.",
+            "json_type": "number",
+            "shape": "One finite nonnegative non-Boolean scalar.",
+            "units": "outcome units",
+            "indexing": "One scalar for the returned estimate.",
+            "edge_cases": "Do not use the observed count or sum of weights as the sample-size normalization.",
+            "normalization": "sqrt(influence_variance/n)."
+          },
+          {
+            "clause_id": "response.ci_lower",
+            "name": "ci_lower",
+            "meaning": "The lower endpoint of the requested central asymptotic normal interval.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar not exceeding estimate.",
+            "units": "outcome units",
+            "indexing": "One endpoint for the returned estimate.",
+            "edge_cases": "Do not clip to an outcome range or transform the estimator.",
+            "normalization": "estimate minus the central standard-normal quantile times standard_error."
+          },
+          {
+            "clause_id": "response.ci_upper",
+            "name": "ci_upper",
+            "meaning": "The upper endpoint of the requested central asymptotic normal interval.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar not below estimate.",
+            "units": "outcome units",
+            "indexing": "One endpoint for the returned estimate.",
+            "edge_cases": "Do not clip to an outcome range or transform the estimator.",
+            "normalization": "estimate plus the same central standard-normal quantile times standard_error."
+          },
+          {
+            "clause_id": "response.observed_count",
+            "name": "observed_count",
+            "meaning": "The exact number sum_i R_i of observed outcomes.",
+            "json_type": "integer",
+            "shape": "One non-Boolean integer between two and n.",
+            "units": "count",
+            "indexing": "Counts response_indicators without weighting.",
+            "edge_cases": "Do not substitute an effective sample size or sum of inverse weights.",
+            "normalization": "Exact integer sum of response_indicators."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the four declared fields and the response exactly the six declared fields. Missing, extra, malformed, coercible-only, nonfinite, out-of-domain, or misaligned values are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_ipw_identity",
+            "meaning": "Every returned numerical field follows from contributions z_i=R_i*observed_outcomes_i/pi_i, their arithmetic mean, and their sample variance with divisor n-1."
+          },
+          {
+            "clause_id": "invariant.no_self_normalization",
+            "meaning": "The estimate divides by n and is never divided by sum_i R_i/pi_i, observed_count, or another data-dependent denominator."
+          },
+          {
+            "clause_id": "invariant.complete_data_reduction",
+            "meaning": "When every R_i and pi_i equals one, estimate and influence_variance reduce exactly to the ordinary sample mean and unbiased sample variance of observed_outcomes."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Applying the same permutation to the three aligned arrays leaves every response field unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_scale_equivariance",
+            "meaning": "Multiplying observed_outcomes by a positive finite scalar b multiplies estimate, standard_error, and interval endpoints by b, influence_variance by b^2, and leaves observed_count unchanged."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, read files, invoke subprocesses, or use the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen valid request, the candidate is compared with an independent exact implementation of the declared contribution, mean, variance, standard-error, interval, and count identities."
+          },
+          {
+            "clause_id": "claim.empirical.bias",
+            "meaning": "Across fresh samples from each frozen MCAR or MAR design with exact supplied response probabilities, empirical IPW bias is compared with zero using a predeclared Monte Carlo standard-error bound."
+          },
+          {
+            "clause_id": "claim.empirical.standard_error",
+            "meaning": "Across each frozen design, mean reported standard error is compared with the empirical standard deviation using a predeclared ratio range."
+          },
+          {
+            "clause_id": "claim.empirical.coverage",
+            "meaning": "Across each frozen design, central Wald interval coverage is compared with confidence_level using a predeclared Monte Carlo uncertainty bound."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "DGPs, sample sizes, exact response probabilities, seeds, at least 2000 independent replicates per design, estimator requests, summaries, and acceptance bounds are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment assesses one implementation under finitely many iid known-propensity MCAR and MAR designs only. It is not proof and does not validate estimated weights, misspecified probabilities, MNAR, causal inference, self-normalization, augmentation, clipping, trimming, or formal closure."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs one finite pass over aligned arrays and returns exactly one response without optimization, randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
