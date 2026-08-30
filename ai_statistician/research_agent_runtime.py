@@ -847,83 +847,43 @@ def _architect_theory_preflight_accepted_result(
     blackboard: BlackboardState,
 ) -> AgentStepResult:
     context = dict(architect_context)
-    evidence_contract = _architect_runtime_plan(context).get(
-        "evidence_contract", {}
-    )
+    evidence_contract = _architect_runtime_plan(context).get("evidence_contract", {})
     if not isinstance(evidence_contract, Mapping) or not evidence_contract:
-        evidence_contract = context.get(
-            "runtime_requested_evidence_contract", {}
-        )
+        evidence_contract = context.get("runtime_requested_evidence_contract", {})
     if not isinstance(evidence_contract, Mapping):
         evidence_contract = {}
-    dimension_requirements = _runtime_contract_dimension_requirements(
-        evidence_contract
-    )
-    algorithm_execution_available = bool(
-        not dimension_requirements
-        or dimension_requirements.get("scientific_code") != "not_applicable"
-    )
-    empirical_evaluation_available = bool(
-        not dimension_requirements
-        or dimension_requirements.get("empirical") != "not_applicable"
-    )
-    formalization_evaluation_available = bool(
-        not dimension_requirements
-        or dimension_requirements.get("formal") != "not_applicable"
-    )
-    metric_protocol_required = _runtime_research_evaluation_contract_flag(
-        evidence_contract,
-        "typed_metric_contracts",
-    )
-    theory_material = context.get(
-        "architect_metric_protocol_theory_material", {}
-    )
-    theory_material = (
-        dict(theory_material) if isinstance(theory_material, Mapping) else {}
-    )
-    theory_packet_id = str(
-        theory_material.get("source_theory_packet_id", "") or ""
-    )
-    theory_packet_hash = str(
-        theory_material.get("source_theory_packet_hash", "") or ""
-    )
+    dimension_requirements = _runtime_contract_dimension_requirements(evidence_contract)
+    algorithm_execution_available = bool(not dimension_requirements or dimension_requirements.get("scientific_code") != "not_applicable")
+    empirical_evaluation_available = bool(not dimension_requirements or dimension_requirements.get("empirical") != "not_applicable")
+    formalization_evaluation_available = bool(not dimension_requirements or dimension_requirements.get("formal") != "not_applicable")
+    metric_protocol_required = _runtime_research_evaluation_contract_flag(evidence_contract, "typed_metric_contracts")
+    theory_material = context.get("architect_metric_protocol_theory_material", {})
+    theory_material = dict(theory_material) if isinstance(theory_material, Mapping) else {}
+    theory_packet_id = str(theory_material.get("source_theory_packet_id", "") or "")
+    theory_packet_hash = str(theory_material.get("source_theory_packet_hash", "") or "")
     theory_packet = blackboard.artifacts.get(theory_packet_id, {})
     active_unresolved_finding_ids = [
-        str(value)
-        for value in preflight_packet.get(
-            "active_unresolved_finding_ids", []
-        )
-        or []
+        str(value) for value in preflight_packet.get("active_unresolved_finding_ids", []) or []
         if str(value).strip()
     ]
-    theory_quality_accepted = bool(
-        preflight_packet.get("overall_verdict") == "ACCEPT"
-        and not active_unresolved_finding_ids
-    )
-    execution_handoff_status = str(
-        preflight_packet.get("execution_handoff_status", "") or ""
-    )
-    exploratory_execution_ready = bool(
-        execution_handoff_status == PREFLIGHT_EXECUTION_HANDOFF_READY
-        and algorithm_execution_available
-    )
+    theory_quality_accepted = bool(preflight_packet.get("overall_verdict") == "ACCEPT" and not active_unresolved_finding_ids)
+    execution_handoff_status = str(preflight_packet.get("execution_handoff_status", "") or "")
+    exploratory_execution_ready = bool(execution_handoff_status == PREFLIGHT_EXECUTION_HANDOFF_READY and algorithm_execution_available)
+    review_state = {"theory_quality_accepted": theory_quality_accepted, "execution_handoff_status": execution_handoff_status, "exploratory_execution_ready": exploratory_execution_ready, "active_unresolved_finding_ids": active_unresolved_finding_ids}
+    transition_boundary = "Independent review accepted current theory quality. This neither authorizes empirical execution nor proves a theorem." if theory_quality_accepted else "Independent review kept theory findings active while marking the finite handoff ready only for exploratory implementation. This is not theory acceptance, confirmatory authority, or proof."
+    transition_status = "THEORY_PREFLIGHT_ACCEPTED_PLAN_TRANSITION_COMPILED" if theory_quality_accepted else "EXPLORATORY_EXECUTION_HANDOFF_READY_THEORY_FINDINGS_ACTIVE"
+    transition_summary = "theory quality accepted; frozen research path compiled" if theory_quality_accepted else "exploratory handoff ready with theory findings active"
     errors: list[str] = []
     if not (theory_quality_accepted or exploratory_execution_ready):
         errors.append(
             "theory preflight neither accepted theory quality nor marked the finite "
             "handoff ready for exploratory execution"
         )
-    if str(preflight_packet.get("source_theory_packet_id", "") or "") != (
-        theory_packet_id
-    ):
+    if str(preflight_packet.get("source_theory_packet_id", "") or "") != theory_packet_id:
         errors.append("theory execution preflight theory identity mismatch")
-    if str(preflight_packet.get("source_theory_packet_hash", "") or "") != (
-        theory_packet_hash
-    ):
+    if str(preflight_packet.get("source_theory_packet_hash", "") or "") != theory_packet_hash:
         errors.append("theory execution preflight theory hash mismatch")
-    if not isinstance(theory_packet, Mapping) or stable_hash(theory_packet) != (
-        theory_packet_hash
-    ):
+    if not isinstance(theory_packet, Mapping) or stable_hash(theory_packet) != theory_packet_hash:
         errors.append("theory execution preflight source packet is unavailable")
     if errors:
         return AgentStepResult(
@@ -970,10 +930,7 @@ def _architect_theory_preflight_accepted_result(
             preflight_packet_id,
             preflight_packet,
         ),
-        "theory_quality_accepted": theory_quality_accepted,
-        "execution_handoff_status": execution_handoff_status,
-        "exploratory_execution_ready": exploratory_execution_ready,
-        "active_unresolved_finding_ids": active_unresolved_finding_ids,
+        **review_state,
         "execution_results_observed": False,
         "full_metric_authoring_completed": False,
         "algorithm_execution_available": algorithm_execution_available,
@@ -988,16 +945,7 @@ def _architect_theory_preflight_accepted_result(
         "proof_evidence_status": (
             "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_ACCEPTANCE_NOT_PROOF_EVIDENCE"
         ),
-        "boundary": (
-            "Independent review accepted the current theory quality for the frozen "
-            "research path. This neither authorizes empirical execution nor proves a "
-            "theorem."
-            if theory_quality_accepted
-            else "Independent review kept explicit theory findings active while "
-            "marking the exact finite handoff ready only for exploratory source "
-            "implementation. This is not theory acceptance, confirmatory empirical "
-            "authority, or proof."
-        ),
+        "boundary": transition_boundary,
     }
     acceptance_identity_payload = deepcopy(acceptance)
     acceptance_identity_payload["theory_execution_preflight_packet"] = dict(
@@ -1094,10 +1042,7 @@ def _architect_theory_preflight_accepted_result(
         "overall_verdict": str(
             preflight_packet.get("overall_verdict", "") or ""
         ),
-        "theory_quality_accepted": theory_quality_accepted,
-        "execution_handoff_status": execution_handoff_status,
-        "exploratory_execution_ready": exploratory_execution_ready,
-        "active_unresolved_finding_ids": active_unresolved_finding_ids,
+        **review_state,
         "implementation_target_available": bool(implementation_gaps),
         "n_implementation_gaps": len(implementation_gaps),
         "metric_authoring_deferred": metric_protocol_required,
@@ -1106,12 +1051,7 @@ def _architect_theory_preflight_accepted_result(
         "owner_selection_source": owner_source,
         "runtime_authored_research_route": False,
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        "boundary": (
-            "This records independent theory review and the next workspace compiled "
-            "from the frozen research path. Unresolved theory findings remain active "
-            "and exploratory readiness cannot promote them. Runtime authors no "
-            "scientific content."
-        ),
+        "boundary": "This records independent review and the next frozen workspace. Findings remain active; exploratory readiness cannot promote them. Runtime authors no scientific content.",
     }
     route_feedback_id = (
         "architect_theory_execution_preflight_accepted_observation:"
@@ -1133,8 +1073,6 @@ def _architect_theory_preflight_accepted_result(
         "source_subsystem": "ArchitectTheoryExecutionPreflightReviewer",
         "preflight_acceptance_id": acceptance_id,
         "handoff": "accepted_theory_preflight_to_planned_workspace",
-        "theory_quality_accepted": theory_quality_accepted,
-        "execution_handoff_status": execution_handoff_status,
         "compiled_next_owner": next_workspace_owner,
         "runtime_authored_research_route": False,
     }
@@ -1161,18 +1099,12 @@ def _architect_theory_preflight_accepted_result(
         task_id=task.task_id,
         artifact_id=acceptance_id,
         evidence_type="architect_theory_execution_preflight_acceptance",
-        status=(
-            "THEORY_PREFLIGHT_ACCEPTED_PLAN_TRANSITION_COMPILED"
-            if theory_quality_accepted
-            else "EXPLORATORY_EXECUTION_HANDOFF_READY_THEORY_FINDINGS_ACTIVE"
-        ),
+        status=transition_status,
         boundary=str(acceptance["boundary"]),
         payload={
             "source_theory_packet_id": theory_packet_id,
             "preflight_packet_id": preflight_packet_id,
-            "theory_quality_accepted": theory_quality_accepted,
-            "execution_handoff_status": execution_handoff_status,
-            "active_unresolved_finding_ids": active_unresolved_finding_ids,
+            **review_state,
             "algorithm_execution_available": algorithm_execution_available,
             "algorithm_execution_authorized": False,
             "empirical_evaluation_available": empirical_evaluation_available,
@@ -1188,15 +1120,7 @@ def _architect_theory_preflight_accepted_result(
     )
     return AgentStepResult(
         status="REROUTE",
-        rationale=(
-            "Independent theory preflight accepted. AgentRuntime compiled the frozen "
-            f"research path into {next_task.owner_subsystem} without another model call."
-            if theory_quality_accepted
-            else "Independent review retained explicit theory findings but marked the "
-            "finite handoff ready for exploratory execution. AgentRuntime compiled "
-            f"the frozen path into {next_task.owner_subsystem} without promoting "
-            "theory quality or making another routing call."
-        ),
+        rationale=f"{transition_summary}. AgentRuntime compiled the frozen path into {next_task.owner_subsystem} without another model call or evidence promotion.",
         produced_artifacts={
             preflight_packet_id: dict(preflight_packet),
             acceptance_id: acceptance,
@@ -1205,22 +1129,13 @@ def _architect_theory_preflight_accepted_result(
         observations=(
             EnvironmentObservation(
                 observation_type="architect_theory_preflight_accepted",
-                summary=(
-                    "theory quality accepted; frozen research path compiled"
-                    if theory_quality_accepted
-                    else "exploratory handoff ready with theory findings active"
-                ),
+                summary=transition_summary,
                 payload={
                     "acceptance_id": acceptance_id,
                     "preflight_packet_id": preflight_packet_id,
                     "next_owner_subsystem": next_task.owner_subsystem,
                     "owner_selection_source": owner_source,
                     "runtime_authored_research_route": False,
-                    "theory_quality_accepted": theory_quality_accepted,
-                    "execution_handoff_status": execution_handoff_status,
-                    "active_unresolved_finding_ids": (
-                        active_unresolved_finding_ids
-                    ),
                     "execution_results_observed": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                 },

@@ -1,8 +1,8 @@
 # OpenAI Codex Harness Adoption
 
-Updated: 2026-08-29
+Updated: 2026-08-30
 
-Current upstream reference: [`openai/codex` at `63d21388`](https://github.com/openai/codex/tree/63d213884daea50e4f74efc192cdc44f549b67d5), Apache-2.0.
+Current upstream reference: [`openai/codex` at `dde85b43`](https://github.com/openai/codex/tree/dde85b435b16994f956bce08e5fb796ed94c27fd), Apache-2.0. The reproducible harness audit remains pinned at `63d21388`; the complete delta to the current head only relocates TUI Vim-history tests and does not change any audited harness surface.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -184,21 +184,21 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 The inner harness is no longer the main architecture blocker. It already preserves
 same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity,
-and isolated review. Task109 and the disjoint Task110 both exercised the native
-Theory, Python, Simulation, review, and Critic loops. The outer evidence gates stayed
-honest, but both exact-Haiku source reviewers incompletely tested visible malformed-
-request obligations. Task110's reviewer then made the concrete reasoning error that
-reading declared fields with `get` rejects extra fields, while its probe omitted other
-public bounds.
+and isolated review. Task111 exercised six visits to one durable Theory workspace and
+five clean referee workspaces. Its latest referee found the finite estimator handoff
+ready while retaining publication-level proof findings, and four consecutive reviews
+reported no prior-finding progress. The old outer gate nevertheless blocked all
+exploratory code and treated each source-hash change as progress.
 
-The measured shared correction remains inside the retained reviewer loop. After a
-model-authored exact-source probe, the same reviewer now receives the raw result and
-the unchanged frozen executable contract together as one recent tool observation.
-The model still chooses cases, assertions, further tools, findings, and verdict; runtime
-does not parse source, generate a test, interpret a clause, or claim coverage. This is
-Codex-style context and feedback placement, not a new reviewer, repair worker,
-scheduler, content rule, model escalation, or second runtime. Consumed Tasks109 and
-110 remain immutable.
+The measured shared correction remains inside the existing retained workspaces. An
+isolated referee now reports full theory quality separately from finite exploratory-
+execution readiness, and the outer graph continues a rejected theory lineage only
+when the referee records actual finding progress. Exact source hashes remain
+provenance. The model still chooses derivations, edits, code, experiments, tools,
+findings, and verdicts; runtime does not parse mathematics or generate a repair. This
+is Codex-style observation placement and explicit state transition, not a new worker,
+scheduler, content rule, model escalation, or second runtime. Task111 remains
+immutable 0/1.
 
 Remaining capability gaps are scientific rather than reasons to import Codex:
 

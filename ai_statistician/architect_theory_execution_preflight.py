@@ -477,18 +477,17 @@ def build_architect_theory_execution_preflight_material(
 
 def _runtime_review_scope(material: Mapping[str, Any]) -> dict[str, Any]:
     """Project task intent without turning candidate claims into a review agenda."""
-
     return {
-        "execution_handoff_required": bool(
-            material.get("execution_handoff_required", True)
-        ),
-        "execution_handoff_available": bool(
-            material.get("execution_handoff_available", False)
-        ),
-        "formal_sources_applicable": _preflight_formal_sources_applicable(
-            material
-        ),
+        "execution_handoff_required": bool(material.get("execution_handoff_required", True)),
+        "execution_handoff_available": bool(material.get("execution_handoff_available", False)),
+        "formal_sources_applicable": _preflight_formal_sources_applicable(material),
     }
+
+
+def _allowed_execution_handoff_statuses(material: Mapping[str, Any]) -> set[str]:
+    if not material.get("execution_handoff_required", True):
+        return {PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED}
+    return {PREFLIGHT_EXECUTION_HANDOFF_READY, PREFLIGHT_EXECUTION_HANDOFF_BLOCKED}
 
 
 def build_architect_theory_execution_preflight_prompt(
@@ -674,27 +673,7 @@ def build_architect_theory_execution_preflight_prompt(
             ),
         },
         "verdict_policy": (
-            "Return every discrete blocker, one theory-quality ACCEPT or REVISE "
-            "disposition, and one separate execution-handoff status in a findings-first "
-            "Markdown report. Theory ACCEPT requires both protocol audits to leave no "
-            "material active falsehood or unsupported load-bearing step, and requires "
-            "every prior finding to be closed by current evidence. When an execution "
-            "handoff is required, READY_FOR_EXPLORATORY_EXECUTION means the estimand, "
-            "finite input/output interface, procedure, and formulas consumed by code are "
-            "coherent enough to implement and falsify even if explicitly disclosed proof-"
-            "completeness findings remain. It is not theory acceptance or confirmatory "
-            "authority. Use BLOCKED when an active falsehood, contradiction, undefined "
-            "object, or missing finite semantics prevents meaningful implementation; use "
-            "NOT_REQUIRED only when review_scope does not request an execution handoff. "
-            "A correct "
-            "endpoint, reviewer reconstruction, or later correction cannot repair active "
-            "candidate text. Ground each blocker in an exact inspected range plus a "
-            "checkable derivation, reduction, or counterexample. Keep downstream proof "
-            "obligations separate. Require a finite estimator only when review_scope "
-            "marks the execution handoff required; otherwise do not invent one. The "
-            "Markdown report owns judgment; "
-            "the terminal envelope carries only its hash, disposition, findings, and "
-            "ordered prior-finding statuses."
+            "Return every discrete blocker, one theory-quality ACCEPT or REVISE disposition, and one separate execution-handoff status in a findings-first Markdown report. Theory ACCEPT requires both protocol audits to leave no material active falsehood or unsupported load-bearing step and every prior finding to be closed by current evidence. When an execution handoff is required, READY_FOR_EXPLORATORY_EXECUTION means the estimand, finite input/output interface, procedure, and formulas consumed by code are coherent enough to implement and falsify even if disclosed proof-completeness findings remain; it is not theory acceptance or confirmatory authority. Use BLOCKED when an active falsehood, contradiction, undefined object, or missing finite semantics prevents meaningful implementation; use NOT_REQUIRED only when review_scope does not request an execution handoff. A correct endpoint, reviewer reconstruction, or later correction cannot repair active candidate text. Ground each blocker in an exact inspected range plus a checkable derivation, reduction, or counterexample. Keep downstream proof obligations separate. Require a finite estimator only when review_scope marks the execution handoff required; otherwise do not invent one. The Markdown report owns judgment; the terminal envelope carries only its hash, disposition, findings, and ordered prior-finding statuses."
         ),
     }
     return (
@@ -889,20 +868,8 @@ def _architect_theory_execution_preflight_submit_schema(
             ),
         },
         "execution_handoff_status": {
-            "type": "string",
-            "enum": (
-                [
-                    PREFLIGHT_EXECUTION_HANDOFF_READY,
-                    PREFLIGHT_EXECUTION_HANDOFF_BLOCKED,
-                ]
-                if material.get("execution_handoff_required", True)
-                else [PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED]
-            ),
-            "description": (
-                "A reviewer-owned judgment separate from theory quality. READY permits "
-                "only exploratory implementation from the exact finite handoff; it is "
-                "not theory acceptance, empirical confirmation, or proof."
-            ),
+            "type": "string", "enum": sorted(_allowed_execution_handoff_statuses(material)),
+            "description": "Reviewer-owned and separate from theory quality. READY permits only exploratory implementation from the exact finite handoff; it is not theory acceptance, empirical confirmation, or proof.",
         },
         "findings": {
             "type": "array",
@@ -913,13 +880,7 @@ def _architect_theory_execution_preflight_submit_schema(
             "items": {"$ref": "#/$defs/finding"},
         },
     }
-    required = [
-        "review_report_sha256",
-        "report_evidence_refs",
-        "overall_verdict",
-        "execution_handoff_status",
-        "findings",
-    ]
+    required = ["review_report_sha256", "report_evidence_refs", "overall_verdict", "execution_handoff_status", "findings"]
     if prior_count:
         properties["prior_finding_statuses"] = {
             "type": "array",
@@ -2200,13 +2161,7 @@ def _validate_compact_preflight_submission(
     *,
     material: Mapping[str, Any],
 ) -> None:
-    required_fields = {
-        "review_report_markdown",
-        "report_evidence_refs",
-        "overall_verdict",
-        "execution_handoff_status",
-        "findings",
-    }
+    required_fields = {"review_report_markdown", "report_evidence_refs", "overall_verdict", "execution_handoff_status", "findings"}
     if material.get("active_prior_finding_ids", []) or []:
         required_fields.add("prior_finding_statuses")
     observed_fields = set(payload)
@@ -2221,40 +2176,18 @@ def _validate_compact_preflight_submission(
         raise ClientToolInputError(
             "review_report_markdown must contain the mathematical referee report"
         )
-    if str(payload.get("overall_verdict", "") or "").strip().upper() not in {
-        "ACCEPT",
-        "REVISE",
-    }:
-        raise ClientToolInputError(
-            "overall_verdict must be ACCEPT or REVISE"
-        )
-    execution_handoff_status = str(
-        payload.get("execution_handoff_status", "") or ""
-    ).strip().upper()
-    expected_execution_statuses = (
-        {
-            PREFLIGHT_EXECUTION_HANDOFF_READY,
-            PREFLIGHT_EXECUTION_HANDOFF_BLOCKED,
-        }
-        if material.get("execution_handoff_required", True)
-        else {PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED}
-    )
-    if execution_handoff_status not in expected_execution_statuses:
+    if str(payload.get("overall_verdict", "") or "").strip().upper() not in {"ACCEPT", "REVISE"}:
+        raise ClientToolInputError("overall_verdict must be ACCEPT or REVISE")
+    execution_handoff_status = str(payload.get("execution_handoff_status", "") or "").strip().upper()
+    if execution_handoff_status not in _allowed_execution_handoff_statuses(material):
         raise ClientToolInputError(
             "execution_handoff_status is invalid for the frozen review scope"
         )
-    array_fields = required_fields - {
-        "review_report_markdown",
-        "overall_verdict",
-        "execution_handoff_status",
-    }
+    array_fields = required_fields - {"review_report_markdown", "overall_verdict", "execution_handoff_status"}
     for field in sorted(array_fields):
         if not isinstance(payload.get(field), list):
             raise ClientToolInputError(f"{field} must be a JSON array")
-    if any(
-        not isinstance(row, Mapping)
-        for row in payload.get("findings", []) or []
-    ):
+    if any(not isinstance(row, Mapping) for row in payload.get("findings", []) or []):
         raise ClientToolInputError("findings must contain JSON objects")
 
 
@@ -2290,9 +2223,7 @@ def _normalize_packet(
     )
     report_ref = str(body["review_report"]["document_id"])
     model_verdict = str(body.get("overall_verdict", "") or "").strip().upper()
-    execution_handoff_status = str(
-        body.get("execution_handoff_status", "") or ""
-    ).strip().upper()
+    execution_handoff_status = str(body.get("execution_handoff_status", "") or "").strip().upper()
     body["review_scope"] = _runtime_review_scope(material)
     if "prior_finding_statuses" in body:
         body["prior_finding_reviews"] = [
@@ -2887,49 +2818,24 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight overall verdict contradicts its blocking "
             "findings or prior-finding dispositions"
         )
-    execution_handoff_required = bool(
-        material.get("execution_handoff_required", True)
-    )
-    execution_handoff_available = bool(
-        material.get("execution_handoff_available", False)
-    )
-    execution_handoff_status = str(
-        packet.get("execution_handoff_status", "") or ""
-    )
-    allowed_execution_statuses = (
-        {
-            PREFLIGHT_EXECUTION_HANDOFF_READY,
-            PREFLIGHT_EXECUTION_HANDOFF_BLOCKED,
-        }
-        if execution_handoff_required
-        else {PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED}
-    )
-    if execution_handoff_status not in allowed_execution_statuses:
+    execution_handoff_required = bool(material.get("execution_handoff_required", True))
+    execution_handoff_available = bool(material.get("execution_handoff_available", False))
+    execution_handoff_status = str(packet.get("execution_handoff_status", "") or "")
+    if execution_handoff_status not in _allowed_execution_handoff_statuses(material):
         errors.append(
             "theory execution preflight execution handoff status contradicts "
             "the frozen review scope"
         )
-    if (
-        execution_handoff_status == PREFLIGHT_EXECUTION_HANDOFF_READY
-        and not execution_handoff_available
-    ):
+    if execution_handoff_status == PREFLIGHT_EXECUTION_HANDOFF_READY and not execution_handoff_available:
         errors.append(
             "theory execution preflight cannot mark an unavailable handoff ready"
         )
-    if (
-        packet.get("overall_verdict") == "ACCEPT"
-        and execution_handoff_required
-        and execution_handoff_status != PREFLIGHT_EXECUTION_HANDOFF_READY
-    ):
+    if packet.get("overall_verdict") == "ACCEPT" and execution_handoff_required and execution_handoff_status != PREFLIGHT_EXECUTION_HANDOFF_READY:
         errors.append(
             "accepted theory with a required finite handoff must mark that handoff "
             "ready for exploratory execution"
         )
-    if (
-        execution_handoff_required
-        and not execution_handoff_available
-        and packet.get("overall_verdict") == "ACCEPT"
-    ):
+    if execution_handoff_required and not execution_handoff_available and packet.get("overall_verdict") == "ACCEPT":
         errors.append("theory execution preflight cannot accept without an estimator")
     if packet.get("overall_verdict") == "REVISE" and not findings:
         errors.append(
