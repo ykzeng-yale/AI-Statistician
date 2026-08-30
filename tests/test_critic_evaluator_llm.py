@@ -1130,14 +1130,7 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
     assert exact_observations["resolved_exact_source_count"] == 1
     assert exact_observations["observations"][0]["content"] == source_text.rstrip()
     assert source_view["runtime_audit"] == {
-        "checkpoint_present": True,
         "lineage_verified": True,
-        "report_content_loaded": True,
-        "source_execution_status": "EXECUTED",
-        "author_read_ref_count": 1,
-        "resolved_exact_source_count": 1,
-        "unresolved_source_ref_count": 0,
-        "unresolved_gap_count": 1,
         "report_text_persisted": False,
         "source_text_persisted": False,
     }

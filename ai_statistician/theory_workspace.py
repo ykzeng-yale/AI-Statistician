@@ -1274,11 +1274,24 @@ def run_theory_artifact_workspace(
                     "commit_theory_checkpoint requires a prior model-authored "
                     "workspace revision"
                 )
-            if require_document_authority and not state["documents"]:
+            integrated_source_checkpoint = (
+                source_replication_checkpoint(
+                    tool_input,
+                    report_field="source_replication_report_document_path",
+                    rationale_field="source_replication_readiness_rationale",
+                    gaps_field="source_replication_unresolved_gaps",
+                )
+                if integrated_source_replication_required
+                else {}
+            )
+            report_path = str(integrated_source_checkpoint.get("report_document", {}).get("relative_path", "") or "")
+            theory_documents = {path: content for path, content in state["documents"].items() if path != report_path}
+            theory_changed_documents = tuple(path for path in changed_documents if path != report_path)
+            if require_document_authority and not theory_documents:
                 raise ClientToolInputError(
                     "commit_theory_checkpoint requires model-authored Markdown or LaTeX"
                 )
-            if require_document_authority and not changed_documents:
+            if require_document_authority and not theory_changed_documents:
                 raise ClientToolInputError(
                     "commit_theory_checkpoint requires a changed authoritative "
                     "Markdown or LaTeX document"
@@ -1286,8 +1299,8 @@ def run_theory_artifact_workspace(
             raw_candidate = build_candidate(
                 state["artifacts"],
                 changed,
-                document_manifest(state["documents"]),
-                changed_documents,
+                document_manifest(theory_documents),
+                theory_changed_documents,
             )
             if not isinstance(raw_candidate, Mapping):
                 raise ClientToolInputError(
@@ -1308,16 +1321,6 @@ def run_theory_artifact_workspace(
                 )
             rationale = readiness_rationale.strip()
             candidate_hash = stable_hash(candidate)
-            integrated_source_checkpoint = (
-                source_replication_checkpoint(
-                    tool_input,
-                    report_field="source_replication_report_document_path",
-                    rationale_field="source_replication_readiness_rationale",
-                    gaps_field="source_replication_unresolved_gaps",
-                )
-                if integrated_source_replication_required
-                else {}
-            )
             return ClientToolExecutionResult(
                 content={
                     "ok": True,
@@ -2560,11 +2563,11 @@ def theory_document_evidence_history(
 def workspace_evidence_history(
     history: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
-    theory_message = "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]"
+    document_message = "[workspace document content omitted from persisted evidence; use the hash-bound document inspection refs]"
     source_message = "[research source text omitted from persisted evidence; raw execution also omitted from transcript; use snapshot/document/range or source-replication refs]"
     redactions = {
-        THEORY_WORKSPACE_READ_DOCUMENT_TOOL: theory_message,
-        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL: theory_message,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL: document_message,
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL: document_message,
         **{name: source_message for name in (
             RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
             RESEARCH_SOURCE_RUN_TOOL, RESEARCH_SOURCE_RESULT_READ_TOOL,
@@ -2864,8 +2867,8 @@ def _theory_workspace_tools(
                 name=SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
                 description=(
                     "Commit a model-authored Markdown source-replication report after "
-                    "the immutable source run. This ends a source-replication-only task "
-                    "without fabricating theory, code, simulation, or proof artifacts."
+                    "the immutable source run without fabricating theory, code, simulation, "
+                    "or proof artifacts; the frozen outer graph may continue other workspaces."
                 ),
                 input_schema={
                     "type": "object",

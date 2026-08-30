@@ -757,7 +757,9 @@ an edit, weaken the frozen metric contract, or claim theorem-proof evidence. Whe
 source_workspace_planning_owned is true, also choose the exploratory DGP and diagnostics.
 When workspace_context.theory_context.document_authoritative is true, read its exact
 authoritative_theory_documents through the supplied read-only document tools;
-structured theory fields, when present, carry only claim identity and executable ABI. Treat every
+structured theory fields, when present, carry only claim identity and executable ABI.
+When source_replication_context is present, read its report through the same tools;
+it is replication evidence, not mathematical or semantic authority. Treat every
 metric_path segment as a literal,
 punctuation-sensitive JSON key; compare run_sandbox nested keys with each frozen path
 and never normalize or substitute a theory-prose name. An

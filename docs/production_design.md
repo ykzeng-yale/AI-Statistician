@@ -63,7 +63,7 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness audit is reproducibly pinned to [OpenAI Codex at `cefa0606`](https://github.com/openai/codex/tree/cefa060695594cdeebfb4306170cc27487c8a088). We adopt incremental history, stable capability-accurate tools, raw tool-error feedback, checkpoint/resume, cancellation, bounded context, explicit continuation provenance, isolated findings-first review over the exact target, authorization revision independent of compaction, and queued-message versus work-trigger semantics. Repository documents are a map and system of record, not one giant injected manual. A tool is stable within one retained session but is omitted when its underlying workspace or authority is absent; an empty search surface is not a model capability. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, metadata, and root authorization fingerprint. Codex's first-Node-execution Guardian fast path has no product analogue here and is not adopted. Codex Core, App Server, SDK, provider transport, and multi-agent scheduler remain outside the product because importing them would create a second runtime rather than improve statistical reasoning. The exact selective-adoption map is maintained in [`openai_codex_harness_adoption_20260825.md`](openai_codex_harness_adoption_20260825.md).
+The general harness audit is reproducibly pinned to [OpenAI Codex at `88f77658`](https://github.com/openai/codex/tree/88f776588f5e73467e7659c268f8358a9a2378b6). We adopt incremental history, stable capability-accurate tools, raw tool-error feedback, checkpoint/resume, cancellation, bounded context, explicit continuation provenance, isolated findings-first review over the exact target, authorization revision independent of compaction, and queued-message versus work-trigger semantics. Repository documents are a map and system of record, not one giant injected manual. A tool is stable within one retained session but is omitted when its underlying workspace or authority is absent; an empty search surface is not a model capability. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, metadata, and root authorization fingerprint. Codex's first-Node-execution Guardian fast path has no product analogue here and is not adopted. Codex Core, App Server, SDK, provider transport, and multi-agent scheduler remain outside the product because importing them would create a second runtime rather than improve statistical reasoning. The exact selective-adoption map is maintained in [`openai_codex_harness_adoption_20260825.md`](openai_codex_harness_adoption_20260825.md).
 We do not embed `codex-core`, App Server, its Responses transport, shared-directory subagents, or another scheduler. Each scientific workspace is the domain session and AgentRuntime remains the sole outer graph; any sidecar requires model, tool, lineage, isolation, and resume parity and can never become authority.
 Like Codex `run_turn`, a response without a tool call ends the workspace segment. The harness persists the exact response and state for explicit hash-verified continuation; it never appends a private tool instruction or resamples. Progress attributes the inner subsystem, agent, and stage separately from the outer task owner.
 
@@ -72,9 +72,9 @@ Like Codex `run_turn`, a response without a tool call ends the workspace segment
 The graph imposes no universal research order. TheoryDeveloper chooses early
 Crossref/arXiv/GitHub queries and source handles; the harness owns hosts, source horizon,
 secrets, byte bounds, checkpoint-durable exact observations, identity, hashes, and citations, but not interpretation.
-Exact replication requires immutable operator-curated manifests; the retained Theory source owner runs it, audits raw observations and exact reads,
-then binds a Markdown report to a source-only or integrated Theory checkpoint.
-Runtime externalizes hash references and rejects mutation; execution cannot validate theory, code, simulation, or proof.
+Exact replication requires immutable operator-curated manifests; the retained Theory source owner runs it, audits raw observations and exact reads, then binds a Markdown report to a source checkpoint or an integrated Theory workspace.
+For non-theory tasks that checkpoint is an immutable prerequisite to the already frozen code/simulation plan; for integrated tasks the report stays in full workspace evidence but is excluded from mathematical Theory authority. Algorithm and Simulation read the exact report on demand as replication evidence.
+Runtime externalizes hash references and rejects mutation; execution and report content cannot validate theory, generated code, simulation, or proof.
 
 Theory remains long-horizon and iterative. As soon as the estimand, DGP,
 procedure interface, and a testable claim are stable enough, exploratory coding
@@ -126,7 +126,7 @@ It owns exact definitions, assumptions and use sites, equation/lemma dependencie
 executable procedure semantics, counterexamples, gaps, and revision lineage. There is no JSON-only core-theory fallback: a provider without native client-tool turns fails closed before mathematical authoring.
 Compact packets are handoff indexes. Serious theory has no per-field caps; one selector defines both the model-visible output contract and writable handoff tools for explicit task intent, so non-applicable lanes are absent rather than advertised as unusable empty artifacts.
 The validator checks only typed handoff structure and formal artifacts depend on intent. Historical packets remain readable, but fresh no-intent authoring exposes only the mathematical core until the Architect binds a request-scoped plan.
-Durable Markdown/LaTeX is the publishable current argument, not a transcript of false starts. Exploration stays in scratch or is explicitly delimited as `SCRATCH` or `REJECTED`; a later correction does not silently deactivate earlier active text.
+Durable Markdown/LaTeX is the publishable current argument, not a transcript of false starts. An integrated replication report is a separate workspace document and cannot be the sole mathematical document in a Theory packet. Exploration stays in scratch or is explicitly delimited as `SCRATCH` or `REJECTED`; a later correction does not silently deactivate earlier active text.
 
 Discovery and revision share exact parent and reviewer artifacts. Only model-authored
 edits apply, raw validation returns to the same model, and the editor contains no
@@ -163,9 +163,9 @@ observations leave model context, and identical source is a tool no-op rather th
 runtime edit.
 
 Exploratory source may start before the complete theorem program is closed once
-its consumed interfaces are stable. Such runs can falsify a proposed theory or
-guide its revision but cannot satisfy confirmatory gates. Confirmatory source is
-bound to the independently reviewed current theory and frozen protocol.
+its consumed interfaces are stable. A bound replication report is exposed through
+the same hash-bound read-only document tools but never as mathematical authority.
+Such runs may falsify theory but cannot satisfy frozen confirmatory gates.
 
 For live providers with native client tools, the structured proposal carries only
 artifact identity and immutable bindings; source is authored in the same model-owned

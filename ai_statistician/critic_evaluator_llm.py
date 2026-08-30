@@ -1073,23 +1073,17 @@ def _critic_scratch_observation(raw: Mapping[str, Any]) -> dict[str, Any]:
     return observation
 
 
-def _critic_source_replication_view(
+def source_replication_evidence_view(
     *,
     question_id: str,
     artifacts: Mapping[str, Any],
     research_sources: ResearchSourceSnapshot | None,
+    checkpoint_id: str = "",
 ) -> dict[str, Any]:
     """Load the latest runtime-bound source report and observations for review."""
 
     audit = {
-        "checkpoint_present": False,
         "lineage_verified": False,
-        "report_content_loaded": False,
-        "source_execution_status": "",
-        "author_read_ref_count": 0,
-        "resolved_exact_source_count": 0,
-        "unresolved_source_ref_count": 0,
-        "unresolved_gap_count": 0,
         "report_text_persisted": False,
         "source_text_persisted": False,
     }
@@ -1100,6 +1094,7 @@ def _critic_source_replication_view(
             and artifact.get("artifact_kind") == "SourceReplicationCheckpoint"
             and artifact.get("checkpoint_id") == artifact_id
             and artifact.get("question_id") == question_id
+            and (not checkpoint_id or artifact_id == checkpoint_id)
         ):
             checkpoint = deepcopy(dict(artifact))
             break
@@ -1189,14 +1184,10 @@ def _critic_source_replication_view(
         else {}
     )
     workspace_source_refs = workspace.get("source_replication_refs", [])
-    workspace_mode = (
-        workspace.get("disposition"),
-        workspace.get("model_owned_theory"),
-    )
-    workspace_mode_valid = workspace_mode in {
-        ("SOURCE_REPLICATION_CHECKPOINT_COMMITTED", False),
-        ("THEORY_CHECKPOINT_COMMITTED", True),
-    }
+    workspace_mode_valid = (
+        workspace.get("disposition"), workspace.get("model_owned_theory")
+    ) in {("SOURCE_REPLICATION_CHECKPOINT_COMMITTED", False),
+          ("THEORY_CHECKPOINT_COMMITTED", True)}
     workspace_lineage_verified = bool(
         workspace_evidence_id
         and workspace_evidence_hash
@@ -1289,26 +1280,7 @@ def _critic_source_replication_view(
         "lineage_verified": source_lineage_verified,
         **{key: deepcopy(source_manifest.get(key)) for key in execution_keys},
     }
-    audit.update(
-        {
-            "checkpoint_present": True,
-            "lineage_verified": lineage_verified,
-            "report_content_loaded": bool(report_content),
-            "source_execution_status": str(
-                source_manifest.get("execution_status", "") or ""
-            ),
-            "author_read_ref_count": source_observations[
-                "author_read_ref_count"
-            ],
-            "resolved_exact_source_count": source_observations[
-                "resolved_exact_source_count"
-            ],
-            "unresolved_source_ref_count": source_observations[
-                "unresolved_selected_ref_count"
-            ],
-            "unresolved_gap_count": len(unresolved_gaps),
-        }
-    )
+    audit["lineage_verified"] = lineage_verified
     return {
         "present": True,
         "checkpoint_id": checkpoint_id,
@@ -1615,7 +1587,7 @@ def build_critic_canonical_evidence_view(
             formalization_manifest.get("proof_evidence_status", "") or ""
         ),
     }
-    source_replication_view = _critic_source_replication_view(
+    source_replication_view = source_replication_evidence_view(
         question_id=question_id,
         artifacts=artifacts,
         research_sources=research_sources,

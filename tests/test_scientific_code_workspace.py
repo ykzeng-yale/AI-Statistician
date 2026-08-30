@@ -238,7 +238,53 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
     assert read_observation["content"].strip() == content.strip()
     assert dict(result.code_draft) == authored
     assert content.strip() not in str(result.evidence)
-    assert "theory document content omitted" in str(result.evidence["history"])
+    assert "workspace document content omitted" in str(result.evidence["history"])
+
+
+def test_scientific_workspace_externalizes_replication_report_without_theory_authority() -> None:
+    content = "# Replication report\n\nThe pinned source reproduced metric 0.75.\n"
+    sha256 = hashlib.sha256(content.encode()).hexdigest()
+
+    prompt_context, documents = externalize_scientific_workspace_documents(
+        {
+            "source_replication_context": {
+                "checkpoint_id": "source_replication_checkpoint:generic",
+                "lineage_verified": True,
+                "report_document": {
+                    "relative_path": "replication/report.md",
+                    "sha256": sha256,
+                    "content_loaded": True,
+                    "content": content,
+                },
+                "source_execution": {
+                    "execution_status": "EXECUTED",
+                    "stdout_sha256": "a" * 64,
+                    "raw_stdout": "metric=0.75\n",
+                    "raw_stderr": "",
+                },
+                "author_source_observations": {"observations": ["not copied"]},
+                "boundary": "Replication execution is not theory authority.",
+            }
+        }
+    )
+
+    replication = prompt_context["source_replication_context"]
+    assert documents == {"replication/report.md": content}
+    assert replication["report_document"] == {
+        "path": "replication/report.md",
+        "sha256": sha256,
+        "line_count": 3,
+        "byte_size": len(content.encode()),
+    }
+    assert replication["document_content_transport"] == (
+        "hash_bound_read_only_client_tools"
+    )
+    assert "content" not in replication["report_document"]
+    assert content not in json.dumps(prompt_context)
+    assert "raw_stdout" not in replication["source_execution"]
+    assert "raw_stderr" not in replication["source_execution"]
+    assert "author_source_observations" not in replication
+    assert "theory_context" not in prompt_context
 
 
 def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) -> None:

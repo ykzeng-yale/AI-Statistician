@@ -35,6 +35,9 @@ from ai_statistician.research_source_discovery import (
     ResearchSourceDiscoveryError,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.theory_derivation_trace import (
+    document_authoritative_theory_context,
+)
 from ai_statistician.theory_workspace import (
     SOURCE_REPLICATION_CHECKPOINT_KIND,
     SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
@@ -1055,7 +1058,7 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
     assert "locally false interpretation" in opening_request
 
 
-def test_integrated_theory_checkpoint_binds_required_source_replication_report(
+def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -1107,6 +1110,7 @@ def test_integrated_theory_checkpoint_binds_required_source_replication_report(
         lambda **_: manifest,
     )
     report_path = "replication/report.md"
+    theory_path = "derivations/main.md"
     task_intent = {
         "source_replication": "required",
         "theory": "required",
@@ -1114,6 +1118,15 @@ def test_integrated_theory_checkpoint_binds_required_source_replication_report(
         "empirical": "not_applicable",
         "formal": "not_applicable",
         "unresolved_gaps": "required",
+    }
+    source_commit_fields = {
+        "source_replication_report_document_path": report_path,
+        "source_replication_readiness_rationale": (
+            "The immutable execution and its interpretation are recorded."
+        ),
+        "source_replication_unresolved_gaps": [
+            "Only one pinned execution was observed."
+        ],
     }
     backend = ScriptedTheoryWorkspaceBackend(
         [
@@ -1151,13 +1164,27 @@ def test_integrated_theory_checkpoint_binds_required_source_replication_report(
             ),
             _response(
                 _commit_checkpoint(
-                    source_replication_report_document_path=report_path,
-                    source_replication_readiness_rationale=(
-                        "The immutable execution and its interpretation are recorded."
-                    ),
-                    source_replication_unresolved_gaps=[
-                        "Only one pinned execution was observed."
-                    ],
+                    call_id="reject-report-as-theory",
+                    **source_commit_fields,
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-integrated-derivation",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": theory_path,
+                        "content": (
+                            "# Derivation\n\nThe revised claim follows from the "
+                            "stated assumptions; source execution is not proof.\n"
+                        ),
+                    },
+                )
+            ),
+            _response(
+                _commit_checkpoint(
+                    call_id="commit-integrated-theory",
+                    **source_commit_fields,
                 )
             ),
         ]
@@ -1170,8 +1197,8 @@ def test_integrated_theory_checkpoint_binds_required_source_replication_report(
         task_intent=task_intent,
         workspace_dir=tmp_path / "integrated-workspace",
         require_document_authority=True,
-        max_turns=4,
-        max_tool_calls=4,
+        max_turns=6,
+        max_tool_calls=6,
     )
 
     checkpoint = result.evidence["source_replication_checkpoint"]
@@ -1187,6 +1214,37 @@ def test_integrated_theory_checkpoint_binds_required_source_replication_report(
     assert checkpoint["unresolved_gaps"] == [
         "Only one pinned execution was observed."
     ]
+    assert load_theory_workspace_documents(
+        {"theory_workspace_manifest": result.core_packet["manifest"]}
+    ) == {
+        theory_path: (
+            "# Derivation\n\nThe revised claim follows from the stated assumptions; "
+            "source execution is not proof.\n"
+        )
+    }
+    workspace_paths = {
+        row["relative_path"]
+        for row in result.evidence["theory_workspace_manifest"]["documents"]
+    }
+    assert workspace_paths == {report_path, theory_path}
+    assert result.core_packet["changed_documents"] == [theory_path]
+    downstream_theory = document_authoritative_theory_context(
+        {
+            "packet_id": "theory:integrated",
+            "theory_workspace_manifest": result.core_packet["manifest"],
+            "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+            "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
+        }
+    )
+    assert [
+        row["path"]
+        for row in downstream_theory["authoritative_theory_documents"]
+    ] == [theory_path]
+    assert len(backend.requests) == 6
+    rejected_commit_observation = json.dumps(backend.requests[4].messages)
+    assert "requires model-authored Markdown or LaTeX" in (
+        rejected_commit_observation
+    )
     assert result.evidence["disposition"] == "THEORY_CHECKPOINT_COMMITTED"
     assert result.evidence["model_owned_theory"] is True
     assert result.evidence["model_owned_source_report"] is True

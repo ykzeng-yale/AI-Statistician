@@ -56,6 +56,7 @@ from .critic_evaluator_llm import (
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
     LLMCriticEvaluatorAgent,
     build_critic_canonical_evidence_view,
+    source_replication_evidence_view,
 )
 from .cross_family_eval_protocol import (
     CONFIRMATORY_EVALUATION_COHORT_CONTEXT_KEY,
@@ -3986,9 +3987,10 @@ def _runtime_workspace_parent_artifact_ids(
 
     parent_fields = {
         "TheoryDeveloper": ("retrieval_memory_manifest_id",),
-        "AlgorithmEngineer": ("theory_packet_id", "estimator_execution_contract_id"),
+        "AlgorithmEngineer": ("source_replication_checkpoint_id", "theory_packet_id",
+                              "estimator_execution_contract_id"),
         "SimulationEvaluator": ("theory_packet_id", "estimator_execution_contract_id",
-                                "algorithm_sandbox_manifest_id"),
+                                "source_replication_checkpoint_id", "algorithm_sandbox_manifest_id"),
         "FormalizationEvaluator": ("theory_packet_id",),
     }.get(subsystem_name, ())
     return {
@@ -4021,6 +4023,16 @@ def _runtime_task_parent_artifact_ids(
     )
 
 
+def _runtime_source_replication_context(
+    *, question_id: str, architect_context: Mapping[str, Any],
+    blackboard: BlackboardState, research_sources: ResearchSourceSnapshot | None,
+) -> dict[str, Any]:
+    checkpoint_id = str(architect_context.get("source_replication_checkpoint_id", "") or "")
+    return (source_replication_evidence_view(question_id=question_id,
+        artifacts=blackboard.artifacts, research_sources=research_sources,
+        checkpoint_id=checkpoint_id) if checkpoint_id else {})
+
+
 def _runtime_outer_graph_context(
     *,
     task: AgentTask,
@@ -4050,6 +4062,7 @@ def _runtime_outer_graph_context(
         "RuntimeAlgorithmSandboxManifest": "algorithm_sandbox_manifest_id",
         "RuntimeSimulationManifest": "simulation_manifest_id",
         "RuntimeFormalizationManifest": "formalization_manifest_id",
+        SOURCE_REPLICATION_CHECKPOINT_KIND: "source_replication_checkpoint_id",
     }
     accepted_algorithm_handoffs: list[dict[str, Any]] = []
     for artifact_id, artifact in result.produced_artifacts.items():
@@ -5086,7 +5099,7 @@ def _source_replication_checkpoint_result(
     packet: Mapping[str, Any],
     checkpoint_allowed: bool,
 ) -> AgentStepResult:
-    """Terminate an explicitly source-only task without claiming theory completion."""
+    """Record one narrow source checkpoint without claiming theory completion."""
 
     checkpoint = deepcopy(dict(packet))
     raw_workspace = checkpoint.pop("llm_client_tool_loop", {})
@@ -5153,7 +5166,7 @@ def _source_replication_checkpoint_result(
         "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
         if source_completed else "SOURCE_EXECUTION_FAILED_RECORDED"
     )
-    rationale = ("The source-only task recorded one immutable run and model-authored report."
+    rationale = ("The source prerequisite recorded one immutable run and model-authored report."
         if source_completed else "The immutable source run failed with model-reported gaps.")
     summary = ("immutable source execution recorded for hidden evaluation"
         if source_completed else "immutable source execution failed with explicit gaps")
@@ -9782,6 +9795,8 @@ class SimulationEvaluatorRuntimeSubsystem:
             max_rows=3,
             text_limit=240,
         )
+        source_replication_context = _runtime_source_replication_context(
+            question_id=question.id, architect_context=context, blackboard=blackboard, research_sources=self.research_sources)
         for draft in simulation_code_drafts:
             simulation_id = str(draft.get("simulation_id", "") or "simulation_draft")
             simulation_metric_contracts = generated_metric_contracts_for_artifact(
@@ -9982,6 +9997,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     workspace_context={
                         "theory_packet_id": packet_id,
                         "theory_context": theory_workspace_context,
+                        "source_replication_context": source_replication_context,
                         "source_workspace_planning_owned": bool(
                             (proposal_packet or {}).get(
                                 "source_workspace_planning_owned"
@@ -12281,6 +12297,8 @@ class AlgorithmEngineerRuntimeSubsystem:
             max_rows=3,
             text_limit=240,
         )
+        source_replication_context = _runtime_source_replication_context(
+            question_id=question.id, architect_context=context, blackboard=blackboard, research_sources=self.research_sources)
         for gap in execution_gaps:
             estimator_id = str(gap.get("estimator_id", ""))
             spec = _estimator_spec(packet, estimator_id)
@@ -12488,6 +12506,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                         workspace_context={
                             "theory_packet_id": packet_id,
                             "theory_context": theory_workspace_context,
+                            "source_replication_context": source_replication_context,
                             "simulation_manifest_id": simulation_manifest_id,
                             "implementation_gap": dict(gap),
                             "estimator_spec": (

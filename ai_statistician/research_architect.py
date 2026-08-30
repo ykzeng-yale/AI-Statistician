@@ -91,29 +91,17 @@ THEORY_FORMAL_SOURCE_PROMPT_POLICY = (
     "citation; broad module prose and proof bodies are omitted."
 )
 
-SOURCE_REPLICATION_CHECKPOINT_REQUIRED_DIMENSIONS = frozenset(
-    {"source_replication", "unresolved_gaps"}
-)
-
-
 def source_replication_checkpoint_allowed(
     question: OpenResearchQuestion,
     research_source_execution: ResearchSourceExecutionSpec | None,
 ) -> bool:
-    """Allow a direct checkpoint only for an explicitly source-only objective."""
+    """Use a narrow source checkpoint whenever theory is not required."""
 
     if research_source_execution is None:
         return False
-    required_dimensions = {
-        str(dimension)
-        for dimension, requirement in question.task_intent.items()
-        if str(requirement) == "required"
-    }
     return bool(
-        "source_replication" in required_dimensions
-        and required_dimensions.issubset(
-            SOURCE_REPLICATION_CHECKPOINT_REQUIRED_DIMENSIONS
-        )
+        question.task_intent.get("source_replication") == "required"
+        and question.task_intent.get("theory") != "required"
     )
 
 
@@ -2628,7 +2616,6 @@ def _initial_theory_workspace_read_only_artifacts(
                 "evidence_role": "source replication only",
                 "not_evidence_for": ["theory", "simulation", "formal proof"],
             },
-            "optional_full_theory_checkpoint": required_output_contract,
         }
     else:
         output_contract = required_output_contract
@@ -2687,15 +2674,16 @@ def _initial_theory_workspace_prompt(
 ) -> str:
     if allow_source_replication_checkpoint:
         return (
-            "Complete the explicitly source-replication-only objective for question "
+            "Complete the source-replication prerequisite for question "
             f"{question.id!r} in the persistent research workspace. First read the "
             "single initial_authoring_context artifact and inspect the supplied sources. "
             "Run the immutable published source exactly once, inspect its raw stdout and "
             "stderr, and use your own statistical judgment to write a durable Markdown "
             "report covering source and environment identity, reproduced outputs, "
             "comparison, interpretation, and caveats. Record unresolved gaps honestly, "
-            "then commit a source-replication checkpoint; do not fabricate theory, "
-            "estimator, simulation, formalization, or novelty fields. Runtime applies your exact "
+            "then commit a source-replication checkpoint. The outer graph will follow "
+            "the frozen remaining plan; do not fabricate theory, estimator, simulation, "
+            "formalization, or novelty fields. Runtime applies your exact "
             "document bytes and validates identity and lineage; it does not interpret "
             "the scientific result or promote it to proof evidence."
         )

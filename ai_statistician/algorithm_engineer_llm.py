@@ -404,6 +404,8 @@ and blinded confirmatory execution; no Algorithm sandbox result is empirical evi
 When workspace_context.theory_context.document_authoritative is true, read its
 exact authoritative_theory_documents through the supplied read-only document
 tools; structured fields are summaries, never authority to weaken the frozen question ABI.
+When source_replication_context is present, read its report through the same
+tools; it is replication evidence, not mathematical or semantic authority.
 """
 
 

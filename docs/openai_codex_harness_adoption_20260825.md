@@ -1,6 +1,6 @@
 # OpenAI Codex Harness Adoption
 
-Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `cefa0606`](https://github.com/openai/codex/tree/cefa060695594cdeebfb4306170cc27487c8a088), Apache-2.0. Since `0a12b855`, only the first Node REPL `js` execution gained a narrow asynchronous-Guardian fast path; AI Statistician has no analogous cold-start reviewer and adopts no first-execution bypass. The inspected turn loop, ToolRouter, detached review, multi-agent, and App Server surfaces are otherwise unchanged.
+Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `88f77658`](https://github.com/openai/codex/tree/88f776588f5e73467e7659c268f8358a9a2378b6), Apache-2.0. Since `cefa0606`, only environment-MCP tests and older-terminal rendering changed; the inspected turn loop, ToolRouter, detached review, multi-agent, and App Server surfaces are unchanged. AI Statistician has no analogue of the earlier first-Node-execution Guardian fast path and adopts no first-execution bypass.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -80,7 +80,7 @@ without duplicating the control plane.
 | thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
-| request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over the configured workspace inventory, plus the sole typed `AgentRuntime` and artifact references |
+| request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over configured workspaces, plus the sole typed `AgentRuntime`, exact artifact references, and direct continuation of a frozen plan after local checkpoints |
 | trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
 | reviewer tool output as untrusted evidence | referee-owned falsification of scratch assumptions, source observations, and candidate semantics before a blocker is submitted |
 
@@ -215,8 +215,8 @@ findings, code, Lean actions, and verdicts. Runtime enforces only identity, exec
 and evidence provenance. No consumed task is rerun, repaired, reassessed, or rescored.
 
 Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
-writes Markdown, and binds the report alone or into the same Theory checkpoint. Runtime externalizes source, workspace, and checkpoint hashes; Architect waits for the checkpoint
-and the independent Critic reloads exact evidence. Execution never validates theory, generated code, simulation, novelty, or proof.
+writes Markdown, and binds the report alone or into the same physical Theory workspace. The full evidence view retains that report, while a Theory packet excludes it from mathematical authority; non-theory tasks continue the frozen plan without another Architect call.
+Algorithm and Simulation resolve the exact checkpoint and read its report through hash-bound tools. The Critic reloads the same evidence; execution never validates theory, code, simulation, novelty, or proof.
 
 Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv and GitHub text, but arbitrary publisher PDF/OCR,
 dataset acquisition, and general project reproduction remain incomplete:
@@ -236,13 +236,13 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Authorization revision surviving compaction](https://github.com/openai/codex/commit/0a12b855a0b21068108a8a3b311d492712737e0f)
 - [First Node REPL execution while Guardian classifies asynchronously](https://github.com/openai/codex/commit/cefa060695594cdeebfb4306170cc27487c8a088)
-- [App Server protocol](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/app-server/README.md)
+- [App Server protocol](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

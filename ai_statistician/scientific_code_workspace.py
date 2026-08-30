@@ -184,24 +184,36 @@ class ScientificCodeWorkspaceAgent:
 def externalize_scientific_workspace_documents(
     workspace_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    """Move exact Theory text out of the opening prompt and into read tools."""
-
+    """Move exact upstream documents out of the prompt and into read tools."""
     projected = deepcopy(dict(workspace_context))
     theory = projected.get("theory_context", {})
-    if not isinstance(theory, Mapping):
-        return projected, {}
-    theory = deepcopy(dict(theory))
-    rows = theory.get("authoritative_theory_documents", [])
-    if rows and (not isinstance(rows, Sequence) or isinstance(rows, (str, bytes))):
-        raise ValueError("scientific workspace theory documents are malformed")
-    iterable = rows if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) else ()
-    manifest, documents = theory_documents.externalize_theory_document_rows(
-        iterable
-    )
-    if documents:
-        theory["authoritative_theory_documents"] = manifest
-        theory["document_content_transport"] = "hash_bound_read_only_client_tools"
-        projected["theory_context"] = theory
+    documents: dict[str, str] = {}
+    if isinstance(theory, Mapping):
+        theory = deepcopy(dict(theory))
+        rows = theory.get("authoritative_theory_documents", [])
+        if rows and (not isinstance(rows, Sequence) or isinstance(rows, (str, bytes))):
+            raise ValueError("scientific workspace theory documents are malformed")
+        iterable = rows if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) else ()
+        manifest, documents = theory_documents.externalize_theory_document_rows(iterable)
+        if documents:
+            theory["authoritative_theory_documents"] = manifest
+            theory["document_content_transport"] = "hash_bound_read_only_client_tools"
+            projected["theory_context"] = theory
+    replication = projected.get("source_replication_context", {})
+    if isinstance(replication, Mapping) and replication:
+        replication = deepcopy(dict(replication)); report = replication.get("report_document", {})
+        if isinstance(report, Mapping) and report.get("content_loaded") is True:
+            row = {"path": report.get("relative_path", ""), "sha256": report.get("sha256", ""), "content": report.get("content")}
+            manifest, report_documents = theory_documents.externalize_theory_document_rows([row])
+            if set(documents).intersection(report_documents):
+                raise ValueError("scientific workspace document paths collide")
+            documents.update(report_documents); replication["report_document"] = manifest[0]
+            replication["document_content_transport"] = "hash_bound_read_only_client_tools"
+        replication.pop("author_source_observations", None)
+        execution = replication.get("source_execution", {})
+        if isinstance(execution, Mapping):
+            replication["source_execution"] = {key: deepcopy(value) for key, value in execution.items() if key not in {"raw_stdout", "raw_stderr"}}
+        projected["source_replication_context"] = replication
     return projected, documents
 
 

@@ -216,7 +216,7 @@ def test_theory_core_contract_exposes_finite_execution_semantics() -> None:
     assert "estimator_interface_contract" not in estimator_contract
 
 
-def test_source_replication_checkpoint_requires_explicit_source_only_intent() -> None:
+def test_source_replication_checkpoint_requires_non_theory_intent() -> None:
     source_only = OpenResearchQuestion(
         id="source-only",
         title="Source only",
@@ -237,9 +237,21 @@ def test_source_replication_checkpoint_requires_explicit_source_only_intent() ->
             "unresolved_gaps": "required",
         },
     )
+    source_and_code = OpenResearchQuestion(
+        id="source-and-code",
+        title="Source and code",
+        description="Replicate a source before implementing a frozen public ABI.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "not_applicable",
+            "scientific_code": "required",
+            "unresolved_gaps": "required",
+        },
+    )
 
     execution = object()
     assert source_replication_checkpoint_allowed(source_only, execution) is True
+    assert source_replication_checkpoint_allowed(source_and_code, execution) is True
     assert source_replication_checkpoint_allowed(source_only, None) is False
     assert source_replication_checkpoint_allowed(theory_required, execution) is False
 

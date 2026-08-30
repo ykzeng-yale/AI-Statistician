@@ -1433,6 +1433,106 @@ def test_source_only_checkpoint_ends_runtime_without_fixed_pipeline_handoff() ->
     )
 
 
+def test_source_checkpoint_continues_frozen_code_plan_without_theory_or_replan() -> None:
+    question = OpenResearchQuestion(
+        id="source-before-theory-free-code",
+        title="Replicate then implement one frozen ABI",
+        description="Use immutable replication evidence before model-owned code.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "not_applicable",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+        estimator_execution_contract=_theory_free_estimator_execution_contract(),
+    )
+    context = runtime_module._runtime_architect_context_with_requested_evidence_contract(
+        {},
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+        estimator_execution_contract=question.estimator_execution_contract,
+    )
+    contract = context["runtime_requested_evidence_contract"]
+    context["architect_runtime_plan"] = {
+        "packet_id": "architect_plan:source-before-code",
+        "evidence_contract": contract,
+        "subsystem_execution_plan": [
+            {"subsystem": "TheoryDeveloper"},
+            {"subsystem": "AlgorithmEngineer"},
+            {"subsystem": "SimulationEvaluator"},
+            {"subsystem": "GeneratedCodeSemanticReviewer"},
+            {"subsystem": "CriticEvaluator"},
+        ],
+    }
+
+    class SourceReplicationTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = object()
+
+        @staticmethod
+        def derive(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+            return _source_replication_checkpoint_packet(question)
+
+    task = AgentTask(
+        task_id="source-replication:source-before-theory-free-code",
+        owner_subsystem="TheoryDeveloper",
+        objective="Record the source-replication prerequisite.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "architect_context": context,
+        },
+    )
+    blackboard = BlackboardState(project_id=question.id)
+    result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=SourceReplicationTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=10,
+        seed=17,
+    ).run(task, blackboard)
+
+    transitioned = _runtime_transition_policy(
+        iteration=2,
+        task=task,
+        subsystem_name="TheoryDeveloper",
+        result=result,
+        blackboard=blackboard,
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval",
+            formal_verification_policy="optional",
+        ),
+    )
+
+    checkpoint_id = next(
+        artifact_id
+        for artifact_id, artifact in result.produced_artifacts.items()
+        if artifact.get("artifact_kind") == "SourceReplicationCheckpoint"
+    )
+    assert result.status == "ACCEPTED"
+    assert result.next_task is None
+    assert transitioned.status == "REROUTE"
+    assert transitioned.next_task is not None
+    assert transitioned.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert transitioned.observations[-1].payload["model_routing_call_used"] is False
+    next_context = transitioned.next_task.inputs["architect_context"]
+    assert next_context["source_replication_checkpoint_id"] == checkpoint_id
+    assert "theory_packet_id" not in next_context
+    assert runtime_module._runtime_task_parent_artifact_ids(
+        "AlgorithmEngineer", transitioned.next_task.inputs
+    ) == {
+        "source_replication_checkpoint_id": checkpoint_id,
+        "estimator_execution_contract_id": context[
+            "estimator_execution_contract_id"
+        ],
+    }
+    assert all(
+        artifact.get("artifact_kind") != "TheoryDerivationPacket"
+        for artifact in transitioned.produced_artifacts.values()
+    )
+
+
 def test_full_runtime_honors_required_source_replication_before_model_route(
     tmp_path: Path,
 ) -> None:
@@ -2428,14 +2528,7 @@ def test_final_critic_does_not_restart_exhausted_formalizer_for_missing_proof() 
         "source_text_persisted": False,
     }
     assert critic_manifest["source_replication_audit"] == {
-        "checkpoint_present": False,
         "lineage_verified": False,
-        "report_content_loaded": False,
-        "source_execution_status": "",
-        "author_read_ref_count": 0,
-        "resolved_exact_source_count": 0,
-        "unresolved_source_ref_count": 0,
-        "unresolved_gap_count": 0,
         "report_text_persisted": False,
         "source_text_persisted": False,
     }
@@ -4840,6 +4933,11 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         ],
     }
     proposal_feedback: list[dict[str, object]] = []
+    source_workspace_contexts: list[dict[str, object]] = []
+    replication_context = {
+        "checkpoint_id": "source:replication",
+        "lineage_verified": True,
+    }
 
     class SimulationAgent:
         provider = SimpleNamespace(provider_name="static")
@@ -4864,7 +4962,8 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
                 "metric_contracts": [],
             }
 
-    def source_workspace(**_kwargs):
+    def source_workspace(**kwargs):
+        source_workspace_contexts.append(deepcopy(kwargs["workspace_context"]))
         source = "def run_sandbox(seed, replicates):\n    return {'ok': True}\n"
         return ({
             "simulation_id": "diagnostic",
@@ -4900,12 +4999,22 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         "_run_source_owner_scientific_workspace",
         source_workspace,
     )
+    monkeypatch.setattr(
+        runtime_module,
+        "source_replication_evidence_view",
+        lambda **kwargs: (
+            replication_context
+            if kwargs["checkpoint_id"] == "source:replication"
+            else pytest.fail("wrong source checkpoint resolved")
+        ),
+    )
     subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
     )
     context = {
+        "source_replication_checkpoint_id": "source:replication",
         "algorithm_sandbox_manifest_id": "algorithm:accepted",
         "upstream_algorithm_handoff": handoff,
         "empirical_evaluation_phase": (
@@ -4946,6 +5055,9 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
     assert feedback["runtime_execution_contract"][
         "available_upstream_estimator_ids"
     ] == ["accepted-estimator"]
+    assert source_workspace_contexts[0]["source_replication_context"] == (
+        replication_context
+    )
     assert exploratory.status == "REROUTE"
     assert exploratory.next_task is not None
     assert exploratory.next_task.owner_subsystem == "SimulationEvaluator"
@@ -6835,7 +6947,10 @@ def test_algorithm_workspace_blocks_partial_artifact_set_before_review(
                 ],
             }
 
+    source_workspace_contexts: list[dict[str, object]] = []
+
     def run_source_workspace(**kwargs):
+        source_workspace_contexts.append(deepcopy(kwargs["workspace_context"]))
         estimator_id = str(kwargs["failure_identity"]["estimator_id"])
         passed = estimator_id == "passing-estimator"
         return {
@@ -6862,8 +6977,22 @@ def test_algorithm_workspace_blocks_partial_artifact_set_before_review(
             "partial implementation was sent to independent review"
         ),
     )
+    replication_context = {
+        "checkpoint_id": "source:replication",
+        "lineage_verified": True,
+    }
+    monkeypatch.setattr(
+        runtime_module,
+        "source_replication_evidence_view",
+        lambda **kwargs: (
+            replication_context
+            if kwargs["checkpoint_id"] == "source:replication"
+            else pytest.fail("wrong source checkpoint resolved")
+        ),
+    )
     context = _full_evidence_context(question.id)
     context["theory_packet_id"] = theory_packet_id
+    context["source_replication_checkpoint_id"] = "source:replication"
     result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
         out_dir=tmp_path,
         n_runs=8,
@@ -6899,6 +7028,10 @@ def test_algorithm_workspace_blocks_partial_artifact_set_before_review(
     assert result.next_task is None
     assert result.failure_classification == (
         "generated_algorithm_sandbox_execution_failed"
+    )
+    assert all(
+        row["source_replication_context"] == replication_context
+        for row in source_workspace_contexts
     )
     blocked = next(
         row
