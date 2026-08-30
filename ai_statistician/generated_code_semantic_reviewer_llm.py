@@ -879,9 +879,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "attribute. This executes the reviewer's run_sandbox, not the "
                 "target's. Failure before target invocation is a reviewer tool error. "
                 "Only an observation that reaches the target can falsify source claims; "
-                "Correct it and reach the target before submitting. Requests are JSON-normalized "
-                "before candidate execution; erased host-language types are not candidate behavior. "
-                "the probe cannot edit source, inspect confirmatory outcomes, or confer "
+                "Correct it and reach the target before submitting. Request and response values "
+                "remain native to that language until your final probe metrics are serialized. "
+                "The probe cannot edit source, inspect confirmatory outcomes, or confer "
                 "empirical acceptance. The reviewer owns test selection, contract "
                 "decomposition, and scientific interpretation; runtime records only exact "
                 "source execution and immutable lineage."
@@ -929,9 +929,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             + GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL
                             + " for a model-authored multi-case Python or R test. Choose cases and "
                             "interpretation yourself. Failure before target invocation is your tool "
-                            "error, not a finding; correct it and reach the target before submitting. Requests "
-                            "are normalized to public JSON values before candidate execution; judge only "
-                            "target-observed requests. Numerical or self-consistency checks do not cover "
+                            "error, not a finding; correct it and reach the target before submitting. Native "
+                            "request and response types reach the exact candidate unchanged. Numerical or "
+                            "self-consistency checks do not cover "
                             "omitted boundaries or establish semantics; derive a discriminating oracle "
                             "when needed. Successful probes are committed: cite result_hash in review_document, "
                             "reconcile metrics with the verdict, and never ignore a contradiction."
@@ -1092,6 +1092,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     replicates=probe_input["replicates"],
                     timeout_s=max(1, int(probe_timeout_s)),
                     estimator_bindings=(ScientificEstimatorBinding(**target),),
+                    estimator_transport="native",
                 )
                 estimator_binding_errors = list(getattr(
                     execution, "estimator_binding_errors", ()
@@ -1134,8 +1135,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     "stderr_summary": execution.stderr_summary,
                     "estimator_invocation_counts": estimator_invocation_counts,
                     "target_request_boundary": {
-                        "transport": "JSON_NATIVE_NORMALIZATION_BEFORE_CANDIDATE",
-                        "erased_host_types_are_source_evidence": False,
+                        "transport": "SAME_LANGUAGE_NATIVE_CALL",
+                        "host_types_preserved_before_candidate": True,
                         "observed_samples": _prompt_projection_value(getattr(execution, "estimator_invocation_samples", {}) or {}),
                     },
                     "estimator_runtime_errors": estimator_runtime_errors,
@@ -1154,8 +1155,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     observation["authoritative_estimator_execution_contract"] = deepcopy(dict(contract))
                     observation["review_instruction"] = (
                         "Reconcile this raw probe result and the exact source against every "
-                        "public contract obligation. Candidate behavior begins after the JSON-native "
-                        "request boundary; probe again or report any gap that remains there."
+                        "public contract obligation. The exact candidate receives native request "
+                        "values; probe again or report any gap that remains there."
                     )
                 return ClientToolExecutionResult(
                     content=observation,

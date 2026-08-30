@@ -2005,6 +2005,84 @@ def test_live_estimator_binding_exposes_only_json_normalized_request(
     ]
 
 
+@pytest.mark.parametrize(
+    ("language", "dependencies", "algorithm", "simulation", "expected_type"),
+    [
+        (
+            "python",
+            [],
+            "def run_estimator(request):\n"
+            "    values = request['values']\n"
+            "    return {'request_type': type(values).__name__, 'echo': values}\n",
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    response = estimators['candidate']({'values': (1.0, float('inf'))})\n"
+            "    return {'request_type': response['request_type'], "
+            "'response_type': type(response['echo']).__name__, "
+            "'saw_nonfinite': response['echo'][1] == float('inf')}\n",
+            "tuple",
+        ),
+        (
+            "r",
+            ["base", "stats"],
+            "run_estimator <- function(request) { values <- request$values; "
+            "list(request_type=class(values)[[1]], echo=values) }\n",
+            "run_sandbox <- function(seed, replicates, estimators) { "
+            "response <- estimators[['candidate']](list(values=c(1, Inf))); "
+            "list(request_type=response$request_type, "
+            "response_type=class(response$echo)[[1]], "
+            "saw_nonfinite=is.infinite(response$echo[[2]])) }\n",
+            "numeric",
+        ),
+    ],
+)
+def test_live_native_estimator_transport_preserves_same_language_values(
+    tmp_path: Path,
+    language: str,
+    dependencies: list[str],
+    algorithm: str,
+    simulation: str,
+    expected_type: str,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    available = runtime.python_available if language == "python" else runtime.r_available
+    if not available:
+        pytest.skip("pinned scientific WASM runtime is not installed on this host")
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id=f"native-estimator-{language}",
+        language=language,
+        code=simulation,
+        dependencies=dependencies,
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language=language,
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+                dependencies=tuple(dependencies),
+            ),
+        ),
+        estimator_transport="native",
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {
+        "request_type": expected_type,
+        "response_type": expected_type,
+        "saw_nonfinite": True,
+    }
+    assert result.estimator_invocation_counts == {"candidate": 1}
+    assert result.estimator_invocation_samples["candidate"][0][
+        "request_shape"
+    ]["type"] == "object"
+    request = json.loads(Path(result.request_path).read_text(encoding="utf-8"))
+    assert request["estimator_transport"] == "native"
+
+
 def test_live_estimator_bound_reports_nested_export_as_binding_failure(
     tmp_path: Path,
 ) -> None:

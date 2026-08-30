@@ -51,6 +51,7 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
     await pyodide.loadPackage(request.dependencies);
   }
   const bound = request.invocation_mode === "estimator_bound";
+  const nativeEstimatorTransport = request.estimator_transport === "native";
   const hasInputArtifacts = Object.keys(inputArtifacts).length > 0;
   const requiredCallableExports = Array.isArray(request.required_callable_exports)
     ? request.required_callable_exports.map(String)
@@ -65,6 +66,7 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `_ai_stat_invocation_counts = {key: 0 for key in _ai_stat_estimator_sources}\n` +
       `_ai_stat_invocation_samples = {key: [] for key in _ai_stat_estimator_sources}\n` +
       `_ai_stat_runtime_failure = {"artifact_id": "", "error_message": "", "exception": None}\n` +
+      `_ai_stat_native_estimator_transport = ${nativeEstimatorTransport ? "True" : "False"}\n` +
       `_ai_stat_estimators = {}\n` +
       `def _ai_stat_json_native(_value):\n` +
       `    if _value is None or isinstance(_value, (bool, int, float, str)):\n` +
@@ -121,11 +123,11 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `            _shape["fields_truncated"] = True\n` +
       `        return _shape\n` +
       `    if isinstance(_value, (list, tuple)):\n` +
-      `        return {"type": "array", "element_types": sorted({str(_ai_stat_trace_shape(_item, _depth + 1).get("type", "unknown")) for _item in _value[:16]})}\n` +
+      `        return {"type": type(_value).__name__ if _ai_stat_native_estimator_transport else "array", "element_types": sorted({str(_ai_stat_trace_shape(_item, _depth + 1).get("type", "unknown")) for _item in _value[:16]})}\n` +
       `    _array_shape = getattr(_value, "shape", None)\n` +
       `    if _array_shape is not None:\n` +
       `        try:\n` +
-      `            return {"type": "array", "rank": len(_array_shape), "element_type": str(getattr(_value, "dtype", type(_value).__name__))}\n` +
+      `            return {"type": type(_value).__name__ if _ai_stat_native_estimator_transport else "array", "rank": len(_array_shape), "element_type": str(getattr(_value, "dtype", type(_value).__name__))}\n` +
       `        except Exception:\n` +
       `            pass\n` +
       `    return {"type": type(_value).__name__}\n` +
@@ -136,19 +138,23 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `    if not callable(_implementation):\n` +
       `        raise RuntimeError("ACCEPTED_ESTIMATOR_BINDING_ERROR: " + _artifact_id + ": accepted algorithm did not define callable run_estimator")\n` +
       `    def _bound_estimator(request):\n` +
-      `        if not isinstance(request, dict):\n` +
+      `        if not _ai_stat_native_estimator_transport and not isinstance(request, dict):\n` +
       `            raise TypeError("run_estimator request must be a dict: " + _artifact_id)\n` +
       `        request_shape = _ai_stat_trace_shape(request)\n` +
-      `        normalized_request = _ai_stat_json_native(request)\n` +
-      `        _ai_stat_json.dumps(normalized_request, allow_nan=False, sort_keys=True)\n` +
+      `        candidate_request = request if _ai_stat_native_estimator_transport else _ai_stat_json_native(request)\n` +
+      `        if not _ai_stat_native_estimator_transport:\n` +
+      `            _ai_stat_json.dumps(candidate_request, allow_nan=False, sort_keys=True)\n` +
       `        _ai_stat_invocation_counts[_artifact_id] += 1\n` +
       `        invocation_index = _ai_stat_invocation_counts[_artifact_id]\n` +
       `        try:\n` +
-      `            raw_response = _implementation(normalized_request)\n` +
-      `            if not isinstance(raw_response, dict):\n` +
-      `                raise TypeError("run_estimator response must be a dict")\n` +
-      `            response = _ai_stat_json_native(raw_response)\n` +
-      `            _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
+      `            raw_response = _implementation(candidate_request)\n` +
+      `            if _ai_stat_native_estimator_transport:\n` +
+      `                response = raw_response\n` +
+      `            else:\n` +
+      `                if not isinstance(raw_response, dict):\n` +
+      `                    raise TypeError("run_estimator response must be a dict")\n` +
+      `                response = _ai_stat_json_native(raw_response)\n` +
+      `                _ai_stat_json.dumps(response, allow_nan=False, sort_keys=True)\n` +
       `        except Exception as exc:\n` +
       `            failure_message = "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: " + _artifact_id + ": " + type(exc).__name__ + ": " + str(exc) + "; request_shape=" + _ai_stat_json.dumps(request_shape, separators=(",", ":"), sort_keys=True)\n` +
       `            _ai_stat_invocation_samples[_artifact_id] = [{"invocation_index": invocation_index, "request_shape": request_shape, "response_status": "ERROR", "error_type": type(exc).__name__}]\n` +
@@ -157,7 +163,10 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `            _ai_stat_runtime_failure["exception"] = exc\n` +
       `            raise\n` +
       `        if len(_ai_stat_invocation_samples[_artifact_id]) < 3:\n` +
-      `            _ai_stat_invocation_samples[_artifact_id].append({"invocation_index": invocation_index, "request": _ai_stat_trace_preview(normalized_request), "response": _ai_stat_trace_preview(response)})\n` +
+      `            if _ai_stat_native_estimator_transport:\n` +
+      `                _ai_stat_invocation_samples[_artifact_id].append({"invocation_index": invocation_index, "request_shape": request_shape, "response_shape": _ai_stat_trace_shape(response)})\n` +
+      `            else:\n` +
+      `                _ai_stat_invocation_samples[_artifact_id].append({"invocation_index": invocation_index, "request": _ai_stat_trace_preview(candidate_request), "response": _ai_stat_trace_preview(response)})\n` +
       `        return response\n` +
       `    return _bound_estimator\n` +
       `for _ai_stat_id, _ai_stat_source in _ai_stat_estimator_sources.items():\n` +
@@ -219,6 +228,7 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
   let result;
   try {
     const bound = request.invocation_mode === "estimator_bound";
+    const nativeEstimatorTransport = request.estimator_transport === "native";
     const inputArtifactRows = Object.entries(inputArtifacts);
     const hasInputArtifacts = inputArtifactRows.length > 0;
     const inputArtifactList = hasInputArtifacts
@@ -244,6 +254,7 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
         `.ai_stat_invocation_counts <- setNames(as.list(rep(0L, length(.ai_stat_estimator_sources))), names(.ai_stat_estimator_sources))\n` +
         `.ai_stat_invocation_samples <- setNames(lapply(.ai_stat_estimator_sources, function(value) list()), names(.ai_stat_estimator_sources))\n` +
         `.ai_stat_runtime_failure <- list(artifact_id="", error_message="", condition=NULL)\n` +
+        `.ai_stat_native_estimator_transport <- ${nativeEstimatorTransport ? "TRUE" : "FALSE"}\n` +
         `.ai_stat_json_finite <- function(value) {\n` +
         `  if (is.null(value)) return(TRUE)\n` +
         `  if (is.list(value)) return(all(vapply(value, .ai_stat_json_finite, logical(1))))\n` +
@@ -305,15 +316,15 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
         `    if (!exists("run_estimator", envir=.environment, mode="function", inherits=FALSE)) stop(paste0("ACCEPTED_ESTIMATOR_BINDING_ERROR: ", .id, ": accepted algorithm did not define callable run_estimator"))\n` +
         `    .implementation <- get("run_estimator", envir=.environment, inherits=FALSE)\n` +
         `    function(request) {\n` +
-        `      if (!is.list(request) || is.null(names(request))) stop(paste("run_estimator request must be a named list:", .id))\n` +
-        `      if (!.ai_stat_json_finite(request)) stop(paste("run_estimator request must contain finite JSON-compatible values:", .id))\n` +
+        `      if (!.ai_stat_native_estimator_transport && (!is.list(request) || is.null(names(request)))) stop(paste("run_estimator request must be a named list:", .id))\n` +
+        `      if (!.ai_stat_native_estimator_transport && !.ai_stat_json_finite(request)) stop(paste("run_estimator request must contain finite JSON-compatible values:", .id))\n` +
         `      .request_shape <- .ai_stat_trace_shape(request)\n` +
         `      .ai_stat_invocation_counts[[.id]] <<- .ai_stat_invocation_counts[[.id]] + 1L\n` +
         `      .invocation_index <- .ai_stat_invocation_counts[[.id]]\n` +
         `      .response <- withCallingHandlers({\n` +
         `        .candidate <- .implementation(request)\n` +
-        `        if (!is.list(.candidate) || is.null(names(.candidate))) stop("run_estimator response must be a named list")\n` +
-        `        if (!.ai_stat_json_finite(.candidate)) stop("run_estimator response must contain finite JSON-compatible values")\n` +
+        `        if (!.ai_stat_native_estimator_transport && (!is.list(.candidate) || is.null(names(.candidate)))) stop("run_estimator response must be a named list")\n` +
+        `        if (!.ai_stat_native_estimator_transport && !.ai_stat_json_finite(.candidate)) stop("run_estimator response must contain finite JSON-compatible values")\n` +
         `        .candidate\n` +
         `      }, error=function(.error) {\n` +
         `        .shape_text <- paste(capture.output(dput(.request_shape)), collapse="")\n` +
@@ -322,7 +333,8 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
         `        .ai_stat_runtime_failure <<- list(artifact_id=.id, error_message=.message, condition=.error)\n` +
         `      })\n` +
         `      if (length(.ai_stat_invocation_samples[[.id]]) < 3L) {\n` +
-        `        .ai_stat_invocation_samples[[.id]] <<- c(.ai_stat_invocation_samples[[.id]], list(list(invocation_index=.invocation_index, request=.ai_stat_trace_preview(request), response=.ai_stat_trace_preview(.response))))\n` +
+        `        .sample <- if (.ai_stat_native_estimator_transport) list(invocation_index=.invocation_index, request_shape=.ai_stat_trace_shape(request), response_shape=.ai_stat_trace_shape(.response)) else list(invocation_index=.invocation_index, request=.ai_stat_trace_preview(request), response=.ai_stat_trace_preview(.response))\n` +
+        `        .ai_stat_invocation_samples[[.id]] <<- c(.ai_stat_invocation_samples[[.id]], list(.sample))\n` +
         `      }\n` +
         `      .response\n` +
         `    }\n` +

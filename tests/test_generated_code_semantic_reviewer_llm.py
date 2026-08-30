@@ -1404,6 +1404,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert binding.dependencies == tuple(dependencies)
     assert executed["code"] == probe_source
     assert executed["timeout_s"] == 11
+    assert executed["estimator_transport"] == "native"
     assert backend.requests[0].tool_choice == "any"
     expected_tools = [
         "run_exact_estimator_review_probe",
@@ -1432,10 +1433,10 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert "Failure before target invocation is your tool error, not a finding" in str(
         backend.requests[0].messages[0]["content"]
     )
-    assert "normalized to public JSON values before candidate execution" in str(
+    assert "Native request and response types reach the exact candidate unchanged" in str(
         backend.requests[0].messages[0]["content"]
     )
-    assert "erased host-language types" in source_probe_tool.description
+    assert "remain native to that language" in source_probe_tool.description
     assert "return a non-accepting judgment" not in str(
         backend.requests[0].messages[0]["content"]
     )
@@ -1461,13 +1462,13 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["target_source_invoked"] is True
     assert probe_record["failed_probe_is_target_source_evidence"] is False
     assert probe_record["target_request_boundary"]["transport"] == (
-        "JSON_NATIVE_NORMALIZATION_BEFORE_CANDIDATE"
+        "SAME_LANGUAGE_NATIVE_CALL"
     )
     assert (
         probe_record["target_request_boundary"][
-            "erased_host_types_are_source_evidence"
+            "host_types_preserved_before_candidate"
         ]
-        is False
+        is True
     )
     assert probe_record["result_hash"] in packet["_review_document_artifact"]["content"]
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")

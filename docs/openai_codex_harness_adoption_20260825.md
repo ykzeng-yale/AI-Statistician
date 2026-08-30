@@ -82,7 +82,7 @@ without duplicating the control plane.
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
 | request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over configured workspaces, plus the sole typed `AgentRuntime`, exact artifact references, and preserved pending work before a frozen cross-owner continuation |
 | trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
-| reviewer tool output as untrusted evidence | referee-owned falsification of scratch assumptions, source observations, and candidate semantics before a blocker is submitted |
+| reviewer tool output as untrusted evidence | reviewer-owned same-language probes and falsification of scratch assumptions, source observations, and candidate semantics before a finding is submitted |
 
 `client_tool_loop.py` is the shared inner harness. Theory, scientific coding,
 Simulation, Lean, and isolated reviewers configure domain tools and terminal actions;
@@ -204,15 +204,15 @@ Three immutable evaluations refined these boundaries without changing scores:
 - Task113 showed the positive Codex pattern: exact-Haiku TheoryDeveloper passed hidden
   theory authority using Markdown/LaTeX, scratch, and checkpoint tools, while
   AlgorithmEngineer wrote, ran, edited, reran, and committed source in one retained
-  owner loop. It still remains 0/1, leaving 7/113 overall, because reviewer-owned probe
-  failures and a pre-candidate JSON normalization were misattributed to source.
+  owner loop. It remains immutable 0/1, leaving 7/113 overall, because reviewer-owned
+  probe failures and pre-candidate JSON normalization were misattributed to source.
 
-For future tasks, a probe failure before target invocation cannot terminate with a
-source judgment until the same reviewer reaches the target. Probe observations expose
-the JSON-normalized request actually visible to the candidate; erased host-language
-types are not source evidence. The model still chooses derivations, cases, oracles,
-findings, code, Lean actions, and verdicts. Runtime enforces only identity, execution,
-and evidence provenance. No consumed task is rerun, repaired, reassessed, or rescored.
+For future tasks, a probe failure before target invocation cannot support a source
+judgment. Reviewer-authored Python or R probes now invoke exact immutable candidates
+with native request and response values in the same runtime; only final probe metrics
+cross the JSON boundary. Confirmatory Simulation retains its separate JSON-finite ABI.
+The model still chooses cases, oracles, findings, code, Lean actions, and verdicts;
+runtime enforces identity, execution, and provenance. No consumed task is reassessed.
 
 Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
 writes Markdown, and binds the report alone or into the same physical Theory workspace. The full evidence view retains that report, while a Theory packet excludes it from mathematical authority; non-theory tasks continue the frozen plan without another Architect call.

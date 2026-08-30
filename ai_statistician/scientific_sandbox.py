@@ -836,6 +836,7 @@ def execute_scientific_sandbox(
     max_node_heap_mb: int = 768,
     runtime: ScientificSandboxRuntime | None = None,
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
+    estimator_transport: str = "json_finite",
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
     required_callable_exports: Sequence[str] = (),
 ) -> ScientificSandboxExecution:
@@ -873,6 +874,7 @@ def execute_scientific_sandbox(
             if str(value or "").strip()
         )
     )
+    estimator_transport = str(estimator_transport or "json_finite").strip().lower()
     runtime = runtime or discover_scientific_sandbox_runtime()
     limits = _resource_limit_payload(
         timeout_s,
@@ -942,6 +944,8 @@ def execute_scientific_sandbox(
                 )
             )
     contract_errors.extend(binding_contract_errors)
+    if estimator_transport not in {"json_finite", "native"}:
+        contract_errors.append("estimator transport must be json_finite or native")
     input_artifact_errors: list[str] = []
     input_artifact_ids: set[str] = set()
     total_input_artifact_bytes = 0
@@ -1053,6 +1057,7 @@ def execute_scientific_sandbox(
                 binding.artifact_id: binding.code_hash
                 for binding in normalized_bindings
             },
+            "estimator_transport": estimator_transport,
             "input_artifacts": {
                 binding.artifact_id: binding.content_sha256
                 for binding in normalized_input_artifacts
@@ -1102,6 +1107,7 @@ def execute_scientific_sandbox(
         "invocation_mode": (
             "estimator_bound" if normalized_bindings else "standalone"
         ),
+        "estimator_transport": estimator_transport,
         "required_callable_exports": list(
             normalized_required_callable_exports
         ),
