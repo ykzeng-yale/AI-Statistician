@@ -147,6 +147,28 @@ def theory_handoff_requirements(
     }
 
 
+def _selected_theory_handoff_fields(
+    *,
+    question: OpenResearchQuestion,
+    formalization_authoring_required: bool,
+    available_fields: Sequence[str],
+) -> tuple[str, ...]:
+    """Keep the prompt contract and writable tool surface capability-accurate."""
+
+    if not research_dimension_requirements(question.task_intent):
+        return tuple(available_fields)
+    requirements = theory_handoff_requirements(
+        question,
+        formalization_authoring_required=formalization_authoring_required,
+    )
+    selected = {
+        field for field, required in requirements.items() if required
+    }
+    if requirements["theorem_cards"]:
+        selected.add("lemma_cards")
+    return tuple(field for field in available_fields if field in selected)
+
+
 def _theory_output_contract_for_question(
     contract: Mapping[str, Any],
     *,
@@ -158,14 +180,31 @@ def _theory_output_contract_for_question(
         question,
         formalization_authoring_required=formalization_authoring_required,
     )
-    for field, required in requirements.items():
-        if required or field not in output:
-            continue
-        output[field] = [] if isinstance(output[field], list) else {}
+    explicit_task_intent = bool(
+        research_dimension_requirements(question.task_intent)
+    )
+    if explicit_task_intent:
+        selected_fields = _selected_theory_handoff_fields(
+            question=question,
+            formalization_authoring_required=formalization_authoring_required,
+            available_fields=tuple(output),
+        )
+        output = {
+            field: output[field]
+            for field in selected_fields
+        }
+    else:
+        for field, required in requirements.items():
+            if required or field not in output:
+                continue
+            output[field] = [] if isinstance(output[field], list) else {}
     if not formalization_authoring_required:
         derivation_contract = output.get("theory_derivation_packet", {})
         if isinstance(derivation_contract, dict):
-            derivation_contract["formalization_handoff"] = {}
+            if explicit_task_intent:
+                derivation_contract.pop("formalization_handoff", None)
+            else:
+                derivation_contract["formalization_handoff"] = {}
     return output, requirements
 
 
@@ -2616,25 +2655,13 @@ def _theory_workspace_writable_handoff_names(
     formalization_authoring_required: bool,
     artifacts: Mapping[str, Any],
 ) -> tuple[str, ...]:
-    if not research_dimension_requirements(question.task_intent):
-        return tuple(
-            field
-            for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
-            if field in artifacts
-        )
-    requirements = theory_handoff_requirements(
-        question,
+    selected_fields = _selected_theory_handoff_fields(
+        question=question,
         formalization_authoring_required=formalization_authoring_required,
+        available_fields=tuple(THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT),
     )
-    selected = {
-        field for field, required in requirements.items() if required
-    }
-    if requirements["theorem_cards"]:
-        selected.add("lemma_cards")
     return tuple(
-        field
-        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
-        if field in artifacts and field in selected
+        field for field in selected_fields if field in artifacts
     )
 
 

@@ -286,6 +286,46 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
     assert formal_requirements["formalization_requests"] is True
 
 
+def test_explicit_task_prompt_contract_matches_writable_handoff_tools() -> None:
+    question = OpenResearchQuestion(
+        id="theory-only-prompt-contract",
+        title="Theory-only prompt contract",
+        description="Expose only task-selected structured handoffs.",
+        task_intent={"theory": "required", "formal": "not_applicable"},
+    )
+    workspace = research_architect_module._empty_theory_core_workspace(
+        file_authority=True
+    )
+    prompt_artifacts = (
+        research_architect_module._initial_theory_workspace_read_only_artifacts(
+            question=question,
+            architect_context={},
+            theory_prompt_mode=THEORY_PROMPT_MODE_COMPACT,
+            max_tool_calls=48,
+            formalization_authoring_required=False,
+        )
+    )
+    prompt_contract = prompt_artifacts["initial_authoring_context"][
+        "required_output_contract"
+    ]
+    writable_fields = (
+        research_architect_module._theory_workspace_writable_handoff_names(
+            question=question,
+            formalization_authoring_required=False,
+            artifacts=workspace,
+        )
+    )
+
+    assert tuple(prompt_contract) == (
+        "problem_card",
+        "theory_derivation_packet",
+    )
+    assert writable_fields == tuple(prompt_contract)
+    assert "formalization_handoff" not in prompt_contract[
+        "theory_derivation_packet"
+    ]
+
+
 def test_nonformal_revision_keeps_inapplicable_legacy_handoff_read_only() -> None:
     question = OpenResearchQuestion(
         id="nonformal-legacy-handoff",

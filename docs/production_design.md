@@ -124,8 +124,8 @@ and compact handoff writes in the same source-owner session.
 TheoryDeveloper maintains an artifact-backed research workspace, not a JSON answer.
 It owns exact definitions, assumptions and use sites, equation/lemma dependencies,
 executable procedure semantics, counterexamples, gaps, and revision lineage. There is no JSON-only core-theory fallback: a provider without native client-tool turns fails closed before mathematical authoring.
-Compact packets are handoff indexes. Serious theory has no per-field caps; the
-validator checks only typed handoff structure, while formal artifacts depend on intent.
+Compact packets are handoff indexes. Serious theory has no per-field caps; one selector defines both the model-visible output contract and writable handoff tools for explicit task intent, so non-applicable lanes are absent rather than advertised as unusable empty artifacts.
+The validator checks only typed handoff structure, formal artifacts depend on intent, and historical no-intent replay retains its full legacy surface.
 Durable Markdown/LaTeX is the publishable current argument, not a transcript of false starts. Exploration stays in scratch or is explicitly delimited as `SCRATCH` or `REJECTED`; a later correction does not silently deactivate earlier active text.
 
 Discovery and revision share exact parent and reviewer artifacts. Only model-authored
