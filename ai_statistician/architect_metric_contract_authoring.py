@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .agent_runtime import agent_runtime_substage
+from .architect_theory_execution_preflight import (
+    PREFLIGHT_EXECUTION_HANDOFF_READY,
+)
 from .client_tool_loop import (
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionContext,
@@ -1433,7 +1436,11 @@ def review_architect_theory_execution_preflight(
             theory_scratchpad=theory_scratchpad,
             recovery_checkpoint=recovery_checkpoint,
         )
-    if packet.get("overall_verdict") == "ACCEPT":
+    if (
+        packet.get("overall_verdict") == "ACCEPT"
+        or packet.get("execution_handoff_status")
+        == PREFLIGHT_EXECUTION_HANDOFF_READY
+    ):
         return dict(packet)
 
     packet_hash = stable_hash(packet)

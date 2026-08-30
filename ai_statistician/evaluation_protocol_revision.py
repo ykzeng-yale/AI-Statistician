@@ -888,18 +888,8 @@ def architect_preexecution_metric_protocol_rejection_result(
         or []
     )
     prior_finding_progress_made = bool(
-        prior_finding_resolution_summary.get("closed_prior_finding_ids", [])
-        or prior_finding_resolution_summary.get(
-            "resolved_prior_finding_ids", []
-        )
-        or prior_finding_resolution_summary.get(
-            "retracted_prior_finding_ids", []
-        )
+        prior_finding_resolution_summary.get("progress_made", False)
     )
-    if not prior_active_finding_ids:
-        prior_finding_progress_made = bool(
-            prior_finding_resolution_summary.get("progress_made", False)
-        )
     source_theory_packet_id = str(
         final_review.get("source_theory_packet_id", "")
         or metric_gate.get("source_theory_packet_id", "")
@@ -938,7 +928,6 @@ def architect_preexecution_metric_protocol_rejection_result(
         not theory_execution_preflight_rejected
         or not prior_active_finding_ids
         or prior_finding_progress_made
-        or source_theory_lineage_changed
     )
     theory_revision_continuation_authorized = bool(
         theory_execution_preflight_rejected
@@ -1075,8 +1064,9 @@ def architect_preexecution_metric_protocol_rejection_result(
         failure_classification = "architect_theory_execution_preflight_stalled"
         rationale = (
             "Fresh independent review closed none of the prior theory-preflight "
-            "findings, and the runtime has no hash-bound evidence of a changed source "
-            "lineage. No coding or simulation execution is authorized."
+            "findings and declared no reviewed finding progress. A changed source "
+            "hash is provenance, not progress authority. No coding or simulation "
+            "execution is authorized."
         )
     if theory_revision_continuation_authorized:
         next_revision_count = upstream_theory_revision_count + 1
@@ -1186,7 +1176,7 @@ def architect_preexecution_metric_protocol_rejection_result(
             "progress_observation": {
                 "prior_finding_progress_made": prior_finding_progress_made,
                 "source_theory_lineage_changed": source_theory_lineage_changed,
-                "same_lineage_no_progress_observed": bool(
+                "no_reviewed_finding_progress_observed": bool(
                     theory_execution_preflight_rejected
                     and not preflight_revision_progressed
                 ),

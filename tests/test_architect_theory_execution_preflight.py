@@ -34,6 +34,9 @@ from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND,
+    PREFLIGHT_EXECUTION_HANDOFF_BLOCKED,
+    PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED,
+    PREFLIGHT_EXECUTION_HANDOFF_READY,
     _architect_theory_execution_preflight_submit_schema,
     _preflight_scratchpad_evidence_errors,
     _search_preflight_sources,
@@ -157,7 +160,7 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "do not reproduce the candidate or write a substitute proof" in protocol
     assert "silently supply a repair" in normalized_prompt
     assert len(protocol.split()) < 430
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 47
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 48
 
 
 def test_preflight_preserves_the_exact_frozen_research_target() -> None:
@@ -732,22 +735,31 @@ def _compact_submission(payload: dict[str, object]) -> dict[str, object]:
     report = "# Independent theory preflight\n\n" + "\n\n".join(
         report_parts or ["No additional blocker was identified."]
     )
+    overall_verdict = (
+        "REVISE"
+        if findings
+        or any(status != "PASS" for status in reported_statuses)
+        or any(
+            status
+            not in {
+                "RESOLVED_BY_CURRENT_THEORY",
+                "RETRACTED_BY_CURRENT_EVIDENCE",
+            }
+            for status in prior_statuses
+        )
+        else "ACCEPT"
+    )
     compact: dict[str, object] = {
         "review_report_markdown": report,
         "report_evidence_refs": evidence_refs or ["theory.estimator_specs"],
-        "overall_verdict": (
-            "REVISE"
-            if findings
-            or any(status != "PASS" for status in reported_statuses)
-            or any(
-                status
-                not in {
-                    "RESOLVED_BY_CURRENT_THEORY",
-                    "RETRACTED_BY_CURRENT_EVIDENCE",
-                }
-                for status in prior_statuses
-            )
-            else "ACCEPT"
+        "overall_verdict": overall_verdict,
+        "execution_handoff_status": payload.get(
+            "execution_handoff_status",
+            (
+                PREFLIGHT_EXECUTION_HANDOFF_READY
+                if overall_verdict == "ACCEPT"
+                else PREFLIGHT_EXECUTION_HANDOFF_BLOCKED
+            ),
         ),
         "findings": findings,
     }
@@ -2432,7 +2444,14 @@ def test_theory_only_preflight_accepts_without_an_estimator_handoff() -> None:
     evidence_contract = build_architect_upstream_research_contract(
         _theory_only_evidence_contract()
     )
-    backend = _PreflightToolBackend(accept=True)
+    theory_only_payload = _payload(accept=True)
+    theory_only_payload["execution_handoff_status"] = (
+        PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED
+    )
+    backend = _PreflightToolBackend(
+        accept=True,
+        payload=theory_only_payload,
+    )
 
     packet = _tool_review(
         backend,
@@ -2455,6 +2474,35 @@ def test_theory_only_preflight_accepts_without_an_estimator_handoff() -> None:
     prompt_payload = _preflight_prompt_payload(backend.requests[0])
     assert "only when review_scope requests" in prompt_payload["task"]
     assert "otherwise do not invent one" in prompt_payload["verdict_policy"]
+    assert validate_architect_theory_execution_preflight_packet(
+        packet,
+        material=material,
+    ) == []
+
+
+def test_revise_verdict_can_preserve_findings_and_release_exploratory_handoff() -> None:
+    payload = _payload(accept=False)
+    payload["execution_handoff_status"] = PREFLIGHT_EXECUTION_HANDOFF_READY
+    backend = _PreflightToolBackend(
+        accept=False,
+        payload=payload,
+    )
+
+    packet = _tool_review(backend)
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=_theory_material(),
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert packet["execution_handoff_status"] == (
+        PREFLIGHT_EXECUTION_HANDOFF_READY
+    )
+    assert packet["active_unresolved_finding_ids"]
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,
@@ -3187,6 +3235,9 @@ def test_client_tool_preflight_persists_markdown_referee_report(
                             "theory.estimator_specs",
                         ],
                         "overall_verdict": "ACCEPT",
+                        "execution_handoff_status": (
+                            PREFLIGHT_EXECUTION_HANDOFF_READY
+                        ),
                         "findings": [],
                     },
                 )
@@ -5139,7 +5190,7 @@ def test_preflight_stops_when_no_prior_finding_closes(
     assert manifest["runtime_selected_owner"] is False
 
 
-def test_changed_preflight_source_can_continue_without_finding_id_closure() -> None:
+def test_changed_preflight_source_stalls_without_reviewed_finding_progress() -> None:
     rejected_packet, _backend = _review(accept=False)
     prior_finding_id = rejected_packet["active_unresolved_finding_ids"][0]
     new_finding_id = "theory:newly_discovered_support_gap"
@@ -5200,8 +5251,8 @@ def test_changed_preflight_source_can_continue_without_finding_id_closure() -> N
                 "resolved_prior_finding_ids": [],
                 "still_unresolved_prior_finding_ids": [prior_finding_id],
                 "new_finding_ids": [new_finding_id],
-                "progress_made": True,
-                "stalled": False,
+                "progress_made": False,
+                "stalled": True,
             },
         }
     ]
@@ -5236,28 +5287,20 @@ def test_changed_preflight_source_can_continue_without_finding_id_closure() -> N
         },
     )
 
-    assert result.status == "REROUTE"
-    assert result.next_task is not None
-    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
     assert result.failure_classification == (
-        "theory_execution_preflight_returned_to_source_workspace"
+        "architect_theory_execution_preflight_stalled"
     )
     manifest = next(iter(result.produced_artifacts.values()))
     assert manifest["prior_finding_progress_made"] is False
     assert manifest["source_theory_lineage_changed"] is True
-    assert manifest["preflight_revision_progressed"] is True
-    assert manifest["preflight_revision_stalled"] is False
-    assert manifest["upstream_theory_revision_routed"] is True
+    assert manifest["preflight_revision_progressed"] is False
+    assert manifest["preflight_revision_stalled"] is True
+    assert manifest["upstream_theory_revision_routed"] is False
     assert manifest["architect_route_requested"] is False
     assert "source_workspace_return_requested" not in manifest
     assert manifest["runtime_selected_owner"] is False
-    feedback = result.next_task.inputs["environment_feedback"]
-    assert feedback["progress_observation"] == {
-        "prior_finding_progress_made": False,
-        "source_theory_lineage_changed": True,
-        "same_lineage_no_progress_observed": False,
-        "runtime_selected_disposition": False,
-    }
 
 
 def test_preflight_progress_can_continue_after_many_revision_rounds() -> None:

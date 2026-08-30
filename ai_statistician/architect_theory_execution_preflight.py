@@ -68,8 +68,8 @@ from .theory_workspace import (
     theory_scratchpad_client_tool,
 )
 
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 28
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 47
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 29
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 48
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -86,6 +86,9 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
     "model_owned_markdown_referee_workspace_with_compact_disposition_v10"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = "model_authored_markdown_referee_report"
+PREFLIGHT_EXECUTION_HANDOFF_READY = "READY_FOR_EXPLORATORY_EXECUTION"
+PREFLIGHT_EXECUTION_HANDOFF_BLOCKED = "BLOCKED"
+PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED = "NOT_REQUIRED"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL = "write_theory_preflight_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL = "edit_theory_preflight_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL = "read_theory_preflight_report"
@@ -117,7 +120,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
     ),
     (
         "Separate mathematical coherence, proof completeness, executable handoff, and empirical confirmation. A false or contradictory active claim blocks. An honestly marked open step may remain UNCERTAIN when the finite handoff is coherent, but reviewer-added premises, lemmas, or replacement proofs cannot support ACCEPT. "
-        "Pre-review scratch is exploratory; if judgment needs downstream execution or confirmatory simulation, disclose the missing evidence."
+        "Judge exploratory execution readiness separately from theory quality: a coherent finite handoff may be ready for Python or R while proof-completeness findings remain active, but that readiness is not theory acceptance. Pre-review scratch is exploratory; if judgment needs downstream execution or confirmatory simulation, disclose the missing evidence."
     ),
     (
         "Write a findings-first Markdown review after both audits. Return every discrete blocker, one compact finding per blocker, citing exact read ranges. Do not add an executive summary, strengths, praise, or section-by-section verification. "
@@ -671,10 +674,19 @@ def build_architect_theory_execution_preflight_prompt(
             ),
         },
         "verdict_policy": (
-            "Return every discrete blocker and one ACCEPT or REVISE disposition in a "
-            "findings-first Markdown report. ACCEPT requires both protocol audits to "
-            "leave no material active falsehood or unsupported load-bearing step, and "
-            "requires every prior finding to be closed by current evidence. A correct "
+            "Return every discrete blocker, one theory-quality ACCEPT or REVISE "
+            "disposition, and one separate execution-handoff status in a findings-first "
+            "Markdown report. Theory ACCEPT requires both protocol audits to leave no "
+            "material active falsehood or unsupported load-bearing step, and requires "
+            "every prior finding to be closed by current evidence. When an execution "
+            "handoff is required, READY_FOR_EXPLORATORY_EXECUTION means the estimand, "
+            "finite input/output interface, procedure, and formulas consumed by code are "
+            "coherent enough to implement and falsify even if explicitly disclosed proof-"
+            "completeness findings remain. It is not theory acceptance or confirmatory "
+            "authority. Use BLOCKED when an active falsehood, contradiction, undefined "
+            "object, or missing finite semantics prevents meaningful implementation; use "
+            "NOT_REQUIRED only when review_scope does not request an execution handoff. "
+            "A correct "
             "endpoint, reviewer reconstruction, or later correction cannot repair active "
             "candidate text. Ground each blocker in an exact inspected range plus a "
             "checkable derivation, reduction, or counterexample. Keep downstream proof "
@@ -876,6 +888,22 @@ def _architect_theory_execution_preflight_submit_schema(
                 "prior finding; otherwise use REVISE."
             ),
         },
+        "execution_handoff_status": {
+            "type": "string",
+            "enum": (
+                [
+                    PREFLIGHT_EXECUTION_HANDOFF_READY,
+                    PREFLIGHT_EXECUTION_HANDOFF_BLOCKED,
+                ]
+                if material.get("execution_handoff_required", True)
+                else [PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED]
+            ),
+            "description": (
+                "A reviewer-owned judgment separate from theory quality. READY permits "
+                "only exploratory implementation from the exact finite handoff; it is "
+                "not theory acceptance, empirical confirmation, or proof."
+            ),
+        },
         "findings": {
             "type": "array",
             "description": (
@@ -889,6 +917,7 @@ def _architect_theory_execution_preflight_submit_schema(
         "review_report_sha256",
         "report_evidence_refs",
         "overall_verdict",
+        "execution_handoff_status",
         "findings",
     ]
     if prior_count:
@@ -2175,6 +2204,7 @@ def _validate_compact_preflight_submission(
         "review_report_markdown",
         "report_evidence_refs",
         "overall_verdict",
+        "execution_handoff_status",
         "findings",
     }
     if material.get("active_prior_finding_ids", []) or []:
@@ -2198,9 +2228,25 @@ def _validate_compact_preflight_submission(
         raise ClientToolInputError(
             "overall_verdict must be ACCEPT or REVISE"
         )
+    execution_handoff_status = str(
+        payload.get("execution_handoff_status", "") or ""
+    ).strip().upper()
+    expected_execution_statuses = (
+        {
+            PREFLIGHT_EXECUTION_HANDOFF_READY,
+            PREFLIGHT_EXECUTION_HANDOFF_BLOCKED,
+        }
+        if material.get("execution_handoff_required", True)
+        else {PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED}
+    )
+    if execution_handoff_status not in expected_execution_statuses:
+        raise ClientToolInputError(
+            "execution_handoff_status is invalid for the frozen review scope"
+        )
     array_fields = required_fields - {
         "review_report_markdown",
         "overall_verdict",
+        "execution_handoff_status",
     }
     for field in sorted(array_fields):
         if not isinstance(payload.get(field), list):
@@ -2244,6 +2290,9 @@ def _normalize_packet(
     )
     report_ref = str(body["review_report"]["document_id"])
     model_verdict = str(body.get("overall_verdict", "") or "").strip().upper()
+    execution_handoff_status = str(
+        body.get("execution_handoff_status", "") or ""
+    ).strip().upper()
     body["review_scope"] = _runtime_review_scope(material)
     if "prior_finding_statuses" in body:
         body["prior_finding_reviews"] = [
@@ -2418,6 +2467,7 @@ def _normalize_packet(
             }
         )
     body["overall_verdict"] = model_verdict
+    body["execution_handoff_status"] = execution_handoff_status
     packet_identity_body = deepcopy(body)
     packet_identity_body.pop("review_report_markdown", None)
     report_identity = packet_identity_body.get("review_report", {})
@@ -2837,9 +2887,47 @@ def validate_architect_theory_execution_preflight_packet(
             "theory execution preflight overall verdict contradicts its blocking "
             "findings or prior-finding dispositions"
         )
-    if (
+    execution_handoff_required = bool(
         material.get("execution_handoff_required", True)
-        and not material.get("execution_handoff_available", False)
+    )
+    execution_handoff_available = bool(
+        material.get("execution_handoff_available", False)
+    )
+    execution_handoff_status = str(
+        packet.get("execution_handoff_status", "") or ""
+    )
+    allowed_execution_statuses = (
+        {
+            PREFLIGHT_EXECUTION_HANDOFF_READY,
+            PREFLIGHT_EXECUTION_HANDOFF_BLOCKED,
+        }
+        if execution_handoff_required
+        else {PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED}
+    )
+    if execution_handoff_status not in allowed_execution_statuses:
+        errors.append(
+            "theory execution preflight execution handoff status contradicts "
+            "the frozen review scope"
+        )
+    if (
+        execution_handoff_status == PREFLIGHT_EXECUTION_HANDOFF_READY
+        and not execution_handoff_available
+    ):
+        errors.append(
+            "theory execution preflight cannot mark an unavailable handoff ready"
+        )
+    if (
+        packet.get("overall_verdict") == "ACCEPT"
+        and execution_handoff_required
+        and execution_handoff_status != PREFLIGHT_EXECUTION_HANDOFF_READY
+    ):
+        errors.append(
+            "accepted theory with a required finite handoff must mark that handoff "
+            "ready for exploratory execution"
+        )
+    if (
+        execution_handoff_required
+        and not execution_handoff_available
         and packet.get("overall_verdict") == "ACCEPT"
     ):
         errors.append("theory execution preflight cannot accept without an estimator")

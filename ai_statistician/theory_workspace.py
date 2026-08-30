@@ -798,6 +798,11 @@ def run_theory_artifact_workspace(
             "candidate_hash": candidate_hash,
             "changed_artifact_names": list(changed),
             "changed_document_paths": list(changed_documents),
+            "current_document_sha256": {
+                path: _text_sha256(candidate_documents[path])
+                for path in changed_documents
+                if path in candidate_documents
+            },
             "submissions": state["submissions"],
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "model_artifact_writes_applied": len(artifact_writes),
@@ -1787,7 +1792,8 @@ def run_theory_artifact_workspace(
         "For a localized revision to an existing mathematical document, use "
         "edit_theory_document with the current document SHA-256 and one ordered atomic "
         "batch of exact model-selected replacements. The runtime applies all edits or "
-        "none, returns the resulting hash, and never interprets mathematics. "
+        "none, returns current_document_sha256 for the next edit, and never interprets "
+        "mathematics. "
         if require_document_authority
         else ""
     )
@@ -2944,7 +2950,8 @@ def _theory_workspace_tools(
                     "Apply one ordered atomic batch of exact model-authored replacements "
                     "to an existing Markdown/LaTeX/BibTeX document. The batch is bound "
                     "to the current SHA-256; runtime applies every edit or none and "
-                    "never authors or interprets mathematics."
+                    "returns the resulting document SHA-256 without authoring or "
+                    "interpreting mathematics."
                 ),
                 input_schema={
                     "type": "object",
@@ -2961,6 +2968,7 @@ def _theory_workspace_tools(
                     },
                 },
                 terminal=False,
+                strict=True,
             )
         )
     if source_replication_checkpoint_enabled:

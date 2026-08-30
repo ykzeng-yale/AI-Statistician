@@ -887,6 +887,106 @@ def test_accepted_theory_only_preflight_compiles_without_empirical_gate() -> Non
     assert observation["runtime_authored_research_route"] is False
 
 
+def test_provisional_theory_handoff_routes_exploration_without_theory_credit() -> None:
+    question = OpenResearchQuestion(
+        id="provisional-theory-handoff",
+        title="Provisional theory handoff",
+        description="Implement a finite handoff while a proof gap remains active.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+    )
+    theory_packet_id = "theory_derivation:provisional-handoff"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "question": runtime_module._question_to_payload(question),
+    }
+    theory_packet_hash = runtime_module.stable_hash(theory_packet)
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    context = {
+        "runtime_requested_evidence_contract": contract,
+        "architect_runtime_plan": {
+            "evidence_contract": {
+                **contract,
+                "empirical_metric_protocol_phase": (
+                    "theory_informed_authoring_required"
+                ),
+                "metric_protocol_execution_authorized": False,
+            },
+            "subsystem_execution_plan": [
+                {"subsystem": "AlgorithmEngineer"},
+                {"subsystem": "SimulationEvaluator"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+        },
+        "architect_metric_protocol_theory_material": {
+            "source_theory_packet_id": theory_packet_id,
+            "source_theory_packet_hash": theory_packet_hash,
+        },
+    }
+    finding_id = "theory:proof-completeness-gap"
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": "theory_preflight:provisional-handoff",
+        "source_theory_packet_id": theory_packet_id,
+        "source_theory_packet_hash": theory_packet_hash,
+        "overall_verdict": "REVISE",
+        "execution_handoff_status": (
+            runtime_module.PREFLIGHT_EXECUTION_HANDOFF_READY
+        ),
+        "active_unresolved_finding_ids": [finding_id],
+    }
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={theory_packet_id: theory_packet},
+    )
+
+    result = runtime_module._architect_theory_preflight_accepted_result(
+        task=AgentTask(
+            task_id="architect-theory-preflight:provisional-handoff",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Review the finite handoff.",
+            inputs={"question": runtime_module._question_to_payload(question)},
+        ),
+        question=question,
+        architect_context=context,
+        preflight_packet=preflight,
+        runtime_config=ResearchAgentRuntimeConfig(),
+        blackboard=blackboard,
+    )
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "AlgorithmEngineer"
+    acceptance = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind")
+        == "RuntimeArchitectTheoryExecutionPreflightAcceptance"
+    )
+    assert acceptance["theory_quality_accepted"] is False
+    assert acceptance["exploratory_execution_ready"] is True
+    assert acceptance["active_unresolved_finding_ids"] == [finding_id]
+    assert acceptance["algorithm_execution_authorized"] is False
+    artifacts = {
+        theory_packet_id: theory_packet,
+        **result.produced_artifacts,
+    }
+    assert runtime_module.theory_preexecution_review_accepted(
+        artifacts,
+        theory_packet_id=theory_packet_id,
+        theory_packet=theory_packet,
+    ) is False
+
+
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
     names = {field.name for field in fields(ResearchAgentRuntimeConfig)}
     forbidden_fragments = (

@@ -2238,6 +2238,10 @@ def test_document_authority_supports_local_edit_without_forced_reread(
     edit_feedback = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )
+    revised_sha256 = hashlib.sha256(revised.encode("utf-8")).hexdigest()
+    assert edit_feedback["current_document_sha256"] == {
+        "derivations/C1.md": revised_sha256
+    }
     assert edit_feedback["checkpoint_commit_ready"] is True
     assert edit_feedback["checkpoint_blockers"] == []
     assert result.evidence["changed_artifact_names"] == []
@@ -2265,17 +2269,19 @@ def test_document_authority_supports_local_edit_without_forced_reread(
                     "For every admitted n, $a_n = b_n$."
                 ),
             }],
-            "sha256": hashlib.sha256(revised.encode("utf-8")).hexdigest(),
+            "sha256": revised_sha256,
             "byte_size": len(revised.encode("utf-8")),
         }
     ]
     tool_names = [tool.name for tool in backend.requests[0].tools]
     assert THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL in tool_names
-    edit_schema = next(
-        tool.input_schema
+    edit_tool = next(
+        tool
         for tool in backend.requests[0].tools
         if tool.name == THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL
     )
+    edit_schema = edit_tool.input_schema
+    assert edit_tool.strict is True
     assert edit_schema["required"] == [
         "path",
         "expected_sha256",
