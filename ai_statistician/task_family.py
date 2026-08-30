@@ -69,18 +69,6 @@ def explicit_task_family_list(values: Any) -> list[str]:
     ]
 
 
-def cross_task_generalization_family_pair(values: Any) -> tuple[str, ...]:
-    """Return up to two explicit families without manufacturing eval coverage."""
-
-    families: list[str] = []
-    for family in explicit_task_family_list(values):
-        if is_explicit_task_family(family) and family not in families:
-            families.append(family)
-        if len(families) >= 2:
-            break
-    return tuple(families)
-
-
 def task_family_from_tags(tags: Any) -> str:
     for tag in compact_string_list(tags):
         value = task_family_value(tag)

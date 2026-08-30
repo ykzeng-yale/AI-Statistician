@@ -42,7 +42,7 @@ without duplicating the control plane.
 6. **Natural termination and explicit continuation.** A response with no tool call
    ends the current workspace segment. Exact state and transcript lineage may be
    checkpointed for an explicit continuation; the harness does not append a private
-   instruction and resample.
+   instruction and resample or promote free-form text as domain evidence.
 7. **Review is isolated and findings-first.** A reviewer sees the exact objective and
    immutable candidate, reports every discrete material finding, and does not fix the
    source. Findings return to the original source owner.
@@ -224,6 +224,10 @@ Remaining capability gaps are scientific rather than reasons to import Codex:
 - proof-state-driven Lean closure on exact statistical theorems;
 - fresh cross-family end-to-end evidence.
 
+Public sources remain model-selected, hash-bound literature inputs, never review or
+proof. Provenance is recorded when a workspace runs; unreachable post-hoc inference
+and closure-counting code is removed rather than retained.
+
 The next change should be justified by a disjoint frozen evaluation or a concrete
 shared mechanism defect. No consumed task is rerun, repaired, rescored, or used to
 introduce task-family rules.
@@ -240,5 +244,4 @@ introduce task-family rules.
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)
-
 For the product graph and current measured capability, read [`production_design.md`](production_design.md) and [`main_worker_status.json`](main_worker_status.json).
