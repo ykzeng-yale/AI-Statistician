@@ -19,6 +19,7 @@ from ai_statistician.agent_runtime import (
     TaskHandoffRecord,
     ToolCallRecord,
     agent_task_reference,
+    compact_runtime_artifact_references,
     materialize_agent_task_continuation,
     restore_agent_task_continuation,
     resolve_runtime_artifact_references,
@@ -8311,6 +8312,56 @@ def test_independent_semantic_review_escalation_keeps_source_out_of_task_payload
     assert complete_source not in repr(next_task.inputs)
 
 
+def test_semantic_review_feedback_history_is_a_bounded_parent_chain() -> None:
+    execution_feedback = {
+        "feedback_id": "sandbox-feedback:0",
+        "feedback_type": "algorithm_sandbox_execution_feedback",
+        "algorithm_sandbox_manifest_id": "algorithm-manifest:0",
+        "prototypes": [{"prototype_artifact_id": "prototype:0"}],
+    }
+    previous = {
+        "artifact_kind": "RuntimeGeneratedCodeSemanticReviewFeedback",
+        "feedback_id": "semantic-feedback:0",
+        "feedback_type": "generated_code_semantic_review_feedback",
+        "findings": [{"summary": "historical body " + "x" * 8_000}],
+        "source_execution_feedback": execution_feedback,
+    }
+    serialized_sizes = []
+
+    for revision in range(1, 9):
+        current = {
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewFeedback",
+            "feedback_id": f"semantic-feedback:{revision}",
+            "feedback_type": "generated_code_semantic_review_feedback",
+            "findings": [{"summary": "current body " + "y" * 8_000}],
+        }
+        merged = (
+            runtime_module._generated_code_review_feedback_with_source_execution_snapshot(
+                prior_feedback=previous,
+                review_feedback=current,
+            )
+        )
+
+        assert merged["parent_feedback_ref"] == {
+            "artifact_kind": (
+                "RuntimeGeneratedCodeSemanticReviewFeedbackParentRef"
+            ),
+            "feedback_id": previous["feedback_id"],
+            "content_hash": runtime_module.stable_hash(previous),
+            "observation_status": (
+                "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW"
+            ),
+        }
+        assert "superseded_observations" not in merged
+        assert merged["source_execution_feedback"]["feedback_id"] == (
+            execution_feedback["feedback_id"]
+        )
+        serialized_sizes.append(len(json.dumps(merged, sort_keys=True)))
+        previous = merged
+
+    assert max(serialized_sizes) - min(serialized_sizes) < 512
+
+
 def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion() -> None:
     question = OpenResearchQuestion(
         id="cross-artifact-review",
@@ -8553,7 +8604,24 @@ def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
         assert outcome.next_task.inputs[
             "generated_code_semantic_review_revision_count"
         ] == 1
-        assert outcome.next_task.inputs["environment_feedback"]["findings"]
+        producer_feedback = outcome.next_task.inputs["environment_feedback"]
+        assert producer_feedback["findings"]
+        assert producer_feedback["artifact_kind"] == (
+            "RuntimeGeneratedCodeSemanticReviewFeedback"
+        )
+        assert outcome.produced_artifacts[producer_feedback["feedback_id"]] == (
+            producer_feedback
+        )
+        compacted = compact_runtime_artifact_references(
+            {"environment_feedback": producer_feedback},
+            {**blackboard.artifacts, **outcome.produced_artifacts},
+        )
+        feedback_ref = compacted["environment_feedback"]
+        assert feedback_ref["artifact_kind"] == "RuntimeArtifactRef"
+        assert resolve_runtime_artifact_references(
+            feedback_ref,
+            {**blackboard.artifacts, **outcome.produced_artifacts},
+        ) == producer_feedback
         assert "ArchitectCoordinator" not in outcome.rationale
     execution = next(
         artifact

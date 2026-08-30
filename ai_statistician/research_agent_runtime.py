@@ -99,6 +99,7 @@ from .generated_code_semantic_reviewer_llm import (
 from .generated_code_semantic_review_replan import (
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
     build_generated_code_semantic_review_producer_revision_task,
+    generated_code_semantic_review_producer_observations,
 )
 from .generated_code_semantic_review_scope import (
     accepted_semantic_review_deferred_continuation,
@@ -8156,6 +8157,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "semantic_review_packet_hash": review_packet_hash,
         }
         feedback = {
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewFeedback",
             "feedback_id": (
                 "generated_code_semantic_review_feedback:"
                 + stable_hash(feedback_identity)[:20]
@@ -8488,6 +8490,10 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 status = "REROUTE"
             else:
                 assert source_task is not None
+                producer_feedback = generated_code_semantic_review_producer_observations(
+                    revision_feedback
+                )
+                produced_artifacts[str(producer_feedback["feedback_id"])] = producer_feedback
                 next_task = build_generated_code_semantic_review_producer_revision_task(
                     question=question,
                     review_task_id=task.task_id,
@@ -20774,7 +20780,7 @@ def _generated_code_review_feedback_with_source_execution_snapshot(
     prior_feedback: Mapping[str, Any] | None,
     review_feedback: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Make the current review authoritative without discarding prior observations."""
+    """Make the current review authoritative with bounded parent lineage."""
 
     prior = deepcopy(dict(prior_feedback)) if isinstance(prior_feedback, Mapping) else {}
     merged = deepcopy(dict(review_feedback))
@@ -20784,36 +20790,23 @@ def _generated_code_review_feedback_with_source_execution_snapshot(
     )
     if source_execution_feedback:
         merged["source_execution_feedback"] = source_execution_feedback
-    if prior:
-        prior_history = prior.pop("superseded_observations", [])
-        prior.pop("observation_time_contract", None)
-        prior["observation_status"] = (
-            "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW"
-        )
-        history = [
-            deepcopy(dict(row))
-            for row in prior_history
-            if isinstance(row, Mapping)
-        ]
-        history.append(
-            {
-                "observation_status": "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW",
-                "superseded_feedback_id": str(prior.get("feedback_id", "") or ""),
-                "superseded_feedback_type": str(
-                    prior.get("feedback_type", "") or ""
-                ),
-                "superseded_failure_classification": str(
-                    prior.get("failure_classification", "") or ""
-                ),
-                "observation": prior,
-            }
-        )
-        merged["superseded_observations"] = history
+    prior_feedback_id = str(prior.get("feedback_id", "") or "").strip()
+    if (
+        prior.get("artifact_kind")
+        == "RuntimeGeneratedCodeSemanticReviewFeedback"
+        and prior_feedback_id
+    ):
+        merged["parent_feedback_ref"] = {
+            "artifact_kind": "RuntimeGeneratedCodeSemanticReviewFeedbackParentRef",
+            "feedback_id": prior_feedback_id,
+            "content_hash": stable_hash(prior),
+            "observation_status": "SUPERSEDED_BY_SUBSEQUENT_CANDIDATE_REVIEW",
+        }
     merged["observation_time_contract"] = {
         "top_level_observation_is_current": True,
-        "superseded_observations_are_historical_only": True,
+        "parent_feedback_ref_is_historical_only": True,
         "historical_error_is_not_an_active_blocker_unless_reobserved": True,
-        "complete_history_preserved": True,
+        "complete_history_preserved_by_content_addressed_parent_chain": True,
     }
     return merged
 
