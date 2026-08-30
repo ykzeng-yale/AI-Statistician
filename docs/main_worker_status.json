@@ -1,12 +1,30 @@
 {
-  "schema_version": 355,
+  "schema_version": 356,
   "updated_at": "2026-08-30",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "ddbef05f",
+  "validated_code_head": "294cacfe",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
+  "latest_codex_single_scheduler_alignment": {
+    "code_commit": "294cacfe839929cc19b8bbf7f4334d89f27ef745",
+    "official_codex_reference_head": "94cbbddafc1776d5e377bca1b05932c697e82238",
+    "official_reference": "https://developers.openai.com/blog/codex-as-a-platform",
+    "upstream_audit": "OpenAI Codex keeps one retained run_turn model/tool loop: model-authored calls are dispatched through a typed ToolRouter, exact tool results return to the same conversation, and sparse collaboration is started through explicit model-selected tools. App Server and the SDK expose that lifecycle but retain Codex session and provider ownership.",
+    "defect_closed": "Generated-code semantic review had a separate lineage ledger and local regeneration cap outside AgentRuntime. A source-only reviewer finding could therefore terminal-block or invoke Architect before the sole outer budget, as Task113 did after nine outer steps with no pending source task.",
+    "change": "Source-only REVISE now returns the exact review observations directly to the immutable Algorithm or Simulation source owner for continued model-authored work under the sole AgentRuntime budget. Only a reviewer-demonstrated cross-artifact conflict routes Architect. The obsolete local ledger, terminal classification, generic Architect suffix fallback, CLI control, manifest counters, and tests were removed.",
+    "scientific_boundary": "The distinct confirmatory consumer adaptation cap remains and is now named scientific_consumer_revision_max_revisions. It bounds outcome-informed source adaptations before fresh evaluator-owned cohort replay; it is a statistical evidence boundary, not an ordinary code-review retry limit.",
+    "codex_adoption_boundary": "This adopts Codex's reusable loop invariant inside the existing exact-Claude workspaces. Codex Core, App Server, Responses transport, SDK threads, provider state, Guardian, worktrees, and its multi-agent scheduler remain excluded because importing them would create a second session owner and control plane without statistical, simulation, or Lean authority.",
+    "verification": "The directly affected generated-review, central-runtime, research-eval, and Architect files passed 196/196. The complete repository passed 1130/1130 in 271.43 seconds. Compileall, diff hygiene, changed-diff credential and task-family scans, the 149911-line production budget, 24207-line runtime, 399-line production design, and 246-line Codex-adoption budget passed.",
+    "model_calls": 0,
+    "evaluator_calls": 0,
+    "task114_product_calls": 0,
+    "trusted_capability_credit": "unchanged at 7/113",
+    "development_panel_exact_lean_closure": "unchanged at 0/2",
+    "remaining_gaps": "This corrects future-task collaboration and budget authority; it does not establish TheoryDeveloper mathematical quality, broad Python/R replication, confirmatory Simulation quality, proof-state-driven Lean closure, or a fresh integrated end-to-end success. Task114 semantic qualification remains pending and no task was consumed.",
+    "boundary": "Task113 remains immutable 0/1. No consumed task was rerun, resumed, repaired, reevaluated, rescored, or promoted; no statistical formula, task-family rule, Lean grammar rule, content repair, retry, fallback, new agent, second scheduler, Sonnet, Opus, scientific result, proof, or capability credit was added."
+  },
   "latest_codex_native_reviewer_probe_alignment": {
     "code_commit": "ddbef05f318c4b11b532bdc12318877c1b1e7b8f",
     "official_codex_reference_head": "94cbbddafc1776d5e377bca1b05932c697e82238",
@@ -5751,7 +5769,7 @@
       "the post-Ridge generated-code reviewer now uses the existing native client-tool loop so model-actionable terminal validation returns to the same isolated reviewer context; this is regression-tested future-task mechanism evidence and has not changed Ridge or any prior score",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24984 lines even though declaration-source inspection and canonical review are outside its central control body and fresh Algorithm/Simulation planning lives in source-owner workspaces; any further extraction must remove a measured central responsibility rather than add another outer interface"
+      "research_agent_runtime.py remains large at 24207 lines even though declaration-source inspection and canonical review are outside its central control body and fresh Algorithm/Simulation planning lives in source-owner workspaces; any further extraction must remove a measured central responsibility rather than add another outer interface"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -5768,21 +5786,21 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24368,
+    "research_agent_runtime_lines": 24207,
     "evaluation_protocol_revision_lines": 1295,
     "scientific_code_workspace_lines": 2790,
     "theory_workspace_lines": 3692,
     "research_architect_lines": 4054,
     "architect_theory_execution_preflight_lines": 4712,
     "architect_metric_contract_authoring_lines": 2944,
-    "architect_coordinator_llm_lines": 3156,
+    "architect_coordinator_llm_lines": 3150,
     "formalizer_llm_lines": 2368,
     "lean_candidate_revision_tool_loop_lines": 1900,
     "client_tool_loop_lines": 1081,
     "agent_runtime_lines": 1340,
-    "cli_lines": 7036,
+    "cli_lines": 7037,
     "top_level_python_modules": 136,
-    "top_level_package_lines": 149892,
+    "top_level_package_lines": 149911,
     "latest_runtime_manifest_bytes": 41153
   },
   "next_gates": [
