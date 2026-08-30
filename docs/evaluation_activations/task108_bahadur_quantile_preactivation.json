@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "iid_sample_quantile_bahadur_known_theory_rederivation",
+  "benchmark_id": "research-l3-bahadur-quantile-theory-20260829-v1",
+  "level": "L3",
+  "family": "iid_quantile_asymptotic_linearity",
+  "status": "frozen_qualified_pre_first_product_call",
+  "preselection_code_head": "bea6bdb6c23b7d65e0ddd97b4945d1b4e7bbffdb",
+  "harness_mechanism_commit": "a27af9794f4dbccb089a8063c3a42edb0d509084",
+  "visible_question_commit": "79e0d14d0bb5f17302d5f1595300a4f7045ea653",
+  "visible_questions_path": "benchmarks/research_l3_bahadur_quantile_questions_20260829.json",
+  "visible_questions_sha256": "a95dc7a6f59626725f170dd6c2d068dfe62b1d0325f0b268c837cd3622681df0",
+  "visible_question_full_hash": "9e0d4c7c1d30d02f86e4cec56a0c94be00fa6f1f19e5f6c911cb64a1c2112225",
+  "runtime_visible_question_hash": "b60a1fdc421cfe82a75c44c0829188bd1d4470d603553f79a26741d2ae7f2d6c",
+  "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+  "gold_manifest_sha256": "a6b9f95ef818d56830ddfdba832e4a9d2a7071a0fe3a87850ba21178f7a2541e",
+  "gold_manifest_stable_hash": "8daf0534927e3f8532dea054783bfd2718cc83821695a7d9e02e41acaeba70f4",
+  "hidden_artifact_sha256": {
+    "candidate_mode_near_miss.md": "1f56ef01829a5bb4e2fc98067b9d067c769cc949708ec2483732d21d1d43455b",
+    "candidate_mode_negative_cases.json": "0401acd8e56d71b1808240afa82c917880091cfdd529431fa4c5827642f88d85",
+    "hidden_theory_harness.py": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+    "semantic_activation_attempt_1_protocol_v11.json": "7b6e3f0de61cb7edbd036d3f10744a13831dfad8a2f40efec92e222834ff63fc",
+    "semantic_calibration_cases.json": "326ddfa735bd7a3e2a25b23f4cf0ac9b3f9ae7bf9dd8e1d7db1ee3bb53ec3928",
+    "semantic_reference.md": "ec0cf3cdd6ca0aa284d82c01154d4980263eda908d8282a16a7173f278376080",
+    "semantic_rubric.json": "e034941ba7d6b4e2759c314e3296fae34b3b19edcf8e499c7cbd4d4ece885e9e",
+    "theory_authority_calibration.json": "196ad8d8c77a08cbd053cbd5cf9545c4e285a81b7a65c54745d40afd0a6111de"
+  },
+  "mechanical_qualification": {
+    "reference_checks_passed": "7/7",
+    "negative_variants_rejected": "7/7"
+  },
+  "semantic_qualification": {
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "attempts": 1,
+    "model": "claude-haiku-4-5-20251001",
+    "model_tier": "haiku",
+    "model_calls": 16,
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "8/8",
+    "judgment_hash": "6141ea255864095c8e0280926f85ffab1786c9e5f385f63e94d98f6fad34a443"
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 16,
+  "formalization_requirement": "not_applicable",
+  "source_authority": {
+    "title": "A Note on Quantiles in Large Samples",
+    "author": "R. R. Bahadur",
+    "journal": "The Annals of Mathematical Statistics",
+    "year": 1966,
+    "volume": 37,
+    "issue": 3,
+    "pages": "577-580",
+    "doi": "10.1214/aoms/1177699450"
+  },
+  "hidden_behavior_entailment_audit": "Every hidden claim is an explicit obligation or exclusion in the visible request: inverse-quantile inequalities, consistency, root-n localization, local empirical-process and deterministic remainders, the signed Bahadur representation, influence function, limiting variance, two sanity checks, assumptions, scope, and whole-document active-claim consistency. No hidden code, simulation, Lean, source-replication, novelty, bootstrap, coverage, almost-sure, uniform, dependent, or extreme-quantile requirement is introduced.",
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "sonnet_allowed": false,
+    "opus_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "resume_or_rerun_allowed": false
+  },
+  "boundary": "This ledger exposes only hashes, counts, model identity, source identity, and task scope. Hidden reference mathematics, rubric, calibration cases, near miss, labels, model responses, and judgments remain evaluator-only. They cannot enter prompts, RAG, runtime feedback, revision, retry, routing, or proof evidence. No product call has occurred."
+}
