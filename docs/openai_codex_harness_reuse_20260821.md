@@ -1336,3 +1336,32 @@ transport, another scheduler, retry, fallback, repair agent, task rule, or stron
 model. The full repository passed `1067/1067` in 80.97 seconds; production Python passed
 the unchanged 150,000-line gate at 149,994 lines. Task101 and aggregate credit remain
 unchanged at `0/1` and `7/101`.
+
+### Raw edit diagnostics after the one-hundred-seventh draw
+
+Task107 exercised the document-first Theory path on a disjoint Stein/SURE
+rederivation. The author wrote a 302-line Markdown/LaTeX argument, used Python
+scratch, received three independent findings-first reports, and revised the same
+file twice. The run still ended `BLOCKED`: author and referee both analyzed an
+unweighted surface flux instead of the Gaussian-weighted integration-by-parts
+quantity, and the final source-owner session then repeated malformed exact-edit
+calls. The consumed draw remains `0/1`; no candidate hidden judge ran because no
+theory packet was independently accepted.
+
+The current official Codex `main` at `63d213884daea50e4f74efc192cdc44f549b67d5`
+still exposes `apply_patch` as a GPT-oriented freeform custom tool constrained by a
+Lark grammar. Importing that parser or Codex Core would add a provider-specific
+layer around the existing Anthropic client-tool loop. AI Statistician instead
+keeps its structured, hash-bound exact-edit tool and makes rejected calls report
+the precise missing, unexpected, required, and optional fields to the same model
+session. The existing author and referee principles now also require every
+reduction or counterexample to preserve the exact domains, measures or densities,
+conditioning, normalization, dimensions, and limit order of the object under
+review.
+
+This is the useful Codex boundary again: stable tools, raw observations, retained
+model ownership, exact file state, and immutable checkpoints. It adds no repair
+agent, patch parser, retry, fallback, scheduler, mathematical rule, model call,
+Sonnet, or Opus. The focused panel passed `131/131`; the complete repository passed
+`1080/1080`, and top-level production Python remains below its fixed budget at
+149,999 lines.

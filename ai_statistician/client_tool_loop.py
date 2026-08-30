@@ -151,14 +151,16 @@ def apply_model_exact_text_edits(
     for index, edit in enumerate(edits):
         required_fields = {"old_text", replacement_key}
         optional_fields = {"expected_occurrences"}
-        if (
-            not isinstance(edit, Mapping)
-            or not required_fields.issubset(edit)
-            or set(edit) - required_fields - optional_fields
-        ):
+        if not isinstance(edit, Mapping):
+            raise ClientToolInputError(f"exact edit index {index} must be an object")
+        edit_fields = set(edit)
+        missing_fields = sorted(required_fields - edit_fields)
+        unexpected_fields = sorted(edit_fields - required_fields - optional_fields)
+        if missing_fields or unexpected_fields:
             raise ClientToolInputError(
-                f"exact edit index {index} requires old_text and {replacement_key}; "
-                "expected_occurrences is the only optional field"
+                f"exact edit index {index} has invalid fields; "
+                f"missing={missing_fields}, unexpected={unexpected_fields}, "
+                f"required={sorted(required_fields)}, optional={sorted(optional_fields)}"
             )
         old_text, replacement = edit["old_text"], edit[replacement_key]
         if not isinstance(old_text, str) or not old_text:

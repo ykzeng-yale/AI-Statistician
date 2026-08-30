@@ -161,6 +161,24 @@ def test_exact_text_edit_batch_schema_is_shared_and_strict() -> None:
     assert not {"oneOf", "anyOf", "allOf"}.intersection(schema)
 
 
+def test_exact_text_edit_errors_name_missing_and_unexpected_fields() -> None:
+    with pytest.raises(ClientToolInputError) as exc_info:
+        apply_model_exact_text_edits(
+            "old",
+            edits=[{
+                " old_text": "old",
+                "new_text": "new",
+                "expected_occurrences": 1,
+            }],
+            replacement_key="new_text",
+        )
+
+    detail = str(exc_info.value)
+    assert "missing=['old_text']" in detail
+    assert "unexpected=[' old_text']" in detail
+    assert "optional=['expected_occurrences']" in detail
+
+
 def test_long_tool_observation_preserves_head_tail_and_size_metadata() -> None:
     text = "diagnostic-start\n" + ("middle\n" * 80) + "diagnostic-end"
 

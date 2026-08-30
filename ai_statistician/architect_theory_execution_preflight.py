@@ -69,7 +69,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 28
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 45
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 46
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -116,8 +116,10 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "graph that reaches every requested conclusion or scope boundary. Trace the "
         "question, estimand, probability law, assumptions, regime, claimed object, and "
         "finite handoff. Reconstruct each load-bearing transition from its original "
-        "definitions and compare it with the candidate's actual written intermediate. "
-        "A correct endpoint cannot validate a false, circular, or unsupported step."
+        "definitions while preserving domains, measures or densities, conditioning, normalizations, dimensions, and limit order, then compare it with the "
+        "candidate's actual written intermediate. A reduction or counterexample to a "
+        "different object is not evidence against the candidate. A correct endpoint "
+        "cannot validate a false, circular, or unsupported step."
     ),
     (
         "Second sweep the complete active document, not only that dependency graph. Try "

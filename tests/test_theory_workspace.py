@@ -2285,6 +2285,77 @@ def test_document_authority_supports_local_edit_without_forced_reread(
     assert "ordered atomic batch" in prompt
 
 
+def test_document_edit_field_error_returns_exact_diagnostic_to_same_owner(
+    tmp_path,
+) -> None:
+    parent = "# Claim C1\n\nFor all n, $a_n = b_n$.\n"
+    revised = "# Claim C1\n\nFor every admitted n, $a_n = b_n$.\n"
+    parent_sha256 = hashlib.sha256(parent.encode("utf-8")).hexdigest()
+    exact_edit = {
+        "old_text": "For all n, $a_n = b_n$.",
+        "new_text": "For every admitted n, $a_n = b_n$.",
+    }
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="edit-with-misplaced-count",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "expected_sha256": parent_sha256,
+                        "edits": [exact_edit],
+                        "expected_occurrences": 1,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-after-raw-diagnostic",
+                    name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "expected_sha256": parent_sha256,
+                        "edits": [exact_edit],
+                    },
+                )
+            ),
+            _response(_commit_checkpoint()),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        workspace_dir=tmp_path / "theory",
+        require_document_authority=True,
+        initial_artifacts={
+            "problem_card": {"claim": "revised claim"},
+            "lemma_cards": [{"id": "C1"}],
+        },
+        initial_documents={"derivations/C1.md": parent},
+        max_turns=3,
+        max_tool_calls=3,
+        build_candidate=lambda artifacts, changed, manifest, changed_documents: {
+            "artifacts": dict(artifacts),
+            "changed": list(changed),
+            "theory_workspace_manifest": dict(manifest),
+            "changed_documents": list(changed_documents),
+        },
+    )
+
+    diagnostic = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert diagnostic["error"] == "client_tool_input_rejected"
+    assert "missing=[]" in diagnostic["detail"]
+    assert "unexpected=['expected_occurrences']" in diagnostic["detail"]
+    assert "belongs inside an item in edits" in diagnostic["detail"]
+    assert load_theory_workspace_documents(result.core_packet) == {
+        "derivations/C1.md": revised
+    }
+    assert result.evidence["runtime_edited_theory"] is False
+
+
 def test_read_only_context_document_uses_file_tools_and_stays_out_of_theory(
     tmp_path,
 ) -> None:

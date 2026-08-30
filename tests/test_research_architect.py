@@ -2194,7 +2194,8 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     assert "recompute the load-bearing chain" in prompt
     assert "sweep every other active definition" in prompt
     assert "test small and boundary cases" in prompt.lower()
-    assert "object types, domains, measures, and dimensions" in prompt
+    assert "object types, domains, measures or densities, conditioning" in prompt
+    assert "normalizations, dimensions, and limit order" in prompt
     assert "weaker proxy" in prompt
     assert "group distributions or baselines" not in prompt
     assert "mark them unresolved" in prompt

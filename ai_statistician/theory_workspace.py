@@ -3190,9 +3190,14 @@ def _edit_theory_workspace_document(
         raise ClientToolInputError("theory document edit must be an object")
     edit = dict(raw_edit)
     required = {"path", "expected_sha256", "edits"}
-    if set(edit) != required:
+    edit_fields = set(edit)
+    missing_fields = sorted(required - edit_fields)
+    unexpected_fields = sorted(edit_fields - required)
+    if missing_fields or unexpected_fields:
         raise ClientToolInputError(
-            "edit_theory_document requires exactly path, expected_sha256, and edits"
+            "edit_theory_document has invalid fields; "
+            f"missing={missing_fields}, unexpected={unexpected_fields}, "
+            f"required={sorted(required)}. expected_occurrences belongs inside an item in edits"
         )
     path = _normalized_theory_document_path(edit["path"])
     if path not in current_documents:
