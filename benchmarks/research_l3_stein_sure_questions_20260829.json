@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "gaussian_stein_sure_james_stein_known_theory_rederivation",
+      "title": "Stein's identity, SURE, and James-Stein radial shrinkage",
+      "description": "Focused known-result theory rederivation grounded in Charles M. Stein, Estimation of the Mean of a Multivariate Normal Distribution, Annals of Statistics 9(6), 1981, pages 1135-1151, DOI 10.1214/aos/1176345632. Fix theta in R^d and known sigma^2>0, observe Y distributed as N_d(theta,sigma^2 I_d), and use squared-error loss. In one authoritative Markdown/LaTeX theory workspace, consider delta_g(y)=y+g(y). State sufficient coordinatewise or weak differentiability, integrability, and boundary conditions on g. Derive by Gaussian integration by parts, rather than merely quote, the coordinate Stein identity E_theta[(Y_i-theta_i)g_i(Y)]=sigma^2 E_theta[partial_i g_i(Y)]. Use it to derive R(theta,delta_g)=d sigma^2+E_theta[||g(Y)||^2+2 sigma^2 div g(Y)] and the sample SURE value d sigma^2+||g(y)||^2+2 sigma^2 div g(y). Explain precisely that SURE is unbiased for frequentist risk under the stated conditions but can be negative pointwise and is neither realized squared loss nor conditional expected loss. As a complete sanity check, take g(y)=-lambda y, compute the direct risk lambda^2||theta||^2+(1-lambda)^2 d sigma^2, and show that expected SURE agrees. Then analyze the singular radial field g_a(y)=-a y/||y||^2. Derive ||g_a(y)||^2=a^2/||y||^2 and div(y/||y||^2)=(d-2)/||y||^2, hence div g_a(y)=-a(d-2)/||y||^2 away from zero. For d>=3, justify E_theta[1/||Y||^2]<infinity and the vanishing punctured-domain boundary term at the origin, rather than silently applying a smooth identity across the singularity. Derive the exact risk R(theta,delta_a)=d sigma^2+[a^2-2a sigma^2(d-2)]E_theta[1/||Y||^2]. Conclude strict dominance over the identity estimator for every theta when 0<a<2 sigma^2(d-2), and show that a=(d-2)sigma^2 gives risk improvement -(d-2)^2 sigma^4 E_theta[1/||Y||^2]. Keep this result separate from the positive-part estimator and from any minimaxity argument, which require additional reasoning. Do not claim the same singular argument for d<=2, unknown variance, general covariance, positive-part dominance, minimaxity, Bayes optimality, confidence coverage, code execution, simulation validation, Lean proof, source replication, or novelty unless separately established. State imported results and unresolved regularity gaps honestly. This L3 task evaluates persistent mathematical derivation and independent review only; scientific code, empirical simulation, formalization, source replication, and novelty are not applicable.",
+      "tags": [
+        "Gaussian mean estimation",
+        "Stein identity",
+        "SURE",
+        "James-Stein estimator",
+        "radial shrinkage",
+        "risk estimation",
+        "known result",
+        "theory only",
+        "L3"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "Estimation of the Mean of a Multivariate Normal Distribution",
+        "author": "Charles M. Stein",
+        "journal": "Annals of Statistics",
+        "year": 1981,
+        "volume": 9,
+        "issue": 6,
+        "pages": "1135-1151",
+        "doi": "10.1214/aos/1176345632",
+        "url": "https://doi.org/10.1214/aos/1176345632",
+        "open_access_url": "https://projecteuclid.org/journals/annals-of-statistics/volume-9/issue-6/Estimation-of-the-Mean-of-a-Multivariate-Normal-Distribution/10.1214/aos/1176345632.full"
+      }
+    }
+  ]
+}
