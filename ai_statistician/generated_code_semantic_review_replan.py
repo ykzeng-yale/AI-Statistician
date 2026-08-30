@@ -23,6 +23,10 @@ def generated_code_semantic_review_producer_observations(
     if observations.get("confirmatory_empirical_evidence_eligible") is True:
         observations = generated_code_semantic_review_prompt_projection(observations)
         observations["confirmatory_result_values_withheld_from_source"] = True
+    for row in observations.get("reviewed_source_artifacts", []) or []:
+        if isinstance(row, dict) and row.get("artifact_role") != "upstream_generated_dependency":
+            row.pop("exact_source_code", None); row.pop("exact_source_code_complete", None)
+            row["exact_source_available_via"] = "current_source_owner_workspace"
     return observations
 
 

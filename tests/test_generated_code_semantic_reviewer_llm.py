@@ -12,6 +12,7 @@ from ai_statistician.agent_runtime import AgentTask
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_review_replan import (
     build_generated_code_semantic_review_producer_revision_task,
+    generated_code_semantic_review_producer_observations,
 )
 from ai_statistician.generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
@@ -2392,6 +2393,12 @@ def test_revision_task_returns_observations_without_a_local_scheduler() -> None:
                 "exact_result": {"estimate": 0.0},
                 "exact_result_hash": "result-hash",
                 "execution_envelope_hash": "outcome-derived-envelope-hash",
+            },
+            {
+                "artifact_id": "algorithm:dependency",
+                "artifact_role": "upstream_generated_dependency",
+                "exact_source_hash": "dependency-source-hash",
+                "exact_source_code": "def run_estimator(request): return {}\n",
             }
         ],
         "source_lineage": {"theory_packet_hash": "theory-hash"},
@@ -2416,10 +2423,14 @@ def test_revision_task_returns_observations_without_a_local_scheduler() -> None:
     reviewed = task.inputs["environment_feedback"][
         "reviewed_source_artifacts"
     ][0]
-    assert reviewed["exact_source_code"].endswith(
-        "return {'estimate': 0.0}\n"
+    assert "exact_source_code" not in reviewed
+    assert reviewed["exact_source_available_via"] == (
+        "current_source_owner_workspace"
     )
     assert reviewed["exact_result"] == {"estimate": 0.0}
+    assert task.inputs["environment_feedback"]["reviewed_source_artifacts"][1][
+        "exact_source_code"
+    ].startswith("def run_estimator")
     assert task.inputs["generated_code_semantic_review_revision_count"] == 8
     assert task.inputs["question"] == research_question_payload(
         question,
@@ -2513,7 +2524,9 @@ def test_revision_task_replaces_stale_source_continuation_mode() -> None:
     assert task.inputs["upstream_algorithm_handoff"] == {
         "handoff_id": "algorithm:accepted"
     }
-    assert task.inputs["environment_feedback"] == feedback
+    assert task.inputs["environment_feedback"] == (
+        generated_code_semantic_review_producer_observations(feedback)
+    )
 
 
 def test_confirmatory_revision_returns_source_and_findings_without_result_values() -> None:
@@ -2574,7 +2587,10 @@ def test_confirmatory_revision_returns_source_and_findings_without_result_values
 
     source_feedback = task.inputs["environment_feedback"]
     reviewed = source_feedback["reviewed_source_artifacts"][0]
-    assert reviewed["exact_source_code"].endswith("return {'metric': 0.2}\n")
+    assert "exact_source_code" not in reviewed
+    assert reviewed["exact_source_available_via"] == (
+        "current_source_owner_workspace"
+    )
     assert "exact_result" not in reviewed
     assert "exact_result_hash" not in reviewed
     assert "execution_envelope_hash" not in reviewed

@@ -12344,9 +12344,6 @@ class AlgorithmEngineerRuntimeSubsystem:
                                 "DGP, confirmatory simulation, empirical gate, or "
                                 "outcome authority"
                             ),
-                            "consumer_execution_observation": (
-                                external_initial_observation or {}
-                            ),
                             "theory_revision_source_seed": (
                                 {
                                     **theory_revision_source_seed_lineage,

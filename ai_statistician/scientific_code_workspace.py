@@ -1066,13 +1066,16 @@ def run_source_owner_scientific_workspace(
             ),
         }
 
+    workspace_context = dict(workspace_context)
+    workspace_context.pop("consumer_execution_observation", None)
+    workspace_context["initial_observation_binding"] = {"content_hash": stable_hash(initial_observation), "body_transport": "initial_workspace_observation"}
     try:
         workspace_result = proposal_agent.iterate_code_with_tools(
             question=question,
             artifact_id=artifact_id,
             code_draft=workspace_draft,
             initial_observation=initial_observation,
-            workspace_context=dict(workspace_context),
+            workspace_context=workspace_context,
             check_candidate=check_candidate,
             workspace_operation=workspace_operation,
             allow_current_source_run=allow_current_source_run,

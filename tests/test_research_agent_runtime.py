@@ -6342,7 +6342,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
             {
                 "artifact_id": "generic-estimator",
                 "exact_source_hash": runtime_module.stable_hash(exact_source),
-                "exact_source_code": exact_source,
+                "exact_source_available_via": "current_source_owner_workspace",
             }
         ],
     }
@@ -6376,6 +6376,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
     )
     source_inputs: list[dict[str, object]] = []
     source_observations: list[dict[str, object]] = []
+    source_contexts: list[dict[str, object]] = []
     source_snapshots: list[object] = []
     source_discoveries: list[object] = []
     executed_sources: list[str] = []
@@ -6398,6 +6399,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
         def iterate_code_with_tools(**kwargs):
             source_inputs.append(dict(kwargs["code_draft"]))
             source_observations.append(dict(kwargs["initial_observation"]))
+            source_contexts.append(dict(kwargs["workspace_context"]))
             source_snapshots.append(kwargs["research_sources"])
             source_discoveries.append(kwargs["research_source_discovery"])
             candidate = {
@@ -6495,9 +6497,17 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
     assert source_discoveries == [research_source_discovery]
     assert source_inputs[0]["code"] == exact_source
     assert source_observations[0]["findings"] == feedback["findings"]
+    assert "exact_source_code" not in source_observations[0][
+        "reviewed_source_artifacts"
+    ][0]
     assert source_observations[0]["parent_source"]["script_hash"] == (
         runtime_module.stable_hash(exact_source)
     )
+    assert "consumer_execution_observation" not in source_contexts[0]
+    assert source_contexts[0]["initial_observation_binding"] == {
+        "content_hash": runtime_module.stable_hash(source_observations[0]),
+        "body_transport": "initial_workspace_observation",
+    }
     assert executed_sources == [revised_source]
     manifest = next(
         artifact
