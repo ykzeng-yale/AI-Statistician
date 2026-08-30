@@ -1090,7 +1090,8 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit(
     assert blocked.failure_classification == "confirmatory_theory_authority_missing"
 
 
-def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
+def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     question = OpenResearchQuestion(
@@ -1158,6 +1159,8 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
         "manifest_id": manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_id,
+        "n_generated_code_executed": 1,
+        "n_passed": 1,
         "prototypes": [
             {
                 "estimator_id": "candidate",
@@ -1367,6 +1370,229 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
     )
     assert evaluator_task.owner_subsystem == "SimulationEvaluator"
     assert evaluator_task.inputs["evaluator_source_authoring"] is True
+
+    fresh_manifest = deepcopy(source_manifest)
+    fresh_manifest_id = "algorithm_manifest:exploratory-theory-revised"
+    fresh_manifest["manifest_id"] = fresh_manifest_id
+    fresh_manifest["theory_packet_id"] = revised_id
+    fresh_proposal = deepcopy(proposal)
+    fresh_proposal_id = "algorithm_proposal:exploratory-theory-revised"
+    fresh_proposal["packet_id"] = fresh_proposal_id
+    blackboard.artifacts.update(accepted_revision.produced_artifacts)
+    blackboard.artifacts[fresh_manifest_id] = fresh_manifest
+    blackboard.artifacts[fresh_proposal_id] = fresh_proposal
+    fresh_dispatch = _runtime_generated_code_semantic_review_dispatch(
+        task=accepted_revision.next_task,
+        question=question,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest=fresh_manifest,
+        theory_packet=stored_revision,
+        proposal_packet=fresh_proposal,
+        architect_context=final_context,
+        deferred_next_task=evaluator_task,
+        blackboard_artifacts=blackboard.artifacts,
+        max_revisions=1,
+    )
+    assert fresh_dispatch is not None
+    blackboard.artifacts.update(fresh_dispatch["artifacts"])
+    fresh_review = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=reviewer,
+        max_revisions=1,
+    ).run(fresh_dispatch["next_task"], blackboard)
+    assert fresh_review.status == "REROUTE"
+    assert fresh_review.next_task is not None
+    assert fresh_review.next_task.owner_subsystem == "SimulationEvaluator"
+    assert fresh_review.next_task.inputs["evaluator_source_authoring"] is True
+    fresh_handoff = fresh_review.next_task.inputs["upstream_algorithm_handoff"]
+    assert fresh_handoff["theory_packet_id"] == revised_id
+
+    evaluator_proposal_id = "simulation_proposal:revised-theory-evaluator"
+    evaluator_source = (
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'acceptance_passed': True, "
+        "'requested_runtime_replicates': replicates}\n"
+    )
+
+    class SimulationAgent:
+        provider = SimpleNamespace(provider_name="static")
+        proposal_calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.proposal_calls += 1
+            return {
+                "artifact_kind": "SimulationEngineerProposalPacket",
+                "packet_id": evaluator_proposal_id,
+                "source_agent": "LLMSimulationEngineerAgent",
+                "model": LIVE_EVALUATION_CLAUDE_MODEL,
+                "model_tier": "haiku",
+                "source_workspace_planning_owned": True,
+                "scientific_source_transport": "native_client_tools",
+                "simulation_targets": [{"procedure_id": "revised-theory-evaluator"}],
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "revised-theory-evaluator",
+                        "required_estimator_ids": ["candidate"],
+                    }
+                ],
+                "metric_contracts": [],
+            }
+
+    def evaluator_source_workspace(**kwargs):
+        assert kwargs["defer_confirmatory_execution"] is True
+        assert kwargs["confirmatory_result_blind"] is True
+        metrics = {
+            "acceptance_passed": True,
+            "requested_runtime_replicates": 2_000,
+        }
+        (tmp_path / "evaluator.py").write_text(evaluator_source, encoding="utf-8")
+        (tmp_path / "evaluator-diagnostic.json").write_text(
+            json.dumps(metrics), encoding="utf-8"
+        )
+        return (
+            {
+                "simulation_id": "revised-theory-evaluator",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": ["candidate"],
+                "source_code": evaluator_source,
+                "script_path": str(tmp_path / "evaluator.py"),
+                "script_hash": runtime_module.stable_hash(evaluator_source),
+                "result_path": str(tmp_path / "evaluator-diagnostic.json"),
+                "result_hash": runtime_module.stable_hash(metrics),
+                "runtime_seed": 17,
+                "runtime_replicates": 12,
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "metrics": metrics,
+                "metric_contracts": [],
+                "metric_contract_evaluation": {},
+                "scientific_code_workspace": {
+                    "confirmatory_execution_after_model_commit": False,
+                    "confirmatory_execution_deferred_for_independent_review": True,
+                },
+            },
+            [],
+        )
+
+    source_workspace_runner = runtime_module._run_source_owner_scientific_workspace
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        evaluator_source_workspace,
+    )
+
+    blackboard.artifacts.update(fresh_review.produced_artifacts)
+    evaluator_authoring = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=True,
+    ).run(fresh_review.next_task, blackboard)
+    assert evaluator_authoring.status == "REROUTE"
+    assert evaluator_authoring.next_task is not None
+    assert evaluator_authoring.next_task.owner_subsystem == "GeneratedCodeSemanticReviewer"
+    assert SimulationAgent.proposal_calls == 1
+    blackboard.artifacts.update(evaluator_authoring.produced_artifacts)
+    evaluator_review = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=reviewer,
+        max_revisions=1,
+    ).run(evaluator_authoring.next_task, blackboard)
+    evaluator_review_errors = evaluator_review.observations[0].payload.get(
+        "validation_errors", []
+    )
+    assert evaluator_review.status == "REROUTE", (
+        evaluator_review.failure_classification,
+        evaluator_review_errors,
+    )
+    assert evaluator_review.next_task is not None
+    assert evaluator_review.next_task.owner_subsystem == "SimulationEvaluator"
+    assert evaluator_review.next_task.inputs["evaluator_source_confirmation"] is True
+    assert evaluator_review.next_task.inputs["theory_packet_id"] == revised_id
+    assert evaluator_review.next_task.inputs["upstream_algorithm_handoff"][
+        "handoff_id"
+    ] == fresh_handoff["handoff_id"]
+
+    def confirmatory_source_workspace(**kwargs):
+        assert kwargs["defer_confirmatory_execution"] is False
+        assert kwargs["confirmatory_result_blind"] is True
+        assert kwargs["code_draft"]["code"] == evaluator_source
+        return source_workspace_runner(**kwargs)
+
+    bound_source_hashes = {"candidate": runtime_module.stable_hash(source)}
+
+    def confirmatory_execute(**kwargs):
+        assert kwargs["code_draft"]["code"] == evaluator_source
+        metrics = {
+            "acceptance_passed": True,
+            "requested_runtime_replicates": kwargs["n_runs"],
+        }
+        return (
+            {
+                "simulation_id": str(kwargs["simulation_id"]),
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": ["candidate"],
+                "source_code": evaluator_source,
+                "script_hash": runtime_module.stable_hash(evaluator_source),
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "metrics": metrics,
+                "metric_contracts": [],
+                "metric_contract_evaluation": {},
+                "bound_estimator_code_hashes": bound_source_hashes,
+                "estimator_binding_hash": runtime_module.stable_hash(
+                    bound_source_hashes
+                ),
+                "estimator_invocation_counts": {"candidate": 1},
+                "mechanical_estimator_invocation_verified": True,
+            },
+            ToolCallRecord(
+                tool_name="python.generated_simulation_sandbox",
+                exit_status="0",
+            ),
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        confirmatory_source_workspace,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_generated_simulation_sandbox",
+        confirmatory_execute,
+    )
+    blackboard.artifacts.update(evaluator_review.produced_artifacts)
+    confirmation = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation-confirmation",
+        semantic_reviewer_available=True,
+    ).run(evaluator_review.next_task, blackboard)
+    assert confirmation.status == "REROUTE", (
+        confirmation.failure_classification,
+        confirmation.rationale,
+    )
+    assert confirmation.next_task is not None
+    assert confirmation.next_task.owner_subsystem == "CriticEvaluator"
+    assert SimulationAgent.proposal_calls == 1
+    confirmation_manifest = next(
+        artifact
+        for artifact in confirmation.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    )
+    assert confirmation_manifest["evaluator_source_confirmation"] is True
+    assert confirmation_manifest["confirmatory_empirical_evidence_eligible"] is True
+    assert confirmation_manifest["planning_model_call_used"] is False
 
 
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
