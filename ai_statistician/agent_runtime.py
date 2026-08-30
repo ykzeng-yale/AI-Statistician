@@ -33,21 +33,6 @@ RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE = "same_owner_workspace"
 RUNTIME_CONTINUATION_BUDGET_MARKER_KEY = "runtime_same_owner_workspace_continuation"
 
 
-class ModelBackend(Protocol):
-    """Replaceable LLM/coding-agent backend used by runtime subsystems."""
-
-    def complete(
-        self,
-        *,
-        system_prompt: str,
-        user_prompt: str,
-        model: str,
-        max_tokens: int,
-        temperature: float,
-    ) -> str:
-        ...
-
-
 @dataclass(frozen=True)
 class AgentTask:
     task_id: str
@@ -1009,15 +994,43 @@ class AgentRuntime:
                 _ACTIVE_PROGRESS_CONTEXT.reset(progress_token)
 
             subsystem_name = getattr(subsystem, "name", task.owner_subsystem)
+            boundary_result: AgentStepResult | None = None
+            if (
+                self.handoff_policy is not None
+                and _runtime_iteration_budget_scope(task, result)
+                == RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE
+                and same_owner_workspace_continuations_consumed + 1 >= max_iterations
+                and result.next_task is not None
+            ):
+                _, _, artifacts = materialize_agent_task_continuation(result.next_task)
+                boundary_result = replace(
+                    result,
+                    status="BLOCKED",
+                    rationale="Exact pending workspace preserved at its budget boundary.",
+                    produced_artifacts={**result.produced_artifacts, **artifacts},
+                    next_task=None,
+                    failure_classification="same_owner_workspace_continuation_budget_exhausted",
+                )
             if self.handoff_policy is not None:
-                result = self.handoff_policy(
+                routed_result = self.handoff_policy(
                     iteration=iteration,
                     task=execution_task,
                     subsystem_name=subsystem_name,
-                    result=result,
+                    result=boundary_result or result,
                     blackboard=self.blackboard,
                 )
-
+                if boundary_result is None:
+                    result = routed_result
+                elif (
+                    routed_result.status in {"REROUTE", "REVISE"}
+                    and routed_result.next_task is not None
+                    and routed_result.next_task.owner_subsystem != subsystem_name
+                ):
+                    result = replace(
+                        routed_result,
+                        produced_artifacts=routed_result.produced_artifacts
+                        | boundary_result.produced_artifacts,
+                    )
             if result.next_task is not None:
                 next_inputs = result.next_task.inputs
                 if task_artifact_bindings:
@@ -1142,9 +1155,7 @@ class AgentRuntime:
             and terminal_failure_classification == "subsystem_exception"
         ):
             pending_task_checkpoint_reason = "terminal_subsystem_error"
-        pending_task = (
-            deepcopy(task) if pending_task_checkpoint_reason else None
-        )
+        pending_task = deepcopy(task) if pending_task_checkpoint_reason else None
         pending_task_continuation_ref: dict[str, Any] = {}
         if pending_task is not None:
             (
@@ -1231,18 +1242,7 @@ def agent_runtime_substage(
 
 
 def _snapshot_agent_step_result(result: AgentStepResult) -> AgentStepResult:
-    """Break mutable aliases before artifacts and handoffs cross runtime ownership."""
-
-    return AgentStepResult(
-        status=result.status,
-        rationale=result.rationale,
-        produced_artifacts=deepcopy(result.produced_artifacts),
-        observations=deepcopy(result.observations),
-        tool_calls=deepcopy(result.tool_calls),
-        evidence_entries=deepcopy(result.evidence_entries),
-        next_task=deepcopy(result.next_task),
-        failure_classification=result.failure_classification,
-    )
+    return deepcopy(result)
 
 
 def _emit_progress(

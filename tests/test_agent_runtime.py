@@ -736,6 +736,116 @@ def test_agent_runtime_checkpoints_at_same_owner_workspace_budget() -> None:
     assert result.pending_task.task_id == "formalize:q1:next:next"
 
 
+def test_agent_runtime_offers_preserved_workspace_at_budget_boundary_to_handoff_policy() -> None:
+    class FormalizerWorkspace:
+        name = "FormalizationEvaluator"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            del blackboard
+            next_task = AgentTask(
+                task_id=f"{task.task_id}:next",
+                owner_subsystem=self.name,
+                objective=task.objective,
+            )
+            return AgentStepResult(
+                status="REVISE",
+                rationale="preserve new model-owned Lean progress",
+                next_task=mark_same_owner_workspace_continuation(
+                    parent_task=task,
+                    next_task=next_task,
+                ),
+            )
+
+    class Critic:
+        name = "CriticEvaluator"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            del task, blackboard
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="nonformal evidence accepted with the formal gap disclosed",
+            )
+
+    boundary_refs: list[dict[str, object]] = []
+
+    def handoff_policy(
+        *,
+        iteration: int,
+        task: AgentTask,
+        subsystem_name: str,
+        result: AgentStepResult,
+        blackboard: BlackboardState,
+    ) -> AgentStepResult:
+        del iteration, task, blackboard
+        if (
+            subsystem_name == "FormalizationEvaluator"
+            and result.failure_classification
+            == "same_owner_workspace_continuation_budget_exhausted"
+        ):
+            continuations = [
+                row
+                for row in result.produced_artifacts.values()
+                if row.get("artifact_kind") == "RuntimeAgentTaskContinuation"
+            ]
+            assert len(continuations) == 1
+            boundary_refs.append(agent_task_continuation_reference(continuations[0]))
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="continue the frozen graph after preserving optional formal work",
+                next_task=AgentTask(
+                    task_id="critic:q1",
+                    owner_subsystem="CriticEvaluator",
+                    objective="Report the multidimensional evidence state.",
+                ),
+                failure_classification="runtime_required_evidence_lane_continuation",
+            )
+        return result
+
+    result = AgentRuntime(
+        subsystems={
+            "FormalizationEvaluator": FormalizerWorkspace(),
+            "CriticEvaluator": Critic(),
+        },
+        blackboard=BlackboardState(project_id="optional-formal-budget-boundary"),
+        handoff_policy=handoff_policy,
+    ).run(
+        AgentTask(
+            task_id="formalize:q1",
+            owner_subsystem="FormalizationEvaluator",
+            objective="Attempt optional formalization without blocking the report.",
+        ),
+        max_iterations=2,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert [row.subsystem for row in result.traces] == [
+        "FormalizationEvaluator",
+        "FormalizationEvaluator",
+        "CriticEvaluator",
+    ]
+    assert result.same_owner_workspace_continuations_consumed == 1
+    assert result.outer_graph_iterations_consumed == 2
+    assert len(boundary_refs) == 1
+    continuation_ref = boundary_refs[0]
+    continuation = result.blackboard.artifacts[
+        str(continuation_ref["continuation_id"])
+    ]
+    assert stable_hash(continuation) == continuation_ref["continuation_hash"]
+    restored = restore_agent_task_continuation(
+        continuation,
+        result.blackboard.artifacts,
+    )
+    assert restored.task_id == "formalize:q1:next:next"
+
+
 def test_agent_runtime_handoff_policy_can_rewrite_next_task() -> None:
     class ReviewSubsystem:
         name = "ReviewSubsystem"

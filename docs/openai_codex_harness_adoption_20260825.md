@@ -80,7 +80,7 @@ without duplicating the control plane.
 | thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
-| request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over configured workspaces, plus the sole typed `AgentRuntime`, exact artifact references, and direct continuation of a frozen plan after local checkpoints |
+| request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over configured workspaces, plus the sole typed `AgentRuntime`, exact artifact references, and preserved pending work before a frozen cross-owner continuation |
 | trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
 | reviewer tool output as untrusted evidence | referee-owned falsification of scratch assumptions, source observations, and candidate semantics before a blocker is submitted |
 
@@ -191,7 +191,7 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 ## Current Assessment
 
-The inner harness is no longer the main architecture blocker. It preserves same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity, and isolated review.
+The inner harness is no longer the main architecture blocker. It preserves same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity, isolated review, and pending work when a bounded workspace yields to the frozen outer graph.
 Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, model-owned dimensions remain revisable on genuine replans, and the provider schema is the sole structural contract.
 Three immutable evaluations refined these boundaries without changing scores:
 
