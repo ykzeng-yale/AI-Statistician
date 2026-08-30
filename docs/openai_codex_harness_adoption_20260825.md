@@ -2,7 +2,7 @@
 
 Updated: 2026-08-29
 
-Current upstream reference: [`openai/codex` at `0b45b171`](https://github.com/openai/codex/tree/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3), Apache-2.0.
+Current upstream reference: [`openai/codex` at `63d21388`](https://github.com/openai/codex/tree/63d213884daea50e4f74efc192cdc44f549b67d5), Apache-2.0.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -56,6 +56,12 @@ without duplicating the control plane.
    argument validation, and terminal disposition must agree. A prose example is not
    a second enum. This is the direct lesson from Task108's Critic transport failure
    and Codex's separation of tool specifications from registered runtimes.
+10. **Continuation provenance is explicit.** Automatic continuation keeps its exact
+    parent transcript and checkpoint lineage. New reviewer feedback, a changed
+    objective, or another external observation enters through a new typed task or
+    explicitly identified current context; it is never silently attributed to the
+    old root. This follows Codex's current invalidation of trusted turn lineage when
+    external context or goal edits make attribution ambiguous.
 
 ## Implementation Map
 
@@ -71,6 +77,7 @@ without duplicating the control plane.
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
 | sparse multi-agent delegation | the sole typed `AgentRuntime` outer research graph and artifact references |
+| trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
 
 `client_tool_loop.py` is the shared inner harness. Theory, scientific coding,
 Simulation, Lean, and isolated reviewers configure domain tools and terminal actions;
@@ -177,13 +184,20 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 The inner harness is no longer the main architecture blocker. It already preserves
 same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity,
-and isolated review. Task108 produced a 460-line Markdown/LaTeX derivation and an
-independent report through valid retained loops, yet both author and referee accepted
-false active empirical-process equations and an influence-function sign
-contradiction. The Critic then encountered a model-visible enum that disagreed with
-its validator. Commit `8e3a58c7` fixes that shared ABI and strengthens generic
-term-by-term sign/scale review for future tasks; it does not repair or rescore Task108
-and adds no parser, repair worker, scheduler, formula, or model escalation.
+and isolated review. Task109 exercised Theory, Python, Simulation, three isolated
+source reviews, and the final Critic through the native model-tool loops. Its estimator
+and confirmatory simulation executed, but the mathematical author and referee both
+accepted active conditional-expectation and variance errors, while the source reviewer
+used a valid-only probe and missed public rejection semantics. The final Critic stated
+a runtime-derived required evidence gap and simultaneously requested ACCEPT; the
+outer evidence gate correctly blocked the task.
+
+The resulting shared change remains harness-level: prompts ask the existing model to
+compare the exact candidate identity, audit conditional measurability, and author
+contract-derived malformed probes; the existing Critic terminal validator returns a
+mechanical ACCEPT mismatch to that same retained session. It adds no content parser,
+repair worker, agent, scheduler, task formula, model escalation, or second runtime,
+and it does not repair or rescore Task109.
 
 Remaining capability gaps are scientific rather than reasons to import Codex:
 
@@ -200,11 +214,12 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn` at the audited pin](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter` at the audited pin](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/tools/router.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
-- [App Server protocol](https://github.com/openai/codex/blob/0b45b171ca7141fd7723f16adb59cd8e7c1a74c3/codex-rs/app-server/README.md)
+- [`run_turn` at the audited pin](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/session/turn.rs)
+- [`ToolRouter` at the audited pin](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/router.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [Goal-continuation lineage preservation and invalidation](https://github.com/openai/codex/commit/4210c08defe92fe8828f789b6f9fda287ad3709e)
+- [App Server protocol](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

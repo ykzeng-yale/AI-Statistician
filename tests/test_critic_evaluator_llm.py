@@ -217,6 +217,54 @@ def test_critic_can_accept_without_inventing_a_finding() -> None:
     assert '"theory":"INCONCLUSIVE"' in mismatch
 
 
+def test_critic_cannot_accept_with_runtime_derived_required_evidence_gap() -> None:
+    packet = _critic_packet()
+    packet["current_observation_assessment"] = {
+        "observed_status": "INCONCLUSIVE",
+        "observed_failure": "",
+        "evidence_refs": ["canonical:view/empirical"],
+        "causal_hypotheses": [],
+        "independent_missing_evidence": [
+            "The required executable evaluator output is invalid."
+        ],
+    }
+    packet["coordination_assessment"] = {
+        "scope": "none",
+        "conflicting_artifact_ids": [],
+        "rationale": "This is one missing evidence item, not a conflict.",
+    }
+    packet["critic_findings"] = []
+    for row in packet["dimension_assessments"]:
+        if row["dimension"] in {"theory", "scientific_code", "empirical"}:
+            row["status"] = "SUPPORTED"
+            row["gaps"] = []
+    packet["gap_disclosure"] = {
+        "status": "COMPLETE",
+        "disclosed_gaps": [
+            "The required executable evaluator output is invalid."
+        ],
+        "evidence_refs": ["canonical:view/required_dimension_evidence_gaps"],
+        "rationale": "The runtime-derived evidence deficit is disclosed.",
+    }
+    packet["research_disposition"] = {
+        "status": "ACCEPT",
+        "blocking_dimensions": [],
+        "rationale": "All dimension rows were marked supported.",
+    }
+    required_dimension_evidence_gaps = [
+        "empirical.executable_evaluator_authority_output_invalid"
+    ]
+
+    errors = validate_critic_evaluator_packet(
+        packet,
+        required_dimension_evidence_gaps=required_dimension_evidence_gaps,
+    )
+    mismatch = next(
+        error for error in errors if error.startswith("ACCEPT evidence mismatch:")
+    )
+    assert "empirical.executable_evaluator_authority_output_invalid" in mismatch
+
+
 def test_supported_dimension_cannot_disclose_an_unresolved_gap() -> None:
     packet = _critic_packet()
     packet["current_observation_assessment"] = {
@@ -416,6 +464,8 @@ def test_canonical_evidence_view_exposes_preflight_report_and_scratch_failures(
     assert "outside the claim index" in prompt
     assert "compare sign and scale term by term" in prompt
     assert "matching endpoint variance or rate is not enough" in prompt
+    assert "required_dimension_evidence_gaps is a runtime-derived" in prompt
+    assert "terminal validator will return any mismatch" in prompt
     assert "All symbolic checks passed" in prompt
     assert "REJECTED_CONTRACT" in prompt
 

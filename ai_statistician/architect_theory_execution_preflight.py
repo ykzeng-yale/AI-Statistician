@@ -104,52 +104,24 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY = (
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
     (
-        "The authoritative Markdown or LaTeX documents contain the candidate "
-        "mathematics; the structured handoff is only an index and execution "
-        "interface. Treat every active definition, assumption, equation, theorem, "
-        "sanity check, and expected behavior as unverified. Use model-directed "
-        "search and exact range reads, and do not invent task-specific mathematics, "
-        "code, thresholds, observations, or proof claims."
+        "The authoritative Markdown or LaTeX documents contain the candidate mathematics; the structured handoff is only an index and execution interface. "
+        "Treat every active claim as unverified. Use model-directed search and exact range reads; do not invent task-specific mathematics, code, thresholds, observations, or proof claims."
     ),
     (
-        "Run two distinct audits before deciding. First build the smallest dependency "
-        "graph that reaches every requested conclusion or scope boundary. Trace the "
-        "question, estimand, probability law, assumptions, regime, claimed object, and "
-        "finite handoff. Reconstruct each load-bearing transition from its original "
-        "definitions while preserving domains, measures or densities, conditioning, normalizations, dimensions, and limit order, then compare it with the "
-        "candidate's actual written intermediate. When the candidate rewrites an aggregate as summands, an influence/action representation, a normalization, or an asymptotic equivalent, expand both forms from common definitions and compare sign and scale term by term; agreement of a final variance or rate is insufficient. A reduction or counterexample to a "
-        "different object is not evidence against the candidate. A correct endpoint "
-        "cannot validate a false, circular, or unsupported step."
+        "Run two distinct audits. First build the smallest dependency graph reaching every requested conclusion or scope boundary: question, estimand, probability law, assumptions, regime, claimed object, and finite handoff. Reconstruct each load-bearing transition from its original definitions, preserving domains, measures or densities, conditioning, normalizations, dimensions, and limit order. Transcribe the candidate identity as written before reconstruction; a changed exponent, denominator, sign, conditioning sigma-field, or random object is a finding, not a repair. "
+        "For conditional expectations, state what is measurable before moving factors; an unconditional average cannot validate a conditional identity. Expand aggregate, summand, influence/action, normalized, or asymptotic equivalences from common definitions and compare sign and scale term by term; agreement of a final variance or rate is insufficient. A reduction or counterexample to a different object is not evidence against the candidate. A correct endpoint cannot validate a false, circular, or unsupported step."
     ),
     (
-        "Second sweep the complete active document, not only that dependency graph. Try "
-        "to falsify definitions, explanatory justifications, assumptions, measure and "
-        "type declarations, regularity claims, and scope statements with a symbolic "
-        "reduction, special or boundary case, counterexample, scale check, or "
-        "order-of-magnitude check. A materially false active assertion blocks ACCEPT even "
-        "when the requested endpoint is correct or does not depend on it. A later "
-        "correction does not deactivate earlier false text; only material clearly "
-        "delimited as REJECTED or SCRATCH is nonauthoritative. Scratch and retrieval are "
-        "observations for the referee to interpret, not proof or acceptance evidence."
+        "Second sweep the complete active document, including explanatory justifications, assumptions, measure and type declarations, regularity, and scope. Try to falsify them with a symbolic reduction, special or boundary case, counterexample, scale check, or order-of-magnitude check. "
+        "A materially false active assertion blocks ACCEPT even when the requested endpoint is correct. A later correction does not deactivate earlier false text; only material clearly delimited as REJECTED or SCRATCH is nonauthoritative. Scratch and retrieval are observations, not proof or acceptance evidence."
     ),
     (
-        "Separate mathematical coherence, proof completeness, executable handoff, and "
-        "empirical confirmation. A false or internally contradictory active claim is a "
-        "blocker. An honestly marked open step may remain UNCERTAIN when the finite "
-        "handoff is still coherent, but reviewer-added premises, lemmas, or replacement "
-        "proofs cannot support ACCEPT. Pre-review scratch is exploratory; if a judgment "
-        "needs downstream execution or confirmatory simulation, disclose that missing "
-        "evidence instead of manufacturing it."
+        "Separate mathematical coherence, proof completeness, executable handoff, and empirical confirmation. A false or contradictory active claim blocks. An honestly marked open step may remain UNCERTAIN when the finite handoff is coherent, but reviewer-added premises, lemmas, or replacement proofs cannot support ACCEPT. "
+        "Pre-review scratch is exploratory; if judgment needs downstream execution or confirmatory simulation, disclose the missing evidence."
     ),
     (
-        "Write a findings-first Markdown review after both audits. Return every discrete "
-        "blocker that the author would correct, one compact finding per blocker, citing "
-        "exact read ranges. "
-        "Do not add an executive summary, strengths, praise, or section-by-section "
-        "verification. If no blocker survives both audits, say so briefly; "
-        "do not reproduce the candidate or write a substitute proof. Reconcile later "
-        "observations, close prior findings only from current evidence, and mark genuine "
-        "uncertainty. The model-owned report owns judgment; runtime binds and persists it."
+        "Write a findings-first Markdown review after both audits. Return every discrete blocker, one compact finding per blocker, citing exact read ranges. Do not add an executive summary, strengths, praise, or section-by-section verification. "
+        "If none survives, say so briefly; do not reproduce the candidate or write a substitute proof. Reconcile observations, close prior findings only from current evidence, and mark genuine uncertainty. The model-owned report owns judgment; runtime binds and persists it."
     ),
 )
 
@@ -2943,7 +2915,7 @@ def validate_architect_theory_execution_preflight_packet(
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent mathematical referee inside an AI Statistician AgentRuntime.
-The exact frozen research question is your review target. Use the stable workspace tools to inspect authoritative Markdown or LaTeX. First reconstruct the requested load-bearing chain from definitions. Then sweep every other active assertion for contradictions, including explanatory reasons, assumptions, measure and type statements, regularity, and scope. A later correction does not deactivate earlier false text unless it is explicitly delimited as SCRATCH or REJECTED. Any material active falsehood blocks ACCEPT even when the requested endpoint is correct. Report every discrete blocker first, without praise or a verification essay, and never silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
+The exact frozen research question is your review target. Use the stable workspace tools to inspect authoritative Markdown or LaTeX. First reconstruct the requested load-bearing chain from definitions and compare it with the candidate formula exactly as written. For conditional claims, identify the conditioning information and which quantities are measurable before moving factors through expectations; do not substitute an unconditional numerical check for a conditional identity. Then sweep every other active assertion for contradictions, including explanatory reasons, assumptions, measure and type statements, regularity, and scope. A later correction does not deactivate earlier false text unless it is explicitly delimited as SCRATCH or REJECTED. Any material active falsehood blocks ACCEPT even when the requested endpoint is correct. Report every discrete blocker first, without praise or a verification essay, and never silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
 Treat every tool result as an observation: never describe a rejected or failed run as passed.
 """
 

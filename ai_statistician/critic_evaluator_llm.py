@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .client_tool_loop import (
     ClientToolExecutionContext,
@@ -243,6 +243,9 @@ def _run_critic_client_tool_review(
     document_accesses: list[dict[str, Any]] = []
     canonical_view_hash = str(canonical_evidence_view.get("view_hash", "") or "") or stable_hash(dict(canonical_evidence_view))
     dimension_requirements = canonical_evidence_view.get("dimension_requirements", {})
+    required_dimension_evidence_gaps = tuple(
+        canonical_evidence_view.get("required_dimension_evidence_gaps", []) or []
+    )
 
     def normalize_submission(
         payload: Mapping[str, Any], *, model: str, provider_name: str
@@ -303,7 +306,10 @@ def _run_critic_client_tool_review(
             model=request_model,
             provider_name=str(getattr(provider, "provider_name", "") or ""),
         )
-        errors = validate_critic_evaluator_packet(packet)
+        errors = validate_critic_evaluator_packet(
+            packet,
+            required_dimension_evidence_gaps=required_dimension_evidence_gaps,
+        )
         if documents and not document_accesses:
             errors.append(
                 "Critic must inspect at least one exact evidence document before submission"
@@ -385,7 +391,10 @@ def _run_critic_client_tool_review(
         model=loop.model,
         provider_name=loop.provider,
     )
-    final_errors = validate_critic_evaluator_packet(packet)
+    final_errors = validate_critic_evaluator_packet(
+        packet,
+        required_dimension_evidence_gaps=required_dimension_evidence_gaps,
+    )
     if final_errors:
         raise PacketValidationError(
             validation_label="LLM CriticEvaluator packet",
@@ -460,6 +469,10 @@ def build_critic_evaluator_prompt(
         "SUPPORTED; optional gaps must be disclosed; not_applicable means NOT_REQUESTED. "
         "SUPPORTED means the frozen requirement is met with no unresolved gap, so gaps must "
         "be empty. Use INCONCLUSIVE for evidence deficits; put scope limits in rationale. "
+        "canonical_evidence_view.required_dimension_evidence_gaps is a runtime-derived "
+        "mechanical observation. If it is nonempty, disclose those deficits and do not "
+        "return ACCEPT; the terminal validator will return any mismatch to this same "
+        "Critic session. "
         "For source_replication, audit the hash-loaded model-authored Markdown report "
         "against the immutable execution observation and every exact author-read source "
         "range exposed in that dimension. A zero return code establishes execution only; "
@@ -597,7 +610,11 @@ CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
 }
 
 
-def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
+def validate_critic_evaluator_packet(
+    packet: Mapping[str, Any],
+    *,
+    required_dimension_evidence_gaps: Sequence[Any] = (),
+) -> list[str]:
     errors: list[str] = []
     for field in (
         "current_observation_assessment",
@@ -689,6 +706,11 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
                                   "contain unresolved gaps")
     if set(dimension_statuses) != set(CRITIC_RESEARCH_DIMENSIONS):
         errors.append("dimension_assessments must cover each research dimension once")
+    required_evidence_gaps = [
+        str(value).strip()
+        for value in required_dimension_evidence_gaps
+        if str(value).strip()
+    ]
     gap_disclosure = packet.get("gap_disclosure", {})
     gap_status = ""
     has_disclosed_gaps = False
@@ -784,6 +806,7 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
             or bool(contradicted)
             or gap_status != CRITIC_GAP_DISCLOSURE_COMPLETE
             or blocking_dimensions
+            or required_evidence_gaps
         ):
             mismatch = {
                 "required_not_supported": {
@@ -795,6 +818,7 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
                 "contradicted": sorted(contradicted),
                 "gap_status": gap_status or "MISSING",
                 "blocking_dimensions": list(blocking_dimensions),
+                "required_dimension_evidence_gaps": required_evidence_gaps,
             }
             errors.append(
                 "ACCEPT evidence mismatch: "

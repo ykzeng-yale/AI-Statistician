@@ -1593,6 +1593,16 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
     assert "record it as a finding instead of accepting" in str(
         backend.requests[0].messages[0]["content"]
     )
+    assert "representative malformed requests" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "selected from every such field and the closed-object rule" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "valid-only probe" in str(backend.requests[0].messages[0]["content"])
+    assert "anti-coercion behavior" in str(
+        backend.requests[0].messages[0]["content"]
+    )
     assert "ACCEPT requires a successful model-authored executable-contract probe" in str(
         backend.requests[1].messages
     )

@@ -126,6 +126,10 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "without praise or a verification essay" in normalized_prompt
     assert "Reconstruct each load-bearing transition" in protocol
     assert "preserving domains, measures or densities, conditioning" in protocol
+    assert "Transcribe the candidate identity as written" in protocol
+    assert "conditioning sigma-field" in protocol
+    assert "what is measurable" in protocol
+    assert "unconditional average cannot validate" in protocol
     assert "compare sign and scale term by term" in protocol
     assert "agreement of a final variance or rate is insufficient" in protocol
     assert "counterexample to a different object is not evidence" in protocol
@@ -143,6 +147,8 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "clearly delimited as REJECTED or SCRATCH" in protocol
     assert "mark genuine uncertainty" in protocol
     assert "Pre-review scratch is exploratory" in protocol
+    assert "which quantities are measurable" in normalized_prompt
+    assert "unconditional numerical check" in normalized_prompt
     assert "confirmatory simulation" in protocol
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
