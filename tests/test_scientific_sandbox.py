@@ -1861,6 +1861,61 @@ def test_live_estimator_bound_simulation_invokes_exact_reviewed_source(
     assert result.estimator_binding_hash == stable_hash(result.estimator_code_hashes)
 
 
+def test_live_estimator_binding_exposes_only_json_normalized_request(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Pyodide runtime is not installed on this host")
+    algorithm = (
+        "def run_estimator(request):\n"
+        "    values = request['values']\n"
+        "    return {\n"
+        "        'observed_as_list': isinstance(values, list),\n"
+        "        'observed_type': type(values).__name__,\n"
+        "    }\n"
+    )
+    simulation = (
+        "def run_sandbox(seed, replicates, estimators):\n"
+        "    return estimators['candidate']({'values': (1, 2, 3)})\n"
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id="bound-json-normalization",
+        language="python",
+        code=simulation,
+        dependencies=[],
+        seed=7,
+        replicates=5,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language="python",
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+            ),
+        ),
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {
+        "observed_as_list": True,
+        "observed_type": "list",
+    }
+    assert result.estimator_invocation_samples["candidate"] == [
+        {
+            "invocation_index": 1,
+            "request": {"values": [1, 2, 3]},
+            "response": {
+                "observed_as_list": True,
+                "observed_type": "list",
+            },
+        }
+    ]
+
+
 def test_live_estimator_bound_reports_nested_export_as_binding_failure(
     tmp_path: Path,
 ) -> None:

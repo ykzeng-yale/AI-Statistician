@@ -1,6 +1,6 @@
 # OpenAI Codex Harness Adoption
 
-Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `dde85b43`](https://github.com/openai/codex/tree/dde85b435b16994f956bce08e5fb796ed94c27fd), Apache-2.0. The prior `63d21388` audit pin differs only by relocated TUI Vim-history tests on the inspected harness surfaces.
+Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `28327355`](https://github.com/openai/codex/tree/28327355b861ab6cc76b01c7248663eb1be440cf), Apache-2.0. The inspected turn loop, ToolRouter, detached review, Guardian, multi-agent message/spawn, and App Server surfaces have no diff from the prior `dde85b43` audit pin.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -189,37 +189,28 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 ## Current Assessment
 
-The inner harness is no longer the main architecture blocker. It already preserves
-same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity,
-and isolated review. Task111 measured and corrected two outer-boundary defects:
-theory quality is now separate from finite exploratory-execution readiness, and a
-changed source hash is provenance rather than evidence of finding progress. Task111
-remains immutable 0/1.
+The inner harness is no longer the main architecture blocker. It preserves same-owner
+feedback, exact files, stable tools, sparse handoffs, checkpoint identity, and isolated
+review. Three immutable evaluations refined its boundaries without changing scores:
 
-Task112 then exposed an epistemic defect inside an otherwise correct Codex-style
-review loop. TheoryDeveloper wrote a flawed derivation while landing on the requested
-finite formula. The independent referee correctly noticed that the derivation was
-incoherent, but its own model-authored scratch program encoded the table cells with
-the wrong joint dependence. Successful execution of that program was then treated as
-evidence for four high-severity findings, and the source owner faithfully revised the
-theory toward the false review. The second review retained the same premise, and the
-generic no-progress boundary stopped the run. Task112 remains immutable 0/1.
+- Task111 separated theory quality from finite exploratory readiness and made source
+  hash changes provenance rather than evidence of finding progress.
+- Task112 showed that successful referee scratch execution validates only the submitted
+  program. A blocker now requires the referee to check its stochastic object and
+  assumptions against the candidate, source, and frozen objective; unresolved conflict
+  remains uncertainty.
+- Task113 showed the positive Codex pattern: exact-Haiku TheoryDeveloper passed hidden
+  theory authority using Markdown/LaTeX, scratch, and checkpoint tools, while
+  AlgorithmEngineer wrote, ran, edited, reran, and committed source in one retained
+  owner loop. It still remains 0/1, leaving 7/113 overall, because reviewer-owned probe
+  failures and a pre-candidate JSON normalization were misattributed to source.
 
-The shared future-task correction stays inside the existing referee workspace. Its
-prompt and scratch tool now state that successful execution validates only the
-submitted program; before a scratch result can support a blocker, the referee must
-check the random vector, joint dependence, conditioning, parameterization, and regime
-against the candidate. A blocker that conflicts with the frozen objective or an
-available exact source must be challenged by an independent derivation and source
-read, with unresolved conflict reported as uncertainty. The finite-handoff contract
-also makes explicit that proof or asymptotic disagreement alone does not block
-exploratory implementation when the exact finite map remains coherent.
-
-This is Codex-style observation placement and reviewer falsification, not a formula
-rule, mathematical parser, repair worker, second critic, vote, retry, scheduler,
-content patch, model escalation, or second runtime. Models still choose derivations,
-scratch programs, sources, code, experiments, Lean actions, findings, and verdicts;
-runtime still owns only identity, persistence, execution, and evidence boundaries.
+For future tasks, a probe failure before target invocation cannot terminate with a
+source judgment until the same reviewer reaches the target. Probe observations expose
+the JSON-normalized request actually visible to the candidate; erased host-language
+types are not source evidence. The model still chooses derivations, cases, oracles,
+findings, code, Lean actions, and verdicts. Runtime enforces only identity, execution,
+and evidence provenance. No consumed task is rerun, repaired, reassessed, or rescored.
 
 Remaining capability gaps are scientific rather than reasons to import Codex:
 
@@ -236,12 +227,12 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Goal-continuation lineage preservation and invalidation](https://github.com/openai/codex/commit/4210c08defe92fe8828f789b6f9fda287ad3709e)
-- [App Server protocol](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/app-server/README.md)
+- [App Server protocol](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

@@ -54,11 +54,10 @@ from .scientific_sandbox import (
     normalized_scientific_dependencies,
 )
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 37
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 38
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
-GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
-    "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.")
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v15"
+GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence."
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v16"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
@@ -168,7 +167,7 @@ def generated_code_semantic_review_finding_id(
         "expected_behavior": str(
             finding.get("expected_behavior", "") or ""
         ).strip(),
-        "evidence_refs": _evidence_ref_list(finding.get("evidence_refs", [])),
+        "evidence_refs": [],
     }
     return GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX + stable_hash(
         identity
@@ -215,7 +214,7 @@ def _descriptive_finding(value: Mapping[str, Any]) -> dict[str, Any]:
         "summary": summary,
         "observed_behavior": observed,
         "expected_behavior": expected,
-        "evidence_refs": _evidence_ref_list(value.get("evidence_refs", [])),
+        "evidence_refs": [],
     }
 
 
@@ -234,14 +233,6 @@ def _active_prior_findings(
             continue
         rows.append(deepcopy(dict(raw)))
     return rows
-
-
-def _evidence_ref_list(value: Any) -> list[str]:
-    """Discard pre-v25 pointer metadata; review Markdown owns exact locations."""
-
-    return []
-
-
 def _numeric_summary(values: Sequence[Any]) -> dict[str, Any]:
     finite = [
         float(value)
@@ -888,6 +879,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "attribute. This executes the reviewer's run_sandbox, not the "
                 "target's. Failure before target invocation is a reviewer tool error. "
                 "Only an observation that reaches the target can falsify source claims; "
+                "Correct it and reach the target before submitting. Requests are JSON-normalized "
+                "before candidate execution; erased host-language types are not candidate behavior. "
                 "the probe cannot edit source, inspect confirmatory outcomes, or confer "
                 "empirical acceptance. The reviewer owns test selection, contract "
                 "decomposition, and scientific interpretation; runtime records only exact "
@@ -936,7 +929,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             + GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL
                             + " for a model-authored multi-case Python or R test. Choose cases and "
                             "interpretation yourself. Failure before target invocation is your tool "
-                            "error, not a finding. Numerical or self-consistency checks do not cover "
+                            "error, not a finding; correct it and reach the target before submitting. Requests "
+                            "are normalized to public JSON values before candidate execution; judge only "
+                            "target-observed requests. Numerical or self-consistency checks do not cover "
                             "omitted boundaries or establish semantics; derive a discriminating oracle "
                             "when needed. Successful probes are committed: cite result_hash in review_document, "
                             "reconcile metrics with the verdict, and never ignore a contradiction."
@@ -1138,6 +1133,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     "stdout_summary": execution.stdout_summary,
                     "stderr_summary": execution.stderr_summary,
                     "estimator_invocation_counts": estimator_invocation_counts,
+                    "target_request_boundary": {
+                        "transport": "JSON_NATIVE_NORMALIZATION_BEFORE_CANDIDATE",
+                        "erased_host_types_are_source_evidence": False,
+                        "observed_samples": _prompt_projection_value(getattr(execution, "estimator_invocation_samples", {}) or {}),
+                    },
                     "estimator_runtime_errors": estimator_runtime_errors,
                     "successful_exact_invocation": (
                         execution.status == "EXECUTED" and target_invoked
@@ -1154,7 +1154,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     observation["authoritative_estimator_execution_contract"] = deepcopy(dict(contract))
                     observation["review_instruction"] = (
                         "Reconcile this raw probe result and the exact source against every "
-                        "public contract obligation; probe again or report any gap."
+                        "public contract obligation. Candidate behavior begins after the JSON-native "
+                        "request boundary; probe again or report any gap that remains there."
                     )
                 return ClientToolExecutionResult(
                     content=observation,
@@ -1180,6 +1181,18 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
+            if any(row.get("failure_origin") ==
+                   "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION"
+                for row in probe_executions
+            ) and not any(
+                row.get("target_source_invoked") is True or row.get(
+                    "failed_probe_is_target_source_evidence") is True
+                for row in probe_executions):
+                errors.append(
+                    "reviewer-owned probe failure before target invocation cannot support "
+                    "a source judgment; correct the probe and obtain a target observation "
+                    "before submitting"
+                )
             if (
                 packet.get("overall_verdict") == "ACCEPT"
                 and contract_probe_required
@@ -1317,7 +1330,7 @@ def _normalize_prior_reviews(
                 "finding_id": finding_id,
                 "status": str(raw.get("status", "") or "").strip().upper(),
                 "rationale": str(raw.get("rationale", "") or "").strip(),
-                "evidence_refs": _evidence_ref_list(raw.get("evidence_refs", [])),
+                "evidence_refs": [],
             }
         )
     return rows
@@ -1336,7 +1349,7 @@ def _normalize_source_revision_assessment(
     return {
         "resolution_scope": resolution_scope,
         "rationale": str(value.get("rationale", "") or "").strip(),
-        "evidence_refs": _evidence_ref_list(value.get("evidence_refs", [])),
+        "evidence_refs": [],
     }
 
 

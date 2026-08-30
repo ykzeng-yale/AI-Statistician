@@ -1432,6 +1432,10 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert "Failure before target invocation is your tool error, not a finding" in str(
         backend.requests[0].messages[0]["content"]
     )
+    assert "normalized to public JSON values before candidate execution" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "erased host-language types" in source_probe_tool.description
     assert "return a non-accepting judgment" not in str(
         backend.requests[0].messages[0]["content"]
     )
@@ -1456,6 +1460,15 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["failure_origin"] == "PROBE_COMPLETED"
     assert probe_record["target_source_invoked"] is True
     assert probe_record["failed_probe_is_target_source_evidence"] is False
+    assert probe_record["target_request_boundary"]["transport"] == (
+        "JSON_NATIVE_NORMALIZATION_BEFORE_CANDIDATE"
+    )
+    assert (
+        probe_record["target_request_boundary"][
+            "erased_host_types_are_source_evidence"
+        ]
+        is False
+    )
     assert probe_record["result_hash"] in packet["_review_document_artifact"]["content"]
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
@@ -1616,7 +1629,7 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
     assert len(probe_rows) == 1
 
 
-def test_failed_optional_probe_does_not_control_model_owned_acceptance(
+def test_failed_reviewer_probe_must_be_corrected_before_source_judgment(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1636,10 +1649,44 @@ def test_failed_optional_probe_does_not_control_model_owned_acceptance(
         "seed": 17,
         "replicates": 4,
     }
-    submission = {
+    successful_probe = {
+        "artifact_id": "candidate",
+        "dependencies": [],
+        "code": (
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    return {'candidate_observed_json_request': "
+            "estimators['candidate']({'value': [1, 2, 3]})['estimate'] == 2.0}\n"
+        ),
+        "seed": 17,
+        "replicates": 4,
+    }
+    invalid_submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "REVISE",
+        "review_document": (
+            "# Review\n\nThe reviewer probe failed before the candidate was called."
+        ),
+        "findings": [
+            {
+                "severity": "high",
+                "category": "probe_failure",
+                "summary": "The reviewer probe did not run.",
+                "observed_behavior": "The reviewer harness failed before target invocation.",
+                "expected_behavior": "The reviewer probe should execute.",
+            }
+        ],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The producer should rewrite source despite no target observation.",
+        },
+    }
+    accepted_submission = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
-        "review_document": "# Review\n\nThe current estimator is aligned.",
+        "review_document": (
+            "# Review\n\nThe current estimator is aligned after target observation "
+            "`successful-result-hash`."
+        ),
         "findings": [],
         "source_revision_assessment": {
             "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
@@ -1658,7 +1705,9 @@ def test_failed_optional_probe_does_not_control_model_owned_acceptance(
             self.requests.append(request)
             sequence = (
                 ("run_exact_estimator_review_probe", failed_probe),
-                ("submit_generated_code_semantic_review", submission),
+                ("submit_generated_code_semantic_review", invalid_submission),
+                ("run_exact_estimator_review_probe", successful_probe),
+                ("submit_generated_code_semantic_review", accepted_submission),
             )
             name, payload = sequence[len(self.requests) - 1]
             call_id = f"review-call-{len(self.requests)}"
@@ -1675,20 +1724,49 @@ def test_failed_optional_probe_does_not_control_model_owned_acceptance(
                 metadata={"provider_stop_reason": "tool_use"},
             )
 
-    def fake_execute_scientific_sandbox(**kwargs):
-        return SimpleNamespace(
-            status="FAILED",
-            metrics={},
-            errors=("run_sandbox signature mismatch",),
-            stdout_summary="",
-            stderr_summary="run_sandbox signature mismatch",
-            estimator_invocation_counts={},
-            estimator_runtime_errors=(),
-            request_hash="failed-request-hash",
-            result_hash="",
-            code_path=str(tmp_path / "failed-probe-source"),
-            result_path=str(tmp_path / "failed-probe-result"),
+    executions = iter(
+        (
+            SimpleNamespace(
+                status="FAILED",
+                metrics={},
+                errors=("run_sandbox signature mismatch",),
+                stdout_summary="",
+                stderr_summary="run_sandbox signature mismatch",
+                estimator_invocation_counts={},
+                estimator_invocation_samples={},
+                estimator_runtime_errors=(),
+                request_hash="failed-request-hash",
+                result_hash="",
+                code_path=str(tmp_path / "failed-probe-source"),
+                result_path=str(tmp_path / "failed-probe-result"),
+            ),
+            SimpleNamespace(
+                status="EXECUTED",
+                metrics={"candidate_observed_json_request": True},
+                errors=(),
+                stdout_summary="",
+                stderr_summary="",
+                estimator_invocation_counts={"candidate": 1},
+                estimator_invocation_samples={
+                    "candidate": [
+                        {
+                            "invocation_index": 1,
+                            "request": {"value": [1, 2, 3]},
+                            "response": {"estimate": 2.0},
+                        }
+                    ]
+                },
+                estimator_runtime_errors=(),
+                request_hash="successful-request-hash",
+                result_hash="successful-result-hash",
+                code_path=str(tmp_path / "successful-probe-source"),
+                result_path=str(tmp_path / "successful-probe-result"),
+            ),
         )
+    )
+
+    def fake_execute_scientific_sandbox(**kwargs):
+        return next(executions)
 
     monkeypatch.setattr(
         reviewer_module,
@@ -1710,20 +1788,26 @@ def test_failed_optional_probe_does_not_control_model_owned_acceptance(
         probe_sandbox_dir=tmp_path,
     )
 
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 4
     failed_observation = backend.requests[1].messages[-1]["content"][0]
     assert failed_observation["type"] == "tool_result"
     assert failed_observation["is_error"] is True
     assert "run_sandbox signature mismatch" in str(failed_observation)
+    rejection_observation = backend.requests[2].messages[-1]["content"][0]
+    assert rejection_observation["is_error"] is True
+    assert "cannot support a source judgment" in str(rejection_observation)
     assert packet["overall_verdict"] == "ACCEPT"
     loop = packet["client_tool_loop"]
-    assert loop["validation_submissions"] == 1
-    assert loop["validation_feedback_observed"] is False
-    assert [row["status"] for row in loop["review_probe_executions"]] == ["FAILED"]
+    assert loop["validation_submissions"] == 2
+    assert loop["validation_feedback_observed"] is True
+    assert [row["status"] for row in loop["review_probe_executions"]] == [
+        "FAILED",
+        "EXECUTED",
+    ]
     assert [
         row["successful_exact_invocation"]
         for row in loop["review_probe_executions"]
-    ] == [False]
+    ] == [False, True]
     failed_record = loop["review_probe_executions"][0]
     assert failed_record["originating_tool_call_id"] == "review-call-1"
     assert failed_record["failure_origin"] == (
@@ -1734,6 +1818,16 @@ def test_failed_optional_probe_does_not_control_model_owned_acceptance(
     assert failed_record["authority"].endswith(
         "NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF"
     )
+    successful_record = loop["review_probe_executions"][1]
+    assert successful_record["target_request_boundary"]["observed_samples"] == {
+        "candidate": [
+            {
+                "invocation_index": 1,
+                "request": {"value": [1, 2, 3]},
+                "response": {"estimate": 2.0},
+            }
+        ]
+    }
 
 
 @pytest.mark.parametrize("tamper_hash", [False, True])
