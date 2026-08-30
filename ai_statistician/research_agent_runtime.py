@@ -643,10 +643,10 @@ def _architect_routed_question(
     question: OpenResearchQuestion,
     architect_context: Mapping[str, Any],
 ) -> tuple[OpenResearchQuestion, str]:
-    """Bind an unfrozen question to the Architect's request-scoped tool plan."""
-
-    if research_dimension_requirements(question.task_intent):
-        return question, "operator_frozen_task_intent"
+    requested = architect_context.get("runtime_requested_evidence_contract", {})
+    frozen = _runtime_contract_dimension_requirements(requested) if isinstance(requested, Mapping) else {}
+    if frozen:
+        return replace(question, task_intent=research_dimension_requirements(frozen)), "operator_frozen_task_intent"
     contract = _architect_runtime_plan(architect_context).get("evidence_contract", {})
     planned = _runtime_contract_dimension_requirements(contract)
     if not planned:

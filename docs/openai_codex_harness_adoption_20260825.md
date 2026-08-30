@@ -1,6 +1,6 @@
 # OpenAI Codex Harness Adoption
 
-Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `28327355`](https://github.com/openai/codex/tree/28327355b861ab6cc76b01c7248663eb1be440cf), Apache-2.0. The inspected turn loop, ToolRouter, detached review, Guardian, multi-agent message/spawn, and App Server surfaces have no diff from the prior `dde85b43` audit pin.
+Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `0a12b855`](https://github.com/openai/codex/tree/0a12b855a0b21068108a8a3b311d492712737e0f), Apache-2.0. Since `28327355`, the relevant change separates Guardian user-authorization revision from history compaction; the inspected turn loop, ToolRouter, detached review, multi-agent, and App Server surfaces are unchanged.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -54,12 +54,10 @@ without duplicating the control plane.
    argument validation, and terminal disposition must agree. A prose example is not
    a second enum. This is the direct lesson from Task108's Critic transport failure
    and Codex's separation of tool specifications from registered runtimes.
-10. **Continuation provenance is explicit.** Automatic continuation keeps its exact
-    parent transcript and checkpoint lineage. New reviewer feedback, a changed
-    objective, or another external observation enters through a new typed task or
-    explicitly identified current context; it is never silently attributed to the
-    old root. This follows Codex's current invalidation of trusted turn lineage when
-    external context or goal edits make attribution ambiguous.
+10. **Authorization and conversation lineage are distinct.** Compaction or model-owned
+    replanning cannot create or change operator authority. Automatic continuation
+    keeps its exact parent transcript and checkpoint lineage; new user intent,
+    reviewer feedback, or external observations retain separate typed provenance.
 11. **Execution success is observation, not semantic authority.** Codex's detached
     review contract requires a demonstrated defect, and Guardian treats transcript,
     tool arguments, and tool results as untrusted evidence. AI Statistician applies
@@ -194,7 +192,7 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 ## Current Assessment
 
 The inner harness is no longer the main architecture blocker. It preserves same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity, and isolated review.
-Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, and the provider schema is the sole structural contract.
+Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, model-owned dimensions remain revisable on genuine replans, and the provider schema is the sole structural contract.
 Three immutable evaluations refined these boundaries without changing scores:
 
 - Task111 separated theory quality from finite exploratory readiness and made source
@@ -237,12 +235,12 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
-- [Goal-continuation lineage preservation and invalidation](https://github.com/openai/codex/commit/4210c08defe92fe8828f789b6f9fda287ad3709e)
-- [App Server protocol](https://github.com/openai/codex/blob/28327355b861ab6cc76b01c7248663eb1be440cf/codex-rs/app-server/README.md)
+- [`run_turn`](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [Authorization revision surviving compaction](https://github.com/openai/codex/commit/0a12b855a0b21068108a8a3b311d492712737e0f)
+- [App Server protocol](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

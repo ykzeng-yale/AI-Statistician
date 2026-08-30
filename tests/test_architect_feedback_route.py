@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 from ai_statistician.agent_runtime import (
     AgentRuntime,
@@ -470,6 +471,92 @@ def test_unfrozen_architect_plan_binds_downstream_question_capabilities() -> Non
     assert routing["task"].inputs["question"]["task_intent"] == dimensions
 
 
+def test_model_owned_capability_plan_remains_revisable_across_replan() -> None:
+    question = _question()
+    requested_contract = _runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+    )
+    first_dimensions = {
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    first_decision = _capability_scoped_architect_decision(first_dimensions)
+    first_packet = _normalize_architect_packet(
+        first_decision,
+        question=question,
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(first_decision),
+        runtime_config={"evaluation_mode": "research_eval"},
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract
+        },
+    )
+    propagated_question = replace(question, task_intent=first_dimensions)
+    replan_prompt = build_architect_coordinator_prompt(
+        question=propagated_question,
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract,
+            "architect_runtime_plan": first_packet,
+        },
+        runtime_config={"evaluation_mode": "research_eval"},
+    )
+    prompt_payload = json.loads(replan_prompt.rsplit("\n\n", 1)[1])
+    assert prompt_payload["question"]["task_intent"] == {}
+
+    revised_dimensions = {
+        "theory": "optional",
+        "scientific_code": "required",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    revised_decision = _capability_scoped_architect_decision(revised_dimensions)
+    revised_packet = _normalize_architect_packet(
+        revised_decision,
+        question=propagated_question,
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(revised_decision),
+        runtime_config={"evaluation_mode": "research_eval"},
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract,
+            "architect_runtime_plan": first_packet,
+        },
+    )
+    assert revised_packet["question"]["task_intent"] == {}
+    assert revised_packet["evidence_contract"]["dimension_requirements"] == (
+        revised_dimensions
+    )
+    context = {
+        "runtime_requested_evidence_contract": requested_contract,
+        "architect_runtime_plan": revised_packet,
+    }
+    routing = _architect_initial_routing_decision(
+        question=propagated_question,
+        packet=revised_packet,
+        architect_context=context,
+        packet_id=str(revised_packet["packet_id"]),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval"
+        ),
+        blackboard=BlackboardState(project_id="revisable-capability-plan"),
+        requested_subsystem_override="AlgorithmEngineer",
+        routing_source_override="architect_model_replan_test",
+        honor_requested_subsystem=True,
+    )
+
+    assert routing["record"]["task_intent_source"] == "architect_model_plan"
+    assert routing["record"]["effective_task_intent"] == revised_dimensions
+    assert routing["task"].inputs["question"]["task_intent"] == (
+        revised_dimensions
+    )
+
+
 def test_operator_required_formal_lane_overrides_unfrozen_model_plan() -> None:
     question = _question()
     requested_contract = _runtime_requested_evidence_contract(
@@ -696,6 +783,39 @@ def test_architect_discards_targets_outside_frozen_task_intent() -> None:
     assert packet["evidence_contract"]["formal_targets"] == []
     assert packet["evidence_contract"]["simulation_targets"] == []
     assert packet["evidence_contract"]["independent_theory_review_required"] is True
+    assert packet["question"]["task_intent"] == question.task_intent
+    prompt = build_architect_coordinator_prompt(
+        question=question,
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract,
+            "architect_runtime_plan": packet,
+        },
+        runtime_config={"evaluation_mode": "research_eval"},
+    )
+    assert json.loads(prompt.rsplit("\n\n", 1)[1])["question"][
+        "task_intent"
+    ] == question.task_intent
+    routing = _architect_initial_routing_decision(
+        question=question,
+        packet=packet,
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract,
+            "architect_runtime_plan": packet,
+        },
+        packet_id=str(packet["packet_id"]),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval"
+        ),
+        blackboard=BlackboardState(project_id="frozen-capability-plan"),
+        requested_subsystem_override="TheoryDeveloper",
+        honor_requested_subsystem=True,
+    )
+    assert routing["record"]["task_intent_source"] == (
+        "operator_frozen_task_intent"
+    )
+    assert routing["task"].inputs["question"]["task_intent"] == (
+        question.task_intent
+    )
 
 
 class _RouteBackend:

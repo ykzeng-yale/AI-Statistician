@@ -1952,10 +1952,10 @@ def build_architect_coordinator_prompt(
     )
     available_subsystems = _architect_available_subsystems(architect_context)
     payload = {
-        "question": research_question_payload(
-            question,
-            include_task_intent=True,
-        ),
+        "question": {
+            **research_question_payload(question, include_task_intent=False),
+            "task_intent": deepcopy(runtime_owned_contract.get("dimension_requirements", {})),
+        },
         "architect_context": model_architect_context,
         "runtime_config": withhold_confirmatory_evaluation_seed(
             runtime_config,
@@ -1989,9 +1989,9 @@ def build_architect_coordinator_prompt(
                 "the current evidence rather than regenerating the whole graph"
             ),
             "task_intent_rule": (
-                "Honor supplied task_intent exactly. If it is empty, choose all four "
-                "evidence dimensions from the objective: required must close, optional "
-                "may help, and not_applicable must not run. This plan is not evidence."
+                "Honor question.task_intent exactly when supplied; it contains only "
+                "operator-frozen dimensions. If empty, revise all four model-owned "
+                "dimensions from current evidence. This plan is not evidence."
             ),
         },
         "authority_gates": [
@@ -3001,11 +3001,11 @@ def _normalize_architect_packet(
         "provider": provider_name,
         "model": model,
         "model_tier": model_tier,
-        "question": research_question_payload(
-            question,
-            include_task_intent=True,
-            include_estimator_execution_contract=False,
-        ),
+        "question": {
+            **research_question_payload(question, include_task_intent=False,
+                                        include_estimator_execution_contract=False),
+            "task_intent": deepcopy(runtime_owned_contract.get("dimension_requirements", {})),
+        },
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
