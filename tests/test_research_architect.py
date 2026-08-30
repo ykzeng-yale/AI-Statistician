@@ -2196,6 +2196,9 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     assert "test small and boundary cases" in prompt.lower()
     assert "object types, domains, measures or densities, conditioning" in prompt
     assert "normalizations, dimensions, and limit order" in prompt
+    assert "verify sign and scale term by term" in prompt
+    assert "agreement of a final variance or rate is not enough" in prompt
+    assert "complete alternate derivation bypasses it" in prompt
     assert "weaker proxy" in prompt
     assert "group distributions or baselines" not in prompt
     assert "mark them unresolved" in prompt

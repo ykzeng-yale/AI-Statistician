@@ -477,6 +477,11 @@ def build_critic_evaluator_prompt(
         "cannot validate untested transitions. Never call a rejected, failed, unavailable, or "
         "hash-mismatched probe passed. Scratch is exploratory, never proof or confirmation. "
         "Report a mathematical correction only when it is not equivalent to the observed form. "
+        "When aggregate, summand, influence/action, normalized, or asymptotic forms are "
+        "claimed equivalent, expand them from common definitions and compare sign and "
+        "scale term by term; a matching endpoint variance or rate is not enough. An "
+        "acknowledged unresolved load-bearing transition remains a theory gap unless a "
+        "complete independent derivation bypasses it. "
         "gap_disclosure.status describes whether all known gaps were disclosed, not whether "
         "the research succeeded. It must be COMPLETE after listing every known gap, including "
         "for an INCONCLUSIVE or REJECT disposition. "
@@ -558,10 +563,7 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         }
     ],
     "gap_disclosure": {
-        "status": (
-            "COMPLETE: all known gaps are disclosed, including for an INCONCLUSIVE "
-            "or REJECT result; this does not mean the research succeeded"
-        ),
+        "status": "COMPLETE",
         "disclosed_gaps": ["short gap statement or empty"],
         "evidence_refs": ["canonical evidence path or artifact id"],
         "rationale": "short rationale",
@@ -594,7 +596,14 @@ CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
         "evidence_boundary_audit": {"type": "array", "minItems": 1},
         "critic_findings": {"type": "array"},
         "dimension_assessments": {"type": "array", "minItems": 5},
-        "gap_disclosure": {"type": "object"},
+        "gap_disclosure": {
+            "type": "object",
+            "additionalProperties": True,
+            "required": ["status"],
+            "properties": {
+                "status": {"type": "string", "enum": ["COMPLETE"]},
+            },
+        },
         "research_disposition": {"type": "object"},
     },
 }

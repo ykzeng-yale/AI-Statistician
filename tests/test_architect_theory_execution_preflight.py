@@ -126,6 +126,8 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "without praise or a verification essay" in normalized_prompt
     assert "Reconstruct each load-bearing transition" in protocol
     assert "preserving domains, measures or densities, conditioning" in protocol
+    assert "compare sign and scale term by term" in protocol
+    assert "agreement of a final variance or rate is insufficient" in protocol
     assert "counterexample to a different object is not evidence" in protocol
     assert "reviewer-added premises" in protocol
     assert "every requested conclusion or scope boundary" in protocol
@@ -149,7 +151,7 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "do not reproduce the candidate or write a substitute proof" in protocol
     assert "silently supply a repair" in normalized_prompt
     assert len(protocol.split()) < 430
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 46
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 47
 
 
 def test_preflight_preserves_the_exact_frozen_research_target() -> None:

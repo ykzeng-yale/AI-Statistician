@@ -9,6 +9,8 @@ from ai_statistician.critic_evaluator_llm import (
     CRITIC_EVALUATION_SUBMIT_TOOL,
     CRITIC_EVIDENCE_READ_TOOL,
     CRITIC_EVIDENCE_SEARCH_TOOL,
+    CRITIC_EVALUATOR_JSON_SCHEMA,
+    CRITIC_EVALUATOR_OUTPUT_CONTRACT,
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
     CriticEvaluatorConfig,
     LLMCriticEvaluatorAgent,
@@ -157,6 +159,16 @@ def test_nonaccept_disposition_requires_complete_explicit_gap_disclosure() -> No
     assert "non-ACCEPT disposition requires at least one disclosed gap" in errors
     assert "non-ACCEPT disposition requires gap disclosure evidence_refs" in errors
     assert "blocking dimensions require explicit dimension gaps: theory" in errors
+
+
+def test_gap_disclosure_tool_contract_matches_validator_literal() -> None:
+    assert CRITIC_EVALUATOR_OUTPUT_CONTRACT["gap_disclosure"]["status"] == (
+        "COMPLETE"
+    )
+    assert CRITIC_EVALUATOR_JSON_SCHEMA["properties"]["gap_disclosure"][
+        "properties"
+    ]["status"]["enum"] == ["COMPLETE"]
+    assert validate_critic_evaluator_packet(_critic_packet()) == []
 
 
 def test_critic_can_accept_without_inventing_a_finding() -> None:
@@ -401,6 +413,8 @@ def test_canonical_evidence_view_exposes_preflight_report_and_scratch_failures(
     assert "Never call a rejected, failed, unavailable, or hash-mismatched" in prompt
     assert "never use preflight ACCEPT" in prompt
     assert "outside the claim index" in prompt
+    assert "compare sign and scale term by term" in prompt
+    assert "matching endpoint variance or rate is not enough" in prompt
     assert "All symbolic checks passed" in prompt
     assert "REJECTED_CONTRACT" in prompt
 
