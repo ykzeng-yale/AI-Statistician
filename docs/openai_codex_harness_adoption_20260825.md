@@ -1,6 +1,5 @@
 # OpenAI Codex Harness Adoption
-
-Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `88f77658`](https://github.com/openai/codex/tree/88f776588f5e73467e7659c268f8358a9a2378b6), Apache-2.0. Since `cefa0606`, only environment-MCP tests and older-terminal rendering changed; the inspected turn loop, ToolRouter, detached review, multi-agent, and App Server surfaces are unchanged. AI Statistician has no analogue of the earlier first-Node-execution Guardian fast path and adopts no first-execution bypass.
+Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `94cbbdda`](https://github.com/openai/codex/tree/94cbbddafc1776d5e377bca1b05932c697e82238), Apache-2.0. Since `88f77658`, the inspected turn loop, ToolRouter, bounded context, multi-agent, and App Server surfaces are unchanged. AI Statistician has no analogue of the earlier first-Node-execution Guardian fast path and adopts no first-execution bypass.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -57,7 +56,8 @@ without duplicating the control plane.
 10. **Authorization and conversation lineage are distinct.** A root fingerprint binds
     the exact question and runtime-owned operator requirements, excluding a propagated
     model plan. Compaction, replanning, review, and environment feedback keep typed
-    provenance but cannot silently create or change operator authority.
+    provenance but cannot silently create or change operator authority. Authorization
+    fields must gate tool/model execution; telemetry-only denial is an authority bug.
 11. **Execution success is observation, not semantic authority.** Codex's detached
     review contract requires a demonstrated defect, and Guardian treats transcript,
     tool arguments, and tool results as untrusted evidence. AI Statistician applies
@@ -236,13 +236,13 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Authorization revision surviving compaction](https://github.com/openai/codex/commit/0a12b855a0b21068108a8a3b311d492712737e0f)
 - [First Node REPL execution while Guardian classifies asynchronously](https://github.com/openai/codex/commit/cefa060695594cdeebfb4306170cc27487c8a088)
-- [App Server protocol](https://github.com/openai/codex/blob/88f776588f5e73467e7659c268f8358a9a2378b6/codex-rs/app-server/README.md)
+- [App Server protocol](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

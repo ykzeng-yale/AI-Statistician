@@ -965,6 +965,13 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit() -
         "execution_handoff_status": (
             runtime_module.PREFLIGHT_EXECUTION_HANDOFF_READY
         ),
+        "findings": [
+            {
+                "finding_id": finding_id,
+                "severity": "high",
+                "summary": "The publication-level derivation remains incomplete.",
+            }
+        ],
         "active_unresolved_finding_ids": [finding_id],
     }
     blackboard = BlackboardState(
@@ -999,6 +1006,12 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit() -
     assert acceptance["exploratory_execution_ready"] is True
     assert acceptance["active_unresolved_finding_ids"] == [finding_id]
     assert acceptance["algorithm_execution_authorized"] is False
+    deferred = runtime_module._agent_task_from_runtime_payload(
+        result.next_task.inputs["deferred_metric_protocol_task"]
+    )
+    assert deferred.owner_subsystem == "TheoryDeveloper"
+    assert deferred.inputs["theory_preflight_packet_id"] == preflight["packet_id"]
+    assert deferred.inputs["exploratory_implementation_theory_revision"] is True
     artifacts = {
         theory_packet_id: theory_packet,
         **result.produced_artifacts,
@@ -1008,6 +1021,198 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit() -
         theory_packet_id=theory_packet_id,
         theory_packet=theory_packet,
     ) is False
+
+    class NoEvaluatorCall:
+        @staticmethod
+        def propose(**_kwargs):
+            raise AssertionError("unaccepted theory reached evaluator authoring")
+
+    blocked = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=NoEvaluatorCall()
+    ).run(
+        AgentTask(
+            task_id="forbidden-evaluator-source:provisional-handoff",
+            owner_subsystem="SimulationEvaluator",
+            objective="Do not author an evaluator before theory acceptance.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": result.next_task.inputs["architect_context"],
+                "evaluator_source_authoring": True,
+            },
+        ),
+        BlackboardState(project_id=question.id, artifacts=artifacts),
+    )
+    assert blocked.status == "BLOCKED"
+    assert blocked.failure_classification == "confirmatory_theory_authority_missing"
+
+
+def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="exploratory-algorithm-theory-return",
+        title="Return exploratory implementation evidence to theory",
+        description="Keep theory findings active after implementation review.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+    )
+    theory_id = "theory:exploratory-algorithm-theory-return"
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_id,
+        "question": runtime_module._question_to_payload(question),
+    }
+    finding_id = "finding:publication-proof-gap"
+    preflight_id = "theory_preflight:exploratory-algorithm-theory-return"
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": preflight_id,
+        "source_theory_packet_id": theory_id,
+        "source_theory_packet_hash": runtime_module.stable_hash(theory),
+        "overall_verdict": "REVISE",
+        "execution_handoff_status": runtime_module.PREFLIGHT_EXECUTION_HANDOFF_READY,
+        "findings": [
+            {
+                "finding_id": finding_id,
+                "severity": "high",
+                "summary": "The asymptotic proof still has an active gap.",
+            }
+        ],
+        "active_unresolved_finding_ids": [finding_id],
+    }
+    source = "def run_estimator(request):\n    return {'estimate': 1.0}\n"
+    result_payload = {"estimate": 1.0}
+    source_path = tmp_path / "estimator.py"
+    result_path = tmp_path / "result.json"
+    source_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    manifest_id = "algorithm_manifest:exploratory-theory-return"
+    proposal_id = "algorithm_proposal:exploratory-theory-return"
+    source_manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": manifest_id,
+        "prototypes": [
+            {
+                "estimator_id": "candidate",
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "script_path": str(source_path),
+                "script_hash": runtime_module.stable_hash(source),
+                "result_path": str(result_path),
+                "result_hash": runtime_module.stable_hash(result_payload),
+                "metrics": result_payload,
+                "runtime_seed": 7,
+                "runtime_replicates": 8,
+            }
+        ],
+    }
+    proposal = {
+        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "packet_id": proposal_id,
+        "source_agent": "LLMAlgorithmEngineerAgent",
+        "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": "haiku",
+    }
+    context = _full_evidence_context(question.id)
+    context.update(
+        {
+            "theory_packet_id": theory_id,
+            "empirical_evaluation_phase": runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
+            "architect_metric_protocol_gate": {
+                "artifact_kind": "RuntimeArchitectMetricProtocolGate",
+                "upstream_theory_revision_count": 0,
+                "confirmatory_simulation_authorized": False,
+                "execution_authorized": False,
+            },
+        }
+    )
+    source_task = AgentTask(
+        task_id="algorithm-before-metric:exploratory-theory-return",
+        owner_subsystem="AlgorithmEngineer",
+        objective="Execute one exploratory estimator implementation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_id,
+            "architect_context": context,
+        },
+    )
+    deferred_task = AgentTask(
+        task_id="theory-after-exploration:exploratory-theory-return",
+        owner_subsystem="TheoryDeveloper",
+        objective="Revise the parent theory after exploratory implementation.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_id,
+            "architect_context": context,
+            "theory_preflight_packet_id": preflight_id,
+            "exploratory_implementation_theory_revision": True,
+        },
+    )
+    base_artifacts = {
+        theory_id: theory,
+        preflight_id: preflight,
+        manifest_id: source_manifest,
+        proposal_id: proposal,
+    }
+    dispatch = _runtime_generated_code_semantic_review_dispatch(
+        task=source_task,
+        question=question,
+        source_subsystem="AlgorithmEngineer",
+        source_manifest=source_manifest,
+        theory_packet=theory,
+        proposal_packet=proposal,
+        architect_context=context,
+        deferred_next_task=deferred_task,
+        blackboard_artifacts=base_artifacts,
+        max_revisions=1,
+    )
+    assert dispatch is not None
+    backend = StaticReviewClientToolBackend(
+        {
+            "prior_finding_reviews": [],
+            "overall_verdict": "ACCEPT",
+            "review_document": "# Review\n\nThe exact source implements the finite interface.",
+            "findings": [],
+            "source_revision_assessment": {
+                "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+                "rationale": "No implementation revision is required.",
+                "evidence_refs": ["/exact_executed_artifacts/0/exact_source_code"],
+            },
+        }
+    )
+    reviewer = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model=LIVE_EVALUATION_CLAUDE_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+    blackboard = BlackboardState(project_id=question.id)
+    blackboard.artifacts.update(base_artifacts)
+    blackboard.artifacts.update(dispatch["artifacts"])
+    outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
+        reviewer=reviewer,
+        max_revisions=1,
+    ).run(dispatch["next_task"], blackboard)
+
+    assert outcome.status == "REROUTE"
+    assert outcome.next_task is not None
+    assert outcome.next_task.owner_subsystem == "TheoryDeveloper"
+    next_context = outcome.next_task.inputs["architect_context"]
+    binding = next_context[runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY]
+    assert binding["revision_source"] == "theory_preflight_after_exploratory_implementation"
+    assert binding["execution_results_observed"] is True
+    assert binding["source_feedback"]["active_unresolved_finding_ids"] == [finding_id]
+    assert binding["source_feedback"]["exploratory_algorithm_observation"]["handoff_id"]
+    assert next_context["architect_metric_protocol_gate"]["upstream_theory_revision_count"] == 1
+    assert "evaluator_source_authoring" not in outcome.next_task.inputs
 
 
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:

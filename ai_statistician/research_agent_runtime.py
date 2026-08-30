@@ -828,7 +828,9 @@ def _architect_theory_preflight_accepted_result(
     algorithm_execution_available = bool(not dimension_requirements or dimension_requirements.get("scientific_code") != "not_applicable")
     empirical_evaluation_available = bool(not dimension_requirements or dimension_requirements.get("empirical") != "not_applicable")
     formalization_evaluation_available = bool(not dimension_requirements or dimension_requirements.get("formal") != "not_applicable")
-    metric_protocol_required = _runtime_research_evaluation_contract_flag(evidence_contract, "typed_metric_contracts")
+    metric_protocol_required = _runtime_metric_protocol_authoring_required(
+        evidence_contract=evidence_contract, architect_context=context
+    )
     theory_material = context.get("architect_metric_protocol_theory_material", {})
     theory_material = dict(theory_material) if isinstance(theory_material, Mapping) else {}
     theory_packet_id = str(theory_material.get("source_theory_packet_id", "") or "")
@@ -3165,71 +3167,39 @@ def _architect_initial_routing_decision(
             )
             context["architect_metric_protocol_gate"] = selected_metric_gate
             inputs["architect_context"] = context
-            acceptance_id = str(
-                metric_gate.get("preflight_acceptance_id", "") or ""
-            )
-            evaluator_authoring_context = dict(context)
-            evaluator_authoring_context.update(
-                {
-                    "executable_evaluator_source_authority": True,
-                    "evaluator_source_authoring": True,
-                    "confirmatory_simulation_requires_accepted_algorithm_handoff": True,
-                    "empirical_evaluation_phase": (
-                        EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
-                    ),
-                }
-            )
-            deferred_metric_task = AgentTask(
-                task_id=(
-                    f"evaluator-source-after-implementation:{question.id}:"
-                    f"{stable_hash([packet_id, acceptance_id])[:8]}"
-                ),
-                owner_subsystem="SimulationEvaluator",
-                objective=(
-                    "Author one executable evaluator against the accepted algorithm "
-                    "interface, then obtain independent source review before any "
-                    "confirmatory cohort is consumed."
-                ),
-                inputs={
-                    "question": _question_to_payload(routed_question),
-                    "theory_packet_id": _architect_context_theory_packet_id(context),
-                    "architect_context": evaluator_authoring_context,
-                    "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
-                    "seed": runtime_config.seed,
-                    "empirical_evaluation_phase": (
-                        EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
-                    ),
-                    "evaluator_source_authoring": True,
-                },
-                allowed_tools=(
-                    "model_backend",
-                    "python",
-                    "filesystem_sandbox",
-                ),
-                expected_artifacts=(
-                    "simulation_evaluator_source_manifest",
-                    "generated_code_semantic_review",
-                ),
-                acceptance_gate=(
-                    "exact executable evaluator source receives independent ACCEPT "
-                    "before confirmatory execution"
-                ),
-                stop_condition=(
-                    "reviewed source is replayed confirmatorily or an exact source "
-                    "or upstream blocker is recorded"
-                ),
-            )
-            inputs.update(
-                {
-                    "empirical_evaluation_phase": (
-                        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
-                    ),
-                    "implementation_before_metric_freeze": True,
-                    "deferred_metric_protocol_task": asdict(
-                        deferred_metric_task
-                    ),
-                }
-            )
+            acceptance_id = str(metric_gate.get("preflight_acceptance_id", "") or "")
+            preflight_feedback = context.get("environment_feedback", {})
+            theory_revision_pending = isinstance(preflight_feedback, Mapping) and preflight_feedback.get("theory_quality_accepted") is False and preflight_feedback.get("exploratory_execution_ready") is True
+            if theory_revision_pending:
+                deferred_metric_task = AgentTask(
+                    task_id=f"theory-after-exploration:{question.id}:{stable_hash([packet_id, acceptance_id])[:8]}",
+                    owner_subsystem="TheoryDeveloper",
+                    objective="Continue the exact theory workspace after reviewed exploratory implementation while every preflight finding remains active.",
+                    inputs={
+                        "question": _question_to_payload(routed_question),
+                        "theory_packet_id": _architect_context_theory_packet_id(context),
+                        "architect_context": context,
+                        "theory_preflight_packet_id": str(preflight_feedback.get("preflight_packet_id", "") or ""),
+                        "exploratory_implementation_theory_revision": True,
+                    },
+                    allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+                    expected_artifacts=("theory_derivation_packet",),
+                    acceptance_gate="fresh parent-bound theory revision addresses findings without promoting exploratory execution",
+                    stop_condition="revised theory checkpoint or typed gap recorded",
+                )
+            else:
+                deferred_metric_task = build_executable_evaluator_authoring_task(
+                    task=task,
+                    question=routed_question,
+                    theory_packet_id=_architect_context_theory_packet_id(context),
+                    architect_context=context,
+                    requires_accepted_algorithm_handoff=True,
+                )
+            inputs.update({
+                "empirical_evaluation_phase": EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
+                "implementation_before_metric_freeze": True,
+                "deferred_metric_protocol_task": asdict(deferred_metric_task),
+            })
             task_prefix = "algorithm-before-metric"
             default_objective = (
                 "Generate and execute the theory-bound estimator implementation "
@@ -8387,6 +8357,59 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 next_context["algorithm_sandbox_manifest_id"] = str(
                     algorithm_handoff["algorithm_sandbox_manifest_id"]
                 )
+            if algorithm_handoff and deferred_task.owner_subsystem == "TheoryDeveloper" and deferred_task.inputs.get("exploratory_implementation_theory_revision") is True:
+                preflight_id = str(deferred_task.inputs.get("theory_preflight_packet_id", "") or "")
+                preflight = blackboard.artifacts.get(preflight_id, {})
+                theory_id, theory_hash = str(theory_packet.get("packet_id", "") or ""), stable_hash(theory_packet)
+                valid_preflight = isinstance(preflight, Mapping) and preflight.get("artifact_kind") == "ArchitectTheoryExecutionPreflightReviewPacket" and str(preflight.get("packet_id", "") or "") == preflight_id and str(preflight.get("source_theory_packet_id", "") or "") == theory_id and str(preflight.get("source_theory_packet_hash", "") or "") == theory_hash and preflight.get("overall_verdict") != "ACCEPT" and str(preflight.get("execution_handoff_status", "") or "") == PREFLIGHT_EXECUTION_HANDOFF_READY
+                if not valid_preflight:
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale="The accepted implementation could not resume an exact parent-bound theory revision.",
+                        failure_classification="exploratory_theory_revision_lineage_invalid",
+                    )
+                feedback = {
+                    "artifact_kind": "RuntimeExploratoryImplementationTheoryObservation",
+                    "feedback_type": "exploratory_implementation_theory_observation",
+                    "feedback_source": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+                    "question_id": question.id,
+                    "source_theory_packet_id": theory_id,
+                    "source_theory_packet_hash": theory_hash,
+                    "preflight_packet_id": preflight_id,
+                    "preflight_packet_hash": stable_hash(preflight),
+                    "findings": [deepcopy(dict(row)) for row in preflight.get("findings", []) or [] if isinstance(row, Mapping)],
+                    "active_unresolved_finding_ids": list(preflight.get("active_unresolved_finding_ids", []) or []),
+                    "exploratory_algorithm_observation": {
+                        "handoff_id": str(algorithm_handoff["handoff_id"]),
+                        "handoff_hash": stable_hash(algorithm_handoff),
+                        "semantic_review_execution_id": execution_id,
+                        "semantic_review_packet_id": review_packet_id,
+                    },
+                    "overall_verdict": "REVISE",
+                    "target_consumer_subsystem": "TheoryDeveloper",
+                    "execution_results_observed": True,
+                    "execution_authorized": False,
+                    "confirmatory_simulation_authorized": False,
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                    "boundary": "Exploratory executability is not theory acceptance; active findings return to the exact parent Theory workspace before evaluator authoring.",
+                }
+                feedback["feedback_id"] = "exploratory_implementation_theory_observation:" + stable_hash(feedback)[:20]
+                metric_gate = next_context.get("architect_metric_protocol_gate", {})
+                revision_count = int(metric_gate.get("upstream_theory_revision_count", 0) or 0) + 1
+                next_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = build_theory_developer_revision_binding(
+                    revision_source="theory_preflight_after_exploratory_implementation",
+                    question_id=question.id,
+                    source_feedback=feedback,
+                    parent_theory_packet=theory_packet,
+                    feedback_id=str(feedback["feedback_id"]),
+                    upstream_theory_revision_count=revision_count,
+                    execution_results_observed=True,
+                    source_review_packet_id=review_packet_id,
+                    source_review_execution_id=execution_id,
+                )
+                next_context["environment_feedback"] = feedback
+                next_context["architect_metric_protocol_gate"] = {**dict(metric_gate), "upstream_theory_revision_count": revision_count}
+                next_inputs["environment_feedback"] = feedback
             next_inputs["architect_context"] = next_context
             next_task = replace(
                 deferred_task,
@@ -8836,10 +8859,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         self.proposal_agent = proposal_agent
         self.sandbox_root = sandbox_root
         self.semantic_reviewer_available = bool(semantic_reviewer_available)
-        self.semantic_review_max_revisions = max(
-            0,
-            int(semantic_review_max_revisions or 0),
-        )
+        self.semantic_review_max_revisions = max(0, int(semantic_review_max_revisions or 0))
         self.timeout_s = max(1, int(timeout_s or 60))
         self.research_sources = research_sources
         self.research_source_discovery = research_source_discovery
@@ -8852,18 +8872,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             or context.get("empirical_evaluation_phase", "")
             or ""
         ).strip()
-        exploratory_diagnostic = bool(
-            empirical_evaluation_phase
-            == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
-        )
-        evaluator_source_authoring = bool(
-            task.inputs.get("evaluator_source_authoring") is True
-            or context.get("evaluator_source_authoring") is True
-        )
-        evaluator_source_confirmation = bool(
-            task.inputs.get("evaluator_source_confirmation") is True
-            or context.get("evaluator_source_confirmation") is True
-        )
+        exploratory_diagnostic = empirical_evaluation_phase == EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+        evaluator_source_authoring = task.inputs.get("evaluator_source_authoring") is True or context.get("evaluator_source_authoring") is True
+        evaluator_source_confirmation = task.inputs.get("evaluator_source_confirmation") is True or context.get("evaluator_source_confirmation") is True
         if evaluator_source_authoring and evaluator_source_confirmation:
             return AgentStepResult(
                 status="BLOCKED",
@@ -8873,9 +8884,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 ),
                 failure_classification="executable_evaluator_phase_invalid",
             )
-        executable_evaluator_source = bool(
-            evaluator_source_authoring or evaluator_source_confirmation
-        )
+        executable_evaluator_source = evaluator_source_authoring or evaluator_source_confirmation
         if empirical_evaluation_phase:
             context["empirical_evaluation_phase"] = empirical_evaluation_phase
         if executable_evaluator_source:
@@ -8949,6 +8958,14 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             if missing_theory is not None:
                 return missing_theory
+        if executable_evaluator_source and dimension_requirements.get("theory") == "required" and not theory_preexecution_review_accepted(
+            blackboard.artifacts, theory_packet_id=packet_id, theory_packet=packet
+        ):
+            return AgentStepResult(
+                status="BLOCKED",
+                rationale="Evaluator authoring and confirmatory execution require independently accepted theory; exploratory readiness is insufficient.",
+                failure_classification="confirmatory_theory_authority_missing",
+            )
         algorithm_sandbox_manifest_id = str(
             task.inputs.get("algorithm_sandbox_manifest_id", "")
             or context.get("algorithm_sandbox_manifest_id", "")

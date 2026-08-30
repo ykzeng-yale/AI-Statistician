@@ -81,47 +81,31 @@ def build_executable_evaluator_authoring_task(
 
     context = invalidate_metric_protocol_authorization(architect_context)
     phase = EMPIRICAL_EVALUATION_PHASE_EXECUTABLE_EVALUATOR_AUTHORING
-    context.update(
-        {
-            "theory_packet_id": theory_packet_id,
-            "executable_evaluator_source_authority": True,
-            "evaluator_source_authoring": True,
-            "empirical_evaluation_phase": phase,
-        }
-    )
+    context.update({
+        "theory_packet_id": theory_packet_id,
+        "executable_evaluator_source_authority": True,
+        "evaluator_source_authoring": True,
+        "empirical_evaluation_phase": phase,
+    })
+    handoff_requirement = "confirmatory_simulation_requires_accepted_algorithm_handoff"
     if requires_accepted_algorithm_handoff:
-        context[
-            "confirmatory_simulation_requires_accepted_algorithm_handoff"
-        ] = True
+        context[handoff_requirement] = True
     else:
-        context.pop(
-            "confirmatory_simulation_requires_accepted_algorithm_handoff",
-            None,
-        )
+        context.pop(handoff_requirement, None)
     if exploratory_manifest_id:
         context["exploratory_diagnostic_feedback"] = {
             "simulation_manifest_id": exploratory_manifest_id,
             "simulation_manifest_hash": exploratory_manifest_hash,
             "status": "PASSED_NOT_CONFIRMATORY_EVIDENCE",
         }
-    raw_handoff = (
-        upstream_algorithm_handoff
-        if upstream_algorithm_handoff is not None
-        else task.inputs.get(
-            "upstream_algorithm_handoff",
-            context.get("upstream_algorithm_handoff", {}),
-        )
+    raw_handoff = upstream_algorithm_handoff if upstream_algorithm_handoff is not None else task.inputs.get(
+        "upstream_algorithm_handoff", context.get("upstream_algorithm_handoff", {})
     )
-    handoff = (
-        deepcopy(dict(raw_handoff))
-        if isinstance(raw_handoff, Mapping)
-        else {}
-    )
+    handoff = deepcopy(dict(raw_handoff)) if isinstance(raw_handoff, Mapping) else {}
     algorithm_id = algorithm_sandbox_manifest_id or str(
-        handoff.get("algorithm_sandbox_manifest_id", "")
-        or task.inputs.get("algorithm_sandbox_manifest_id", "")
-        or context.get("algorithm_sandbox_manifest_id", "")
-        or ""
+        handoff.get("algorithm_sandbox_manifest_id", "") or task.inputs.get(
+            "algorithm_sandbox_manifest_id", ""
+        ) or context.get("algorithm_sandbox_manifest_id", "") or ""
     )
     inputs = {
         "question": research_question_payload(question, include_task_intent=True),
@@ -139,15 +123,16 @@ def build_executable_evaluator_authoring_task(
         inputs["seed"] = task.inputs["seed"]
     return replace(
         task,
-        task_id=f"evaluator-source-authoring:{question.id}:"
-        + stable_hash(
+        task_id=f"evaluator-source-authoring:{question.id}:" + stable_hash(
             [task.task_id, theory_packet_id, exploratory_manifest_id]
         )[:8],
-        objective=(
-            "Author executable evaluator source and obtain independent review "
-            "before confirmatory execution."
-        ),
+        owner_subsystem="SimulationEvaluator",
+        objective="Author executable evaluator source and obtain independent review before confirmatory execution.",
         inputs=inputs,
+        allowed_tools=("model_backend", "python", "filesystem_sandbox"),
+        expected_artifacts=("simulation_evaluator_source_manifest", "generated_code_semantic_review"),
+        acceptance_gate="exact evaluator source receives independent ACCEPT before confirmatory execution",
+        stop_condition="reviewed source is replayed confirmatorily or an upstream blocker is recorded",
     )
 
 
