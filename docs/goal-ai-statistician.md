@@ -32,24 +32,35 @@ remaining gaps honestly.
 10. Development uses multiple unrelated families. Held-out tasks remain sealed
     and cannot be used to create vocabulary, theorem, metric, or Lean rules.
 
-## Completion Contract
+## Task-Intent Completion Contract
 
-For each evaluated task, the same run must contain:
+Every evaluated task freezes its evidence requirements before the first product
+model call. The same run must satisfy every dimension marked `required`, disclose
+the status of every `advisory` dimension, and must not invent work for a dimension
+marked `not_applicable`:
 
-- a fresh plan and artifact-backed theory derivation;
-- model-authored scientific source and isolated execution;
-- independent semantic acceptance;
-- a pre-result frozen simulation protocol and fresh measurements;
-- an exact Lean statement and complete model-authored source;
-- task-bound retrieval and live Lean feedback used by the prover model;
-- independent statement-faithfulness acceptance;
-- exact source-theorem kernel closure;
-- final critic acceptance with no hidden formal gap.
+- source replication: pinned source, code, data, environment, and result comparison;
+- theory: fresh artifact-backed Markdown/LaTeX derivation plus independent review;
+- scientific code: model-authored Python/R source, isolated execution, and
+  independent semantic acceptance;
+- empirical: a pre-result frozen protocol and fresh confirmatory measurements;
+- formal: exact Lean statement, task-bound retrieval, live Lean feedback,
+  independent statement-faithfulness acceptance, and exact kernel closure;
+- novelty: frozen source horizon and an evidence-backed novelty assessment;
+- unresolved gaps: final Critic disclosure without converting absence of evidence
+  into acceptance.
 
-Two development families must close before held-out evaluation begins. That is an
-integration milestone, not complete product readiness: broader arbitrary-paper
-ingestion, theory depth, library growth, and cross-task policy learning must also
-be demonstrated.
+Formalization is a product capability, not a universal completion bottleneck. It is
+mandatory for formal/proof tasks and formal-library benchmarks, advisory when the
+task asks for an optional correctness audit, and nonblocking when frozen intent
+marks it not applicable. A formal failure cannot erase independently valid theory or
+empirical evidence, but it must remain visible in the evidence vector.
+
+Held-out evaluation begins only after the corresponding development tasks close at
+their frozen intent. Separate formal integration milestones require exact kernel
+closure on multiple unrelated formal tasks. Neither milestone alone establishes
+complete product readiness: broader paper ingestion, theory depth, replication,
+scientific computing, library growth, and cross-task learning still need evidence.
 
 ## Current Status
 
@@ -58,20 +69,11 @@ content-addressed lineage, and single runtime endpoint are implemented and cover
 by deterministic tests. The old repair/bridge/planner side systems have been
 removed from the canonical package.
 
-The latest authoritative live development panel, v387, scored 7/16 and still has
-0/2 exact theorem closures. It verified fresh post-outcome cohort independence and
-reached real Algorithm, Simulation, review, theory revision, RAG, and one Formalizer
-attempt. It also exposed a shared source-ownership bug: after eight direct Haiku
-Simulation submissions still violated literal frozen metric paths, runtime treated
-successful process execution as source validity, sent the failed artifact to review,
-and allowed Architect to rename a Simulation rewrite as AlgorithmEngineer work.
-Commit `f7a8538f` makes the direct workspace and downstream gate use one outcome-blind
-source-validity predicate, preserves immutable source identity, and clarifies mutable
-source versus contradictory parent semantics. An exact-Haiku replay of the frozen
-v387 review now selects source-only revision under `SimulationEvaluator`; this is
-diagnostic replay evidence, not integrated capability credit. No repair agent,
-content patch, or task-family rule was added. The system must not yet be described
-as fully end to end.
+The current measured capability and immutable consumed-task record live in
+[`main_worker_status.json`](main_worker_status.json). Passing deterministic harness
+tests or one evidence dimension is never promoted to full-task capability. The
+system must not be described as fully end to end until fresh cross-family tasks close
+under their frozen intent.
 
 The machine-readable frozen split is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](../benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
