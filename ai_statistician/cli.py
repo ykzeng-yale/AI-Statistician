@@ -3641,6 +3641,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     )
                     for question in questions
                 },
+                require_prequalified_semantic_activation=True,
             )
         except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
             print("\nAI Statistician Agent Runtime rejected gold evaluation scope")

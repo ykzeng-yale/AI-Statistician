@@ -93,8 +93,9 @@ def validate_research_gold_benchmark_activation(
     visible_questions: Mapping[str, Mapping[str, Any]] | None = None,
     run_theory_semantic_judge: GoldTheorySemanticJudgeRunner | None = None,
     theory_semantic_judge_provider: GeneratorBackend | None = None,
+    require_prequalified_semantic_activation: bool = False,
 ) -> dict[str, Any]:
-    """Execute future-task calibration through the frozen candidate validators."""
+    """Execute or verify future-task calibration through frozen validators."""
 
     descriptor = validate_research_gold_benchmark_manifest(path)
     if visible_questions is not None:
@@ -127,14 +128,16 @@ def validate_research_gold_benchmark_activation(
             visible_question = visible_by_id.get(task_id)
             for field, artifact_role in (
                 ("hidden_theory_semantic_evaluator", "theory"),
-                (
-                    "hidden_source_report_semantic_evaluator",
-                    "source_replication_report",
-                ),
+                ("hidden_source_report_semantic_evaluator", "source_replication_report"),
             ):
                 evaluator = task.get(field)
                 if not isinstance(evaluator, Mapping) or not evaluator:
                     continue
+                activation_record = str(
+                    evaluator.get("activation_record_path") or ""
+                ).strip()
+                if require_prequalified_semantic_activation and not activation_record:
+                    raise ValueError("semantic activation is not frozen")
                 if not isinstance(visible_question, Mapping):
                     raise ValueError(
                         "schema_version 4 semantic activation requires the exact "

@@ -91,6 +91,10 @@ Simulation, Lean, and isolated reviewers configure domain tools and terminal act
 they do not implement competing agent loops. The session contract fingerprint binds
 the exact model, system prompt, tool schemas, sampling settings, and workspace
 identity before a checkpoint can resume.
+Hidden semantic evaluator qualification follows the same lifecycle separation: it
+runs in an evaluator-owned session and is written as a hash-bound activation record.
+The product CLI verifies and reuses that record before runtime; it cannot qualify a
+judge inline and then continue directly into the first product model turn.
 
 This mapping does not justify a new global tool framework. The current shared loop
 already separates advertised definitions from execution. A registry extraction is

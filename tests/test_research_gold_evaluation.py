@@ -1963,6 +1963,35 @@ def test_schema_v4_activation_runs_long_form_negative_through_candidate_mode(
     assert "load-bearing intermediate" not in serialized
 
 
+def test_product_runtime_requires_frozen_schema_v4_semantic_activation(
+    tmp_path: Path,
+) -> None:
+    path = _schema_v4_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    visible_question = json.loads(
+        Path(manifest["model_visible_questions_path"]).read_text(encoding="utf-8")
+    )["questions"][0]
+    semantic_calls = 0
+
+    def semantic_runner(**_kwargs) -> dict:
+        nonlocal semantic_calls
+        semantic_calls += 1
+        raise AssertionError("product preflight must not qualify the semantic judge")
+
+    with pytest.raises(
+        ValueError,
+        match="semantic activation is not frozen",
+    ):
+        validate_research_gold_benchmark_activation(
+            path,
+            visible_questions={QUESTION_ID: visible_question},
+            run_theory_semantic_judge=semantic_runner,
+            require_prequalified_semantic_activation=True,
+        )
+
+    assert semantic_calls == 0
+
+
 def test_schema_v4_activation_fails_when_candidate_mode_negative_is_accepted(
     tmp_path: Path,
 ) -> None:
