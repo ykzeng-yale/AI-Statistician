@@ -1,5 +1,5 @@
 {
-  "schema_version": 350,
+  "schema_version": 351,
   "updated_at": "2026-08-30",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,6 +7,22 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
+  "latest_statlib_4_33_migration_audit": {
+    "audit_commit": "838336dcde9c2885a8302ea914f94c482c1d714a",
+    "active_foundation": "EmpericalProcessLEAN 4cec7860c926feebd4cbcdaccedb63b2156972dd with Lean v4.30.0, Mathlib 81343555dae873c8de2de2b27bbabf7bc4d8d97a, and Statlib 6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+    "candidate_foundation": "Fetched Statlib origin/main 01d2a03770455f5c775bb25c57e7fbb8e1eaf8d8 with its declared Lean v4.33.0-rc2 and Mathlib 3ef2c2e23a8b5a46554fa771969b89287972b616",
+    "isolated_result": "lake build Statlib passed 2825 jobs, but the complete StatInference lake build emitted 207 Lean error lines and failed 41 required targets across probability, empirical process, optimization, matching, causal, estimator, experiment, and asymptotic modules",
+    "canonical_result": "The temporary worktree was removed without changing canonical source or pins, and the unchanged canonical lake build passed 9843 jobs",
+    "verification": "The focused Lean-foundation and source-topology panel passed 13/13 in 0.18 seconds; the complete repository passed 1125/1125 in 260.68 seconds; compileall and diff hygiene passed. Top-level production Python remains 149748 lines, research_agent_runtime.py remains 24340 lines, production_design.md remains 399 lines, and the Codex-adoption document remains 249 lines.",
+    "decision": "Do not promote the latest upstream snapshot into active proof authority. Keep it discovery and explicit port-planning context only until a dedicated library migration passes whole-project compilation; every adopted declaration must be import-visible and re-elaborated in the active project.",
+    "design_boundary": "The broad compatibility failure is not a reason to add task-specific Lean grammar rules, hand-written repairs, another scheduler, or a runtime fallback. The correct unit of work is a deliberate library port, separate from AI-Statistician's model-owned Formalizer loop.",
+    "model_calls": 0,
+    "evaluator_calls": 0,
+    "task114_product_calls": 0,
+    "trusted_capability_credit": "unchanged at 7/113",
+    "development_panel_exact_lean_closure": "unchanged at 0/2",
+    "evidence": "docs/statlib_4_33_migration_audit_20260830.md"
+  },
   "current_goal_focus": "Preserve all one hundred thirteen consumed draws and immutable artifacts at trustworthy full-task credit 7/113 while exact development-panel Lean closure remains 0/2. Task114 is a new disjoint exact-Pareto known-result task with frozen visible scope and evaluator-only mechanical authority. Its schema-v4 semantic authority is not yet qualified, so no product call is permitted. Commits f424efcc and e5dcaf7e require a hash-bound semantic activation record before product runtime and fail before any mechanical evaluator or model call when that record is absent. Commits a256e616, 8dea5b92, 73e820e1, 49cbb9cb, b3ccfc1d, 1e0911ba, 5a6019a3, 120a2177, 9680a95c, b3ca567f, 03de8b87, 40a7ebf7, 448a6547, a9bc26a9, 7d296b5e, 78a51672, and c37b8bea improve future-task harness behavior without adding a second runtime: duplicate JSON mathematics and unreachable inference are removed, exact public observations survive continuation, fresh tasks receive an Architect-owned request-scoped plan over only configured workspaces, model-owned dimensions remain revisable without acquiring operator authority, retained workspace transcripts cannot cross root authorization, scientific source owners can inspect horizon-bound public papers and repositories, required pinned replication reports remain readable evidence without becoming Theory authority, optional Theory cannot be silently bypassed when a downstream frozen lane may need its handoff, a bounded source workspace preserves its exact pending checkpoint before the frozen graph can move to another owner, and Lean execution plus active formal RAG share one exact source-controlled Statlib-founded project and fail closed on implicit drift. Commits da31c857, 2cfe6661, and 4fcf2d50 add a deterministic full cross-workspace handoff regression and remove fresh one-shot packet fallbacks from Formalizer, AlgorithmEngineer, and SimulationEvaluator: each source lane now either runs one direct model-owned tool workspace, replays exact already-authored bytes, or stops with a typed capability blocker. Continue only with exact Haiku after secure provider availability; never import a second runtime, rerun consumed tasks, add task content, content repair, retry, fallback, another scheduler, mandatory formalization, Sonnet, or Opus.",
   "latest_native_scientific_source_workspace_alignment": {
     "code_commit": "4fcf2d507b3e0bd2de98506e24a128eaf359d5b5",
