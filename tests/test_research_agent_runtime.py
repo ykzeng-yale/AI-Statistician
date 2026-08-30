@@ -5554,14 +5554,81 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
     )
 
 
+def test_scientific_workspace_handoff_keeps_nonmatching_interface_inline() -> None:
+    frozen_contract = {
+        "estimator_id": "frozen-estimator",
+        "request_fields": [
+            {"name": "x", "meaning": "Frozen input.", "binding": "per_replicate_data"}
+        ],
+        "response_fields": [
+            {
+                "clause_id": "response.value",
+                "name": "value",
+                "meaning": "Frozen output.",
+                "normalization": "Frozen normalization.",
+            }
+        ],
+    }
+    exact = runtime_module.project_executable_estimator_interface_contract(
+        frozen_contract
+    )
+    mismatched = deepcopy(exact)
+    mismatched["response_fields"][0]["meaning"] = "Different output semantics."
+    handoff = {
+        "exact_algorithm_artifacts": [
+            {
+                "estimator_id": "frozen-estimator",
+                "estimator_interface_contract_id": "interface:different",
+                "estimator_interface_contract": mismatched,
+            },
+            {
+                "estimator_id": "frozen-estimator",
+                "estimator_interface_contract_id": "interface:stale",
+                "estimator_interface_contract": exact,
+            }
+        ]
+    }
+
+    projected = runtime_module._scientific_workspace_algorithm_handoff(
+        handoff,
+        frozen_contract=frozen_contract,
+    )
+
+    artifact = projected["exact_algorithm_artifacts"][0]
+    assert artifact["estimator_interface_contract"] == mismatched
+    assert "estimator_interface_contract_ref" not in artifact
+    stale_identity_artifact = projected["exact_algorithm_artifacts"][1]
+    assert stale_identity_artifact["estimator_interface_contract"] == exact
+    assert "estimator_interface_contract_ref" not in stale_identity_artifact
+
+
 def test_exploratory_simulation_preserves_available_algorithm_handoff(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    frozen_contract = {
+        "estimator_id": "accepted-estimator",
+        "request_fields": [
+            {
+                "name": "sample",
+                "meaning": "One finite sample.",
+                "binding": "per_replicate_data",
+            }
+        ],
+        "response_fields": [
+            {
+                "clause_id": "response.estimate",
+                "name": "estimate",
+                "meaning": "One finite estimate.",
+                "normalization": "The declared sample functional.",
+            }
+        ],
+    }
     question = OpenResearchQuestion(
         id="generic-exploratory-algorithm-handoff",
         title="Consume one accepted estimator during exploration",
         description="Exercise an accepted algorithm from a simulation workspace.",
+        estimator_execution_contract=frozen_contract,
     )
     theory_packet_id = "theory:generic-exploratory-algorithm-handoff"
     theory_packet = {
@@ -5578,6 +5645,21 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         "exact_algorithm_artifacts": [
             {
                 "estimator_id": "accepted-estimator",
+                "language": "python",
+                "dependencies": [],
+                "exact_source_hash": "b" * 64,
+                "estimator_interface_contract_id": (
+                    runtime_module.estimator_interface_contract_id(
+                        runtime_module.project_executable_estimator_interface_contract(
+                            frozen_contract
+                        )
+                    )
+                ),
+                "estimator_interface_contract": (
+                    runtime_module.project_executable_estimator_interface_contract(
+                        frozen_contract
+                    )
+                ),
             }
         ],
     }
@@ -5718,6 +5800,13 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
     assert source_workspace_contexts[0]["source_replication_context"] == (
         replication_context
     )
+    source_handoff = source_workspace_contexts[0]["upstream_algorithm_handoff"]
+    source_artifact = source_handoff["exact_algorithm_artifacts"][0]
+    assert "estimator_interface_contract" not in source_artifact
+    assert source_artifact["estimator_interface_contract_ref"] == {
+        "source": "question.estimator_execution_contract",
+        "projection": "executable_request_and_response_fields",
+    }
     assert exploratory.status == "REROUTE"
     assert exploratory.next_task is not None
     assert exploratory.next_task.owner_subsystem == "SimulationEvaluator"

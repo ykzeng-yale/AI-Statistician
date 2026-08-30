@@ -286,8 +286,10 @@ from .theory_revision_lineage import (
     theory_developer_revision_binding_errors,
 )
 from .estimator_interface_contract import (
+    estimator_interface_contract_id,
     frozen_estimator_execution_contract_errors,
     frozen_estimator_execution_contract_id,
+    project_executable_estimator_interface_contract,
     project_executable_estimator_spec,
 )
 from .research_knowledge import retrieve_problem_knowledge
@@ -9930,7 +9932,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                         "upstream_algorithm_handoff": (
                             _scientific_workspace_algorithm_handoff(
-                                upstream_algorithm_handoff
+                                upstream_algorithm_handoff, frozen_contract=question.estimator_execution_contract,
                             )
                         ),
                         "run_sandbox_contract": (
@@ -23196,47 +23198,44 @@ def _run_algorithm_candidate_against_frozen_consumers(
     return prototype, tool_calls, observations_by_dependency
 
 
-def _scientific_workspace_algorithm_handoff(
-    value: Mapping[str, Any] | Any,
-) -> dict[str, Any]:
+def _scientific_workspace_algorithm_handoff(value: Mapping[str, Any] | Any, *, frozen_contract: Mapping[str, Any] | None = None) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
+    frozen = dict(frozen_contract or {})
+    frozen_estimator_id = str(frozen.get("estimator_id", "") or "")
+    frozen_projection = project_executable_estimator_interface_contract(frozen) if frozen else {}
     artifacts = []
     for row in value.get("exact_algorithm_artifacts", []) or []:
         if not isinstance(row, Mapping):
             continue
-        artifacts.append(
-            {
-                "estimator_id": str(row.get("estimator_id", "") or ""),
-                "language": str(row.get("language", "") or ""),
-                "dependencies": list(row.get("dependencies", []) or []),
-                "exact_source_hash": str(
-                    row.get("exact_source_hash", "") or ""
-                ),
-                "estimator_interface_contract_id": str(
-                    row.get("estimator_interface_contract_id", "") or ""
-                ),
-                "estimator_interface_contract": deepcopy(
-                    dict(row.get("estimator_interface_contract", {}))
-                    if isinstance(
-                        row.get("estimator_interface_contract", {}), Mapping
-                    )
-                    else {}
-                ),
+        estimator_id = str(row.get("estimator_id", "") or "")
+        raw_contract = row.get("estimator_interface_contract", {})
+        contract = deepcopy(dict(raw_contract)) if isinstance(raw_contract, Mapping) else {}
+        contract_id = str(row.get("estimator_interface_contract_id", "") or "")
+        artifact = {
+            "estimator_id": estimator_id,
+            "language": str(row.get("language", "") or ""),
+            "dependencies": list(row.get("dependencies", []) or []),
+            "exact_source_hash": str(row.get("exact_source_hash", "") or ""),
+            "estimator_interface_contract_id": contract_id,
+        }
+        if estimator_id == frozen_estimator_id and contract == frozen_projection and contract_id == estimator_interface_contract_id(contract):
+            artifact["estimator_interface_contract_ref"] = {
+                "source": "question.estimator_execution_contract",
+                "projection": "executable_request_and_response_fields",
             }
-        )
+        else:
+            artifact["estimator_interface_contract"] = contract
+        artifacts.append(artifact)
     return {
         "handoff_id": str(value.get("handoff_id", "") or ""),
-        "algorithm_sandbox_manifest_id": str(
-            value.get("algorithm_sandbox_manifest_id", "") or ""
-        ),
-        "semantic_review_packet_id": str(
-            value.get("semantic_review_packet_id", "") or ""
-        ),
+        "algorithm_sandbox_manifest_id": str(value.get("algorithm_sandbox_manifest_id", "") or ""),
+        "semantic_review_packet_id": str(value.get("semantic_review_packet_id", "") or ""),
         "exact_algorithm_artifacts": artifacts,
         "boundary": (
-            "This projection exposes immutable estimator identities and ABI contracts "
-            "to the source-owning simulation model. Runtime executes the exact "
+            "This projection exposes immutable estimator identities and each unique ABI "
+            "to the source-owning simulation model. An exact projection of the frozen "
+            "question ABI is referenced there instead of copied. Runtime executes exact "
             "reviewed source behind each estimator ID; this is not proof evidence."
         ),
     }
