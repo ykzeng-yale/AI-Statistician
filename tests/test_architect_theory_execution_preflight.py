@@ -2041,7 +2041,15 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
                         },
                     )
                 )
-            if turn == 4:
+            if 4 <= turn <= 11:
+                return _tool_response(
+                    ClientToolCall(
+                        f"inspect-later-range-{turn}",
+                        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                        {"query": f"recent checkpoint observation {turn - 4}"},
+                    )
+                )
+            if turn == 12:
                 invalid = _compact_submission(_payload(accept=False))
                 invalid["overall_verdict"] = "ACCEPT"
                 return _tool_response(
@@ -2112,11 +2120,20 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            prompt = str(request.messages[0]["content"])
-            assert checkpoint["checkpoint_id"] in prompt
-            assert "Candidate derivation" in prompt
-            assert source_ref in prompt
-            assert report_draft["sha256"] in prompt
+            opening = str(request.messages[0]["content"])
+            retained_context = json.dumps(request.messages)
+            assert checkpoint["checkpoint_id"] in opening
+            assert "prior_model_visible_tool_observations" not in opening
+            assert "Candidate derivation" not in opening
+            assert source_ref not in opening
+            assert report_draft["sha256"] in opening
+            assert "Candidate derivation" not in retained_context
+            assert "recent checkpoint observation 7" in retained_context
+            window = request.metadata["client_tool_checkpoint_window"]
+            assert window["parent_opening_replayed"] is False
+            assert window["prior_transcript_replayed"] is True
+            assert window["replayed_tool_rounds"] == 8
+            assert window["summary_used"] is False
             return _tool_response(
                 ClientToolCall(
                     "submit-from-restored-observations",
@@ -2145,6 +2162,12 @@ def test_preflight_referee_resumes_exact_tool_workspace_across_outer_steps(
     )
     assert packet["resumed_from_client_tool_session_ref"] == session_ref
     assert packet["client_tool_session_lineage_continued"] is True
+    assert packet["client_tool_checkpoint_window"][
+        "parent_opening_replayed"
+    ] is False
+    assert packet["client_tool_checkpoint_window"][
+        "replayed_tool_rounds"
+    ] == 8
     assert packet["client_tool_session_ref"] != session_ref
     assert packet["preflight_source_search_count"] == 1
     assert packet["theory_document_inspection_refs"] == (

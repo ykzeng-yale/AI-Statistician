@@ -9,12 +9,14 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
+    CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
     ClientToolExecutionContext,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
-    load_client_tool_session,
     persist_client_tool_session,
+    resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
@@ -83,9 +85,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
     "client_tool_model_directed_document_and_source_inspection_v18"
 )
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = (
-    "model_owned_markdown_referee_workspace_with_compact_disposition_v10"
-)
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = "model_owned_markdown_referee_workspace_with_compact_disposition_v11"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = "model_authored_markdown_referee_report"
 PREFLIGHT_EXECUTION_HANDOFF_READY = "READY_FOR_EXPLORATORY_EXECUTION"
 PREFLIGHT_EXECUTION_HANDOFF_BLOCKED = "BLOCKED"
@@ -3535,13 +3535,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         tool_prompt += "\n\n" + json.dumps(
             {
                 "artifact_kind": "ArchitectTheoryPreflightWorkspaceContinuation",
-                "checkpoint_id": resume_metadata[
-                    "resumed_from_checkpoint_id"
-                ],
+                "checkpoint_id": resume_metadata["resumed_from_checkpoint_id"],
                 "review_material_fingerprint": stable_hash(material),
-                "prior_model_visible_tool_observations": state[
-                    "workspace_observations"
-                ],
                 "review_report_draft": {
                     key: state["review_report_draft"].get(key)
                     for key in (
@@ -3681,6 +3676,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "client_tool_session_lineage_continued": bool(
                 resumed_from_client_tool_session_ref
             ),
+            "client_tool_checkpoint_window": deepcopy(resumed_client_tool_context_window),
             **loop_metadata,
         }
 
@@ -4454,8 +4450,10 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             "source_grounding_transport": (
                 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT
             ),
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: stable_hash(material),
         },
     )
+    resumed_client_tool_context_window: dict[str, Any] = {}
     if isinstance(recovery_checkpoint, Mapping):
         prior_session_ref = recovery_checkpoint.get(
             "client_tool_session_ref", {}
@@ -4465,11 +4463,13 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 raise ValueError(
                     "referee client-tool session resume requires a review workspace"
                 )
-            load_client_tool_session(
+            request, resumed_client_tool_context_window = resume_client_tool_session_from_checkpoint(
                 prior_session_ref,
                 session_dir=Path(review_workspace_root),
                 session_id=review_session_id,
+                checkpoint_identity=resume_metadata["resumed_from_checkpoint_id"],
                 request=request,
+                replay_recent_tool_rounds=CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
             )
             resumed_from_client_tool_session_ref = deepcopy(dict(prior_session_ref))
 
