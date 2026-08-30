@@ -1062,6 +1062,7 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
         "model_owned_theory": False,
         "runtime_edited_source": False,
         "runtime_edited_theory": False,
+        "kernel_verified": False,
         "changed_document_paths": ["report.md"],
         "theory_workspace_manifest": report_manifest,
         "source_replication_refs": [source_ref],
@@ -1141,6 +1142,35 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
         "source_text_persisted": False,
     }
     assert report_content not in str(source_view["runtime_audit"])
+
+    integrated_workspace = deepcopy(workspace)
+    integrated_workspace.update(
+        {
+            "disposition": "THEORY_CHECKPOINT_COMMITTED",
+            "model_owned_theory": True,
+        }
+    )
+    integrated_checkpoint = deepcopy(checkpoint)
+    integrated_checkpoint["workspace_evidence_hash"] = stable_hash(
+        integrated_workspace
+    )
+    integrated_view = build_critic_canonical_evidence_view(
+        question_id="source-replication-test",
+        theory_packet={},
+        algorithm_manifest={},
+        simulation_manifest={},
+        formalization_manifest={},
+        artifacts={
+            source_manifest["artifact_id"]: source_manifest,
+            integrated_workspace["artifact_id"]: integrated_workspace,
+            checkpoint_id: integrated_checkpoint,
+        },
+        formal_verification_policy="optional",
+        evidence_contract=evidence_contract,
+        research_sources=research_sources,
+    )["source_replication"]
+    assert integrated_view["lineage_verified"] is True
+    assert integrated_view["report_document"]["content"] == report_content
 
     prompt = build_critic_evaluator_prompt(
         question=OpenResearchQuestion(

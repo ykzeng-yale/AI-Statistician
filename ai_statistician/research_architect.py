@@ -2694,9 +2694,8 @@ def _initial_theory_workspace_prompt(
             "stderr, and use your own statistical judgment to write a durable Markdown "
             "report covering source and environment identity, reproduced outputs, "
             "comparison, interpretation, and caveats. Record unresolved gaps honestly, "
-            "then commit a source-replication checkpoint. You may continue into a full "
-            "theory checkpoint when useful, but do not fabricate theory, estimator, "
-            "simulation, formalization, or novelty fields. Runtime applies your exact "
+            "then commit a source-replication checkpoint; do not fabricate theory, "
+            "estimator, simulation, formalization, or novelty fields. Runtime applies your exact "
             "document bytes and validates identity and lineage; it does not interpret "
             "the scientific result or promote it to proof evidence."
         )

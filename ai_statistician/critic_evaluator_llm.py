@@ -1189,6 +1189,14 @@ def _critic_source_replication_view(
         else {}
     )
     workspace_source_refs = workspace.get("source_replication_refs", [])
+    workspace_mode = (
+        workspace.get("disposition"),
+        workspace.get("model_owned_theory"),
+    )
+    workspace_mode_valid = workspace_mode in {
+        ("SOURCE_REPLICATION_CHECKPOINT_COMMITTED", False),
+        ("THEORY_CHECKPOINT_COMMITTED", True),
+    }
     workspace_lineage_verified = bool(
         workspace_evidence_id
         and workspace_evidence_hash
@@ -1196,13 +1204,12 @@ def _critic_source_replication_view(
         and workspace.get("artifact_kind") == "TheoryDeveloperWorkspaceEvidence"
         and workspace.get("artifact_id") == workspace_evidence_id
         and workspace.get("question_id") == question_id
-        and workspace.get("disposition")
-        == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED"
         and workspace.get("checkpoint_committed") is True
         and workspace.get("model_owned_source_report") is True
-        and workspace.get("model_owned_theory") is False
+        and workspace_mode_valid
         and workspace.get("runtime_edited_source") is False
         and workspace.get("runtime_edited_theory") is False
+        and workspace.get("kernel_verified") is False
         and isinstance(workspace_source_refs, list)
         and any(
             isinstance(row, Mapping)

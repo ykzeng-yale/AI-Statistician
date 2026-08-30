@@ -495,6 +495,27 @@ def test_required_source_replication_precedes_non_applicable_model_route() -> No
     assert contract["source_replication_requirement"] == "required"
     assert selected == "TheoryDeveloper"
 
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={"source:run": {"artifact_kind": "SourceReplicationManifest"}},
+    )
+    context = {
+        "runtime_requested_evidence_contract": contract,
+        "source_replication_refs": [{"artifact_id": "source:run"}],
+    }
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "SimulationEvaluator", architect_context=context,
+        blackboard=blackboard, question_id=question.id,
+    ) == "TheoryDeveloper"
+    context["source_replication_checkpoint_id"] = "source:checkpoint"
+    blackboard.artifacts["source:checkpoint"] = {
+        "artifact_kind": "SourceReplicationCheckpoint"
+    }
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "SimulationEvaluator", architect_context=context,
+        blackboard=blackboard, question_id=question.id,
+    ) == "CriticEvaluator"
+
 
 def test_retrieval_memory_skips_lean_search_only_when_formal_is_not_applicable() -> None:
     class RecordingFormalSourceRetriever:
@@ -1770,6 +1791,103 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
     assert "architect_metric_protocol_gate" not in result.next_task.inputs[
         "architect_context"
     ]
+
+
+def test_runtime_materializes_integrated_source_checkpoint_for_independent_critic() -> None:
+    question = OpenResearchQuestion(
+        id="integrated-source-theory",
+        title="Integrated source and theory",
+        description="Replicate one source and derive one mathematical result.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    source_packet = _source_replication_checkpoint_packet(question)
+    workspace = deepcopy(source_packet.pop("llm_client_tool_loop"))
+    checkpoint = source_packet
+    workspace.update(
+        {
+            "disposition": "THEORY_CHECKPOINT_COMMITTED",
+            "model_owned_theory": True,
+            "source_replication_checkpoint": checkpoint,
+        }
+    )
+    workspace_id = workspace["artifact_id"]
+    source = workspace["source_replication_manifests"][0]
+    packet_id = "theory_derivation:integrated-source-theory"
+    packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": packet_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_derivation_contract": {},
+        "theory_derivation_packet": {},
+        "estimator_specs": [],
+        "theorem_cards": [],
+        "formalization_requests": [],
+        "llm_client_tool_loop": workspace,
+    }
+
+    class StaticTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = object()
+
+        def derive(self, *_args, **_kwargs):
+            return packet
+
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=StaticTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=10,
+        seed=17,
+    ).run(
+        AgentTask(
+            task_id="theory:integrated-source-theory",
+            owner_subsystem="TheoryDeveloper",
+            objective="Replicate and derive.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": {
+                    "runtime_requested_evidence_contract": contract,
+                    "architect_runtime_plan": {
+                        "evidence_contract": contract,
+                        "subsystem_execution_plan": [
+                            {"subsystem": "TheoryDeveloper"},
+                            {"subsystem": "CriticEvaluator"},
+                        ],
+                    },
+                },
+            },
+        ),
+        BlackboardState(project_id=question.id),
+    )
+
+    stored_workspace = result.produced_artifacts[workspace_id]
+    stored_checkpoint = result.produced_artifacts[checkpoint["checkpoint_id"]]
+    assert "source_replication_manifests" not in stored_workspace
+    assert "source_replication_checkpoint" not in stored_workspace
+    assert stored_workspace["source_replication_refs"][0]["artifact_id"] == (
+        source["artifact_id"]
+    )
+    assert stored_checkpoint["workspace_evidence_id"] == workspace_id
+    assert stored_checkpoint["workspace_evidence_hash"] == (
+        runtime_module.stable_hash(stored_workspace)
+    )
+    assert result.produced_artifacts[source["artifact_id"]] == source
+    assert result.next_task is not None
+    next_context = result.next_task.inputs["architect_context"]
+    assert next_context["source_replication_checkpoint_id"] == (
+        checkpoint["checkpoint_id"]
+    )
 
 
 def test_optional_theory_compiles_existing_plan_without_architect_replan() -> None:

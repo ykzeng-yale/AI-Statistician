@@ -495,6 +495,13 @@ def run_theory_artifact_workspace(
         raise ValueError(
             "source replication checkpoint requires source execution"
         )
+    source_replication_required = (task_intent or {}).get("source_replication") == "required"
+    if source_replication_required and research_source_execution is None:
+        raise ValueError("required source replication requires source execution")
+    integrated_source_replication_required = source_replication_required and not allow_source_replication_checkpoint
+    integrated_commit_fields = ({"source_replication_report_document_path",
+        "source_replication_readiness_rationale", "source_replication_unresolved_gaps"}
+        if integrated_source_replication_required else set())
     restored_tool_state = _theory_progress_workspace_state(
         prior_workspace_checkpoint,
         workspace_id=workspace_id,
@@ -626,6 +633,9 @@ def run_theory_artifact_workspace(
         research_source_discovery_enabled=research_source_discovery is not None,
         research_source_execution_enabled=research_source_execution is not None,
         source_replication_checkpoint_enabled=allow_source_replication_checkpoint,
+        integrated_source_replication_required=(
+            integrated_source_replication_required
+        ),
         document_authority_enabled=require_document_authority,
         writable_artifact_names=selected_writable_names,
     )
@@ -863,6 +873,58 @@ def run_theory_artifact_workspace(
             terminal=False,
             observation_key="theory-workspace-valid:" + candidate_hash,
         )
+
+    def source_replication_checkpoint(
+        tool_input: Mapping[str, Any],
+        *,
+        report_field: str,
+        rationale_field: str,
+        gaps_field: str,
+    ) -> dict[str, Any]:
+        manifests = state["source_replication_manifests"]
+        if state["source_replication_runs"] != 1 or len(manifests) != 1:
+            raise ClientToolInputError("source replication checkpoint requires one completed source run")
+        report_path = _normalized_theory_document_path(tool_input.get(report_field))
+        if report_path not in state["documents"]:
+            raise ClientToolInputError("source replication report document is unavailable")
+        if report_path not in changed_document_paths(state["documents"]):
+            raise ClientToolInputError("source replication checkpoint requires a model-authored report")
+        rationale = tool_input.get(rationale_field)
+        if not isinstance(rationale, str) or not rationale.strip():
+            raise ClientToolInputError("source replication readiness_rationale must be nonempty")
+        unresolved_gaps = tool_input.get(gaps_field)
+        if not isinstance(unresolved_gaps, list) or not all(
+            isinstance(value, str) and value.strip() for value in unresolved_gaps
+        ):
+            raise ClientToolInputError("source replication unresolved_gaps must be an array of nonempty text")
+        source_manifest = manifests[0]
+        if source_manifest.get("execution_status") != "EXECUTED" and not unresolved_gaps:
+            raise ClientToolInputError("failed source execution requires an explicit unresolved gap")
+        report_rows = [
+            row for row in document_manifest(state["documents"]).get("documents", []) or []
+            if row.get("relative_path") == report_path
+        ]
+        if len(report_rows) != 1:
+            raise ClientToolInputError("source replication report identity is ambiguous")
+        checkpoint_body = {
+            "schema_version": 1, "artifact_kind": SOURCE_REPLICATION_CHECKPOINT_KIND,
+            "question_id": question_id, "workspace_id": workspace_id,
+            "task_intent": dict(task_intent or {}),
+            "source_replication_manifest_ref": {
+                key: str(source_manifest.get(key, "") or "")
+                for key in ("artifact_id", "manifest_hash", "execution_status", "stdout_sha256")
+            },
+            "report_document": deepcopy(report_rows[0]),
+            "unresolved_gaps": [value.strip() for value in unresolved_gaps],
+            "readiness_rationale": rationale.strip(),
+            "runtime_edited_source": False, "runtime_edited_report": False,
+            "model_authored_report": True, "kernel_verified": False,
+            "proof_evidence_status": "SOURCE_REPLICATION_CHECKPOINT_NOT_PROOF_EVIDENCE",
+        }
+        return {
+            **checkpoint_body,
+            "checkpoint_id": "source_replication_checkpoint:" + stable_hash(checkpoint_body)[:20],
+        }
 
     def execute_tool(call, context):
         del context
@@ -1191,9 +1253,11 @@ def run_theory_artifact_workspace(
             )
 
         if call.name == THEORY_WORKSPACE_COMMIT_TOOL:
-            if set(tool_input) != {"readiness_rationale"}:
+            expected_commit_fields = {"readiness_rationale", *integrated_commit_fields}
+            if set(tool_input) != expected_commit_fields:
                 raise ClientToolInputError(
-                    "commit_theory_checkpoint requires exactly readiness_rationale"
+                    "commit_theory_checkpoint requires exactly "
+                    + ", ".join(sorted(expected_commit_fields))
                 )
             readiness_rationale = tool_input.get("readiness_rationale")
             if (
@@ -1244,6 +1308,16 @@ def run_theory_artifact_workspace(
                 )
             rationale = readiness_rationale.strip()
             candidate_hash = stable_hash(candidate)
+            integrated_source_checkpoint = (
+                source_replication_checkpoint(
+                    tool_input,
+                    report_field="source_replication_report_document_path",
+                    rationale_field="source_replication_readiness_rationale",
+                    gaps_field="source_replication_unresolved_gaps",
+                )
+                if integrated_source_replication_required
+                else {}
+            )
             return ClientToolExecutionResult(
                 content={
                     "ok": True,
@@ -1276,6 +1350,7 @@ def run_theory_artifact_workspace(
                         state["documents"]
                     ),
                     "readiness_rationale": rationale,
+                    "source_replication_checkpoint": integrated_source_checkpoint,
                 },
                 observation_key="theory-workspace-committed:"
                 + stable_hash([candidate_hash, rationale]),
@@ -1295,94 +1370,13 @@ def run_theory_artifact_workspace(
                     "commit_source_replication_checkpoint requires exactly "
                     "report_document_path, readiness_rationale, and unresolved_gaps"
                 )
-            if state["source_replication_runs"] != 1 or len(
-                state["source_replication_manifests"]
-            ) != 1:
-                raise ClientToolInputError(
-                    "source replication checkpoint requires one completed source run"
-                )
-            report_path = _normalized_theory_document_path(
-                tool_input.get("report_document_path")
+            checkpoint = source_replication_checkpoint(
+                tool_input,
+                report_field="report_document_path",
+                rationale_field="readiness_rationale",
+                gaps_field="unresolved_gaps",
             )
-            if report_path not in state["documents"]:
-                raise ClientToolInputError(
-                    "source replication report document is unavailable"
-                )
-            if report_path not in changed_document_paths(state["documents"]):
-                raise ClientToolInputError(
-                    "source replication checkpoint requires a model-authored report"
-                )
-            rationale = tool_input.get("readiness_rationale")
-            if not isinstance(rationale, str) or not rationale.strip():
-                raise ClientToolInputError(
-                    "source replication readiness_rationale must be nonempty"
-                )
-            unresolved_gaps = tool_input.get("unresolved_gaps")
-            if not isinstance(unresolved_gaps, list) or not all(
-                isinstance(value, str) and value.strip()
-                for value in unresolved_gaps
-            ):
-                raise ClientToolInputError(
-                    "source replication unresolved_gaps must be an array of nonempty text"
-                )
-            source_manifest = deepcopy(
-                state["source_replication_manifests"][0]
-            )
-            if (
-                source_manifest.get("execution_status") != "EXECUTED"
-                and not unresolved_gaps
-            ):
-                raise ClientToolInputError(
-                    "failed source execution requires an explicit unresolved gap"
-                )
-            workspace_manifest = document_manifest(state["documents"])
-            report_rows = [
-                row
-                for row in workspace_manifest.get("documents", []) or []
-                if row.get("relative_path") == report_path
-            ]
-            if len(report_rows) != 1:
-                raise ClientToolInputError(
-                    "source replication report identity is ambiguous"
-                )
-            checkpoint_body = {
-                "schema_version": 1,
-                "artifact_kind": SOURCE_REPLICATION_CHECKPOINT_KIND,
-                "question_id": question_id,
-                "workspace_id": workspace_id,
-                "task_intent": dict(task_intent or {}),
-                "source_replication_manifest_ref": {
-                    "artifact_id": str(
-                        source_manifest.get("artifact_id", "") or ""
-                    ),
-                    "manifest_hash": str(
-                        source_manifest.get("manifest_hash", "") or ""
-                    ),
-                    "execution_status": str(
-                        source_manifest.get("execution_status", "") or ""
-                    ),
-                    "stdout_sha256": str(
-                        source_manifest.get("stdout_sha256", "") or ""
-                    ),
-                },
-                "report_document": deepcopy(report_rows[0]),
-                "unresolved_gaps": [value.strip() for value in unresolved_gaps],
-                "readiness_rationale": rationale.strip(),
-                "runtime_edited_source": False,
-                "runtime_edited_report": False,
-                "model_authored_report": True,
-                "proof_evidence_status": (
-                    "SOURCE_REPLICATION_CHECKPOINT_NOT_PROOF_EVIDENCE"
-                ),
-                "kernel_verified": False,
-            }
-            checkpoint_id = "source_replication_checkpoint:" + stable_hash(
-                checkpoint_body
-            )[:20]
-            checkpoint = {
-                **checkpoint_body,
-                "checkpoint_id": checkpoint_id,
-            }
+            checkpoint_id = checkpoint["checkpoint_id"]
             checkpoint_hash = stable_hash(checkpoint)
             return ClientToolExecutionResult(
                 content={
@@ -1413,7 +1407,9 @@ def run_theory_artifact_workspace(
                     "changed_document_paths": list(
                         changed_document_paths(state["documents"])
                     ),
-                    "theory_workspace_manifest": workspace_manifest,
+                    "theory_workspace_manifest": document_manifest(
+                        state["documents"]
+                    ),
                 },
                 observation_key="source-replication-checkpoint:"
                 + checkpoint_hash,
@@ -1795,12 +1791,21 @@ def run_theory_artifact_workspace(
         "when the surrounding table is copied correctly. Revise the report yourself if "
         "that audit finds a discrepancy; do not treat the first complete write as ready "
         "merely because it is well formed. Then call "
-        "commit_source_replication_checkpoint. You may instead continue into a full "
-        "theory checkpoint if your own judgment finds that useful, but do not invent "
-        "estimator, simulation, formalization, or novelty work merely to satisfy empty "
-        "handoff fields. Pass unresolved_gaps as [] or as an array of nonempty plain "
+        "commit_source_replication_checkpoint. Do not invent theory, estimator, "
+        "simulation, formalization, or novelty work. Pass unresolved_gaps as an empty "
+        "array or an array of nonempty plain "
         "strings; do not use objects or placeholder empty strings. "
         if allow_source_replication_checkpoint
+        else ""
+    )
+    integrated_source_checkpoint_guidance = (
+        "This task requires exact source replication plus further research. In this retained "
+        "workspace, run the pinned source once and write a durable Markdown report. Audit it "
+        "against raw observations and exact reads; distinguish facts, interpretation, and gaps. "
+        "Pass its path, a replication-specific rationale, and plain-string gaps to the final "
+        "theory commit. That commit binds both artifacts but replication validates neither "
+        "theory, generated code, confirmatory evidence, nor proof. "
+        if integrated_source_replication_required
         else ""
     )
     root_authorization_fingerprint = client_tool_authorization_fingerprint(request_metadata) or stable_hash(["theory", workspace_id, question_id])
@@ -1874,6 +1879,7 @@ def run_theory_artifact_workspace(
                     + source_guidance
                     + source_execution_guidance
                     + source_checkpoint_guidance
+                    + integrated_source_checkpoint_guidance
                     + scratch_guidance
                     + write_guidance
                     + document_inspection_guidance
@@ -2403,6 +2409,14 @@ def run_theory_artifact_workspace(
         for error in validate_candidate(packet)
         if str(error).strip()
     ]
+    raw_source_checkpoint = terminal.get("source_replication_checkpoint", {})
+    integrated_source_checkpoint = (
+        deepcopy(dict(raw_source_checkpoint))
+        if isinstance(raw_source_checkpoint, Mapping)
+        else {}
+    )
+    if integrated_source_replication_required and not integrated_source_checkpoint:
+        terminal_errors.append("integrated source replication checkpoint is missing")
     terminal_errors = list(
         dict.fromkeys(
             [
@@ -2503,6 +2517,7 @@ def run_theory_artifact_workspace(
         "source_replication_manifests": deepcopy(
             state["source_replication_manifests"]
         ),
+        "source_replication_checkpoint": integrated_source_checkpoint,
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -2519,6 +2534,7 @@ def run_theory_artifact_workspace(
             terminal.get("readiness_rationale", "") or ""
         ),
         "model_owned_theory": True,
+        "model_owned_source_report": bool(integrated_source_checkpoint),
         "runtime_edited_theory": False,
         "accepted": True,
         "proof_evidence_status": "THEORY_WORKSPACE_NOT_PROOF_EVIDENCE",
@@ -2634,9 +2650,16 @@ def _theory_workspace_tools(
     research_source_discovery_enabled: bool = False,
     research_source_execution_enabled: bool = False,
     source_replication_checkpoint_enabled: bool = False,
+    integrated_source_replication_required: bool = False,
     document_authority_enabled: bool = False,
     writable_artifact_names: Sequence[str],
 ) -> tuple[ClientToolDefinition, ...]:
+    integrated_commit_properties = ({
+        "source_replication_report_document_path": {"type": "string", "minLength": 1},
+        "source_replication_readiness_rationale": {"type": "string", "minLength": 1},
+        "source_replication_unresolved_gaps": {
+            "type": "array", "items": {"type": "string", "minLength": 1}},
+    } if integrated_source_replication_required else {})
     read_tool = ClientToolDefinition(
         name="read_theory_workspace",
         description=(
@@ -2912,16 +2935,20 @@ def _theory_workspace_tools(
                 "ready for independent scientific review. This records the model's "
                 "stopping decision; structural validity and any author-side reads do "
                 "not make the theory correct and are not proof evidence."
+                + (
+                    " The same commit must bind the required model-authored source "
+                    "replication report and unresolved gaps."
+                    if integrated_source_replication_required
+                    else ""
+                )
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["readiness_rationale"],
+                "required": ["readiness_rationale", *integrated_commit_properties],
                 "properties": {
-                    "readiness_rationale": {
-                        "type": "string",
-                        "minLength": 1,
-                    }
+                    "readiness_rationale": {"type": "string", "minLength": 1},
+                    **integrated_commit_properties,
                 },
             },
             terminal=True,

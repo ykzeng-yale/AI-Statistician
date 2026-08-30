@@ -214,18 +214,19 @@ types are not source evidence. The model still chooses derivations, cases, oracl
 findings, code, Lean actions, and verdicts. Runtime enforces only identity, execution,
 and evidence provenance. No consumed task is rerun, repaired, reassessed, or rescored.
 
-Remaining capability gaps are scientific rather than reasons to import Codex. Theory, Algorithm, and Simulation source owners can each select and read horizon-safe exact-version arXiv ranges and pinned GitHub files inside their retained session, but still do not claim arbitrary publisher PDF/OCR or dataset acquisition:
+Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
+writes Markdown, and binds the report alone or into the same Theory checkpoint. Runtime externalizes source, workspace, and checkpoint hashes; Architect waits for the checkpoint
+and the independent Critic reloads exact evidence. Execution never validates theory, generated code, simulation, novelty, or proof.
 
-Run-local public observations are hash-bound outside transcripts; compact handles survive same-owner checkpoints, and source-policy changes invalidate retained scientific sessions before a model call.
+Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv and GitHub text, but arbitrary publisher PDF/OCR,
+dataset acquisition, and general project reproduction remain incomplete:
 
 - long-horizon TheoryDeveloper quality and independent mathematical falsification;
-- robust paper/code/data acquisition and replication;
 - broader multi-file Python/R research projects;
 - proof-state-driven Lean closure on exact statistical theorems;
 - fresh cross-family end-to-end evidence.
 
-Public sources remain model-selected, hash-bound literature inputs, never review or
-proof. Provenance is recorded when a workspace runs; unreachable post-hoc inference
+Public sources remain model-selected, hash-bound literature inputs, never review or proof. Provenance is recorded when a workspace runs; unreachable post-hoc inference
 and closure-counting code is removed rather than retained.
 
 The next change should be justified by a disjoint frozen evaluation or a concrete

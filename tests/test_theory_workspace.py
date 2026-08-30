@@ -111,11 +111,12 @@ def _artifact_writes(artifacts: dict[str, object]) -> dict[str, object]:
 def _commit_checkpoint(
     call_id: str = "commit-theory-checkpoint",
     rationale: str = "The current theory is ready for independent review.",
+    **source_replication: object,
 ) -> ClientToolCall:
     return ClientToolCall(
         call_id=call_id,
         name=THEORY_WORKSPACE_COMMIT_TOOL,
-        input={"readiness_rationale": rationale},
+        input={"readiness_rationale": rationale, **source_replication},
     )
 
 
@@ -1052,6 +1053,153 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
     opening_request = json.dumps(backend.requests[0].messages)
     assert "inspect the exact saved report in this same session" in opening_request
     assert "locally false interpretation" in opening_request
+
+
+def test_integrated_theory_checkpoint_binds_required_source_replication_report(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    research_sources, _ = _research_source_snapshot(tmp_path)
+    source_execution = ResearchSourceExecutionSpec(
+        execution_id="execution-integrated",
+        benchmark_id="benchmark-integrated",
+        manifest_sha256="a" * 64,
+        source_snapshot_id=research_sources.snapshot_id,
+        source_snapshot_hash=research_sources.snapshot_hash,
+        source_manifest_sha256=research_sources.manifest_sha256,
+        source_commit="commit-integrated",
+        entrypoint_document_id="robust-location-paper",
+        environment_lock_document_id="robust-location-paper",
+        environment_root=tmp_path,
+        runtime_language="python",
+        interpreter_executable=tmp_path / "python",
+        interpreter_executable_sha256="b" * 64,
+        environment_probe_document_id="",
+        runtime_read_roots=(),
+        working_directory_relative=".",
+        arguments=(),
+        package_distributions=(("Demo", "demo"),),
+        timeout_seconds=30,
+        max_output_bytes=8192,
+    )
+    manifest_body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:q1-integrated",
+        "question_id": "q1",
+        "execution_status": "EXECUTED",
+        "raw_stdout": "coef=0.5\n",
+        "raw_stderr": "",
+        "stdout_sha256": hashlib.sha256(b"coef=0.5\n").hexdigest(),
+        "source_snapshot_hash": research_sources.snapshot_hash,
+        "source_mutated": False,
+        "runtime_edited_source": False,
+        "runtime_generated": True,
+        "model_authored": False,
+        "command_owned_by_model": False,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_research_source",
+        lambda **_: manifest,
+    )
+    report_path = "replication/report.md"
+    task_intent = {
+        "source_replication": "required",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="run-integrated-source",
+                    name=RESEARCH_SOURCE_RUN_TOOL,
+                    input={},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-integrated-report",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": report_path,
+                        "content": (
+                            "# Replication report\n\nThe immutable run returned "
+                            "`coef=0.5`; this does not validate the theorem.\n"
+                        ),
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-integrated-theory-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "integrated-lemma"}],
+                        }
+                    ),
+                )
+            ),
+            _response(
+                _commit_checkpoint(
+                    source_replication_report_document_path=report_path,
+                    source_replication_readiness_rationale=(
+                        "The immutable execution and its interpretation are recorded."
+                    ),
+                    source_replication_unresolved_gaps=[
+                        "Only one pinned execution was observed."
+                    ],
+                )
+            ),
+        ]
+    )
+
+    result = _run_workspace(
+        backend,
+        research_sources=research_sources,
+        research_source_execution=source_execution,
+        task_intent=task_intent,
+        workspace_dir=tmp_path / "integrated-workspace",
+        require_document_authority=True,
+        max_turns=4,
+        max_tool_calls=4,
+    )
+
+    checkpoint = result.evidence["source_replication_checkpoint"]
+    assert result.core_packet["artifacts"]["problem_card"]["claim"] == (
+        "revised claim"
+    )
+    assert checkpoint["artifact_kind"] == SOURCE_REPLICATION_CHECKPOINT_KIND
+    assert checkpoint["task_intent"] == task_intent
+    assert checkpoint["report_document"]["relative_path"] == report_path
+    assert checkpoint["source_replication_manifest_ref"]["artifact_id"] == (
+        manifest["artifact_id"]
+    )
+    assert checkpoint["unresolved_gaps"] == [
+        "Only one pinned execution was observed."
+    ]
+    assert result.evidence["disposition"] == "THEORY_CHECKPOINT_COMMITTED"
+    assert result.evidence["model_owned_theory"] is True
+    assert result.evidence["model_owned_source_report"] is True
+    first_tools = {tool.name: tool for tool in backend.requests[0].tools}
+    assert SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL not in first_tools
+    assert set(
+        first_tools[THEORY_WORKSPACE_COMMIT_TOOL].input_schema["required"]
+    ) == {
+        "readiness_rationale",
+        "source_replication_report_document_path",
+        "source_replication_readiness_rationale",
+        "source_replication_unresolved_gaps",
+    }
 
 
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:
