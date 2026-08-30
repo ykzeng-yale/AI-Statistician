@@ -161,6 +161,7 @@ def test_research_source_snapshot_is_an_explicit_theory_workspace_input() -> Non
 
 def test_public_source_discovery_requires_horizon_and_rejects_frozen_eval(
     monkeypatch,
+    tmp_path,
 ) -> None:
     parser = build_parser()
     missing_horizon = parser.parse_args(
@@ -191,10 +192,17 @@ def test_public_source_discovery_requires_horizon_and_rejects_frozen_eval(
             "2025-12-31",
         ]
     )
+    product.out = str(tmp_path / "runtime")
     provider = cli_module._public_research_source_discovery_from_args(product)
 
     assert provider is not None
     assert provider.descriptor()["source_horizon"] == "2025-12-31"
+    assert provider.descriptor()["durable_exact_observation_store"] is True
+    assert (
+        tmp_path
+        / "runtime"
+        / ".public_research_source_discovery"
+    ).is_dir()
     assert "private-token" not in json.dumps(provider.descriptor())
 
 

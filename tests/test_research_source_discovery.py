@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 import urllib.parse
 
 import pytest
@@ -267,6 +268,73 @@ def test_public_preprint_discovery_reads_exact_horizon_bound_arxiv_html() -> Non
     ]
     with pytest.raises(ResearchSourceDiscoveryInputError, match="do not accept path"):
         provider.read(result["source_handle"], path="paper.tex")
+
+
+def test_durable_public_source_observation_reopens_without_network(tmp_path) -> None:
+    work = {
+        "DOI": "10.1000/durable",
+        "title": ["A durable exact source"],
+        "author": [{"given": "Ada", "family": "Stone"}],
+        "published": {"date-parts": [[2024, 5, 2]]},
+        "container-title": ["Journal of Examples"],
+        "URL": "https://doi.org/10.1000/durable",
+        "abstract": "<jats:p>Line one.\nLine two.\nLine three.</jats:p>",
+    }
+    requests: list[str] = []
+
+    def fetch_json(url, headers, timeout):
+        del headers, timeout
+        requests.append(url)
+        return {"message": {"items": [work]}} if "/works?" in url else {
+            "message": work
+        }
+
+    state_dir = tmp_path / "public-source-state"
+    provider = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-12-31"),
+        state_dir=state_dir,
+        json_fetcher=fetch_json,
+    )
+    search = provider.search("durable exact source", source_kind="paper")
+    handle = search["results"][0]["source_handle"]
+    first = provider.read(handle)
+    request_count = len(requests)
+
+    resumed = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-12-31"),
+        state_dir=state_dir,
+        json_fetcher=lambda *_args: pytest.fail(
+            "a durable exact observation must not refetch the network"
+        ),
+    )
+    reopened = resumed.read(handle, line_start=1, line_end=3)
+
+    assert len(requests) == request_count
+    assert reopened["content"] == "\n".join(first["content"].splitlines()[:3])
+    assert reopened["content_sha256"] == first["content_sha256"]
+    assert reopened["citation_ref"] == first["citation_ref"]
+    assert reopened["content_range_sha256"] == hashlib.sha256(
+        reopened["content"].encode("utf-8")
+    ).hexdigest()
+    assert resumed.descriptor()["durable_exact_observation_store"] is True
+    database_path = state_dir / "observations.sqlite3"
+    with sqlite3.connect(database_path) as database:
+        assert database.execute("SELECT count(*) FROM source_results").fetchone() == (
+            1,
+        )
+        assert database.execute("SELECT count(*) FROM source_reads").fetchone() == (
+            1,
+        )
+        database.execute("UPDATE source_reads SET content = ?", (b"tampered",))
+
+    with pytest.raises(ValueError, match="read identity mismatch"):
+        PublicResearchSourceDiscovery(
+            config=PublicResearchSourceDiscoveryConfig(
+                source_horizon="2025-12-31"
+            ),
+            state_dir=state_dir,
+            json_fetcher=lambda *_args: pytest.fail("network not expected"),
+        )
 
 
 def test_public_preprint_discovery_rejects_unsafe_atom_xml() -> None:

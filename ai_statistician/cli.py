@@ -3361,6 +3361,7 @@ def _public_research_source_discovery_from_args(
         raise ValueError(
             "--public-research-source-discovery requires --research-source-horizon"
         )
+    output_root = str(getattr(args, "out", "") or "").strip()
     return PublicResearchSourceDiscovery(
         config=PublicResearchSourceDiscoveryConfig(
             source_horizon=source_horizon,
@@ -3372,6 +3373,11 @@ def _public_research_source_discovery_from_args(
             os.environ.get("GITHUB_TOKEN", "")
             or os.environ.get("GH_TOKEN", "")
         ).strip(),
+        state_dir=(
+            Path(output_root) / ".public_research_source_discovery"
+            if output_root
+            else None
+        ),
     )
 
 

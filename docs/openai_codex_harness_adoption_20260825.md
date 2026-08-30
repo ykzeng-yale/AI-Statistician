@@ -218,6 +218,8 @@ and evidence provenance. No consumed task is rerun, repaired, reassessed, or res
 
 Remaining capability gaps are scientific rather than reasons to import Codex. The source owner now reads horizon-safe exact-version arXiv HTML ranges and pinned GitHub files, but still does not claim arbitrary publisher PDF/OCR or dataset acquisition:
 
+Run-local public-source observations are hash-bound outside the transcript, so a continued source owner can reopen exact bytes without a hidden network refetch.
+
 - long-horizon TheoryDeveloper quality and independent mathematical falsification;
 - robust paper/code/data acquisition and replication;
 - broader multi-file Python/R research projects;

@@ -30,6 +30,8 @@ from ai_statistician.research_source_library import (
 from ai_statistician.research_source_discovery import (
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+    PublicResearchSourceDiscovery,
+    PublicResearchSourceDiscoveryConfig,
     ResearchSourceDiscoveryError,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
@@ -423,6 +425,185 @@ def test_same_theory_model_discovers_and_reads_public_source_without_a_scout_age
     persisted_evidence = json.dumps(result.evidence)
     assert "exact asymptotic variance is finite" not in persisted_evidence.lower()
     assert "research source text omitted" in persisted_evidence
+
+
+def test_theory_progress_resume_reopens_exact_discovered_source_without_network(
+    tmp_path,
+) -> None:
+    work = {
+        "DOI": "10.1000/continued-theory",
+        "title": ["A source for continued theory"],
+        "author": [{"given": "Ada", "family": "Stone"}],
+        "published": {"date-parts": [[2024, 5, 2]]},
+        "container-title": ["Journal of Examples"],
+        "URL": "https://doi.org/10.1000/continued-theory",
+        "abstract": "<jats:p>The exact remainder is uniformly bounded.</jats:p>",
+    }
+
+    def fetch_json(url, headers, timeout):
+        del headers, timeout
+        return {"message": {"items": [work]}} if "/works?" in url else {
+            "message": work
+        }
+
+    workspace_dir = tmp_path / "theory"
+    discovery_state = workspace_dir / ".public-source-state"
+    discovery = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-12-31"),
+        state_dir=discovery_state,
+        json_fetcher=fetch_json,
+    )
+    handle = "public-source:" + stable_hash(
+        [
+            discovery.provider_name,
+            "paper",
+            "doi:10.1000/continued-theory",
+            "2025-12-31",
+        ]
+    )[:28]
+    partial_document = (
+        "# Partial source-grounded derivation\n\n"
+        "The remainder argument still needs one exact source check.\n"
+    )
+    initial_backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="discover-continuation-source",
+                    name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+                    input={
+                        "query": "continued theory remainder bound",
+                        "source_kind": "paper",
+                        "top_k": 1,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="read-continuation-source",
+                    name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                    input={"source_handle": handle},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-source-grounded-progress",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/source-progress.md",
+                        "content": partial_document,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-source-grounded-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {"problem_card": {"claim": "partial revised claim"}}
+                    ),
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="checkpoint-source-grounded-progress",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "Located and inspected the exact source.",
+                        "evidence_refs": ["public-research-source-ref:checkpointed"],
+                        "next_step": "Reopen the exact source and finish the bound.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        _run_workspace(
+            initial_backend,
+            workspace_dir=workspace_dir,
+            require_document_authority=True,
+            research_source_discovery=discovery,
+            max_turns=5,
+            max_tool_calls=5,
+        )
+
+    checkpoint = exc_info.value.progress_checkpoint
+    artifacts, documents = load_theory_progress_checkpoint_state(
+        checkpoint,
+        question_id="q1",
+    )
+    resumed_discovery = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-12-31"),
+        state_dir=discovery_state,
+        json_fetcher=lambda *_args: pytest.fail(
+            "continued theory must reopen the durable exact observation"
+        ),
+    )
+    completed_document = (
+        partial_document
+        + "The exact deposited abstract confirms the stated uniform bound.\n"
+    )
+    continuation = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="reopen-source-after-progress",
+                    name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                    input={
+                        "source_handle": handle,
+                        "line_start": 9,
+                        "line_end": 11,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="finish-source-grounded-document",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/source-progress.md",
+                        "content": completed_document,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="finish-source-grounded-index",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "source-remainder-bound"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint("commit-source-grounded-theory")),
+        ]
+    )
+    result = _run_workspace(
+        continuation,
+        workspace_dir=workspace_dir,
+        require_document_authority=True,
+        research_source_discovery=resumed_discovery,
+        initial_artifacts=artifacts,
+        initial_documents=documents,
+        prior_changed_artifact_names=checkpoint["changed_artifact_names"],
+        prior_changed_document_paths=checkpoint["changed_document_paths"],
+        prior_client_tool_session_ref=checkpoint["client_tool_session_ref"],
+        prior_workspace_checkpoint=checkpoint,
+    )
+
+    reopened = json.loads(
+        continuation.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert "The exact remainder is uniformly bounded." in reopened["content"]
+    assert reopened["content_sha256"] == checkpoint[
+        "source_discovery_read_refs"
+    ][0]["content_sha256"]
+    assert result.evidence["client_tool_session_lineage_continued"] is True
+    assert len(result.evidence["source_discovery_read_refs"]) == 2
 
 
 def test_public_discovery_failure_returns_to_same_theory_model_without_retry_layer() -> None:

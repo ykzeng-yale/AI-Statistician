@@ -13,9 +13,14 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
+from .storage.public_source_observations import (
+    PublicSourceObservationStore,
+    ResearchSourceDiscoveryError,
+)
 
 
 RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL = "discover_research_sources"
@@ -47,10 +52,6 @@ ARXIV_IDENTIFIER_PATTERN = re.compile(
 
 class ResearchSourceDiscoveryInputError(ValueError):
     """A model-actionable public-source tool input error."""
-
-
-class ResearchSourceDiscoveryError(RuntimeError):
-    """A provider/network failure that the research model must not repair."""
 
 
 JSONFetcher = Callable[[str, Mapping[str, str], float], Any]
@@ -139,6 +140,7 @@ class PublicResearchSourceDiscovery:
         *,
         config: PublicResearchSourceDiscoveryConfig,
         github_token: str = "",
+        state_dir: Path | None = None,
         json_fetcher: JSONFetcher | None = None,
         bytes_fetcher: BytesFetcher | None = None,
         arxiv_request_pacer: RequestPacer | None = None,
@@ -150,9 +152,14 @@ class PublicResearchSourceDiscovery:
         self._arxiv_request_pacer = (
             arxiv_request_pacer or _DEFAULT_ARXIV_REQUEST_PACER
         )
-        self._results: dict[str, dict[str, Any]] = {}
-        self._allowed_github_revisions: dict[str, set[str]] = {}
-        self._arxiv_html_cache: dict[str, str] = {}
+        self._state_dir = state_dir.resolve() if state_dir is not None else None
+        self._observations = PublicSourceObservationStore(
+            state_dir=self._state_dir,
+            provider=self.provider_name,
+            source_horizon=self.config.source_horizon,
+            max_content_bytes=MAX_DISCOVERY_HTML_BYTES,
+            proof_evidence_status=RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
+        )
 
     def descriptor(self) -> dict[str, Any]:
         return {
@@ -167,6 +174,9 @@ class PublicResearchSourceDiscovery:
             "arbitrary_url_fetch_allowed": False,
             "author_source_execution_allowed": False,
             "strict_historical_benchmark_authority": False,
+            "durable_exact_observation_store": self._state_dir is not None,
+            "durable_observation_policy": "hash_bound_exact_model_observations_v1"
+            if self._state_dir is not None else "in_memory_session_only",
             "secret_values_model_visible": False,
             "proof_evidence_status": (
                 RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
@@ -180,11 +190,12 @@ class PublicResearchSourceDiscovery:
         }
 
     def new_session(self) -> PublicResearchSourceDiscovery:
-        """Return the same provider policy with isolated model-visible handles."""
+        """Return an isolated provider object over the same durable observations."""
 
         return PublicResearchSourceDiscovery(
             config=self.config,
             github_token=self._github_token,
+            state_dir=self._state_dir,
             json_fetcher=self._json_fetcher,
             bytes_fetcher=self._bytes_fetcher,
             arxiv_request_pacer=self._arxiv_request_pacer,
@@ -242,8 +253,7 @@ class PublicResearchSourceDiscovery:
             )
         else:
             rows = (paper_rows or preprint_rows or repository_rows)[:top_k]
-        for row in rows:
-            self._results[str(row["source_handle"])] = dict(row)
+        rows = self._observations.pin_results(rows)
         return {
             "ok": True,
             "provider": self.provider_name,
@@ -272,7 +282,7 @@ class PublicResearchSourceDiscovery:
         line_end: int = 0,
     ) -> dict[str, Any]:
         normalized_handle = str(source_handle or "").strip()
-        row = self._results.get(normalized_handle)
+        row = self._observations.result(normalized_handle)
         if row is None:
             raise ResearchSourceDiscoveryInputError(
                 "discovered source handle is unknown in this model session; search first"
@@ -481,6 +491,13 @@ class PublicResearchSourceDiscovery:
         line_start: int,
         line_end: int,
     ) -> dict[str, Any]:
+        stored = self._observations.read_for_path(
+            str(row["source_handle"]), "metadata.md"
+        )
+        if stored is not None:
+            return _source_read_observation(
+                **stored, line_start=line_start, line_end=line_end
+            )
         doi = str(row["doi"])
         payload = self._json_fetcher(
             "https://api.crossref.org/works/"
@@ -500,17 +517,19 @@ class PublicResearchSourceDiscovery:
             )
         content = _crossref_markdown(item, fallback_doi=doi)
         return _source_read_observation(
-            provider=self.provider_name,
-            source_handle=str(row["source_handle"]),
-            source_kind="paper",
-            source_identity=str(row["source_identity"]),
-            title=_first_text(item.get("title")) or str(row["title"]),
-            url=str(item.get("URL", "") or row["url"]),
-            publication_date=publication_date,
-            citation=_crossref_citation(item) or str(row["citation"]),
-            revision="crossref-record:" + stable_hash(item)[:24],
-            path="metadata.md",
-            content=content,
+            **self._observations.remember_read({
+                "provider": self.provider_name,
+                "source_handle": str(row["source_handle"]),
+                "source_kind": "paper",
+                "source_identity": str(row["source_identity"]),
+                "title": _first_text(item.get("title")) or str(row["title"]),
+                "url": str(item.get("URL", "") or row["url"]),
+                "publication_date": publication_date,
+                "citation": _crossref_citation(item) or str(row["citation"]),
+                "revision": "crossref-record:" + stable_hash(item)[:24],
+                "path": "metadata.md",
+                "content": content,
+            }),
             line_start=line_start,
             line_end=line_end,
         )
@@ -523,42 +542,46 @@ class PublicResearchSourceDiscovery:
         line_end: int,
     ) -> dict[str, Any]:
         arxiv_id = str(row["arxiv_id"])
+        stored = self._observations.read(
+            str(row["source_handle"]), arxiv_id, "paper.html"
+        )
+        if stored is not None:
+            return _source_read_observation(
+                **stored, line_start=line_start, line_end=line_end
+            )
         url = "https://arxiv.org/html/" + urllib.parse.quote(
             arxiv_id,
             safe="/.",
         )
-        content = self._arxiv_html_cache.get(arxiv_id)
-        if content is None:
-            self._arxiv_request_pacer()
-            raw = self._bytes_fetcher(
-                url,
-                self._arxiv_headers(),
-                self.config.timeout_seconds,
-                MAX_DISCOVERY_HTML_BYTES,
+        self._arxiv_request_pacer()
+        raw = self._bytes_fetcher(
+            url,
+            self._arxiv_headers(),
+            self.config.timeout_seconds,
+            MAX_DISCOVERY_HTML_BYTES,
+        )
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ResearchSourceDiscoveryError("arXiv HTML is not UTF-8 text") from exc
+        if not re.search(r"<html(?:\s|>)", content, flags=re.IGNORECASE):
+            raise ResearchSourceDiscoveryError(
+                "arXiv returned a non-HTML paper representation"
             )
-            try:
-                content = raw.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise ResearchSourceDiscoveryError(
-                    "arXiv HTML is not UTF-8 text"
-                ) from exc
-            if not re.search(r"<html(?:\s|>)", content, flags=re.IGNORECASE):
-                raise ResearchSourceDiscoveryError(
-                    "arXiv returned a non-HTML paper representation"
-                )
-            self._arxiv_html_cache[arxiv_id] = content
         return _source_read_observation(
-            provider=self.provider_name,
-            source_handle=str(row["source_handle"]),
-            source_kind="preprint",
-            source_identity=str(row["source_identity"]),
-            title=str(row["title"]),
-            url=url,
-            publication_date=str(row["publication_date"]),
-            citation=str(row["citation"]),
-            revision=arxiv_id,
-            path="paper.html",
-            content=content,
+            **self._observations.remember_read({
+                "provider": self.provider_name,
+                "source_handle": str(row["source_handle"]),
+                "source_kind": "preprint",
+                "source_identity": str(row["source_identity"]),
+                "title": str(row["title"]),
+                "url": url,
+                "publication_date": str(row["publication_date"]),
+                "citation": str(row["citation"]),
+                "revision": arxiv_id,
+                "path": "paper.html",
+                "content": content,
+            }),
             line_start=line_start,
             line_end=line_end,
         )
@@ -574,9 +597,8 @@ class PublicResearchSourceDiscovery:
     ) -> dict[str, Any]:
         repository = str(row["repository"])
         normalized_path = _normalized_repository_path(path)
-        allowed_revisions = self._allowed_github_revisions.setdefault(
-            str(row["source_handle"]), set()
-        )
+        source_handle = str(row["source_handle"])
+        allowed_revisions = self._observations.revisions(source_handle)
         if revision:
             if revision not in allowed_revisions:
                 raise ResearchSourceDiscoveryInputError(
@@ -584,8 +606,23 @@ class PublicResearchSourceDiscovery:
                 )
             resolved_revision = revision
         else:
-            resolved_revision = self._github_revision_at_horizon(repository)
-            allowed_revisions.add(resolved_revision)
+            if len(allowed_revisions) > 1:
+                raise ResearchSourceDiscoveryError(
+                    "durable GitHub source has ambiguous horizon revisions"
+                )
+            resolved_revision = (
+                next(iter(allowed_revisions))
+                if allowed_revisions
+                else self._github_revision_at_horizon(repository)
+            )
+
+        stored = self._observations.read(
+            source_handle, resolved_revision, normalized_path or "."
+        )
+        if stored is not None:
+            return _source_read_observation(
+                **stored, line_start=line_start, line_end=line_end
+            )
 
         quoted_repo = "/".join(
             urllib.parse.quote(part, safe="") for part in repository.split("/")
@@ -635,17 +672,19 @@ class PublicResearchSourceDiscovery:
             )
             pinned_url = f"https://github.com/{repository}/tree/{resolved_revision}"
         return _source_read_observation(
-            provider=self.provider_name,
-            source_handle=str(row["source_handle"]),
-            source_kind="repository",
-            source_identity=str(row["source_identity"]),
-            title=str(row["title"]),
-            url=pinned_url,
-            publication_date=str(row.get("publication_date", "") or ""),
-            citation=f"{row['citation']} at commit {resolved_revision}",
-            revision=resolved_revision,
-            path=normalized_path or ".",
-            content=content,
+            **self._observations.remember_read({
+                "provider": self.provider_name,
+                "source_handle": source_handle,
+                "source_kind": "repository",
+                "source_identity": str(row["source_identity"]),
+                "title": str(row["title"]),
+                "url": pinned_url,
+                "publication_date": str(row.get("publication_date", "") or ""),
+                "citation": f"{row['citation']} at commit {resolved_revision}",
+                "revision": resolved_revision,
+                "path": normalized_path or ".",
+                "content": content,
+            }),
             line_start=line_start,
             line_end=line_end,
         )
@@ -676,20 +715,14 @@ class PublicResearchSourceDiscovery:
             )
         return revision.lower()
 
-    def _crossref_headers(self) -> dict[str, str]:
-        contact = (
-            f"; mailto:{self.config.contact_email}"
-            if self.config.contact_email
-            else ""
-        )
-        return {
-            "User-Agent": (
-                "AI-Statistician/0.1 "
-                "(https://github.com/ykzeng-yale/AI-Statistician"
-                + contact
-                + ")"
-            ),
-        }
+    def _paper_headers(self) -> dict[str, str]:
+        email = self.config.contact_email
+        contact = f"; mailto:{email}" if email else ""
+        agent = "AI-Statistician/0.1 (https://github.com/ykzeng-yale/AI-Statistician"
+        return {"User-Agent": agent + contact + ")"}
+
+    _crossref_headers = _paper_headers
+    _arxiv_headers = _paper_headers
 
     def _github_headers(self) -> dict[str, str]:
         headers = {
@@ -700,21 +733,6 @@ class PublicResearchSourceDiscovery:
         if self._github_token:
             headers["Authorization"] = "Bearer " + self._github_token
         return headers
-
-    def _arxiv_headers(self) -> dict[str, str]:
-        contact = (
-            f"; mailto:{self.config.contact_email}"
-            if self.config.contact_email
-            else ""
-        )
-        return {
-            "User-Agent": (
-                "AI-Statistician/0.1 "
-                "(https://github.com/ykzeng-yale/AI-Statistician"
-                + contact
-                + ")"
-            )
-        }
 
 
 def _fetch_json(url: str, headers: Mapping[str, str], timeout: float) -> Any:

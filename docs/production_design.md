@@ -71,7 +71,7 @@ Like Codex `run_turn`, a response without a tool call ends the workspace segment
 
 The graph imposes no universal research order. TheoryDeveloper chooses early
 Crossref/arXiv/GitHub queries and source handles; the harness owns hosts, source horizon,
-secrets, byte bounds, commit identity, hashes, and citations, but not interpretation.
+secrets, byte bounds, checkpoint-durable exact observations, identity, hashes, and citations, but not interpretation.
 Exact replication requires immutable operator-curated source and execution manifests.
 When author code writes results, declared paths are captured from a hash-audited
 copy-on-write workspace; the model cannot alter source, command, environment, or output.
