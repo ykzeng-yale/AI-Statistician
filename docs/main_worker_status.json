@@ -3,7 +3,7 @@
   "updated_at": "2026-08-30",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "2124ee6e",
+  "validated_code_head": "85af90d1",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -40,6 +40,7 @@
     "formalizer_executed": false,
     "operator_audit": "docs/operator_audits/wishart_sample_covariance_l0_v1.md",
     "post_run_shared_mechanism_commit": "2124ee6e598a58885e11d9458e10316815b69952",
+    "closeout_commit": "85af90d191595ec3af5d437c8ec5b415f1e892a7",
     "closeout_verification": "Task111 activation and immutable closeout contracts passed 2/2; the shared Theory/referee/runtime/core panel passed 204/204; and the complete repository passed 1093/1093 in 90.19 seconds. Compileall, all 315 tracked JSON files, 111 unique queue identities, diff hygiene, changed-diff credential scanning, exact immutable hashes, exact-Haiku topology, the 24,954-line runtime budget, and the 149,971-line package budget passed. Closeout made zero product or evaluator calls and did not rerun, resume, repair, reevaluate, rescore, or resample Task111.",
     "trusted_capability_credit": "0/1; aggregate remains 7/111",
     "boundary": "The product draw, five committed theory packets, five reports, recovery snapshot, and sole hidden assessment are consumed. Never rerun, resume, repair, reevaluate, rescore, resample, manually patch, expose hidden authority, switch models, or add a Wishart or covariance rule."
