@@ -29,9 +29,12 @@ remain rebuildable outputs.
 
 Reusable Lean and statistics source is tracked under:
 
+- the exact `external/EmpericalProcessLEAN-main` gitlink, which is the canonical
+  Statlib-founded live project
 - `Preliminary Attempt/*.lean`
 - `legacy_sources/ai_statistician/`
-- `legacy_sources/emperical_process_lean/`
+- `legacy_sources/emperical_process_lean/`, retained as a historical snapshot and
+  never selected implicitly for live proof
 
 As of the July 11, 2026 handoff, the active branch has 836 tracked files
 matching:
@@ -74,6 +77,10 @@ These artifacts can be useful evidence for a local investigation, but they are
 not portable source-control state. When generated evidence is needed for
 coordination, commit a compact manifest, reconstruction command, or source
 fixture instead of the raw database or build output.
+
+Initialize the canonical Lean source with `git submodule update --init --recursive`.
+Its gitlink and Lake manifest jointly pin EmpericalProcessLEAN, Lean, Mathlib, and
+Statlib; `.lake/` remains a rebuildable local artifact.
 
 ## Handoff Rule
 

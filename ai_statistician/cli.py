@@ -4379,29 +4379,10 @@ def _research_agent_runtime_static_subsystem_config_errors(
 
 def _capability_eval_default_lean_project_candidates() -> tuple[Path, ...]:
     from .research_source_inventory import (
-        EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
-        VENDORED_EMPIRICAL_PROCESS_ROOT,
+        CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT,
     )
 
-    project_root = Path(__file__).resolve().parents[1]
-    relative_vendored_project = Path("legacy_sources/emperical_process_lean")
-    repo_vendored_project = project_root / relative_vendored_project
-    candidates = (
-        EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
-        relative_vendored_project,
-        repo_vendored_project,
-        VENDORED_EMPIRICAL_PROCESS_ROOT,
-        Path.home() / "LeanProjects" / "LeanPractice",
-    )
-    unique: list[Path] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        key = str(candidate)
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(candidate)
-    return tuple(unique)
+    return (CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT,)
 
 
 def _default_openprover_root() -> str:
@@ -4447,13 +4428,30 @@ def _research_agent_runtime_local_lean_preflight_errors(
         or ""
     ).strip()
     if not project_value:
-        return []
+        return [
+            "capability eval local Lean requires the canonical Statlib-founded "
+            "submodule; run `git submodule update --init --recursive` or supply "
+            "an explicit --lean-project before spending live model budget"
+        ]
     project = Path(project_value).expanduser().resolve()
     if not _is_lake_project(project):
         return [
             "capability eval local Lean preflight requires an existing Lake project; "
             f"invalid project: {project}"
         ]
+    from .research_source_inventory import CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT
+
+    if project == CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT.resolve():
+        submodule_status = subprocess.run(
+            ["git", "submodule", "status", "--", "external/EmpericalProcessLEAN-main"],
+            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+            check=False,
+        )
+        if submodule_status.returncode or not submodule_status.stdout.startswith(" "):
+            return [
+                "canonical Lean project is not at the AI-Statistician gitlink; run "
+                "`git submodule update --init --recursive` before live evaluation"
+            ]
     mathlib_roots = (
         project / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean",
         project

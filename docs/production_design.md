@@ -302,9 +302,9 @@ are context only. Before promotion, a compiling artifact may record
 
 Formal RAG should align with Mathlib and Statlib declaration conventions and reuse
 their active imports and definitions before introducing project-local APIs. The
-configured source graph includes Mathlib, Statlib/StatInference,
-`lean-stat-learning-theory`, the Statlib-founded `EmpericalProcessLEAN`, and
-OpenProver/CodexProver resources. Search results must preserve source snapshot,
+canonical gitlinked `EmpericalProcessLEAN` project pins the active Lean, Mathlib,
+Statlib/StatInference foundation; `lean-stat-learning-theory` and OpenProver/
+CodexProver are additional resources. Search results must preserve source snapshot,
 module, declaration signature, dependencies, and active-project compatibility.
 See the [Statlib roadmap](https://stat-lib.github.io/roadmap.html) and
 [ReProver](https://github.com/lean-dojo/reprover) for library and proof-state

@@ -1,0 +1,3 @@
+[submodule "external/EmpericalProcessLEAN-main"]
+	path = external/EmpericalProcessLEAN-main
+	url = https://github.com/ykzeng-yale/EmpericalProcessLEAN.git

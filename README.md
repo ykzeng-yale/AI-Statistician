@@ -72,6 +72,7 @@ tier, token use, latency, and tool-turn count in evidence artifacts.
 Create the Python environment:
 
 ```bash
+git submodule update --init --recursive
 python3 -m venv .venv
 .venv/bin/pip install -e '.[test,llm]'
 ```
@@ -88,9 +89,12 @@ runs in bounded subprocesses without inherited secrets or network access. If a
 required runtime is absent, the system records a capability blocker instead of
 silently executing in the host process.
 
-Lean proving requires an active local Lean project and configured formal-source
-indexes. Use `doctor` to inspect the local environment rather than assuming that
-retrieval, LSP/MCP, AXLE, or Lean is available.
+Lean proving defaults only to the source-controlled
+`external/EmpericalProcessLEAN-main` gitlink. That project pins Lean, Mathlib, and
+Statlib and must be built locally before a live formal evaluation. Alternate Lake
+projects require an explicit `--lean-project`; the runtime does not silently fall
+back to a historical snapshot. Use `doctor` to inspect retrieval, LSP/MCP, AXLE,
+and Lean availability.
 
 ## Basic Commands
 
