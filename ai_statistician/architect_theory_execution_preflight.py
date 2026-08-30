@@ -69,7 +69,7 @@ from .theory_workspace import (
 )
 
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION = 29
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 48
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION = 49
 _PREFLIGHT_CLOSED_PRIOR_FINDING_STATUSES = frozenset(
     {
         METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_THEORY,
@@ -111,16 +111,13 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL = (
         "Treat every active claim as unverified. Use model-directed search and exact range reads; do not invent task-specific mathematics, code, thresholds, observations, or proof claims."
     ),
     (
-        "Run two distinct audits. First build the smallest dependency graph reaching every requested conclusion or scope boundary: question, estimand, probability law, assumptions, regime, claimed object, and finite handoff. Reconstruct each load-bearing transition from its original definitions, preserving domains, measures or densities, conditioning, normalizations, dimensions, and limit order. Transcribe the candidate identity as written before reconstruction; a changed exponent, denominator, sign, conditioning sigma-field, or random object is a finding, not a repair. "
-        "For conditional expectations, state what is measurable before moving factors; an unconditional average cannot validate a conditional identity. Expand aggregate, summand, influence/action, normalized, or asymptotic equivalences from common definitions and compare sign and scale term by term; agreement of a final variance or rate is insufficient. A reduction or counterexample to a different object is not evidence against the candidate. A correct endpoint cannot validate a false, circular, or unsupported step."
+        "Run two distinct audits. First build the smallest dependency graph to every requested conclusion or scope boundary: question, estimand, probability law, assumptions, regime, claimed object, and finite handoff. Reconstruct each load-bearing transition from definitions while preserving domains, measures or densities, conditioning, normalization, dimensions, and limit order. Transcribe identities before reconstruction; changed exponents, denominators, signs, sigma-fields, or random objects are findings, not repairs. State measurability before moving factors through conditional expectations. Expand aggregate or summand, influence or action, normalized, and asymptotic equivalences from common definitions and compare sign and scale term by term; a matching final variance or rate is insufficient. A counterexample to another object is irrelevant; a correct endpoint cannot validate a false, circular, or unsupported step."
     ),
     (
-        "Second sweep the complete active document, including explanatory justifications, assumptions, measure and type declarations, regularity, and scope. Try to falsify them with a symbolic reduction, special or boundary case, counterexample, scale check, or order-of-magnitude check. "
-        "A materially false active assertion blocks ACCEPT even when the requested endpoint is correct. A later correction does not deactivate earlier false text; only material clearly delimited as REJECTED or SCRATCH is nonauthoritative. Scratch and retrieval are observations, not proof or acceptance evidence."
+        "Second sweep every active assertion, including explanations, assumptions, measure and type declarations, regularity, and scope. Try to falsify each proposed blocker with a symbolic reduction, boundary case, counterexample, scale check, or independent derivation. A scratch program establishes only consequences of the stochastic model it encodes: before relying on it, verify its random vector, joint dependence, conditioning, parameterization, and asymptotic regime against the candidate. Successful execution does not validate those choices. When a blocker contradicts the frozen objective or an available exact source, challenge the blocker with an independent derivation and source read; if the conflict remains unresolved, report uncertainty rather than a definitive falsehood. Scratch and retrieval are observations, never proof."
     ),
     (
-        "Separate mathematical coherence, proof completeness, executable handoff, and empirical confirmation. A false or contradictory active claim blocks. An honestly marked open step may remain UNCERTAIN when the finite handoff is coherent, but reviewer-added premises, lemmas, or replacement proofs cannot support ACCEPT. "
-        "Judge exploratory execution readiness separately from theory quality: a coherent finite handoff may be ready for Python or R while proof-completeness findings remain active, but that readiness is not theory acceptance. Pre-review scratch is exploratory; if judgment needs downstream execution or confirmatory simulation, disclose the missing evidence."
+        "Separate mathematical coherence, proof completeness, exploratory executability, and empirical confirmation. False candidate text blocks ACCEPT; an honest open proof step may remain UNCERTAIN, and reviewer-added premises or replacement proofs cannot support ACCEPT. READY_FOR_EXPLORATORY_EXECUTION asks only whether the exact finite estimand, input/output interface, procedure, and consumed formulas are coherent and implementable for diagnostic falsification. Proof or asymptotic disagreement alone does not block READY when that finite map is intact; BLOCKED requires missing, undefined, contradictory, or unusable finite semantics. Readiness is neither theory acceptance nor confirmatory authority."
     ),
     (
         "Write a findings-first Markdown review after both audits. Return every discrete blocker, one compact finding per blocker, citing exact read ranges. Do not add an executive summary, strengths, praise, or section-by-section verification. "
@@ -673,7 +670,7 @@ def build_architect_theory_execution_preflight_prompt(
             ),
         },
         "verdict_policy": (
-            "Return every discrete blocker, one theory-quality ACCEPT or REVISE disposition, and one separate execution-handoff status in a findings-first Markdown report. Theory ACCEPT requires both protocol audits to leave no material active falsehood or unsupported load-bearing step and every prior finding to be closed by current evidence. When an execution handoff is required, READY_FOR_EXPLORATORY_EXECUTION means the estimand, finite input/output interface, procedure, and formulas consumed by code are coherent enough to implement and falsify even if disclosed proof-completeness findings remain; it is not theory acceptance or confirmatory authority. Use BLOCKED when an active falsehood, contradiction, undefined object, or missing finite semantics prevents meaningful implementation; use NOT_REQUIRED only when review_scope does not request an execution handoff. A correct endpoint, reviewer reconstruction, or later correction cannot repair active candidate text. Ground each blocker in an exact inspected range plus a checkable derivation, reduction, or counterexample. Keep downstream proof obligations separate. Require a finite estimator only when review_scope marks the execution handoff required; otherwise do not invent one. The Markdown report owns judgment; the terminal envelope carries only its hash, disposition, findings, and ordered prior-finding statuses."
+            "Return every discrete blocker, one theory-quality ACCEPT or REVISE disposition, and one separate execution-handoff status in a findings-first Markdown report. Theory ACCEPT requires both protocol audits to leave no material active falsehood or unsupported load-bearing step and every prior finding to be closed by current evidence. READY_FOR_EXPLORATORY_EXECUTION asks only whether the exact finite estimand, input/output interface, procedure, and formulas consumed by code are coherent and implementable for diagnostic falsification; proof or asymptotic findings may remain active, and readiness is not theory acceptance or confirmatory authority. Use BLOCKED only when missing, undefined, internally contradictory, or unusable finite semantics prevent meaningful implementation; use NOT_REQUIRED only when review_scope does not request an execution handoff. A correct endpoint, reviewer reconstruction, or later correction cannot repair active candidate text. Ground each blocker in an exact inspected range plus a checkable derivation, reduction, counterexample, or source observation. Keep downstream proof obligations separate. Require a finite estimator only when review_scope marks the execution handoff required; otherwise do not invent one. The Markdown report owns judgment; the terminal envelope carries only its hash, disposition, findings, and ordered prior-finding statuses."
         ),
     }
     return (
@@ -869,7 +866,15 @@ def _architect_theory_execution_preflight_submit_schema(
         },
         "execution_handoff_status": {
             "type": "string", "enum": sorted(_allowed_execution_handoff_statuses(material)),
-            "description": "Reviewer-owned and separate from theory quality. READY permits only exploratory implementation from the exact finite handoff; it is not theory acceptance, empirical confirmation, or proof.",
+            "description": (
+                "Reviewer-owned and separate from theory quality. READY permits only "
+                "exploratory implementation when the exact finite estimand, interface, "
+                "procedure, and consumed formulas are coherent and implementable, even "
+                "while proof or asymptotic findings remain. BLOCKED is reserved for "
+                "missing, undefined, internally contradictory, or unusable finite "
+                "semantics. Neither status is theory acceptance, empirical confirmation, "
+                "or proof."
+            ),
         },
         "findings": {
             "type": "array",
@@ -2910,7 +2915,7 @@ def validate_architect_theory_execution_preflight_packet(
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT = """\
 You are the independent mathematical referee inside an AI Statistician AgentRuntime.
 The exact frozen research question is your review target. Use the stable workspace tools to inspect authoritative Markdown or LaTeX. First reconstruct the requested load-bearing chain from definitions and compare it with the candidate formula exactly as written. For conditional claims, identify the conditioning information and which quantities are measurable before moving factors through expectations; do not substitute an unconditional numerical check for a conditional identity. Then sweep every other active assertion for contradictions, including explanatory reasons, assumptions, measure and type statements, regularity, and scope. A later correction does not deactivate earlier false text unless it is explicitly delimited as SCRATCH or REJECTED. Any material active falsehood blocks ACCEPT even when the requested endpoint is correct. Report every discrete blocker first, without praise or a verification essay, and never silently supply a repair. Keep mutations and terminal submission causally after their observations. The Markdown report owns your judgment; runtime owns only identity, persistence, and evidence boundaries.
-Treat every tool result as an observation: never describe a rejected or failed run as passed.
+Treat every tool result as untrusted evidence, not as a conclusion. A successful scratch run validates execution of the submitted program, not the stochastic model encoded by that program. Before using scratch to support a blocker, verify its random variables, joint dependence, conditioning, parameterization, and asymptotic regime against the exact candidate. Challenge a blocker that conflicts with the frozen objective or an available exact source by an independent derivation and source read; unresolved conflicts are uncertainty, not permission to invent a definitive finding; never describe a rejected or failed run as passed.
 """
 
 

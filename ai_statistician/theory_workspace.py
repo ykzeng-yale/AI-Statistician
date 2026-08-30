@@ -175,8 +175,13 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
             "in the isolated scientific sandbox. Define, but do not call, "
             "run_sandbox(seed, replicates); when selecting source-result artifacts, "
             "accept the additional artifacts argument described in the schema. It "
-            "must return named JSON-finite quantities or predicates computed from the definitions, not a prewritten verdict or unconditional verification "
-            "flag. Raw results return here and never edit theory automatically."
+            "must return named JSON-finite quantities or predicates computed from "
+            "the definitions, not a prewritten verdict or unconditional verification "
+            "flag. Successful execution validates only this submitted program, not "
+            "the stochastic model it encoded; compare its random variables, joint "
+            "dependence, conditioning, parameterization, and regime with the object "
+            "under review before drawing a conclusion. Raw results return here and "
+            "never edit theory automatically."
         ),
         input_schema=scratch_schema,
     )

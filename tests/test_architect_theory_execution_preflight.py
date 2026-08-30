@@ -129,30 +129,35 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "without praise or a verification essay" in normalized_prompt
     assert "Reconstruct each load-bearing transition" in protocol
     assert "preserving domains, measures or densities, conditioning" in protocol
-    assert "Transcribe the candidate identity as written" in protocol
-    assert "conditioning sigma-field" in protocol
-    assert "what is measurable" in protocol
-    assert "unconditional average cannot validate" in protocol
+    assert "Transcribe identities before reconstruction" in protocol
+    assert "sigma-fields" in protocol
+    assert "State measurability" in protocol
     assert "compare sign and scale term by term" in protocol
-    assert "agreement of a final variance or rate is insufficient" in protocol
-    assert "counterexample to a different object is not evidence" in protocol
+    assert "matching final variance or rate is insufficient" in protocol
+    assert "counterexample to another object is irrelevant" in protocol
     assert "reviewer-added premises" in protocol
     assert "every requested conclusion or scope boundary" in protocol
     assert "question, estimand, probability law, assumptions" in protocol
     assert "boundary case" in protocol
     assert "counterexample" in protocol
     assert "correct endpoint" in protocol
-    assert "complete active document" in protocol
-    assert "explanatory justifications" in protocol
+    assert "every active assertion" in protocol
+    assert "including explanations" in protocol
     assert "measure and type declarations" in protocol
-    assert "materially false active assertion blocks ACCEPT" in protocol
-    assert "later correction does not deactivate" in protocol
-    assert "clearly delimited as REJECTED or SCRATCH" in protocol
+    assert "later correction does not deactivate" in normalized_prompt
+    assert "explicitly delimited as SCRATCH or REJECTED" in normalized_prompt
     assert "mark genuine uncertainty" in protocol
-    assert "Pre-review scratch is exploratory" in protocol
     assert "which quantities are measurable" in normalized_prompt
     assert "unconditional numerical check" in normalized_prompt
-    assert "confirmatory simulation" in protocol
+    assert "tool result as untrusted evidence" in normalized_prompt
+    assert "successful scratch run validates execution" in normalized_prompt.lower()
+    assert "random vector, joint dependence, conditioning" in protocol
+    assert "Successful execution does not validate those choices" in protocol
+    assert "challenge the blocker with an independent derivation and source read" in protocol
+    assert "report uncertainty rather than a definitive falsehood" in protocol
+    assert "READY_FOR_EXPLORATORY_EXECUTION asks only" in protocol
+    assert "Proof or asymptotic disagreement alone does not block READY" in protocol
+    assert "BLOCKED requires missing, undefined, contradictory" in protocol
     assert "exploratory" in protocol
     assert "confirmatory" in protocol
     assert "model-owned report owns judgment" in protocol
@@ -160,7 +165,7 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "do not reproduce the candidate or write a substitute proof" in protocol
     assert "silently supply a repair" in normalized_prompt
     assert len(protocol.split()) < 430
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 48
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 49
 
 
 def test_preflight_preserves_the_exact_frozen_research_target() -> None:
@@ -1079,6 +1084,8 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
     )
     assert "run_sandbox(seed, replicates)" in scratch_tool.description
     assert "do not call" in scratch_tool.description
+    assert "validates only this submitted program" in scratch_tool.description
+    assert "joint dependence" in scratch_tool.description
 
 
 def test_preflight_keeps_search_tool_visible_after_its_budget_is_spent() -> None:
@@ -2320,15 +2327,16 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         "Run two distinct audits",
         "smallest dependency graph",
         "correct endpoint",
-        "complete active document",
-        "explanatory justifications",
+        "every active assertion",
+        "including explanations",
         "measure and type declarations",
-        "order-of-magnitude check",
-        "Reconstruct each load-bearing transition from its original definitions",
-        "later correction does not deactivate",
+        "scale check",
+        "Reconstruct each load-bearing transition from definitions",
+        "Successful execution does not validate those choices",
         "Scratch and retrieval are observations",
         "Separate mathematical coherence, proof completeness",
-        "Pre-review scratch is exploratory",
+        "READY_FOR_EXPLORATORY_EXECUTION asks only",
+        "BLOCKED requires missing, undefined, contradictory",
         "one compact finding per blocker",
         "findings-first Markdown review",
         "do not reproduce the candidate or write a substitute proof",
@@ -2410,7 +2418,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     assert "Separate mathematical coherence, proof completeness" in request_content
     assert "symbolic reduction" in request_content
     assert "measure and type declarations" in request_content
-    assert "complete active document" in request_content
+    assert "every active assertion" in request_content
+    assert "joint dependence" in request_content
     submit_schema = _submit_schema(backend.requests[0])
     assert "downstream proof obligations separate" in (
         prompt_payload["verdict_policy"]
@@ -2503,6 +2512,13 @@ def test_revise_verdict_can_preserve_findings_and_release_exploratory_handoff() 
         PREFLIGHT_EXECUTION_HANDOFF_READY
     )
     assert packet["active_unresolved_finding_ids"]
+    schema = _architect_theory_execution_preflight_submit_schema(material)
+    handoff_description = schema["properties"]["execution_handoff_status"][
+        "description"
+    ]
+    assert "proof or asymptotic findings remain" in handoff_description
+    assert "BLOCKED is reserved" in handoff_description
+    assert "internally contradictory" in handoff_description
     assert validate_architect_theory_execution_preflight_packet(
         packet,
         material=material,

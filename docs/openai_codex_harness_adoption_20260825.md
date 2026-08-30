@@ -62,6 +62,14 @@ without duplicating the control plane.
     explicitly identified current context; it is never silently attributed to the
     old root. This follows Codex's current invalidation of trusted turn lineage when
     external context or goal edits make attribution ambiguous.
+11. **Execution success is observation, not semantic authority.** Codex's detached
+    review contract requires a demonstrated defect, and Guardian treats transcript,
+    tool arguments, and tool results as untrusted evidence. AI Statistician applies
+    the same rule to mathematical scratch, simulation diagnostics, source retrieval,
+    and Lean feedback: a successful tool call proves that the submitted action ran,
+    not that its encoded stochastic model, theorem statement, or interpretation was
+    correct. The responsible model must inspect those choices before promoting an
+    observation to a finding or claim.
 
 ## Implementation Map
 
@@ -78,6 +86,7 @@ without duplicating the control plane.
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
 | sparse multi-agent delegation | the sole typed `AgentRuntime` outer research graph and artifact references |
 | trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
+| reviewer tool output as untrusted evidence | referee-owned falsification of scratch assumptions, source observations, and candidate semantics before a blocker is submitted |
 
 `client_tool_loop.py` is the shared inner harness. Theory, scientific coding,
 Simulation, Lean, and isolated reviewers configure domain tools and terminal actions;
@@ -184,21 +193,35 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 The inner harness is no longer the main architecture blocker. It already preserves
 same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity,
-and isolated review. Task111 exercised six visits to one durable Theory workspace and
-five clean referee workspaces. Its latest referee found the finite estimator handoff
-ready while retaining publication-level proof findings, and four consecutive reviews
-reported no prior-finding progress. The old outer gate nevertheless blocked all
-exploratory code and treated each source-hash change as progress.
+and isolated review. Task111 measured and corrected two outer-boundary defects:
+theory quality is now separate from finite exploratory-execution readiness, and a
+changed source hash is provenance rather than evidence of finding progress. Task111
+remains immutable 0/1.
 
-The measured shared correction remains inside the existing retained workspaces. An
-isolated referee now reports full theory quality separately from finite exploratory-
-execution readiness, and the outer graph continues a rejected theory lineage only
-when the referee records actual finding progress. Exact source hashes remain
-provenance. The model still chooses derivations, edits, code, experiments, tools,
-findings, and verdicts; runtime does not parse mathematics or generate a repair. This
-is Codex-style observation placement and explicit state transition, not a new worker,
-scheduler, content rule, model escalation, or second runtime. Task111 remains
-immutable 0/1.
+Task112 then exposed an epistemic defect inside an otherwise correct Codex-style
+review loop. TheoryDeveloper wrote a flawed derivation while landing on the requested
+finite formula. The independent referee correctly noticed that the derivation was
+incoherent, but its own model-authored scratch program encoded the table cells with
+the wrong joint dependence. Successful execution of that program was then treated as
+evidence for four high-severity findings, and the source owner faithfully revised the
+theory toward the false review. The second review retained the same premise, and the
+generic no-progress boundary stopped the run. Task112 remains immutable 0/1.
+
+The shared future-task correction stays inside the existing referee workspace. Its
+prompt and scratch tool now state that successful execution validates only the
+submitted program; before a scratch result can support a blocker, the referee must
+check the random vector, joint dependence, conditioning, parameterization, and regime
+against the candidate. A blocker that conflicts with the frozen objective or an
+available exact source must be challenged by an independent derivation and source
+read, with unresolved conflict reported as uncertainty. The finite-handoff contract
+also makes explicit that proof or asymptotic disagreement alone does not block
+exploratory implementation when the exact finite map remains coherent.
+
+This is Codex-style observation placement and reviewer falsification, not a formula
+rule, mathematical parser, repair worker, second critic, vote, retry, scheduler,
+content patch, model escalation, or second runtime. Models still choose derivations,
+scratch programs, sources, code, experiments, Lean actions, findings, and verdicts;
+runtime still owns only identity, persistence, execution, and evidence boundaries.
 
 Remaining capability gaps are scientific rather than reasons to import Codex:
 
@@ -217,6 +240,8 @@ introduce task-family rules.
 - [OpenAI Codex repository](https://github.com/openai/codex)
 - [`run_turn` at the audited pin](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/session/turn.rs)
 - [`ToolRouter` at the audited pin](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/router.rs)
+- [Codex detached review skill at the current pin](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/skills/src/assets/samples/review-agent/SKILL.md)
+- [Guardian evidence treatment at the current pin](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
 - [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
 - [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Goal-continuation lineage preservation and invalidation](https://github.com/openai/codex/commit/4210c08defe92fe8828f789b6f9fda287ad3709e)
