@@ -82,7 +82,7 @@ without duplicating the control plane.
 | thread persistence and context windows | content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
-| request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions plus the sole typed `AgentRuntime` and artifact references |
+| request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over the configured workspace inventory, plus the sole typed `AgentRuntime` and artifact references |
 | trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
 | reviewer tool output as untrusted evidence | referee-owned falsification of scratch assumptions, source observations, and candidate semantics before a blocker is submitted |
 
@@ -194,7 +194,7 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 ## Current Assessment
 
 The inner harness is no longer the main architecture blocker. It preserves same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity, and isolated review.
-Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan; frozen operator intent wins, and the provider schema is the sole structural contract.
+Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, and the provider schema is the sole structural contract.
 Three immutable evaluations refined these boundaries without changing scores:
 
 - Task111 separated theory quality from finite exploratory readiness and made source

@@ -627,23 +627,6 @@ def _runtime_architect_context_with_requested_evidence_contract(
     return payload
 
 
-def _runtime_task_intent_requires_generated_code_review(
-    task_intent: Mapping[str, Any] | None,
-    *,
-    evaluation_mode: str,
-) -> bool:
-    if not _is_runtime_research_evaluation_mode(evaluation_mode):
-        return False
-    return bool(
-        task_intent
-        and any(
-            research_task_intent_requirement(task_intent, dimension)
-            == "required"
-            for dimension in ("scientific_code", "empirical")
-        )
-    )
-
-
 def _runtime_contract_dimension_requirements(
     contract: Mapping[str, Any],
 ) -> dict[str, str]:
@@ -19887,14 +19870,10 @@ def run_research_agent_runtime(
     config = _normalized_runtime_evaluation_model_config(config)
     if (
         _is_runtime_research_evaluation_mode(config.evaluation_mode)
-        and (
-            any(
-                _runtime_task_intent_requires_generated_code_review(
-                    question.task_intent,
-                    evaluation_mode=config.evaluation_mode,
-                )
-                for question in questions
-            )
+        and any(
+            question.task_intent
+            and any(research_task_intent_requirement(question.task_intent, dimension) == "required" for dimension in ("scientific_code", "empirical"))
+            for question in questions
         )
         and generated_code_semantic_reviewer is None
     ):
@@ -19949,51 +19928,32 @@ def run_research_agent_runtime(
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
     formal_providers_activated_for_selected_tasks = any(
-        (
-            bool(question.task_intent)
-            and research_task_intent_requirement(
-                question.task_intent, "formal"
-            ) != "not_applicable"
-        )
+        research_task_intent_requirement(question.task_intent, "formal") == "required"
         or (not question.task_intent and formal_verification_policy == "required")
         for question in questions
     )
-    if formal_providers_activated_for_selected_tasks:
-        shared_formal_source_retriever = (
-            formal_source_retriever or build_default_formal_source_retriever()
-        )
-        formal_source_provider_descriptor = provider_descriptor(
-            shared_formal_source_retriever
-        )
-        proof_search_provider_descriptor = (
-            provider_descriptor(proof_search_provider)
-            if proof_search_provider is not None
-            else {"configured": False}
-        )
-        proof_state_retrieval_descriptor = (
-            ai4slt_proof_state_trace_rag_descriptor()
-        )
-    else:
-        shared_formal_source_retriever = formal_source_retriever
-        inactive_descriptor = {
-            "activated_for_selected_tasks": False,
-            "activation_status": "all_selected_tasks_formal_not_applicable",
-        }
-        formal_source_provider_descriptor = {
-            **inactive_descriptor,
-            "configured": True,
-            "provider_instantiated": formal_source_retriever is not None,
-        }
-        proof_search_provider_descriptor = {
-            **inactive_descriptor,
-            "configured": proof_search_provider is not None,
-            "provider_instantiated": proof_search_provider is not None,
-        }
-        proof_state_retrieval_descriptor = {
-            **inactive_descriptor,
-            "configured": True,
-            "provider_instantiated": False,
-        }
+    shared_formal_source_retriever = formal_source_retriever
+    if formal_providers_activated_for_selected_tasks and shared_formal_source_retriever is None:
+        shared_formal_source_retriever = build_default_formal_source_retriever()
+    deferred_formal_provider = {
+        "activated_for_selected_tasks": False,
+        "activation_status": "all_selected_tasks_formal_not_applicable" if questions and all(research_task_intent_requirement(question.task_intent, "formal") == "not_applicable" for question in questions) else "deferred_until_formal_workspace_selected",
+    }
+    formal_source_provider_descriptor = (
+        provider_descriptor(shared_formal_source_retriever)
+        if formal_providers_activated_for_selected_tasks
+        else {**deferred_formal_provider, "configured": True, "provider_instantiated": formal_source_retriever is not None}
+    )
+    proof_search_provider_descriptor = (
+        provider_descriptor(proof_search_provider)
+        if formal_providers_activated_for_selected_tasks and proof_search_provider is not None
+        else {**deferred_formal_provider, "configured": proof_search_provider is not None, "provider_instantiated": proof_search_provider is not None}
+    )
+    proof_state_retrieval_descriptor = (
+        ai4slt_proof_state_trace_rag_descriptor()
+        if formal_providers_activated_for_selected_tasks
+        else {**deferred_formal_provider, "configured": True, "provider_instantiated": False}
+    )
     lean_provider_topology = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeLeanProviderTopology",
@@ -20055,6 +20015,12 @@ def run_research_agent_runtime(
             "LLM topology policy violation: "
             + "; ".join(str(row) for row in llm_topology["policy_violations"])
         )
+    runtime_agents = (("TheoryDeveloper", theory_developer), ("AlgorithmEngineer", algorithm_engineer), ("SimulationEvaluator", simulation_engineer), ("GeneratedCodeSemanticReviewer", generated_code_semantic_reviewer), ("FormalizationEvaluator", formalizer), ("FormalTargetSemanticReviewer", formal_target_semantic_reviewer))
+    runtime_available_subsystems = ["RetrievalMemory", *[subsystem for subsystem, agent in runtime_agents if agent is not None], "CriticEvaluator"]
+    runtime_architect_context = {
+        **runtime_architect_context,
+        "runtime_available_subsystems": runtime_available_subsystems,
+    }
     initial_task_overrides = dict(initial_task_overrides or {})
     initial_blackboard_artifacts = dict(initial_blackboard_artifacts or {})
     resume_hash_bound_artifact_ids_by_question = {

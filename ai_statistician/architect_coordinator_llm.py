@@ -101,6 +101,21 @@ ARCHITECT_WORKSPACE_CAPABILITIES = {
     "FormalTargetSemanticReviewer": "independent review of the exact formal statement",
     "CriticEvaluator": "terminal multidimensional evidence and gap assessment",
 }
+
+
+def _architect_available_subsystems(
+    architect_context: Mapping[str, Any],
+) -> tuple[str, ...]:
+    raw = architect_context.get("runtime_available_subsystems", ())
+    allowed = (
+        set(map(str, raw))
+        if isinstance(raw, (list, tuple, set)) and raw
+        else set(ARCHITECT_RUNTIME_SUBSYSTEMS)
+    )
+    return tuple(
+        subsystem for subsystem in ARCHITECT_RUNTIME_SUBSYSTEMS
+        if subsystem in allowed
+    )
 ARCHITECT_FEEDBACK_ROUTE_OPERATION = "environment_feedback_route"
 ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS = (
     "RetrievalMemory",
@@ -435,6 +450,13 @@ class LLMArchitectCoordinatorAgent:
                 },
             ):
                 return reused_packet
+        available_subsystems = _architect_available_subsystems(
+            effective_architect_context
+        )
+        request_schema = deepcopy(ARCHITECT_COORDINATOR_JSON_SCHEMA)
+        owner_schema = request_schema["properties"]["next_actions"]["items"]
+        owner_schema = owner_schema["properties"]["owner_agent"]
+        owner_schema["enum"] = list(available_subsystems)
         user_prompt = build_architect_coordinator_prompt(
             question=question,
             architect_context=effective_architect_context,
@@ -446,7 +468,7 @@ class LLMArchitectCoordinatorAgent:
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            schema=ARCHITECT_COORDINATOR_JSON_SCHEMA,
+            schema=request_schema,
             metadata={
                 "subsystem": "ArchitectCoordinator",
                 "agent": "LLMArchitectCoordinatorAgent",
@@ -454,6 +476,7 @@ class LLMArchitectCoordinatorAgent:
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
                 "provider_structured_output": True,
+                "available_subsystems": list(available_subsystems),
             },
         )
 
@@ -952,7 +975,11 @@ def _architect_feedback_route_subsystems(
     """Apply immutable lineage budgets to the model's route choices."""
 
     budget = architect_context.get("candidate_lineage_budget", {})
-    available = list(ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS)
+    configured = set(_architect_available_subsystems(architect_context))
+    available = [
+        subsystem for subsystem in ARCHITECT_FEEDBACK_ROUTE_SUBSYSTEMS
+        if subsystem in configured
+    ]
     unavailable: set[str] = set()
     failure = str(
         environment_feedback.get("failure_classification", "") or ""
@@ -1923,6 +1950,7 @@ def build_architect_coordinator_prompt(
     model_architect_context = withhold_confirmatory_evaluation_seed(
         architect_observations_without_runtime_routing(architect_context)
     )
+    available_subsystems = _architect_available_subsystems(architect_context)
     payload = {
         "question": research_question_payload(
             question,
@@ -1933,8 +1961,14 @@ def build_architect_coordinator_prompt(
             runtime_config,
             parent_key="runtime_config",
         ),
-        "available_subsystems": list(ARCHITECT_RUNTIME_SUBSYSTEMS),
-        "workspace_capabilities": dict(ARCHITECT_WORKSPACE_CAPABILITIES),
+        "available_subsystems": list(available_subsystems),
+        "unavailable_subsystems": sorted(
+            set(ARCHITECT_RUNTIME_SUBSYSTEMS) - set(available_subsystems)
+        ),
+        "workspace_capabilities": {
+            subsystem: ARCHITECT_WORKSPACE_CAPABILITIES[subsystem]
+            for subsystem in available_subsystems
+        },
         "orchestration_contract": {
             "model_owns": (
                 "research analysis, lane choice, retrieval priorities, mathematical "
@@ -2547,8 +2581,17 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                         "task-specific mathematical claim rather than the legacy "
                         f"runtime completion placeholder at index {index}"
                     )
+    raw_available = packet.get("available_subsystems", ())
+    available_subsystems = (
+        set(map(str, raw_available))
+        if isinstance(raw_available, (list, tuple, set)) and raw_available
+        else set(ARCHITECT_RUNTIME_SUBSYSTEMS)
+    )
+    for action in packet.get("next_actions", []) or []:
+        owner = str(action.get("owner_agent", "") or "") if isinstance(action, Mapping) else ""
+        if owner and owner not in available_subsystems:
+            errors.append(f"next_actions selects unavailable subsystem: {owner}")
     planned_subsystems: set[str] = set()
-    planned_subsystem_sequence: list[str] = []
     for row in packet.get("subsystem_execution_plan", []) or []:
         if not isinstance(row, Mapping):
             errors.append("subsystem_execution_plan entries must be objects")
@@ -2558,7 +2601,10 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
             errors.append("subsystem_execution_plan entry missing subsystem")
             continue
         planned_subsystems.add(subsystem)
-        planned_subsystem_sequence.append(subsystem)
+    errors.extend(
+        "subsystem_execution_plan requires unavailable subsystem: " + subsystem
+        for subsystem in sorted(planned_subsystems - available_subsystems)
+    )
     for subsystem in _required_architect_plan_subsystems(evidence_contract):
         if subsystem not in planned_subsystems:
             errors.append(
@@ -2924,6 +2970,9 @@ def _normalize_architect_packet(
             False,
         )
     body["evidence_contract"] = normalized_contract
+    body["available_subsystems"] = list(
+        _architect_available_subsystems(architect_context or {})
+    )
     (
         body["subsystem_execution_plan"],
         body["subsystem_execution_plan_provenance"],

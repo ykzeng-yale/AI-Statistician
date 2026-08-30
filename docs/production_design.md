@@ -36,7 +36,7 @@ Goal, source policy, and task-intent evidence contract
 
 Frozen source-only or theory-only intent starts TheoryDeveloper directly; exact
 formal-only intent starts its RAG/Formalizer path. Otherwise the Architect resolves
-all four evidence dimensions, creates the request-scoped workspace plan, handles genuine cross-workspace conflicts, and decides when to stop. A
+all four evidence dimensions over the configured workspace inventory, creates the request-scoped plan, handles genuine cross-workspace conflicts, and decides when to stop. A
 source-workspace budget block does not trigger another route. Routine syntax, ABI,
 compiler, simulation, or Lean failures stay with the model that owns the source.
 

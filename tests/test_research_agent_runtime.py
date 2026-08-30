@@ -1510,6 +1510,116 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
     )
 
 
+def test_full_runtime_gives_architect_exact_configured_workspace_inventory(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="runtime-workspace-inventory",
+        title="Runtime workspace inventory",
+        description="Plan one theory-only investigation from configured capabilities.",
+    )
+    exact_haiku_config = SimpleNamespace(
+        provider_name="anthropic",
+        model=LIVE_EVALUATION_CLAUDE_MODEL,
+        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        serious_model=LIVE_EVALUATION_CLAUDE_MODEL,
+        serious_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        max_tokens=1_000,
+        serious_max_tokens=1_000,
+        temperature=0.0,
+    )
+    captured: dict[str, object] = {}
+    decision = {
+        "problem_analysis": {
+            "theorem_family": "generic",
+            "statistical_objects": ["estimand"],
+            "assumption_dimensions": ["sampling law"],
+            "likely_analogy_classes": ["known arguments"],
+            "key_obstacles": ["derive the claim"],
+            "missing_information": ["primary sources"],
+        },
+        "evidence_contract": {
+            "dimension_requirements": {
+                "theory": "required",
+                "scientific_code": "not_applicable",
+                "empirical": "not_applicable",
+                "formal": "not_applicable",
+            },
+            "recommended_research_path": "simulation_first",
+            "formal_targets": [],
+            "simulation_targets": [],
+        },
+        "retrieval_strategy": {
+            "paper_queries": ["generic theorem"],
+            "formal_source_queries": ["generic theorem"],
+            "lean_rag_priorities": ["none requested"],
+        },
+        "iteration_policy": {
+            "max_revision_rounds": 1,
+            "stop_conditions": ["independent review accepts"],
+        },
+        "next_actions": [
+            {
+                "owner_agent": "TheoryDeveloper",
+                "action": "Develop the mathematical claim.",
+                "acceptance_gate": "Independent theory review accepts.",
+            }
+        ],
+    }
+
+    class Provider:
+        provider_name = "anthropic"
+
+    class CapturingArchitect:
+        config = exact_haiku_config
+        provider = Provider()
+        metric_semantic_reviewer = None
+
+        @staticmethod
+        def propose(*, question, architect_context, runtime_config):  # type: ignore[no-untyped-def]
+            captured["architect_context"] = deepcopy(architect_context)
+            return architect_module._normalize_architect_packet(
+                decision,
+                question=question,
+                model=LIVE_EVALUATION_CLAUDE_MODEL,
+                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+                provider_name="anthropic",
+                raw_response=json.dumps(decision),
+                runtime_config=runtime_config,
+                architect_context=architect_context,
+            )
+
+    class UnusedTheoryDeveloper:
+        config = exact_haiku_config
+        provider = Provider()
+        research_sources = None
+        research_source_execution = None
+
+        @staticmethod
+        def derive(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("max_iterations=1 must stop after Architect")
+
+    runtime_module.run_research_agent_runtime(
+        [question],
+        tmp_path,
+        theory_developer=UnusedTheoryDeveloper(),  # type: ignore[arg-type]
+        architect_coordinator=CapturingArchitect(),  # type: ignore[arg-type]
+        config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval",
+            max_iterations=1,
+            theory_scratch_max_runs=0,
+        ),
+    )
+
+    context = captured["architect_context"]
+    assert isinstance(context, dict)
+    assert context["runtime_available_subsystems"] == [
+        "RetrievalMemory",
+        "TheoryDeveloper",
+        "CriticEvaluator",
+    ]
+
+
 def test_multi_lane_intent_keeps_architect_initial_ownership() -> None:
     question = OpenResearchQuestion(
         id="source-and-theory-runtime",

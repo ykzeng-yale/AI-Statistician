@@ -511,6 +511,112 @@ def test_operator_required_formal_lane_overrides_unfrozen_model_plan() -> None:
     assert validate_architect_coordinator_packet(packet) == []
 
 
+def test_architect_provider_exposes_only_runtime_available_subsystems() -> None:
+    question = _question()
+    dimensions = {
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    decision = _capability_scoped_architect_decision(dimensions)
+    backend = _RouteBackend(decision)
+    coordinator = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model=EXACT_HAIKU_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+    available = ["RetrievalMemory", "TheoryDeveloper", "CriticEvaluator"]
+    context = {
+        "runtime_available_subsystems": available,
+        "runtime_packet_validation_replan": {"active": True},
+        "runtime_requested_evidence_contract": _runtime_requested_evidence_contract(
+            formal_verification_policy="optional",
+            evaluation_mode="research_eval",
+        ),
+    }
+
+    packet = coordinator.propose(
+        question=question,
+        architect_context=context,
+        runtime_config={
+            "evaluation_mode": "research_eval",
+            "formal_verification_policy": "optional",
+            "n_runs": 10,
+        },
+    )
+    request = backend.requests[-1]
+    prompt_payload = json.loads(request.user_prompt.rsplit("\n\n", 1)[1])
+    feedback_payload = json.loads(
+        build_architect_feedback_route_prompt(
+            question=question,
+            architect_context=context,
+            environment_feedback={"failure_classification": "generic_gap"},
+        ).rsplit("\n\n", 1)[1]
+    )
+    owner_schema = request.schema["properties"]["next_actions"]["items"][
+        "properties"
+    ]["owner_agent"]
+
+    assert prompt_payload["available_subsystems"] == available
+    assert set(prompt_payload["workspace_capabilities"]) == set(available)
+    assert owner_schema["enum"] == available
+    assert request.metadata["available_subsystems"] == available
+    assert packet["available_subsystems"] == available
+    assert feedback_payload["available_route_subsystems"] == available
+    assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_architect_rejects_required_unavailable_workspace() -> None:
+    question = _question()
+    decision = _capability_scoped_architect_decision(
+        {
+            "theory": "not_applicable",
+            "scientific_code": "required",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        }
+    )
+    context = {
+        "runtime_available_subsystems": [
+            "RetrievalMemory",
+            "TheoryDeveloper",
+            "CriticEvaluator",
+        ],
+        "runtime_requested_evidence_contract": _runtime_requested_evidence_contract(
+            formal_verification_policy="optional",
+            evaluation_mode="research_eval",
+        ),
+    }
+    packet = _normalize_architect_packet(
+        decision,
+        question=question,
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(decision),
+        runtime_config={
+            "evaluation_mode": "research_eval",
+            "formal_verification_policy": "optional",
+        },
+        architect_context=context,
+    )
+
+    errors = validate_architect_coordinator_packet(packet)
+    assert (
+        "subsystem_execution_plan requires unavailable subsystem: AlgorithmEngineer"
+        in errors
+    )
+    assert (
+        "subsystem_execution_plan requires unavailable subsystem: "
+        "GeneratedCodeSemanticReviewer"
+    ) in errors
+
+
 def test_architect_discards_targets_outside_frozen_task_intent() -> None:
     question = OpenResearchQuestion(
         id="theory-only-architect",
