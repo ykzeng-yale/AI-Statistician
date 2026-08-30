@@ -12,7 +12,7 @@ from .agent_runtime import (
     BlackboardState,
     EnvironmentObservation,
     EvidenceLedgerEntry,
-    mark_same_owner_workspace_continuation,
+    mark_workspace_continuation,
     runtime_artifact_reference,
 )
 from .client_tool_loop import (
@@ -687,7 +687,7 @@ def scientific_workspace_progress_result(
         evidence_entries=tuple(
             row for row in evidence_entries if row is not None
         ),
-        next_task=mark_same_owner_workspace_continuation(
+        next_task=mark_workspace_continuation(
             parent_task=task,
             next_task=next_task,
         ),

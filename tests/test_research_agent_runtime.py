@@ -390,6 +390,13 @@ def test_theory_free_source_review_binds_frozen_abi_lineage(
     work_order = dispatch["work_order"]
     assert work_order["theory_packet_id"] == ""
     assert work_order["research_evaluation"] is True
+    assert dispatch["next_task"].budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] == {
+        "scope": "workspace_continuation",
+        "parent_task_id": source_task.task_id,
+        "next_task_id": dispatch["next_task"].task_id,
+        "parent_owner_subsystem": "AlgorithmEngineer",
+        "owner_subsystem": "GeneratedCodeSemanticReviewer",
+    }
 
     backend = StaticReviewClientToolBackend(
         {
@@ -433,6 +440,7 @@ def test_theory_free_source_review_binds_frozen_abi_lineage(
     )
     assert outcome.next_task is not None
     assert outcome.next_task.owner_subsystem == "SimulationEvaluator"
+    assert RUNTIME_CONTINUATION_BUDGET_MARKER_KEY not in outcome.next_task.budget
     accepted = outcome.next_task.inputs["accepted_generated_code_semantic_reviews"]
     assert accepted[-1]["parent_artifact_ids"] == {
         "estimator_execution_contract_id": context[
@@ -2272,9 +2280,9 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
     assert row["requirements"]["critic_research_acceptance"] is False
     assert manifest["n_runtime_architect_coordinator_traces"] == 0
     assert manifest["n_runtime_outer_graph_iterations"] == 1
-    assert manifest["n_runtime_same_owner_workspace_continuations"] == 0
+    assert manifest["n_runtime_workspace_continuations"] == 0
     assert runtime_result["outer_graph_iterations_consumed"] == 1
-    assert runtime_result["same_owner_workspace_continuations_consumed"] == 0
+    assert runtime_result["workspace_continuations_consumed"] == 0
     assert manifest["n_generated_simulation_sandbox_executed"] == 0
     assert manifest["n_kernel_verified_subclaims"] == 0
     assert manifest["formal_closure_summary"]["formal_closure_status"] == (
@@ -8688,6 +8696,7 @@ def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
     assert outcome.next_task.owner_subsystem == expected_owner
     assert outcome.failure_classification == expected_failure_classification
     if cross_artifact:
+        assert RUNTIME_CONTINUATION_BUDGET_MARKER_KEY not in outcome.next_task.budget
         unresolved_feedback = outcome.next_task.inputs["environment_feedback"]
         assert unresolved_feedback["observation_artifact_ref"]["artifact_kind"] == (
             "RuntimeArtifactRef"
@@ -8700,6 +8709,13 @@ def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
             "source_revision_assessment"
         ]["resolution_scope"] == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
     else:
+        assert outcome.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] == {
+            "scope": "workspace_continuation",
+            "parent_task_id": dispatch["next_task"].task_id,
+            "next_task_id": outcome.next_task.task_id,
+            "parent_owner_subsystem": "GeneratedCodeSemanticReviewer",
+            "owner_subsystem": "AlgorithmEngineer",
+        }
         assert outcome.next_task.inputs[
             "generated_code_semantic_review_revision_count"
         ] == 1

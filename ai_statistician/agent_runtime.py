@@ -29,8 +29,8 @@ _ACTIVE_PROGRESS_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar(
 )
 
 RUNTIME_OUTER_GRAPH_BUDGET_SCOPE = "outer_research_graph"
-RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE = "same_owner_workspace"
-RUNTIME_CONTINUATION_BUDGET_MARKER_KEY = "runtime_same_owner_workspace_continuation"
+RUNTIME_WORKSPACE_BUDGET_SCOPE = "workspace_continuation"
+RUNTIME_CONTINUATION_BUDGET_MARKER_KEY = "runtime_workspace_continuation"
 
 
 @dataclass(frozen=True)
@@ -46,20 +46,19 @@ class AgentTask:
     stop_condition: str = ""
 
 
-def mark_same_owner_workspace_continuation(
+def mark_workspace_continuation(
     *,
     parent_task: AgentTask,
     next_task: AgentTask,
 ) -> AgentTask:
-    """Mark one exact same-owner checkpoint without spending graph budget."""
+    """Mark one exact workspace step without spending outer-graph budget."""
 
-    if next_task.owner_subsystem != parent_task.owner_subsystem:
-        raise ValueError("same-owner workspace continuation cannot change owner")
     budget = deepcopy(dict(next_task.budget))
     budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] = {
-        "scope": RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE,
+        "scope": RUNTIME_WORKSPACE_BUDGET_SCOPE,
         "parent_task_id": parent_task.task_id,
         "next_task_id": next_task.task_id,
+        "parent_owner_subsystem": parent_task.owner_subsystem,
         "owner_subsystem": next_task.owner_subsystem,
     }
     return replace(next_task, budget=budget)
@@ -68,22 +67,22 @@ def mark_same_owner_workspace_continuation(
 def _runtime_iteration_budget_scope(task: AgentTask, result: AgentStepResult) -> str:
     next_task = result.next_task
     if (
-        result.status != "REVISE"
+        result.status not in {"REROUTE", "REVISE"}
         or next_task is None
-        or next_task.owner_subsystem != task.owner_subsystem
     ):
         return RUNTIME_OUTER_GRAPH_BUDGET_SCOPE
     marker = next_task.budget.get(RUNTIME_CONTINUATION_BUDGET_MARKER_KEY, {})
     if not isinstance(marker, Mapping):
         return RUNTIME_OUTER_GRAPH_BUDGET_SCOPE
     if marker != {
-        "scope": RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE,
+        "scope": RUNTIME_WORKSPACE_BUDGET_SCOPE,
         "parent_task_id": task.task_id,
         "next_task_id": next_task.task_id,
+        "parent_owner_subsystem": task.owner_subsystem,
         "owner_subsystem": next_task.owner_subsystem,
     }:
         return RUNTIME_OUTER_GRAPH_BUDGET_SCOPE
-    return RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE
+    return RUNTIME_WORKSPACE_BUDGET_SCOPE
 
 
 class RuntimeArtifactReferenceError(ValueError):
@@ -834,7 +833,7 @@ class AgentRuntimeResult:
     pending_task_continuation_ref: dict[str, Any] = field(default_factory=dict)
     pending_task_checkpoint_reason: str = ""
     outer_graph_iterations_consumed: int = 0
-    same_owner_workspace_continuations_consumed: int = 0
+    workspace_continuations_consumed: int = 0
 
     def to_json(self, *, include_task_payloads: bool = False) -> dict[str, Any]:
         return {
@@ -851,7 +850,9 @@ class AgentRuntimeResult:
             "pending_task_checkpoint_reason": self.pending_task_checkpoint_reason,
             "runtime_steps_executed": len(self.traces),
             "outer_graph_iterations_consumed": self.outer_graph_iterations_consumed,
-            "same_owner_workspace_continuations_consumed": self.same_owner_workspace_continuations_consumed,
+            "workspace_continuations_consumed": self.workspace_continuations_consumed,
+            # Compatibility alias for immutable schema-v1 consumers.
+            "same_owner_workspace_continuations_consumed": self.workspace_continuations_consumed,
             "blackboard": self.blackboard.to_json(),
             "traces": [
                 row.to_json(include_task_payloads=include_task_payloads)
@@ -885,7 +886,7 @@ class AgentRuntime:
         traces: list[RuntimeIterationTrace] = []
         final_status: RuntimeStatus = "MAX_ITERATIONS_REACHED"
         outer_graph_iterations_consumed = 0
-        same_owner_workspace_continuations_consumed = 0
+        workspace_continuations_consumed = 0
         iteration = 0
         budget_exhaustion_reason = (
             "outer_iteration_budget_exhausted" if max_iterations < 1 else ""
@@ -998,8 +999,8 @@ class AgentRuntime:
             if (
                 self.handoff_policy is not None
                 and _runtime_iteration_budget_scope(task, result)
-                == RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE
-                and same_owner_workspace_continuations_consumed + 1 >= max_iterations
+                == RUNTIME_WORKSPACE_BUDGET_SCOPE
+                and workspace_continuations_consumed + 1 >= max_iterations
                 and result.next_task is not None
             ):
                 _, _, artifacts = materialize_agent_task_continuation(result.next_task)
@@ -1009,7 +1010,7 @@ class AgentRuntime:
                     rationale="Exact pending workspace preserved at its budget boundary.",
                     produced_artifacts={**result.produced_artifacts, **artifacts},
                     next_task=None,
-                    failure_classification="same_owner_workspace_continuation_budget_exhausted",
+                    failure_classification="workspace_continuation_budget_exhausted",
                 )
             if self.handoff_policy is not None:
                 routed_result = self.handoff_policy(
@@ -1054,8 +1055,8 @@ class AgentRuntime:
 
             result = _snapshot_agent_step_result(result)
             iteration_budget_scope = _runtime_iteration_budget_scope(task, result)
-            if iteration_budget_scope == RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE:
-                same_owner_workspace_continuations_consumed += 1
+            if iteration_budget_scope == RUNTIME_WORKSPACE_BUDGET_SCOPE:
+                workspace_continuations_consumed += 1
             else:
                 outer_graph_iterations_consumed += 1
             self.blackboard.artifacts.update(result.produced_artifacts)
@@ -1111,7 +1112,7 @@ class AgentRuntime:
                 metadata={
                     "iteration_budget_scope": iteration_budget_scope,
                     "outer_graph_iterations_consumed": outer_graph_iterations_consumed,
-                    "same_owner_workspace_continuations_consumed": same_owner_workspace_continuations_consumed,
+                    "workspace_continuations_consumed": workspace_continuations_consumed,
                 },
             )
 
@@ -1127,12 +1128,12 @@ class AgentRuntime:
             task = deepcopy(result.next_task)
             if (
                 iteration_budget_scope
-                == RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE
-                and same_owner_workspace_continuations_consumed
+                == RUNTIME_WORKSPACE_BUDGET_SCOPE
+                and workspace_continuations_consumed
                 >= max_iterations
             ):
                 final_status = "MAX_ITERATIONS_REACHED"
-                budget_exhaustion_reason = "same_owner_workspace_continuation_budget_exhausted"
+                budget_exhaustion_reason = "workspace_continuation_budget_exhausted"
                 break
             if (
                 iteration_budget_scope == RUNTIME_OUTER_GRAPH_BUDGET_SCOPE
@@ -1177,7 +1178,7 @@ class AgentRuntime:
             pending_task_continuation_ref=pending_task_continuation_ref,
             pending_task_checkpoint_reason=pending_task_checkpoint_reason,
             outer_graph_iterations_consumed=outer_graph_iterations_consumed,
-            same_owner_workspace_continuations_consumed=same_owner_workspace_continuations_consumed,
+            workspace_continuations_consumed=workspace_continuations_consumed,
         )
 
 

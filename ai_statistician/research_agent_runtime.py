@@ -23,7 +23,7 @@ from .agent_runtime import (
     agent_task_reference,
     agent_runtime_substage,
     compact_runtime_artifact_references,
-    mark_same_owner_workspace_continuation,
+    mark_workspace_continuation,
     materialize_agent_task_continuation,
     resolve_runtime_artifact_references,
     restore_agent_task_continuation,
@@ -6194,7 +6194,7 @@ def _theory_developer_progress_result(
             ),
         ),
         evidence_entries=(evidence,),
-        next_task=mark_same_owner_workspace_continuation(
+        next_task=mark_workspace_continuation(
             parent_task=task,
             next_task=next_task,
         ),
@@ -6855,43 +6855,46 @@ def _runtime_generated_code_semantic_review_dispatch(
         "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
     }
     work_order_hash = stable_hash(work_order)
-    review_task = AgentTask(
-        task_id=(
-            f"semantic-review:{question.id}:"
-            f"{stable_hash([work_order_id, work_order_hash])[:10]}"
-        ),
-        owner_subsystem=GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
-        objective=(
-            "Independently review the statistical and experimental semantics of "
-            "the exact exploratory code, actual runtime arguments, raw diagnostics, "
-            "and theory derivation without treating the run as confirmatory evidence."
-            if not confirmatory_empirical_evidence_eligible
-            else "Independently review the statistical and experimental semantics of "
-            "the exact generated code, actual runtime arguments, result schema, "
-            "theory derivation, and Architect-authored interface contract."
-        ),
-        inputs={
-            "question": _question_to_payload(question),
-            "work_order_id": work_order_id,
-            "work_order_hash": work_order_hash,
-        },
-        allowed_tools=("model_backend", "filesystem", "blackboard"),
-        expected_artifacts=(
-            "generated_code_semantic_review_materialization",
-            "generated_code_semantic_review_packet",
-            "generated_code_semantic_review_execution_manifest",
-        ),
-        acceptance_gate=(
-            "an independent lineage-bound semantic review accepts the exact "
-            "artifact for diagnostic use without promoting empirical claims, or "
-            "routes concrete feedback to its author"
-            if not confirmatory_empirical_evidence_eligible
-            else "an independent lineage-bound semantic review accepts every exact "
-            "generated artifact or routes concrete feedback to its coding agent"
-        ),
-        stop_condition=(
-            "semantic review is accepted, a fresh coding-agent revision is "
-            "scheduled, or the bounded semantic-review loop records a blocker"
+    review_task = mark_workspace_continuation(
+        parent_task=task,
+        next_task=AgentTask(
+            task_id=(
+                f"semantic-review:{question.id}:"
+                f"{stable_hash([work_order_id, work_order_hash])[:10]}"
+            ),
+            owner_subsystem=GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
+            objective=(
+                "Independently review the statistical and experimental semantics of "
+                "the exact exploratory code, actual runtime arguments, raw diagnostics, "
+                "and theory derivation without treating the run as confirmatory evidence."
+                if not confirmatory_empirical_evidence_eligible
+                else "Independently review the statistical and experimental semantics of "
+                "the exact generated code, actual runtime arguments, result schema, "
+                "theory derivation, and Architect-authored interface contract."
+            ),
+            inputs={
+                "question": _question_to_payload(question),
+                "work_order_id": work_order_id,
+                "work_order_hash": work_order_hash,
+            },
+            allowed_tools=("model_backend", "filesystem", "blackboard"),
+            expected_artifacts=(
+                "generated_code_semantic_review_materialization",
+                "generated_code_semantic_review_packet",
+                "generated_code_semantic_review_execution_manifest",
+            ),
+            acceptance_gate=(
+                "an independent lineage-bound semantic review accepts the exact "
+                "artifact for diagnostic use without promoting empirical claims, or "
+                "routes concrete feedback to its author"
+                if not confirmatory_empirical_evidence_eligible
+                else "an independent lineage-bound semantic review accepts every exact "
+                "generated artifact or routes concrete feedback to its coding agent"
+            ),
+            stop_condition=(
+                "semantic review is accepted, a fresh coding-agent revision is "
+                "scheduled, or the bounded semantic-review loop records a blocker"
+            ),
         ),
     )
     evidence = EvidenceLedgerEntry(
@@ -8496,15 +8499,18 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     revision_feedback
                 )
                 produced_artifacts[str(producer_feedback["feedback_id"])] = producer_feedback
-                next_task = build_generated_code_semantic_review_producer_revision_task(
-                    question=question,
-                    review_task_id=task.task_id,
-                    work_order=work_order,
-                    source_task=source_task,
-                    review_feedback=revision_feedback,
-                    review_packet_id=review_packet_id,
-                    review_execution_id=execution_id,
-                    revision_count=revision_count,
+                next_task = mark_workspace_continuation(
+                    parent_task=task,
+                    next_task=build_generated_code_semantic_review_producer_revision_task(
+                        question=question,
+                        review_task_id=task.task_id,
+                        work_order=work_order,
+                        source_task=source_task,
+                        review_feedback=revision_feedback,
+                        review_packet_id=review_packet_id,
+                        review_execution_id=execution_id,
+                        revision_count=revision_count,
+                    ),
                 )
                 status = "REVISE"
                 rationale = (
@@ -15141,7 +15147,7 @@ def _formalizer_packet_validation_failure_result(
             ),
             inputs=next_inputs,
         )
-        next_task = mark_same_owner_workspace_continuation(
+        next_task = mark_workspace_continuation(
             parent_task=task,
             next_task=next_task,
         )
@@ -20205,6 +20211,16 @@ def run_research_agent_runtime(
         evaluation_mode=config.evaluation_mode,
         schema_version=RUNTIME_SCHEMA_VERSION,
     )
+    n_runtime_workspace_continuations = sum(
+        int(
+            row.get(
+                "workspace_continuations_consumed",
+                row.get("same_owner_workspace_continuations_consumed", 0),
+            )
+            or 0
+        )
+        for row in results
+    )
 
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -20254,10 +20270,8 @@ def run_research_agent_runtime(
             int(row.get("outer_graph_iterations_consumed", 0) or 0)
             for row in results
         ),
-        "n_runtime_same_owner_workspace_continuations": sum(
-            int(row.get("same_owner_workspace_continuations_consumed", 0) or 0)
-            for row in results
-        ),
+        "n_runtime_workspace_continuations": n_runtime_workspace_continuations,
+        "n_runtime_same_owner_workspace_continuations": n_runtime_workspace_continuations,
         "n_runtime_evidence_ledger_rows": len(evidence_rows),
         "n_runtime_task_handoffs": len(handoff_rows),
         "n_runtime_observations": len(observation_rows),

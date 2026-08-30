@@ -7,7 +7,7 @@ from ai_statistician.agent_runtime import (
     AgentRuntime,
     AgentTask,
     BlackboardState,
-    RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE,
+    RUNTIME_WORKSPACE_BUDGET_SCOPE,
 )
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WORKSPACE_CHECKPOINT_KIND,
@@ -2087,9 +2087,9 @@ def test_agent_runtime_resumes_same_theory_referee_without_architect_replanning(
         "architect_theory_execution_preflight_workspace_progress"
     )
     assert result.traces[0].iteration_budget_scope == (
-        RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE
+        RUNTIME_WORKSPACE_BUDGET_SCOPE
     )
-    assert result.same_owner_workspace_continuations_consumed == 1
+    assert result.workspace_continuations_consumed == 1
     assert result.traces[1].failure_classification == (
         "architect_theory_execution_preflight_packet_validation_failed"
     )

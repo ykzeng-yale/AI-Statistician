@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import pytest
 
@@ -13,12 +13,12 @@ from ai_statistician.agent_runtime import (
     EnvironmentObservation,
     EvidenceLedgerEntry,
     RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
-    RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE,
+    RUNTIME_WORKSPACE_BUDGET_SCOPE,
     ToolCallRecord,
     agent_task_continuation_reference,
     agent_runtime_substage,
     materialize_agent_task_continuation,
-    mark_same_owner_workspace_continuation,
+    mark_workspace_continuation,
     restore_agent_task_continuation,
     runtime_artifact_reference,
 )
@@ -597,7 +597,7 @@ def test_agent_runtime_separates_workspace_and_outer_graph_budgets() -> None:
                 return AgentStepResult(
                     status="REVISE",
                     rationale="checkpoint exact model-owned mathematics",
-                    next_task=mark_same_owner_workspace_continuation(
+                    next_task=mark_workspace_continuation(
                         parent_task=task,
                         next_task=next_task,
                     ),
@@ -640,16 +640,93 @@ def test_agent_runtime_separates_workspace_and_outer_graph_budgets() -> None:
     assert result.status == "ACCEPTED"
     assert len(result.traces) == 3
     assert result.outer_graph_iterations_consumed == 2
-    assert result.same_owner_workspace_continuations_consumed == 1
+    assert result.workspace_continuations_consumed == 1
     assert [row.iteration_budget_scope for row in result.traces] == [
-        RUNTIME_SAME_OWNER_WORKSPACE_BUDGET_SCOPE,
+        RUNTIME_WORKSPACE_BUDGET_SCOPE,
         RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
         RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
     ]
     payload = result.to_json()
     assert payload["runtime_steps_executed"] == 3
     assert payload["outer_graph_iterations_consumed"] == 2
-    assert payload["same_owner_workspace_continuations_consumed"] == 1
+    assert payload["workspace_continuations_consumed"] == 1
+
+
+def test_agent_runtime_keeps_detached_review_inside_workspace_budget() -> None:
+    class SourceWorkspace:
+        name = "AlgorithmEngineer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            del blackboard
+            if task.task_id == "algorithm:q1":
+                review = AgentTask(
+                    task_id="review:q1",
+                    owner_subsystem="IndependentReviewer",
+                    objective="Review the immutable candidate.",
+                )
+                return AgentStepResult(
+                    status="REROUTE",
+                    rationale="candidate ready for detached review",
+                    next_task=mark_workspace_continuation(
+                        parent_task=task,
+                        next_task=review,
+                    ),
+                )
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="source owner accepted the review and finished",
+            )
+
+    class IndependentReviewer:
+        name = "IndependentReviewer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            del blackboard
+            revision = AgentTask(
+                task_id="algorithm:q1:reviewed",
+                owner_subsystem="AlgorithmEngineer",
+                objective="Revise from the detached findings.",
+            )
+            return AgentStepResult(
+                status="REVISE",
+                rationale="one source-owned finding",
+                next_task=mark_workspace_continuation(
+                    parent_task=task,
+                    next_task=revision,
+                ),
+            )
+
+    result = AgentRuntime(
+        subsystems={
+            "AlgorithmEngineer": SourceWorkspace(),
+            "IndependentReviewer": IndependentReviewer(),
+        },
+        blackboard=BlackboardState(project_id="detached-review-budget"),
+    ).run(
+        AgentTask(
+            task_id="algorithm:q1",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Author and review one scientific source.",
+        ),
+        max_iterations=3,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert result.outer_graph_iterations_consumed == 1
+    assert result.workspace_continuations_consumed == 2
+    assert [row.iteration_budget_scope for row in result.traces] == [
+        RUNTIME_WORKSPACE_BUDGET_SCOPE,
+        RUNTIME_WORKSPACE_BUDGET_SCOPE,
+        RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
+    ]
 
 
 def test_agent_runtime_unmarked_same_owner_revision_spends_outer_budget() -> None:
@@ -688,7 +765,50 @@ def test_agent_runtime_unmarked_same_owner_revision_spends_outer_budget() -> Non
         "outer_iteration_budget_exhausted"
     )
     assert result.outer_graph_iterations_consumed == 1
-    assert result.same_owner_workspace_continuations_consumed == 0
+    assert result.workspace_continuations_consumed == 0
+
+
+def test_agent_runtime_tampered_workspace_marker_spends_outer_budget() -> None:
+    class SourceWorkspace:
+        name = "AlgorithmEngineer"
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            del blackboard
+            marked = mark_workspace_continuation(
+                parent_task=task,
+                next_task=AgentTask(
+                    task_id="review:q1",
+                    owner_subsystem="IndependentReviewer",
+                    objective="Review the candidate.",
+                ),
+            )
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="the next owner was changed after authorization",
+                next_task=replace(marked, owner_subsystem="DifferentReviewer"),
+            )
+
+    result = AgentRuntime(
+        subsystems={"AlgorithmEngineer": SourceWorkspace()},
+        blackboard=BlackboardState(project_id="tampered-workspace-marker"),
+    ).run(
+        AgentTask(
+            task_id="algorithm:q1",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Author one candidate.",
+        ),
+        max_iterations=1,
+    )
+
+    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert result.outer_graph_iterations_consumed == 1
+    assert result.workspace_continuations_consumed == 0
+    assert result.pending_task is not None
+    assert result.pending_task.owner_subsystem == "DifferentReviewer"
 
 
 def test_agent_runtime_checkpoints_at_same_owner_workspace_budget() -> None:
@@ -708,7 +828,7 @@ def test_agent_runtime_checkpoints_at_same_owner_workspace_budget() -> None:
             return AgentStepResult(
                 status="REVISE",
                 rationale="new Lean workspace checkpoint",
-                next_task=mark_same_owner_workspace_continuation(
+                next_task=mark_workspace_continuation(
                     parent_task=task,
                     next_task=next_task,
                 ),
@@ -728,10 +848,10 @@ def test_agent_runtime_checkpoints_at_same_owner_workspace_budget() -> None:
 
     assert result.status == "MAX_ITERATIONS_REACHED"
     assert result.pending_task_checkpoint_reason == (
-        "same_owner_workspace_continuation_budget_exhausted"
+        "workspace_continuation_budget_exhausted"
     )
     assert result.outer_graph_iterations_consumed == 0
-    assert result.same_owner_workspace_continuations_consumed == 2
+    assert result.workspace_continuations_consumed == 2
     assert result.pending_task is not None
     assert result.pending_task.task_id == "formalize:q1:next:next"
 
@@ -754,7 +874,7 @@ def test_agent_runtime_offers_preserved_workspace_at_budget_boundary_to_handoff_
             return AgentStepResult(
                 status="REVISE",
                 rationale="preserve new model-owned Lean progress",
-                next_task=mark_same_owner_workspace_continuation(
+                next_task=mark_workspace_continuation(
                     parent_task=task,
                     next_task=next_task,
                 ),
@@ -788,7 +908,7 @@ def test_agent_runtime_offers_preserved_workspace_at_budget_boundary_to_handoff_
         if (
             subsystem_name == "FormalizationEvaluator"
             and result.failure_classification
-            == "same_owner_workspace_continuation_budget_exhausted"
+            == "workspace_continuation_budget_exhausted"
         ):
             continuations = [
                 row
@@ -831,7 +951,7 @@ def test_agent_runtime_offers_preserved_workspace_at_budget_boundary_to_handoff_
         "FormalizationEvaluator",
         "CriticEvaluator",
     ]
-    assert result.same_owner_workspace_continuations_consumed == 1
+    assert result.workspace_continuations_consumed == 1
     assert result.outer_graph_iterations_consumed == 2
     assert len(boundary_refs) == 1
     continuation_ref = boundary_refs[0]

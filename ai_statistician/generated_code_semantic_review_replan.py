@@ -115,6 +115,7 @@ def build_generated_code_semantic_review_producer_revision_task(
     )
     revision_budget = deepcopy(source_task.budget)
     revision_budget.pop(RUNTIME_CONTINUATION_BUDGET_MARKER_KEY, None)
+    revision_budget.pop("runtime_same_owner_workspace_continuation", None)
     return AgentTask(
         task_id=task_id,
         owner_subsystem=source_subsystem,
