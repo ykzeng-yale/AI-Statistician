@@ -84,12 +84,18 @@ def test_canonical_control_plane_has_a_regression_budget() -> None:
     production_design_lines = (
         ROOT / "docs" / "production_design.md"
     ).read_text(encoding="utf-8").count("\n")
+    harness_adoption_lines = (
+        ROOT / "docs" / "openai_codex_harness_adoption_20260825.md"
+    ).read_text(encoding="utf-8").count("\n")
+    agent_map_lines = (ROOT / "AGENTS.md").read_text(encoding="utf-8").count("\n")
 
     assert runtime_lines < 25_000
     assert cli_lines < 8_000
     assert len(package_sources) < 150
     assert package_lines < 150_000
     assert production_design_lines < 400
+    assert harness_adoption_lines < 250
+    assert agent_map_lines < 100
 
 
 def test_canonical_runtime_does_not_restore_retired_routing_surfaces() -> None:
