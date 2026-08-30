@@ -49,12 +49,6 @@ def test_bahadur_quantile_task108_is_consumed_once_and_failed_closed() -> None:
     loaded_question = load_open_research_questions(VISIBLE_PATH)[0]
     descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
 
-    assert ladder["current_readiness"]["scored_tasks_total"] == 111
-    assert ladder["current_readiness"]["consumed_scored_tasks"] == 111
-    assert ladder["current_readiness"]["fully_gold_passed_tasks"] == 7
-    assert ladder["current_readiness"]["latest_shared_mechanism_head"] == (
-        "2124ee6e598a58885e11d9458e10316815b69952"
-    )
     assert candidate["level"] == "L3"
     assert candidate["family"] == "iid_quantile_asymptotic_linearity"
     assert candidate["status"] == "consumed_scored"

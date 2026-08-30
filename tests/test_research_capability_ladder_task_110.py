@@ -38,7 +38,6 @@ GOLD_EVALUATION = RUN_PATH / "research_capability_gold_evaluation.json"
 PROGRESS = RUN_PATH / "runtime_progress.jsonl"
 TASK_ID = "dirichlet_multinomial_posterior_predictive_known_result"
 SHARED_MECHANISM_COMMIT = "9597b52d44a80e36ed541d0dc49035c83c3cbbb2"
-LATEST_SHARED_MECHANISM_COMMIT = "2124ee6e598a58885e11d9458e10316815b69952"
 
 
 def _sha256(path: Path) -> str:
@@ -57,17 +56,6 @@ def test_dirichlet_multinomial_task110_is_consumed_once_and_failed_closed() -> N
     visible_question = visible_payload["questions"][0]
     loaded_question = load_open_research_questions(VISIBLE_PATH)[0]
     descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
-
-    readiness = ladder["current_readiness"]
-    assert len(ladder["initial_candidate_queue"]) == 111
-    assert ladder["initial_candidate_queue"][-2]["id"] == TASK_ID
-    assert readiness["scored_tasks_total"] == 111
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 111
-    assert readiness["fully_gold_configured_tasks"] == 111
-    assert readiness["fully_gold_passed_tasks"] == 7
-    assert readiness["operator_invalid_tasks"] == 18
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_COMMIT
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == (

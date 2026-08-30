@@ -1,8 +1,6 @@
 # OpenAI Codex Harness Adoption
 
-Updated: 2026-08-30
-
-Current upstream reference: [`openai/codex` at `dde85b43`](https://github.com/openai/codex/tree/dde85b435b16994f956bce08e5fb796ed94c27fd), Apache-2.0. The reproducible harness audit remains pinned at `63d21388`; the complete delta to the current head only relocates TUI Vim-history tests and does not change any audited harness surface.
+Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `dde85b43`](https://github.com/openai/codex/tree/dde85b435b16994f956bce08e5fb796ed94c27fd), Apache-2.0. The prior `63d21388` audit pin differs only by relocated TUI Vim-history tests on the inspected harness surfaces.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -238,18 +236,14 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn` at the audited pin](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/session/turn.rs)
-- [`ToolRouter` at the audited pin](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/router.rs)
-- [Codex detached review skill at the current pin](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/skills/src/assets/samples/review-agent/SKILL.md)
-- [Guardian evidence treatment at the current pin](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Goal-continuation lineage preservation and invalidation](https://github.com/openai/codex/commit/4210c08defe92fe8828f789b6f9fda287ad3709e)
-- [App Server protocol](https://github.com/openai/codex/blob/63d213884daea50e4f74efc192cdc44f549b67d5/codex-rs/app-server/README.md)
+- [App Server protocol](https://github.com/openai/codex/blob/dde85b435b16994f956bce08e5fb796ed94c27fd/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)
 
-For the canonical product graph and evidence boundaries, read
-[`production_design.md`](production_design.md). For current measured capability, read
-[`main_worker_status.json`](main_worker_status.json).
+For the product graph and current measured capability, read [`production_design.md`](production_design.md) and [`main_worker_status.json`](main_worker_status.json).
