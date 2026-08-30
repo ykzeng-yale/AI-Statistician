@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import csv
 import hashlib
 import io
@@ -28,6 +29,7 @@ RESEARCH_SOURCE_SEARCH_TOOL = "search_research_sources"
 RESEARCH_SOURCE_READ_TOOL = "read_research_source"
 RESEARCH_SOURCE_RUN_TOOL = "run_research_source"
 RESEARCH_SOURCE_RESULT_READ_TOOL = "read_research_source_result"
+RESEARCH_SOURCE_RESULT_INSPECT_TOOL = "inspect_research_source_result"
 RESEARCH_SOURCE_NOT_PROOF_EVIDENCE = (
     "RESEARCH_SOURCE_OBSERVATION_NOT_PROOF_EVIDENCE"
 )
@@ -46,6 +48,10 @@ MAX_SOURCE_RESULT_ARTIFACTS = 32
 MAX_SOURCE_RESULT_READ_LINES = 240
 MAX_SOURCE_RESULT_READ_CHARS = 50_000
 MAX_SOURCE_RESULT_SUMMARY_UNIQUE_VALUES = 16
+SOURCE_RESULT_MODEL_MEDIA_TYPES = dict((suffix, (kind, media)) for suffix, kind, media in (
+    (".pdf", "document", "application/pdf"), (".jpg", "image", "image/jpeg"),
+    (".jpeg", "image", "image/jpeg"), (".png", "image", "image/png"),
+    (".gif", "image", "image/gif"), (".webp", "image", "image/webp")))
 SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS = frozenset("""HOME LANG LC_ALL PATH
     PYTHONHASHSEED PYTHONDONTWRITEBYTECODE PYTHONNOUSERSITE R_ENVIRON_USER
     R_HISTFILE R_PROFILE_USER TMPDIR TZ OMP_NUM_THREADS OPENBLAS_NUM_THREADS
@@ -978,9 +984,13 @@ def source_replication_model_observation(
             if key in raw_artifact
         }
         artifact["content_available_via"] = (
-            RESEARCH_SOURCE_RESULT_READ_TOOL
-            if raw_artifact.get("content_encoding") == "utf-8"
-            else "binary_hash_only"
+            RESEARCH_SOURCE_RESULT_INSPECT_TOOL
+            if Path(str(raw_artifact.get("relative_path", ""))).suffix.lower()
+            in SOURCE_RESULT_MODEL_MEDIA_TYPES else (
+                RESEARCH_SOURCE_RESULT_READ_TOOL
+                if raw_artifact.get("content_encoding") == "utf-8"
+                else "binary_hash_only"
+            )
         )
         compact_artifacts.append(artifact)
     observation["result_artifacts"] = compact_artifacts
@@ -998,11 +1008,6 @@ def read_source_replication_result(
 ) -> dict[str, Any]:
     """Read exact declared result lines from the hash-bound staged workspace."""
 
-    if not isinstance(relative_path, str) or not relative_path.strip():
-        raise ValueError("source result relative_path must be nonempty text")
-    result_path = PurePosixPath(relative_path.strip())
-    if result_path.is_absolute() or ".." in result_path.parts:
-        raise ValueError("source result path must stay inside its staged workspace")
     if any(
         isinstance(value, bool) or not isinstance(value, int)
         for value in (line_start, line_end)
@@ -1014,29 +1019,11 @@ def read_source_replication_result(
         raise ValueError(
             f"source result reads are limited to {MAX_SOURCE_RESULT_READ_LINES} lines"
         )
-    matching = [
-        row
-        for row in manifest.get("result_artifacts", []) or []
-        if isinstance(row, Mapping)
-        and str(row.get("relative_path", "") or "") == result_path.as_posix()
-    ]
-    if len(matching) != 1:
-        raise ValueError("source result artifact identity is unavailable or ambiguous")
-    artifact = matching[0]
+    result_path, artifact, raw_bytes = _source_replication_result_bytes(
+        manifest, relative_path
+    )
     if artifact.get("content_encoding") != "utf-8":
         raise ValueError("source result artifact is not UTF-8 text")
-    manifest_path = Path(str(manifest.get("manifest_path", "") or "")).resolve()
-    workspace_root = (manifest_path.parent / "source_workspace").resolve()
-    artifact_path = (workspace_root / Path(result_path)).resolve()
-    try:
-        artifact_path.relative_to(workspace_root)
-    except ValueError as exc:
-        raise ValueError("source result artifact escaped its staged workspace") from exc
-    if not artifact_path.is_file() or artifact_path.is_symlink():
-        raise ValueError("source result artifact file is unavailable")
-    raw_bytes = artifact_path.read_bytes()
-    if hashlib.sha256(raw_bytes).hexdigest() != str(artifact.get("sha256", "") or ""):
-        raise ValueError("source result artifact changed after execution")
     try:
         raw_text = raw_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -1063,6 +1050,53 @@ def read_source_replication_result(
         "content_sha256": hashlib.sha256(selected.encode("utf-8")).hexdigest(),
         "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
     }
+
+
+def inspect_source_replication_result(
+    manifest: Mapping[str, Any], *, relative_path: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return one exact declared PDF or image as provider-native model content."""
+
+    result_path, artifact, raw_bytes = _source_replication_result_bytes(manifest, relative_path)
+    media = SOURCE_RESULT_MODEL_MEDIA_TYPES.get(result_path.suffix.lower())
+    if media is None:
+        raise ValueError("source result artifact is not a supported PDF or image")
+    block_type, media_type = media
+    if block_type == "image" and len(base64.b64encode(raw_bytes)) > 10 * 1024 * 1024:
+        raise ValueError("source result image exceeds the provider image limit")
+    observation = {
+        "ok": True, "artifact_id": str(manifest.get("artifact_id", "") or ""),
+        "relative_path": result_path.as_posix(), "artifact_sha256": str(artifact.get("sha256", "") or ""),
+        "size_bytes": len(raw_bytes), "media_type": media_type,
+        "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
+    }
+    return observation, {
+        "type": block_type,
+        "source": {"type": "base64", "media_type": media_type,
+                   "data": base64.b64encode(raw_bytes).decode("ascii")},
+    }
+
+
+def _source_replication_result_bytes(
+    manifest: Mapping[str, Any], relative_path: Any) -> tuple[PurePosixPath, Mapping[str, Any], bytes]:
+    if not isinstance(relative_path, str) or not relative_path.strip():
+        raise ValueError("source result relative_path must be nonempty text")
+    result_path = PurePosixPath(relative_path.strip())
+    if result_path.is_absolute() or ".." in result_path.parts:
+        raise ValueError("source result path must stay inside its staged workspace")
+    matching = [row for row in manifest.get("result_artifacts", []) or [] if
+                isinstance(row, Mapping) and row.get("relative_path") == result_path.as_posix()]
+    if len(matching) != 1:
+        raise ValueError("source result artifact identity is unavailable or ambiguous")
+    artifact = matching[0]
+    manifest_path = Path(str(manifest.get("manifest_path", "") or "")).resolve()
+    workspace_root = (manifest_path.parent / "source_workspace").resolve()
+    artifact_path = (workspace_root / Path(result_path)).resolve()
+    if workspace_root not in artifact_path.parents or artifact_path.is_symlink() or not artifact_path.is_file():
+        raise ValueError("source result artifact file is unavailable or escaped its staged workspace")
+    raw_bytes = artifact_path.read_bytes()
+    if hashlib.sha256(raw_bytes).hexdigest() != str(artifact.get("sha256", "") or ""):
+        raise ValueError("source result artifact changed after execution")
+    return result_path, artifact, raw_bytes
 
 
 def _capture_staged_result_artifacts(

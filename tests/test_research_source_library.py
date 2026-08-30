@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,7 @@ from ai_statistician.research_source_library import (
     _source_execution_sandbox_profile,
     execute_research_source_client_tool,
     execute_research_source,
+    inspect_source_replication_result,
     load_research_source_execution_spec,
     load_research_source_snapshot,
     read_source_replication_result,
@@ -519,6 +522,39 @@ def test_staged_source_execution_captures_declared_result_without_mutating_sourc
     assert exact_lines["artifact_sha256"] == manifest["result_artifacts"][0][
         "sha256"
     ]
+
+
+def test_staged_source_result_exposes_exact_pdf_as_model_content(tmp_path) -> None:
+    snapshot, execution, _ = _staged_source_execution_fixture(tmp_path)
+    execution = replace(execution, result_artifact_paths=("figure.pdf",))
+    pdf_bytes = b"%PDF-1.4\n% exact test figure\n%%EOF\n"
+
+    def fake_executor(**kwargs):
+        if str(kwargs["command"][1]).endswith("environment_probe.py"):
+            stdout = json.dumps({
+                "python_version": "3.test", "package_versions": {"Demo": "1.2.3"}})
+        else:
+            (kwargs["cwd"] / "figure.pdf").write_bytes(pdf_bytes)
+            stdout = "replication complete\n"
+        return {"execution_attempted": True, "returncode": 0, "stdout": stdout,
+                "stderr": "", "errors": []}
+
+    manifest = execute_research_source(
+        execution=execution, research_sources=snapshot,
+        output_dir=tmp_path / "replication-output", question_id="pdf-task",
+        process_executor=fake_executor,
+    )
+    observation, block = inspect_source_replication_result(
+        manifest, relative_path="figure.pdf"
+    )
+
+    assert observation["artifact_sha256"] == hashlib.sha256(pdf_bytes).hexdigest()
+    assert observation["media_type"] == "application/pdf"
+    assert block["type"] == "document"
+    assert base64.b64decode(block["source"]["data"], validate=True) == pdf_bytes
+    assert source_replication_model_observation(manifest)["result_artifacts"][0][
+        "content_available_via"
+    ] == "inspect_research_source_result"
 
 
 def test_staged_source_execution_bounds_large_text_observation(tmp_path) -> None:

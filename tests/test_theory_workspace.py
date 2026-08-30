@@ -22,6 +22,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
     RESEARCH_SOURCE_RESULT_READ_TOOL,
     RESEARCH_SOURCE_RUN_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
@@ -717,6 +718,8 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     staged_result.parent.mkdir(parents=True)
     result_text = "method,error\nrecent,0.1\n"
     staged_result.write_text(result_text, encoding="utf-8")
+    figure_bytes = b"%PDF-1.4\n% exact figure\n%%EOF\n"
+    (staged_result.parent / "figure.pdf").write_bytes(figure_bytes)
     manifest_body = {
         "schema_version": 2,
         "artifact_kind": "SourceReplicationManifest",
@@ -736,7 +739,13 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
                 "text_line_count": 2,
                 "raw_text": result_text,
                 "text_truncated": False,
-            }
+            },
+            {
+                "relative_path": "figure.pdf",
+                "sha256": hashlib.sha256(figure_bytes).hexdigest(),
+                "size_bytes": len(figure_bytes),
+                "content_encoding": "binary_not_embedded",
+            },
         ],
         "source_mutated": False,
         "runtime_edited_source": False,
@@ -836,6 +845,13 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
             ),
             _response(
                 ClientToolCall(
+                    call_id="inspect-published-figure",
+                    name=RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
+                    input={"relative_path": "figure.pdf"},
+                )
+            ),
+            _response(
+                ClientToolCall(
                     call_id="write-replication-grounded-theory",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_artifact_writes(
@@ -852,7 +868,7 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
 
     result = _run_workspace(
         backend,
-        max_turns=5,
+        max_turns=6,
         research_sources=research_sources,
         research_source_execution=source_execution,
         workspace_dir=tmp_path / "theory-workspace",
@@ -875,6 +891,7 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         RESEARCH_SOURCE_RUN_TOOL,
         RESEARCH_SOURCE_RESULT_READ_TOOL,
     ]
+    assert RESEARCH_SOURCE_RESULT_INSPECT_TOOL in first_tools
     assert "coef=0.5" in str(backend.requests[1].messages)
     assert "raw_text" not in str(backend.requests[1].messages)
     assert "method,error" in str(backend.requests[3].messages)
@@ -896,8 +913,7 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     }
     assert result.evidence["source_replication_runs"] == 1
     assert result.evidence["source_replication_manifests"] == [manifest]
-    assert result.evidence["source_result_read_refs"] == [
-        {
+    assert result.evidence["source_result_read_refs"][0] == {
             "artifact_id": "source_replication:fixture",
             "relative_path": "results.csv",
             "artifact_sha256": hashlib.sha256(result_text.encode()).hexdigest(),
@@ -911,7 +927,12 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
                 "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
             ),
         }
-    ]
+    assert result.evidence["source_result_read_refs"][1]["relative_path"] == (
+        "figure.pdf"
+    )
+    visual_content = backend.requests[4].messages[-1]["content"][0]["content"]
+    assert visual_content[1]["type"] == "document"
+    assert visual_content[1]["source"]["media_type"] == "application/pdf"
     assert "coef=0.5" not in json.dumps(result.evidence["history"])
     assert "method,error" not in json.dumps(result.evidence["history"])
     assert "source-replication refs" in json.dumps(result.evidence["history"])

@@ -36,6 +36,7 @@ class ClientToolExecutionResult:
     terminal: bool = False
     terminal_payload: Mapping[str, Any] | None = None
     observation_key: str = ""
+    model_content_blocks: tuple[Mapping[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -922,7 +923,8 @@ def run_bounded_client_tool_loop(
                     observation_key="terminal_result_from_nonterminal_tool",
                 )
             observation_key = execution.observation_key or stable_hash(
-                [call.name, execution.is_error, execution.content]
+                [call.name, execution.is_error, execution.content,
+                 execution.model_content_blocks]
             )
             observation_is_new = observation_key not in seen_observations
             if observation_is_new:
@@ -930,11 +932,16 @@ def run_bounded_client_tool_loop(
                 seen_observations.add(observation_key)
             turn_state_changed = turn_state_changed or execution.state_changed
             result_text = _client_tool_result_text(execution.content)
+            model_content = (
+                [{"type": "text", "text": result_text},
+                 *deepcopy(list(execution.model_content_blocks))]
+                if execution.model_content_blocks else result_text
+            )
             tool_result_blocks.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": call.call_id,
-                    "content": result_text,
+                    "content": model_content,
                     "is_error": bool(execution.is_error),
                 }
             )
@@ -945,7 +952,8 @@ def run_bounded_client_tool_loop(
                     "name": call.name,
                     "input_fingerprint": stable_hash(dict(call.input)),
                     "result_fingerprint": stable_hash(
-                        [execution.is_error, execution.content]
+                        [execution.is_error, execution.content,
+                         execution.model_content_blocks]
                     ),
                     "result_excerpt": result_text[:2000],
                     "is_error": bool(execution.is_error),

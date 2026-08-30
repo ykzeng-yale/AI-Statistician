@@ -26,6 +26,7 @@ from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 from .research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
+    RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
     RESEARCH_SOURCE_RESULT_READ_TOOL,
     RESEARCH_SOURCE_RUN_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
@@ -33,6 +34,7 @@ from .research_source_library import (
     ResearchSourceSnapshot,
     execute_research_source_client_tool,
     execute_research_source,
+    inspect_source_replication_result,
     read_source_replication_result,
     research_source_client_tools,
     source_replication_model_observation,
@@ -1179,6 +1181,28 @@ def run_theory_artifact_workspace(
                 + stable_hash(result_ref),
             )
 
+        if call.name == RESEARCH_SOURCE_RESULT_INSPECT_TOOL:
+            if (set(tool_input) != {"relative_path"}
+                    or len(state["source_replication_manifests"]) != 1):
+                raise ClientToolInputError(
+                    "inspect_research_source_result requires one relative_path "
+                    "after one completed source run"
+                )
+            try:
+                observation, media_block = inspect_source_replication_result(
+                    state["source_replication_manifests"][0],
+                    relative_path=tool_input.get("relative_path"),
+                )
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            result_ref = {**observation, "tool": call.name}
+            state["source_result_read_refs"].append(result_ref)
+            return ClientToolExecutionResult(
+                content=observation, model_content_blocks=(media_block,),
+                observation_key="research-source-result-inspection:"
+                + stable_hash(result_ref),
+            )
+
         if call.name == THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL:
             if not require_document_authority:
                 raise ClientToolInputError(
@@ -1774,8 +1798,9 @@ def run_theory_artifact_workspace(
         "that observation yourself. The visible execution descriptor and returned "
         "manifest state the exact working directory and argument vector. For larger "
         "UTF-8 outputs, either read exact lines or select the result paths in your "
-        "existing scratch tool and analyze them with model-authored code. It is "
-        "source-replication evidence, not model-authored "
+        "existing scratch tool and analyze them with model-authored code. "
+        "For declared PDF or image outputs, inspect the exact artifact visually. "
+        "It is source-replication evidence, not model-authored "
         "scientific code, confirmatory simulation, or theorem proof. "
         if research_source_execution is not None
         else ""
@@ -2593,6 +2618,7 @@ def workspace_evidence_history(
         **{name: source_message for name in (
             RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
             RESEARCH_SOURCE_RUN_TOOL, RESEARCH_SOURCE_RESULT_READ_TOOL,
+            RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
             RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
             RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
         )},
@@ -2771,6 +2797,21 @@ def _theory_workspace_tools(
                                 "minimum": 1,
                             },
                         },
+                    },
+                ),
+                ClientToolDefinition(
+                    name=RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
+                    description=(
+                        "Inspect one exact declared PDF, PNG, JPEG, GIF, or WebP "
+                        "result from run_research_source. The runtime rechecks its "
+                        "SHA-256 and returns provider-native visual content to this "
+                        "same source-owning session without interpreting it."
+                    ),
+                    input_schema={
+                        "type": "object", "additionalProperties": False,
+                        "required": ["relative_path"],
+                        "properties": {"relative_path": {"type": "string",
+                                                          "minLength": 1}},
                     },
                 ),
             )

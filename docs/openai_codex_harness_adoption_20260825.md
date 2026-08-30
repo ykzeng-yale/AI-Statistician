@@ -214,6 +214,7 @@ identity, execution, and provenance. No consumed task is reassessed.
 Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
 writes Markdown, and binds the report alone or into the same physical Theory workspace. The full evidence view retains that report, while a Theory packet excludes it from mathematical authority; non-theory tasks continue the frozen plan without another Architect call.
 Algorithm and Simulation resolve the exact checkpoint and read its report through hash-bound tools. The Critic reloads the same evidence; execution never validates theory, code, simulation, novelty, or proof.
+Declared PDFs and images now use the same Codex-style raw-observation principle: the exact hash-rechecked bytes return as provider-native media only when the source owner selects inspection. The harness neither captions them nor promotes visual access into semantic authority. [Anthropic's client-tool contract](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls) explicitly permits image and document content inside `tool_result`.
 
 Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv and GitHub text, but arbitrary publisher PDF/OCR,
 dataset acquisition, and general project reproduction remain incomplete:

@@ -583,6 +583,38 @@ def test_bounded_client_tool_loop_returns_terminal_runtime_payload() -> None:
     ] is False
 
 
+def test_bounded_client_tool_loop_returns_native_media_to_same_model() -> None:
+    backend = ScriptedToolTurnBackend([
+        _response(ClientToolCall("call-inspect", "inspect", {})),
+        _response(ClientToolCall("call-submit", "submit", {})),
+    ])
+    media = {"type": "image", "source": {
+        "type": "base64", "media_type": "image/png", "data": "aW1hZ2U="}}
+
+    def execute(call, _context):
+        if call.name == "inspect":
+            return ClientToolExecutionResult(
+                content={"ok": True, "sha256": "a" * 64},
+                model_content_blocks=(media,), observation_key="image:a",
+            )
+        return ClientToolExecutionResult(
+            content={"ok": True}, terminal=True,
+            terminal_payload={"submitted": True}, observation_key="submitted",
+        )
+
+    request = replace(_request(), tools=(_tool("inspect"), _tool("submit", terminal=True)))
+    result = run_bounded_client_tool_loop(
+        backend=backend, request=request, execute_tool=execute,
+        max_turns=2, max_tool_calls=2, max_no_progress_turns=2,
+    )
+
+    tool_content = backend.requests[1].messages[-1]["content"][0]["content"]
+    assert tool_content[0]["type"] == "text"
+    assert json.loads(tool_content[0]["text"])["ok"] is True
+    assert tool_content[1] == media
+    assert result.terminal_payload == {"submitted": True}
+
+
 def test_bounded_client_tool_loop_never_executes_truncated_tool_input() -> None:
     backend = ScriptedToolTurnBackend(
         [

@@ -148,13 +148,15 @@ artifact. Reimplementation follows only after the environment and claimed target
 are understood. The manifest distinguishes author code, model code, and reused
 library code by source snapshot and hash.
 
-Exact source execution schema v2 supports ordinary author scripts that persist
-tables, figures, or model files. The operator freezes their relative result paths
+Exact source execution schema v3 supports operator-pinned Python, R, or other
+interpreters and ordinary author projects that persist tables, figures, or model files. The operator freezes their relative result paths
 before activation; the runner copies only hash-verified snapshot files into an
 isolated copy-on-write workspace, executes the unchanged entrypoint, rejects mutated
 inputs and undeclared workspace outputs, and returns bounded text or hash/size
-descriptors to the same model session. Schema v1 stdout-only manifests remain
-read-compatible. Declared outputs are replication observations, not automatically
+descriptors to the same model session. The source owner can explicitly inspect an
+exact hash-rechecked PDF or supported image through provider-native tool-result
+content; the runtime does not describe or interpret it. Schema v1/v2 Python manifests
+remain read-compatible. Declared outputs are replication observations, not automatically
 correct scientific interpretations or hidden-gold acceptance.
 
 Ordinary product tasks may let the same TheoryDeveloper model search Crossref,
