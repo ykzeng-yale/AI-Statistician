@@ -384,7 +384,6 @@ def test_theory_free_source_review_binds_frozen_abi_lineage(
         architect_context=context,
         deferred_next_task=deferred_task,
         blackboard_artifacts=base_artifacts,
-        max_revisions=1,
     )
     assert dispatch is not None
     work_order = dispatch["work_order"]
@@ -424,7 +423,6 @@ def test_theory_free_source_review_binds_frozen_abi_lineage(
 
     outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
-        max_revisions=1,
     ).run(dispatch["next_task"], blackboard)
 
     assert outcome.status == "REROUTE", (
@@ -1265,7 +1263,6 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
         architect_context=context,
         deferred_next_task=deferred_task,
         blackboard_artifacts=base_artifacts,
-        max_revisions=1,
     )
     assert dispatch is not None
     backend = StaticReviewClientToolBackend(
@@ -1295,7 +1292,6 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     blackboard.artifacts.update(dispatch["artifacts"])
     outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
-        max_revisions=1,
     ).run(dispatch["next_task"], blackboard)
 
     assert outcome.status == "REROUTE"
@@ -1422,13 +1418,11 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
         architect_context=final_context,
         deferred_next_task=evaluator_task,
         blackboard_artifacts=blackboard.artifacts,
-        max_revisions=1,
     )
     assert fresh_dispatch is not None
     blackboard.artifacts.update(fresh_dispatch["artifacts"])
     fresh_review = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
-        max_revisions=1,
     ).run(fresh_dispatch["next_task"], blackboard)
     assert fresh_review.status == "REROUTE"
     assert fresh_review.next_task is not None
@@ -1546,7 +1540,6 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     blackboard.artifacts.update(evaluator_authoring.produced_artifacts)
     evaluator_review = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
-        max_revisions=1,
     ).run(evaluator_authoring.next_task, blackboard)
     evaluator_review_errors = evaluator_review.observations[0].payload.get(
         "validation_errors", []
@@ -5279,7 +5272,6 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         seed=11,
         proposal_agent=SourceAgent(),
         semantic_reviewer_available=True,
-        semantic_review_max_revisions=2,
     )
     task = AgentTask(
         task_id="algorithm-consumer-observation:generic",
@@ -5311,7 +5303,6 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         seed=11,
         proposal_agent=SourceAgent(),
         semantic_reviewer_available=False,
-        semantic_review_max_revisions=2,
     ).run(task, blackboard)
     assert unreviewed_result.status == "BLOCKED"
     assert unreviewed_result.failure_classification == (
@@ -5507,7 +5498,7 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         proposal_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
-        semantic_review_max_revisions=2,
+        consumer_revision_max_revisions=2,
     )
     task = AgentTask(
         task_id="simulation-consumer-resume:generic",
@@ -6464,7 +6455,6 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
         seed=7,
         proposal_agent=AlgorithmAgent(),
         semantic_reviewer_available=True,
-        semantic_review_max_revisions=2,
         research_sources=research_sources,
         research_source_discovery=research_source_discovery,
     ).run(
@@ -6945,7 +6935,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         proposal_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=True,
-        semantic_review_max_revisions=1,
+        consumer_revision_max_revisions=1,
     )
     task = AgentTask(
         task_id="simulation:generic-confirmatory-blinding",
@@ -7216,7 +7206,7 @@ def test_architect_algorithm_route_restores_source_and_frozen_simulation() -> No
         architect_context=context,
         packet_id="architect-route:generic-confirmatory-source-route",
         runtime_config=ResearchAgentRuntimeConfig(
-            generated_code_semantic_review_max_revisions=2
+            scientific_consumer_revision_max_revisions=2
         ),
         blackboard=blackboard,
         requested_subsystem_override="AlgorithmEngineer",
@@ -7825,7 +7815,6 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
         architect_context=context,
         deferred_next_task=deferred_task,
         blackboard_artifacts=base_artifacts,
-        max_revisions=1,
     )
     assert dispatch is not None
     response = {
@@ -7867,7 +7856,6 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
 
     outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
-        max_revisions=1,
         research_sources=research_sources,
     ).run(dispatch["next_task"], blackboard)
 
@@ -8305,7 +8293,7 @@ def test_independent_semantic_review_escalation_keeps_source_out_of_task_payload
             "feedback_id": "feedback:compact",
             "feedback_source": "GeneratedCodeSemanticReviewer",
             "failure_classification": (
-                "generated_code_semantic_review_lineage_budget_exhausted"
+                "generated_code_semantic_review_requires_cross_artifact_resolution"
             ),
             "validation_errors": ["raw sandbox failure"],
             "rejected_candidate": {"code": complete_source},
@@ -8379,35 +8367,31 @@ def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion(
 @pytest.mark.parametrize(
     (
         "resolution_scope",
-        "max_revisions",
         "expected_status",
         "expected_owner",
-        "expected_action",
+        "expected_failure_classification",
     ),
     (
         (
             "CROSS_ARTIFACT_RESOLUTION_REQUIRED",
-            3,
             "REROUTE",
             "ArchitectCoordinator",
-            "architect_replan",
+            "generated_code_semantic_review_requires_cross_artifact_resolution",
         ),
         (
             "CURRENT_SOURCE_REWRITE_SUFFICIENT",
-            0,
-            "BLOCKED",
-            None,
-            "lineage_exhausted_block",
+            "REVISE",
+            "AlgorithmEngineer",
+            "generated_code_semantic_review_requires_source_regeneration",
         ),
     ),
 )
-def test_rejected_review_handoffs_only_for_cross_artifact_work(
+def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
     tmp_path: Path,
     resolution_scope: str,
-    max_revisions: int,
     expected_status: str,
-    expected_owner: str | None,
-    expected_action: str,
+    expected_owner: str,
+    expected_failure_classification: str,
 ) -> None:
     question = OpenResearchQuestion(
         id="cross-artifact-runtime-review",
@@ -8480,7 +8464,6 @@ def test_rejected_review_handoffs_only_for_cross_artifact_work(
         architect_context={},
         deferred_next_task=deferred_task,
         blackboard_artifacts=base_artifacts,
-        max_revisions=max_revisions,
     )
     assert dispatch is not None
     cross_artifact = resolution_scope == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
@@ -8534,7 +8517,7 @@ def test_rejected_review_handoffs_only_for_cross_artifact_work(
         },
     }
     reviewer = LLMGeneratedCodeSemanticReviewerAgent(
-            provider=StaticReviewClientToolBackend(response),
+        provider=StaticReviewClientToolBackend(response),
         config=GeneratedCodeSemanticReviewerConfig(
             provider_name="static",
             model="static-reviewer",
@@ -8548,18 +8531,13 @@ def test_rejected_review_handoffs_only_for_cross_artifact_work(
 
     outcome = runtime_module.GeneratedCodeSemanticReviewerRuntimeSubsystem(
         reviewer=reviewer,
-        max_revisions=max_revisions,
     ).run(dispatch["next_task"], blackboard)
 
     assert outcome.status == expected_status
-    assert (outcome.next_task.owner_subsystem if outcome.next_task else None) == (
-        expected_owner
-    )
+    assert outcome.next_task is not None
+    assert outcome.next_task.owner_subsystem == expected_owner
+    assert outcome.failure_classification == expected_failure_classification
     if cross_artifact:
-        assert outcome.failure_classification == (
-            "generated_code_semantic_review_requires_cross_artifact_resolution"
-        )
-        assert outcome.next_task is not None
         unresolved_feedback = outcome.next_task.inputs["environment_feedback"]
         assert unresolved_feedback["observation_artifact_ref"]["artifact_kind"] == (
             "RuntimeArtifactRef"
@@ -8572,20 +8550,18 @@ def test_rejected_review_handoffs_only_for_cross_artifact_work(
             "source_revision_assessment"
         ]["resolution_scope"] == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
     else:
-        assert outcome.failure_classification == (
-            "generated_code_semantic_review_lineage_budget_exhausted"
-        )
-        assert outcome.next_task is None
-        assert "no Architect call" in outcome.rationale
+        assert outcome.next_task.inputs[
+            "generated_code_semantic_review_revision_count"
+        ] == 1
+        assert outcome.next_task.inputs["environment_feedback"]["findings"]
+        assert "ArchitectCoordinator" not in outcome.rationale
     execution = next(
         artifact
         for artifact in outcome.produced_artifacts.values()
         if artifact.get("artifact_kind")
         == "RuntimeGeneratedCodeSemanticReviewExecutionManifest"
     )
-    assert execution["semantic_review_lineage_budget"]["selected_action"] == (
-        expected_action
-    )
+    assert "semantic_review_lineage_budget" not in execution
 
 
 def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> None:
@@ -8660,7 +8636,6 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
         architect_context={},
         deferred_next_task=deferred_task,
         blackboard_artifacts={context_artifact_id: context_artifact},
-        max_revisions=1,
     )
 
     assert dispatch is not None

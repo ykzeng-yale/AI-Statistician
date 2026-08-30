@@ -201,18 +201,15 @@ Three immutable evaluations refined these boundaries without changing scores:
   program. A blocker now requires the referee to check its stochastic object and
   assumptions against the candidate, source, and frozen objective; unresolved conflict
   remains uncertainty.
-- Task113 showed the positive Codex pattern: exact-Haiku TheoryDeveloper passed hidden
-  theory authority using Markdown/LaTeX, scratch, and checkpoint tools, while
-  AlgorithmEngineer wrote, ran, edited, reran, and committed source in one retained
-  owner loop. It remains immutable 0/1, leaving 7/113 overall, because reviewer-owned
-  probe failures and pre-candidate JSON normalization were misattributed to source.
+- Task113 showed the positive Codex pattern: exact-Haiku TheoryDeveloper passed hidden theory authority using Markdown/LaTeX, scratch, and checkpoint tools, while
+  AlgorithmEngineer wrote, ran, edited, reran, and committed source in one retained owner loop. It remains immutable 0/1, leaving 7/113 overall, because reviewer-owned
+  probe failures, pre-candidate JSON normalization, and a reviewer-local regeneration budget were misattributed to or prematurely terminal for source work.
 
-For future tasks, a probe failure before target invocation cannot support a source
-judgment. Reviewer-authored Python or R probes now invoke exact immutable candidates
-with native request and response values in the same runtime; only final probe metrics
-cross the JSON boundary. Confirmatory Simulation retains its separate JSON-finite ABI.
-The model still chooses cases, oracles, findings, code, Lean actions, and verdicts;
-runtime enforces identity, execution, and provenance. No consumed task is reassessed.
+For future tasks, a probe failure before target invocation cannot support a source judgment. Reviewer-authored Python or R probes now invoke exact immutable candidates
+with native request and response values in the same runtime; only final probe metrics cross the JSON boundary. A source-only finding returns to its immutable source owner
+under the sole AgentRuntime budget; only a genuine cross-artifact conflict reaches Architect, and outer exhaustion preserves the pending task. Confirmatory Simulation
+retains its separately bounded fresh-cohort adaptation and JSON-finite ABI. The model still chooses cases, findings, code, Lean actions, and verdicts; runtime enforces
+identity, execution, and provenance. No consumed task is reassessed.
 
 Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
 writes Markdown, and binds the report alone or into the same physical Theory workspace. The full evidence view retains that report, while a Theory packet excludes it from mathematical authority; non-theory tasks continue the frozen plan without another Architect call.
@@ -243,7 +240,7 @@ introduce task-family rules.
 - [Authorization revision surviving compaction](https://github.com/openai/codex/commit/0a12b855a0b21068108a8a3b311d492712737e0f)
 - [First Node REPL execution while Guardian classifies asynchronously](https://github.com/openai/codex/commit/cefa060695594cdeebfb4306170cc27487c8a088)
 - [App Server protocol](https://github.com/openai/codex/blob/94cbbddafc1776d5e377bca1b05932c697e82238/codex-rs/app-server/README.md)
-- [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
+- [Codex as a platform: build on the open agent harness](https://developers.openai.com/blog/codex-as-a-platform)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)
 For the product graph and current measured capability, read [`production_design.md`](production_design.md) and [`main_worker_status.json`](main_worker_status.json).

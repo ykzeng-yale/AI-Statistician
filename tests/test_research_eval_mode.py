@@ -746,7 +746,7 @@ def test_full_live_outer_iteration_ceiling_governs_revision_paths() -> None:
     _apply_research_agent_runtime_capability_eval_preset(args)
 
     assert args.max_iterations == 40
-    assert args.generated_code_semantic_review_max_revisions == 2
+    assert args.scientific_consumer_revision_max_revisions == 2
 
 
 def test_capability_preset_binds_shared_rag_to_selected_lean_project(

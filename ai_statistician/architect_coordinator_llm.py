@@ -984,12 +984,6 @@ def _architect_feedback_route_subsystems(
     failure = str(
         environment_feedback.get("failure_classification", "") or ""
     )
-    if failure.endswith("_lineage_budget_exhausted"):
-        exhausted_source = str(
-            environment_feedback.get("source_subsystem", "") or ""
-        )
-        if exhausted_source:
-            unavailable.add(exhausted_source)
     consumer_budget = environment_feedback.get(
         SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
         {},

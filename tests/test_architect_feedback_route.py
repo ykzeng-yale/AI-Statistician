@@ -1356,21 +1356,22 @@ def test_confirmatory_outcome_allows_only_a_new_source_on_a_fresh_cohort() -> No
     assert "including its DGP" in prompt
 
 
-def test_rejected_algorithm_lineage_is_not_a_simulation_handoff() -> None:
+def test_exhausted_algorithm_candidate_is_not_a_simulation_handoff() -> None:
     feedback = {
-        "feedback_id": "feedback:algorithm-review-exhausted",
-        "feedback_type": "generated_code_semantic_review_feedback",
+        "feedback_id": "feedback:algorithm-candidate-exhausted",
+        "feedback_type": "workspace_feedback",
         "source_subsystem": "AlgorithmEngineer",
-        "failure_classification": (
-            "generated_code_semantic_review_lineage_budget_exhausted"
-        ),
-        "semantic_review_lineage_budget": {
-            "source_subsystem": "AlgorithmEngineer",
-            "candidate_regeneration_available": False,
-            "lineage_budget_exhausted": True,
-        },
+        "failure_classification": "algorithm_workspace_exhausted",
     }
     context = {
+        "candidate_lineage_budget": {
+            "feedback_id": feedback["feedback_id"],
+            "failure_classification": feedback["failure_classification"],
+            "source_subsystem": "AlgorithmEngineer",
+            "attempts_used": 1,
+            "max_attempts": 1,
+            "budget_exhausted": True,
+        },
         "architect_runtime_plan": {
             "evidence_contract": {
                 "metric_protocol_execution_authorized": True,

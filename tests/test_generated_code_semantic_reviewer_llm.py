@@ -11,10 +11,7 @@ import ai_statistician.generated_code_semantic_reviewer_llm as reviewer_module
 from ai_statistician.agent_runtime import AgentTask
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_review_replan import (
-    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
-    advance_generated_code_semantic_review_lineage_budget,
     build_generated_code_semantic_review_producer_revision_task,
-    record_generated_code_semantic_review_lineage_action,
 )
 from ai_statistician.generated_code_semantic_review_scope import (
     generated_code_semantic_review_proposal_projection,
@@ -2346,57 +2343,7 @@ def test_prior_scope_error_can_be_retracted_by_the_independent_reviewer() -> Non
     ) == []
 
 
-def test_lineage_budget_bounds_source_producer_regenerations() -> None:
-    work_order = {
-        "question_id": "semantic-review-test",
-        "theory_packet_id": "theory:1",
-        "theory_packet_hash": "theory-hash",
-        "source_subsystem": "SimulationEvaluator",
-    }
-    review_packet = {
-        "dimension_reviews": [
-            {
-                "dimension": "metric_semantics_alignment",
-                "status": "FAIL",
-            }
-        ],
-        "findings": [
-            {
-                "finding_id": "generated_code_semantic_finding:one",
-                "severity": "high",
-                "category": "metric_semantics",
-                "summary": "The metric meaning is inconsistent.",
-            }
-        ],
-    }
-
-    first = advance_generated_code_semantic_review_lineage_budget(
-        architect_context={},
-        work_order=work_order,
-        review_packet=review_packet,
-        max_local_revisions=1,
-    )
-    ledger = record_generated_code_semantic_review_lineage_action(
-        first,
-        action="producer_regeneration",
-    )
-    second = advance_generated_code_semantic_review_lineage_budget(
-        architect_context={
-            GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY: ledger
-        },
-        work_order=work_order,
-        review_packet=review_packet,
-        max_local_revisions=1,
-    )
-
-    assert first["candidate_regeneration_available"] is True
-    assert second["lineage_budget_exhausted"] is True
-    assert second["row"]["source_candidate_regeneration_count"] == 1
-    assert "repair_scope" not in first["row"]
-    assert "repair_owner" not in first["row"]
-
-
-def test_revision_task_returns_complete_observations_to_source_producer() -> None:
+def test_revision_task_returns_observations_without_a_local_scheduler() -> None:
     question = _question_with_estimator_contract()
     source_task = AgentTask(
         task_id="simulation-task:1",
@@ -2460,8 +2407,7 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
         review_feedback=feedback,
         review_packet_id="review:1",
         review_execution_id="review-execution:1",
-        revision_count=0,
-        max_revisions=1,
+        revision_count=7,
     )
 
     assert task.owner_subsystem == "SimulationEvaluator"
@@ -2474,7 +2420,7 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
         "return {'estimate': 0.0}\n"
     )
     assert reviewed["exact_result"] == {"estimate": 0.0}
-    assert task.inputs["generated_code_semantic_review_revision_count"] == 1
+    assert task.inputs["generated_code_semantic_review_revision_count"] == 8
     assert task.inputs["question"] == research_question_payload(
         question,
         include_task_intent=True,
@@ -2488,6 +2434,7 @@ def test_revision_task_returns_complete_observations_to_source_producer() -> Non
     assert replan["routing_authority"] == "immutable_source_producer_lineage"
     assert replan["runtime_selected_owner"] is False
     assert replan["exact_source_workspace_continuation_required"] is True
+    assert "semantic_review_revision_budget" not in replan
     assert "complete_candidate_regeneration_required" not in replan
     assert "Continue the exact source-owner workspace" in task.objective
 
@@ -2557,7 +2504,6 @@ def test_revision_task_replaces_stale_source_continuation_mode() -> None:
         review_packet_id="review:continuation",
         review_execution_id="review-execution:continuation",
         revision_count=0,
-        max_revisions=1,
     )
 
     assert "scientific_code_workspace_progress_manifest" not in task.inputs
@@ -2624,7 +2570,6 @@ def test_confirmatory_revision_returns_source_and_findings_without_result_values
         review_packet_id="review:blind",
         review_execution_id="review-execution:blind",
         revision_count=0,
-        max_revisions=1,
     )
 
     source_feedback = task.inputs["environment_feedback"]

@@ -97,11 +97,8 @@ from .generated_code_semantic_reviewer_llm import (
     validate_generated_code_semantic_review_packet,
 )
 from .generated_code_semantic_review_replan import (
-    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY,
     GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
-    advance_generated_code_semantic_review_lineage_budget,
     build_generated_code_semantic_review_producer_revision_task,
-    record_generated_code_semantic_review_lineage_action,
 )
 from .generated_code_semantic_review_scope import (
     accepted_semantic_review_deferred_continuation,
@@ -357,7 +354,7 @@ class ResearchAgentRuntimeConfig:
     theory_scratch_max_runs: int = 3
     max_iterations: int = 12
     max_critic_revision_rounds: int = 1
-    generated_code_semantic_review_max_revisions: int = 1
+    scientific_consumer_revision_max_revisions: int = 1
     formal_target_semantic_review_required: bool = False
     formal_target_semantic_review_max_revisions: int = 1
     resume_through_architect: bool = False
@@ -2635,7 +2632,7 @@ def _architect_confirmatory_algorithm_source_route(
                 or "confirmatory_simulation_metric_gate_failed"
             ),
             max_revisions=(
-                runtime_config.generated_code_semantic_review_max_revisions
+                runtime_config.scientific_consumer_revision_max_revisions
             ),
         )
         route_errors.extend(budget_errors)
@@ -6689,7 +6686,6 @@ def _runtime_generated_code_semantic_review_dispatch(
     architect_context: Mapping[str, Any],
     deferred_next_task: AgentTask,
     blackboard_artifacts: Mapping[str, Any],
-    max_revisions: int,
 ) -> dict[str, Any] | None:
     review_rows = _runtime_generated_code_semantic_review_rows(
         source_manifest,
@@ -6832,7 +6828,6 @@ def _runtime_generated_code_semantic_review_dispatch(
         ),
         "research_evaluation": research_evaluation,
         "review_revision_count": review_revision_count,
-        "max_revisions": max(0, int(max_revisions or 0)),
         "empirical_evaluation_phase": empirical_evaluation_phase,
         "confirmatory_empirical_evidence_eligible": (
             confirmatory_empirical_evidence_eligible
@@ -7405,13 +7400,11 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
         self,
         *,
         reviewer: LLMGeneratedCodeSemanticReviewerAgent,
-        max_revisions: int = 1,
         probe_sandbox_root: Path | None = None,
         probe_timeout_s: int = 60,
         research_sources: ResearchSourceSnapshot | None = None,
     ) -> None:
         self.reviewer = reviewer
-        self.max_revisions = max(0, int(max_revisions or 0))
         self.probe_sandbox_root = probe_sandbox_root
         self.probe_timeout_s = max(1, int(probe_timeout_s or 1))
         self.research_sources = research_sources
@@ -7952,11 +7945,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             and source_revision_assessment.get("resolution_scope")
             == SOURCE_REVISION_SCOPE_PARENT_CHANGE
         )
-        current_source_rewrite_sufficient = bool(
-            reviewer_verdict == "REVISE"
-            and source_revision_assessment.get("resolution_scope")
-            == SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE
-        )
         reviewer_model = str(review_packet.get("model", "") or "")
         reviewer_tier = str(review_packet.get("model_tier", "") or "")
         reviewer_agent = str(review_packet.get("source_agent", "") or "")
@@ -8221,51 +8209,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             "evidence_boundary": GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY,
         }
         revision_count = int(work_order.get("review_revision_count", 0) or 0)
-        max_revisions = max(
-            self.max_revisions,
-            int(work_order.get("max_revisions", 0) or 0),
-        )
-        lineage_budget_state: dict[str, Any] = {}
-        if verdict == "REVISE":
-            source_task_inputs_for_budget = (
-                source_task_payload.get("inputs", {})
-                if isinstance(source_task_payload.get("inputs", {}), Mapping)
-                else {}
-            )
-            task_context = source_task_inputs_for_budget.get(
-                "architect_context",
-                {},
-            )
-            routing_bound_review_packet = {
-                **dict(review_packet),
-                "findings": routed_findings,
-            }
-            lineage_budget_state = (
-                advance_generated_code_semantic_review_lineage_budget(
-                    architect_context=(
-                        task_context if isinstance(task_context, Mapping) else {}
-                    ),
-                    work_order=work_order,
-                    review_packet=routing_bound_review_packet,
-                    max_local_revisions=max_revisions,
-                    prior_local_revisions=revision_count,
-                )
-            )
-            lineage_budget_summary = {
-                **dict(lineage_budget_state.get("row", {})),
-                "candidate_regeneration_available": bool(
-                    lineage_budget_state.get(
-                        "candidate_regeneration_available"
-                    )
-                ),
-                "lineage_budget_exhausted": bool(
-                    lineage_budget_state.get("lineage_budget_exhausted")
-                ),
-            }
-            execution_manifest["semantic_review_lineage_budget"] = (
-                lineage_budget_summary
-            )
-            feedback["semantic_review_lineage_budget"] = lineage_budget_summary
         if verdict == "ACCEPT":
             assert deferred_task is not None
             assert source_task is not None
@@ -8463,82 +8406,18 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     review_feedback=feedback,
                 ),
                 "failure_classification": revision_classification,
-                "semantic_review_revision_budget": {
-                    "revisions_used": revision_count,
-                    "max_revisions": max_revisions,
-                    "source_artifact_remains_unaccepted": True,
-                },
             }
-            lineage_budget_exhausted = (
-                lineage_budget_state.get("lineage_budget_exhausted") is True
-            )
-            if lineage_budget_exhausted and current_source_rewrite_sufficient:
+            if cross_artifact_revision_required:
                 failure_classification = (
-                    "generated_code_semantic_review_lineage_budget_exhausted"
+                    "generated_code_semantic_review_requires_cross_artifact_resolution"
                 )
                 rationale = (
-                    "Independent semantic review found a current-source-only defect, "
-                    "but the same source-owner lineage has exhausted its bounded "
-                    "candidate regenerations. The exact rejected artifact and findings "
-                    "remain recorded; no Architect call or runtime-authored edit can "
-                    "supply another legitimate source owner."
+                    "Independent semantic review found that editing the current "
+                    "source alone cannot close the evidence-bound findings while "
+                    "its upstream artifacts remain fixed. The cross-artifact "
+                    "conflict is routed to Architect without a wasted source "
+                    "regeneration or runtime-authored edit."
                 )
-                lineage_ledger = (
-                    record_generated_code_semantic_review_lineage_action(
-                        lineage_budget_state,
-                        action="lineage_exhausted_block",
-                    )
-                )
-                execution_manifest["semantic_review_lineage_budget"][
-                    "selected_action"
-                ] = "lineage_exhausted_block"
-                execution_manifest[
-                    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
-                ] = lineage_ledger
-                execution_manifest["routing_authority_on_revise"] = (
-                    "terminal_reviewer_observation_after_source_budget"
-                )
-                feedback["routing_authority"] = (
-                    "terminal_reviewer_observation_after_source_budget"
-                )
-                feedback["model_route_required_for_cross_owner_revision"] = False
-                next_task = None
-                status = "BLOCKED"
-            elif cross_artifact_revision_required or lineage_budget_exhausted:
-                if cross_artifact_revision_required:
-                    failure_classification = (
-                        "generated_code_semantic_review_requires_cross_artifact_resolution"
-                    )
-                    rationale = (
-                        "Independent semantic review found that editing the current "
-                        "source alone cannot close the evidence-bound findings while "
-                        "its upstream artifacts remain fixed. The cross-artifact "
-                        "conflict is routed to Architect without a wasted source "
-                        "regeneration or runtime-authored edit."
-                    )
-                else:
-                    failure_classification = (
-                        "generated_code_semantic_review_lineage_budget_exhausted"
-                    )
-                    rationale = (
-                        "The generated-code semantic review exhausted its global "
-                        "same-producer candidate-regeneration budget. The complete "
-                        "rejected artifact and exact observations are routed to the "
-                        "Architect model to select theory, interface, environment, or "
-                        "implementation work without a runtime-authored source change."
-                    )
-                lineage_ledger = (
-                    record_generated_code_semantic_review_lineage_action(
-                        lineage_budget_state,
-                        action="architect_replan",
-                    )
-                )
-                execution_manifest["semantic_review_lineage_budget"][
-                    "selected_action"
-                ] = "architect_replan"
-                execution_manifest[
-                    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
-                ] = lineage_ledger
                 assert source_task is not None
                 source_context = source_task_inputs.get(
                     "architect_context",
@@ -8549,9 +8428,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     if isinstance(source_context, Mapping)
                     else {}
                 )
-                source_context[
-                    GENERATED_CODE_SEMANTIC_REVIEW_LINEAGE_LEDGER_KEY
-                ] = lineage_ledger
                 architect_observation_payload = {
                     "schema_version": RUNTIME_SCHEMA_VERSION,
                     "artifact_kind": "RuntimeWorkspaceObservation",
@@ -8569,7 +8445,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                         work_order.get("theory_packet_id", "") or ""
                     ),
                     "failure_classification": failure_classification,
-                    "semantic_review_lineage_budget": lineage_budget_summary,
                     "semantic_review_execution_id": execution_id,
                     "semantic_review_packet_id": review_packet_id,
                     "semantic_review_packet_hash": review_packet_hash,
@@ -8612,15 +8487,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
                 status = "REROUTE"
             else:
-                lineage_ledger = (
-                    record_generated_code_semantic_review_lineage_action(
-                        lineage_budget_state,
-                        action="producer_regeneration",
-                    )
-                )
-                execution_manifest["semantic_review_lineage_budget"][
-                    "selected_action"
-                ] = "producer_regeneration"
                 assert source_task is not None
                 next_task = build_generated_code_semantic_review_producer_revision_task(
                     question=question,
@@ -8631,15 +8497,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     review_packet_id=review_packet_id,
                     review_execution_id=execution_id,
                     revision_count=revision_count,
-                    max_revisions=max_revisions,
-                    lineage_ledger=lineage_ledger,
                 )
                 status = "REVISE"
                 rationale = (
                     "Independent semantic review rejected the exact executed artifact. "
                     "The complete source, execution evidence, and observations are "
-                    "returned directly to the same source producer for one full "
-                    "candidate regeneration."
+                    "returned directly to the same source producer for continued "
+                    "model-owned iteration under the AgentRuntime budget."
                 )
                 failure_classification = revision_classification
 
@@ -8667,11 +8531,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "routing_authority_on_revise": (
                     "architect_model_after_source_sufficiency_observation"
                     if cross_artifact_revision_required
-                    else "terminal_reviewer_observation_after_source_budget"
-                    if lineage_budget_state.get("lineage_budget_exhausted") is True
-                    and current_source_rewrite_sufficient
-                    else "architect_model_after_candidate_budget"
-                    if lineage_budget_state.get("lineage_budget_exhausted") is True
                     else "immutable_source_producer_lineage"
                 ),
                 "runtime_selected_owner": False,
@@ -8682,12 +8541,6 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "reviewer_model": reviewer_model,
                 "reviewer_model_tier": reviewer_tier,
                 "n_findings": len(routed_findings),
-                "semantic_review_lineage_key": str(
-                    lineage_budget_state.get("lineage_key", "") or ""
-                ),
-                "semantic_review_lineage_budget_exhausted": bool(
-                    lineage_budget_state.get("lineage_budget_exhausted")
-                ),
                 "kernel_verified": False,
             },
         )
@@ -8855,7 +8708,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         proposal_agent: LLMSimulationEngineerAgent | None = None,
         sandbox_root: Path = Path("runs") / "generated_simulation_sandbox",
         semantic_reviewer_available: bool = False,
-        semantic_review_max_revisions: int = 1,
+        consumer_revision_max_revisions: int = 1,
         timeout_s: int = 60,
         research_sources: ResearchSourceSnapshot | None = None,
         research_source_discovery: ResearchSourceDiscovery | None = None,
@@ -8863,7 +8716,9 @@ class SimulationEvaluatorRuntimeSubsystem:
         self.proposal_agent = proposal_agent
         self.sandbox_root = sandbox_root
         self.semantic_reviewer_available = bool(semantic_reviewer_available)
-        self.semantic_review_max_revisions = max(0, int(semantic_review_max_revisions or 0))
+        self.consumer_revision_max_revisions = max(
+            0, int(consumer_revision_max_revisions or 0)
+        )
         self.timeout_s = max(1, int(timeout_s or 60))
         self.research_sources = research_sources
         self.research_source_discovery = research_source_discovery
@@ -10727,7 +10582,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     failure_classification=(
                         generated_simulation_failure_classification
                     ),
-                    max_revisions=self.semantic_review_max_revisions,
+                    max_revisions=self.consumer_revision_max_revisions,
                 )
                 consumer_errors = sorted(
                     set(dependency_context_errors + consumer_budget_errors)
@@ -11367,7 +11222,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                             **blackboard.artifacts,
                             **produced_artifacts,
                         },
-                        max_revisions=self.semantic_review_max_revisions,
                     )
                 )
                 if semantic_review_dispatch is not None:
@@ -11635,7 +11489,6 @@ class AlgorithmEngineerRuntimeSubsystem:
         proposal_agent: LLMAlgorithmEngineerAgent | None = None,
         timeout_s: int = 60,
         semantic_reviewer_available: bool = False,
-        semantic_review_max_revisions: int = 1,
         research_sources: ResearchSourceSnapshot | None = None,
         research_source_discovery: ResearchSourceDiscovery | None = None,
     ) -> None:
@@ -11645,10 +11498,6 @@ class AlgorithmEngineerRuntimeSubsystem:
         self.proposal_agent = proposal_agent
         self.timeout_s = timeout_s
         self.semantic_reviewer_available = bool(semantic_reviewer_available)
-        self.semantic_review_max_revisions = max(
-            0,
-            int(semantic_review_max_revisions or 0),
-        )
         self.research_sources = research_sources
         self.research_source_discovery = research_source_discovery
 
@@ -13195,7 +13044,6 @@ class AlgorithmEngineerRuntimeSubsystem:
                 architect_context=effective_context,
                 deferred_next_task=next_task,
                 blackboard_artifacts=blackboard.artifacts,
-                max_revisions=self.semantic_review_max_revisions,
             )
             if semantic_review_dispatch is not None:
                 produced_artifacts.update(
@@ -13327,10 +13175,7 @@ def _independent_semantic_review_architect_escalation_task(
         revision_feedback.get("feedback_source")
         != GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
         or failure_classification
-        not in {
-            "generated_code_semantic_review_lineage_budget_exhausted",
-            "generated_code_semantic_review_requires_cross_artifact_resolution",
-        }
+        != "generated_code_semantic_review_requires_cross_artifact_resolution"
     ):
         raise ValueError(
             "Architect escalation requires an independent semantic-review conflict "
@@ -19907,8 +19752,8 @@ def run_research_agent_runtime(
                 semantic_reviewer_available=(
                     generated_code_semantic_reviewer is not None
                 ),
-                semantic_review_max_revisions=(
-                    config.generated_code_semantic_review_max_revisions
+                consumer_revision_max_revisions=(
+                    config.scientific_consumer_revision_max_revisions
                 ),
                 research_sources=configured_research_sources,
                 research_source_discovery=configured_research_source_discovery,
@@ -19920,9 +19765,6 @@ def run_research_agent_runtime(
                 proposal_agent=algorithm_engineer,
                 semantic_reviewer_available=(
                     generated_code_semantic_reviewer is not None
-                ),
-                semantic_review_max_revisions=(
-                    config.generated_code_semantic_review_max_revisions
                 ),
                 research_sources=configured_research_sources,
                 research_source_discovery=configured_research_source_discovery,
@@ -19938,9 +19780,6 @@ def run_research_agent_runtime(
             subsystems[GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM] = (
                 GeneratedCodeSemanticReviewerRuntimeSubsystem(
                     reviewer=generated_code_semantic_reviewer,
-                    max_revisions=(
-                        config.generated_code_semantic_review_max_revisions
-                    ),
                     probe_sandbox_root=(
                         out_dir / "generated_code_review_probe_sandbox"
                     ),

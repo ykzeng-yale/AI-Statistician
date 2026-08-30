@@ -3827,10 +3827,10 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             ),
             max_iterations=args.max_iterations,
             max_critic_revision_rounds=args.max_critic_revision_rounds,
-            generated_code_semantic_review_max_revisions=int(
+            scientific_consumer_revision_max_revisions=int(
                 getattr(
                     args,
-                    "generated_code_semantic_review_max_revisions",
+                    "scientific_consumer_revision_max_revisions",
                     1,
                 )
                 or 0
@@ -4227,12 +4227,12 @@ def _apply_research_agent_runtime_capability_eval_preset(
         args.openprover_hlm = bool(
             str(getattr(args, "openprover_root", "") or "").strip()
         )
-        args.generated_code_semantic_review_max_revisions = max(
+        args.scientific_consumer_revision_max_revisions = max(
             2,
             int(
                 getattr(
                     args,
-                    "generated_code_semantic_review_max_revisions",
+                    "scientific_consumer_revision_max_revisions",
                     0,
                 )
                 or 0
@@ -4657,7 +4657,7 @@ def _research_agent_runtime_capability_config_errors(
             int(
                 getattr(
                     args,
-                    "generated_code_semantic_review_max_revisions",
+                    "scientific_consumer_revision_max_revisions",
                     0,
                 )
                 or 0
@@ -4665,9 +4665,9 @@ def _research_agent_runtime_capability_config_errors(
             <= 0
         ):
             errors.append(
-                "capability eval preset full-live requires bounded independent "
-                "generated-code semantic-review revision; set "
-                "--generated-code-semantic-review-max-revisions > 0"
+                "capability eval preset full-live requires bounded fresh-cohort "
+                "scientific consumer revision; set "
+                "--scientific-consumer-revision-max-revisions > 0"
             )
         if not bool(
             getattr(args, "formal_target_semantic_review_required", False)
@@ -6788,12 +6788,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.0,
     )
     research_agent_runtime.add_argument(
-        "--generated-code-semantic-review-max-revisions",
+        "--scientific-consumer-revision-max-revisions",
         type=int,
         default=1,
         help=(
-            "maximum fresh coding-agent regenerations after independent semantic "
-            "review rejects otherwise runnable generated code"
+            "maximum source adaptations after a consumer failure before replay on "
+            "a fresh evaluator-owned cohort; ordinary code review uses the sole "
+            "AgentRuntime iteration budget"
         ),
     )
     research_agent_runtime.add_argument(
