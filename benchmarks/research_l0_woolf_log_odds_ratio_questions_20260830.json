@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "woolf_two_by_two_log_odds_ratio_interval_known_result",
+      "title": "Woolf log-odds-ratio interval for a positive 2 by 2 table",
+      "description": "Focused integrated L0 known-result evaluation grounded in Woolf (1955). Let Y_1 and Y_0 be independent binomial counts from two fixed groups of sizes n_1 and n_0, with success probabilities p_1 and p_0 strictly between zero and one. Write the positive observed 2 by 2 cells as a=Y_1, b=n_1-Y_1, c=Y_0, and d=n_0-Y_0. In one authoritative Markdown/LaTeX Theory workspace, derive the maximum-likelihood log odds ratio log(ad/(bc)), its reciprocal-cell plug-in variance, and the two-sided 95 percent large-sample Wald interval on both log and odds-ratio scales from the joint binomial CLT and delta method. Make the score/likelihood or invariance argument for the estimator, the gradient calculation, Slutsky step, consistency conditions, pointwise coverage claim, group-swap and outcome-complement transformations, and all positivity and increasing-information assumptions explicit. Explain why zero or sparse cells, dependent or matched observations, stratification, exact conditional inference, continuity corrections, and finite-sample coverage are outside this result. Do not claim an exact interval, rare-event validity, causal interpretation, risk-ratio identity, source replication, novelty, or formal proof. The required model-authored Python artifact is est_woolf_log_odds_ratio_interval and must implement the exact frozen run_estimator(request) contract. Exploratory Python or R may check likelihood identities, delta-method scaling, label transformations, and simulated coverage. A separately frozen confirmatory evaluator uses fresh independent-binomial tables, evaluator-owned seeds and configurations fixed before outcomes, and at least 5000 independent replicates per design. It checks exact executable identities, standardized log-estimator behavior, variance calibration, and interval coverage with Monte Carlo uncertainty. These finite experiments test one implementation on frozen interior-probability configurations and do not prove asymptotic normality or coverage. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "categorical_data",
+        "two_by_two_table",
+        "odds_ratio",
+        "delta_method",
+        "python_language",
+        "L0"
+      ],
+      "source": {
+        "benchmark_mode": "known_result",
+        "model_visible_context": "published_authority_assumptions_closed_execution_contract_and_empirical_claims",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Woolf (1955), DOI 10.1111/j.1469-1809.1955.tb01348.x",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_woolf_log_odds_ratio_interval",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.group_1_successes",
+            "name": "group_1_successes",
+            "meaning": "The positive success-cell count a in group 1.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [1,1000000].",
+            "units": "observation count",
+            "indexing": "Forms group-1 total n_1=a+b with group_1_failures.",
+            "edge_cases": "Reject Boolean, floating, string, null, array, object, zero, negative, and values above 1000000 rather than coercing, rounding, clipping, or adding a continuity correction.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.group_1_failures",
+            "name": "group_1_failures",
+            "meaning": "The positive failure-cell count b in group 1.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [1,1000000].",
+            "units": "observation count",
+            "indexing": "Forms group-1 total n_1=a+b with group_1_successes.",
+            "edge_cases": "Reject Boolean, floating, string, null, array, object, zero, negative, and values above 1000000 rather than coercing, rounding, clipping, or adding a continuity correction.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.group_0_successes",
+            "name": "group_0_successes",
+            "meaning": "The positive success-cell count c in group 0.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [1,1000000].",
+            "units": "observation count",
+            "indexing": "Forms group-0 total n_0=c+d with group_0_failures.",
+            "edge_cases": "Reject Boolean, floating, string, null, array, object, zero, negative, and values above 1000000 rather than coercing, rounding, clipping, or adding a continuity correction.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.group_0_failures",
+            "name": "group_0_failures",
+            "meaning": "The positive failure-cell count d in group 0.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [1,1000000].",
+            "units": "observation count",
+            "indexing": "Forms group-0 total n_0=c+d with group_0_successes.",
+            "edge_cases": "Reject Boolean, floating, string, null, array, object, zero, negative, and values above 1000000 rather than coercing, rounding, clipping, or adding a continuity correction.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.log_odds_ratio",
+            "name": "log_odds_ratio",
+            "meaning": "The Woolf estimate log((a/b)/(c/d)).",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "log odds-ratio units",
+            "indexing": "Group 1 relative to group 0, success relative to failure.",
+            "edge_cases": "Do not reverse either group or outcome orientation.",
+            "normalization": "log(a)+log(d)-log(b)-log(c)."
+          },
+          {
+            "clause_id": "response.odds_ratio",
+            "name": "odds_ratio",
+            "meaning": "The positive estimated odds ratio (a*d)/(b*c).",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "odds-ratio units",
+            "indexing": "Group 1 relative to group 0, success relative to failure.",
+            "edge_cases": "Do not return a risk ratio, odds difference, reciprocal orientation, or continuity-corrected estimate.",
+            "normalization": "exp(log_odds_ratio), numerically equivalent to (a*d)/(b*c)."
+          },
+          {
+            "clause_id": "response.asymptotic_variance",
+            "name": "asymptotic_variance",
+            "meaning": "The reciprocal-cell plug-in variance estimate for log_odds_ratio.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "squared log odds-ratio units",
+            "indexing": "One scalar using all four cells once.",
+            "edge_cases": "Do not use an odds-ratio-scale variance, pooled-null variance, continuity correction, or omit a cell.",
+            "normalization": "1/a+1/b+1/c+1/d."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The positive square root of asymptotic_variance.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "log odds-ratio units",
+            "indexing": "One scalar standard error.",
+            "edge_cases": "Do not return the variance itself or an odds-ratio-scale standard error.",
+            "normalization": "sqrt(asymptotic_variance)."
+          },
+          {
+            "clause_id": "response.ci_lower_log",
+            "name": "ci_lower_log",
+            "meaning": "The lower endpoint of the two-sided 95 percent large-sample Wald interval for the log odds ratio.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar strictly below ci_upper_log.",
+            "units": "log odds-ratio units",
+            "indexing": "Lower endpoint for group 1 relative to group 0.",
+            "edge_cases": "Do not clip at zero, use a one-sided quantile, or claim exact finite-sample coverage.",
+            "normalization": "log_odds_ratio-1.959963984540054*standard_error."
+          },
+          {
+            "clause_id": "response.ci_upper_log",
+            "name": "ci_upper_log",
+            "meaning": "The upper endpoint of the two-sided 95 percent large-sample Wald interval for the log odds ratio.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar strictly above ci_lower_log.",
+            "units": "log odds-ratio units",
+            "indexing": "Upper endpoint for group 1 relative to group 0.",
+            "edge_cases": "Do not clip, use a one-sided quantile, or claim exact finite-sample coverage.",
+            "normalization": "log_odds_ratio+1.959963984540054*standard_error."
+          },
+          {
+            "clause_id": "response.ci_lower_odds_ratio",
+            "name": "ci_lower_odds_ratio",
+            "meaning": "The lower positive endpoint obtained by exponentiating ci_lower_log.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar strictly below ci_upper_odds_ratio.",
+            "units": "odds-ratio units",
+            "indexing": "Lower endpoint for group 1 relative to group 0.",
+            "edge_cases": "Do not exponentiate a standard error or construct a symmetric interval on the odds-ratio scale.",
+            "normalization": "exp(ci_lower_log)."
+          },
+          {
+            "clause_id": "response.ci_upper_odds_ratio",
+            "name": "ci_upper_odds_ratio",
+            "meaning": "The upper positive endpoint obtained by exponentiating ci_upper_log.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar strictly above ci_lower_odds_ratio.",
+            "units": "odds-ratio units",
+            "indexing": "Upper endpoint for group 1 relative to group 0.",
+            "edge_cases": "Do not exponentiate a standard error or construct a symmetric interval on the odds-ratio scale.",
+            "normalization": "exp(ci_upper_log)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the four declared fields and the response exactly the eight declared fields. Missing, extra, malformed, coercible-only, nonpositive, or out-of-domain values are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_woolf_identity",
+            "meaning": "Every returned value follows from log(ad/(bc)), exp of that estimate, V=1/a+1/b+1/c+1/d, sqrt(V), and log-scale endpoints at plus or minus 1.959963984540054 standard errors with exponentiated odds-ratio endpoints."
+          },
+          {
+            "clause_id": "invariant.group_swap_reciprocity",
+            "meaning": "Swapping the complete group-1 and group-0 rows negates log_odds_ratio and both log interval endpoints with their order reversed, reciprocates odds_ratio and both odds-ratio interval endpoints with their order reversed, and leaves asymptotic_variance and standard_error unchanged."
+          },
+          {
+            "clause_id": "invariant.outcome_complement_reciprocity",
+            "meaning": "Swapping successes with failures within both groups has the same sign, reciprocal, reversed-endpoint, variance, and standard-error transformations as swapping the groups."
+          },
+          {
+            "clause_id": "invariant.common_replication_scaling",
+            "meaning": "Multiplying all four counts by the same valid positive integer leaves both point estimates unchanged, divides asymptotic_variance by that integer, divides standard_error and each log-scale half-width by its square root, and recomputes the odds-ratio endpoints by exponentiation."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, read files, invoke subprocesses, or use the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen positive table, the candidate is compared with an independent exact implementation of all eight returned Woolf objects."
+          },
+          {
+            "clause_id": "claim.empirical.standardized_behavior",
+            "meaning": "Across fresh independent-binomial tables with interior probabilities, the centered log_odds_ratio divided by its reported standard_error is checked for approximately zero mean and unit second moment using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.variance_calibration",
+            "meaning": "The empirical variance of log_odds_ratio and the mean reported asymptotic_variance are compared under each frozen design with a predeclared relative-error bound."
+          },
+          {
+            "clause_id": "claim.empirical.interval_coverage",
+            "meaning": "Coverage of the true log odds ratio by the reported two-sided 95 percent log interval, equivalently coverage of the true odds ratio by the exponentiated interval, is compared with 0.95 using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Group sizes, success probabilities, seeds, at least 5000 independent replicates per design, summaries, and acceptance bounds are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment assesses one implementation under finitely many independent-binomial, interior-probability configurations with positive realized cells. It is not proof and does not validate exact finite-sample coverage, zero or sparse cells, dependent or matched observations, stratification, continuity corrections, causal interpretation, source replication, novelty, or formal closure."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite scalar arithmetic and returns exactly one response without optimization, randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
