@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "gaussian_stein_sure_james_stein_known_theory_rederivation",
+  "benchmark_id": "research-l3-stein-sure-theory-20260829-v1",
+  "level": "L3",
+  "family": "gaussian_stein_unbiased_risk_estimation",
+  "status": "frozen_qualified_pre_first_product_call",
+  "preselection_code_head": "c114d5565109d3bb0e1d6b3471cf360e6137f7f7",
+  "harness_mechanism_commit": "3f21792407ce8b575399db2ffe85090217f8d36e",
+  "visible_question_commit": "a0354b2aedc66a1ddf24f51cc07d957ee838aeda",
+  "visible_questions_path": "benchmarks/research_l3_stein_sure_questions_20260829.json",
+  "visible_questions_sha256": "e7c5f7cdbfe58a04663c4813d80252805a166606f87cfa0ec314b6ee25b04edc",
+  "visible_question_full_hash": "5a1ea507ea9516dbef142f531a3adee8eadfbbae05eff60d0930c9b6a8df77cb",
+  "runtime_visible_question_hash": "41842edf0a0de21f6e6ad26565dc3a3a071b7b2a7afe94358dea0b744e024f82",
+  "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+  "gold_manifest_sha256": "bcb4aa1ea5d89e9f45d9d306619906d176255c89b5fada28f9acf09f89fed894",
+  "gold_manifest_stable_hash": "3eab418d0066b2eca2b08eb6d6f4978be5a0cdd034e739e6be53d8109f411241",
+  "hidden_artifact_sha256": {
+    "candidate_mode_near_miss.md": "48b4d3797b95387be170931bdfd62e3fafab1d4965b5fd4773fe152ff41c46a5",
+    "candidate_mode_negative_cases.json": "ef945774b9b92f211f930ff7f85a897ce9c7bad51aa99fed3963a2e58d286055",
+    "hidden_theory_harness.py": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+    "semantic_activation_attempt_1_protocol_v11.json": "69fef3bcd04e5f81dc8616c3c9a1c1f29294a31d6db4cf93f1a0eabec0eb2c6b",
+    "semantic_calibration_cases.json": "51babacf74e0df4d7c5a253e4b1a117443d6bc40d1351283bb5dd186f9e482d2",
+    "semantic_reference.md": "d04e41f84708993326f0e52ed71395c21288ae03fabd1c2b6c6db0ac071b1017",
+    "semantic_rubric.json": "21dd5acdd7f5dea87e68b3c755367925b30bd603c4b3ceb706d070cb1152cba5",
+    "theory_authority_calibration.json": "80f915d4828ab35dff1ecb7f1989085a9ff0404e4f47b1aeb0f53718bb094a03"
+  },
+  "mechanical_qualification": {
+    "reference_checks_passed": "7/7",
+    "negative_variants_rejected": "7/7"
+  },
+  "semantic_qualification": {
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "attempts": 1,
+    "model": "claude-haiku-4-5-20251001",
+    "model_tier": "haiku",
+    "model_calls": 16,
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "8/8",
+    "judgment_hash": "8c507a2dabd5b39b2c0f3d4838f3fcea0b112b8328aef8b78c9e973861ef9de4"
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 16,
+  "formalization_requirement": "not_applicable",
+  "source_authority": {
+    "title": "Estimation of the Mean of a Multivariate Normal Distribution",
+    "author": "Charles M. Stein",
+    "journal": "Annals of Statistics",
+    "year": 1981,
+    "volume": 9,
+    "issue": 6,
+    "pages": "1135-1151",
+    "doi": "10.1214/aos/1176345632"
+  },
+  "hidden_behavior_entailment_audit": "Every hidden claim is an explicit obligation or exclusion in the visible request: the spherical Gaussian model and coordinate integration-by-parts identity, exact risk and SURE interpretation, the linear shrinkage check, radial norm and divergence, inverse-square integrability and the punctured-domain boundary for d>=3, the exact dominance interval and optimum, scope exclusions, and whole-document active-claim consistency. No hidden code, simulation, Lean, source-replication, novelty, positive-part, minimax, unknown-variance, general-covariance, Bayes, or coverage requirement is introduced.",
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "sonnet_allowed": false,
+    "opus_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "resume_or_rerun_allowed": false
+  },
+  "boundary": "This ledger exposes only hashes, counts, model identity, source identity, and task scope. Hidden reference mathematics, rubric, calibration cases, near miss, labels, model responses, and judgments remain evaluator-only. They cannot enter prompts, RAG, runtime feedback, revision, retry, routing, or proof evidence. No product call has occurred."
+}
