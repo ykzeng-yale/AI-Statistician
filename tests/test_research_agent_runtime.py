@@ -1105,10 +1105,22 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
         },
     )
     theory_id = "theory:exploratory-algorithm-theory-return"
+    estimator_spec = {
+        "id": "candidate",
+        "formula": "return one finite estimate",
+        "inputs": ["request"],
+        "outputs": ["estimate"],
+    }
     theory = {
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": theory_id,
         "question": runtime_module._question_to_payload(question),
+        "problem_card": {"research_setup": "Develop one finite estimator."},
+        "theory_derivation_contract": {},
+        "theory_derivation_packet": {"workspace_summary": "A proof gap remains."},
+        "estimator_specs": [estimator_spec],
+        "theorem_cards": [],
+        "formalization_requests": [],
     }
     finding_id = "finding:publication-proof-gap"
     preflight_id = "theory_preflight:exploratory-algorithm-theory-return"
@@ -1128,7 +1140,12 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
         ],
         "active_unresolved_finding_ids": [finding_id],
     }
-    source = "def run_estimator(request):\n    return {'estimate': 1.0}\n"
+    source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': 1.0}\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'estimate': 1.0}\n"
+    )
     result_payload = {"estimate": 1.0}
     source_path = tmp_path / "estimator.py"
     result_path = tmp_path / "result.json"
@@ -1139,9 +1156,19 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
     source_manifest = {
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
         "manifest_id": manifest_id,
+        "question": runtime_module._question_to_payload(question),
+        "theory_packet_id": theory_id,
         "prototypes": [
             {
                 "estimator_id": "candidate",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_python_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "source_code": source,
+                "spec": estimator_spec,
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
                 "script_path": str(source_path),
@@ -1161,10 +1188,16 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
         "model": LIVE_EVALUATION_CLAUDE_MODEL,
         "model_tier": "haiku",
     }
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
     context = _full_evidence_context(question.id)
     context.update(
         {
             "theory_packet_id": theory_id,
+            "runtime_requested_evidence_contract": contract,
             "empirical_evaluation_phase": runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
             "architect_metric_protocol_gate": {
                 "artifact_kind": "RuntimeArchitectMetricProtocolGate",
@@ -1174,6 +1207,7 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
             },
         }
     )
+    context["architect_runtime_plan"]["evidence_contract"] = contract
     source_task = AgentTask(
         task_id="algorithm-before-metric:exploratory-theory-return",
         owner_subsystem="AlgorithmEngineer",
@@ -1256,6 +1290,83 @@ def test_accepted_exploratory_algorithm_returns_to_parent_theory_workspace(
     assert binding["source_feedback"]["exploratory_algorithm_observation"]["handoff_id"]
     assert next_context["architect_metric_protocol_gate"]["upstream_theory_revision_count"] == 1
     assert "evaluator_source_authoring" not in outcome.next_task.inputs
+
+    revised_theory = deepcopy(theory)
+    revised_theory["packet_id"] = "theory:exploratory-algorithm-revised"
+    revised_theory["problem_card"] = {
+        "research_setup": "Develop one finite estimator and keep the proof gap explicit."
+    }
+    revised_theory["theory_derivation_packet"] = {
+        "workspace_summary": "The finite interface is retained while the derivation is revised."
+    }
+    captured_revision_context: dict[str, object] = {}
+
+    class RevisedTheoryDeveloper:
+        config = None
+        provider = None
+        research_source_execution = None
+
+        @staticmethod
+        def derive(_question, **kwargs):
+            captured_revision_context.update(deepcopy(kwargs["architect_context"]))
+            return deepcopy(revised_theory)
+
+    blackboard.artifacts.update(outcome.produced_artifacts)
+    theory_result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+        theory_developer=RevisedTheoryDeveloper(),  # type: ignore[arg-type]
+        n_runs=8,
+        seed=7,
+    ).run(outcome.next_task, blackboard)
+
+    assert theory_result.status == "REROUTE"
+    assert theory_result.next_task is not None
+    assert theory_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert captured_revision_context[
+        runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    ]["revision_source"] == "theory_preflight_after_exploratory_implementation"
+    revised_id = revised_theory["packet_id"]
+    stored_revision = theory_result.produced_artifacts[revised_id]
+    assert stored_revision["parent_theory_packet_id"] == theory_id
+    renewed_context = theory_result.next_task.inputs["architect_context"]
+    assert renewed_context["previous_algorithm_sandbox_manifest_id"] == manifest_id
+    assert renewed_context["previous_upstream_algorithm_handoff"]["handoff_id"]
+    assert "upstream_algorithm_handoff" not in renewed_context
+
+    blackboard.artifacts.update(theory_result.produced_artifacts)
+    renewed_preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": "theory_preflight:exploratory-algorithm-revised",
+        "source_theory_packet_id": revised_id,
+        "source_theory_packet_hash": runtime_module.stable_hash(stored_revision),
+        "overall_verdict": "ACCEPT",
+        "active_unresolved_finding_ids": [],
+    }
+    accepted_revision = runtime_module._architect_theory_preflight_accepted_result(
+        task=theory_result.next_task,
+        question=question,
+        architect_context=renewed_context,
+        preflight_packet=renewed_preflight,
+        runtime_config=ResearchAgentRuntimeConfig(),
+        blackboard=blackboard,
+    )
+
+    assert accepted_revision.status == "REROUTE"
+    assert accepted_revision.next_task is not None
+    assert accepted_revision.next_task.owner_subsystem == "AlgorithmEngineer"
+    final_context = accepted_revision.next_task.inputs["architect_context"]
+    seeds, seed_lineage = runtime_module._runtime_theory_revision_algorithm_source_seeds(
+        architect_context=final_context,
+        blackboard=blackboard,
+        question_id=question.id,
+        theory_packet=stored_revision,
+    )
+    assert seeds["candidate"]["code"] == source
+    assert seed_lineage["reuse_basis"] == "exact_estimator_spec_and_source_hash"
+    evaluator_task = runtime_module._agent_task_from_runtime_payload(
+        accepted_revision.next_task.inputs["deferred_metric_protocol_task"]
+    )
+    assert evaluator_task.owner_subsystem == "SimulationEvaluator"
+    assert evaluator_task.inputs["evaluator_source_authoring"] is True
 
 
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:

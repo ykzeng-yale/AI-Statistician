@@ -3189,7 +3189,7 @@ def _architect_initial_routing_decision(
                 )
             else:
                 deferred_metric_task = build_executable_evaluator_authoring_task(
-                    task=task,
+                    task=AgentTask(packet_id, "AlgorithmEngineer", "Defer evaluator authoring until implementation review.", inputs),
                     question=routed_question,
                     theory_packet_id=_architect_context_theory_packet_id(context),
                     architect_context=context,
