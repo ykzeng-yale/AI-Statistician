@@ -46,6 +46,7 @@
     "formalizer_executed": false,
     "operator_audit": "docs/operator_audits/woolf_log_odds_ratio_l0_v1.md",
     "post_run_shared_mechanism_commit": "2e895af1f84dfbfc06c0da692bfc275710047b6b",
+    "closeout_commit": "f2ecd6f32723295433c4e86f95219fa9f276cd6a",
     "shared_mechanism_change": "Referee tool results are untrusted observations rather than conclusions. A scratch blocker must preserve the candidate's random variables, dependence, conditioning, parameterization, and asymptotic regime, and unresolved conflict with the frozen objective or an available exact source remains uncertainty. Finite execution readiness is judged separately from full theory credit. No task formula, parser, extra reviewer, vote, retry, fallback, scheduler, or model escalation was added.",
     "closeout_verification": "Task112 activation and immutable closeout contracts passed 2/2; the canonical and historical ladder panel passed 89/89; and the complete repository passed 1095/1095 in 100.60 seconds. Compileall, all tracked JSON files, 112 unique queue identities, diff hygiene, changed-diff credential scanning, exact immutable hashes, exact-Haiku topology, the 24,954-line runtime budget, the 149,981-line package budget, and the 249-line Codex adoption budget passed. Closeout made zero product or evaluator calls and did not rerun, resume, repair, reevaluate, rescore, or resample Task112.",
     "trusted_capability_credit": "0/1; aggregate remains 7/112",
