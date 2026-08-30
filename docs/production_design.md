@@ -196,7 +196,9 @@ The reviewer owns executable-contract decomposition. Public clause IDs are navig
 addresses, not proof that a compound clause was tested. The model runs adversarial probes,
 separates relevant positive, malformed, boundary, transformation, and output obligations,
 and reports untested obligations. Runtime verifies execution and lineage, not semantics
-or a declared coverage list.
+or a declared coverage list. After each exact-source probe, its raw observation and the
+unchanged public contract return together to the same reviewer context; this improves
+attention without adding a contract parser, generated case, or deterministic verdict.
 
 For outer-graph completion, an Algorithm or Simulation lane is complete only when
 its active manifest has an independent `ACCEPT` bound to the current immutable

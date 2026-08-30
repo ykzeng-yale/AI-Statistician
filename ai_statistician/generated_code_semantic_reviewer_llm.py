@@ -54,12 +54,11 @@ from .scientific_sandbox import (
     normalized_scientific_dependencies,
 )
 
-
 GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 37
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = (
     "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence.")
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v14"
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v15"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
@@ -825,15 +824,9 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             else {}
         )
         contract = question.estimator_execution_contract
-        contract_probe_target = (
-            str(contract.get("estimator_id", "") or "").strip()
-            if isinstance(contract, Mapping)
-            else ""
-        )
-        contract_probe_required = bool(
-            frozen_estimator_execution_contract_clause_ids(contract) -
-            frozen_estimator_execution_contract_empirical_claim_ids(contract)
-        )
+        contract_probe_target = str(contract.get("estimator_id", "") or "").strip() if isinstance(contract, Mapping) else ""
+        contract_probe_required = bool(frozen_estimator_execution_contract_clause_ids(contract) -
+                                       frozen_estimator_execution_contract_empirical_claim_ids(contract))
         if contract_probe_target not in probe_targets:
             contract_probe_target, contract_probe_required = "", False
         refresh_targets = {
@@ -1156,8 +1149,15 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     "authority": "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF",
                 }
                 probe_executions.append(record)
+                observation = dict(record)
+                if contract_probe_required and isinstance(contract, Mapping):
+                    observation["authoritative_estimator_execution_contract"] = deepcopy(dict(contract))
+                    observation["review_instruction"] = (
+                        "Reconcile this raw probe result and the exact source against every "
+                        "public contract obligation; probe again or report any gap."
+                    )
                 return ClientToolExecutionResult(
-                    content=record,
+                    content=observation,
                     is_error=failure_origin.startswith("REVIEWER_PROBE_SOURCE_"),
                     observation_key="generated-code-review-probe:" + stable_hash(record),
                 )

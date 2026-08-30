@@ -184,20 +184,21 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 The inner harness is no longer the main architecture blocker. It already preserves
 same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity,
-and isolated review. Task109 exercised Theory, Python, Simulation, three isolated
-source reviews, and the final Critic through the native model-tool loops. Its estimator
-and confirmatory simulation executed, but the mathematical author and referee both
-accepted active conditional-expectation and variance errors, while the source reviewer
-used a valid-only probe and missed public rejection semantics. The final Critic stated
-a runtime-derived required evidence gap and simultaneously requested ACCEPT; the
-outer evidence gate correctly blocked the task.
+and isolated review. Task109 and the disjoint Task110 both exercised the native
+Theory, Python, Simulation, review, and Critic loops. The outer evidence gates stayed
+honest, but both exact-Haiku source reviewers incompletely tested visible malformed-
+request obligations. Task110's reviewer then made the concrete reasoning error that
+reading declared fields with `get` rejects extra fields, while its probe omitted other
+public bounds.
 
-The resulting shared change remains harness-level: prompts ask the existing model to
-compare the exact candidate identity, audit conditional measurability, and author
-contract-derived malformed probes; the existing Critic terminal validator returns a
-mechanical ACCEPT mismatch to that same retained session. It adds no content parser,
-repair worker, agent, scheduler, task formula, model escalation, or second runtime,
-and it does not repair or rescore Task109.
+The measured shared correction remains inside the retained reviewer loop. After a
+model-authored exact-source probe, the same reviewer now receives the raw result and
+the unchanged frozen executable contract together as one recent tool observation.
+The model still chooses cases, assertions, further tools, findings, and verdict; runtime
+does not parse source, generate a test, interpret a clause, or claim coverage. This is
+Codex-style context and feedback placement, not a new reviewer, repair worker,
+scheduler, content rule, model escalation, or second runtime. Consumed Tasks109 and
+110 remain immutable.
 
 Remaining capability gaps are scientific rather than reasons to import Codex:
 

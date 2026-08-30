@@ -1606,6 +1606,10 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
     assert "ACCEPT requires a successful model-authored executable-contract probe" in str(
         backend.requests[1].messages
     )
+    probe_observation = str(backend.requests[2].messages[-1])
+    assert "authoritative_estimator_execution_contract" in probe_observation
+    assert "invariant.closed_object" in probe_observation
+    assert "probe again or report any gap" in probe_observation
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["client_tool_loop"]["validation_submissions"] == 2
     probe_rows = packet["client_tool_loop"]["review_probe_executions"]
