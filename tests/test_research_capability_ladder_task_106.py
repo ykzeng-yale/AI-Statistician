@@ -256,9 +256,9 @@ def test_tweedie_task106_is_consumed_after_its_only_product_draw() -> None:
         assert hidden_name not in runtime_visible
 
     readiness = ladder["current_readiness"]
-    assert readiness["scored_tasks_total"] == 106
+    assert readiness["scored_tasks_total"] == 107
     assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 106
-    assert readiness["fully_gold_configured_tasks"] == 106
+    assert readiness["consumed_scored_tasks"] == 107
+    assert readiness["fully_gold_configured_tasks"] == 107
     assert readiness["fully_gold_passed_tasks"] == 7
     assert readiness["operator_invalid_tasks"] == 18
