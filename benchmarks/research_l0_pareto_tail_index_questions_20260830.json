@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "pareto_known_threshold_tail_index_mle_known_result",
+      "title": "Exact-Pareto tail-index likelihood, bias correction, and interval",
+      "description": "Focused integrated L0 known-result evaluation grounded in the exact Pareto specialization underlying classical tail-index inference. Let X_1,...,X_n be independent and identically distributed Pareto type I observations with known fixed threshold x_min>0 and unknown shape alpha>0, with density f(x)=alpha*x_min^alpha*x^(-alpha-1) for x>=x_min, and define the extreme-value index xi=1/alpha. In one authoritative Markdown/LaTeX Theory workspace, derive the likelihood with its support, show that Y_i=log(X_i/x_min) are iid Exponential(rate alpha), and derive S=sum_i Y_i, S~Gamma(shape n, rate alpha), and 2*alpha*S~chi-square with 2n degrees of freedom. Derive alpha_hat=n/S as the MLE, its finite-sample expectation and variance, the unbiased correction alpha_tilde=(n-1)/S and its variance for n>2, and the invariant MLE xi_hat=S/n with its exact mean and variance. Establish consistency and the asymptotic normal limits for alpha_hat and xi_hat, including the Fisher-information or delta-method argument. Derive the exact two-sided 95 percent chi-square intervals for alpha and xi and explain the reciprocal endpoint order. Explain positive-scale equivariance and the anchored power transformation X_i'=x_min*(X_i/x_min)^c. Distinguish this fixed-threshold exact-Pareto problem from choosing a random upper-order-statistic threshold, estimating a general regularly varying tail, generalized Pareto fitting, truncation, or finite-endpoint tails. Do not claim robustness to threshold misspecification, automatic threshold selection, second-order regular variation, source replication, novelty, or formal proof. The required model-authored Python artifact is est_pareto_known_threshold_tail_index and must implement the exact frozen run_estimator(request) contract. Exploratory Python or R may check exponential and Gamma identities, transformation laws, bias correction, and interval coverage. A separately frozen confirmatory evaluator uses fresh exact-Pareto samples, evaluator-owned seeds and configurations fixed before outcomes, and at least 5000 independent replicates per design. It checks exact executable identities, the standardized xi estimator, alpha bias and variance calibration, and exact-interval coverage with Monte Carlo uncertainty. These finite experiments test one implementation under frozen exact-Pareto configurations and do not establish robustness or general tail-index validity. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "pareto_distribution",
+        "extreme_value_index",
+        "maximum_likelihood",
+        "exact_confidence_interval",
+        "python_language",
+        "L0"
+      ],
+      "source": {
+        "benchmark_mode": "known_result",
+        "model_visible_context": "published_authority_assumptions_closed_execution_contract_and_empirical_claims",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Hill (1975), DOI 10.1214/aos/1176343247",
+        "secondary_authority": "NIST Pareto probability-distribution reference",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_pareto_known_threshold_tail_index",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observations",
+            "name": "observations",
+            "meaning": "The exact-Pareto sample X_1,...,X_n on its original positive scale.",
+            "json_type": "array",
+            "shape": "One exact JSON array of length 3 through 10000 containing finite non-Boolean real numbers no smaller than threshold and no larger than 1000000000000, with at least one value strictly larger than threshold.",
+            "units": "original observation units",
+            "indexing": "Exchangeable sample order; every element is one observation.",
+            "edge_cases": "Reject Boolean, string, null, nested, object, nonfinite, below-threshold, above-range, too-short, too-long, or all-threshold samples rather than coercing, clipping, dropping, offsetting, or replacing values.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.threshold",
+            "name": "threshold",
+            "meaning": "The known fixed Pareto support threshold x_min.",
+            "json_type": "number",
+            "shape": "One exact finite non-Boolean JSON number in the inclusive interval [0.000001,1000000].",
+            "units": "original observation units",
+            "indexing": "One scalar shared by the complete sample.",
+            "edge_cases": "Reject Boolean, string, null, object, array, nonfinite, nonpositive, or out-of-range values rather than coercing them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The number n of validated observations.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [3,10000].",
+            "units": "observation count",
+            "indexing": "Length of request.observations.",
+            "edge_cases": "Do not return a floating representation or an effective tail count.",
+            "normalization": "len(observations)."
+          },
+          {
+            "clause_id": "response.threshold",
+            "name": "threshold",
+            "meaning": "The validated known support threshold.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "original observation units",
+            "indexing": "One scalar copied from the exact validated request value.",
+            "edge_cases": "Do not estimate the threshold from the sample minimum.",
+            "normalization": "request.threshold."
+          },
+          {
+            "clause_id": "response.sum_log_excess",
+            "name": "sum_log_excess",
+            "meaning": "The sufficient statistic S, the sum of log ratios above the known threshold.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "dimensionless log-ratio units",
+            "indexing": "One scalar over all n observations.",
+            "edge_cases": "Use natural logarithms and the supplied threshold; do not use a fitted threshold or omit observations equal to threshold.",
+            "normalization": "sum_i log(observations_i/threshold)."
+          },
+          {
+            "clause_id": "response.alpha_mle",
+            "name": "alpha_mle",
+            "meaning": "The maximum-likelihood estimate of the Pareto shape alpha.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "inverse log-ratio units",
+            "indexing": "One scalar parameter estimate.",
+            "edge_cases": "Do not report the unbiased correction or xi in this field.",
+            "normalization": "sample_size/sum_log_excess."
+          },
+          {
+            "clause_id": "response.alpha_unbiased",
+            "name": "alpha_unbiased",
+            "meaning": "The finite-sample unbiased correction for the Pareto shape.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "inverse log-ratio units",
+            "indexing": "One scalar parameter estimate.",
+            "edge_cases": "Do not use n in the numerator or call alpha_mle unbiased.",
+            "normalization": "(sample_size-1)/sum_log_excess."
+          },
+          {
+            "clause_id": "response.xi_mle",
+            "name": "xi_mle",
+            "meaning": "The invariant maximum-likelihood estimate of xi=1/alpha.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "log-ratio units",
+            "indexing": "One scalar extreme-value-index estimate.",
+            "edge_cases": "Do not invert alpha_unbiased or fit a generalized Pareto shape.",
+            "normalization": "sum_log_excess/sample_size=1/alpha_mle."
+          },
+          {
+            "clause_id": "response.asymptotic_variance_alpha",
+            "name": "asymptotic_variance_alpha",
+            "meaning": "The plug-in first-order asymptotic variance estimate for alpha_mle.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "squared inverse log-ratio units",
+            "indexing": "One scalar variance estimate.",
+            "edge_cases": "Include the 1/n factor and use alpha_mle rather than alpha_unbiased.",
+            "normalization": "alpha_mle^2/sample_size."
+          },
+          {
+            "clause_id": "response.standard_error_alpha",
+            "name": "standard_error_alpha",
+            "meaning": "The positive first-order standard error for alpha_mle.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "inverse log-ratio units",
+            "indexing": "One scalar standard error.",
+            "edge_cases": "Do not return asymptotic_variance_alpha itself.",
+            "normalization": "sqrt(asymptotic_variance_alpha)."
+          },
+          {
+            "clause_id": "response.asymptotic_variance_xi",
+            "name": "asymptotic_variance_xi",
+            "meaning": "The plug-in first-order asymptotic variance estimate for xi_mle.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "squared log-ratio units",
+            "indexing": "One scalar variance estimate.",
+            "edge_cases": "Include the 1/n factor and use xi_mle.",
+            "normalization": "xi_mle^2/sample_size."
+          },
+          {
+            "clause_id": "response.standard_error_xi",
+            "name": "standard_error_xi",
+            "meaning": "The positive first-order standard error for xi_mle.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar.",
+            "units": "log-ratio units",
+            "indexing": "One scalar standard error.",
+            "edge_cases": "Do not return asymptotic_variance_xi itself.",
+            "normalization": "sqrt(asymptotic_variance_xi)."
+          },
+          {
+            "clause_id": "response.exact_ci_lower_alpha",
+            "name": "exact_ci_lower_alpha",
+            "meaning": "The lower endpoint of the exact equal-tailed 95 percent chi-square interval for alpha.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar below exact_ci_upper_alpha.",
+            "units": "inverse log-ratio units",
+            "indexing": "Lower endpoint for alpha.",
+            "edge_cases": "Use 2n degrees of freedom and the 0.025 quantile; do not substitute a Wald endpoint.",
+            "normalization": "chi2_quantile(0.025,2*sample_size)/(2*sum_log_excess)."
+          },
+          {
+            "clause_id": "response.exact_ci_upper_alpha",
+            "name": "exact_ci_upper_alpha",
+            "meaning": "The upper endpoint of the exact equal-tailed 95 percent chi-square interval for alpha.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar above exact_ci_lower_alpha.",
+            "units": "inverse log-ratio units",
+            "indexing": "Upper endpoint for alpha.",
+            "edge_cases": "Use 2n degrees of freedom and the 0.975 quantile; do not substitute a Wald endpoint.",
+            "normalization": "chi2_quantile(0.975,2*sample_size)/(2*sum_log_excess)."
+          },
+          {
+            "clause_id": "response.exact_ci_lower_xi",
+            "name": "exact_ci_lower_xi",
+            "meaning": "The lower endpoint of the exact equal-tailed 95 percent interval for xi=1/alpha.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar below exact_ci_upper_xi.",
+            "units": "log-ratio units",
+            "indexing": "Lower endpoint for xi.",
+            "edge_cases": "Reverse the reciprocal alpha endpoints; do not preserve their order.",
+            "normalization": "2*sum_log_excess/chi2_quantile(0.975,2*sample_size)=1/exact_ci_upper_alpha."
+          },
+          {
+            "clause_id": "response.exact_ci_upper_xi",
+            "name": "exact_ci_upper_xi",
+            "meaning": "The upper endpoint of the exact equal-tailed 95 percent interval for xi=1/alpha.",
+            "json_type": "number",
+            "shape": "One finite strictly positive non-Boolean scalar above exact_ci_lower_xi.",
+            "units": "log-ratio units",
+            "indexing": "Upper endpoint for xi.",
+            "edge_cases": "Reverse the reciprocal alpha endpoints; do not preserve their order.",
+            "normalization": "2*sum_log_excess/chi2_quantile(0.025,2*sample_size)=1/exact_ci_lower_alpha."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly observations and threshold and the response exactly the fourteen declared fields. Missing, extra, malformed, coercible-only, Boolean, nonfinite, below-threshold, above-range, too-short, too-long, or all-threshold inputs are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_pareto_identity",
+            "meaning": "Every returned value follows from S=sum log(X_i/x_min), alpha_mle=n/S, alpha_unbiased=(n-1)/S, xi_mle=S/n, plug-in alpha and xi variances, and the 2*alpha*S chi-square pivot with 2n degrees of freedom."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting the observations leaves every returned field unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_scale_equivariance",
+            "meaning": "Multiplying observations and threshold by the same positive constant while preserving the public domains multiplies only the returned threshold by that constant and leaves the other thirteen fields unchanged."
+          },
+          {
+            "clause_id": "invariant.anchored_power_transformation",
+            "meaning": "For c>0, replacing each observation by threshold*(observation/threshold)^c when the transformed sample remains in-domain multiplies sum_log_excess, xi_mle, standard_error_xi, and both xi interval endpoints by c; divides alpha_mle, alpha_unbiased, standard_error_alpha, and both alpha endpoints by c; multiplies asymptotic_variance_xi by c^2; divides asymptotic_variance_alpha by c^2; and leaves sample_size and threshold unchanged."
+          },
+          {
+            "clause_id": "invariant.reciprocal_parameter_intervals",
+            "meaning": "xi_mle=1/alpha_mle, exact_ci_lower_xi=1/exact_ci_upper_alpha, and exact_ci_upper_xi=1/exact_ci_lower_alpha."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, read files, invoke subprocesses, or use the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen valid sample, the candidate is compared with an independent exact implementation of all fourteen returned objects."
+          },
+          {
+            "clause_id": "claim.empirical.standardized_xi_behavior",
+            "meaning": "Across fresh exact-Pareto samples, (xi_mle-xi)/(xi/sqrt(n)) is checked for approximately zero mean and unit second moment using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.alpha_bias_correction",
+            "meaning": "The empirical mean of alpha_mle is compared with n*alpha/(n-1), while alpha_unbiased is compared with alpha, using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.alpha_variance_calibration",
+            "meaning": "The empirical variance of alpha_mle is compared with n^2*alpha^2/((n-1)^2*(n-2)) under each frozen design with a predeclared relative-error bound."
+          },
+          {
+            "clause_id": "claim.empirical.exact_interval_coverage",
+            "meaning": "Coverage of alpha and xi by their reciprocal equal-tailed 95 percent chi-square intervals is compared with 0.95 using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Pareto shapes, thresholds, sample sizes, seeds, at least 5000 independent replicates per design, summaries, and acceptance bounds are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment assesses one implementation under finitely many correctly specified exact-Pareto configurations with known fixed thresholds. It is not proof and does not validate random-threshold selection, general regular variation, second-order tail bias, truncation, finite endpoints, generalized Pareto fitting, source replication, novelty, or formal closure."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite transformations, reductions, and two fixed chi-square quantile evaluations and returns exactly one response without optimization, randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
