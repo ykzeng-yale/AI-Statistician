@@ -110,16 +110,6 @@ def validate_research_gold_benchmark_activation(
     schema_version = int(benchmark.get("schema_version", 0) or 0)
     if schema_version not in {3, 4}:
         raise ValueError("live gold activation requires schema_version 3 or 4")
-    with tempfile.TemporaryDirectory(prefix="ai-stat-gold-activation-") as value:
-        rows = [
-            _run_activation_candidate_suite(
-                task,
-                project_root=Path(__file__).resolve().parents[1],
-                sandbox_root=Path(value),
-            )
-            for task in benchmark["active_tasks"]
-            if task.get("activation_candidate_suite")
-        ]
     semantic_rows: list[dict[str, Any]] = []
     if schema_version >= 4:
         visible_by_id = dict(visible_questions or {})
@@ -161,6 +151,16 @@ def validate_research_gold_benchmark_activation(
                         semantic_artifact_role=artifact_role,
                     )
                 )
+    with tempfile.TemporaryDirectory(prefix="ai-stat-gold-activation-") as value:
+        rows = [
+            _run_activation_candidate_suite(
+                task,
+                project_root=Path(__file__).resolve().parents[1],
+                sandbox_root=Path(value),
+            )
+            for task in benchmark["active_tasks"]
+            if task.get("activation_candidate_suite")
+        ]
     return {
         **descriptor,
         "activation_schema_version": schema_version,

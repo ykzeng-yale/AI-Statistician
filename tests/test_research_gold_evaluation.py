@@ -1965,6 +1965,7 @@ def test_schema_v4_activation_runs_long_form_negative_through_candidate_mode(
 
 def test_product_runtime_requires_frozen_schema_v4_semantic_activation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = _schema_v4_gold_manifest(tmp_path)
     manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -1978,6 +1979,14 @@ def test_product_runtime_requires_frozen_schema_v4_semantic_activation(
         semantic_calls += 1
         raise AssertionError("product preflight must not qualify the semantic judge")
 
+    def mechanical_runner(*_args, **_kwargs) -> dict:
+        raise AssertionError("product preflight must reject before mechanical execution")
+
+    monkeypatch.setattr(
+        gold_evaluation_module,
+        "_run_activation_candidate_suite",
+        mechanical_runner,
+    )
     with pytest.raises(
         ValueError,
         match="semantic activation is not frozen",
