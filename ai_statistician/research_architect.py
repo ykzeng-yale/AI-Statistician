@@ -95,13 +95,15 @@ def source_replication_checkpoint_allowed(
     question: OpenResearchQuestion,
     research_source_execution: ResearchSourceExecutionSpec | None,
 ) -> bool:
-    """Use a narrow source checkpoint whenever theory is not required."""
-
+    """Use a narrow source checkpoint only when downstream theory is excluded."""
     if research_source_execution is None:
         return False
+    requirements = research_dimension_requirements(question.task_intent)
+    theory = requirements.get("theory")
+    downstream = {requirements.get(d) for d in ("scientific_code", "empirical", "formal")}
     return bool(
         question.task_intent.get("source_replication") == "required"
-        and question.task_intent.get("theory") != "required"
+        and (theory == "not_applicable" or (theory == "optional" and downstream == {"not_applicable"}))
     )
 
 

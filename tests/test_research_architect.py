@@ -224,6 +224,19 @@ def test_source_replication_checkpoint_requires_non_theory_intent() -> None:
         task_intent={
             "source_replication": "required",
             "theory": "optional",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    ambiguous_optional_lanes = OpenResearchQuestion(
+        id="source-with-ambiguous-optional-lanes",
+        title="Source with ambiguous optional lanes",
+        description="Replicate a source without freezing later lane selection.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "optional",
             "unresolved_gaps": "required",
         },
     )
@@ -248,10 +261,35 @@ def test_source_replication_checkpoint_requires_non_theory_intent() -> None:
             "unresolved_gaps": "required",
         },
     )
+    source_optional_theory_and_code = OpenResearchQuestion(
+        id="source-optional-theory-and-code",
+        title="Source, optional theory, and code",
+        description="Replicate a source before deriving a scientific-code handoff.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "optional",
+            "scientific_code": "required",
+            "unresolved_gaps": "required",
+        },
+    )
 
     execution = object()
     assert source_replication_checkpoint_allowed(source_only, execution) is True
+    assert (
+        source_replication_checkpoint_allowed(
+            ambiguous_optional_lanes,
+            execution,
+        )
+        is False
+    )
     assert source_replication_checkpoint_allowed(source_and_code, execution) is True
+    assert (
+        source_replication_checkpoint_allowed(
+            source_optional_theory_and_code,
+            execution,
+        )
+        is False
+    )
     assert source_replication_checkpoint_allowed(source_only, None) is False
     assert source_replication_checkpoint_allowed(theory_required, execution) is False
 

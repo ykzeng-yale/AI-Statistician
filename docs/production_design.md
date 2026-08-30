@@ -72,7 +72,7 @@ Like Codex `run_turn`, a response without a tool call ends the workspace segment
 The graph imposes no universal research order. TheoryDeveloper chooses early
 Crossref/arXiv/GitHub queries and source handles; the harness owns hosts, source horizon,
 secrets, byte bounds, checkpoint-durable exact observations, identity, hashes, and citations, but not interpretation.
-Exact replication requires immutable operator-curated manifests; the retained Theory source owner runs it, audits raw observations and exact reads, then binds a Markdown report to a source checkpoint or an integrated Theory workspace.
+Exact replication requires immutable operator-curated manifests; the retained Theory source owner runs it, audits raw observations and exact reads, then uses a narrow checkpoint only when downstream task intent excludes Theory and otherwise binds the report into an integrated Theory workspace.
 For non-theory tasks that checkpoint is an immutable prerequisite to the already frozen code/simulation plan; for integrated tasks the report stays in full workspace evidence but is excluded from mathematical Theory authority. Algorithm and Simulation read the exact report on demand as replication evidence.
 Runtime externalizes hash references and rejects mutation; execution and report content cannot validate theory, generated code, simulation, or proof.
 
