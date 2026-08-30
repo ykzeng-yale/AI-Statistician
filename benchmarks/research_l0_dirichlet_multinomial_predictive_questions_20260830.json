@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "dirichlet_multinomial_posterior_predictive_known_result",
+      "title": "Dirichlet-multinomial posterior prediction and count covariance",
+      "description": "Focused integrated L0 known-result evaluation grounded in Mosimann (1962). Let theta=(theta_1,...,theta_K) have a Dirichlet prior with positive concentration alpha=(alpha_1,...,alpha_K), and let observed categorical counts n=(n_1,...,n_K) arise conditionally multinomial given theta. For a future sample of fixed size m, derive in one authoritative Markdown/LaTeX Theory workspace the posterior density and updated concentration, the integrated Dirichlet-multinomial predictive mass function, one-draw predictive probabilities, the predictive count mean vector, the full covariance matrix from total expectation and total covariance, the negative off-diagonal dependence imposed by the fixed total, the overdispersion relative to a plug-in multinomial, the m=1 categorical reduction, category-permutation equivariance, simplex conservation, and the multinomial limit when posterior concentration grows with proportions fixed. Expand every gamma ratio, denominator, sign, diagonal, and off-diagonal factor from common definitions. Distinguish posterior uncertainty in theta from conditional multinomial variation. Do not claim independence of future category counts, positive off-diagonal covariance, plug-in multinomial covariance at finite posterior concentration, asymptotic normality, exact credible-region coverage, empirical-Bayes validity, robustness to an estimated prior, source replication, novelty, or formal proof. The required model-authored Python artifact is est_dirichlet_multinomial_predictive and must implement the exact frozen run_estimator(request) contract. Exploratory Python or R may check normalization, covariance row sums, limiting cases, and simulated moments. A separately frozen confirmatory evaluator uses fresh hierarchical Dirichlet then multinomial draws, seeds and posterior configurations fixed before outcomes, and at least 4000 independent replicates per design. It checks exact executable identity, predictive means, count covariance, fixed-total conservation, and overdispersion with Monte Carlo uncertainty. These finite experiments test one implementation on frozen configurations and do not prove the mathematical result or extend its scope. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "bayesian_statistics",
+        "categorical_data",
+        "dirichlet_multinomial",
+        "posterior_predictive",
+        "python_language",
+        "L0"
+      ],
+      "source": {
+        "benchmark_mode": "known_result",
+        "model_visible_context": "published_authority_assumptions_closed_execution_contract_and_empirical_claims",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Mosimann (1962), DOI 10.1093/biomet/49.1-2.65",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_dirichlet_multinomial_predictive",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.prior_concentration",
+            "name": "prior_concentration",
+            "meaning": "The positive Dirichlet prior concentration vector alpha in category order.",
+            "json_type": "array[number]",
+            "shape": "One list of length 2 through 10 containing finite non-Boolean numbers in [0.05,10000], with total at most 50000.",
+            "units": "concentration",
+            "indexing": "Entry j belongs to the same category as observed_counts[j] and every returned vector or matrix index j.",
+            "edge_cases": "Reject Boolean, string, null, object, nested, empty, nonfinite, nonpositive, out-of-domain, overlength, or over-total values rather than coercing, clipping, dropping, sorting, or normalizing them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.observed_counts",
+            "name": "observed_counts",
+            "meaning": "The observed categorical counts n in the same category order as prior_concentration.",
+            "json_type": "array[integer]",
+            "shape": "One list with the same length as prior_concentration, containing exact non-Boolean integers in [0,1000000], with total at most 1000000.",
+            "units": "count",
+            "indexing": "Entry j updates prior_concentration[j]; an all-zero count vector is a valid prior-predictive case.",
+            "edge_cases": "Reject Boolean, floating, string, null, negative, oversized, nested, length-mismatched, or over-total values rather than coercing or rounding them.",
+            "binding": "per_replicate_data"
+          },
+          {
+            "clause_id": "request.future_sample_size",
+            "name": "future_sample_size",
+            "meaning": "The fixed number m of future categorical draws whose count vector is predicted.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [1,10000].",
+            "units": "count",
+            "indexing": "One sample size shared by the returned mean and covariance.",
+            "edge_cases": "Reject Boolean, floating, string, null, array, object, zero, negative, or oversized values rather than coercing or clipping them.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.posterior_concentration",
+            "name": "posterior_concentration",
+            "meaning": "The exact posterior concentration vector a_j=alpha_j+n_j.",
+            "json_type": "array[number]",
+            "shape": "One finite positive non-Boolean numeric list with the request category length.",
+            "units": "concentration",
+            "indexing": "Entry j corresponds to request category j.",
+            "edge_cases": "Return full floating-point precision without rounding, sorting, or normalization.",
+            "normalization": "Elementwise prior concentration plus observed count."
+          },
+          {
+            "clause_id": "response.posterior_total",
+            "name": "posterior_total",
+            "meaning": "The exact total A=sum_j a_j of posterior concentration.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "concentration",
+            "indexing": "One total shared by all categories.",
+            "edge_cases": "Do not substitute the observed count total or prior total alone.",
+            "normalization": "Sum of posterior_concentration."
+          },
+          {
+            "clause_id": "response.predictive_probabilities",
+            "name": "predictive_probabilities",
+            "meaning": "The one-draw posterior predictive probabilities p_j=a_j/A.",
+            "json_type": "array[number]",
+            "shape": "One finite strictly positive non-Boolean numeric list summing to one with the request category length.",
+            "units": "probability",
+            "indexing": "Entry j is the predictive probability of category j.",
+            "edge_cases": "Do not return a MAP estimate, prior proportions, observed proportions, or rounded probabilities.",
+            "normalization": "posterior_concentration divided elementwise by posterior_total."
+          },
+          {
+            "clause_id": "response.predictive_mean_counts",
+            "name": "predictive_mean_counts",
+            "meaning": "The posterior predictive mean count vector m p.",
+            "json_type": "array[number]",
+            "shape": "One finite nonnegative non-Boolean numeric list summing to future_sample_size with the request category length.",
+            "units": "count",
+            "indexing": "Entry j is the expected future count in category j.",
+            "edge_cases": "Do not normalize the mean counts to sum to one.",
+            "normalization": "future_sample_size times predictive_probabilities."
+          },
+          {
+            "clause_id": "response.predictive_covariance",
+            "name": "predictive_covariance",
+            "meaning": "The full Dirichlet-multinomial covariance of the future count vector.",
+            "json_type": "array[array[number]]",
+            "shape": "One finite symmetric square numeric matrix with request category rows and columns, nonnegative diagonal, nonpositive off-diagonal entries, and zero row sums up to floating-point error.",
+            "units": "squared count",
+            "indexing": "Entry [j][k] is Cov(M_j,M_k) in request category order.",
+            "edge_cases": "Do not return a correlation matrix, conditional plug-in multinomial covariance, positive off-diagonal covariance, a flattened vector, or only diagonal variances.",
+            "normalization": "With p_j=a_j/A and f=(A+m)/(A+1), diagonal m*f*p_j*(1-p_j) and off-diagonal -m*f*p_j*p_k."
+          },
+          {
+            "clause_id": "response.overdispersion_factor",
+            "name": "overdispersion_factor",
+            "meaning": "The finite-posterior concentration multiplier f=(A+m)/(A+1) relative to plug-in multinomial count covariance.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar at least one.",
+            "units": "dimensionless",
+            "indexing": "One factor shared by every covariance entry.",
+            "edge_cases": "Do not return its reciprocal, f-1, a category-specific value, or an intraclass correlation.",
+            "normalization": "(posterior_total+future_sample_size)/(posterior_total+1)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the three declared fields and the response exactly the six declared fields. Missing, extra, malformed, coercible-only, nonfinite, out-of-domain, dimension-mismatched, or over-total values are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_posterior_predictive_identity",
+            "meaning": "Every returned value follows from a=alpha+n, A=sum a, p=a/A, and the stated finite Dirichlet-multinomial mean, covariance, and overdispersion identities."
+          },
+          {
+            "clause_id": "invariant.simplex_and_fixed_total_conservation",
+            "meaning": "Predictive probabilities sum to one, predictive mean counts sum to m, and every covariance row and column sums to zero up to floating-point error because future counts total exactly m."
+          },
+          {
+            "clause_id": "invariant.category_permutation_equivariance",
+            "meaning": "Applying the same category permutation to prior_concentration and observed_counts applies that permutation to returned vectors and both covariance axes while leaving scalar outputs unchanged."
+          },
+          {
+            "clause_id": "invariant.posterior_pooling_identity",
+            "meaning": "Any valid transfer of exact nonnegative integer mass between observed_counts and prior_concentration that leaves every posterior concentration a_j unchanged leaves the complete response unchanged."
+          },
+          {
+            "clause_id": "invariant.single_trial_categorical_reduction",
+            "meaning": "When future_sample_size is one, overdispersion_factor is one and covariance reduces to diag(p)-p p^T for one categorical draw."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, read files, invoke subprocesses, or use the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen valid request, the candidate is compared with an independent exact implementation of posterior concentration, predictive probabilities, mean, covariance, and overdispersion."
+          },
+          {
+            "clause_id": "claim.empirical.hierarchical_mean",
+            "meaning": "Across fresh theta from the frozen posterior and fresh multinomial future counts conditional on theta, empirical mean counts are compared with the returned predictive mean using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.hierarchical_covariance",
+            "meaning": "Across the same fresh hierarchical draws, the empirical count covariance is compared with the full returned predictive covariance using a predeclared matrix-error bound."
+          },
+          {
+            "clause_id": "claim.empirical.fixed_total",
+            "meaning": "Every simulated future count vector has nonnegative integer entries summing exactly to future_sample_size, and empirical covariance respects the fixed-total null direction."
+          },
+          {
+            "clause_id": "claim.empirical.overdispersion",
+            "meaning": "For frozen designs with future_sample_size greater than one, empirical marginal count variation is compared with the finite-posterior overdispersion relative to plug-in multinomial variation."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Posterior configurations, category counts, future sample sizes, seeds, at least 4000 independent replicates per design, summaries, and acceptance bounds are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment assesses one implementation under finitely many conjugate Dirichlet-multinomial configurations only. It is not proof and does not validate estimated priors, empirical Bayes, misspecified categorical sampling, asymptotic normality, credible-region coverage, source replication, novelty, or formal closure."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite vector and matrix arithmetic and returns exactly one response without optimization, randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
