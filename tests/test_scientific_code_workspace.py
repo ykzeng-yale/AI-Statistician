@@ -1812,8 +1812,11 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
     assert window["checkpoint_identity"] == checkpoint["checkpoint_id"]
     assert window["prior_transcript_replayed"] is True
     assert result.evidence["transcript_policy"] == CLIENT_TOOL_TRANSCRIPT_POLICY
-    assert checkpoint["checkpoint_id"] in str(second_backend.requests[0].messages)
-    assert "submit-first" in str(second_backend.requests[0].messages)
+    resumed_messages = str(second_backend.requests[0].messages)
+    assert checkpoint["checkpoint_id"] in resumed_messages
+    assert "submit-first" in resumed_messages
+    assert "Continue the exact workspace." in resumed_messages
+    assert "Repair from exact execution feedback." not in resumed_messages
     assert len(second_backend.requests[0].messages) >= 3
 
     tampered = {**checkpoint, "current_code_draft_hash": "tampered"}

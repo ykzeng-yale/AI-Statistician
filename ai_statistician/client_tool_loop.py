@@ -264,9 +264,11 @@ ClientToolExecutor = Callable[
 CLIENT_TOOL_SESSION_KIND = "ClientToolWorkspaceSession"
 CLIENT_TOOL_SESSION_DIRECTORY = ".client_tool_sessions"
 CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY = "fresh_context_from_hash_bound_checkpoint_v1"
-CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY = "recent_complete_tool_rounds_from_hash_bound_checkpoint_v1"
+CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY = (
+    "current_context_with_recent_complete_tool_rounds_from_hash_bound_checkpoint_v2"
+)
 CLIENT_TOOL_RECENT_HISTORY_ROUNDS = 8
-CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_durable_recent_history_checkpoint_windows_v2"
+CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_current_context_checkpoint_windows_v3"
 CLIENT_TOOL_RESULT_MAX_CHARS = 60_000
 CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY = "client_tool_authorization_fingerprint"
 
@@ -507,6 +509,7 @@ def resume_client_tool_session_from_checkpoint(
     ) if replay_recent_tool_rounds else []
     replayed_messages = [message for pair in replayed_rounds for message in pair]
     replay_enabled = bool(replayed_messages)
+    current_opening = deepcopy(dict(messages[0]))
     window = {
         "policy": (
             CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY
@@ -526,6 +529,9 @@ def resume_client_tool_session_from_checkpoint(
         "replayed_messages_fingerprint": stable_hash(replayed_messages)
         if replayed_messages
         else "",
+        "parent_opening_replayed": False,
+        "current_opening_fingerprint": stable_hash(current_opening),
+        "current_opening_authoritative": True,
         "summary_used": False,
         "authoritative_state_source": "hash_bound_checkpoint_and_current_workspace_tools",
         "evidence_role": "conversation_lineage_not_scientific_evidence",
@@ -547,13 +553,11 @@ def resume_client_tool_session_from_checkpoint(
     if replay_enabled:
         if str(prior_messages[0].get("role", "") or "") != "user":
             raise ValueError("recent-history resume requires a parent initial user message")
-        current_content = deepcopy(messages[0].get("content", ""))
-        messages = [deepcopy(dict(prior_messages[0])), *replayed_messages]
+        messages = [current_opening, *replayed_messages]
         final_user = messages[-1]
         final_user["content"] = [
             *_client_tool_content_blocks(final_user.get("content", [])),
             {"type": "text", "text": notice},
-            *_client_tool_content_blocks(current_content),
         ]
         messages[-1] = final_user
     else:

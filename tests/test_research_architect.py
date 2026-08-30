@@ -2272,13 +2272,12 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
     assert Path(manifest_row["path"]).read_text(encoding="utf-8") == (
         document_content
     )
-    continuation_prompt = str(
-        [
-            message
-            for message in second_provider.tool_requests[0].messages
-            if message.get("role") == "user"
-        ][-1]["content"]
-    )
+    continuation_user_messages = [
+        message
+        for message in second_provider.tool_requests[0].messages
+        if message.get("role") == "user"
+    ]
+    continuation_prompt = str(continuation_user_messages[0]["content"])
     assert "Continue the existing document-backed" in continuation_prompt
     assert "prior_theory_progress_checkpoint" in continuation_prompt
     assert checkpoint["progress"]["next_step"] in str(
@@ -2808,13 +2807,12 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert "The bounded-outcome premise is not explicit." in str(
         first_provider.tool_requests[2].messages
     )
-    continuation_prompt = str(
-        [
-            message
-            for message in second_provider.tool_requests[0].messages
-            if message.get("role") == "user"
-        ][-1]["content"]
-    )
+    continuation_user_messages = [
+        message
+        for message in second_provider.tool_requests[0].messages
+        if message.get("role") == "user"
+    ]
+    continuation_prompt = str(continuation_user_messages[0]["content"])
     assert "prior_theory_progress_checkpoint" in continuation_prompt
     assert checkpoint["progress"]["next_step"] in str(
         second_provider.tool_requests[1].messages

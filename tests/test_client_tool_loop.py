@@ -300,7 +300,7 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
     ]
     assert window["prior_transcript_replayed"] is False
     assert window["summary_used"] is False
-    assert CLIENT_TOOL_TRANSCRIPT_POLICY.endswith("checkpoint_windows_v2")
+    assert CLIENT_TOOL_TRANSCRIPT_POLICY.endswith("checkpoint_windows_v3")
     with pytest.raises(ValueError, match="requires checkpoint identity"):
         resume_client_tool_session_from_checkpoint(
             reference,
@@ -324,9 +324,9 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
 
 
 def test_checkpoint_window_replays_recent_complete_tool_rounds(tmp_path) -> None:
-    request = _request()
+    parent_request = _request()
     prior_messages = (
-        *request.messages,
+        *parent_request.messages,
         {
             "role": "assistant",
             "content": [
@@ -353,8 +353,17 @@ def test_checkpoint_window_replays_recent_complete_tool_rounds(tmp_path) -> None
     reference = persist_client_tool_session(
         session_dir=tmp_path,
         session_id="theory:q1",
-        request=request,
+        request=parent_request,
         messages=prior_messages,
+    )
+    current_request = replace(
+        parent_request,
+        messages=(
+            {
+                "role": "user",
+                "content": "Continue from the current checkpoint catalog.",
+            },
+        ),
     )
 
     resumed_request, window = resume_client_tool_session_from_checkpoint(
@@ -362,7 +371,7 @@ def test_checkpoint_window_replays_recent_complete_tool_rounds(tmp_path) -> None
         session_dir=tmp_path,
         session_id="theory:q1",
         checkpoint_identity="theory-checkpoint:q1",
-        request=request,
+        request=current_request,
         replay_recent_tool_rounds=1,
     )
 
@@ -371,15 +380,20 @@ def test_checkpoint_window_replays_recent_complete_tool_rounds(tmp_path) -> None
     assert window["replayed_tool_rounds"] == 1
     assert window["replayed_message_count"] == 2
     assert window["replayed_messages_fingerprint"]
+    assert window["parent_opening_replayed"] is False
+    assert window["current_opening_authoritative"] is True
+    assert window["current_opening_fingerprint"]
     assert len(resumed_request.messages) == 3
     assert [row["role"] for row in resumed_request.messages] == [
         "user",
         "assistant",
         "user",
     ]
+    assert resumed_request.messages[0] == current_request.messages[0]
     resumed_text = str(resumed_request.messages)
     assert "prior-complete-call" in resumed_text
-    assert "Repair the artifact." in resumed_text
+    assert "Continue from the current checkpoint catalog." in resumed_text
+    assert "Repair the artifact." not in resumed_text
     assert "budget counters in them belong to the old window" in resumed_text
 
 
