@@ -11699,21 +11699,29 @@ class AlgorithmEngineerRuntimeSubsystem:
                 )
             if not isinstance(deferred_metric_protocol_payload, Mapping):
                 pre_metric_contract_errors.append(
-                    "pre-metric implementation requires a deferred evaluator task"
+                    "pre-metric implementation requires a deferred continuation task"
                 )
                 deferred_metric_protocol_payload = {}
             deferred_owner = str(
                 deferred_metric_protocol_payload.get("owner_subsystem", "") or ""
             )
             deferred_inputs = deferred_metric_protocol_payload.get("inputs", {})
-            executable_evaluator_continuation = bool(
-                deferred_owner == "SimulationEvaluator"
-                and isinstance(deferred_inputs, Mapping)
-                and deferred_inputs.get("evaluator_source_authoring") is True
+            deferred_inputs = dict(deferred_inputs) if isinstance(deferred_inputs, Mapping) else {}
+            preflight_feedback = context.get("environment_feedback", {})
+            preflight_feedback = preflight_feedback if isinstance(preflight_feedback, Mapping) else {}
+            executable_evaluator_continuation = deferred_owner == "SimulationEvaluator" and deferred_inputs.get("evaluator_source_authoring") is True
+            provisional_theory_continuation = bool(
+                deferred_owner == "TheoryDeveloper" and deferred_inputs.get("exploratory_implementation_theory_revision") is True
+                and preflight_feedback.get("artifact_kind") == "RuntimeArchitectTheoryExecutionPreflightAcceptedObservation"
+                and str(deferred_inputs.get("theory_preflight_packet_id", "") or "")
+                and str(deferred_inputs.get("theory_preflight_packet_id", "") or "")
+                == str(preflight_feedback.get("preflight_packet_id", "") or "")
+                and preflight_feedback.get("theory_quality_accepted") is False
+                and preflight_feedback.get("exploratory_execution_ready") is True
             )
-            if not executable_evaluator_continuation:
+            if not (executable_evaluator_continuation or provisional_theory_continuation):
                 pre_metric_contract_errors.append(
-                    "pre-metric deferred task must author executable evaluator source"
+                    "pre-metric deferred task does not match the preflight-authorized continuation"
                 )
             metric_gate = context.get("architect_metric_protocol_gate", {})
             if not (

@@ -910,7 +910,9 @@ def test_accepted_theory_only_preflight_compiles_without_empirical_gate() -> Non
     assert observation["runtime_authored_research_route"] is False
 
 
-def test_provisional_theory_handoff_routes_exploration_without_theory_credit() -> None:
+def test_provisional_theory_handoff_routes_exploration_without_theory_credit(
+    tmp_path: Path,
+) -> None:
     question = OpenResearchQuestion(
         id="provisional-theory-handoff",
         title="Provisional theory handoff",
@@ -927,6 +929,7 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit() -
         "artifact_kind": "TheoryDerivationPacket",
         "packet_id": theory_packet_id,
         "question": runtime_module._question_to_payload(question),
+        "estimator_specs": [{"id": "exploratory-estimator"}],
     }
     theory_packet_hash = runtime_module.stable_hash(theory_packet)
     contract = runtime_module._runtime_requested_evidence_contract(
@@ -1021,6 +1024,46 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit() -
         theory_packet_id=theory_packet_id,
         theory_packet=theory_packet,
     ) is False
+
+    class AlgorithmWorkspaceReached(RuntimeError):
+        pass
+
+    class ProposalAgent:
+        @staticmethod
+        def propose(**_kwargs):
+            raise AlgorithmWorkspaceReached
+
+    forged_payload = deepcopy(result.next_task.inputs["deferred_metric_protocol_task"])
+    forged_payload["inputs"]["theory_preflight_packet_id"] = "theory_preflight:forged"
+    forged_task = replace(
+        result.next_task,
+        inputs={
+            **result.next_task.inputs,
+            "deferred_metric_protocol_task": forged_payload,
+        },
+    )
+    rejected = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "forged-algorithm",
+        n_runs=8,
+        seed=7,
+        proposal_agent=ProposalAgent(),
+    ).run(
+        forged_task,
+        BlackboardState(project_id=question.id, artifacts=artifacts),
+    )
+    assert rejected.status == "BLOCKED"
+    assert rejected.failure_classification == "algorithm_pre_metric_execution_contract_invalid"
+
+    with pytest.raises(AlgorithmWorkspaceReached):
+        runtime_module.AlgorithmEngineerRuntimeSubsystem(
+            out_dir=tmp_path / "algorithm",
+            n_runs=8,
+            seed=7,
+            proposal_agent=ProposalAgent(),
+        ).run(
+            result.next_task,
+            BlackboardState(project_id=question.id, artifacts=artifacts),
+        )
 
     class NoEvaluatorCall:
         @staticmethod
