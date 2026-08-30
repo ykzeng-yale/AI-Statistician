@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "iid_sample_quantile_bahadur_known_theory_rederivation",
+      "title": "Bahadur linearization and asymptotic normality of an iid sample quantile",
+      "description": "Focused known-result theory rederivation grounded in R. R. Bahadur, A Note on Quantiles in Large Samples, Annals of Mathematical Statistics 37(3), 1966, pages 577-580, DOI 10.1214/aoms/1177699450. Let X_1,...,X_n be iid with distribution function F. Fix p in (0,1), define q_p=inf{x:F(x)>=p}, F_n(x)=n^{-1} sum_i 1{X_i<=x}, and the left empirical quantile qhat_{n,p}=inf{x:F_n(x)>=p}. Assume q_p is the unique p-quantile, F is differentiable in a neighborhood of q_p with derivative f continuous at q_p, and 0<f(q_p)<infinity. In one authoritative Markdown/LaTeX theory workspace, derive rather than merely quote the first-order Bahadur representation qhat_{n,p}-q_p=(p-F_n(q_p))/f(q_p)+o_p(n^{-1/2}). Explain the empirical-quantile inequalities, prove consistency, establish qhat_{n,p}-q_p=O_p(n^{-1/2}), and justify the local empirical-process increment needed to replace (F_n-F)(qhat_{n,p}) by (F_n-F)(q_p) at first order. Preserve the sign and distinguish deterministic Taylor remainders from stochastic empirical-process remainders. Then use the Bernoulli central limit theorem and Slutsky's theorem to derive sqrt(n)(qhat_{n,p}-q_p) converging in distribution to N(0,p(1-p)/f(q_p)^2), and identify the asymptotic influence function [p-1{x<=q_p}]/f(q_p). As complete sanity checks, specialize to Uniform(0,1), obtaining asymptotic variance p(1-p), and to the sample median from N(mu,sigma^2), obtaining asymptotic variance pi sigma^2/2 and asymptotic relative efficiency 2/pi against the sample mean under the stated normal model. Explain why uniqueness and positive finite local density matter, and distinguish this pointwise in-p weak representation from an almost-sure Bahadur remainder rate, a uniform quantile-process theorem, dependent observations, extreme or drifting p, nonsmooth or atomic F, bootstrap validity, confidence coverage, code execution, simulation validation, Lean proof, source replication, and novelty, none of which is established here. State imported empirical-process results and unresolved gaps honestly. This L3 task evaluates persistent mathematical derivation and independent review only; scientific code, empirical simulation, formalization, source replication, and novelty are not applicable.",
+      "tags": [
+        "sample quantile",
+        "Bahadur representation",
+        "empirical process",
+        "asymptotic linearity",
+        "influence function",
+        "known result",
+        "theory only",
+        "L3"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "title": "A Note on Quantiles in Large Samples",
+        "author": "R. R. Bahadur",
+        "journal": "The Annals of Mathematical Statistics",
+        "year": 1966,
+        "volume": 37,
+        "issue": 3,
+        "pages": "577-580",
+        "doi": "10.1214/aoms/1177699450",
+        "url": "https://doi.org/10.1214/aoms/1177699450",
+        "open_access_url": "https://projecteuclid.org/journals/annals-of-mathematical-statistics/volume-37/issue-3/A-Note-on-Quantiles-in-Large-Samples/10.1214/aoms/1177699450.full"
+      }
+    }
+  ]
+}
