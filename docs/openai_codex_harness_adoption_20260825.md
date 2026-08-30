@@ -1,6 +1,6 @@
 # OpenAI Codex Harness Adoption
 
-Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `0a12b855`](https://github.com/openai/codex/tree/0a12b855a0b21068108a8a3b311d492712737e0f), Apache-2.0. Since `28327355`, the relevant change separates Guardian user-authorization revision from history compaction; the inspected turn loop, ToolRouter, detached review, multi-agent, and App Server surfaces are unchanged.
+Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `cefa0606`](https://github.com/openai/codex/tree/cefa060695594cdeebfb4306170cc27487c8a088), Apache-2.0. Since `0a12b855`, only the first Node REPL `js` execution gained a narrow asynchronous-Guardian fast path; AI Statistician has no analogous cold-start reviewer and adopts no first-execution bypass. The inspected turn loop, ToolRouter, detached review, multi-agent, and App Server surfaces are otherwise unchanged.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -54,10 +54,10 @@ without duplicating the control plane.
    argument validation, and terminal disposition must agree. A prose example is not
    a second enum. This is the direct lesson from Task108's Critic transport failure
    and Codex's separation of tool specifications from registered runtimes.
-10. **Authorization and conversation lineage are distinct.** Compaction or model-owned
-    replanning cannot create or change operator authority. Automatic continuation
-    keeps its exact parent transcript and checkpoint lineage; new user intent,
-    reviewer feedback, or external observations retain separate typed provenance.
+10. **Authorization and conversation lineage are distinct.** A root fingerprint binds
+    the exact question and runtime-owned operator requirements, excluding a propagated
+    model plan. Compaction, replanning, review, and environment feedback keep typed
+    provenance but cannot silently create or change operator authority.
 11. **Execution success is observation, not semantic authority.** Codex's detached
     review contract requires a demonstrated defect, and Guardian treats transcript,
     tool arguments, and tool results as untrusted evidence. AI Statistician applies
@@ -77,7 +77,7 @@ without duplicating the control plane.
 | function-call output returned to the model | `ClientToolExecutionResult` appended to the same Anthropic message history |
 | model-actionable versus fatal tool failure | `ClientToolInputError` versus `ClientToolRuntimeError` |
 | external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches |
-| thread persistence and context windows | content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
+| thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
 | request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over the configured workspace inventory, plus the sole typed `AgentRuntime` and artifact references |
@@ -87,8 +87,8 @@ without duplicating the control plane.
 `client_tool_loop.py` is the shared inner harness. Theory, scientific coding,
 Simulation, Lean, and isolated reviewers configure domain tools and terminal actions;
 they do not implement competing agent loops. The session contract fingerprint binds
-the exact model, system prompt, tool schemas, sampling settings, and workspace
-identity before a checkpoint can resume.
+the exact model, system prompt, tool schemas, sampling settings, workspace identity,
+and root authorization fingerprint before a checkpoint can resume.
 Hidden semantic evaluator qualification follows the same lifecycle separation: it
 runs in an evaluator-owned session and is written as a hash-bound activation record.
 The product CLI verifies and reuses that record before runtime; it cannot qualify a
@@ -235,12 +235,13 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Authorization revision surviving compaction](https://github.com/openai/codex/commit/0a12b855a0b21068108a8a3b311d492712737e0f)
-- [App Server protocol](https://github.com/openai/codex/blob/0a12b855a0b21068108a8a3b311d492712737e0f/codex-rs/app-server/README.md)
+- [First Node REPL execution while Guardian classifies asynchronously](https://github.com/openai/codex/commit/cefa060695594cdeebfb4306170cc27487c8a088)
+- [App Server protocol](https://github.com/openai/codex/blob/cefa060695594cdeebfb4306170cc27487c8a088/codex-rs/app-server/README.md)
 - [Unrolling the Codex agent loop](https://openai.com/index/unrolling-the-codex-agent-loop/)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

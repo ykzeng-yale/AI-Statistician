@@ -2553,6 +2553,7 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
     assert checkpoint["checks"] == 2
     session_ref = checkpoint["client_tool_session_ref"]
     assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
+    assert session_ref["authorization_fingerprint"]
 
     second_backend = ScriptedLeanToolBackend(
         [

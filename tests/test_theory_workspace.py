@@ -1424,6 +1424,7 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     ).parts
     session_ref = checkpoint["client_tool_session_ref"]
     assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
+    assert session_ref["authorization_fingerprint"]
     artifacts, documents = load_theory_progress_checkpoint_state(
         checkpoint,
         question_id="q1",

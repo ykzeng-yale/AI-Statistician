@@ -1538,6 +1538,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
     assert checkpoint["resumable"] is True
     session_ref = checkpoint["client_tool_session_ref"]
     assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
+    assert session_ref["authorization_fingerprint"]
 
     second_backend = ScriptedScientificBackend(
         [

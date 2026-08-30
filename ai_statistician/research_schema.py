@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal, Mapping
 
 from .estimator_interface_contract import frozen_estimator_execution_contract_errors
+from .fingerprint import stable_hash
 
 
 RESEARCH_EVIDENCE_DIMENSIONS = (
@@ -80,34 +81,27 @@ def frozen_formal_target_contract_errors(
     return errors
 
 
-def research_dimension_requirements(
-    task_intent: Mapping[str, Any] | None,
-) -> dict[str, str]:
-    """Return the complete research-evidence contract for an explicit task intent.
-
-    An empty mapping means the caller is using the legacy evaluation profile. Once
-    an operator supplies any task intent, omitted research dimensions are optional
-    rather than silently becoming mandatory.
-    """
-
-    if not task_intent:
-        return {}
+def _normalized_task_intent(task_intent: Mapping[str, Any]) -> dict[str, str]:
     normalized = {
         str(dimension): str(requirement).strip().lower()
         for dimension, requirement in task_intent.items()
     }
-    invalid = sorted(
-        {
-            requirement
-            for requirement in normalized.values()
-            if requirement not in TASK_INTENT_REQUIREMENTS
-        }
-    )
+    invalid = sorted(set(normalized.values()) - TASK_INTENT_REQUIREMENTS)
     if invalid:
         raise ValueError(
             "task_intent requirements must be required, optional, or "
             "not_applicable; invalid=" + ", ".join(invalid)
         )
+    return normalized
+
+
+def research_dimension_requirements(
+    task_intent: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    """Complete an explicit operator contract; empty retains legacy evaluation."""
+    if not task_intent:
+        return {}
+    normalized = _normalized_task_intent(task_intent)
     return {
         dimension: normalized.get(dimension, "optional")
         for dimension in RESEARCH_EVIDENCE_DIMENSIONS
@@ -121,29 +115,12 @@ def research_task_intent_requirement(
     default: str = "optional",
 ) -> str:
     """Return one validated task-intent requirement outside the core four lanes."""
-
     normalized_default = str(default).strip().lower()
     if normalized_default not in TASK_INTENT_REQUIREMENTS:
         raise ValueError("default task-intent requirement is invalid")
     if not task_intent:
         return normalized_default
-    normalized = {
-        str(key): str(value).strip().lower()
-        for key, value in task_intent.items()
-    }
-    invalid = sorted(
-        {
-            requirement
-            for requirement in normalized.values()
-            if requirement not in TASK_INTENT_REQUIREMENTS
-        }
-    )
-    if invalid:
-        raise ValueError(
-            "task_intent requirements must be required, optional, or "
-            "not_applicable; invalid=" + ", ".join(invalid)
-        )
-    return normalized.get(str(dimension), normalized_default)
+    return _normalized_task_intent(task_intent).get(str(dimension), normalized_default)
 
 
 @dataclass(frozen=True)
@@ -183,6 +160,27 @@ def research_question_payload(
             question.formal_target_contract
         )
     return payload
+
+
+def research_workspace_authorization_fingerprint(
+    question: OpenResearchQuestion, runtime_context: Mapping[str, Any] | None,
+    workspace_identity: Mapping[str, Any],
+) -> str:
+    """Bind a retained workspace to root intent without freezing model planning."""
+    context = runtime_context if isinstance(runtime_context, Mapping) else {}
+    dimensions: dict[str, str] = {}
+    for scope in (context, context.get("architect_context", {})):
+        contract = scope.get("runtime_requested_evidence_contract", {}) if isinstance(scope, Mapping) else {}
+        raw = contract.get("dimension_requirements", {}) if isinstance(contract, Mapping) else {}
+        if isinstance(raw, Mapping) and raw:
+            dimensions = research_dimension_requirements(raw)
+            break
+    return stable_hash({
+        "schema_version": 1,
+        "question": research_question_payload(question, include_task_intent=False),
+        "operator_frozen_dimension_requirements": dimensions,
+        "workspace_identity": deepcopy(dict(workspace_identity)),
+    })
 
 
 def load_open_research_questions(path: Path) -> list[OpenResearchQuestion]:

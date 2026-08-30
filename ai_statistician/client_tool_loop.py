@@ -268,6 +268,13 @@ CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY = "recent_complete_tool_rounds_from_has
 CLIENT_TOOL_RECENT_HISTORY_ROUNDS = 8
 CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_durable_recent_history_checkpoint_windows_v2"
 CLIENT_TOOL_RESULT_MAX_CHARS = 60_000
+CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY = "client_tool_authorization_fingerprint"
+
+
+def client_tool_authorization_fingerprint(
+    metadata: Mapping[str, Any] | None,
+) -> str:
+    return str((metadata or {}).get(CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY, "") or "").strip()
 
 
 def _client_tool_ids(content: Any, *, kind: str, identity: str) -> set[str]:
@@ -320,7 +327,7 @@ def client_tool_session_contract_fingerprint(
 
     return stable_hash(
         {
-            "contract_schema_version": 3,
+            "contract_schema_version": 4,
             "model": request.model,
             "system_prompt": request.system_prompt,
             "max_tokens": request.max_tokens,
@@ -328,6 +335,7 @@ def client_tool_session_contract_fingerprint(
             "tool_choice": request.tool_choice,
             "disable_parallel_tool_use": request.disable_parallel_tool_use,
             "enable_prompt_caching": request.enable_prompt_caching,
+            "authorization_fingerprint": client_tool_authorization_fingerprint(request.metadata),
             "tools": [asdict(tool) for tool in request.tools],
         }
     )
@@ -355,12 +363,14 @@ def persist_client_tool_session(
     session_contract_fingerprint = client_tool_session_contract_fingerprint(
         request
     )
+    authorization_fingerprint = client_tool_authorization_fingerprint(request.metadata)
     body = {
         "schema_version": 2,
         "artifact_kind": CLIENT_TOOL_SESSION_KIND,
         "session_id": normalized_session_id,
         "root_path": str(root),
         "session_contract_fingerprint": session_contract_fingerprint,
+        "authorization_fingerprint": authorization_fingerprint,
         "transcript_fingerprint": transcript_fingerprint,
         "message_count": len(normalized_messages),
         "messages": normalized_messages,
@@ -395,6 +405,7 @@ def persist_client_tool_session(
         "message_count": len(normalized_messages),
         "transcript_fingerprint": transcript_fingerprint,
         "session_contract_fingerprint": session_contract_fingerprint,
+        "authorization_fingerprint": authorization_fingerprint,
     }
 
 
@@ -410,6 +421,7 @@ def load_client_tool_session(
     ref = dict(reference)
     normalized_session_id = str(session_id or "").strip()
     expected_contract = client_tool_session_contract_fingerprint(request)
+    expected_authorization = client_tool_authorization_fingerprint(request.metadata)
     root = session_dir.resolve()
     relative_path = PurePosixPath(str(ref.get("relative_path", "") or ""))
     if (
@@ -419,6 +431,8 @@ def load_client_tool_session(
         or str(ref.get("root_path", "") or "") != str(root)
         or str(ref.get("session_contract_fingerprint", "") or "")
         != expected_contract
+        or str(ref.get("authorization_fingerprint", "") or "")
+        != expected_authorization
         or relative_path.is_absolute()
         or not relative_path.parts
         or relative_path.parts[0] != CLIENT_TOOL_SESSION_DIRECTORY
@@ -440,6 +454,7 @@ def load_client_tool_session(
         and payload.get("session_id") == normalized_session_id
         and payload.get("root_path") == str(root)
         and payload.get("session_contract_fingerprint") == expected_contract
+        and payload.get("authorization_fingerprint") == expected_authorization
         and isinstance(messages, list)
         and messages
         and all(isinstance(message, Mapping) for message in messages)
@@ -469,6 +484,11 @@ def resume_client_tool_session_from_checkpoint(
         raise ValueError("checkpoint-window resume requires checkpoint identity")
     if replay_recent_tool_rounds < 0:
         raise ValueError("recent tool-round replay count cannot be negative")
+    authorization_fingerprint = client_tool_authorization_fingerprint(request.metadata)
+    if not authorization_fingerprint:
+        raise ValueError(
+            "checkpoint-window resume requires a root authorization fingerprint"
+        )
     prior_messages = load_client_tool_session(
         reference,
         session_dir=session_dir,
@@ -499,6 +519,7 @@ def resume_client_tool_session_from_checkpoint(
         ),
         "parent_message_count": len(prior_messages),
         "checkpoint_identity": normalized_checkpoint_identity,
+        "authorization_fingerprint": authorization_fingerprint,
         "prior_transcript_replayed": replay_enabled,
         "replayed_tool_rounds": len(replayed_rounds),
         "replayed_message_count": len(replayed_messages),

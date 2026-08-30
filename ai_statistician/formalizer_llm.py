@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .client_tool_loop import CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY
 from .fingerprint import stable_hash
 from .formal_source_prompt_context import (
     compact_formal_source_grounding_hits_for_prompt,
@@ -30,7 +31,10 @@ from .model_backend import (
     GeneratorRequest,
     resolve_generator_model,
 )
-from .research_schema import OpenResearchQuestion
+from .research_schema import (
+    OpenResearchQuestion,
+    research_workspace_authorization_fingerprint,
+)
 from .semantic_review_feedback import (
     PRESCRIPTIVE_REPAIR_FIELDS,
     coding_agent_observations_only,
@@ -370,6 +374,10 @@ class LLMFormalizerProofEngineerAgent:
             session_dir=session_dir,
             authoritative_theory_document_rows=theory_document_rows,
             request_metadata={
+                CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: research_workspace_authorization_fingerprint(
+                    question, environment_feedback, {"subsystem": "FormalizationEvaluator",
+                                                      "candidate_id": candidate_id, "theory_document_set_hash": theory_document_set_hash},
+                ),
                 "subsystem": "FormalizerProofEngineer",
                 "agent": "LLMFormalizerProofEngineerAgent",
                 "formalizer_phase": (

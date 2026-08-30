@@ -16,12 +16,14 @@ from .agent_runtime import (
     runtime_artifact_reference,
 )
 from .client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
     apply_model_exact_text_edits,
+    client_tool_authorization_fingerprint,
     model_exact_text_edit_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
@@ -33,7 +35,11 @@ from .model_backend import (
     ClientToolTurnRequest,
     resolve_generator_model,
 )
-from .research_schema import OpenResearchQuestion, research_question_payload
+from .research_schema import (
+    OpenResearchQuestion,
+    research_question_payload,
+    research_workspace_authorization_fingerprint,
+)
 from .research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
@@ -152,6 +158,8 @@ class ScientificCodeWorkspaceAgent:
             context_documents=context_documents,
             research_sources=research_sources,
             request_metadata={
+                CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: research_workspace_authorization_fingerprint(
+                    question, workspace_context, {"subsystem": self.scientific_workspace_subsystem, "artifact_id": artifact_id}),
                 "subsystem": self.scientific_workspace_subsystem,
                 "agent": self.scientific_workspace_agent,
                 "phase": "scientific_code_workspace",
@@ -2203,6 +2211,7 @@ def run_scientific_code_workspace(
 
         raise ClientToolInputError("unsupported scientific code workspace tool")
 
+    root_authorization_fingerprint = client_tool_authorization_fingerprint(request_metadata) or stable_hash(["scientific", artifact_id])
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
         messages=(
@@ -2256,6 +2265,9 @@ def run_scientific_code_workspace(
         enable_prompt_caching=True,
         metadata={
             **dict(request_metadata or {}),
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: (
+                root_authorization_fingerprint
+            ),
             "model_tier": model_tier,
             "artifact_id": artifact_id,
             "parent_code_draft_hash": parent_hash,

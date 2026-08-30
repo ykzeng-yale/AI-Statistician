@@ -7,6 +7,7 @@ from dataclasses import replace
 import pytest
 
 from ai_statistician.client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY,
     CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
@@ -110,7 +111,10 @@ def _request() -> ClientToolTurnRequest:
             _tool("submit", terminal=True),
         ),
         model="claude-haiku-4-5-20251001",
-        metadata={"model_tier": "haiku"},
+        metadata={
+            "model_tier": "haiku",
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: "auth:q1:v1",
+        },
     )
 
 
@@ -230,6 +234,7 @@ def test_client_tool_session_roundtrips_exact_transcript(tmp_path) -> None:
     assert reference["message_count"] == len(messages)
     assert reference["root_path"] == str(tmp_path.resolve())
     assert reference["relative_path"].startswith(".client_tool_sessions/")
+    assert reference["authorization_fingerprint"] == "auth:q1:v1"
     assert load_client_tool_session(
         reference,
         session_dir=tmp_path,
@@ -289,6 +294,7 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
     assert window["policy"] == CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
     assert window["parent_message_count"] == len(prior_messages)
     assert window["checkpoint_identity"] == "theory-checkpoint:q1"
+    assert window["authorization_fingerprint"] == "auth:q1:v1"
     assert window["parent_transcript_fingerprint"] == reference[
         "transcript_fingerprint"
     ]
@@ -302,6 +308,18 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
             session_id="theory:q1",
             checkpoint_identity="",
             request=request,
+        )
+    missing_authorization = replace(
+        request,
+        metadata={"model_tier": "haiku"},
+    )
+    with pytest.raises(ValueError, match="root authorization fingerprint"):
+        resume_client_tool_session_from_checkpoint(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            checkpoint_identity="theory-checkpoint:q1",
+            request=missing_authorization,
         )
 
 
@@ -374,13 +392,28 @@ def test_client_tool_session_rejects_contract_drift_and_tampering(tmp_path) -> N
         messages=request.messages,
     )
 
-    changed_model = replace(request, model="claude-sonnet-4-20250514")
+    changed_sampling = replace(request, max_tokens=request.max_tokens + 1)
     with pytest.raises(ValueError, match="identity mismatch"):
         load_client_tool_session(
             reference,
             session_dir=tmp_path,
             session_id="theory:q1",
-            request=changed_model,
+            request=changed_sampling,
+        )
+
+    changed_authorization = replace(
+        request,
+        metadata={
+            **dict(request.metadata),
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: "auth:q1:v2",
+        },
+    )
+    with pytest.raises(ValueError, match="identity mismatch"):
+        load_client_tool_session(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            request=changed_authorization,
         )
 
     changed_tools = replace(

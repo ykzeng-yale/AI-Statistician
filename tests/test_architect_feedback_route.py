@@ -45,7 +45,10 @@ from ai_statistician.research_agent_runtime import (
     _architect_initial_routing_decision,
     _runtime_requested_evidence_contract,
 )
-from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.research_schema import (
+    OpenResearchQuestion,
+    research_workspace_authorization_fingerprint,
+)
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
 )
@@ -555,6 +558,28 @@ def test_model_owned_capability_plan_remains_revisable_across_replan() -> None:
     assert routing["task"].inputs["question"]["task_intent"] == (
         revised_dimensions
     )
+    identity = {"subsystem": "TheoryDeveloper", "workspace_id": "theory:q1"}
+    first_authorization = research_workspace_authorization_fingerprint(
+        question, runtime_context=context, workspace_identity=identity
+    )
+    assert research_workspace_authorization_fingerprint(
+        propagated_question, runtime_context=context, workspace_identity=identity
+    ) == first_authorization
+    frozen_context = {
+        "runtime_requested_evidence_contract": _runtime_requested_evidence_contract(
+            formal_verification_policy="optional",
+            evaluation_mode="research_eval",
+            task_intent=first_dimensions,
+        )
+    }
+    assert research_workspace_authorization_fingerprint(
+        question, runtime_context=frozen_context, workspace_identity=identity
+    ) != first_authorization
+    assert research_workspace_authorization_fingerprint(
+        replace(question, description=question.description + " Changed."),
+        runtime_context=context,
+        workspace_identity=identity,
+    ) != first_authorization
 
 
 def test_operator_required_formal_lane_overrides_unfrozen_model_plan() -> None:

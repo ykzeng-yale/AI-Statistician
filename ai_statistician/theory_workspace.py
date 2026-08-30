@@ -9,12 +9,14 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
     apply_model_exact_text_edits,
+    client_tool_authorization_fingerprint,
     model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
@@ -1930,6 +1932,7 @@ def run_theory_artifact_workspace(
         if allow_source_replication_checkpoint
         else ""
     )
+    root_authorization_fingerprint = client_tool_authorization_fingerprint(request_metadata) or stable_hash(["theory", workspace_id, question_id])
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
         messages=(
@@ -2053,6 +2056,9 @@ def run_theory_artifact_workspace(
         enable_prompt_caching=True,
         metadata={
             **dict(request_metadata or {}),
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: (
+                root_authorization_fingerprint
+            ),
             "model_tier": model_tier,
             "workspace_id": workspace_id,
             "question_id": question_id,

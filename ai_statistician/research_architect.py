@@ -8,7 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from .client_tool_loop import read_hash_bound_utf8_file
+from .client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
+    read_hash_bound_utf8_file,
+)
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
@@ -34,6 +37,7 @@ from .research_schema import (
     OpenResearchQuestion,
     research_dimension_requirements,
     research_question_payload,
+    research_workspace_authorization_fingerprint,
 )
 from .research_source_library import (
     ResearchSourceExecutionSpec,
@@ -378,6 +382,7 @@ class LLMTheoryDeveloperAgent:
                 provider_name=self.config.provider_name,
                 question=question,
                 revision_inputs=revision_inputs,
+                root_authorization_context=context,
                 request_model=request_model,
                 model_tier=effective_model_tier,
                 base_model_tier=self.config.model_tier,
@@ -1919,84 +1924,24 @@ def _legacy_structured_derivation_errors(
     derivation: Mapping[str, Any],
 ) -> list[str]:
     errors: list[str] = []
-    derivation_steps = derivation.get("derivation_steps", [])
-    if not isinstance(derivation_steps, list) or not derivation_steps:
-        errors.append(
-            "theory_derivation_packet.derivation_steps must be a non-empty list"
-        )
-    else:
-        for idx, row in enumerate(derivation_steps, start=1):
+    required_fields = {
+        "derivation_steps": ("id", "claim", "equation_or_argument"),
+        "equation_chain": ("lhs", "rhs", "justification"),
+        "assumption_ledger": ("assumption", "used_in"),
+        "sanity_checks": ("id", "claim_ref", "check_type", "recomputation", "result"),
+    }
+    for field, fields in required_fields.items():
+        rows = derivation.get(field, [])
+        if not isinstance(rows, list) or not rows:
+            errors.append(f"theory_derivation_packet.{field} must be a non-empty list")
+            continue
+        for index, row in enumerate(rows):
             if not isinstance(row, Mapping):
-                errors.append(
-                    "theory_derivation_packet.derivation_steps entries must be objects"
-                )
+                errors.append(f"theory_derivation_packet.{field}[{index}] must be an object")
                 continue
-            if not str(row.get("id", "")).strip():
-                errors.append(f"derivation step {idx} missing id")
-            if not str(row.get("claim", "")).strip():
-                errors.append(f"derivation step {idx} missing claim")
-            if not str(row.get("equation_or_argument", "")).strip():
-                errors.append(f"derivation step {idx} missing equation_or_argument")
-    equation_chain = derivation.get("equation_chain", [])
-    if not isinstance(equation_chain, list) or not equation_chain:
-        errors.append(
-            "theory_derivation_packet.equation_chain must be a non-empty list"
-        )
-    else:
-        for idx, row in enumerate(equation_chain, start=1):
-            if not isinstance(row, Mapping):
-                errors.append(
-                    "theory_derivation_packet.equation_chain entries must be objects"
-                )
-                continue
-            if not str(row.get("lhs", "")).strip() or not str(
-                row.get("rhs", "")
-            ).strip():
-                errors.append(f"equation_chain row {idx} must include lhs and rhs")
-            if not str(row.get("justification", "")).strip():
-                errors.append(f"equation_chain row {idx} missing justification")
-    assumption_ledger = derivation.get("assumption_ledger", [])
-    if not isinstance(assumption_ledger, list) or not assumption_ledger:
-        errors.append("theory_derivation_packet.assumption_ledger must be non-empty")
-    else:
-        for idx, row in enumerate(assumption_ledger, start=1):
-            if not isinstance(row, Mapping):
-                errors.append(
-                    "theory_derivation_packet.assumption_ledger entries must be objects"
-                )
-                continue
-            if not str(row.get("assumption", "")).strip():
-                errors.append(f"assumption_ledger row {idx} missing assumption")
-            if not row.get("used_in"):
-                errors.append(f"assumption_ledger row {idx} missing used_in")
-    sanity_checks = derivation.get("sanity_checks", [])
-    if not isinstance(sanity_checks, list) or not sanity_checks:
-        errors.append(
-            "theory_derivation_packet.sanity_checks must be a non-empty list"
-        )
-    if isinstance(sanity_checks, list):
-        for idx, row in enumerate(sanity_checks):
-            if not isinstance(row, Mapping):
-                errors.append(
-                    f"theory_derivation_packet.sanity_checks[{idx}] must be an object"
-                )
-                continue
-            missing_fields = [
-                field
-                for field in (
-                    "id",
-                    "claim_ref",
-                    "check_type",
-                    "recomputation",
-                    "result",
-                )
-                if not str(row.get(field, "") or "").strip()
-            ]
-            if missing_fields:
-                errors.append(
-                    f"theory_derivation_packet.sanity_checks[{idx}] missing "
-                    "required fields: " + ", ".join(missing_fields)
-                )
+            missing = [name for name in fields if not row.get(name)]
+            if missing:
+                errors.append(f"theory_derivation_packet.{field}[{index}] missing required fields: " + ", ".join(missing))
     return errors
 
 
@@ -3352,6 +3297,8 @@ def _generate_initial_theory_artifact_workspace(
             progress_checkpoint if progress_checkpoint else None
         ),
         request_metadata={
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: research_workspace_authorization_fingerprint(
+                question, architect_context, {"subsystem": "TheoryDeveloper", "workspace_id": workspace_id}),
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
             "theory_developer_phase": "initial_artifact_workspace",
@@ -3420,6 +3367,7 @@ def _generate_theory_workspace_revision(
     provider_name: str,
     question: OpenResearchQuestion,
     revision_inputs: Mapping[str, Any],
+    root_authorization_context: Mapping[str, Any],
     request_model: str,
     model_tier: str,
     base_model_tier: str,
@@ -3659,6 +3607,8 @@ def _generate_theory_workspace_revision(
             progress_checkpoint if progress_checkpoint else None
         ),
         request_metadata={
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: research_workspace_authorization_fingerprint(
+                question, root_authorization_context, {"subsystem": "TheoryDeveloper", "workspace_id": workspace_id}),
             "subsystem": "TheoryDeveloper",
             "agent": "LLMTheoryDeveloperAgent",
             "theory_developer_phase": "artifact_workspace_revision",

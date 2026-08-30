@@ -7,12 +7,14 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
+    CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
     apply_model_exact_text_edits,
+    client_tool_authorization_fingerprint,
     model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
@@ -1132,6 +1134,9 @@ def run_lean_candidate_revision_tool_loop(
         ),
         "proof_evidence_status": "WORKSPACE_STATE_NOT_PROOF_EVIDENCE",
     }
+    root_authorization_fingerprint = client_tool_authorization_fingerprint(request_metadata) or stable_hash(
+        ["lean", candidate_id, theory_document_set_hash]
+    )
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
         messages=(
@@ -1160,6 +1165,9 @@ def run_lean_candidate_revision_tool_loop(
         enable_prompt_caching=True,
         metadata={
             **dict(request_metadata or {}),
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: (
+                root_authorization_fingerprint
+            ),
             "model_tier": model_tier,
             "candidate_id": candidate_id,
             "candidate_lean_declaration": state["candidate_lean_declaration"],
