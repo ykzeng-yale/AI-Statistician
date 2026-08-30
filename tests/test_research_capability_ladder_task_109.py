@@ -57,15 +57,17 @@ def test_known_propensity_ipw_task109_is_consumed_once_and_failed_closed() -> No
     descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
 
     readiness = ladder["current_readiness"]
-    assert len(ladder["initial_candidate_queue"]) == 109
-    assert ladder["initial_candidate_queue"][-1]["id"] == TASK_ID
-    assert readiness["scored_tasks_total"] == 109
+    assert len(ladder["initial_candidate_queue"]) == 110
+    assert ladder["initial_candidate_queue"][-2]["id"] == TASK_ID
+    assert readiness["scored_tasks_total"] == 110
     assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 109
-    assert readiness["fully_gold_configured_tasks"] == 109
+    assert readiness["consumed_scored_tasks"] == 110
+    assert readiness["fully_gold_configured_tasks"] == 110
     assert readiness["fully_gold_passed_tasks"] == 7
     assert readiness["operator_invalid_tasks"] == 18
-    assert readiness["latest_shared_mechanism_head"] == SHARED_MECHANISM_COMMIT
+    assert readiness["latest_shared_mechanism_head"] == (
+        "9597b52d44a80e36ed541d0dc49035c83c3cbbb2"
+    )
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "missing_at_random_known_propensity_ipw"
