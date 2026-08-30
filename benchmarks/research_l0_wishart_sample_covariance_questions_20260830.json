@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "multivariate_normal_sample_covariance_wishart_known_result",
+      "title": "Wishart law and moments of the Gaussian sample covariance",
+      "description": "Focused integrated L0 known-result evaluation grounded in Wishart (1928). Let X_1,...,X_n be independent N_p(mu,Sigma) vectors with n at least 2 and positive-definite Sigma. Define the sample mean Xbar and the unbiased sample covariance S=(n-1)^(-1) sum_r (X_r-Xbar)(X_r-Xbar)^T. In one authoritative Markdown/LaTeX Theory workspace, derive the orthogonal Gaussian decomposition that separates Xbar from centered residual coordinates, prove that (n-1)S has the Wishart_p(Sigma,n-1) law and is independent of Xbar, and derive E[Xbar], Cov(Xbar), E[S], Cov(S_ij,S_kl), E[tr(S)], and Var(tr(S)) with every index contraction and n-1 factor explicit. Derive the p=1 chi-square reduction, the distinction between unbiased S and the Gaussian maximum-likelihood covariance with denominator n, mean-shift invariance, coordinate-permutation equivariance, and congruence under a deterministic linear transformation. State exactly where Gaussianity and positive definiteness are used. Do not claim independence outside Gaussian sampling, robustness under heavy tails, asymptotic normality, concentration bounds, high-dimensional consistency, covariance regularization, source replication, novelty, or formal proof. The required model-authored Python artifact is est_wishart_sample_covariance_moments and must implement the exact frozen run_estimator(request) contract. Exploratory Python or R may check tensor symmetries, trace contractions, the scalar reduction, and simulated moments. A separately frozen confirmatory evaluator uses fresh multivariate-normal samples, evaluator-owned seeds and parameter configurations fixed before outcomes, and at least 5000 independent replicates per design. It checks exact executable identities, sample-mean and unbiased sample-covariance means, selected and aggregate covariance-tensor entries, trace variance, and sample-mean/sample-covariance cross-moments with Monte Carlo uncertainty. These finite experiments test one implementation on frozen configurations and do not prove the Wishart law or independence. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "multivariate_statistics",
+        "gaussian_sampling",
+        "wishart_distribution",
+        "sample_covariance",
+        "python_language",
+        "L0"
+      ],
+      "source": {
+        "benchmark_mode": "known_result",
+        "model_visible_context": "published_authority_assumptions_closed_execution_contract_and_empirical_claims",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Wishart (1928), DOI 10.1093/biomet/20A.1-2.32",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_wishart_sample_covariance_moments",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.sample_size",
+            "name": "sample_size",
+            "meaning": "The number n of independent multivariate-normal observations.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [2,10000].",
+            "units": "observation count",
+            "indexing": "One sample size shared by all returned moments; degrees of freedom are n-1.",
+            "edge_cases": "Reject Boolean, floating, string, null, array, object, values below 2, and values above 10000 rather than coercing, rounding, or clipping them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.mean_vector",
+            "name": "mean_vector",
+            "meaning": "The population mean vector mu in coordinate order.",
+            "json_type": "array[number]",
+            "shape": "One list of length 1 through 5 containing finite non-Boolean numbers in [-10000,10000].",
+            "units": "observation units",
+            "indexing": "Entry i is coordinate i and matches both axes of covariance_matrix and every returned vector, matrix, or tensor index i.",
+            "edge_cases": "Reject Boolean, string, null, object, nested, empty, nonfinite, out-of-domain, or overlength values rather than coercing, clipping, dropping, sorting, or centering them.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.covariance_matrix",
+            "name": "covariance_matrix",
+            "meaning": "The symmetric positive-definite population covariance matrix Sigma in the same coordinate order as mean_vector.",
+            "json_type": "array[array[number]]",
+            "shape": "One square matrix with exactly p rows and p columns where p=len(mean_vector), p is 1 through 5, every entry is a finite non-Boolean number in [-1000000,1000000], the matrix is exactly symmetric entrywise, every diagonal entry lies in [0.0001,1000000], and NumPy float64 Cholesky factorization succeeds.",
+            "units": "squared observation units",
+            "indexing": "Entry [i][j] is Sigma_ij in mean_vector coordinate order.",
+            "edge_cases": "Reject Boolean, string, null, ragged, nonsquare, dimension-mismatched, nonfinite, out-of-domain, nonsymmetric, singular, or indefinite matrices rather than coercing, symmetrizing, regularizing, clipping, or taking an absolute value.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.degrees_of_freedom",
+            "name": "degrees_of_freedom",
+            "meaning": "The Wishart degrees of freedom nu=n-1 for (n-1)S.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean positive integer.",
+            "units": "dimensionless",
+            "indexing": "One scalar shared by all covariance-moment formulas.",
+            "edge_cases": "Do not return n, n-p, or a floating approximation.",
+            "normalization": "sample_size minus one."
+          },
+          {
+            "clause_id": "response.expected_sample_mean",
+            "name": "expected_sample_mean",
+            "meaning": "The exact expectation E[Xbar]=mu.",
+            "json_type": "array[number]",
+            "shape": "One finite non-Boolean numeric list with request dimension p.",
+            "units": "observation units",
+            "indexing": "Entry i corresponds to request coordinate i.",
+            "edge_cases": "Return a value copy in the original coordinate order without sorting or centering.",
+            "normalization": "Elementwise copy of mean_vector."
+          },
+          {
+            "clause_id": "response.sample_mean_covariance",
+            "name": "sample_mean_covariance",
+            "meaning": "The exact covariance Cov(Xbar)=Sigma/n.",
+            "json_type": "array[array[number]]",
+            "shape": "One finite symmetric p by p numeric matrix.",
+            "units": "squared observation units",
+            "indexing": "Entry [i][j] is Cov(Xbar_i,Xbar_j).",
+            "edge_cases": "Do not return Sigma, Sigma/(n-1), a correlation matrix, a flattened vector, or only diagonal variances.",
+            "normalization": "covariance_matrix divided entrywise by sample_size."
+          },
+          {
+            "clause_id": "response.expected_sample_covariance",
+            "name": "expected_sample_covariance",
+            "meaning": "The exact expectation E[S]=Sigma for the unbiased sample covariance.",
+            "json_type": "array[array[number]]",
+            "shape": "One finite symmetric p by p numeric matrix.",
+            "units": "squared observation units",
+            "indexing": "Entry [i][j] is E[S_ij] in request coordinate order.",
+            "edge_cases": "Do not multiply by n/(n-1), (n-1)/n, or degrees_of_freedom.",
+            "normalization": "Elementwise copy of covariance_matrix."
+          },
+          {
+            "clause_id": "response.sample_covariance_entry_covariance",
+            "name": "sample_covariance_entry_covariance",
+            "meaning": "The complete fourth-order tensor Cov(S_ij,S_kl).",
+            "json_type": "array[array[array[array[number]]]]",
+            "shape": "One finite p by p by p by p numeric tensor represented by four nested JSON-array axes.",
+            "units": "fourth power of observation units",
+            "indexing": "Entry [i][j][k][l] is Cov(S_ij,S_kl) in request coordinate order.",
+            "edge_cases": "Do not return the moments of (n-1)S, divide by n, omit the crossed contraction, flatten the tensor, or return only variances.",
+            "normalization": "(Sigma_ik*Sigma_jl + Sigma_il*Sigma_jk)/(sample_size-1) for every i,j,k,l."
+          },
+          {
+            "clause_id": "response.expected_trace",
+            "name": "expected_trace",
+            "meaning": "The exact expectation E[tr(S)]=tr(Sigma).",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "squared observation units",
+            "indexing": "One scalar contraction of expected_sample_covariance.",
+            "edge_cases": "Do not return the trace of (n-1)S or the average variance tr(Sigma)/p.",
+            "normalization": "Sum of covariance_matrix diagonal entries."
+          },
+          {
+            "clause_id": "response.trace_variance",
+            "name": "trace_variance",
+            "meaning": "The exact variance Var(tr(S)) under multivariate-normal sampling.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "fourth power of observation units",
+            "indexing": "One scalar contraction of sample_covariance_entry_covariance.",
+            "edge_cases": "Do not use tr(Sigma)^2, omit off-diagonal squares, or divide by n.",
+            "normalization": "2*tr(covariance_matrix squared)/(sample_size-1), equivalently 2*sum_i sum_j Sigma_ij^2/(sample_size-1)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly the three declared fields and the response exactly the seven declared fields. Missing, extra, malformed, coercible-only, nonfinite, out-of-domain, dimension-mismatched, nonsymmetric, singular, or indefinite values are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_gaussian_wishart_moment_identity",
+            "meaning": "Every returned value follows from nu=n-1, E[Xbar]=mu, Cov(Xbar)=Sigma/n, E[S]=Sigma, Cov(S_ij,S_kl)=(Sigma_ik Sigma_jl+Sigma_il Sigma_jk)/nu, E[tr(S)]=tr(Sigma), and Var(tr(S))=2 tr(Sigma^2)/nu."
+          },
+          {
+            "clause_id": "invariant.tensor_symmetry_and_trace_contraction",
+            "meaning": "The fourth-order tensor respects S_ij=S_ji and covariance-pair exchange, and contracting its entries Cov(S_ii,S_jj) over i,j equals trace_variance up to floating-point error."
+          },
+          {
+            "clause_id": "invariant.mean_shift_invariance",
+            "meaning": "Changing only mean_vector changes only expected_sample_mean by the same shift and leaves all other response fields unchanged."
+          },
+          {
+            "clause_id": "invariant.coordinate_permutation_equivariance",
+            "meaning": "Applying the same coordinate permutation to mean_vector and both covariance_matrix axes applies that permutation to every returned vector, matrix, and all four tensor axes while leaving scalar outputs unchanged."
+          },
+          {
+            "clause_id": "invariant.scalar_congruence_equivariance",
+            "meaning": "For any publicly valid nonzero scalar c whose transformed request remains in domain, replacing mu by c*mu and Sigma by c^2*Sigma scales expected_sample_mean by c, both returned covariance matrices and expected_trace by c^2, the fourth-order tensor and trace_variance by c^4, and leaves degrees_of_freedom unchanged."
+          },
+          {
+            "clause_id": "invariant.univariate_chi_square_reduction",
+            "meaning": "When p=1, (n-1)S_11/Sigma_11 has chi-square_{n-1} law, so the returned variance of S_11 and trace_variance both equal 2*Sigma_11^2/(n-1)."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, read files, invoke subprocesses, or use the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen valid request, the candidate is compared with an independent exact implementation of all seven returned Gaussian-Wishart moment objects."
+          },
+          {
+            "clause_id": "claim.empirical.sample_mean_moments",
+            "meaning": "Across fresh multivariate-normal samples, the empirical mean and covariance of Xbar are compared with expected_sample_mean and sample_mean_covariance using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.sample_covariance_mean",
+            "meaning": "Across the same fresh samples, the empirical mean of the unbiased sample covariance is compared with expected_sample_covariance using a predeclared matrix-error bound."
+          },
+          {
+            "clause_id": "claim.empirical.sample_covariance_tensor",
+            "meaning": "The empirical covariance of vectorized unbiased sample-covariance entries is compared with the complete returned fourth-order covariance tensor using predeclared selected-entry and aggregate matrix-error bounds."
+          },
+          {
+            "clause_id": "claim.empirical.trace_moments",
+            "meaning": "The empirical mean and variance of tr(S) are compared with expected_trace and trace_variance using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.mean_covariance_cross_moments",
+            "meaning": "Empirical cross-covariances between sample-mean coordinates and vectorized sample-covariance entries are compared with zero as a finite low-order diagnostic implied by Gaussian independence; the experiment does not prove independence."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Dimensions, sample sizes, means, covariance matrices, seeds, at least 5000 independent replicates per design, summaries, and acceptance bounds are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment assesses one implementation under finitely many positive-definite multivariate-normal configurations only. It is not proof and does not validate non-Gaussian robustness, asymptotic normality, concentration, high-dimensional consistency, covariance regularization, source replication, novelty, or formal closure."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite vector, matrix, and fourth-order tensor arithmetic and returns exactly one response without optimization, randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
