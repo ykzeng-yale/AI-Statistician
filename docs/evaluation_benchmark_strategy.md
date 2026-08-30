@@ -157,8 +157,8 @@ descriptors to the same model session. Schema v1 stdout-only manifests remain
 read-compatible. Declared outputs are replication observations, not automatically
 correct scientific interpretations or hidden-gold acceptance.
 
-Ordinary product tasks may let the same TheoryDeveloper model search Crossref and
-public GitHub through opaque-handle tools under an explicit source horizon. Those
+Ordinary product tasks may let the same TheoryDeveloper model search Crossref,
+official exact-version arXiv HTML, and public GitHub through opaque-handle tools under an explicit source horizon. Those
 live observations support scouting only. L1-L5 evaluation never treats a mutable
 API response as gold or exact replication: permitted materials are frozen before
 activation, and target-paper blocklists and evaluator-only artifacts remain outside

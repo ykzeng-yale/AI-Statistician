@@ -5,9 +5,12 @@ import hashlib
 import html
 import json
 import re
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, Mapping, Protocol, Sequence
@@ -23,9 +26,23 @@ RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE = (
 MAX_DISCOVERY_RESULTS = 10
 MAX_DISCOVERY_QUERY_CHARS = 500
 MAX_DISCOVERY_API_BYTES = 2_000_000
+MAX_DISCOVERY_HTML_BYTES = 5_000_000
 MAX_DISCOVERY_TEXT_BYTES = 250_000
 MAX_DISCOVERY_OBSERVATION_CHARS = 50_000
 GITHUB_API_VERSION = "2022-11-28"
+ARXIV_MIN_REQUEST_INTERVAL_SECONDS = 3.0
+PUBLIC_DISCOVERY_HOSTS = frozenset(
+    {
+        "api.crossref.org",
+        "api.github.com",
+        "arxiv.org",
+        "export.arxiv.org",
+    }
+)
+ARXIV_ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
+ARXIV_IDENTIFIER_PATTERN = re.compile(
+    r"(?:[0-9]{4}\.[0-9]{4,5}|[A-Za-z.-]+/[0-9]{7})v[1-9][0-9]*"
+)
 
 
 class ResearchSourceDiscoveryInputError(ValueError):
@@ -37,6 +54,29 @@ class ResearchSourceDiscoveryError(RuntimeError):
 
 
 JSONFetcher = Callable[[str, Mapping[str, str], float], Any]
+BytesFetcher = Callable[[str, Mapping[str, str], float, int], bytes]
+RequestPacer = Callable[[], None]
+
+
+class _ArxivRequestPacer:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._last_request_started = 0.0
+
+    def __call__(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            remaining = (
+                self._last_request_started
+                + ARXIV_MIN_REQUEST_INTERVAL_SECONDS
+                - now
+            )
+            if remaining > 0:
+                time.sleep(remaining)
+            self._last_request_started = time.monotonic()
+
+
+_DEFAULT_ARXIV_REQUEST_PACER = _ArxivRequestPacer()
 
 
 class ResearchSourceDiscovery(Protocol):
@@ -58,6 +98,8 @@ class ResearchSourceDiscovery(Protocol):
         *,
         path: str = "",
         revision: str = "",
+        line_start: int = 0,
+        line_end: int = 0,
     ) -> Mapping[str, Any]: ...
 
 
@@ -83,14 +125,14 @@ class PublicResearchSourceDiscoveryConfig:
 
 
 class PublicResearchSourceDiscovery:
-    """Model-directed paper/repository lookup over fixed public API hosts.
+    """Model-directed paper/preprint/repository lookup over fixed public hosts.
 
     This is a thin tool provider, not a literature agent. The caller's model owns
     every query and source selection. Strict historical or hidden-answer benchmarks
     should continue to use operator-frozen ``ResearchSourceSnapshot`` inputs.
     """
 
-    provider_name = "crossref_github_public_api"
+    provider_name = "crossref_arxiv_github_public_api"
 
     def __init__(
         self,
@@ -98,21 +140,28 @@ class PublicResearchSourceDiscovery:
         config: PublicResearchSourceDiscoveryConfig,
         github_token: str = "",
         json_fetcher: JSONFetcher | None = None,
+        bytes_fetcher: BytesFetcher | None = None,
+        arxiv_request_pacer: RequestPacer | None = None,
     ) -> None:
         self.config = config
         self._github_token = str(github_token or "").strip()
         self._json_fetcher = json_fetcher or _fetch_json
+        self._bytes_fetcher = bytes_fetcher or _fetch_text
+        self._arxiv_request_pacer = (
+            arxiv_request_pacer or _DEFAULT_ARXIV_REQUEST_PACER
+        )
         self._results: dict[str, dict[str, Any]] = {}
         self._allowed_github_revisions: dict[str, set[str]] = {}
+        self._arxiv_html_cache: dict[str, str] = {}
 
     def descriptor(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "artifact_kind": "PublicResearchSourceDiscoveryDescriptor",
             "provider": self.provider_name,
             "source_horizon": self.config.source_horizon,
-            "source_kinds": ["paper", "repository"],
-            "api_hosts": ["api.crossref.org", "api.github.com"],
+            "source_kinds": ["paper", "preprint", "repository"],
+            "api_hosts": sorted(PUBLIC_DISCOVERY_HOSTS),
             "model_selects_queries": True,
             "model_selects_sources": True,
             "arbitrary_url_fetch_allowed": False,
@@ -124,8 +173,9 @@ class PublicResearchSourceDiscovery:
             ),
             "boundary": (
                 "Live public API observations can ground literature and repository "
-                "scouting. They are not a frozen benchmark corpus, independent review, "
-                "replication evidence, or mathematical proof."
+                "scouting. Exact-version arXiv HTML is preprint text, not publication "
+                "authority. These observations are not a frozen benchmark corpus, "
+                "independent review, replication evidence, or mathematical proof."
             ),
         }
 
@@ -136,6 +186,8 @@ class PublicResearchSourceDiscovery:
             config=self.config,
             github_token=self._github_token,
             json_fetcher=self._json_fetcher,
+            bytes_fetcher=self._bytes_fetcher,
+            arxiv_request_pacer=self._arxiv_request_pacer,
         )
 
     def search(
@@ -155,9 +207,9 @@ class PublicResearchSourceDiscovery:
             raise ResearchSourceDiscoveryInputError(
                 f"research source discovery query exceeds {MAX_DISCOVERY_QUERY_CHARS} characters"
             )
-        if normalized_kind not in {"all", "paper", "repository"}:
+        if normalized_kind not in {"all", "paper", "preprint", "repository"}:
             raise ResearchSourceDiscoveryInputError(
-                "research source kind must be all, paper, or repository"
+                "research source kind must be all, paper, preprint, or repository"
             )
         if isinstance(top_k, bool) or not isinstance(top_k, int):
             raise ResearchSourceDiscoveryInputError(
@@ -173,15 +225,23 @@ class PublicResearchSourceDiscovery:
             if normalized_kind in {"all", "paper"}
             else []
         )
+        preprint_rows = (
+            self._search_arxiv(normalized_query, top_k=top_k)
+            if normalized_kind in {"all", "preprint"}
+            else []
+        )
         repository_rows = (
             self._search_github(normalized_query, top_k=top_k)
             if normalized_kind in {"all", "repository"}
             else []
         )
         if normalized_kind == "all":
-            rows = _round_robin_rows((paper_rows, repository_rows), limit=top_k)
+            rows = _round_robin_rows(
+                (paper_rows, preprint_rows, repository_rows),
+                limit=top_k,
+            )
         else:
-            rows = (paper_rows or repository_rows)[:top_k]
+            rows = (paper_rows or preprint_rows or repository_rows)[:top_k]
         for row in rows:
             self._results[str(row["source_handle"])] = dict(row)
         return {
@@ -197,7 +257,8 @@ class PublicResearchSourceDiscovery:
             ),
             "boundary": (
                 "The model chose this query and must inspect any useful result. Search "
-                "ranking and metadata do not establish a scientific claim."
+                "ranking, metadata, and preprint hosting do not establish a scientific "
+                "claim or publication status."
             ),
         }
 
@@ -207,6 +268,8 @@ class PublicResearchSourceDiscovery:
         *,
         path: str = "",
         revision: str = "",
+        line_start: int = 0,
+        line_end: int = 0,
     ) -> dict[str, Any]:
         normalized_handle = str(source_handle or "").strip()
         row = self._results.get(normalized_handle)
@@ -219,11 +282,27 @@ class PublicResearchSourceDiscovery:
                 raise ResearchSourceDiscoveryInputError(
                     "paper discovery reads do not accept path or revision"
                 )
-            return self._read_crossref(row)
+            return self._read_crossref(
+                row,
+                line_start=line_start,
+                line_end=line_end,
+            )
+        if row["source_kind"] == "preprint":
+            if str(path or "").strip() or str(revision or "").strip():
+                raise ResearchSourceDiscoveryInputError(
+                    "preprint discovery reads do not accept path or revision"
+                )
+            return self._read_arxiv(
+                row,
+                line_start=line_start,
+                line_end=line_end,
+            )
         return self._read_github(
             row,
             path=str(path or "").strip(),
             revision=str(revision or "").strip(),
+            line_start=line_start,
+            line_end=line_end,
         )
 
     def _search_crossref(self, query: str, *, top_k: int) -> list[dict[str, Any]]:
@@ -284,6 +363,71 @@ class PublicResearchSourceDiscovery:
             )
         return rows
 
+    def _search_arxiv(self, query: str, *, top_k: int) -> list[dict[str, Any]]:
+        horizon_stamp = self.config.source_horizon.replace("-", "") + "2359"
+        search_terms = re.findall(
+            r"[\w]+(?:[.-][\w]+)*",
+            str(query or ""),
+            flags=re.UNICODE,
+        )
+        if not search_terms:
+            raise ResearchSourceDiscoveryInputError(
+                "preprint discovery query must contain a searchable term"
+            )
+        search_clause = " AND ".join(
+            f'all:"{term}"' for term in search_terms
+        )
+        params = {
+            "search_query": (
+                search_clause
+                + " AND "
+                f"submittedDate:[199101010000 TO {horizon_stamp}]"
+            ),
+            "start": "0",
+            "max_results": str(top_k),
+            "sortBy": "relevance",
+            "sortOrder": "descending",
+        }
+        self._arxiv_request_pacer()
+        raw = self._bytes_fetcher(
+            "https://export.arxiv.org/api/query?"
+            + urllib.parse.urlencode(params),
+            self._arxiv_headers(),
+            self.config.timeout_seconds,
+            MAX_DISCOVERY_API_BYTES,
+        )
+        rows: list[dict[str, Any]] = []
+        for item in _arxiv_atom_rows(raw):
+            publication_date = str(item["published"])
+            updated_date = str(item["updated"])
+            if (
+                publication_date > self.config.source_horizon
+                or updated_date > self.config.source_horizon
+            ):
+                continue
+            arxiv_id = str(item["arxiv_id"])
+            identity = f"arxiv:{arxiv_id.lower()}"
+            rows.append(
+                {
+                    "source_handle": _source_handle(
+                        self.provider_name,
+                        "preprint",
+                        identity,
+                        self.config.source_horizon,
+                    ),
+                    "source_kind": "preprint",
+                    "source_identity": identity,
+                    "arxiv_id": arxiv_id,
+                    "title": str(item["title"]),
+                    "url": f"https://arxiv.org/html/{arxiv_id}",
+                    "publication_date": publication_date,
+                    "updated_date": updated_date,
+                    "citation": _arxiv_citation(item),
+                    "summary": str(item["summary"])[:1_500],
+                }
+            )
+        return rows
+
     def _search_github(self, query: str, *, top_k: int) -> list[dict[str, Any]]:
         params = {
             "q": f"{query} created:<={self.config.source_horizon}",
@@ -330,7 +474,13 @@ class PublicResearchSourceDiscovery:
             )
         return rows
 
-    def _read_crossref(self, row: Mapping[str, Any]) -> dict[str, Any]:
+    def _read_crossref(
+        self,
+        row: Mapping[str, Any],
+        *,
+        line_start: int,
+        line_end: int,
+    ) -> dict[str, Any]:
         doi = str(row["doi"])
         payload = self._json_fetcher(
             "https://api.crossref.org/works/"
@@ -361,6 +511,56 @@ class PublicResearchSourceDiscovery:
             revision="crossref-record:" + stable_hash(item)[:24],
             path="metadata.md",
             content=content,
+            line_start=line_start,
+            line_end=line_end,
+        )
+
+    def _read_arxiv(
+        self,
+        row: Mapping[str, Any],
+        *,
+        line_start: int,
+        line_end: int,
+    ) -> dict[str, Any]:
+        arxiv_id = str(row["arxiv_id"])
+        url = "https://arxiv.org/html/" + urllib.parse.quote(
+            arxiv_id,
+            safe="/.",
+        )
+        content = self._arxiv_html_cache.get(arxiv_id)
+        if content is None:
+            self._arxiv_request_pacer()
+            raw = self._bytes_fetcher(
+                url,
+                self._arxiv_headers(),
+                self.config.timeout_seconds,
+                MAX_DISCOVERY_HTML_BYTES,
+            )
+            try:
+                content = raw.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ResearchSourceDiscoveryError(
+                    "arXiv HTML is not UTF-8 text"
+                ) from exc
+            if not re.search(r"<html(?:\s|>)", content, flags=re.IGNORECASE):
+                raise ResearchSourceDiscoveryError(
+                    "arXiv returned a non-HTML paper representation"
+                )
+            self._arxiv_html_cache[arxiv_id] = content
+        return _source_read_observation(
+            provider=self.provider_name,
+            source_handle=str(row["source_handle"]),
+            source_kind="preprint",
+            source_identity=str(row["source_identity"]),
+            title=str(row["title"]),
+            url=url,
+            publication_date=str(row["publication_date"]),
+            citation=str(row["citation"]),
+            revision=arxiv_id,
+            path="paper.html",
+            content=content,
+            line_start=line_start,
+            line_end=line_end,
         )
 
     def _read_github(
@@ -369,6 +569,8 @@ class PublicResearchSourceDiscovery:
         *,
         path: str,
         revision: str,
+        line_start: int,
+        line_end: int,
     ) -> dict[str, Any]:
         repository = str(row["repository"])
         normalized_path = _normalized_repository_path(path)
@@ -444,6 +646,8 @@ class PublicResearchSourceDiscovery:
             revision=resolved_revision,
             path=normalized_path or ".",
             content=content,
+            line_start=line_start,
+            line_end=line_end,
         )
 
     def _github_revision_at_horizon(self, repository: str) -> str:
@@ -497,6 +701,21 @@ class PublicResearchSourceDiscovery:
             headers["Authorization"] = "Bearer " + self._github_token
         return headers
 
+    def _arxiv_headers(self) -> dict[str, str]:
+        contact = (
+            f"; mailto:{self.config.contact_email}"
+            if self.config.contact_email
+            else ""
+        )
+        return {
+            "User-Agent": (
+                "AI-Statistician/0.1 "
+                "(https://github.com/ykzeng-yale/AI-Statistician"
+                + contact
+                + ")"
+            )
+        }
+
 
 def _fetch_json(url: str, headers: Mapping[str, str], timeout: float) -> Any:
     raw = _fetch_text(url, headers, timeout, MAX_DISCOVERY_API_BYTES)
@@ -519,7 +738,7 @@ def _fetch_text(
         with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
             original_host = urllib.parse.urlparse(url).hostname
             final_host = urllib.parse.urlparse(response.geturl()).hostname
-            if original_host not in {"api.crossref.org", "api.github.com"}:
+            if original_host not in PUBLIC_DISCOVERY_HOSTS:
                 raise ResearchSourceDiscoveryError(
                     "public research API host is not allowed"
                 )
@@ -583,8 +802,33 @@ def _source_read_observation(
     revision: str,
     path: str,
     content: str,
+    line_start: int = 0,
+    line_end: int = 0,
 ) -> dict[str, Any]:
-    bounded_content = content[:MAX_DISCOVERY_OBSERVATION_CHARS]
+    lines = content.splitlines()
+    range_requested = line_start != 0 or line_end != 0
+    if range_requested:
+        if (
+            isinstance(line_start, bool)
+            or not isinstance(line_start, int)
+            or isinstance(line_end, bool)
+            or not isinstance(line_end, int)
+            or line_start < 1
+            or line_end < line_start
+            or line_end > len(lines)
+        ):
+            raise ResearchSourceDiscoveryInputError(
+                "discovered source line range is invalid; "
+                f"line_count={len(lines)}"
+            )
+        observed_content = "\n".join(lines[line_start - 1 : line_end])
+        if len(observed_content) > MAX_DISCOVERY_OBSERVATION_CHARS:
+            raise ResearchSourceDiscoveryInputError(
+                "discovered source line range exceeds the observation limit; "
+                "request a smaller range"
+            )
+    else:
+        observed_content = content[:MAX_DISCOVERY_OBSERVATION_CHARS]
     content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
     citation_ref = "public-research-source-ref:" + stable_hash(
         {
@@ -595,7 +839,7 @@ def _source_read_observation(
             "content_sha256": content_sha256,
         }
     )
-    return {
+    observation = {
         "ok": True,
         "provider": provider,
         "source_handle": source_handle,
@@ -606,9 +850,19 @@ def _source_read_observation(
         "citation": citation,
         "revision": revision,
         "path": path,
-        "content": bounded_content,
+        "content": observed_content,
         "content_sha256": content_sha256,
-        "content_truncated": len(content) > len(bounded_content),
+        "content_line_count": len(lines),
+        "content_truncated": (
+            (
+                range_requested
+                and (line_start != 1 or line_end != len(lines))
+            )
+            or (
+                not range_requested
+                and len(content) > len(observed_content)
+            )
+        ),
         "citation_ref": citation_ref,
         "proof_evidence_status": RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
         "boundary": (
@@ -617,6 +871,17 @@ def _source_read_observation(
             "or mathematical proof."
         ),
     }
+    if range_requested:
+        observation.update(
+            {
+                "line_start": line_start,
+                "line_end": line_end,
+                "content_range_sha256": hashlib.sha256(
+                    observed_content.encode("utf-8")
+                ).hexdigest(),
+            }
+        )
+    return observation
 
 
 def _round_robin_rows(
@@ -645,6 +910,84 @@ def _first_text(value: Any) -> str:
             if text:
                 return text
     return ""
+
+
+def _arxiv_atom_rows(raw: bytes) -> list[dict[str, Any]]:
+    upper = raw[:4_096].upper()
+    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+        raise ResearchSourceDiscoveryError(
+            "arXiv Atom response contains a prohibited XML declaration"
+        )
+    try:
+        root = ET.fromstring(raw)
+    except ET.ParseError as exc:
+        raise ResearchSourceDiscoveryError(
+            "arXiv returned invalid Atom XML"
+        ) from exc
+
+    atom = "{" + ARXIV_ATOM_NAMESPACE + "}"
+    rows: list[dict[str, Any]] = []
+    observed_ids: set[str] = set()
+    for entry in root.findall(atom + "entry"):
+        entry_url = str(entry.findtext(atom + "id", default="") or "").strip()
+        path = urllib.parse.urlparse(entry_url).path
+        arxiv_id = path.split("/abs/", 1)[-1] if "/abs/" in path else ""
+        if not ARXIV_IDENTIFIER_PATTERN.fullmatch(arxiv_id):
+            continue
+        normalized_id = arxiv_id.lower()
+        if normalized_id in observed_ids:
+            continue
+        published = str(
+            entry.findtext(atom + "published", default="") or ""
+        )[:10]
+        updated = str(entry.findtext(atom + "updated", default="") or "")[:10]
+        try:
+            date.fromisoformat(published)
+            date.fromisoformat(updated)
+        except ValueError:
+            continue
+        title = " ".join(
+            str(entry.findtext(atom + "title", default="") or "").split()
+        )
+        summary = " ".join(
+            str(entry.findtext(atom + "summary", default="") or "").split()
+        )
+        authors = [
+            " ".join(str(author.findtext(atom + "name", default="") or "").split())
+            for author in entry.findall(atom + "author")
+        ]
+        authors = [author for author in authors if author]
+        if not title or not authors:
+            continue
+        observed_ids.add(normalized_id)
+        rows.append(
+            {
+                "arxiv_id": arxiv_id,
+                "title": title,
+                "authors": authors,
+                "summary": summary,
+                "published": published,
+                "updated": updated,
+            }
+        )
+    return rows
+
+
+def _arxiv_citation(item: Mapping[str, Any]) -> str:
+    authors = item.get("authors", [])
+    author_text = ", ".join(
+        str(author) for author in authors if str(author).strip()
+    ) if isinstance(authors, list) else ""
+    return ". ".join(
+        part
+        for part in (
+            author_text,
+            str(item.get("title", "") or ""),
+            str(item.get("published", "") or "")[:4],
+            "arXiv:" + str(item.get("arxiv_id", "") or ""),
+        )
+        if part
+    )
 
 
 def _crossref_publication_date(item: Mapping[str, Any]) -> str:

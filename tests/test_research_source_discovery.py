@@ -9,6 +9,7 @@ from ai_statistician.research_source_discovery import (
     MAX_DISCOVERY_OBSERVATION_CHARS,
     PublicResearchSourceDiscovery,
     PublicResearchSourceDiscoveryConfig,
+    ResearchSourceDiscoveryError,
     ResearchSourceDiscoveryInputError,
 )
 
@@ -169,6 +170,115 @@ def test_public_repository_discovery_pins_horizon_commit_before_file_reads() -> 
         provider.read(handle, path="README.md", revision="b" * 40)
     with pytest.raises(ResearchSourceDiscoveryInputError, match="relative normalized"):
         provider.read(handle, path="../secret", revision=revision)
+
+
+def test_public_preprint_discovery_reads_exact_horizon_bound_arxiv_html() -> None:
+    allowed_html = (
+        b"<!doctype html>\n<html><body>\n<h1>Exact theorem</h1>\n"
+        b"<p>The estimator is asymptotically normal.</p>\n</body></html>"
+    )
+    atom = b"""<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom'>
+  <entry>
+    <id>https://arxiv.org/abs/2401.01234v2</id>
+    <title>An exact statistical preprint</title>
+    <updated>2025-01-03T12:00:00Z</updated>
+    <published>2024-01-02T12:00:00Z</published>
+    <summary>A complete derivation and implementation.</summary>
+    <author><name>Ada Stone</name></author>
+  </entry>
+  <entry>
+    <id>https://arxiv.org/abs/2402.05678v3</id>
+    <title>A post-horizon revision</title>
+    <updated>2026-01-03T12:00:00Z</updated>
+    <published>2024-02-02T12:00:00Z</published>
+    <summary>This latest version is not horizon safe.</summary>
+    <author><name>Grace Vale</name></author>
+  </entry>
+</feed>"""
+    requests: list[tuple[str, dict[str, str], int]] = []
+    pacing: list[str] = []
+
+    def fetch_bytes(url, headers, timeout, max_bytes):
+        del timeout
+        requests.append((url, dict(headers), max_bytes))
+        return atom if "export.arxiv.org/api/query" in url else allowed_html
+
+    provider = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(
+            source_horizon="2025-12-31",
+            contact_email="research@example.org",
+        ),
+        json_fetcher=lambda *_args: pytest.fail("JSON provider was not requested"),
+        bytes_fetcher=fetch_bytes,
+        arxiv_request_pacer=lambda: pacing.append("paced"),
+    )
+
+    search = provider.search(
+        "asymptotic normal estimator",
+        source_kind="preprint",
+        top_k=3,
+    )
+
+    assert len(search["results"]) == 1
+    result = search["results"][0]
+    assert result["source_kind"] == "preprint"
+    assert result["url"].endswith("/html/2401.01234v2")
+    assert "2401.01234" not in result["source_handle"]
+    search_query = urllib.parse.parse_qs(
+        urllib.parse.urlparse(requests[0][0]).query
+    )["search_query"][0]
+    assert "submittedDate:[199101010000 TO 202512312359]" in search_query
+
+    read = provider.read(result["source_handle"])
+
+    assert read["revision"] == "2401.01234v2"
+    assert read["path"] == "paper.html"
+    assert read["content"] == allowed_html.decode("utf-8")
+    assert read["content_sha256"] == hashlib.sha256(allowed_html).hexdigest()
+    assert read["content_line_count"] == 5
+    assert read["content_truncated"] is False
+    assert requests[1][0] == "https://arxiv.org/html/2401.01234v2"
+    assert requests[1][1]["User-Agent"].endswith(
+        "; mailto:research@example.org)"
+    )
+    assert pacing == ["paced", "paced"]
+
+    exact_range = provider.read(
+        result["source_handle"],
+        line_start=2,
+        line_end=4,
+    )
+
+    expected_range = "\n".join(allowed_html.decode("utf-8").splitlines()[1:4])
+    assert exact_range["content"] == expected_range
+    assert exact_range["line_start"] == 2
+    assert exact_range["line_end"] == 4
+    assert exact_range["content_range_sha256"] == hashlib.sha256(
+        expected_range.encode("utf-8")
+    ).hexdigest()
+    assert exact_range["content_truncated"] is True
+    assert len(requests) == 2
+    assert pacing == ["paced", "paced"]
+    assert provider.descriptor()["source_kinds"] == [
+        "paper",
+        "preprint",
+        "repository",
+    ]
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="do not accept path"):
+        provider.read(result["source_handle"], path="paper.tex")
+
+
+def test_public_preprint_discovery_rejects_unsafe_atom_xml() -> None:
+    provider = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-12-31"),
+        json_fetcher=lambda *_args: pytest.fail("JSON provider was not requested"),
+        bytes_fetcher=lambda *_args: b"<!DOCTYPE feed><feed />",
+        arxiv_request_pacer=lambda: None,
+    )
+
+    with pytest.raises(ResearchSourceDiscoveryError, match="prohibited XML"):
+        provider.search("robust statistics", source_kind="preprint")
 
 
 @pytest.mark.parametrize("source_horizon", ["", "2025/01/01", "not-a-date"])

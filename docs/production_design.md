@@ -70,7 +70,7 @@ Like Codex `run_turn`, a response without a tool call ends the workspace segment
 ## Progressive commitment
 
 The graph imposes no universal research order. TheoryDeveloper chooses early
-Crossref/GitHub queries and source handles; the harness owns hosts, source horizon,
+Crossref/arXiv/GitHub queries and source handles; the harness owns hosts, source horizon,
 secrets, byte bounds, commit identity, hashes, and citations, but not interpretation.
 Exact replication requires immutable operator-curated source and execution manifests.
 When author code writes results, declared paths are captured from a hash-audited
@@ -142,7 +142,7 @@ reserved terminal disposition. A commit proposes independent review; it is not e
 Supporting Theory completion compiles the validated Architect plan into the next
 workspace; required review and genuine conflicts retain their authority paths.
 
-When prior work is permitted, the same TheoryDeveloper session can inspect a frozen snapshot or model-selected public paper/repository text without a LiteratureAgent.
+When prior work is permitted, the same TheoryDeveloper session can inspect a frozen snapshot, Crossref record, horizon-safe exact-version arXiv HTML, or pinned public repository text without a LiteratureAgent.
 An independent referee gets a separate opaque-handle session and chooses its own queries. It first reconstructs the requested load-bearing chain, then sweeps every other active assertion for contradictory definitions, explanations, assumptions, measure/type declarations, regularity, and scope.
 It writes one findings-first authoritative Markdown report. Its compact envelope contains only the report hash, inspected references, disposition, actual blockers, and prior-finding statuses. Runtime checks identity and traceability, not mathematics; evaluator gold remains excluded from all live discovery.
 

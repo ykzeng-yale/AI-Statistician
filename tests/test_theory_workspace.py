@@ -388,6 +388,22 @@ def test_same_theory_model_discovers_and_reads_public_source_without_a_scout_age
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
     ]
+    search_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL
+    )
+    assert "preprint" in search_tool.input_schema["properties"][
+        "source_kind"
+    ]["enum"]
+    read_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == RESEARCH_SOURCE_DISCOVERY_READ_TOOL
+    )
+    assert {"line_start", "line_end"}.issubset(
+        read_tool.input_schema["properties"]
+    )
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     assert "2025-12-31" in initial_prompt
     assert "same TheoryDeveloper session" in initial_prompt

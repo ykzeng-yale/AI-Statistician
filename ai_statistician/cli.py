@@ -6201,8 +6201,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--public-research-source-discovery",
         action="store_true",
         help=(
-            "expose model-directed Crossref paper and public GitHub repository search/read "
-            "tools in the existing TheoryDeveloper session"
+            "expose model-directed Crossref metadata, exact-version arXiv HTML, and "
+            "public GitHub repository search/read tools in the existing "
+            "TheoryDeveloper session"
         ),
     )
     research_architect_theory.add_argument(
@@ -6216,7 +6217,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_architect_theory.add_argument(
         "--research-source-contact-email",
         default="",
-        help="optional contact email used for Crossref polite-pool requests",
+        help="optional contact email used for Crossref and arXiv request identity",
     )
     research_architect_theory.add_argument(
         "--llm-model",
@@ -6334,8 +6335,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--public-research-source-discovery",
         action="store_true",
         help=(
-            "expose model-directed Crossref paper and public GitHub repository search/read "
-            "tools inside TheoryDeveloper; disabled for frozen cross-family evaluation"
+            "expose model-directed Crossref metadata, exact-version arXiv HTML, and "
+            "public GitHub repository search/read tools inside TheoryDeveloper; "
+            "disabled for frozen cross-family evaluation"
         ),
     )
     research_agent_runtime.add_argument(
@@ -6349,7 +6351,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument(
         "--research-source-contact-email",
         default="",
-        help="optional contact email used for Crossref polite-pool requests",
+        help="optional contact email used for Crossref and arXiv request identity",
     )
     research_agent_runtime.add_argument(
         "--resume-runtime-manifest",

@@ -1079,16 +1079,32 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "public research source discovery is unavailable"
                 )
-            if set(tool_input) - {"source_handle", "path", "revision"}:
+            if set(tool_input) - {
+                "source_handle",
+                "path",
+                "revision",
+                "line_start",
+                "line_end",
+            }:
                 raise ClientToolInputError(
                     "read_discovered_research_source accepts source_handle, path, "
-                    "and revision"
+                    "revision, line_start, and line_end"
                 )
             try:
+                read_kwargs = {
+                    "path": tool_input.get("path", ""),
+                    "revision": tool_input.get("revision", ""),
+                }
+                if "line_start" in tool_input or "line_end" in tool_input:
+                    read_kwargs.update(
+                        {
+                            "line_start": tool_input.get("line_start", 0),
+                            "line_end": tool_input.get("line_end", 0),
+                        }
+                    )
                 observation = research_source_discovery.read(
                     tool_input.get("source_handle", ""),
-                    path=tool_input.get("path", ""),
-                    revision=tool_input.get("revision", ""),
+                    **read_kwargs,
                 )
             except ResearchSourceDiscoveryInputError as exc:
                 raise ClientToolInputError(str(exc)) from exc
@@ -1124,7 +1140,11 @@ def run_theory_artifact_workspace(
                         "revision",
                         "path",
                         "content_sha256",
+                        "content_line_count",
                         "content_truncated",
+                        "line_start",
+                        "line_end",
+                        "content_range_sha256",
                         "citation_ref",
                     )
                     if key in observation
@@ -2735,9 +2755,10 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
         ClientToolDefinition(
             name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
             description=(
-                "Search public scholarly metadata and GitHub repositories under the "
-                "operator-configured source horizon. You choose the query and source "
-                "kind; use the returned opaque handle to inspect a promising result."
+                "Search public scholarly metadata, arXiv preprints, and GitHub "
+                "repositories under the operator-configured source horizon. You "
+                "choose the query and source kind; use the returned opaque handle "
+                "to inspect a promising result."
             ),
             input_schema={
                 "type": "object",
@@ -2747,7 +2768,7 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
                     "query": {"type": "string", "minLength": 1, "maxLength": 500},
                     "source_kind": {
                         "type": "string",
-                        "enum": ["all", "paper", "repository"],
+                        "enum": ["all", "paper", "preprint", "repository"],
                     },
                     "top_k": {"type": "integer", "minimum": 1, "maximum": 10},
                 },
@@ -2756,10 +2777,13 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
         ClientToolDefinition(
             name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
             description=(
-                "Read exact bounded metadata or repository text from a handle returned "
-                "by discover_research_sources. For a repository, first omit path and "
-                "revision to resolve a horizon-bound commit and list root entries, then "
-                "read a selected text path at that returned revision."
+                "Read exact bounded metadata, version-pinned official arXiv HTML, or "
+                "repository text from a handle returned by discover_research_sources. "
+                "For a repository, first omit path and revision to resolve a "
+                "horizon-bound commit and list root entries, then read a selected text "
+                "path at that returned revision. When a source is longer than the "
+                "initial bounded observation, use line_start and line_end to read an "
+                "exact smaller range from the same version."
             ),
             input_schema={
                 "type": "object",
@@ -2769,6 +2793,8 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
                     "source_handle": {"type": "string", "minLength": 1},
                     "path": {"type": "string"},
                     "revision": {"type": "string"},
+                    "line_start": {"type": "integer", "minimum": 1},
+                    "line_end": {"type": "integer", "minimum": 1},
                 },
             },
         ),
