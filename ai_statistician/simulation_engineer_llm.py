@@ -39,6 +39,7 @@ from .scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
     ScientificCodeWorkspaceAgent,
+    ScientificSourceWorkspaceUnavailableError,
 )
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
@@ -282,6 +283,11 @@ class LLMSimulationEngineerAgent(ScientificCodeWorkspaceAgent):
                 )
             )
         )
+        if requires_generated_code and not source_workspace_planning_owned:
+            raise ScientificSourceWorkspaceUnavailableError(
+                "SimulationEngineer generated source requires one native "
+                "client-tool workspace"
+            )
         if source_workspace_planning_owned:
             intent_hash = stable_hash(
                 {

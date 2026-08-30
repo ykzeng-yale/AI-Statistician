@@ -96,6 +96,10 @@ class ScientificCodeWorkspaceResult:
     evidence: Mapping[str, Any]
 
 
+class ScientificSourceWorkspaceUnavailableError(RuntimeError):
+    """Fresh scientific source cannot be authored through native client tools."""
+
+
 class ScientificCodeWorkspaceAgent:
     """Shared retained source session for Python/R workspace owners."""
 
@@ -819,6 +823,55 @@ def scientific_source_candidate_accepted(
     return prototype.get("smoke_passed") is True
 
 
+def scientific_source_workspace_available(proposal_agent: Any) -> bool:
+    """Return whether one source owner can run its retained native tool loop."""
+
+    return bool(
+        proposal_agent is not None
+        and callable(
+            getattr(
+                getattr(proposal_agent, "provider", None),
+                "generate_client_tool_turn",
+                None,
+            )
+        )
+        and callable(getattr(proposal_agent, "iterate_code_with_tools", None))
+    )
+
+
+def scientific_source_workspace_unavailable_result(
+    *,
+    task: AgentTask,
+    source_owner: str,
+    prior_observations: Sequence[EnvironmentObservation] = (),
+) -> AgentStepResult:
+    """Fail closed before fresh source authoring changes execution paradigm."""
+
+    return AgentStepResult(
+        status="BLOCKED",
+        rationale=(
+            f"{source_owner} requires one retained native client-tool source "
+            "workspace; structured proposal authoring is disabled."
+        ),
+        observations=tuple(prior_observations)
+        + (
+            EnvironmentObservation(
+                observation_type="scientific_source_workspace_unavailable",
+                summary="native client-tool source workspace is unavailable",
+                payload={
+                    "source_owner": source_owner,
+                    "planning_model_call_authorized": False,
+                    "source_model_call_authorized": False,
+                    "structured_source_fallback_authorized": False,
+                    "runtime_edited_source": False,
+                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                },
+            ),
+        ),
+        failure_classification="scientific_source_workspace_unavailable",
+    )
+
+
 def run_source_owner_scientific_workspace(
     *,
     proposal_agent: Any,
@@ -850,14 +903,7 @@ def run_source_owner_scientific_workspace(
             "deferred confirmation requires an authoring diagnostic executor"
         )
 
-    can_use_workspace = bool(
-        proposal_agent is not None
-        and callable(getattr(
-            getattr(proposal_agent, "provider", None),
-            "generate_client_tool_turn", None,
-        ))
-        and callable(getattr(proposal_agent, "iterate_code_with_tools", None))
-    )
+    can_use_workspace = scientific_source_workspace_available(proposal_agent)
     tool_calls: list[Any] = []
     last_checked_prototype: dict[str, Any] = {}
     authoring_diagnostic_enabled = bool(confirmatory_result_blind and execute_authoring_diagnostic and can_use_workspace)

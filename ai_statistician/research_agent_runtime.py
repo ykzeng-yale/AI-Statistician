@@ -45,8 +45,6 @@ from .architect_theory_execution_preflight import (
     PREFLIGHT_EXECUTION_HANDOFF_READY,
 )
 from .algorithm_engineer_llm import (
-    ALGORITHM_ENGINEER_BOUNDARY,
-    ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
     LLMAlgorithmEngineerAgent,
     algorithm_source_workspace_plan,
     materialize_algorithm_source_workspace_packet,
@@ -128,6 +126,7 @@ from .scientific_code_workspace import (
     SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    ScientificSourceWorkspaceUnavailableError,
     advance_scientific_consumer_revision_budget,
     complete_scientific_source_draft,
     incomplete_scientific_source_ids,
@@ -139,6 +138,8 @@ from .scientific_code_workspace import (
     run_source_owner_scientific_workspace as _run_source_owner_scientific_workspace,
     runtime_scientific_workspace_resume_plan,
     scientific_source_candidate_accepted as _scientific_source_candidate_accepted,
+    scientific_source_workspace_available,
+    scientific_source_workspace_unavailable_result,
     scientific_workspace_progress_continuation,
     scientific_workspace_progress_rejected_result,
     scientific_workspace_progress_result,
@@ -9222,6 +9223,9 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
         )
         scientific_progress_mode = bool(scientific_progress)
+        source_workspace_available = scientific_source_workspace_available(
+            self.proposal_agent
+        )
         progress_parent_rows_by_id: dict[str, dict[str, Any]] = {}
         progress_checkpoints: dict[str, dict[str, Any]] = {}
         if scientific_progress_mode and (
@@ -9578,7 +9582,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                     },
                 )
             )
-        elif self.proposal_agent is not None:
+        elif not source_workspace_available:
+            return scientific_source_workspace_unavailable_result(
+                task=task,
+                source_owner="SimulationEvaluator",
+                prior_observations=observations,
+            )
+        else:
             available_upstream_estimator_ids = [
                 str(row.get("estimator_id", "") or "").strip()
                 for row in upstream_algorithm_handoff.get(
@@ -9638,7 +9648,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 subsystem="SimulationEvaluator",
             )
             try:
-                with agent_runtime_substage("simulation_planning_envelope"):
+                with agent_runtime_substage("simulation_source_workspace_intent"):
                     proposal_packet = self.proposal_agent.propose(
                         question=question,
                         theory_packet=(
@@ -9657,12 +9667,11 @@ class SimulationEvaluatorRuntimeSubsystem:
                             )
                         ),
                     )
-            except PacketValidationError as exc:
-                return _simulation_engineer_packet_validation_failure_result(
+            except ScientificSourceWorkspaceUnavailableError:
+                return scientific_source_workspace_unavailable_result(
                     task=task,
-                    question=question,
-                    theory_packet_id=packet_id,
-                    exc=exc,
+                    source_owner="SimulationEvaluator",
+                    prior_observations=observations,
                 )
             proposal_id = str(proposal_packet["packet_id"])
             theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
@@ -11865,10 +11874,9 @@ class AlgorithmEngineerRuntimeSubsystem:
             if isinstance(row, Mapping)
             and str(row.get("artifact_id", "") or "").strip()
         }
-        source_provider = getattr(self.proposal_agent, "provider", None)
-        source_workspace_available = callable(getattr(
-            self.proposal_agent, "iterate_code_with_tools", None
-        )) and callable(getattr(source_provider, "generate_client_tool_turn", None))
+        source_workspace_available = scientific_source_workspace_available(
+            self.proposal_agent
+        )
         scientific_progress, scientific_progress_errors = (
             runtime_scientific_workspace_resume_plan(
                 task,
@@ -11927,6 +11935,21 @@ class AlgorithmEngineerRuntimeSubsystem:
             return scientific_workspace_progress_rejected_result(
                 task=task,
                 validation_errors=scientific_progress_errors,
+            )
+        fresh_algorithm_source_authoring = bool(
+            implementation_gaps
+            and not scientific_progress_mode
+            and not consumer_revision_mode
+            and not semantic_source_revision
+            and not theory_revision_source_seeds
+        )
+        if (
+            fresh_algorithm_source_authoring
+            and not source_workspace_owns_planning
+        ):
+            return scientific_source_workspace_unavailable_result(
+                task=task,
+                source_owner="AlgorithmEngineer",
             )
         if scientific_progress_mode:
             proposal_packet = scientific_progress["proposal_packet"]
@@ -12173,100 +12196,6 @@ class AlgorithmEngineerRuntimeSubsystem:
                         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     },
                 )
-            )
-        elif (
-            not source_workspace_owns_planning
-            and self.proposal_agent is not None
-            and implementation_gaps
-        ):
-            try:
-                effective_context = _runtime_context_with_environment_feedback_contract(
-                    context,
-                    environment_feedback,
-                    subsystem="AlgorithmEngineer",
-                )
-                with agent_runtime_substage("algorithm_planning_envelope"):
-                    proposal_packet = self.proposal_agent.propose(
-                        question=question,
-                        theory_packet=(
-                            packet if isinstance(packet, Mapping) else {}
-                        ),
-                        simulation_manifest=(
-                            simulation_manifest
-                            if isinstance(simulation_manifest, Mapping)
-                            else {}
-                        ),
-                        implementation_gaps=implementation_gaps,
-                        environment_feedback=(
-                            _runtime_environment_feedback_with_architect_directive(
-                                context=effective_context,
-                                subsystem="AlgorithmEngineer",
-                                feedback=environment_feedback,
-                            )
-                        ),
-                    )
-            except PacketValidationError as exc:
-                return _algorithm_engineer_packet_validation_failure_result(
-                    task=task,
-                    question=question,
-                    theory_packet_id=packet_id,
-                    simulation_manifest_id=simulation_manifest_id,
-                    implementation_gaps=implementation_gaps,
-                    exc=exc,
-                )
-            proposal_id = str(proposal_packet["packet_id"])
-            theory_trace_contracts = _runtime_theory_trace_consumption_contracts(
-                proposal_packet
-            )
-            algorithm_theory_trace_contract = (
-                theory_trace_contracts[0] if theory_trace_contracts else {}
-            )
-            algorithm_theory_trace_alignment_contract = (
-                dict(proposal_packet.get("theory_trace_alignment_contract", {}))
-                if isinstance(
-                    proposal_packet.get("theory_trace_alignment_contract", {}),
-                    Mapping,
-                )
-                else {}
-            )
-            produced_artifacts[proposal_id] = proposal_packet
-            observations.append(
-                EnvironmentObservation(
-                    observation_type="llm_algorithm_engineer_proposal",
-                    summary=(
-                        "validated LLM AlgorithmEngineer proposal recorded before "
-                        "runtime sandbox execution"
-                    ),
-                    payload={
-                        "packet_id": proposal_id,
-                        "n_implementation_targets": len(
-                            proposal_packet.get("implementation_targets", []) or []
-                        ),
-                        "execution_evidence_status": ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
-                        "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
-                        "theory_trace_consumption_contract": algorithm_theory_trace_contract,
-                        "theory_trace_alignment_contract": algorithm_theory_trace_alignment_contract,
-                    },
-                )
-            )
-            proposal_evidence = EvidenceLedgerEntry(
-                evidence_id="evidence:" + stable_hash([task.task_id, proposal_id])[:20],
-                task_id=task.task_id,
-                artifact_id=proposal_id,
-                evidence_type="llm_algorithm_engineer_proposal",
-                status="PROPOSAL_RECORDED_REQUIRES_SANDBOX",
-                boundary=ALGORITHM_ENGINEER_BOUNDARY,
-                payload={
-                    "n_implementation_targets": len(
-                        proposal_packet.get("implementation_targets", []) or []
-                    ),
-                    "sandbox_executed": False,
-                    "production_registered": False,
-                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                    "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
-                    "theory_trace_consumption_contract": algorithm_theory_trace_contract,
-                    "theory_trace_alignment_contract": algorithm_theory_trace_alignment_contract,
-                },
             )
         sandbox_dir = self.out_dir / _safe_identifier(question.id) / stable_hash([task.task_id, packet_id])[:12]
         sandbox_dir.mkdir(parents=True, exist_ok=True)
@@ -13558,234 +13487,6 @@ def _formalizer_semantic_review_continuation_task(
                 )
             )
         ),
-    )
-
-
-def _simulation_engineer_packet_validation_failure_result(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    exc: PacketValidationError,
-) -> AgentStepResult:
-    architect_context = task.inputs.get("architect_context", {})
-    if not isinstance(architect_context, Mapping):
-        architect_context = {}
-    empirical_evaluation_phase = str(
-        task.inputs.get("empirical_evaluation_phase", "")
-        or architect_context.get("empirical_evaluation_phase", "")
-        or ""
-    ).strip()
-    validation_errors = [str(error) for error in exc.errors]
-    failure_classification = "simulation_engineer_packet_validation_failed"
-    failure_id = "simulation_engineer_validation_failure:" + stable_hash(
-        [task.task_id, theory_packet_id, validation_errors, exc.history]
-    )[:20]
-    rejected_candidate = (
-        deepcopy(dict(exc.last_invalid_packet))
-        if isinstance(exc.last_invalid_packet, Mapping)
-        else {}
-    )
-    regeneration_feedback = {
-        "feedback_id": failure_id,
-        "feedback_type": "simulation_engineer_packet_validation_feedback",
-        "question_id": question.id,
-        "source_theory_packet_id": theory_packet_id,
-        "failure_classification": failure_classification,
-        "validation_label": exc.validation_label,
-        "validation_errors": validation_errors,
-        "model_generation_attempt_history": deepcopy(exc.history),
-        "last_attempt_summary": exc.history[-1] if exc.history else {},
-        "rejected_candidate": rejected_candidate,
-        "rejected_candidate_fingerprint": (
-            stable_hash(rejected_candidate) if rejected_candidate else ""
-        ),
-        "empirical_evaluation_phase": empirical_evaluation_phase,
-        "model_route_required_for_cross_owner_revision": False,
-        "execution_results_observed": False,
-        "execution_authorized": False,
-        "execution_evidence_status": (
-            "SIMULATION_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
-        ),
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        "boundary": SIMULATION_ENGINEER_BOUNDARY,
-    }
-    failure_artifact = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeSimulationEngineerValidationFailure",
-        "failure_id": failure_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "question": _question_to_payload(question),
-        "task_id": task.task_id,
-        "theory_packet_id": theory_packet_id,
-        "empirical_evaluation_phase": empirical_evaluation_phase,
-        "validation_label": exc.validation_label,
-        "failure_classification": failure_classification,
-        "validation_errors": validation_errors,
-        "structured_output_retry_history": exc.history,
-        "rejected_candidate": rejected_candidate,
-        "rejected_candidate_fingerprint": regeneration_feedback[
-            "rejected_candidate_fingerprint"
-        ],
-        "execution_evidence_status": regeneration_feedback[
-            "execution_evidence_status"
-        ],
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        "boundary": SIMULATION_ENGINEER_BOUNDARY,
-    }
-    evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
-        task_id=task.task_id,
-        artifact_id=failure_id,
-        evidence_type="simulation_engineer_packet_validation_failure",
-        status="VALIDATION_FAILED_RECORDED_NOT_EXECUTION_EVIDENCE",
-        boundary=SIMULATION_ENGINEER_BOUNDARY,
-        payload={
-            "failure_classification": failure_classification,
-            "validation_errors": validation_errors,
-            "attempts": exc.attempts,
-            "execution_evidence_status": regeneration_feedback[
-                "execution_evidence_status"
-            ],
-            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        },
-    )
-    return AgentStepResult(
-        status="BLOCKED",
-        rationale=(
-            "SimulationEngineer exhausted its in-call structured-output retry. The "
-            "complete rejected candidate and exact validator observations remain "
-            "failed at their source owner without an Architect routing loop."
-        ),
-        produced_artifacts={failure_id: failure_artifact},
-        observations=(
-            EnvironmentObservation(
-                observation_type="simulation_engineer_packet_validation_failure",
-                summary="; ".join(validation_errors)[:500],
-                payload={
-                    "failure_id": failure_id,
-                    "validation_errors": validation_errors,
-                    "execution_evidence_status": regeneration_feedback[
-                        "execution_evidence_status"
-                    ],
-                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                },
-            ),
-        ),
-        evidence_entries=(evidence,),
-        failure_classification=failure_classification,
-    )
-
-
-def _algorithm_engineer_packet_validation_failure_result(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    implementation_gaps: list[Mapping[str, Any]],
-    exc: PacketValidationError,
-) -> AgentStepResult:
-    validation_errors = [str(error) for error in exc.errors if str(error)]
-    failure_classification = "algorithm_engineer_packet_validation_failed"
-    failure_id = (
-        "algorithm_engineer_validation_failure:"
-        + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
-    )
-    rejected_candidate = (
-        deepcopy(dict(exc.last_invalid_packet))
-        if isinstance(exc.last_invalid_packet, Mapping)
-        else {}
-    )
-    failure_artifact = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeAlgorithmEngineerValidationFailure",
-        "failure_id": failure_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "question": _question_to_payload(question),
-        "task_id": task.task_id,
-        "theory_packet_id": theory_packet_id,
-        "simulation_manifest_id": simulation_manifest_id,
-        "implementation_gaps": [dict(row) for row in implementation_gaps],
-        "validation_label": exc.validation_label,
-        "failure_classification": failure_classification,
-        "validation_errors": validation_errors,
-        "structured_output_retry_history": exc.history,
-        "rejected_candidate": rejected_candidate,
-        "rejected_candidate_fingerprint": (
-            stable_hash(rejected_candidate) if rejected_candidate else ""
-        ),
-        "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        "boundary": (
-            "This artifact records a local validator failure from an LLM "
-            "AlgorithmEngineer proposal. No code was executed, no registered template "
-            "was used as capability evidence, and this is not proof evidence."
-        ),
-    }
-    regeneration_feedback = {
-        "feedback_id": failure_id,
-        "feedback_type": "algorithm_engineer_packet_validation_feedback",
-        "question_id": question.id,
-        "source_theory_packet_id": theory_packet_id,
-        "failure_classification": failure_classification,
-        "validation_label": exc.validation_label,
-        "validation_errors": validation_errors,
-        "model_generation_attempt_history": deepcopy(exc.history),
-        "last_attempt_summary": exc.history[-1] if exc.history else {},
-        "rejected_candidate": rejected_candidate,
-        "rejected_candidate_fingerprint": (
-            stable_hash(rejected_candidate) if rejected_candidate else ""
-        ),
-        "model_route_required_for_cross_owner_revision": False,
-        "execution_results_observed": False,
-        "execution_authorized": False,
-        "execution_evidence_status": "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE",
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        "boundary": ALGORITHM_ENGINEER_BOUNDARY,
-    }
-    evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
-        task_id=task.task_id,
-        artifact_id=failure_id,
-        evidence_type="algorithm_engineer_packet_validation_failure",
-        status="VALIDATION_FAILED_RECORDED_NOT_EXECUTION_EVIDENCE",
-        boundary=ALGORITHM_ENGINEER_BOUNDARY,
-        payload={
-            "failure_classification": failure_classification,
-            "validation_errors": validation_errors,
-            "attempts": exc.attempts,
-            "execution_evidence_status": (
-                "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
-            ),
-            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-        },
-    )
-    return AgentStepResult(
-        status="BLOCKED",
-        rationale=(
-            "AlgorithmEngineer exhausted its in-call structured-output retry. The "
-            "complete rejected candidate and exact validator observations remain "
-            "failed at their source owner without an Architect routing loop."
-        ),
-        produced_artifacts={failure_id: failure_artifact},
-        observations=(
-            EnvironmentObservation(
-                observation_type="algorithm_engineer_packet_validation_failure",
-                summary="; ".join(validation_errors)[:500],
-                payload={
-                    "failure_id": failure_id,
-                    "failure_classification": failure_classification,
-                    "validation_errors": validation_errors,
-                    "execution_evidence_status": (
-                        "ALGORITHM_ENGINEER_PACKET_VALIDATION_FAILURE_NOT_EXECUTION_EVIDENCE"
-                    ),
-                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                },
-            ),
-        ),
-        evidence_entries=(evidence,),
-        failure_classification=failure_classification,
     )
 
 

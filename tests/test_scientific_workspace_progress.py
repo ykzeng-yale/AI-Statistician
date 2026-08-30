@@ -377,6 +377,144 @@ def _research_context(question_id: str, theory_packet_id: str) -> dict:
     }
 
 
+def test_fresh_algorithm_source_fails_closed_before_packet_fallback(
+    tmp_path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="algorithm-direct-source-required",
+        title="Require one direct algorithm workspace",
+        description="Do not switch authoring paradigms when tools are absent.",
+    )
+    theory_packet_id = "theory:algorithm-direct-source-required"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "estimator_specs": [{"id": "estimator"}],
+    }
+    context = _research_context(question.id, theory_packet_id)
+    deferred_task = AgentTask(
+        task_id="simulation:after-direct-source-required",
+        owner_subsystem="SimulationEvaluator",
+        objective="Author the evaluator after source review.",
+        inputs={
+            "question": runtime_module._question_to_payload(question),
+            "theory_packet_id": theory_packet_id,
+            "architect_context": context,
+            "evaluator_source_authoring": True,
+        },
+    )
+
+    class ProposalOnlyAgent:
+        calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.calls += 1
+            raise AssertionError("structured source fallback must not run")
+
+    result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path,
+        n_runs=2,
+        seed=7,
+        proposal_agent=ProposalOnlyAgent(),
+    ).run(
+        AgentTask(
+            task_id="algorithm:direct-source-required",
+            owner_subsystem="AlgorithmEngineer",
+            objective="Author one executable estimator.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": context,
+                "implementation_gaps": [{"estimator_id": "estimator"}],
+                "implementation_before_metric_freeze": True,
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "deferred_metric_protocol_task": asdict(deferred_task),
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert ProposalOnlyAgent.calls == 0
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "scientific_source_workspace_unavailable"
+    )
+    assert result.observations[-1].payload[
+        "structured_source_fallback_authorized"
+    ] is False
+
+
+def test_fresh_simulation_source_fails_closed_before_packet_fallback(
+    tmp_path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="simulation-direct-source-required",
+        title="Require one direct simulation workspace",
+        description="Do not switch authoring paradigms when tools are absent.",
+    )
+    theory_packet_id = "theory:simulation-direct-source-required"
+    theory_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_packet_id,
+        "problem_card": {"estimand": "a generic scalar"},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+
+    class ProposalOnlyAgent:
+        calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.calls += 1
+            raise AssertionError("structured source fallback must not run")
+
+    result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=ProposalOnlyAgent(),
+        sandbox_root=tmp_path,
+    ).run(
+        AgentTask(
+            task_id="simulation:direct-source-required",
+            owner_subsystem="SimulationEvaluator",
+            objective="Author one executable simulation.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "theory_packet_id": theory_packet_id,
+                "architect_context": _research_context(
+                    question.id,
+                    theory_packet_id,
+                ),
+                "empirical_evaluation_phase": (
+                    runtime_module.EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                ),
+                "n_runs": 2,
+                "seed": 7,
+            },
+        ),
+        BlackboardState(
+            project_id=question.id,
+            artifacts={theory_packet_id: theory_packet},
+        ),
+    )
+
+    assert ProposalOnlyAgent.calls == 0
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "scientific_source_workspace_unavailable"
+    )
+    assert result.observations[-1].payload[
+        "structured_source_fallback_authorized"
+    ] is False
+
+
 def test_algorithm_source_workspace_owns_planning_and_source(
     monkeypatch,
     tmp_path,

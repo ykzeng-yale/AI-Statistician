@@ -10,6 +10,8 @@ import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.agent_runtime import ToolCallRecord
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    AlgorithmEngineerConfig,
+    LLMAlgorithmEngineerAgent,
     _algorithm_engineer_response_schema,
     validate_algorithm_engineer_packet,
 )
@@ -36,6 +38,7 @@ from ai_statistician.scientific_sandbox import (
 )
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    ScientificSourceWorkspaceUnavailableError,
     advance_scientific_consumer_revision_budget,
     scientific_consumer_dependency_context,
 )
@@ -768,6 +771,92 @@ def test_confirmatory_source_workspace_owns_planning_without_envelope_call() -> 
     assert packet["metric_contracts"][0]["requirement_id"] == (
         requirement["requirement_id"]
     )
+
+
+def test_algorithm_packet_cannot_replace_direct_source_workspace() -> None:
+    class Provider:
+        provider_name = "anthropic"
+        planning_calls = 0
+
+        @classmethod
+        def generate(cls, _request):
+            cls.planning_calls += 1
+            raise AssertionError("structured source fallback must not run")
+
+    agent = LLMAlgorithmEngineerAgent(
+        provider=Provider(),
+        config=AlgorithmEngineerConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    )
+
+    with pytest.raises(ScientificSourceWorkspaceUnavailableError):
+        agent.propose(
+            question=OpenResearchQuestion(
+                id="algorithm-source-workspace-required",
+                title="Require direct algorithm source",
+                description="Keep fresh source inside one retained coding loop.",
+            ),
+            theory_packet={"packet_id": "theory:algorithm-source-required"},
+            simulation_manifest={},
+            implementation_gaps=[{"estimator_id": "estimator"}],
+            environment_feedback={
+                "runtime_requested_evidence_contract": {
+                    "research_evaluation_requires_generated_algorithm_code": True,
+                },
+            },
+        )
+
+    assert Provider.planning_calls == 0
+
+
+def test_legacy_metric_packet_cannot_replace_simulation_source_workspace() -> None:
+    class Provider:
+        provider_name = "anthropic"
+        planning_calls = 0
+
+        @classmethod
+        def generate(cls, _request):
+            cls.planning_calls += 1
+            raise AssertionError("structured source fallback must not run")
+
+        @staticmethod
+        def generate_client_tool_turn(_request):
+            raise AssertionError("propose() must not start the source workspace")
+
+    agent = LLMSimulationEngineerAgent(
+        provider=Provider(),
+        config=SimulationEngineerConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    )
+
+    with pytest.raises(ScientificSourceWorkspaceUnavailableError):
+        agent.propose(
+            question=OpenResearchQuestion(
+                id="simulation-source-workspace-required",
+                title="Require direct simulation source",
+                description="Keep fresh source inside one retained coding loop.",
+            ),
+            theory_packet={"packet_id": "theory:source-workspace-required"},
+            registered_problem={},
+            registered_procedures=[],
+            n_runs=2_000,
+            seed=19,
+            withhold_seed_from_model=True,
+            environment_feedback={
+                "empirical_evaluation_phase": "confirmatory",
+                "runtime_requested_evidence_contract": {
+                    "research_evaluation_requires_generated_simulation_code": True,
+                },
+            },
+        )
+
+    assert Provider.planning_calls == 0
 
 
 def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> None:

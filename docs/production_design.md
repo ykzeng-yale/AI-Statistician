@@ -174,7 +174,7 @@ explicitly runs the current source for raw sandbox feedback, so it may batch coh
 edits before an expensive simulation. A later `commit_scientific_source` requires an
 accepted hash-bound execution observation.
 No repair worker, diagnostic parser, or content patch intervenes. Estimator IDs stay frozen.
-Structured-source packets remain only a replay/static-provider fallback.
+Structured-source packets are historical replay only; fresh authoring fails closed without native client tools.
 
 Confirmatory iteration stops when source is execution-valid. Realized values,
 threshold verdicts, and value-derived hashes are withheld from the source model and semantic reviewer, which checks exact source, runtime arguments, frozen measurement

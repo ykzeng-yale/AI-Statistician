@@ -1028,9 +1028,20 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit(
     class AlgorithmWorkspaceReached(RuntimeError):
         pass
 
-    class ProposalAgent:
+    class ProposalProvider:
         @staticmethod
-        def propose(**_kwargs):
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AlgorithmWorkspaceReached
+
+    class ProposalAgent:
+        provider = ProposalProvider()
+
+        @staticmethod
+        def source_workspace_owns_planning():
+            return True
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
             raise AlgorithmWorkspaceReached
 
     forged_payload = deepcopy(result.next_task.inputs["deferred_metric_protocol_task"])
@@ -1413,9 +1424,20 @@ def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
         "'requested_runtime_replicates': replicates}\n"
     )
 
+    class SimulationProvider:
+        provider_name = "static"
+
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("source workspace is stubbed below")
+
     class SimulationAgent:
-        provider = SimpleNamespace(provider_name="static")
+        provider = SimulationProvider()
         proposal_calls = 0
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            raise AssertionError("source workspace is stubbed below")
 
         @classmethod
         def propose(cls, **_kwargs):
@@ -1428,7 +1450,9 @@ def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
                 "model_tier": "haiku",
                 "source_workspace_planning_owned": True,
                 "scientific_source_transport": "native_client_tools",
-                "simulation_targets": [{"procedure_id": "revised-theory-evaluator"}],
+                "simulation_targets": [
+                    {"procedure_id": "revised-theory-evaluator"}
+                ],
                 "simulation_code_drafts": [
                     {
                         "simulation_id": "revised-theory-evaluator",
@@ -1653,7 +1677,7 @@ def test_canonical_runtime_has_no_outer_same_owner_source_retry_tasks() -> None:
     assert config_fields.isdisjoint(removed_retry_controls)
 
 
-def test_source_owner_packet_exhaustion_blocks_without_architect_routing() -> None:
+def test_theory_packet_exhaustion_blocks_without_architect_routing() -> None:
     question = OpenResearchQuestion(
         id="owner-local-packet-failure",
         title="Keep packet failures local",
@@ -1666,53 +1690,22 @@ def test_source_owner_packet_exhaustion_blocks_without_architect_routing() -> No
         history=[],
         last_invalid_packet={"candidate": "incomplete"},
     )
-    results = (
-        runtime_module._theory_developer_packet_validation_failure_result(
-            task=AgentTask(
-                task_id="theory:owner-local-packet-failure",
-                owner_subsystem="TheoryDeveloper",
-                objective="Develop the theory artifact.",
-                inputs={},
-            ),
-            question=question,
-            exc=error,
+    result = runtime_module._theory_developer_packet_validation_failure_result(
+        task=AgentTask(
+            task_id="theory:owner-local-packet-failure",
+            owner_subsystem="TheoryDeveloper",
+            objective="Develop the theory artifact.",
+            inputs={},
         ),
-        runtime_module._algorithm_engineer_packet_validation_failure_result(
-            task=AgentTask(
-                task_id="algorithm:owner-local-packet-failure",
-                owner_subsystem="AlgorithmEngineer",
-                objective="Develop and execute the algorithm artifact.",
-                inputs={},
-            ),
-            question=question,
-            theory_packet_id="theory:owner-local-packet-failure",
-            simulation_manifest_id="",
-            implementation_gaps=[],
-            exc=error,
-        ),
-        runtime_module._simulation_engineer_packet_validation_failure_result(
-            task=AgentTask(
-                task_id="simulation:owner-local-packet-failure",
-                owner_subsystem="SimulationEvaluator",
-                objective="Develop and execute the simulation artifact.",
-                inputs={
-                    "architect_context": {
-                        "empirical_evaluation_phase": "exploratory"
-                    }
-                },
-            ),
-            question=question,
-            theory_packet_id="theory:owner-local-packet-failure",
-            exc=error,
-        ),
+        question=question,
+        exc=error,
     )
 
-    for result in results:
-        assert result.status == "BLOCKED"
-        assert result.next_task is None
-        assert result.produced_artifacts
-        assert result.failure_classification
-        assert "Architect routing loop" in result.rationale
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.produced_artifacts
+    assert result.failure_classification
+    assert "Architect routing loop" in result.rationale
 
 
 def test_model_reported_theory_gap_blocks_without_validation_or_repair_route() -> None:
@@ -4642,7 +4635,7 @@ def test_algorithm_workspace_executes_exact_theory_revision_seed_before_reauthor
     replay = manifests[0]["prototypes"][0]["theory_revision_source_seed"]
     assert replay["replay_execution_attempted"] is True
     assert replay["replay_execution_passed"] is True
-    assert proposal_agent.proposal_calls == 1
+    assert proposal_agent.proposal_calls == 0
     assert proposal_agent.source_calls == 0
 
 
@@ -5524,9 +5517,20 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         "lineage_verified": True,
     }
 
+    class SimulationProvider:
+        provider_name = "static"
+
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("source workspace is stubbed below")
+
     class SimulationAgent:
-        provider = SimpleNamespace(provider_name="static")
+        provider = SimulationProvider()
         propose_calls = 0
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            raise AssertionError("source workspace is stubbed below")
 
         @classmethod
         def propose(cls, **kwargs):
@@ -6026,6 +6030,10 @@ def test_evaluator_authoring_dispatches_review_before_confirmation(
 
     class SimulationAgent:
         provider = Provider()
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            raise AssertionError("source workspace is stubbed in this state test")
 
         @staticmethod
         def propose(**_kwargs):
@@ -7511,26 +7519,25 @@ def test_algorithm_workspace_blocks_partial_artifact_set_before_review(
         "theory_packet_id": theory_packet_id,
     }
 
+    class ProposalProvider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("source workspace is stubbed below")
+
     class ProposalAgent:
-        provider = object()
+        provider = ProposalProvider()
+
+        @staticmethod
+        def source_workspace_owns_planning():
+            return True
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            raise AssertionError("source workspace is stubbed below")
 
         @staticmethod
         def propose(**_kwargs):
-            return {
-                "artifact_kind": "AlgorithmEngineerProposalPacket",
-                "packet_id": "algorithm-proposal:generic-partial-workspace",
-                "source_agent": "LLMAlgorithmEngineerAgent",
-                "model": "source-author",
-                "model_tier": "haiku",
-                "implementation_targets": [
-                    {"estimator_id": "passing-estimator"},
-                    {"estimator_id": "failed-estimator"},
-                ],
-                "sandbox_code_drafts": [
-                    {"estimator_id": "passing-estimator", "code": "passing"},
-                    {"estimator_id": "failed-estimator", "code": "failed"},
-                ],
-            }
+            raise AssertionError("direct source planning must bypass propose()")
 
     source_workspace_contexts: list[dict[str, object]] = []
 

@@ -38,6 +38,7 @@ from .scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET,
     ScientificCodeWorkspaceAgent,
+    ScientificSourceWorkspaceUnavailableError,
 )
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
@@ -128,6 +129,11 @@ class LLMAlgorithmEngineerAgent(ScientificCodeWorkspaceAgent):
                 getattr(self.provider, "generate_client_tool_turn", None)
             )
         )
+        if requires_generated_code and not defer_source_authoring:
+            raise ScientificSourceWorkspaceUnavailableError(
+                "AlgorithmEngineer generated source requires one native "
+                "client-tool workspace"
+            )
         user_prompt = build_algorithm_engineer_prompt(
             question=question,
             theory_packet=theory_packet,
