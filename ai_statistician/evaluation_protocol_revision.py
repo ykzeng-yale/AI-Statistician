@@ -1212,30 +1212,33 @@ def architect_preexecution_metric_protocol_rejection_result(
         }
         status = "REROUTE"
         manifest["upstream_theory_revision_routed"] = True
-        next_task = AgentTask(
-            task_id=(
-                f"theory-preflight-revision:{question.id}:"
-                f"{stable_hash([feedback_id, next_revision_count])[:8]}"
-            ),
-            owner_subsystem="TheoryDeveloper",
-            objective=(
-                "Revise the exact parent theory artifact against the independent "
-                "source-grounded preflight observations."
-            ),
-            inputs={
-                "question": research_question_payload(
-                    question, include_task_intent=True
+        next_task = mark_workspace_continuation(
+            parent_task=task,
+            next_task=AgentTask(
+                task_id=(
+                    f"theory-preflight-revision:{question.id}:"
+                    f"{stable_hash([feedback_id, next_revision_count])[:8]}"
                 ),
-                "architect_context": next_context,
-                "environment_feedback": feedback,
-                "theory_packet_id": source_theory_packet_id,
-            },
-            allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
-            expected_artifacts=("theory_derivation_packet",),
-            acceptance_gate=str(feedback["acceptance_gate"]),
-            stop_condition=(
-                "TheoryDeveloper emits one fresh parent-bound candidate or a typed "
-                "workspace blocker"
+                owner_subsystem="TheoryDeveloper",
+                objective=(
+                    "Revise the exact parent theory artifact against the independent "
+                    "source-grounded preflight observations."
+                ),
+                inputs={
+                    "question": research_question_payload(
+                        question, include_task_intent=True
+                    ),
+                    "architect_context": next_context,
+                    "environment_feedback": feedback,
+                    "theory_packet_id": source_theory_packet_id,
+                },
+                allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+                expected_artifacts=("theory_derivation_packet",),
+                acceptance_gate=str(feedback["acceptance_gate"]),
+                stop_condition=(
+                    "TheoryDeveloper emits one fresh parent-bound candidate or a typed "
+                    "workspace blocker"
+                ),
             ),
         )
         failure_classification = (

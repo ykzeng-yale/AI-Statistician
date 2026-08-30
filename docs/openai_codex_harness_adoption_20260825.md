@@ -191,7 +191,7 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 ## Current Assessment
 
-The inner harness is no longer the main architecture blocker. It preserves exact files, stable tools, checkpoint identity, isolated review, and bounded workspace continuation. Same-owner progress and author-review-author feedback stay inside that budget; accepted evidence entering another lane and cross-artifact conflicts remain outer graph transitions. Continued referees keep exact raw observations in the hash-bound parent transcript, replay only a bounded recent tool/result window, and use their own Markdown report as durable reasoning state instead of copying every prior observation into a new opening.
+The inner harness is no longer the main architecture blocker. It preserves exact files, stable tools, checkpoint identity, isolated review, and bounded workspace continuation. Same-owner progress and author-review-author feedback stay inside independently bounded contiguous collaboration segments; accepted evidence entering another lane and cross-artifact conflicts remain outer graph transitions. Continued referees keep exact raw observations in the hash-bound parent transcript, replay only a bounded recent tool/result window, and use their own Markdown report as durable reasoning state instead of copying every prior observation into a new opening.
 Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, model-owned dimensions remain revisable on genuine replans, and the provider schema is the sole structural contract.
 Three immutable evaluations refined these boundaries without changing scores:
 

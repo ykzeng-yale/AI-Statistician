@@ -729,6 +729,88 @@ def test_agent_runtime_keeps_detached_review_inside_workspace_budget() -> None:
     ]
 
 
+def test_agent_runtime_outer_transition_starts_a_fresh_workspace_budget() -> None:
+    class TheoryWorkspace:
+        name = "TheoryDeveloper"
+        calls = 0
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            del blackboard
+            self.calls += 1
+            if self.calls == 1:
+                return AgentStepResult(
+                    status="REVISE",
+                    rationale="continue one theory checkpoint",
+                    next_task=mark_workspace_continuation(
+                        parent_task=task,
+                        next_task=replace(task, task_id="theory:q1:continued"),
+                    ),
+                )
+            return AgentStepResult(
+                status="REROUTE",
+                rationale="the reviewed theory can enter scientific coding",
+                next_task=AgentTask(
+                    task_id="algorithm:q1",
+                    owner_subsystem="AlgorithmEngineer",
+                    objective="Implement the reviewed theory.",
+                ),
+            )
+
+    class ScientificWorkspace:
+        name = "AlgorithmEngineer"
+        calls = 0
+
+        def run(
+            self,
+            task: AgentTask,
+            blackboard: BlackboardState,
+        ) -> AgentStepResult:
+            del blackboard
+            self.calls += 1
+            if self.calls == 1:
+                return AgentStepResult(
+                    status="REVISE",
+                    rationale="continue one scientific checkpoint",
+                    next_task=mark_workspace_continuation(
+                        parent_task=task,
+                        next_task=replace(task, task_id="algorithm:q1:continued"),
+                    ),
+                )
+            return AgentStepResult(
+                status="ACCEPTED",
+                rationale="scientific source accepted",
+            )
+
+    result = AgentRuntime(
+        subsystems={
+            "TheoryDeveloper": TheoryWorkspace(),
+            "AlgorithmEngineer": ScientificWorkspace(),
+        },
+        blackboard=BlackboardState(project_id="independent-workspace-budgets"),
+    ).run(
+        AgentTask(
+            task_id="theory:q1",
+            owner_subsystem="TheoryDeveloper",
+            objective="Develop one theory checkpoint.",
+        ),
+        max_iterations=2,
+    )
+
+    assert result.status == "ACCEPTED"
+    assert result.workspace_continuations_consumed == 2
+    assert result.outer_graph_iterations_consumed == 2
+    assert [row.iteration_budget_scope for row in result.traces] == [
+        RUNTIME_WORKSPACE_BUDGET_SCOPE,
+        RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
+        RUNTIME_WORKSPACE_BUDGET_SCOPE,
+        RUNTIME_OUTER_GRAPH_BUDGET_SCOPE,
+    ]
+
+
 def test_agent_runtime_unmarked_same_owner_revision_spends_outer_budget() -> None:
     class UnmarkedWorkspaceSubsystem:
         name = "TheoryDeveloper"

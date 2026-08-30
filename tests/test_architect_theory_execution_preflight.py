@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.agent_runtime import (
+    AgentTask,
+    BlackboardState,
+    RUNTIME_CONTINUATION_BUDGET_MARKER_KEY,
+)
 from ai_statistician.client_tool_loop import (
     ClientToolInputError,
 )
@@ -4373,6 +4377,13 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
     assert result.status == "REROUTE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] == {
+        "scope": "workspace_continuation",
+        "parent_task_id": "architect:generic-preflight-rejection",
+        "next_task_id": result.next_task.task_id,
+        "parent_owner_subsystem": "ArchitectCoordinator",
+        "owner_subsystem": "TheoryDeveloper",
+    }
     assert result.next_task.inputs["question"]["task_intent"] == (
         theory_only_question.task_intent
     )
@@ -5391,6 +5402,13 @@ def test_preflight_progress_can_continue_after_many_revision_rounds() -> None:
     assert result.status == "REROUTE"
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert result.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] == {
+        "scope": "workspace_continuation",
+        "parent_task_id": "architect:progressive-round-eight",
+        "next_task_id": result.next_task.task_id,
+        "parent_owner_subsystem": "ArchitectCoordinator",
+        "owner_subsystem": "TheoryDeveloper",
+    }
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["upstream_theory_revision_count"] == 9
     assert feedback["continuation_budget_authority"] == (

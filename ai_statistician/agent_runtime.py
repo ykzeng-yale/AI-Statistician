@@ -887,6 +887,7 @@ class AgentRuntime:
         final_status: RuntimeStatus = "MAX_ITERATIONS_REACHED"
         outer_graph_iterations_consumed = 0
         workspace_continuations_consumed = 0
+        active_workspace_continuations_consumed = 0
         iteration = 0
         budget_exhaustion_reason = (
             "outer_iteration_budget_exhausted" if max_iterations < 1 else ""
@@ -1000,7 +1001,7 @@ class AgentRuntime:
                 self.handoff_policy is not None
                 and _runtime_iteration_budget_scope(task, result)
                 == RUNTIME_WORKSPACE_BUDGET_SCOPE
-                and workspace_continuations_consumed + 1 >= max_iterations
+                and active_workspace_continuations_consumed + 1 >= max_iterations
                 and result.next_task is not None
             ):
                 _, _, artifacts = materialize_agent_task_continuation(result.next_task)
@@ -1057,8 +1058,10 @@ class AgentRuntime:
             iteration_budget_scope = _runtime_iteration_budget_scope(task, result)
             if iteration_budget_scope == RUNTIME_WORKSPACE_BUDGET_SCOPE:
                 workspace_continuations_consumed += 1
+                active_workspace_continuations_consumed += 1
             else:
                 outer_graph_iterations_consumed += 1
+                active_workspace_continuations_consumed = 0
             self.blackboard.artifacts.update(result.produced_artifacts)
             self.blackboard.evidence_ledger.extend(result.evidence_entries)
             produced_artifact_ids = tuple(result.produced_artifacts.keys())
@@ -1129,7 +1132,7 @@ class AgentRuntime:
             if (
                 iteration_budget_scope
                 == RUNTIME_WORKSPACE_BUDGET_SCOPE
-                and workspace_continuations_consumed
+                and active_workspace_continuations_consumed
                 >= max_iterations
             ):
                 final_status = "MAX_ITERATIONS_REACHED"

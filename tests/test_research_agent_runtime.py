@@ -1360,6 +1360,13 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     assert theory_result.status == "REROUTE"
     assert theory_result.next_task is not None
     assert theory_result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert theory_result.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] == {
+        "scope": "workspace_continuation",
+        "parent_task_id": outcome.next_task.task_id,
+        "next_task_id": theory_result.next_task.task_id,
+        "parent_owner_subsystem": "TheoryDeveloper",
+        "owner_subsystem": "ArchitectCoordinator",
+    }
     assert captured_revision_context[
         runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
     ]["revision_source"] == "theory_preflight_after_exploratory_implementation"
@@ -1392,6 +1399,10 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     assert accepted_revision.status == "REROUTE"
     assert accepted_revision.next_task is not None
     assert accepted_revision.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert (
+        RUNTIME_CONTINUATION_BUDGET_MARKER_KEY
+        not in accepted_revision.next_task.budget
+    )
     final_context = accepted_revision.next_task.inputs["architect_context"]
     seeds, seed_lineage = runtime_module._runtime_theory_revision_algorithm_source_seeds(
         architect_context=final_context,
@@ -2544,6 +2555,13 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
     )
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "ArchitectCoordinator"
+    assert result.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] == {
+        "scope": "workspace_continuation",
+        "parent_task_id": "theory:detached-theory-evidence",
+        "next_task_id": result.next_task.task_id,
+        "parent_owner_subsystem": "TheoryDeveloper",
+        "owner_subsystem": "ArchitectCoordinator",
+    }
     assert result.next_task.inputs["runtime_architect_operation"] == (
         runtime_module.RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT
     )

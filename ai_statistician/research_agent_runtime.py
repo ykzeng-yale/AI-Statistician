@@ -5889,7 +5889,10 @@ class TheoryDeveloperRuntimeSubsystem:
                     "return to the same TheoryDeveloper workspace"
                 ),
             )
-            next_task = theory_preflight_task
+            next_task = mark_workspace_continuation(
+                parent_task=task,
+                next_task=theory_preflight_task,
+            )
         elif dependency_rebuild_required:
             next_task = simulation_task
         else:
