@@ -1,9 +1,9 @@
 {
-  "schema_version": 326,
+  "schema_version": 327,
   "updated_at": "2026-08-30",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "e5dcaf7e",
+  "validated_code_head": "c8c6991c",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
@@ -288,13 +288,13 @@
     "defer": "Extract a global tool registry only after measured duplicated dispatch or ABI drift; consider ready-set parallelism only after stable workspace dependencies demonstrate a bottleneck.",
     "reject": "Do not embed Codex Core, App Server, SDK, Responses transport, provider state, worktree manager, Guardian, Symphony, or multi-agent scheduler. Those components would duplicate the native exact-Haiku runtime without adding statistical semantics or evidence authority.",
     "canonical_document": "docs/openai_codex_harness_adoption_20260825.md",
-    "latest_shared_mechanism_commit": "e5dcaf7eea875f0ebd25991b7218bb120ab63fb2",
+    "latest_shared_mechanism_commit": "c8c6991c2883c69e52f83c1e2b1a937fdda879c2",
     "historical_audit_compaction": "The redundant 1,367-line chronological reuse log is replaced by a short Git-history pointer so one canonical document owns the current decision.",
     "model_calls": 0,
     "new_runtime_dependencies": 0,
     "new_agents": 0,
     "new_schedulers": 0,
-    "verification": "The current upstream source audit and Task113 immutable closeout remain unchanged. The schema-v4 product activation gate and fail-fast ordering passed the focused core and gold panel 115/115 and the complete repository 1099/1099 in 138.86 seconds. Production Python remained at 149,998 lines and the canonical Codex adoption document at 244 lines. Both remote branches point to e5dcaf7e; no unmerged remote branch, Codex runtime dependency, product call, evaluator call, scheduler, or agent was added."
+    "verification": "The current upstream source audit and Task113 immutable closeout remain unchanged. The schema-v4 product activation gate, fail-fast ordering, and removal of the test-only simulation contract wrapper passed the central runtime panel 98/98 and the complete repository 1099/1099 in 139.12 seconds. Production Python is 149,986 lines, research_agent_runtime.py is 24,942 lines, and the canonical Codex adoption document is 244 lines. No unmerged remote branch, Codex runtime dependency, product call, evaluator call, scheduler, or agent was added."
   },
   "latest_stein_sure_task107_evaluation": {
     "task_id": "gaussian_stein_sure_james_stein_known_theory_rederivation",
