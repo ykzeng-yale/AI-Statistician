@@ -99,13 +99,13 @@ class _NoopFormalRetriever:
         return []
 
 
-class _CapturingFormalizer:
+class _ProposalOnlyFormalizer:
     def __init__(self) -> None:
-        self.kwargs: dict[str, object] = {}
+        self.called = False
 
     def propose(self, **kwargs: object) -> dict[str, object]:
-        self.kwargs = kwargs
-        raise RuntimeError("stop after capturing exact target")
+        self.called = True
+        raise AssertionError("structured Formalizer fallback must not run")
 
 
 def test_formal_only_target_routes_retrieval_directly_to_formalizer() -> None:
@@ -139,12 +139,14 @@ def test_formal_only_target_routes_retrieval_directly_to_formalizer() -> None:
     assert goals[0].informal_statement == LEAN_SOURCE_PREFIX
     assert provenance["theorem_goal_source"] == "explicit_runtime_override"
 
-    proposal_agent = _CapturingFormalizer()
+    proposal_agent = _ProposalOnlyFormalizer()
     result = FormalizerWorkspaceRuntimeSubsystem(
         proposal_agent=proposal_agent,
     ).run(retrieval.next_task, blackboard)
 
-    captured_goals = proposal_agent.kwargs["theorem_goals"]
-    assert captured_goals[0]["id"] == "frozen_target"
-    assert captured_goals[0]["informal_statement"] == LEAN_SOURCE_PREFIX
-    assert result.failure_classification == "formalizer_provider_generation_failed"
+    assert proposal_agent.called is False
+    assert result.status == "BLOCKED"
+    assert result.next_task is None
+    assert result.failure_classification == (
+        "formalizer_direct_workspace_unavailable"
+    )

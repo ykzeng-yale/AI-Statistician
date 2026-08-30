@@ -13789,6 +13789,10 @@ def _algorithm_engineer_packet_validation_failure_result(
     )
 
 
+class FormalizerDirectWorkspaceUnavailableError(RuntimeError):
+    """The canonical model-owned Lean tool workspace cannot start."""
+
+
 class FormalizerWorkspaceRuntimeSubsystem:
     """One model-owned Lean workspace exposed through two task entry names."""
 
@@ -14173,26 +14177,10 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         client_tool_workspace
                     )
                 else:
-                    with agent_runtime_substage("formalizer_planning_envelope"):
-                        proposal_packet = self.proposal_agent.propose(
-                            question=question,
-                            theory_packet=theory_context,
-                            simulation_manifest=(
-                                simulation_manifest
-                                if isinstance(simulation_manifest, Mapping)
-                                else {}
-                            ),
-                            algorithm_manifest=(
-                                algorithm_manifest
-                                if isinstance(algorithm_manifest, Mapping)
-                                else {}
-                            ),
-                            registered_problem=_problem_to_json(problem),
-                            theorem_goals=[
-                                _theorem_goal_to_json(row) for row in theorem_goals
-                            ],
-                            environment_feedback=environment_feedback,
-                        )
+                    raise FormalizerDirectWorkspaceUnavailableError(
+                        "Formalizer direct Lean workspace unavailable; structured "
+                        "proposal fallback is disabled"
+                    )
             except PacketValidationError as exc:
                 return _formalizer_packet_validation_failure_result(
                         task=task,
@@ -15299,6 +15287,8 @@ def _formalizer_provider_failure_classification(exc: Exception) -> str:
     name = type(exc).__name__.lower()
     text = str(exc).lower()
     haystack = f"{name} {text}"
+    if isinstance(exc, FormalizerDirectWorkspaceUnavailableError):
+        return "formalizer_direct_workspace_unavailable"
     if "timeout" in haystack or "timed out" in haystack:
         return "provider_timeout_error"
     if (
