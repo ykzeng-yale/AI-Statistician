@@ -99,6 +99,10 @@ comparison, and explicit port planning, but every candidate taken from it must
 be labeled non-importable and re-elaborated in the active project before it can
 be proof evidence.
 
+Commit `506e5ed0` implements that boundary under the stable corpus identity
+`statlib_upstream_discovery`; its exact commit/tree are included in Formalizer
+tool-environment authorization while active-scoped retrieval still excludes it.
+
 This is a compatibility result, not a reason to add 41 hand-written repairs or
 Lean grammar rules to AI-Statistician. A future migration should be a dedicated
 library port with whole-project compilation as its acceptance gate.
