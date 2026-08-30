@@ -59,7 +59,10 @@ from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_revision_lineage import (
     THEORY_CLAIM_REVISION_DELTA_KIND,
 )
-from ai_statistician.theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
+    theory_workspace_document_manifest,
+)
 
 
 class StaticReviewClientToolBackend:
@@ -1101,7 +1104,7 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit(
     assert blocked.failure_classification == "confirmatory_theory_authority_missing"
 
 
-def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
+def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1171,6 +1174,8 @@ def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_id,
         "n_generated_code_executed": 1,
+        "n_live_generated_code_executed": 1,
+        "n_live_generated_code_execution_failed": 0,
         "n_passed": 1,
         "prototypes": [
             {
@@ -1305,8 +1310,23 @@ def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
     assert next_context["architect_metric_protocol_gate"]["upstream_theory_revision_count"] == 1
     assert "evaluator_source_authoring" not in outcome.next_task.inputs
 
+    theory_workspace_dir = tmp_path / "theory-workspace"
+    theory_document = (
+        "# Revised claim\n\n"
+        "The estimator returns a finite value for every request in its stated "
+        "domain. The remaining asymptotic claim is outside this test claim.\n"
+    )
+    theory_document_path = theory_workspace_dir / "claims" / "finite.md"
+    theory_document_path.parent.mkdir(parents=True)
+    theory_document_path.write_text(theory_document, encoding="utf-8")
     revised_theory = deepcopy(theory)
     revised_theory["packet_id"] = "theory:exploratory-algorithm-revised"
+    revised_theory["serious_theory_mode"] = True
+    revised_theory["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    revised_theory["theory_workspace_manifest"] = theory_workspace_document_manifest(
+        {"claims/finite.md": theory_document},
+        workspace_dir=theory_workspace_dir,
+    )
     revised_theory["problem_card"] = {
         "research_setup": "Develop one finite estimator and keep the proof gap explicit."
     }
@@ -1446,6 +1466,8 @@ def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
                 "artifact_kind": "SimulationEngineerProposalPacket",
                 "packet_id": evaluator_proposal_id,
                 "source_agent": "LLMSimulationEngineerAgent",
+                "provider": "anthropic",
+                "backend_provider": "anthropic",
                 "model": LIVE_EVALUATION_CLAUDE_MODEL,
                 "model_tier": "haiku",
                 "source_workspace_planning_owned": True,
@@ -1567,6 +1589,7 @@ def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
                 "required_estimator_ids": ["candidate"],
                 "source_code": evaluator_source,
                 "script_hash": runtime_module.stable_hash(evaluator_source),
+                "runtime_replicates": kwargs["n_runs"],
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
                 "execution_attempted": True,
@@ -1617,6 +1640,62 @@ def test_exploratory_algorithm_revision_rejoins_frozen_empirical_evaluation(
     assert confirmation_manifest["evaluator_source_confirmation"] is True
     assert confirmation_manifest["confirmatory_empirical_evidence_eligible"] is True
     assert confirmation_manifest["planning_model_call_used"] is False
+
+    blackboard.artifacts.update(confirmation.produced_artifacts)
+    class AcceptingCritic:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def propose(self, **kwargs):
+            self.calls.append(kwargs)
+            assert kwargs["canonical_evidence_view"][
+                "required_dimension_evidence_gaps"
+            ] == []
+            return {
+                "packet_id": "critic_proposal:terminal-acceptance",
+                "coordination_assessment": {
+                    "scope": "none",
+                    "conflicting_artifact_ids": [],
+                },
+                "research_disposition": {
+                    "status": "ACCEPT",
+                    "blocking_dimensions": [],
+                },
+            }
+
+    critic = AcceptingCritic()
+    critic_result = CriticEvaluatorRuntimeSubsystem(
+        proposal_agent=critic,  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval",
+            formal_verification_policy="optional",
+        ),
+    ).run(confirmation.next_task, blackboard)
+
+    assert critic_result.status == "ACCEPTED", (
+        critic_result.failure_classification,
+        critic_result.rationale,
+    )
+    assert critic_result.next_task is None
+    assert critic_result.failure_classification == ""
+    assert len(critic.calls) == 1
+    critic_manifest = next(
+        artifact
+        for artifact in critic_result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+    )
+    assert critic_manifest["theory_packet_id"] == revised_id
+    assert critic_manifest["algorithm_sandbox_manifest_id"] == fresh_manifest_id
+    assert critic_manifest["simulation_manifest_id"] == confirmation_manifest[
+        "manifest_id"
+    ]
+    assert critic_manifest["required_dimension_evidence_gaps"] == []
+    assert critic_manifest["evidence_contract_decision"]["runtime_status"] == (
+        "ACCEPTED"
+    )
+    assert critic_manifest["runtime_reroute_decision"]["observed_conditions"][
+        "formal_proof_work_pending"
+    ] is False
 
 
 def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
