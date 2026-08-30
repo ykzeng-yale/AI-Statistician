@@ -69,6 +69,19 @@ THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
 THEORY_WORKSPACE_CONTENT_AUTHORITY = "model_authored_markdown_latex_documents"
 THEORY_WORKSPACE_HANDOFF_ROLE = "structured_cross_agent_index_and_abi"
+THEORY_MODEL_REASONING_CONTRACT = (
+    "Choose the smallest set of load-bearing claims needed for the frozen objective "
+    "and independently reconstruct each from exact definitions and stated assumptions. "
+    "Preserve the identity and type of every object, its domain, dependence or "
+    "conditioning, scaling, and limiting regime; judge a claimed equivalence by "
+    "deriving both sides from common definitions, not by familiarity or a matching "
+    "endpoint. Select source reads, symbolic reductions, numerical probes, boundary "
+    "cases, or counterexamples that make the reasoning decisive, but first verify that "
+    "each tool call encodes the proposition and assumptions it is used to test. Inspect "
+    "all active candidate text. A correct conclusion does not validate a false, "
+    "circular, or unsupported step; revise, retract, or report uncertainty when the "
+    "current evidence does not resolve it."
+)
 THEORY_FILE_CLAIM_KINDS = (
     "definition", "assumption", "lemma", "theorem", "equation", "counterexample"
 )
@@ -1989,7 +2002,6 @@ def run_theory_artifact_workspace(
                     "or a later correction does not revoke its authority. Remove or rewrite "
                     "a step you have shown false, or move it under a clearly delimited "
                     "REJECTED or SCRATCH section that no active claim depends on. "
-                    "For any claimed equivalence between aggregate, summand, influence/action, normalized, or asymptotic forms, expand both from common definitions and check sign and scale term by term; matching a final variance or rate does not close an unresolved load-bearing transition. "
                     + "If a mathematical contradiction, missing premise, or unresolved "
                     "question prevents a coherent submission, use report_theory_gap "
                     "after inspecting the relevant artifacts. State the blocker and "

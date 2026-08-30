@@ -31,6 +31,7 @@ from ai_statistician.theory_revision_lineage import (
     build_theory_claim_revision_delta,
 )
 from ai_statistician.theory_workspace import (
+    THEORY_MODEL_REASONING_CONTRACT,
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     theory_workspace_document_manifest,
 )
@@ -462,8 +463,10 @@ def test_canonical_evidence_view_exposes_preflight_report_and_scratch_failures(
     assert "Never call a rejected, failed, unavailable, or hash-mismatched" in prompt
     assert "never use preflight ACCEPT" in prompt
     assert "outside the claim index" in prompt
-    assert "compare sign and scale term by term" in prompt
-    assert "matching endpoint variance or rate is not enough" in prompt
+    assert prompt.count(THEORY_MODEL_REASONING_CONTRACT) == 1
+    assert "exact definitions and stated assumptions" in prompt
+    assert "each tool call encodes the proposition" in prompt
+    assert "correct conclusion does not validate" in prompt
     assert "required_dimension_evidence_gaps is a runtime-derived" in prompt
     assert "terminal validator will return any mismatch" in prompt
     assert "All symbolic checks passed" in prompt

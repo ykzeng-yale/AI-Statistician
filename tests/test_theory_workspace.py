@@ -2074,8 +2074,9 @@ def test_document_authority_persists_exact_math_and_small_handoff(
     assert "Every unmarked paragraph and equation" in author_prompt
     assert "narrative chronology or a later correction" in author_prompt
     assert "clearly delimited REJECTED or SCRATCH" in author_prompt
-    assert "check sign and scale term by term" in author_prompt
-    assert "matching a final variance or rate" in author_prompt
+    assert "There is no required number of reads" in author_prompt
+    assert "Structural validation checks the handoff contract" in author_prompt
+    assert "check sign and scale term by term" not in author_prompt
     assert (tmp_path / "theory" / "derivations" / "C1.md").read_text() == markdown
     assert result.evidence["changed_document_paths"] == ["derivations/C1.md"]
     assert result.evidence["n_model_document_writes"] == 1

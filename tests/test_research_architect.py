@@ -2186,22 +2186,21 @@ def test_theory_developer_prompt_requires_model_owned_referee_self_check() -> No
     prompt = " ".join(
         research_architect_module.THEORY_DEVELOPER_SYSTEM_PROMPT.split()
     )
+    reasoning_contract = " ".join(
+        research_architect_module.THEORY_MODEL_REASONING_CONTRACT.split()
+    )
 
-    assert "skeptical referee" in prompt
-    assert "publishable current argument" in prompt
-    assert "not a transcript of abandoned attempts" in prompt
-    assert "later correction does not deactivate" in prompt
-    assert "recompute the load-bearing chain" in prompt
-    assert "sweep every other active definition" in prompt
-    assert "test small and boundary cases" in prompt.lower()
-    assert "object types, domains, measures or densities, conditioning" in prompt
-    assert "normalizations, dimensions, and limit order" in prompt
-    assert "verify sign and scale term by term" in prompt
-    assert "agreement of a final variance or rate is not enough" in prompt
-    assert "complete alternate derivation bypasses it" in prompt
-    assert "weaker proxy" in prompt
-    assert "group distributions or baselines" not in prompt
-    assert "mark them unresolved" in prompt
+    assert "research-level statistical theory" in prompt
+    assert "equation-level reasoning" in prompt
+    assert "publishable current theory" in prompt
+    assert "remove false work or delimit it as SCRATCH or REJECTED" in prompt
+    assert prompt.count(reasoning_contract) == 1
+    assert "exact definitions and stated assumptions" in prompt
+    assert "each tool call encodes the proposition" in prompt
+    assert "correct conclusion does not validate" in prompt
+    assert "skeptical author" in prompt
+    assert "leave unresolved mathematics explicit" in prompt
+    assert len(research_architect_module.THEORY_DEVELOPER_SYSTEM_PROMPT) < 1_700
 
 
 def test_theory_developer_requires_interfaces_from_source_workspace_without_side_call(

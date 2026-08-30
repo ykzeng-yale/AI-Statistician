@@ -77,6 +77,7 @@ from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
     THEORY_SCRATCHPAD_TOOL,
+    THEORY_MODEL_REASONING_CONTRACT,
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_HANDOFF_ROLE,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
@@ -117,44 +118,20 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     normalized_prompt = " ".join(prompt.split())
     protocol = " ".join(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL)
 
-    assert "authoritative Markdown or LaTeX" in normalized_prompt
     assert "exact frozen research question" in normalized_prompt
-    assert "stable workspace tools" in normalized_prompt
-    assert "First reconstruct the requested load-bearing chain" in normalized_prompt
-    assert "sweep every other active assertion" in normalized_prompt
-    assert "every line of every authoritative" not in prompt
-    assert "later correction does not deactivate" in normalized_prompt
-    assert "material active falsehood blocks ACCEPT" in normalized_prompt
+    assert "authoritative Markdown or LaTeX" in normalized_prompt
+    assert "model-selected document, source, and scratch tools" in normalized_prompt
+    assert "active candidate text" in normalized_prompt
     assert "every discrete blocker first" in normalized_prompt
     assert "without praise or a verification essay" in normalized_prompt
-    assert "Reconstruct each load-bearing transition" in protocol
-    assert "preserving domains, measures or densities, conditioning" in protocol
-    assert "Transcribe identities before reconstruction" in protocol
-    assert "sigma-fields" in protocol
-    assert "State measurability" in protocol
-    assert "compare sign and scale term by term" in protocol
-    assert "matching final variance or rate is insufficient" in protocol
-    assert "counterexample to another object is irrelevant" in protocol
-    assert "reviewer-added premises" in protocol
-    assert "every requested conclusion or scope boundary" in protocol
-    assert "question, estimand, probability law, assumptions" in protocol
-    assert "boundary case" in protocol
-    assert "counterexample" in protocol
-    assert "correct endpoint" in protocol
-    assert "every active assertion" in protocol
-    assert "including explanations" in protocol
-    assert "measure and type declarations" in protocol
-    assert "later correction does not deactivate" in normalized_prompt
-    assert "explicitly delimited as SCRATCH or REJECTED" in normalized_prompt
-    assert "mark genuine uncertainty" in protocol
-    assert "which quantities are measurable" in normalized_prompt
-    assert "unconditional numerical check" in normalized_prompt
-    assert "tool result as untrusted evidence" in normalized_prompt
-    assert "successful scratch run validates execution" in normalized_prompt.lower()
-    assert "random vector, joint dependence, conditioning" in protocol
-    assert "Successful execution does not validate those choices" in protocol
-    assert "challenge the blocker with an independent derivation and source read" in protocol
-    assert "report uncertainty rather than a definitive falsehood" in protocol
+    assert "never silently repair the candidate" in normalized_prompt
+    assert "untrusted observations" in normalized_prompt
+    assert protocol.count(THEORY_MODEL_REASONING_CONTRACT) == 1
+    assert "exact definitions and stated assumptions" in protocol
+    assert "each tool call encodes the proposition" in protocol
+    assert "correct conclusion does not validate" in protocol
+    assert "your own proposed blockers" in protocol
+    assert "report uncertainty rather than inventing" in protocol
     assert "READY_FOR_EXPLORATORY_EXECUTION asks only" in protocol
     assert "Proof or asymptotic disagreement alone does not block READY" in protocol
     assert "BLOCKED requires missing, undefined, contradictory" in protocol
@@ -163,9 +140,9 @@ def test_preflight_prompt_requires_independent_mathematical_check() -> None:
     assert "model-owned report owns judgment" in protocol
     assert "citing exact read ranges" in protocol
     assert "do not reproduce the candidate or write a substitute proof" in protocol
-    assert "silently supply a repair" in normalized_prompt
-    assert len(protocol.split()) < 430
-    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 49
+    assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SYSTEM_PROMPT) < 1_000
+    assert len(protocol) < 3_000
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION == 50
 
 
 def test_preflight_preserves_the_exact_frozen_research_target() -> None:
@@ -2309,7 +2286,7 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     prompt = build_architect_theory_execution_preflight_prompt(material)
     prompt_payload = json.loads(prompt.split("\n\n", 1)[1])
     verdict_policy = prompt_payload["verdict_policy"]
-    assert "both protocol audits" in verdict_policy
+    assert "the review protocol" in verdict_policy
     assert "material active falsehood" in verdict_policy
     assert "correct endpoint" in verdict_policy
     assert "later correction" in verdict_policy
@@ -2324,16 +2301,13 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     for phrase in (
         "structured handoff is only an index",
         "model-directed search and exact range reads",
-        "Run two distinct audits",
-        "smallest dependency graph",
-        "correct endpoint",
-        "every active assertion",
-        "including explanations",
-        "measure and type declarations",
-        "scale check",
-        "Reconstruct each load-bearing transition from definitions",
-        "Successful execution does not validate those choices",
-        "Scratch and retrieval are observations",
+        "smallest set of load-bearing claims",
+        "exact definitions and stated assumptions",
+        "deriving both sides from common definitions",
+        "each tool call encodes the proposition",
+        "correct conclusion does not validate",
+        "your own proposed blockers",
+        "Scratch and retrieval establish only",
         "Separate mathematical coherence, proof completeness",
         "READY_FOR_EXPLORATORY_EXECUTION asks only",
         "BLOCKED requires missing, undefined, contradictory",
@@ -2343,7 +2317,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     ):
         assert phrase in protocol
     assert len(ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL) == 5
-    assert len(protocol.split()) < 430
+    assert protocol.count(THEORY_MODEL_REASONING_CONTRACT) == 1
+    assert len(protocol) < 3_000
     assert "every discrete blocker" in protocol
     assert "executive summary" in protocol
     assert "section-by-section verification" in protocol
@@ -2417,9 +2392,9 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
     request_content = backend.requests[0].messages[0]["content"]
     assert "Separate mathematical coherence, proof completeness" in request_content
     assert "symbolic reduction" in request_content
-    assert "measure and type declarations" in request_content
-    assert "every active assertion" in request_content
-    assert "joint dependence" in request_content
+    assert "identity and type of every object" in request_content
+    assert "each tool call encodes the proposition" in request_content
+    assert "all active candidate text" in request_content
     submit_schema = _submit_schema(backend.requests[0])
     assert "downstream proof obligations separate" in (
         prompt_payload["verdict_policy"]

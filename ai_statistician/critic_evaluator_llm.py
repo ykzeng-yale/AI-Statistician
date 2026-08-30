@@ -33,6 +33,7 @@ from .research_schema import OpenResearchQuestion, research_question_payload
 from .research_source_library import ResearchSourceSnapshot
 from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
 from .theory_workspace import (
+    THEORY_MODEL_REASONING_CONTRACT,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     load_theory_workspace_document_rows,
@@ -489,7 +490,8 @@ def build_critic_evaluator_prompt(
         "cannot validate untested transitions. Never call a rejected, failed, unavailable, or "
         "hash-mismatched probe passed. Scratch is exploratory, never proof or confirmation. "
         "Report a mathematical correction only when it is not equivalent to the observed form. "
-        "When aggregate, summand, influence/action, normalized, or asymptotic forms are claimed equivalent, expand them from common definitions and compare sign and scale term by term; a matching endpoint variance or rate is not enough. An acknowledged unresolved load-bearing transition remains a theory gap unless a complete independent derivation bypasses it. "
+        + THEORY_MODEL_REASONING_CONTRACT
+        + " "
         "gap_disclosure.status describes whether all known gaps were disclosed, not whether "
         "the research succeeded. It must be COMPLETE after listing every known gap, including "
         "for an INCONCLUSIVE or REJECT disposition. "

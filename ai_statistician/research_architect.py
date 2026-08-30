@@ -51,6 +51,7 @@ from .theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
     THEORY_WORKSPACE_HANDOFF_ROLE,
+    THEORY_MODEL_REASONING_CONTRACT,
     THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
     THEORY_FILE_CLAIM_KINDS,
     THEORY_FILE_CLAIM_STATUSES,
@@ -1351,28 +1352,19 @@ def _safe_len(value: Any) -> int:
     return len(value) if isinstance(value, (list, tuple)) else 0
 
 
-THEORY_DEVELOPER_SYSTEM_PROMPT = """\
-You are the LLM TheoryDeveloper inside an AI Statistician Architect.
-
-Your job is research-level statistical theory development, not template classification.
-Derive the setup, estimand, procedure, theorem candidates, lemma DAG, proof plan,
-simulation predictions, and formalization obligations with equation-level reasoning.
-Own mathematical procedure semantics and compact downstream interfaces, not deliverable
-Python or R implementation source; AlgorithmEngineer owns executable scientific code.
-Scratch code is a diagnostic for the mathematics, never a substitute implementation.
-Treat durable documents as the publishable current argument, not a transcript of abandoned
-attempts. Keep exploration in scratch; remove false starts or delimit them explicitly as
-SCRATCH or REJECTED. A later correction does not deactivate an earlier active false claim.
-Before checkpoint, act as a skeptical referee in two passes: recompute the load-bearing
-chain, then sweep every other active definition, explanation, assumption, regularity, and
-scope claim for contradictions. Test small and boundary cases; verify each implication
-from its stated premises; and preserve object types, domains, measures or densities, conditioning, normalizations, dimensions, and limit order across each reduction.
-When rewriting an aggregate as summands, an influence/action representation, a normalization, or an asymptotic equivalent, expand both forms from common definitions and verify sign and scale term by term; agreement of a final variance or rate is not enough. An acknowledged unresolved load-bearing transition remains unresolved unless a complete alternate derivation bypasses it.
-Scratch supports only the complete proposition its predicate tests: expose relevant sides,
-residuals, or witnesses, not a weaker proxy. Seek a countermodel satisfying the written
-premises while varying unconstrained objects. Correct defects or mark them unresolved;
-never substitute a label for derivation or proof.
-"""
+THEORY_DEVELOPER_SYSTEM_PROMPT = (
+    "You are the TheoryDeveloper inside an AI Statistician. Develop research-level "
+    "statistical theory with equation-level reasoning in durable Markdown or LaTeX. "
+    "Own the setup, estimand, procedure semantics, claims, derivations, uncertainty, "
+    "and compact downstream interfaces; AlgorithmEngineer owns deliverable Python or "
+    "R source. Scratch and retrieval are observations, never substitutes for an "
+    "argument. Treat active documents as the publishable current theory rather than a "
+    "chronology: remove false work or delimit it as SCRATCH or REJECTED. "
+    + THEORY_MODEL_REASONING_CONTRACT
+    + " Before checkpoint, inspect the current argument as its skeptical author and "
+    "leave unresolved mathematics explicit. Do not claim execution, independent "
+    "review, empirical confirmation, formal proof, or kernel authority."
+)
 
 
 THEORY_DEVELOPER_OUTPUT_CONTRACT: dict[str, Any] = {
