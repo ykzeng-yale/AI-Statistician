@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "lognormal_arithmetic_mean_mle_wald_interval_known_result",
+      "title": "Parametric lognormal-mean MLE and delta-method interval",
+      "description": "Focused integrated L0 known-result evaluation grounded in the classical lognormal model of Finney (1941). Let X_1,...,X_n be independent and identically distributed Lognormal(mu,sigma^2) observations with sigma^2>0, so Z_i=log(X_i) are Normal(mu,sigma^2), and let theta=E[X_i]=exp(mu+sigma^2/2). In one authoritative Markdown/LaTeX Theory workspace, derive the lognormal likelihood including its Jacobian term, the maximum-likelihood estimators mu_hat=mean(Z_i) and v_hat=n^{-1} sum_i (Z_i-mu_hat)^2, their exact normal-sample independence and chi-square facts, the finite-sample bias of v_hat, and the joint asymptotic distribution of (mu_hat,v_hat). Apply invariance and the multivariate delta method to theta_hat=exp(mu_hat+v_hat/2), derive the gradient and asymptotic variance theta^2(sigma^2+sigma^4/2)/n, construct the plug-in two-sided 95 percent pointwise Wald interval by exponentiating an interval for eta=log(theta), and make consistency and Slutsky steps explicit. Explain scale equivariance, the reciprocal-data transformation, and why E[1/X] is not 1/E[X]. Distinguish this parametric MLE from the sample arithmetic mean and from finite-sample unbiased or bias-corrected estimators. Do not claim an exact interval, finite-sample 95 percent coverage, robustness to model misspecification, censoring or truncation validity, source replication, novelty, or formal proof. The required model-authored Python artifact is est_lognormal_mean_wald_interval and must implement the exact frozen run_estimator(request) contract. Exploratory Python or R may check likelihood identities, transformations, asymptotic scaling, and simulated coverage. A separately frozen confirmatory evaluator uses fresh lognormal samples, evaluator-owned seeds and configurations fixed before outcomes, and at least 5000 independent replicates per design. It checks exact executable identities, standardized log-mean behavior, variance calibration, and interval coverage with Monte Carlo uncertainty. These finite experiments test one implementation on frozen interior parameter configurations and do not prove asymptotic normality or coverage. Source replication, novelty, and Lean formalization are not applicable. Every unresolved mathematical, executable, empirical, or scope gap must remain explicit.",
+      "tags": [
+        "lognormal_model",
+        "maximum_likelihood",
+        "delta_method",
+        "wald_interval",
+        "python_language",
+        "L0"
+      ],
+      "source": {
+        "benchmark_mode": "known_result",
+        "model_visible_context": "published_authority_assumptions_closed_execution_contract_and_empirical_claims",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Finney (1941), DOI 10.2307/2983663",
+        "secondary_authority": "Aitchison and Brown (1957), The Lognormal Distribution, ISBN 9780521040112",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_lognormal_mean_wald_interval",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.observations",
+            "name": "observations",
+            "meaning": "The observed positive sample X_1,...,X_n in its original measurement scale.",
+            "json_type": "array",
+            "shape": "One exact JSON array of length 3 through 10000 containing finite non-Boolean real numbers in [0.000001,1000000], with at least two numerically distinct values.",
+            "units": "original observation units",
+            "indexing": "Exchangeable sample order; every element is one observation.",
+            "edge_cases": "Reject Boolean, string, null, nested, object, nonfinite, nonpositive, out-of-range, too-short, too-long, or constant samples rather than coercing, clipping, dropping, offsetting, or replacing values.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The number n of validated observations.",
+            "json_type": "integer",
+            "shape": "One exact non-Boolean integer in [3,10000].",
+            "units": "observation count",
+            "indexing": "Length of request.observations.",
+            "edge_cases": "Do not return a floating representation or an effective sample size.",
+            "normalization": "len(observations)."
+          },
+          {
+            "clause_id": "response.mean_log",
+            "name": "mean_log",
+            "meaning": "The maximum-likelihood estimate mu_hat, the arithmetic mean of the natural logarithms of the observations.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "natural-log observation units",
+            "indexing": "One scalar over all n observations.",
+            "edge_cases": "Use the natural logarithm; do not average the original observations.",
+            "normalization": "n^{-1} sum_i log(X_i)."
+          },
+          {
+            "clause_id": "response.variance_log_mle",
+            "name": "variance_log_mle",
+            "meaning": "The maximum-likelihood estimate v_hat of sigma^2 on the natural-log scale.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "squared natural-log observation units",
+            "indexing": "One scalar over all n centered log observations.",
+            "edge_cases": "Use divisor n, not n-1; do not compute variance on the original scale.",
+            "normalization": "n^{-1} sum_i (log(X_i)-mean_log)^2."
+          },
+          {
+            "clause_id": "response.log_mean_mle",
+            "name": "log_mean_mle",
+            "meaning": "The plug-in maximum-likelihood estimate eta_hat of eta=log(theta)=mu+sigma^2/2.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "natural-log observation units",
+            "indexing": "One scalar parameter estimate.",
+            "edge_cases": "Do not return mean_log alone or the logarithm of the sample arithmetic mean.",
+            "normalization": "mean_log+variance_log_mle/2."
+          },
+          {
+            "clause_id": "response.mean_mle",
+            "name": "mean_mle",
+            "meaning": "The invariant maximum-likelihood estimate theta_hat of the parametric arithmetic mean theta.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "original observation units",
+            "indexing": "One scalar parameter estimate.",
+            "edge_cases": "Do not return the sample arithmetic mean, median exp(mean_log), or a finite-sample bias correction.",
+            "normalization": "exp(log_mean_mle)."
+          },
+          {
+            "clause_id": "response.asymptotic_variance_log_mean",
+            "name": "asymptotic_variance_log_mean",
+            "meaning": "The plug-in first-order asymptotic variance estimate for log_mean_mle.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "squared natural-log observation units",
+            "indexing": "One scalar variance estimate.",
+            "edge_cases": "Include both mu_hat and v_hat contributions and the factor 1/n.",
+            "normalization": "(variance_log_mle+variance_log_mle^2/2)/sample_size."
+          },
+          {
+            "clause_id": "response.standard_error_log_mean",
+            "name": "standard_error_log_mean",
+            "meaning": "The positive square root of asymptotic_variance_log_mean.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "natural-log observation units",
+            "indexing": "One scalar standard error.",
+            "edge_cases": "Do not return the variance itself or omit the v_hat^2/2 contribution.",
+            "normalization": "sqrt(asymptotic_variance_log_mean)."
+          },
+          {
+            "clause_id": "response.asymptotic_variance_mean",
+            "name": "asymptotic_variance_mean",
+            "meaning": "The plug-in first-order asymptotic variance estimate for mean_mle on the original scale.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "squared original observation units",
+            "indexing": "One scalar variance estimate.",
+            "edge_cases": "Do not use the variance of an individual lognormal observation or the sample-mean variance formula.",
+            "normalization": "mean_mle^2*asymptotic_variance_log_mean."
+          },
+          {
+            "clause_id": "response.standard_error_mean",
+            "name": "standard_error_mean",
+            "meaning": "The positive first-order standard error for mean_mle on the original scale.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar.",
+            "units": "original observation units",
+            "indexing": "One scalar standard error.",
+            "edge_cases": "Do not return standard_error_log_mean without multiplying by mean_mle.",
+            "normalization": "mean_mle*standard_error_log_mean."
+          },
+          {
+            "clause_id": "response.ci_lower_mean",
+            "name": "ci_lower_mean",
+            "meaning": "The lower positive endpoint obtained by exponentiating the lower endpoint of the two-sided 95 percent large-sample Wald interval for eta.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar strictly below ci_upper_mean.",
+            "units": "original observation units",
+            "indexing": "Lower endpoint for theta.",
+            "edge_cases": "Do not construct a symmetric interval around mean_mle on the original scale or claim exact finite-sample coverage.",
+            "normalization": "exp(log_mean_mle-1.959963984540054*standard_error_log_mean)."
+          },
+          {
+            "clause_id": "response.ci_upper_mean",
+            "name": "ci_upper_mean",
+            "meaning": "The upper positive endpoint obtained by exponentiating the upper endpoint of the two-sided 95 percent large-sample Wald interval for eta.",
+            "json_type": "number",
+            "shape": "One finite positive non-Boolean scalar strictly above ci_lower_mean.",
+            "units": "original observation units",
+            "indexing": "Upper endpoint for theta.",
+            "edge_cases": "Do not construct a symmetric interval around mean_mle on the original scale or claim exact finite-sample coverage.",
+            "normalization": "exp(log_mean_mle+1.959963984540054*standard_error_log_mean)."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_object_contract",
+            "meaning": "The request contains exactly observations and the response exactly the eleven declared fields. Missing, extra, malformed, coercible-only, nonpositive, constant, or out-of-domain values are rejected."
+          },
+          {
+            "clause_id": "invariant.exact_lognormal_mle_identity",
+            "meaning": "Every returned value follows from natural-log transformation, divisor-n log variance, eta_hat=mu_hat+v_hat/2, theta_hat=exp(eta_hat), plug-in log variance (v_hat+v_hat^2/2)/n, delta-method original-scale variance, and exponentiated 1.959963984540054-standard-error endpoints."
+          },
+          {
+            "clause_id": "invariant.permutation_invariance",
+            "meaning": "Permuting the observations leaves every returned field unchanged."
+          },
+          {
+            "clause_id": "invariant.positive_scale_equivariance",
+            "meaning": "Multiplying every observation by a common positive scale that preserves the public input domain leaves sample_size, variance_log_mle, asymptotic_variance_log_mean, and standard_error_log_mean unchanged; adds log(scale) to mean_log and log_mean_mle; multiplies mean_mle, standard_error_mean, and both interval endpoints by scale; and multiplies asymptotic_variance_mean by scale squared."
+          },
+          {
+            "clause_id": "invariant.reciprocal_data_transformation",
+            "meaning": "Replacing each observation X_i by 1/X_i when the transformed sample remains in the public input domain negates mean_log, leaves variance_log_mle and both log-scale uncertainty fields unchanged, changes log_mean_mle to -mean_log+variance_log_mle/2, and yields a reciprocal-data mean estimate distinct from 1/mean_mle whenever variance_log_mle>0."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "Repeated calls with the same request return the same JSON value and do not mutate the request, use random state, read files, invoke subprocesses, or use the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.reference_identity",
+            "meaning": "For every frozen valid sample, the candidate is compared with an independent exact implementation of all eleven returned objects."
+          },
+          {
+            "clause_id": "claim.empirical.standardized_behavior",
+            "meaning": "Across fresh lognormal samples, the centered log_mean_mle divided by its reported standard_error_log_mean is checked for approximately zero mean and unit second moment using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.variance_calibration",
+            "meaning": "The empirical variance of mean_mle and the mean reported asymptotic_variance_mean are compared under each frozen design with a predeclared relative-error bound."
+          },
+          {
+            "clause_id": "claim.empirical.interval_coverage",
+            "meaning": "Coverage of the true parametric arithmetic mean theta by the reported two-sided 95 percent exponentiated log-scale interval is compared with 0.95 using predeclared Monte Carlo uncertainty."
+          },
+          {
+            "clause_id": "claim.empirical.protocol_identity",
+            "meaning": "Lognormal parameters, sample sizes, seeds, at least 5000 independent replicates per design, summaries, and acceptance bounds are evaluator-owned and frozen before the product run."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "The experiment assesses one implementation under finitely many correctly specified, uncensored lognormal configurations. It is not proof and does not validate exact finite-sample coverage, robustness to misspecification, censoring, truncation, finite-sample unbiasedness, source replication, novelty, or formal closure."
+          }
+        ],
+        "termination_guarantee": "For every valid bounded request, run_estimator performs finite sample transformations and reductions and returns exactly one response without optimization, randomization, file access, network access, subprocesses, or request mutation."
+      }
+    }
+  ]
+}
