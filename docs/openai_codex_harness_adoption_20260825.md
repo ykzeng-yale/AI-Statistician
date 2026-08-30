@@ -82,7 +82,7 @@ without duplicating the control plane.
 | thread persistence and context windows | content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
-| sparse multi-agent delegation | the sole typed `AgentRuntime` outer research graph and artifact references |
+| request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions plus the sole typed `AgentRuntime` and artifact references |
 | trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
 | reviewer tool output as untrusted evidence | referee-owned falsification of scratch assumptions, source observations, and candidate semantics before a blocker is submitted |
 
@@ -110,7 +110,7 @@ drift that the extraction actually removes.
 | SimulationEngineer | Write or extend simulation source, run exploratory diagnostics, inspect consumer output | Frozen confirmatory protocol, hidden cohorts, metric authority, execution evidence |
 | Formalizer | Search Statlib/Mathlib and project declarations, inspect goals, write Lean, compile, and revise from raw diagnostics | Active Lean project identity, theorem target hash, kernel and axiom authority |
 | Independent reviewer | Read exact immutable candidate and report discrete findings | Clean context, read-only candidate, reviewer identity, no source edits |
-| Architect | Choose initial evidence requirements and resolve genuine cross-workspace conflicts | One outer graph, task intent, stopping and resource ownership |
+| Architect | Resolve unfrozen evidence requirements and genuine cross-workspace conflicts | One outer graph, operator-frozen intent, stopping and resource ownership |
 
 Every authoring workspace therefore has the same small inner shape:
 
@@ -193,9 +193,9 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 ## Current Assessment
 
-The inner harness is no longer the main architecture blocker. It preserves same-owner
-feedback, exact files, stable tools, sparse handoffs, checkpoint identity, and isolated
-review. Three immutable evaluations refined its boundaries without changing scores:
+The inner harness is no longer the main architecture blocker. It preserves same-owner feedback, exact files, stable tools, sparse handoffs, checkpoint identity, and isolated review.
+Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan; frozen operator intent wins, and the provider schema is the sole structural contract.
+Three immutable evaluations refined these boundaries without changing scores:
 
 - Task111 separated theory quality from finite exploratory readiness and made source
   hash changes provenance rather than evidence of finding progress.

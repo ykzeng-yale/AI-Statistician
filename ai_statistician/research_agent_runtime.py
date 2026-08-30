@@ -477,29 +477,21 @@ def _runtime_requested_evidence_contract(
     capability_eval = str(evaluation_mode or "") == "capability_eval"
     generated_algorithm_required = bool(
         research_evaluation
-        and (
-            not explicit_task_intent
-            or dimension_requirements["scientific_code"] == "required"
-        )
+        and explicit_task_intent
+        and dimension_requirements["scientific_code"] == "required"
     )
     generated_simulation_required = bool(
         research_evaluation
-        and (
-            not explicit_task_intent
-            or dimension_requirements["empirical"] == "required"
-        )
+        and explicit_task_intent
+        and dimension_requirements["empirical"] == "required"
     )
     generated_code_review_required = bool(
         research_evaluation
-        and (
-            not explicit_task_intent
-            or generated_algorithm_required
-            or generated_simulation_required
-        )
+        and (generated_algorithm_required or generated_simulation_required)
     )
     formal_lane_required = bool(
-        not explicit_task_intent
-        or dimension_requirements["formal"] == "required"
+        explicit_task_intent
+        and dimension_requirements["formal"] == "required"
     )
     formal_evaluation_required = bool(
         formal_lane_required
@@ -527,8 +519,8 @@ def _runtime_requested_evidence_contract(
         ),
         "research_evaluation_requires_typed_metric_contracts": False,
         "independent_theory_review_required": bool(
-            not explicit_task_intent
-            or dimension_requirements["theory"] == "required"
+            explicit_task_intent
+            and dimension_requirements["theory"] == "required"
         ),
         "formal_evaluation_requires_formal_target_semantic_review": bool(
             formal_evaluation_required
@@ -539,7 +531,6 @@ def _runtime_requested_evidence_contract(
         ),
         "formal_target_authoring_required": bool(
             policy == "required"
-            or (capability_eval and not explicit_task_intent)
         ),
         "formal_target_completion_policy": (
             "the task-specific mathematical target requires exact local "
@@ -549,8 +540,8 @@ def _runtime_requested_evidence_contract(
             "is not kernel verified"
         ),
         "simulation_target_authoring_required": bool(
-            not explicit_task_intent
-            or dimension_requirements["empirical"] == "required"
+            explicit_task_intent
+            and dimension_requirements["empirical"] == "required"
         ),
         "acceptance_modes": [
             "full source theorem kernel proof required"
@@ -599,27 +590,6 @@ def _runtime_architect_context_with_requested_evidence_contract(
             if task_intent
             else {**requested_contract, **dict(existing_contract)}
         )
-    if _is_runtime_research_evaluation_mode(evaluation_mode) and not task_intent:
-        for requirement in (
-            "generated_algorithm_code",
-            "generated_simulation_code",
-            "generated_code_semantic_review",
-            "executable_evaluator_source",
-        ):
-            requested_contract[
-                f"research_evaluation_requires_{requirement}"
-            ] = True
-    if str(evaluation_mode or "") == "capability_eval" and not task_intent:
-        requested_contract[
-            "formal_evaluation_requires_formalizer_lean_candidate"
-        ] = True
-    elif str(evaluation_mode or "") == "research_eval" and not task_intent:
-        requested_contract[
-            "formal_evaluation_requires_formalizer_lean_candidate"
-        ] = False
-        requested_contract[
-            "formal_evaluation_requires_formal_target_semantic_review"
-        ] = False
     payload["runtime_requested_evidence_contract"] = requested_contract
     payload["runtime_evaluation_mode"] = str(evaluation_mode or "debug")
     requirements = research_dimension_requirements(task_intent)
@@ -664,11 +634,13 @@ def _runtime_task_intent_requires_generated_code_review(
 ) -> bool:
     if not _is_runtime_research_evaluation_mode(evaluation_mode):
         return False
-    requirements = research_dimension_requirements(task_intent)
     return bool(
-        not requirements
-        or requirements["scientific_code"] == "required"
-        or requirements["empirical"] == "required"
+        task_intent
+        and any(
+            research_task_intent_requirement(task_intent, dimension)
+            == "required"
+            for dimension in ("scientific_code", "empirical")
+        )
     )
 
 
@@ -682,6 +654,21 @@ def _runtime_contract_dimension_requirements(
         str(dimension): str(requirement)
         for dimension, requirement in raw.items()
     }
+
+
+def _architect_routed_question(
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+) -> tuple[OpenResearchQuestion, str]:
+    """Bind an unfrozen question to the Architect's request-scoped tool plan."""
+
+    if research_dimension_requirements(question.task_intent):
+        return question, "operator_frozen_task_intent"
+    contract = _architect_runtime_plan(architect_context).get("evidence_contract", {})
+    planned = _runtime_contract_dimension_requirements(contract)
+    if not planned:
+        return question, "unresolved_task_intent"
+    return replace(question, task_intent=research_dimension_requirements(planned)), "architect_model_plan"
 
 
 def _runtime_architect_operation(task: AgentTask) -> str:
@@ -2848,6 +2835,10 @@ def _architect_initial_routing_decision(
             question_id=question.id,
         )
     context = dict(architect_context)
+    routed_question, task_intent_source = _architect_routed_question(
+        question,
+        context,
+    )
     routed_environment_feedback = (
         _architect_selected_worker_environment_feedback(
             selected=selected,
@@ -2878,6 +2869,8 @@ def _architect_initial_routing_decision(
         "model_route_honored_exactly": bool(
             selected.get("model_route_honored_exactly", False)
         ),
+        "task_intent_source": task_intent_source,
+        "effective_task_intent": dict(routed_question.task_intent),
         "boundary": (
             "Architect initial routing is orchestration control only. It does "
             "not execute tools, validate generated code or simulations, or "
@@ -2980,7 +2973,7 @@ def _architect_initial_routing_decision(
     if selected["selected_subsystem"] == "TheoryDeveloper":
         feedback = routed_environment_feedback
         inputs: dict[str, Any] = {
-            "question": _question_to_payload(question),
+            "question": _question_to_payload(routed_question),
             "architect_context": context,
         }
         if isinstance(feedback, Mapping) and feedback:
@@ -3056,7 +3049,7 @@ def _architect_initial_routing_decision(
             )
         )
         inputs: dict[str, Any] = {
-            "question": _question_to_payload(question),
+            "question": _question_to_payload(routed_question),
             "theory_packet_id": str(
                 architect_context.get("theory_packet_id", "")
                 or architect_context.get("previous_theory_packet_id", "")
@@ -3142,7 +3135,7 @@ def _architect_initial_routing_decision(
         if confirmatory_source_route is not None:
             return confirmatory_source_route
         inputs: dict[str, Any] = {
-            "question": _question_to_payload(question),
+            "question": _question_to_payload(routed_question),
             "theory_packet_id": _architect_context_theory_packet_id(
                 architect_context
             ),
@@ -3213,7 +3206,7 @@ def _architect_initial_routing_decision(
                     "confirmatory cohort is consumed."
                 ),
                 inputs={
-                    "question": _question_to_payload(question),
+                    "question": _question_to_payload(routed_question),
                     "theory_packet_id": _architect_context_theory_packet_id(context),
                     "architect_context": evaluator_authoring_context,
                     "n_runs": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
@@ -3323,7 +3316,7 @@ def _architect_initial_routing_decision(
                 )
             )
         inputs: dict[str, Any] = {
-            "question": _question_to_payload(question),
+            "question": _question_to_payload(routed_question),
             "theory_packet_id": _architect_context_theory_packet_id(
                 architect_context
             ),
@@ -3388,7 +3381,7 @@ def _architect_initial_routing_decision(
     if selected["selected_subsystem"] == "CriticEvaluator":
         feedback = routed_environment_feedback
         inputs: dict[str, Any] = {
-            "question": _question_to_payload(question),
+            "question": _question_to_payload(routed_question),
             "theory_packet_id": _architect_context_theory_packet_id(
                 architect_context
             ),
@@ -3460,7 +3453,7 @@ def _architect_initial_routing_decision(
                 "before theory derivation.",
             ),
             inputs={
-                "question": _question_to_payload(question),
+                "question": _question_to_payload(routed_question),
                 "architect_context": context,
             },
             allowed_tools=(
@@ -4669,7 +4662,9 @@ class RetrievalMemoryRuntimeSubsystem:
         )
         knowledge = retrieve_problem_knowledge(question, problem, theorem_goals, k=8)
         paper_sources = retrieve_paper_sources(question, problem, theorem_goals, k=5)
-        dimension_requirements = research_dimension_requirements(question.task_intent)
+        dimension_requirements = research_dimension_requirements(
+            question.task_intent
+        )
         formal_source_retrieval_applicable = bool(
             not dimension_requirements
             or dimension_requirements["formal"] != "not_applicable"
@@ -8928,7 +8923,9 @@ class SimulationEvaluatorRuntimeSubsystem:
         simulation_control = _architect_control_payload(context, "SimulationEvaluator")
         packet_id = str(task.inputs.get("theory_packet_id", ""))
         packet = blackboard.artifacts.get(packet_id, {})
-        dimension_requirements = research_dimension_requirements(question.task_intent)
+        dimension_requirements = research_dimension_requirements(
+            question.task_intent
+        )
         if not packet_id and dimension_requirements.get("theory") != "not_applicable":
             next_task = AgentTask(
                 task_id=f"theory:{question.id}:{stable_hash(task.task_id)[:8]}",
@@ -13832,6 +13829,8 @@ class FormalizerWorkspaceRuntimeSubsystem:
         )
         question = _question_from_payload(task.inputs["question"])
         context = dict(task.inputs.get("architect_context", {}) or {})
+        if self.formal_source_retriever is None:
+            self.formal_source_retriever = build_default_formal_source_retriever()
         context["runtime_task"] = _runtime_task_prompt_summary(task)
         environment_feedback: Mapping[str, Any] = (
             task.inputs.get("environment_feedback", {})
@@ -19889,8 +19888,7 @@ def run_research_agent_runtime(
     if (
         _is_runtime_research_evaluation_mode(config.evaluation_mode)
         and (
-            not questions
-            or any(
+            any(
                 _runtime_task_intent_requires_generated_code_review(
                     question.task_intent,
                     evaluation_mode=config.evaluation_mode,
@@ -19907,8 +19905,8 @@ def run_research_agent_runtime(
     if (
         config.formal_target_semantic_review_required
         and any(
-            not (requirements := research_dimension_requirements(question.task_intent))
-            or requirements["formal"] == "required"
+            research_task_intent_requirement(question.task_intent, "formal")
+            == "required"
             for question in questions
         )
         and formal_target_semantic_reviewer is None
@@ -19951,8 +19949,13 @@ def run_research_agent_runtime(
     progress_path = out_dir / "runtime_progress.jsonl"
     progress_path.write_text("", encoding="utf-8")
     formal_providers_activated_for_selected_tasks = any(
-        not (requirements := research_dimension_requirements(question.task_intent))
-        or requirements["formal"] != "not_applicable"
+        (
+            bool(question.task_intent)
+            and research_task_intent_requirement(
+                question.task_intent, "formal"
+            ) != "not_applicable"
+        )
+        or (not question.task_intent and formal_verification_policy == "required")
         for question in questions
     )
     if formal_providers_activated_for_selected_tasks:

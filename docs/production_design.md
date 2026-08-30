@@ -35,8 +35,8 @@ Goal, source policy, and task-intent evidence contract
 ```
 
 Frozen source-only or theory-only intent starts TheoryDeveloper directly; exact
-formal-only intent starts its RAG/Formalizer path. Otherwise the Architect creates
-the initial plan, resolves cross-workspace conflicts, and decides when to stop. A
+formal-only intent starts its RAG/Formalizer path. Otherwise the Architect resolves
+all four evidence dimensions, creates the request-scoped workspace plan, handles genuine cross-workspace conflicts, and decides when to stop. A
 source-workspace budget block does not trigger another route. Routine syntax, ABI,
 compiler, simulation, or Lean failures stay with the model that owns the source.
 
@@ -125,7 +125,7 @@ TheoryDeveloper maintains an artifact-backed research workspace, not a JSON answ
 It owns exact definitions, assumptions and use sites, equation/lemma dependencies,
 executable procedure semantics, counterexamples, gaps, and revision lineage. There is no JSON-only core-theory fallback: a provider without native client-tool turns fails closed before mathematical authoring.
 Compact packets are handoff indexes. Serious theory has no per-field caps; one selector defines both the model-visible output contract and writable handoff tools for explicit task intent, so non-applicable lanes are absent rather than advertised as unusable empty artifacts.
-The validator checks only typed handoff structure, formal artifacts depend on intent, and historical no-intent replay retains its full legacy surface.
+The validator checks only typed handoff structure and formal artifacts depend on intent. Historical packets remain readable, but fresh no-intent authoring exposes only the mathematical core until the Architect binds a request-scoped plan.
 Durable Markdown/LaTeX is the publishable current argument, not a transcript of false starts. Exploration stays in scratch or is explicitly delimited as `SCRATCH` or `REJECTED`; a later correction does not silently deactivate earlier active text.
 
 Discovery and revision share exact parent and reviewer artifacts. Only model-authored

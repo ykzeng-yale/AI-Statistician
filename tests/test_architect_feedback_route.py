@@ -41,6 +41,7 @@ from ai_statistician.research_agent_runtime import (
     ArchitectCoordinatorRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
     RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT,
+    _architect_initial_routing_decision,
     _runtime_requested_evidence_contract,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -66,6 +67,43 @@ def _question() -> OpenResearchQuestion:
         description="Develop and evaluate a new estimator without task-specific rules.",
         tags=("held-out-family",),
     )
+
+
+def _capability_scoped_architect_decision(
+    dimension_requirements: dict[str, str],
+) -> dict[str, object]:
+    return {
+        "problem_analysis": {
+            "theorem_family": "generic statistical argument",
+            "statistical_objects": ["one estimand"],
+            "assumption_dimensions": ["sampling law"],
+            "likely_analogy_classes": ["known asymptotic arguments"],
+            "key_obstacles": ["derive the target"],
+            "missing_information": ["primary sources"],
+        },
+        "evidence_contract": {
+            "dimension_requirements": dimension_requirements,
+            "recommended_research_path": "simulation_first",
+            "formal_targets": ["The model-authored target holds."],
+            "simulation_targets": [],
+        },
+        "retrieval_strategy": {
+            "paper_queries": ["generic statistical theorem"],
+            "formal_source_queries": ["generic limit theorem"],
+            "lean_rag_priorities": ["Statlib declarations when formal work applies"],
+        },
+        "iteration_policy": {
+            "max_revision_rounds": 2,
+            "stop_conditions": ["requested evidence is independently accepted"],
+        },
+        "next_actions": [
+            {
+                "owner_agent": "TheoryDeveloper",
+                "action": "Develop the requested mathematical claim.",
+                "acceptance_gate": "Independent theory review accepts the claim.",
+            }
+        ],
+    }
 
 
 def _post_result_theory_revision_context(
@@ -245,7 +283,7 @@ def test_formal_requirement_keeps_workspace_topology_runtime_owned() -> None:
     assert "Do not enumerate a global subsystem schedule" in orchestration[
         "planning_rule"
     ]
-    assert "subsystem_execution_plan" not in payload["required_output_contract"]
+    assert "required_output_contract" not in payload
     path_semantics = payload["requested_evidence_contract"][
         "research_path_semantics"
     ]
@@ -291,6 +329,12 @@ def test_compact_architect_decision_builds_runtime_workspace_topology() -> None:
             "missing_information": ["source theorem"],
         },
         "evidence_contract": {
+            "dimension_requirements": {
+                "theory": "required",
+                "scientific_code": "required",
+                "empirical": "required",
+                "formal": "required",
+            },
             "recommended_research_path": "dual_track",
             "formal_targets": [
                 "For every admissible law, the estimator converges to its estimand."
@@ -368,6 +412,105 @@ def test_architect_provider_schema_is_compact_and_has_one_action() -> None:
     ] == 1
 
 
+def test_unfrozen_architect_plan_binds_downstream_question_capabilities() -> None:
+    question = _question()
+    dimensions = {
+        "theory": "required",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+    }
+    requested_contract = _runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    assert "dimension_requirements" not in requested_contract
+    decision = _capability_scoped_architect_decision(dimensions)
+    packet = _normalize_architect_packet(
+        decision,
+        question=question,
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(decision),
+        runtime_config={
+            "evaluation_mode": "research_eval",
+            "formal_verification_policy": "optional",
+            "n_runs": 10,
+        },
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract
+        },
+    )
+    context = {
+        "runtime_requested_evidence_contract": requested_contract,
+        "architect_runtime_plan": packet,
+    }
+
+    routing = _architect_initial_routing_decision(
+        question=question,
+        packet=packet,
+        architect_context=context,
+        packet_id=str(packet["packet_id"]),
+        runtime_config=ResearchAgentRuntimeConfig(
+            evaluation_mode="research_eval"
+        ),
+        blackboard=BlackboardState(project_id="architect-capability-plan"),
+        requested_subsystem_override="TheoryDeveloper",
+        routing_source_override="architect_model_plan_test",
+        honor_requested_subsystem=True,
+    )
+
+    assert packet["evidence_contract"]["dimension_requirements_source"] == (
+        "architect_model_plan"
+    )
+    assert routing["record"]["task_intent_source"] == "architect_model_plan"
+    assert routing["record"]["effective_task_intent"] == dimensions
+    assert routing["task"].inputs["question"]["task_intent"] == dimensions
+
+
+def test_operator_required_formal_lane_overrides_unfrozen_model_plan() -> None:
+    question = _question()
+    requested_contract = _runtime_requested_evidence_contract(
+        formal_verification_policy="required",
+        evaluation_mode="debug",
+        task_intent=question.task_intent,
+    )
+    decision = _capability_scoped_architect_decision(
+        {
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        }
+    )
+    packet = _normalize_architect_packet(
+        decision,
+        question=question,
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(decision),
+        runtime_config={
+            "evaluation_mode": "debug",
+            "formal_verification_policy": "required",
+        },
+        architect_context={
+            "runtime_requested_evidence_contract": requested_contract
+        },
+    )
+
+    contract = packet["evidence_contract"]
+    assert contract["dimension_requirements"]["formal"] == "required"
+    assert contract["dimension_requirements_source"] == (
+        "architect_model_plan_with_operator_formal_requirement"
+    )
+    assert contract["formal_required_for_final"] is True
+    assert contract["formal_verification_policy"] == "required"
+    assert validate_architect_coordinator_packet(packet) == []
+
+
 def test_architect_discards_targets_outside_frozen_task_intent() -> None:
     question = OpenResearchQuestion(
         id="theory-only-architect",
@@ -395,6 +538,12 @@ def test_architect_discards_targets_outside_frozen_task_intent() -> None:
             "missing_information": ["primary sources"],
         },
         "evidence_contract": {
+            "dimension_requirements": {
+                "theory": "required",
+                "scientific_code": "not_applicable",
+                "empirical": "not_applicable",
+                "formal": "not_applicable",
+            },
             "recommended_research_path": "simulation_first",
             "formal_targets": ["A model-authored target outside the frozen intent."],
             "simulation_targets": ["A model-authored target outside the frozen intent."],

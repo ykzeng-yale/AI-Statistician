@@ -51,7 +51,7 @@ from ai_statistician.research_evaluation import (
 from ai_statistician.research_schema import OpenResearchQuestion
 
 
-def test_research_eval_contract_requires_research_lane_without_formalizer() -> None:
+def test_research_eval_contract_waits_for_a_request_scoped_lane_plan() -> None:
     research = _architect_runtime_evaluation_contract(
         {"evaluation_mode": "research_eval", "n_runs": 100}
     )
@@ -59,14 +59,14 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
         {"evaluation_mode": "capability_eval", "n_runs": 100}
     )
 
-    assert research["research_evaluation_requires_generated_algorithm_code"] is True
-    assert research["research_evaluation_requires_generated_simulation_code"] is True
+    assert research["research_evaluation_requires_generated_algorithm_code"] is False
+    assert research["research_evaluation_requires_generated_simulation_code"] is False
     assert research[
         "research_evaluation_requires_generated_code_semantic_review"
-    ] is True
+    ] is False
     assert research[
         "research_evaluation_requires_executable_evaluator_source"
-    ] is True
+    ] is False
     assert research["research_evaluation_requires_typed_metric_contracts"] is False
     assert research["generated_metric_contract_policy"] == (
         "typed_artifact_bound_preferred"
@@ -75,18 +75,14 @@ def test_research_eval_contract_requires_research_lane_without_formalizer() -> N
     assert research["generated_sandbox_max_runtime_replicates"] == 100_000
     assert research["generated_simulation_timeout_seconds"] == 60
     assert research["formal_evaluation_requires_formalizer_lean_candidate"] is False
-    assert strict["formal_evaluation_requires_formalizer_lean_candidate"] is True
+    assert strict["formal_evaluation_requires_formalizer_lean_candidate"] is False
 
     required = set(_required_architect_plan_subsystems(research))
-    assert {
+    assert required == {
         "RetrievalMemory",
         "TheoryDeveloper",
-        "AlgorithmEngineer",
-        "SimulationEvaluator",
-        "GeneratedCodeSemanticReviewer",
         "CriticEvaluator",
-    } <= required
-    assert "FormalizationEvaluator" not in required
+    }
 
 
 def test_source_only_checkpoint_completes_without_unrelated_critic() -> None:
@@ -366,17 +362,12 @@ def test_research_eval_keeps_serious_theory_and_independent_review_gate(
         recommended_research_path="simulation_first",
         evaluation_mode="research_eval",
     )
-    assert contract["research_evaluation_requires_generated_algorithm_code"] is True
-    assert contract["research_evaluation_requires_generated_simulation_code"] is True
-    assert contract["research_evaluation_requires_generated_code_semantic_review"] is True
+    assert contract["research_evaluation_requires_generated_algorithm_code"] is False
+    assert contract["research_evaluation_requires_generated_simulation_code"] is False
+    assert contract["research_evaluation_requires_generated_code_semantic_review"] is False
     assert contract[
         "research_evaluation_requires_executable_evaluator_source"
-    ] is True
-    assert contract["research_evaluation_requires_generated_algorithm_code"] is True
-    assert contract["research_evaluation_requires_generated_simulation_code"] is True
-    assert contract[
-        "research_evaluation_requires_generated_code_semantic_review"
-    ] is True
+    ] is False
     assert contract["research_evaluation_requires_typed_metric_contracts"] is False
     assert contract["formal_evaluation_requires_formalizer_lean_candidate"] is False
     assert contract["formal_target_authoring_required"] is False
@@ -397,9 +388,20 @@ def test_research_eval_keeps_serious_theory_and_independent_review_gate(
         == THEORY_PROMPT_MODE_SERIOUS_CAPABILITY
     )
 
+    required_code_question = OpenResearchQuestion(
+        id="required-code-review",
+        title="Required code review",
+        description="Implement one requested statistical procedure.",
+        task_intent={
+            "theory": "optional",
+            "scientific_code": "required",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
     with pytest.raises(ValueError, match="GeneratedCodeSemanticReviewer"):
         run_research_agent_runtime(
-            [],
+            [required_code_question],
             tmp_path,
             theory_developer=None,
             config=ResearchAgentRuntimeConfig(evaluation_mode="research_eval"),

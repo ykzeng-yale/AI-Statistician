@@ -45,6 +45,7 @@ from .metric_protocol_stage import (
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import (
     OpenResearchQuestion,
+    RESEARCH_EVIDENCE_DIMENSIONS,
     TASK_INTENT_REQUIREMENTS,
     research_dimension_requirements,
     research_question_payload,
@@ -65,8 +66,9 @@ ARCHITECT_COORDINATOR_SCHEMA_VERSION = 1
 ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE = "LLM_ARCHITECT_COORDINATOR_PROPOSAL_NOT_PROOF_EVIDENCE"
 ARCHITECT_COORDINATOR_BOUNDARY = (
     "LLM ArchitectCoordinator packets are orchestration proposals only. They "
-    "can choose the research path, mathematical targets, retrieval priorities, "
-    "iteration policy, and one next workspace action. Runtime owns mandatory "
+    "can choose unfrozen evidence dimensions, the research path, mathematical "
+    "targets, retrieval priorities, and one next workspace action. Runtime owns "
+    "operator-frozen task intent, mandatory "
     "evidence topology, budgets, lineage, and authority gates. Architect packets "
     "do not execute tools, validate simulations, or prove theorems; runtime "
     "validators and AXLE/local Lean remain the authority gates."
@@ -1952,6 +1954,11 @@ def build_architect_coordinator_prompt(
                 "on a genuine cross-workspace replan, choose one next workspace from "
                 "the current evidence rather than regenerating the whole graph"
             ),
+            "task_intent_rule": (
+                "Honor supplied task_intent exactly. If it is empty, choose all four "
+                "evidence dimensions from the objective: required must close, optional "
+                "may help, and not_applicable must not run. This plan is not evidence."
+            ),
         },
         "authority_gates": [
             "schema validation for all LLM packets",
@@ -1966,12 +1973,11 @@ def build_architect_coordinator_prompt(
         "formal_target_authoring_contract": (
             ARCHITECT_FORMAL_TARGET_AUTHORING_CONTRACT
         ),
-        "required_output_contract": ARCHITECT_COORDINATOR_OUTPUT_CONTRACT,
         "boundary": ARCHITECT_COORDINATOR_BOUNDARY,
     }
     return (
         "Act as the top-level ArchitectCoordinator for the AI Statistician runtime. "
-        "Return only one compact JSON object matching required_output_contract exactly. "
+        "Return only one compact JSON object matching the provider schema exactly. "
         "Use the question, current workspace artifacts, raw environment observations, "
         "and reviewer findings to choose the research plan and next subsystem. "
         "Treat feedback as evidence for your own reasoning, not as a Python-authored "
@@ -2009,42 +2015,6 @@ Runtime owns mandatory evidence topology, budgets, artifact lineage, execution,
 and authority gates. You are not the executor or verifier; keep proof, simulation,
 retrieval, and sandbox evidence boundaries explicit.
 """
-
-
-ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
-    "problem_analysis": {
-        "theorem_family": "one short string",
-        "statistical_objects": ["one short string"],
-        "assumption_dimensions": ["one short string"],
-        "likely_analogy_classes": ["one short string"],
-        "key_obstacles": ["one short string"],
-        "missing_information": ["one short string"],
-    },
-    "evidence_contract": {
-        "recommended_research_path": "simulation_first|proof_first|dual_track",
-        "formal_targets": [
-            (
-                "zero or more task-specific mathematical claims; leave empty when "
-                "formal evidence is not applicable"
-            )
-        ],
-        "simulation_targets": [
-            "zero or more targets; leave empty when empirical evidence is not applicable"
-        ],
-    },
-    "retrieval_strategy": {
-        "paper_queries": ["one short string"],
-        "formal_source_queries": ["one short string"],
-        "lean_rag_priorities": ["one short string"],
-    },
-    "iteration_policy": {
-        "max_revision_rounds": "integer",
-        "stop_conditions": ["one short string"],
-    },
-    "next_actions": [
-        {"owner_agent": "RetrievalMemory", "action": "one short string", "acceptance_gate": "one short string"}
-    ],
-}
 
 
 ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
@@ -2107,10 +2077,21 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
         "evidence_contract": {
             "type": "object",
             "additionalProperties": False,
-            "required": list(
-                ARCHITECT_COORDINATOR_OUTPUT_CONTRACT["evidence_contract"]
-            ),
+            "required": [
+                "dimension_requirements",
+                "recommended_research_path",
+                "formal_targets",
+                "simulation_targets",
+            ],
             "properties": {
+                "dimension_requirements": {
+                    "type": "object",
+                    "required": list(RESEARCH_EVIDENCE_DIMENSIONS),
+                    "maxProperties": len(RESEARCH_EVIDENCE_DIMENSIONS),
+                    "additionalProperties": {
+                        "enum": sorted(TASK_INTENT_REQUIREMENTS),
+                    },
+                },
                 "recommended_research_path": {
                     "type": "string",
                     "enum": ["simulation_first", "proof_first", "dual_track"],
@@ -2250,6 +2231,11 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 )
             except ValueError as exc:
                 errors.append(str(exc))
+        if set(dimension_requirements) != set(RESEARCH_EVIDENCE_DIMENSIONS):
+            errors.append(
+                "evidence_contract.dimension_requirements must resolve all "
+                "research evidence dimensions"
+            )
         source_replication_requirement = str(
             evidence_contract.get("source_replication_requirement", "optional")
             or "optional"
@@ -2893,12 +2879,39 @@ def _normalize_architect_packet(
         runtime_config=runtime_config,
     )
     normalized_contract.update(runtime_owned_contract)
-    dimension_requirements = runtime_owned_contract.get("dimension_requirements")
-    if isinstance(dimension_requirements, Mapping):
-        if dimension_requirements.get("formal") == "not_applicable":
-            normalized_contract["formal_targets"] = []
-        if dimension_requirements.get("empirical") == "not_applicable":
-            normalized_contract["simulation_targets"] = []
+    frozen_dimensions = runtime_owned_contract.get("dimension_requirements")
+    raw_dimensions = frozen_dimensions if isinstance(frozen_dimensions, Mapping) else normalized_contract.get("dimension_requirements", {})
+    dimension_requirements = research_dimension_requirements(raw_dimensions if isinstance(raw_dimensions, Mapping) else {})
+    if dimension_requirements:
+        operator_formal = not isinstance(frozen_dimensions, Mapping) and runtime_owned_contract.get("formal_required_for_final") is True
+        if operator_formal:
+            dimension_requirements["formal"] = "required"
+        required = {key: value == "required" for key, value in dimension_requirements.items()}
+        if isinstance(frozen_dimensions, Mapping):
+            source = "operator_frozen_task_intent"
+        elif operator_formal:
+            source = "architect_model_plan_with_operator_formal_requirement"
+        else:
+            source = "architect_model_plan"
+        normalized_contract.update({
+            "dimension_requirements": dimension_requirements,
+            "dimension_requirements_source": source,
+            "independent_theory_review_required": required["theory"],
+            "research_evaluation_requires_generated_algorithm_code": required["scientific_code"],
+            "research_evaluation_requires_generated_simulation_code": required["empirical"],
+            "research_evaluation_requires_generated_code_semantic_review": required["scientific_code"] or required["empirical"],
+            "research_evaluation_requires_executable_evaluator_source": required["empirical"],
+            "simulation_target_authoring_required": required["empirical"],
+            "formal_target_authoring_required": required["formal"],
+            "formal_evaluation_requires_formalizer_lean_candidate": required["formal"],
+            "formal_evaluation_requires_formal_target_semantic_review": required["formal"] and bool((runtime_config or {}).get("formal_target_semantic_review_required", False)),
+            "formal_required_for_final": required["formal"],
+        })
+        if required["formal"]:
+            normalized_contract["formal_verification_policy"] = "required"
+        for dimension, target in (("formal", "formal_targets"), ("empirical", "simulation_targets")):
+            if dimension_requirements[dimension] == "not_applicable":
+                normalized_contract[target] = []
     requirements = normalized_contract.get("empirical_metric_requirements", [])
     if isinstance(requirements, list) and requirements:
         normalized_contract["empirical_metric_requirement_set_id"] = (
@@ -2989,30 +3002,15 @@ def _architect_runtime_evaluation_contract(
     runtime_config: Mapping[str, Any],
 ) -> dict[str, Any]:
     evaluation_mode = str(runtime_config.get("evaluation_mode", "debug") or "debug")
-    research_evaluation = evaluation_mode in RESEARCH_EVALUATION_MODES
-    capability_eval = evaluation_mode == "capability_eval"
     return {
         "evaluation_mode": evaluation_mode,
-        "research_evaluation_requires_generated_algorithm_code": (
-            research_evaluation
-        ),
-        "research_evaluation_requires_generated_simulation_code": (
-            research_evaluation
-        ),
-        "research_evaluation_requires_generated_code_semantic_review": (
-            research_evaluation
-        ),
-        "research_evaluation_requires_executable_evaluator_source": (
-            research_evaluation
-        ),
+        "research_evaluation_requires_generated_algorithm_code": False,
+        "research_evaluation_requires_generated_simulation_code": False,
+        "research_evaluation_requires_generated_code_semantic_review": False,
+        "research_evaluation_requires_executable_evaluator_source": False,
         "research_evaluation_requires_typed_metric_contracts": False,
-        "formal_evaluation_requires_formal_target_semantic_review": bool(
-            capability_eval
-            and runtime_config.get(
-                "formal_target_semantic_review_required", False
-            )
-        ),
-        "formal_evaluation_requires_formalizer_lean_candidate": capability_eval,
+        "formal_evaluation_requires_formal_target_semantic_review": False,
+        "formal_evaluation_requires_formalizer_lean_candidate": False,
         "generated_sandbox_runtime_replicates": (
             generated_sandbox_runtime_replicates(
                 int(runtime_config.get("n_runs", 100) or 100)
@@ -3032,8 +3030,7 @@ def _architect_runtime_evaluation_contract(
             GENERATED_METRIC_REQUIREMENT_AUTHORITY_PREFERRED
         ),
         "formal_evaluation_exposes_proof_search_tool": (
-            capability_eval
-            and bool(runtime_config.get("proof_search_tool_available", False))
+            bool(runtime_config.get("proof_search_tool_available", False))
         ),
     }
 

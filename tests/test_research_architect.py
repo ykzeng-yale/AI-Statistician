@@ -1344,10 +1344,14 @@ def test_optional_theory_prompt_does_not_invent_formalization_work() -> None:
     )
     payload = artifacts["initial_authoring_context"]
 
-    assert payload["required_output_contract"]["formalization_requests"] == []
-    assert payload["required_output_contract"]["theory_derivation_packet"][
-        "formalization_handoff"
-    ] == {}
+    assert set(payload["required_output_contract"]) == {
+        "problem_card",
+        "theory_derivation_packet",
+    }
+    assert "formalization_requests" not in payload["required_output_contract"]
+    assert "formalization_handoff" not in payload[
+        "required_output_contract"
+    ]["theory_derivation_packet"]
     assert payload["authoring_policy"]["formalization_authoring_required"] is False
     assert "Formalization is not requested" in prompt
 
@@ -2034,15 +2038,28 @@ def test_initial_theory_progress_resumes_exact_document_workspace(
         id="continued_document_theory",
         title="Continued document theory",
         description="Develop a mathematical argument across model sessions.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
     )
     core_response, theory_documents = _file_authority_theory_fixture(
         _sample_response()
     )
+    core_derivation = dict(core_response["theory_derivation_packet"])
+    core_derivation.pop("formalization_handoff")
+    core_response["theory_derivation_packet"] = core_derivation
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
     core_response["estimator_specs"] = core_estimators
     core_artifacts = {
         field: core_response[field]
-        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+        for field in (
+            "problem_card",
+            "theory_derivation_packet",
+            "estimator_specs",
+        )
     }
     document_path, document_content = next(iter(theory_documents.items()))
     workspace_root = tmp_path / "theory-workspaces"
@@ -3095,6 +3112,12 @@ def test_theory_revision_repairs_interface_in_same_document_workspace(
         id="targeted_revision_same_session_interface",
         title="Targeted revision same-session interface",
         description="Revise theory and its executable ABI in one model workspace.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
     revision_inputs = build_theory_developer_revision_inputs(

@@ -121,17 +121,14 @@ def theory_handoff_requirements(
     """Select only the compact handoffs required by the frozen task intent."""
 
     dimensions = research_dimension_requirements(question.task_intent)
-    legacy_full_handoff = not dimensions
     implementation_required = bool(
-        legacy_full_handoff
-        or dimensions["scientific_code"] == "required"
+        dimensions.get("scientific_code") == "required"
     )
     formal_handoff_required = bool(
-        legacy_full_handoff
-        or dimensions["formal"] == "required"
+        dimensions.get("formal") == "required"
         or (
             formalization_authoring_required
-            and dimensions["formal"] != "not_applicable"
+            and dimensions.get("formal") != "not_applicable"
         )
     )
     return {
@@ -141,7 +138,7 @@ def theory_handoff_requirements(
         "theorem_cards": formal_handoff_required,
         "proof_plan": formal_handoff_required,
         "simulation_ademp_spec": bool(
-            legacy_full_handoff or dimensions["empirical"] == "required"
+            dimensions.get("empirical") == "required"
         ),
         "formalization_requests": formal_handoff_required and formalization_authoring_required,
     }
@@ -155,8 +152,6 @@ def _selected_theory_handoff_fields(
 ) -> tuple[str, ...]:
     """Keep the prompt contract and writable tool surface capability-accurate."""
 
-    if not research_dimension_requirements(question.task_intent):
-        return tuple(available_fields)
     requirements = theory_handoff_requirements(
         question,
         formalization_authoring_required=formalization_authoring_required,
@@ -180,31 +175,19 @@ def _theory_output_contract_for_question(
         question,
         formalization_authoring_required=formalization_authoring_required,
     )
-    explicit_task_intent = bool(
-        research_dimension_requirements(question.task_intent)
+    selected_fields = _selected_theory_handoff_fields(
+        question=question,
+        formalization_authoring_required=formalization_authoring_required,
+        available_fields=tuple(output),
     )
-    if explicit_task_intent:
-        selected_fields = _selected_theory_handoff_fields(
-            question=question,
-            formalization_authoring_required=formalization_authoring_required,
-            available_fields=tuple(output),
-        )
-        output = {
-            field: output[field]
-            for field in selected_fields
-        }
-    else:
-        for field, required in requirements.items():
-            if required or field not in output:
-                continue
-            output[field] = [] if isinstance(output[field], list) else {}
+    output = {
+        field: output[field]
+        for field in selected_fields
+    }
     if not formalization_authoring_required:
         derivation_contract = output.get("theory_derivation_packet", {})
         if isinstance(derivation_contract, dict):
-            if explicit_task_intent:
-                derivation_contract.pop("formalization_handoff", None)
-            else:
-                derivation_contract["formalization_handoff"] = {}
+            derivation_contract.pop("formalization_handoff", None)
     return output, requirements
 
 
@@ -321,8 +304,14 @@ class LLMTheoryDeveloperAgent:
     ) -> dict[str, Any]:
         context = dict(architect_context or {})
         theory_prompt_mode = _theory_developer_prompt_mode(context)
+        dimension_requirements = research_dimension_requirements(
+            question.task_intent
+        )
+        formal_requirement = dimension_requirements.get("formal")
         formalization_authoring_required = (
-            _theory_formalization_authoring_required(context)
+            formal_requirement == "required"
+            if formal_requirement in {"required", "not_applicable"}
+            else _theory_formalization_authoring_required(context)
         )
         serious_theory_mode = theory_prompt_mode in THEORY_SERIOUS_PROMPT_MODES
         effective_model_tier = (
