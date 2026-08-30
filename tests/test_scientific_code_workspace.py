@@ -38,6 +38,10 @@ from ai_statistician.research_source_library import (
     ResearchSourceDocument,
     ResearchSourceSnapshot,
 )
+from ai_statistician.research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+    RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+)
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
@@ -58,6 +62,60 @@ class ScriptedScientificBackend:
     ) -> ClientToolTurnResponse:
         self.requests.append(request)
         return self.responses.pop(0)
+
+
+class FakeScientificDiscovery:
+    provider_name = "fake_public_sources"
+
+    def __init__(self, source_horizon: str = "2025-12-31") -> None:
+        self.source_horizon = source_horizon
+        self.searches: list[str] = []
+        self.reads: list[str] = []
+
+    def descriptor(self):
+        return {
+            "provider": self.provider_name,
+            "source_horizon": self.source_horizon,
+            "proof_evidence_status": "PUBLIC_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE",
+        }
+
+    def search(self, query, *, source_kind="all", top_k=5):
+        self.searches.append(query)
+        return {
+            "ok": True,
+            "provider": self.provider_name,
+            "source_horizon": self.source_horizon,
+            "query_hash": stable_hash(query),
+            "source_kind": source_kind,
+            "results": [{
+                "source_handle": "source:published-implementation",
+                "source_kind": "repository",
+                "title": "Published implementation",
+                "url": "https://github.com/example/published",
+                "publication_date": "2025-01-02",
+            }][:top_k],
+        }
+
+    def read(self, source_handle, **kwargs):
+        self.reads.append(source_handle)
+        return {
+            "ok": True,
+            "provider": self.provider_name,
+            "source_handle": source_handle,
+            "source_kind": "repository",
+            "title": "Published implementation",
+            "url": "https://github.com/example/published",
+            "publication_date": "2025-01-02",
+            "revision": "abc123",
+            "path": "method.py",
+            "content": "def published_method(x):\n    return sum(x) / len(x)\n",
+            "content_sha256": "source-sha256",
+            "content_line_count": 2,
+            "line_start": 1,
+            "line_end": 2,
+            "content_range_sha256": "range-sha256",
+            "citation_ref": "public:published-implementation:method.py:1-2",
+        }
 
 
 def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
@@ -258,6 +316,121 @@ def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) 
         result.evidence["research_source_refs"]
     )
     assert source.strip() not in str(result.evidence["history"])
+
+
+def test_scientific_source_discovery_survives_same_owner_checkpoint(tmp_path) -> None:
+    authored = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return {'ok': True}\n",
+    }
+    first_discovery = FakeScientificDiscovery()
+    first_backend = ScriptedScientificBackend([
+        _response(ClientToolCall(
+            call_id="discover", name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+            input={"query": "published implementation", "source_kind": "repository"},
+        )),
+        _response(ClientToolCall(
+            call_id="submit", name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL, input=authored,
+        )),
+    ])
+    with pytest.raises(PacketValidationError) as exc_info:
+        run_scientific_code_workspace(
+            provider=first_backend,
+            system_prompt="Find and implement published work.",
+            user_prompt="Use public source discovery when useful.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=2,
+            max_no_progress_turns=2,
+            artifact_id="question:discovered-source",
+            initial_code_draft=None,
+            initial_check_result={"accepted": False},
+            check_candidate=lambda candidate: {
+                "code_draft_hash": stable_hash(dict(candidate)), "accepted": True,
+            },
+            workspace_operation="initial_authoring",
+            session_dir=tmp_path / "scientific-discovery-session",
+            research_source_discovery=first_discovery,
+        )
+
+    checkpoint = exc_info.value.recovery_checkpoint
+    source_ref = checkpoint["research_source_refs"][0]
+    assert source_ref["results"][0]["source_handle"] == (
+        "source:published-implementation"
+    )
+    assert first_discovery.searches == ["published implementation"]
+
+    checkpoint_draft, checkpoint_observation = (
+        load_scientific_code_workspace_checkpoint(
+            checkpoint, artifact_id="question:discovered-source"
+        )
+    )
+    with pytest.raises(ValueError, match="requires its public provider"):
+        run_scientific_code_workspace(
+            provider=ScriptedScientificBackend([]),
+            system_prompt="Continue.", user_prompt="Continue.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku",
+            temperature=0.0, max_tokens=1200, max_turns=1,
+            max_no_progress_turns=1, artifact_id="question:discovered-source",
+            initial_code_draft=checkpoint_draft,
+            initial_check_result=checkpoint_observation,
+            check_candidate=lambda candidate: {}, recovery_checkpoint=checkpoint,
+            session_dir=tmp_path / "scientific-discovery-session",
+        )
+    with pytest.raises(ValueError, match="session reference identity mismatch"):
+        run_scientific_code_workspace(
+            provider=ScriptedScientificBackend([]),
+            system_prompt="Find and implement published work.",
+            user_prompt="Use public source discovery when useful.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku",
+            temperature=0.0, max_tokens=1200, max_turns=1,
+            max_no_progress_turns=1, artifact_id="question:discovered-source",
+            initial_code_draft=checkpoint_draft,
+            initial_check_result=checkpoint_observation,
+            check_candidate=lambda candidate: {}, recovery_checkpoint=checkpoint,
+            session_dir=tmp_path / "scientific-discovery-session",
+            research_source_discovery=FakeScientificDiscovery("2026-01-01"),
+        )
+
+    resumed_discovery = FakeScientificDiscovery()
+    second_backend = ScriptedScientificBackend([
+        _response(ClientToolCall(
+            call_id="read", name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+            input={"source_handle": "source:published-implementation", "path": "method.py"},
+        )),
+        _run_response(),
+        _commit_response(),
+    ])
+    result = run_scientific_code_workspace(
+        provider=second_backend,
+        system_prompt="Find and implement published work.",
+        user_prompt="Use public source discovery when useful.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku",
+        temperature=0.0, max_tokens=1200, max_turns=3,
+        max_no_progress_turns=2, artifact_id="question:discovered-source",
+        initial_code_draft=checkpoint_draft,
+        initial_check_result=checkpoint_observation,
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)), "accepted": True,
+        },
+        recovery_checkpoint=checkpoint,
+        session_dir=tmp_path / "scientific-discovery-session",
+        research_source_discovery=resumed_discovery,
+    )
+
+    assert resumed_discovery.searches == []
+    assert resumed_discovery.reads == ["source:published-implementation"]
+    assert [row["tool"] for row in result.evidence["research_source_refs"]] == [
+        RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+        RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+    ]
+    assert "source:published-implementation" in str(second_backend.requests[0].messages)
+    assert "published_method" not in str(result.evidence["history"])
     assert "research source text omitted" in str(result.evidence["history"])
 
 

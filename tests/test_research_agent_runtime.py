@@ -5483,6 +5483,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
     source_inputs: list[dict[str, object]] = []
     source_observations: list[dict[str, object]] = []
     source_snapshots: list[object] = []
+    source_discoveries: list[object] = []
     executed_sources: list[str] = []
 
     class Provider:
@@ -5504,6 +5505,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
             source_inputs.append(dict(kwargs["code_draft"]))
             source_observations.append(dict(kwargs["initial_observation"]))
             source_snapshots.append(kwargs["research_sources"])
+            source_discoveries.append(kwargs["research_source_discovery"])
             candidate = {
                 "language": "python",
                 "execution_profile": "stdlib",
@@ -5553,6 +5555,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
         run_generated_code_sandbox,
     )
     research_sources = object()
+    research_source_discovery = object()
     result = runtime_module.AlgorithmEngineerRuntimeSubsystem(
         out_dir=tmp_path / "algorithm",
         n_runs=2,
@@ -5561,6 +5564,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
         semantic_reviewer_available=True,
         semantic_review_max_revisions=2,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
     ).run(
         AgentTask(
             task_id="semantic-algorithm-source-resume:generic",
@@ -5595,6 +5599,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
 
     assert AlgorithmAgent.propose_calls == 0
     assert source_snapshots == [research_sources]
+    assert source_discoveries == [research_source_discovery]
     assert source_inputs[0]["code"] == exact_source
     assert source_observations[0]["findings"] == feedback["findings"]
     assert source_observations[0]["parent_source"]["script_hash"] == (
@@ -5703,6 +5708,7 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
     source_inputs: list[dict[str, object]] = []
     source_observations: list[dict[str, object]] = []
     source_snapshots: list[object] = []
+    source_discoveries: list[object] = []
     executed_sources: list[str] = []
 
     class Provider:
@@ -5724,6 +5730,7 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
             source_inputs.append(dict(kwargs["code_draft"]))
             source_observations.append(dict(kwargs["initial_observation"]))
             source_snapshots.append(kwargs["research_sources"])
+            source_discoveries.append(kwargs["research_source_discovery"])
             candidate = {
                 "language": "python",
                 "execution_profile": "stdlib",
@@ -5773,11 +5780,13 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
         run_generated_simulation_sandbox,
     )
     research_sources = object()
+    research_source_discovery = object()
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
         proposal_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
         research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
     ).run(
         AgentTask(
             task_id="semantic-source-resume:generic",
@@ -5807,6 +5816,7 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
 
     assert SimulationAgent.propose_calls == 0
     assert source_snapshots == [research_sources]
+    assert source_discoveries == [research_source_discovery]
     assert source_inputs[0]["code"] == exact_source
     assert source_observations[0]["findings"] == feedback["findings"]
     assert executed_sources == [revised_source]

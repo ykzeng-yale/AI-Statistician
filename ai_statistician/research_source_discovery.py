@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
+from .model_backend import ClientToolDefinition
 from .storage.public_source_observations import (
     PublicSourceObservationStore,
     ResearchSourceDiscoveryError,
@@ -103,6 +104,102 @@ class ResearchSourceDiscovery(Protocol):
         line_end: int = 0,
     ) -> Mapping[str, Any]: ...
 
+
+def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]:
+    search_schema = {
+        "type": "object", "additionalProperties": False, "required": ["query"],
+        "properties": {
+            "query": {"type": "string", "minLength": 1, "maxLength": MAX_DISCOVERY_QUERY_CHARS},
+            "source_kind": {"type": "string", "enum": ["all", "paper", "preprint", "repository"]},
+            "top_k": {"type": "integer", "minimum": 1, "maximum": MAX_DISCOVERY_RESULTS},
+        },
+    }
+    read_schema = {
+        "type": "object", "additionalProperties": False,
+        "required": ["source_handle"],
+        "properties": {
+            "source_handle": {"type": "string", "minLength": 1},
+            "path": {"type": "string"}, "revision": {"type": "string"},
+            "line_start": {"type": "integer", "minimum": 1},
+            "line_end": {"type": "integer", "minimum": 1},
+        },
+    }
+    return (
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+            description=(
+                "Search public scholarly metadata, arXiv preprints, and GitHub repositories "
+                "under the configured horizon; choose the query and inspect opaque handles."
+            ),
+            input_schema=search_schema,
+        ),
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+            description=(
+                "Read bounded metadata, pinned arXiv HTML, or repository text from a handle. "
+                "Resolve a repository revision/root first, then read files or exact ranges."
+            ),
+            input_schema=read_schema,
+        ),
+    )
+
+
+def execute_research_source_discovery_client_tool(
+    discovery: ResearchSourceDiscovery,
+    *,
+    tool_name: str,
+    tool_input: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], bool]:
+    """Execute one shared discovery tool and return a compact provenance ref."""
+
+    is_search = tool_name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL
+    if not is_search and tool_name != RESEARCH_SOURCE_DISCOVERY_READ_TOOL:
+        raise ResearchSourceDiscoveryInputError("unsupported public research source discovery tool")
+    allowed = ({"query", "source_kind", "top_k"} if is_search else
+               {"source_handle", "path", "revision", "line_start", "line_end"})
+    if set(tool_input) - allowed:
+        accepted = ", ".join(sorted(allowed))
+        raise ResearchSourceDiscoveryInputError(f"{tool_name} accepts only {accepted}")
+    try:
+        if is_search:
+            observation = discovery.search(
+                tool_input.get("query", ""),
+                source_kind=tool_input.get("source_kind", "all"),
+                top_k=tool_input.get("top_k", 5),
+            )
+        else:
+            read_kwargs = {"path": tool_input.get("path", ""), "revision": tool_input.get("revision", "")}
+            if "line_start" in tool_input or "line_end" in tool_input:
+                read_kwargs.update(
+                    line_start=tool_input.get("line_start", 0),
+                    line_end=tool_input.get("line_end", 0),
+                )
+            observation = discovery.read(tool_input.get("source_handle", ""), **read_kwargs)
+    except ResearchSourceDiscoveryError as exc:
+        return {
+            "ok": False, "error": "public_research_source_discovery_failed",
+            "detail": str(exc)[:1_200],
+            "model_may_continue_without_this_source": True,
+        }, {}, True
+    if not isinstance(observation, Mapping):
+        raise RuntimeError("research source discovery returned a non-object observation")
+
+    compact = dict(observation)
+    ref_fields = (
+        ("provider", "source_horizon", "query_hash", "source_kind") if is_search else
+        ("provider", "source_handle", "source_kind", "title", "url", "publication_date",
+         "revision", "path", "content_sha256", "content_line_count", "content_truncated",
+         "line_start", "line_end",
+         "content_range_sha256", "citation_ref")
+    )
+    source_ref = {"tool": tool_name, **{key: compact.get(key, "") for key in ref_fields}}
+    if is_search:
+        result_fields = ("source_handle", "source_kind", "title", "url", "publication_date")
+        source_ref["results"] = [
+            {key: row[key] for key in result_fields if key in row}
+            for row in compact.get("results", []) if isinstance(row, Mapping)]
+    source_ref["proof_evidence_status"] = RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
+    return compact, source_ref, False
 
 @dataclass(frozen=True)
 class PublicResearchSourceDiscoveryConfig:

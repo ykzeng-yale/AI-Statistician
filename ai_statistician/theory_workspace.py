@@ -38,12 +38,12 @@ from .research_source_library import (
     source_replication_model_observation,
 )
 from .research_source_discovery import (
-    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
     ResearchSourceDiscovery,
-    ResearchSourceDiscoveryError,
     ResearchSourceDiscoveryInputError,
+    execute_research_source_discovery_client_tool,
+    research_source_discovery_client_tools,
 )
 from .scientific_sandbox import (
     SCIENTIFIC_WASM_SANDBOX_PROFILE,
@@ -1006,160 +1006,31 @@ def run_theory_artifact_workspace(
                 observation_key=call.name + ":" + stable_hash(source_ref),
             )
 
-        if call.name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL:
+        if call.name in {RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, RESEARCH_SOURCE_DISCOVERY_READ_TOOL}:
             if research_source_discovery is None:
                 raise ClientToolInputError(
                     "public research source discovery is unavailable"
                 )
-            if set(tool_input) - {"query", "source_kind", "top_k"}:
-                raise ClientToolInputError(
-                    "discover_research_sources accepts query, source_kind, and top_k"
-                )
             try:
-                observation = research_source_discovery.search(
-                    tool_input.get("query", ""),
-                    source_kind=tool_input.get("source_kind", "all"),
-                    top_k=tool_input.get("top_k", 5),
+                observation, source_ref, is_error = (
+                    execute_research_source_discovery_client_tool(
+                        research_source_discovery,
+                        tool_name=call.name,
+                        tool_input=tool_input,
+                    )
                 )
             except ResearchSourceDiscoveryInputError as exc:
                 raise ClientToolInputError(str(exc)) from exc
-            except ResearchSourceDiscoveryError as exc:
-                return ClientToolExecutionResult(
-                    content={
-                        "ok": False,
-                        "error": "public_research_source_discovery_failed",
-                        "detail": str(exc)[:1_200],
-                        "model_may_continue_without_this_source": True,
-                    },
-                    is_error=True,
-                    observation_key=(
-                        "public-research-source-discovery-failed:"
-                        + stable_hash([call.name, type(exc).__name__, str(exc)])
-                    ),
-                )
-            if not isinstance(observation, Mapping):
-                raise RuntimeError(
-                    "research source discovery returned a non-object observation"
-                )
-            results = observation.get("results", [])
-            source_ref = {
-                "tool": RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
-                "provider": str(observation.get("provider", "") or ""),
-                "source_horizon": str(
-                    observation.get("source_horizon", "") or ""
-                ),
-                "query_hash": str(observation.get("query_hash", "") or ""),
-                "source_kind": str(observation.get("source_kind", "") or ""),
-                "results": [
-                    {
-                        key: row[key]
-                        for key in (
-                            "source_handle",
-                            "source_kind",
-                            "title",
-                            "url",
-                            "publication_date",
-                        )
-                        if key in row
-                    }
-                    for row in results
-                    if isinstance(row, Mapping)
-                ],
-                "proof_evidence_status": (
-                    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
-                ),
-            }
-            state["source_discovery_search_refs"].append(source_ref)
+            if source_ref:
+                state[
+                    "source_discovery_search_refs"
+                    if call.name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL
+                    else "source_discovery_read_refs"
+                ].append(source_ref)
             return ClientToolExecutionResult(
-                content=dict(observation),
-                observation_key="research-source-discovery-search:"
-                + stable_hash(source_ref),
-            )
-
-        if call.name == RESEARCH_SOURCE_DISCOVERY_READ_TOOL:
-            if research_source_discovery is None:
-                raise ClientToolInputError(
-                    "public research source discovery is unavailable"
-                )
-            if set(tool_input) - {
-                "source_handle",
-                "path",
-                "revision",
-                "line_start",
-                "line_end",
-            }:
-                raise ClientToolInputError(
-                    "read_discovered_research_source accepts source_handle, path, "
-                    "revision, line_start, and line_end"
-                )
-            try:
-                read_kwargs = {
-                    "path": tool_input.get("path", ""),
-                    "revision": tool_input.get("revision", ""),
-                }
-                if "line_start" in tool_input or "line_end" in tool_input:
-                    read_kwargs.update(
-                        {
-                            "line_start": tool_input.get("line_start", 0),
-                            "line_end": tool_input.get("line_end", 0),
-                        }
-                    )
-                observation = research_source_discovery.read(
-                    tool_input.get("source_handle", ""),
-                    **read_kwargs,
-                )
-            except ResearchSourceDiscoveryInputError as exc:
-                raise ClientToolInputError(str(exc)) from exc
-            except ResearchSourceDiscoveryError as exc:
-                return ClientToolExecutionResult(
-                    content={
-                        "ok": False,
-                        "error": "public_research_source_discovery_failed",
-                        "detail": str(exc)[:1_200],
-                        "model_may_continue_without_this_source": True,
-                    },
-                    is_error=True,
-                    observation_key=(
-                        "public-research-source-discovery-failed:"
-                        + stable_hash([call.name, type(exc).__name__, str(exc)])
-                    ),
-                )
-            if not isinstance(observation, Mapping):
-                raise RuntimeError(
-                    "research source discovery read returned a non-object observation"
-                )
-            source_ref = {
-                "tool": RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
-                **{
-                    key: observation[key]
-                    for key in (
-                        "provider",
-                        "source_handle",
-                        "source_kind",
-                        "title",
-                        "url",
-                        "publication_date",
-                        "revision",
-                        "path",
-                        "content_sha256",
-                        "content_line_count",
-                        "content_truncated",
-                        "line_start",
-                        "line_end",
-                        "content_range_sha256",
-                        "citation_ref",
-                    )
-                    if key in observation
-                },
-                "proof_evidence_status": (
-                    RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE
-                ),
-            }
-            state["source_discovery_read_refs"].append(source_ref)
-            return ClientToolExecutionResult(
-                content=dict(observation),
-                observation_key="research-source-discovery-read:"
-                + stable_hash(source_ref),
+                content=observation,
+                is_error=is_error,
+                observation_key=call.name + ":" + stable_hash(source_ref or observation),
             )
 
         if call.name == RESEARCH_SOURCE_RUN_TOOL:
@@ -2748,57 +2619,6 @@ def theory_document_client_tools() -> tuple[ClientToolDefinition, ...]:
                 "required": ["path", "line_start", "line_end"],
                 "properties": {
                     "path": {"type": "string", "minLength": 1},
-                    "line_start": {"type": "integer", "minimum": 1},
-                    "line_end": {"type": "integer", "minimum": 1},
-                },
-            },
-        ),
-    )
-
-
-def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]:
-    return (
-        ClientToolDefinition(
-            name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
-            description=(
-                "Search public scholarly metadata, arXiv preprints, and GitHub "
-                "repositories under the operator-configured source horizon. You "
-                "choose the query and source kind; use the returned opaque handle "
-                "to inspect a promising result."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["query"],
-                "properties": {
-                    "query": {"type": "string", "minLength": 1, "maxLength": 500},
-                    "source_kind": {
-                        "type": "string",
-                        "enum": ["all", "paper", "preprint", "repository"],
-                    },
-                    "top_k": {"type": "integer", "minimum": 1, "maximum": 10},
-                },
-            },
-        ),
-        ClientToolDefinition(
-            name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
-            description=(
-                "Read exact bounded metadata, version-pinned official arXiv HTML, or "
-                "repository text from a handle returned by discover_research_sources. "
-                "For a repository, first omit path and revision to resolve a "
-                "horizon-bound commit and list root entries, then read a selected text "
-                "path at that returned revision. When a source is longer than the "
-                "initial bounded observation, use line_start and line_end to read an "
-                "exact smaller range from the same version."
-            ),
-            input_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["source_handle"],
-                "properties": {
-                    "source_handle": {"type": "string", "minLength": 1},
-                    "path": {"type": "string"},
-                    "revision": {"type": "string"},
                     "line_start": {"type": "integer", "minimum": 1},
                     "line_end": {"type": "integer", "minimum": 1},
                 },

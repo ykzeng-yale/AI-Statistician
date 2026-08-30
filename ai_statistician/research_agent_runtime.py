@@ -300,6 +300,7 @@ from .research_schema import (
     research_dimension_requirements,
     research_task_intent_requirement,
 )
+from .research_source_discovery import ResearchSourceDiscovery
 from .research_source_library import ResearchSourceSnapshot
 from .runtime_research_problem_adapter import (
     derive_runtime_research_problem,
@@ -8846,6 +8847,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         semantic_review_max_revisions: int = 1,
         timeout_s: int = 60,
         research_sources: ResearchSourceSnapshot | None = None,
+        research_source_discovery: ResearchSourceDiscovery | None = None,
     ) -> None:
         self.proposal_agent = proposal_agent
         self.sandbox_root = sandbox_root
@@ -8856,6 +8858,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         self.timeout_s = max(1, int(timeout_s or 60))
         self.research_sources = research_sources
+        self.research_source_discovery = research_source_discovery
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -10097,6 +10100,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         )[:12]
                     ),
                     research_sources=self.research_sources,
+                    research_source_discovery=self.research_source_discovery,
                 )
             )
             generated_simulation_tool_calls.extend(source_tool_calls)
@@ -11617,6 +11621,7 @@ class AlgorithmEngineerRuntimeSubsystem:
         semantic_reviewer_available: bool = False,
         semantic_review_max_revisions: int = 1,
         research_sources: ResearchSourceSnapshot | None = None,
+        research_source_discovery: ResearchSourceDiscovery | None = None,
     ) -> None:
         self.out_dir = out_dir
         self.n_runs = n_runs
@@ -11629,6 +11634,7 @@ class AlgorithmEngineerRuntimeSubsystem:
             int(semantic_review_max_revisions or 0),
         )
         self.research_sources = research_sources
+        self.research_source_discovery = research_source_discovery
 
     def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
         question = _question_from_payload(task.inputs["question"])
@@ -12581,6 +12587,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                             )[:12]
                         ),
                         research_sources=self.research_sources,
+                        research_source_discovery=self.research_source_discovery,
                     )
                 )
                 tool_calls.extend(source_tool_calls)
@@ -19977,6 +19984,9 @@ def run_research_agent_runtime(
     configured_research_sources = getattr(
         theory_developer, "research_sources", None
     )
+    configured_research_source_discovery = getattr(theory_developer, "research_source_discovery", None)
+    research_source_discovery_descriptor = (dict(configured_research_source_discovery.descriptor())
+                                            if configured_research_source_discovery else {"configured": False})
     research_source_snapshot = (
         configured_research_sources.descriptor()
         if configured_research_sources is not None
@@ -19990,8 +20000,10 @@ def run_research_agent_runtime(
     research_source_topology = {
         **dict(research_source_snapshot),
         "manifest_id": "runtime_research_source_snapshot:"
-        + stable_hash(research_source_snapshot)[:20],
-        "configured": configured_research_sources is not None,
+        + stable_hash([research_source_snapshot, research_source_discovery_descriptor])[:20],
+        "configured": bool(configured_research_sources or configured_research_source_discovery),
+        "frozen_snapshot_configured": configured_research_sources is not None,
+        "public_research_source_discovery": research_source_discovery_descriptor,
     }
     runtime_architect_context = {
         **dict(runtime_architect_context),
@@ -20170,6 +20182,7 @@ def run_research_agent_runtime(
                     config.generated_code_semantic_review_max_revisions
                 ),
                 research_sources=configured_research_sources,
+                research_source_discovery=configured_research_source_discovery,
             ),
             "AlgorithmEngineer": AlgorithmEngineerRuntimeSubsystem(
                 out_dir=out_dir / "algorithm_sandbox",
@@ -20183,6 +20196,7 @@ def run_research_agent_runtime(
                     config.generated_code_semantic_review_max_revisions
                 ),
                 research_sources=configured_research_sources,
+                research_source_discovery=configured_research_source_discovery,
             ),
             **formalizer_workspace_runtime_bindings(formalizer_workspace),
             "CriticEvaluator": CriticEvaluatorRuntimeSubsystem(

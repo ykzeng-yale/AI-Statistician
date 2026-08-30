@@ -104,8 +104,8 @@ drift that the extraction actually removes.
 | Workspace | Model-owned work | Harness-owned authority |
 |---|---|---|
 | TheoryDeveloper | Search sources, write and locally revise Markdown/LaTeX, run scratch calculations, retract claims, expose unresolved gaps | File identity, immutable checkpoints, source horizon, budgets, and artifact hashes |
-| AlgorithmEngineer | Write Python/R source, execute current bytes, inspect raw stderr and tests, revise the same source | Isolated scientific environment, resource and secret policy, source lineage |
-| SimulationEngineer | Write or extend simulation source, run exploratory diagnostics, inspect consumer output | Frozen confirmatory protocol, hidden cohorts, metric authority, execution evidence |
+| AlgorithmEngineer | Search and inspect pinned public implementations, write Python/R source, execute current bytes, inspect raw stderr/tests, revise the same source | Source horizon, isolated scientific environment, resource/secret policy, source lineage |
+| SimulationEngineer | Search methodological sources, write or extend simulation source, run exploratory diagnostics, inspect consumer output | Source horizon, frozen confirmatory protocol, hidden cohorts, metric authority, execution evidence |
 | Formalizer | Search Statlib/Mathlib and project declarations, inspect goals, write Lean, compile, and revise from raw diagnostics | Active Lean project identity, theorem target hash, kernel and axiom authority |
 | Independent reviewer | Read exact immutable candidate and report discrete findings | Clean context, read-only candidate, reviewer identity, no source edits |
 | Architect | Resolve unfrozen evidence requirements and genuine cross-workspace conflicts | One outer graph, operator-frozen intent, stopping and resource ownership |
@@ -214,9 +214,9 @@ types are not source evidence. The model still chooses derivations, cases, oracl
 findings, code, Lean actions, and verdicts. Runtime enforces only identity, execution,
 and evidence provenance. No consumed task is rerun, repaired, reassessed, or rescored.
 
-Remaining capability gaps are scientific rather than reasons to import Codex. The source owner now reads horizon-safe exact-version arXiv HTML ranges and pinned GitHub files, but still does not claim arbitrary publisher PDF/OCR or dataset acquisition:
+Remaining capability gaps are scientific rather than reasons to import Codex. Theory, Algorithm, and Simulation source owners can each select and read horizon-safe exact-version arXiv ranges and pinned GitHub files inside their retained session, but still do not claim arbitrary publisher PDF/OCR or dataset acquisition:
 
-Run-local public-source observations are hash-bound outside the transcript, so a continued source owner can reopen exact bytes without a hidden network refetch.
+Run-local public observations are hash-bound outside transcripts; compact handles survive same-owner checkpoints, and source-policy changes invalidate retained scientific sessions before a model call.
 
 - long-horizon TheoryDeveloper quality and independent mathematical falsification;
 - robust paper/code/data acquisition and replication;
