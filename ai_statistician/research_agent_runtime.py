@@ -22489,18 +22489,6 @@ def _runtime_bind_and_validate_generated_metric_authority(
     return bound, errors
 
 
-def _runtime_requires_generated_simulation_code(
-    context: Mapping[str, Any],
-    environment_feedback: Mapping[str, Any] | None = None,
-) -> bool:
-    return _runtime_effective_contract_flag(
-        context,
-        environment_feedback,
-        subsystem="SimulationEvaluator",
-        flag="research_evaluation_requires_generated_simulation_code",
-    )
-
-
 def _implementation_gap_estimator_ids(
     implementation_gaps: Iterable[Mapping[str, Any]],
 ) -> set[str]:

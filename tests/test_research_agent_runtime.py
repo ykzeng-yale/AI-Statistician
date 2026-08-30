@@ -692,9 +692,11 @@ def test_task_intent_contract_cannot_be_resurrected_by_stale_feedback() -> None:
         merged,
         stale_feedback,
     ) is False
-    assert runtime_module._runtime_requires_generated_simulation_code(
+    assert runtime_module._runtime_effective_contract_flag(
         merged,
         stale_feedback,
+        subsystem="SimulationEvaluator",
+        flag="research_evaluation_requires_generated_simulation_code",
     ) is False
 
 
@@ -5901,11 +5903,6 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         runtime_module,
         "generated_metric_runtime_replicates_from_context",
         lambda *_args, **_kwargs: 7_300,
-    )
-    monkeypatch.setattr(
-        runtime_module,
-        "_runtime_requires_generated_simulation_code",
-        lambda *_args, **_kwargs: True,
     )
     monkeypatch.setattr(
         runtime_module,
