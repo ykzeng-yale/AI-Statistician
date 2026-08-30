@@ -4150,20 +4150,21 @@ def _apply_research_agent_runtime_capability_eval_preset(
     if not str(
         getattr(args, "emperical_process_lean_rag_root", "") or ""
     ).strip():
-        from .research_source_inventory import (
-            EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
-        )
+        from .research_source_inventory import CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT
 
+        rag_project = (
+            Path(lean_project).expanduser().resolve()
+            if lean_project
+            else CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT
+        )
         shared_retrieval = (
-            EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
+            rag_project
             / "lean_rag"
             / "scripts"
             / "shared_proof_retrieval.py"
         )
         if shared_retrieval.is_file():
-            args.emperical_process_lean_rag_root = str(
-                EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT
-            )
+            args.emperical_process_lean_rag_root = str(rag_project)
 
     lean_project_fields = ("formalizer_candidate_lean_project",)
     if lean_project:

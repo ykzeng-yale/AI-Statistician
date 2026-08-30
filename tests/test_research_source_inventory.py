@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from ai_statistician.research_source_inventory import (
+    CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT,
+    EMPIRICAL_PROCESS_LEAN_ROOT_CANDIDATES,
     EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
     MATHLIB_ROOT,
     SOURCE_INVENTORY_TARGETS,
@@ -11,14 +13,17 @@ from ai_statistician.research_source_inventory import (
 )
 
 
-def test_empirical_process_lake_packages_are_the_preferred_lean_snapshot() -> None:
+def test_active_lean_inventory_has_one_canonical_foundation() -> None:
     project_root = Path("/tmp/empirical-process")
 
-    assert _mathlib_root_candidates(project_root)[0] == (
-        project_root / ".lake" / "packages" / "mathlib" / "Mathlib"
+    assert EMPIRICAL_PROCESS_LEAN_ROOT_CANDIDATES == (
+        CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT,
     )
-    assert _statlib_root_candidates(project_root)[0] == (
-        project_root / ".lake" / "packages" / "Statlib"
+    assert _mathlib_root_candidates(project_root) == (
+        project_root / ".lake" / "packages" / "mathlib" / "Mathlib",
+    )
+    assert _statlib_root_candidates(project_root) == (
+        project_root / ".lake" / "packages" / "Statlib",
     )
 
 

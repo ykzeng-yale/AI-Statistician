@@ -749,6 +749,30 @@ def test_full_live_outer_iteration_ceiling_governs_revision_paths() -> None:
     assert args.generated_code_semantic_review_max_revisions == 2
 
 
+def test_capability_preset_binds_shared_rag_to_selected_lean_project(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "explicit-lean-project"
+    (project / "lean_rag" / "scripts").mkdir(parents=True)
+    (project / "lakefile.lean").write_text("package Explicit\n", encoding="utf-8")
+    (project / "lean_rag" / "scripts" / "shared_proof_retrieval.py").touch()
+    args = build_parser().parse_args(
+        [
+            "research-agent-runtime",
+            "--capability-eval",
+            "--capability-eval-preset",
+            "minimal-live",
+            "--lean-project",
+            str(project),
+        ]
+    )
+
+    _apply_research_agent_runtime_capability_eval_preset(args)
+
+    assert Path(args.formalizer_candidate_lean_project).resolve() == project
+    assert Path(args.emperical_process_lean_rag_root).resolve() == project
+
+
 def test_runtime_defaults_shared_lean_retrieval_to_canonical_main() -> None:
     parsed = build_parser().parse_args(["research-agent-runtime"])
 

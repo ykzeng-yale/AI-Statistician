@@ -22,11 +22,6 @@ CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT = PROJECT_EXTERNAL_ROOT / "EmpericalProces
 LAKE_PACKAGES_ROOT = VENDORED_EMPIRICAL_PROCESS_ROOT / ".lake" / "packages"
 EMPIRICAL_PROCESS_LEAN_ROOT_CANDIDATES = (
     CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT,
-    EXTERNAL_ROOT / "EmpericalProcessLEAN-main",
-    PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
-    EXTERNAL_ROOT / "EmpericalProcessLEAN-reuse",
-    PROJECT_EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
-    EXTERNAL_ROOT / "EmpericalProcessLEAN-rag",
 )
 
 MATHLIB_URL = "https://github.com/leanprover-community/mathlib4"
@@ -77,17 +72,12 @@ EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT = _resolve_source_root(
 def _mathlib_root_candidates(empirical_process_root: Path) -> tuple[Path, ...]:
     return (
         empirical_process_root / ".lake" / "packages" / "mathlib" / "Mathlib",
-        LAKE_PACKAGES_ROOT / "mathlib" / "Mathlib",
-        PROJECT_ROOT / ".lake" / "packages" / "mathlib" / "Mathlib",
-        Path.home() / "LeanProjects" / "LeanPractice" / ".lake" / "packages" / "mathlib" / "Mathlib",
     )
 
 
 def _statlib_root_candidates(empirical_process_root: Path) -> tuple[Path, ...]:
     return (
         empirical_process_root / ".lake" / "packages" / "Statlib",
-        PROJECT_EXTERNAL_ROOT / "statlib",
-        EXTERNAL_ROOT / "statlib",
     )
 
 
