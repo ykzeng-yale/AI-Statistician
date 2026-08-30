@@ -56,7 +56,7 @@ THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"
 THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND = (
     "TheoryDeveloperProgressCheckpoint"
 )
-THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v2"
+THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v3"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
 THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL = "write_theory_document"
 THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL = "edit_theory_document"
@@ -2920,8 +2920,7 @@ def _theory_workspace_tools(
             + (
                 f" Current writable names: {', '.join(writable_artifact_names)}. "
                 f"Claim kinds: {', '.join(THEORY_FILE_CLAIM_KINDS)}; claim statuses: "
-                f"{', '.join(THEORY_FILE_CLAIM_STATUSES)}; sanity statuses: "
-                f"{', '.join(THEORY_FILE_SANITY_STATUSES)}."
+                f"{', '.join(THEORY_FILE_CLAIM_STATUSES)}."
                 if document_authority_enabled else ""
             ),
             input_schema={

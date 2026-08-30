@@ -1556,14 +1556,6 @@ THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
             "status": "|".join(THEORY_FILE_CLAIM_STATUSES),
         }
     ],
-    "sanity_check_index": [
-        {
-            "id": "stable check id",
-            "claim_ref": "claim_index id",
-            "document_path": "workspace-relative .md or .tex path",
-            "status": "|".join(THEORY_FILE_SANITY_STATUSES),
-        }
-    ],
     "formalization_handoff": deepcopy(
         THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["theory_derivation_packet"][
             "formalization_handoff"
@@ -1812,9 +1804,10 @@ def _file_theory_index_errors(
             + " -> ".join(dependency_cycle)
         )
 
+    # Historical v2 document packets may carry this non-authoritative index.
     check_rows = derivation.get("sanity_check_index", [])
-    if not isinstance(check_rows, list) or not check_rows:
-        errors.append("theory_derivation_packet.sanity_check_index must be non-empty")
+    if not isinstance(check_rows, list):
+        errors.append("theory_derivation_packet.sanity_check_index must be a list")
         check_rows = []
     check_ids: list[str] = []
     for index, row in enumerate(check_rows):
@@ -2294,9 +2287,6 @@ def _normalize_theory_packet(
     derivation_counts = (
         {
             "n_claim_index_rows": _safe_len(derivation.get("claim_index", [])),
-            "n_sanity_check_index_rows": _safe_len(
-                derivation.get("sanity_check_index", [])
-            ),
         }
         if document_index_handoff
         else {
@@ -2697,7 +2687,6 @@ def _initial_theory_workspace_read_only_artifacts(
                 "required_nonempty_structures": [
                     "model-authored Markdown/LaTeX mathematical documents",
                     "claim_index",
-                    "sanity_check_index",
                 ],
                 "maximum_tool_calls": max(1, int(max_tool_calls)),
                 "read_write_quota_policy": "one_shared_tool_call_budget",
@@ -3278,11 +3267,6 @@ def _generate_initial_theory_artifact_workspace(
                     "claim_index", []
                 )
             ),
-            "n_sanity_check_index_rows": _safe_len(
-                packet.get("theory_derivation_packet", {}).get(
-                    "sanity_check_index", []
-                )
-            ),
             "changed_document_paths": list(changed_document_paths),
         }
         _refresh_theory_packet_id(packet, question=question)
@@ -3567,11 +3551,6 @@ def _generate_theory_workspace_revision(
             "n_claim_index_rows": _safe_len(
                 packet.get("theory_derivation_packet", {}).get(
                     "claim_index", []
-                )
-            ),
-            "n_sanity_check_index_rows": _safe_len(
-                packet.get("theory_derivation_packet", {}).get(
-                    "sanity_check_index", []
                 )
             ),
             "changed_document_paths": list(changed_document_paths),

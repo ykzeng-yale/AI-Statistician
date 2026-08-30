@@ -390,6 +390,7 @@ def build_architect_theory_execution_preflight_material(
             "content": deepcopy(content) if anchor_id == "question" else _compact_anchor_content(content),
         }
         for anchor_id, artifact_role, content in sections
+        if content not in (None, "", [], {})
     ]
     for document in load_theory_workspace_document_rows(semantic):
         anchor_catalog.append(

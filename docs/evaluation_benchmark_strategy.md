@@ -186,7 +186,9 @@ The mathematical authority is now model-authored Markdown, LaTeX, and BibTeX in 
 content-addressed workspace. The structured handoff carries stable claim IDs, exact
 document paths, statuses, direct dependency edges, and only the typed ABIs selected
 by task intent; it does not require a Markdown anchor grammar and is not the authority
-for the derivation. Theorem cards and proof plans are Lean-facing handoffs and are not
+for the derivation. Canonical v3 handoffs keep sanity arguments and verdicts in those
+documents instead of duplicating them in a model-authored JSON index; v2 indexes remain
+readable only for historical artifacts. Theorem cards and proof plans are Lean-facing handoffs and are not
 required for non-formal theory; theorem identity and dependencies already live in the
 document-backed claim DAG. The remaining structured payload is transitional and should
 shrink as consumers move to references. Reviewers, coding agents, simulation agents,

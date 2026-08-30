@@ -89,7 +89,6 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_WRITE_TOOL,
     THEORY_FILE_CLAIM_KINDS,
     THEORY_FILE_CLAIM_STATUSES,
-    THEORY_FILE_SANITY_STATUSES,
     TheoryWorkspaceProgressError,
     TheoryWorkspaceResult,
     theory_workspace_document_manifest,
@@ -524,33 +523,19 @@ def _file_authority_theory_fixture(
         add_claim(str(row.get("id", "")), "definition", row)
 
     claim_ids = {row["id"] for row in claim_rows}
-    sanity_rows: list[dict[str, str]] = []
     for row in derivation.get("sanity_checks", []) or []:
         claim_ref = str(row.get("claim_ref", ""))
         if claim_ref not in claim_ids:
             add_claim(claim_ref, "equation", {"referenced_by": row.get("id", "")})
             claim_ids.add(claim_ref)
-        status = str(row.get("result", "")).split(":", 1)[0].strip().upper()
-        if status not in {"PASS", "FAIL", "INCONCLUSIVE"}:
-            status = "INCONCLUSIVE"
         check_id = str(row.get("id", ""))
         markdown.extend(
             [f"## {check_id}", "", json.dumps(row, ensure_ascii=False), ""]
-        )
-        sanity_rows.append(
-            {
-                "id": check_id,
-                "claim_ref": claim_ref,
-                "document_path": document_path,
-                "anchor": check_id,
-                "status": status,
-            }
         )
 
     packet["theory_derivation_packet"] = {
         "derivation_summary": derivation.get("derivation_summary", ""),
         "claim_index": claim_rows,
-        "sanity_check_index": sanity_rows,
         "formalization_handoff": derivation.get("formalization_handoff", {}),
         "self_critique": derivation.get("self_critique", []),
         "rejected_alternatives": derivation.get("rejected_alternatives", []),
@@ -1237,13 +1222,26 @@ def test_file_theory_index_does_not_require_markdown_anchor_syntax(
     derivation = deepcopy(packet["theory_derivation_packet"])
     for row in derivation["claim_index"]:
         row.pop("anchor", None)
-    for row in derivation["sanity_check_index"]:
-        row.pop("anchor", None)
     packet["theory_derivation_packet"] = derivation
     packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     packet["kernel_verified"] = False
 
     assert validate_theory_core_packet(packet) == []
+
+    historical_packet = deepcopy(packet)
+    historical_derivation = deepcopy(
+        historical_packet["theory_derivation_packet"]
+    )
+    historical_derivation["sanity_check_index"] = [
+        {
+            "id": "historical-check",
+            "claim_ref": derivation["claim_index"][0]["id"],
+            "document_path": derivation["claim_index"][0]["document_path"],
+            "status": "PASS",
+        }
+    ]
+    historical_packet["theory_derivation_packet"] = historical_derivation
+    assert validate_theory_core_packet(historical_packet) == []
 
     wrong_document = deepcopy(packet)
     wrong_derivation = deepcopy(wrong_document["theory_derivation_packet"])
@@ -1789,7 +1787,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     }
     assert ", ".join(THEORY_FILE_CLAIM_KINDS) in write_tool.description
     assert ", ".join(THEORY_FILE_CLAIM_STATUSES) in write_tool.description
-    assert ", ".join(THEORY_FILE_SANITY_STATUSES) in write_tool.description
+    assert "sanity statuses" not in write_tool.description
     initial_prompt = str(first_request.messages[0]["content"])
     assert core_response["problem_card"]["dgp"] not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
@@ -1848,7 +1846,6 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     derivation = packet["theory_derivation_packet"]
     assert set(derivation) == {
         "claim_index",
-        "sanity_check_index",
         "formalization_handoff",
     }
     assert {
@@ -1861,9 +1858,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert derivation_contract["n_claim_index_rows"] == len(
         derivation["claim_index"]
     )
-    assert derivation_contract["n_sanity_check_index_rows"] == len(
-        derivation["sanity_check_index"]
-    )
+    assert "n_sanity_check_index_rows" not in derivation_contract
     assert "n_derivation_steps" not in derivation_contract
     assert packet["estimator_interface_authoring"][
         "artifact_kind"
@@ -2754,7 +2749,6 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     )
     assert set(packet["theory_derivation_packet"]) == {
         "claim_index",
-        "sanity_check_index",
         "formalization_handoff",
     }
     assert [row["phase"] for row in packet["theory_generation_phases"]] == [

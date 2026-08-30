@@ -2355,6 +2355,8 @@ def test_preflight_is_compact_generic_and_haiku_pinned() -> None:
         row["anchor_id"] for row in material["anchor_catalog"]
     }
     assert "theory.rejected_alternatives" in anchor_ids
+    assert "theory.sanity_checks" not in anchor_ids
+    assert "theory.sanity_check_index" not in anchor_ids
     assert "theory.self_critique" not in anchor_ids
     assert "theory.critic_findings" not in anchor_ids
     estimator_anchor = next(
@@ -2429,6 +2431,12 @@ def test_theory_only_preflight_accepts_without_an_estimator_handoff() -> None:
         _theory_only_evidence_contract()
     )
     theory_only_payload = _payload(accept=True)
+    for review in theory_only_payload["dimension_reviews"]:
+        review["evidence_refs"] = [
+            "theory.problem_card",
+            "theory.derivation_steps",
+        ]
+    theory_only_payload["estimator_execution_checks"] = []
     theory_only_payload["execution_handoff_status"] = (
         PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED
     )
