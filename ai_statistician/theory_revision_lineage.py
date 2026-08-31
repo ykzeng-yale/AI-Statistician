@@ -36,6 +36,104 @@ THEORY_CLAIM_REVISION_DELTA_NOT_PROOF_EVIDENCE = (
 )
 
 
+def build_exploratory_scientific_theory_observation(
+    *,
+    question_id: str,
+    source_subsystem: str,
+    source_manifest: Mapping[str, Any],
+    theory_packet: Mapping[str, Any],
+    preflight_packet: Mapping[str, Any],
+    source_review_packet_id: str = "",
+    source_review_execution_id: str = "",
+    algorithm_handoff: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Project raw scientific execution into a non-authoritative Theory observation."""
+
+    manifest_id = str(source_manifest.get("manifest_id", "") or "")
+    row_key, row_id_key = (
+        ("prototypes", "estimator_id")
+        if source_subsystem == "AlgorithmEngineer"
+        else ("generated_simulation_sandbox_prototypes", "simulation_id")
+    )
+    row_fields = (
+        row_id_key,
+        "prototype_status",
+        "script_hash",
+        "result_hash",
+        "runtime_seed",
+        "runtime_replicates",
+        "smoke_passed",
+        "execution_smoke_passed",
+        "execution_attempted",
+        "metrics",
+        "execution_error",
+        "validation_errors",
+        "estimator_binding_errors",
+        "estimator_runtime_errors",
+        "metric_gate_errors",
+    )
+    observation = {
+        "source_subsystem": source_subsystem,
+        "source_manifest_ref": runtime_artifact_reference(
+            manifest_id, source_manifest
+        ),
+        "source_semantic_review_status": (
+            "ACCEPT" if source_review_packet_id else "NOT_REVIEWED"
+        ),
+        "source_review_packet_id": source_review_packet_id,
+        "source_review_execution_id": source_review_execution_id,
+        "execution_rows": [
+            {key: deepcopy(row[key]) for key in row_fields if key in row}
+            for row in source_manifest.get(row_key, []) or []
+            if isinstance(row, Mapping)
+        ],
+    }
+    if isinstance(algorithm_handoff, Mapping) and algorithm_handoff:
+        observation["accepted_algorithm_handoff_ref"] = {
+            "handoff_id": str(algorithm_handoff.get("handoff_id", "") or ""),
+            "content_hash": stable_hash(algorithm_handoff),
+        }
+    feedback = {
+        "artifact_kind": "RuntimeExploratoryScientificTheoryObservation",
+        "feedback_type": "exploratory_scientific_theory_observation",
+        "feedback_source": (
+            "GeneratedCodeSemanticReviewer"
+            if source_review_packet_id
+            else source_subsystem
+        ),
+        "question_id": question_id,
+        "source_theory_packet_id": str(theory_packet.get("packet_id", "") or ""),
+        "source_theory_packet_hash": stable_hash(theory_packet),
+        "preflight_packet_id": str(preflight_packet.get("packet_id", "") or ""),
+        "preflight_packet_hash": stable_hash(preflight_packet),
+        "findings": [
+            deepcopy(dict(row))
+            for row in preflight_packet.get("findings", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "active_unresolved_finding_ids": list(
+            preflight_packet.get("active_unresolved_finding_ids", []) or []
+        ),
+        "exploratory_scientific_observation": observation,
+        "overall_verdict": "REVISE",
+        "target_consumer_subsystem": "TheoryDeveloper",
+        "execution_results_observed": True,
+        "execution_authorized": False,
+        "confirmatory_simulation_authorized": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Exploratory execution is diagnostic, not theory acceptance or "
+            "confirmatory evidence; active findings return to the exact parent "
+            "Theory workspace."
+        ),
+    }
+    feedback["feedback_id"] = (
+        "exploratory_scientific_theory_observation:"
+        + stable_hash(feedback)[:20]
+    )
+    return feedback
+
+
 def build_theory_claim_revision_delta(
     *,
     parent_theory_packet: Mapping[str, Any],

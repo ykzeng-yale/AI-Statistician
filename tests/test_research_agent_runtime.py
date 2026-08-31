@@ -1316,6 +1316,118 @@ def test_provisional_theory_handoff_routes_direct_simulation_back_to_theory(
     assert SimulationAgent.propose_calls == 1
 
 
+def test_provisional_code_only_handoff_returns_to_exact_parent_theory(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="provisional-code-only",
+        title="Implement one finite theory interface",
+        description="Use implementation feedback without an empirical lane.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        },
+    )
+    theory_id = "theory:provisional-code-only"
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_id,
+        "question": runtime_module._question_to_payload(question),
+        "estimator_specs": [{"id": "finite-interface"}],
+        "theorem_cards": [],
+    }
+    preflight_id = "theory_preflight:provisional-code-only"
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": preflight_id,
+        "source_theory_packet_id": theory_id,
+        "source_theory_packet_hash": runtime_module.stable_hash(theory),
+        "overall_verdict": "REVISE",
+        "execution_handoff_status": runtime_module.PREFLIGHT_EXECUTION_HANDOFF_READY,
+        "findings": [
+            {
+                "finding_id": "finding:implementation-check",
+                "severity": "high",
+                "summary": "Check whether the finite interface is executable.",
+            }
+        ],
+        "active_unresolved_finding_ids": ["finding:implementation-check"],
+    }
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    context = {
+        "runtime_requested_evidence_contract": contract,
+        "architect_runtime_plan": {
+            "evidence_contract": contract,
+            "subsystem_execution_plan": [
+                {"subsystem": "AlgorithmEngineer"},
+                {"subsystem": "GeneratedCodeSemanticReviewer"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+        },
+        "architect_metric_protocol_theory_material": {
+            "source_theory_packet_id": theory_id,
+            "source_theory_packet_hash": runtime_module.stable_hash(theory),
+        },
+    }
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={theory_id: theory, preflight_id: preflight},
+    )
+    route = runtime_module._architect_theory_preflight_accepted_result(
+        task=AgentTask(
+            task_id="architect-theory-preflight:provisional-code-only",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Review the finite implementation handoff.",
+            inputs={"question": runtime_module._question_to_payload(question)},
+        ),
+        question=question,
+        architect_context=context,
+        preflight_packet=preflight,
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=23),
+        blackboard=blackboard,
+    )
+
+    assert route.status == "REROUTE"
+    assert route.next_task is not None
+    assert route.next_task.owner_subsystem == "AlgorithmEngineer"
+    assert route.next_task.inputs["exploration_before_theory_acceptance"] is True
+    assert "implementation_before_metric_freeze" not in route.next_task.inputs
+    assert "architect_metric_protocol_gate" not in (
+        route.next_task.inputs["architect_context"]
+    )
+    deferred = runtime_module._agent_task_from_runtime_payload(
+        route.next_task.inputs["deferred_metric_protocol_task"]
+    )
+    assert deferred.owner_subsystem == "TheoryDeveloper"
+    assert deferred.inputs["theory_preflight_packet_id"] == preflight_id
+
+    class NoAlgorithmCall:
+        @staticmethod
+        def source_workspace_owns_planning():
+            raise AssertionError("forged continuation reached the coding agent")
+
+    forged_inputs = deepcopy(route.next_task.inputs)
+    forged_inputs["deferred_metric_protocol_task"]["inputs"][
+        "theory_preflight_packet_id"
+    ] = "theory_preflight:forged"
+    blocked = runtime_module.AlgorithmEngineerRuntimeSubsystem(
+        out_dir=tmp_path / "algorithm",
+        n_runs=8,
+        seed=23,
+        proposal_agent=NoAlgorithmCall(),
+    ).run(replace(route.next_task, inputs=forged_inputs), blackboard)
+    assert blocked.status == "BLOCKED"
+    assert blocked.failure_classification == (
+        "algorithm_provisional_theory_continuation_invalid"
+    )
+
+
 def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
