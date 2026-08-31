@@ -9,16 +9,40 @@ ai-statistician research-agent-runtime \
   ...
 ```
 
+For a published repository already acquired locally, freeze the exact tracked tree
+from a commit before any model or evaluator run:
+
+```bash
+ai-statistician freeze-research-source-project \
+  --repository /path/to/local/checkout \
+  --revision FULL_COMMIT \
+  --snapshot-id published-project-v1 \
+  --source-horizon 2026-08-31 \
+  --repository-url https://github.com/owner/project \
+  --license MIT \
+  --out /path/to/frozen-project
+```
+
+The freezer reads Git blobs directly from the commit, not mutable worktree files or
+`git archive` export rules. It binds every path, Git object ID, executable mode,
+byte size, SHA-256, author/committer dates, and aggregate tree identity; a commit
+after the declared source horizon is rejected. Nested modules, empty tracked files,
+UTF-8 data, and binary execution assets are retained. Symlinks, submodules, oversized
+files, path escapes, and output reuse fail before a snapshot is published. Git LFS
+pointers remain pointers; required LFS objects must be frozen separately.
+
 ```bash
 ai-statistician research-architect-theory \
   --research-source-manifest /path/to/sources.json \
   ...
 ```
 
-The manifest names a directory relative to itself. Every document is UTF-8 text,
-explicitly model-visible, and bound to its exact SHA-256. Extract a PDF to Markdown
-or text first and retain the original PDF identity in the citation or source log.
-Pin repository material to a commit and record that commit in `git_commit`.
+The manifest names a directory relative to itself. Hand-authored documents default
+to nonempty UTF-8 text and every source is bound to its exact SHA-256. A project
+snapshot may additionally declare empty text or a descriptor-only binary execution
+asset with exact media, byte, mode, and Git identities. Extract mathematical PDF
+content to Markdown for line-addressed reasoning and retain the original PDF identity
+in the citation or source log. Pin repository material to a commit.
 
 ```json
 {
@@ -54,9 +78,10 @@ Pin repository material to a commit and record that commit in `git_commit`.
 ```
 
 The source root and every document path are resolved before the model runs. Path
-escape, missing files, hash mismatch, binary/non-UTF-8 content, duplicate identity,
-or absent `model_visible=true` fails closed. Search and read observations return to
-the same TheoryDeveloper model. Persisted theory evidence stores only the snapshot,
+escape, symlink, missing file, hash/blob/mode mismatch, duplicate identity, or absent
+`model_visible=true` fails closed. Search and line reads cover text; binary assets are
+descriptor-only inputs that the separately pinned source executor may consume. Search
+and read observations return to the same TheoryDeveloper model. Persisted theory evidence stores only the snapshot,
 query, document, hash, line-range, and `citation_ref` values; it does not recursively
 copy source text. When an authoritative theory document contains a `citation_ref`,
 the independent Critic receives that exact hash-verified range transiently for source
@@ -67,3 +92,9 @@ must interpret sources, independent review must audit the resulting mathematics,
 and Lean kernel evidence remains the only formal proof authority when requested.
 Hidden evaluator artifacts and future papers in a historical-rediscovery benchmark
 must live outside the snapshot and outside all model-accessible workspaces.
+
+A frozen project still does not define an executable environment. Bind it separately
+with `--research-source-execution-manifest`: exact interpreter, lock/probe, arguments,
+working directory, declared result files, no network, and copy-on-write execution.
+Successful execution is source-replication observation only; it is not semantic,
+statistical, confirmatory, novelty, or proof authority.

@@ -8,9 +8,11 @@ import json
 import math
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
@@ -114,10 +116,15 @@ class ResearchSourceDocument:
     publication_date: str = ""
     git_commit: str = ""
     license: str = ""
+    content_mode: str = "text"
+    media_type: str = "text/plain"
+    byte_size: int = 0
+    file_mode: str = ""
+    git_blob_oid: str = ""
     lines: tuple[str, ...] = ()
 
     def public_descriptor(self) -> dict[str, Any]:
-        return {
+        descriptor = {
             "document_id": self.document_id,
             "title": self.title,
             "source_kind": self.source_kind,
@@ -129,6 +136,22 @@ class ResearchSourceDocument:
             "license": self.license,
             "line_count": len(self.lines),
         }
+        if self.content_mode != "text" or self.file_mode or self.git_blob_oid:
+            descriptor.update({
+                "content_mode": self.content_mode,
+                "media_type": self.media_type,
+                "byte_size": self.byte_size,
+                "model_access": (
+                    "line_addressed_text"
+                    if self.content_mode == "text"
+                    else "descriptor_only_execution_asset"
+                ),
+            })
+        if self.file_mode:
+            descriptor["file_mode"] = self.file_mode
+        if self.git_blob_oid:
+            descriptor["git_blob_oid"] = self.git_blob_oid
+        return descriptor
 
 
 @dataclass(frozen=True)
@@ -140,6 +163,7 @@ class ResearchSourceSnapshot:
     documents: tuple[ResearchSourceDocument, ...]
     manifest_path: Path
     source_root: Path
+    repository_identity: Mapping[str, Any] | None = None
 
     def descriptor(self) -> dict[str, Any]:
         source_kind_counts: dict[str, int] = {}
@@ -147,7 +171,7 @@ class ResearchSourceSnapshot:
             source_kind_counts[document.source_kind] = (
                 source_kind_counts.get(document.source_kind, 0) + 1
             )
-        return {
+        descriptor = {
             "schema_version": RESEARCH_SOURCE_SCHEMA_VERSION,
             "artifact_kind": "ResearchSourceSnapshotDescriptor",
             "snapshot_id": self.snapshot_id,
@@ -167,6 +191,9 @@ class ResearchSourceSnapshot:
                 "retrieved passage is not proof that the proposal is correct."
             ),
         }
+        if self.repository_identity:
+            descriptor["repository_identity"] = dict(self.repository_identity)
+        return descriptor
 
     def document(self, document_id: str) -> ResearchSourceDocument:
         normalized_id = str(document_id or "").strip()
@@ -177,12 +204,18 @@ class ResearchSourceSnapshot:
 
     def document_path(self, document_id: str) -> Path:
         document = self.document(document_id)
-        path = (self.source_root / PurePosixPath(document.relative_path)).resolve()
+        relative = PurePosixPath(document.relative_path)
+        unresolved = self.source_root
+        for part in relative.parts:
+            unresolved = unresolved / part
+            if unresolved.is_symlink():
+                raise ValueError("research source document path contains a symlink")
+        path = unresolved.resolve()
         try:
             path.relative_to(self.source_root)
         except ValueError as exc:
             raise ValueError("research source document escaped its source root") from exc
-        return path
+        return unresolved
 
     def identity_errors(self) -> list[str]:
         errors: list[str] = []
@@ -193,16 +226,26 @@ class ResearchSourceSnapshot:
         if manifest_hash != self.manifest_sha256:
             errors.append("research source manifest changed after snapshot load")
         for document in self.documents:
-            path = self.document_path(document.document_id)
             try:
+                path = self.document_path(document.document_id)
                 observed = hashlib.sha256(path.read_bytes()).hexdigest()
-            except OSError:
+            except (OSError, ValueError):
                 observed = ""
             if observed != document.sha256:
                 errors.append(
                     f"research source document changed after snapshot load: "
                     f"{document.document_id}"
                 )
+                continue
+            if document.file_mode:
+                observed_executable = bool(
+                    stat.S_IMODE(path.stat().st_mode) & 0o111
+                )
+                if observed_executable != (document.file_mode == "100755"):
+                    errors.append(
+                        "research source executable mode changed after snapshot load: "
+                        + document.document_id
+                    )
         return errors
 
     def search(self, query: str, *, top_k: int = 5) -> dict[str, Any]:
@@ -220,6 +263,8 @@ class ResearchSourceSnapshot:
         candidates: list[dict[str, Any]] = []
         query_lower = normalized_query.lower()
         for document in self.documents:
+            if document.content_mode != "text":
+                continue
             metadata_text = " ".join(
                 (
                     document.title,
@@ -251,7 +296,7 @@ class ResearchSourceSnapshot:
                         "excerpt": excerpt[:3_000],
                     }
                 )
-            if metadata_overlap and not any(
+            if document.lines and metadata_overlap and not any(
                 row["document_id"] == document.document_id for row in candidates
             ):
                 end_index = min(len(document.lines), 12)
@@ -334,6 +379,10 @@ class ResearchSourceSnapshot:
         if normalized_id not in documents:
             raise ValueError(f"unknown research source document: {normalized_id}")
         document = documents[normalized_id]
+        if document.content_mode != "text":
+            raise ValueError(
+                "research source document is a descriptor-only binary execution asset"
+            )
         if line_start < 1 or line_end < line_start:
             raise ValueError("research source line range must be positive and ordered")
         if line_end > len(document.lines):
@@ -588,7 +637,11 @@ def load_research_source_execution_spec(
         payload, "environment_lock_document_id"
     )
     entrypoint = research_sources.document(entrypoint_document_id)
-    research_sources.document(environment_lock_document_id)
+    environment_lock = research_sources.document(environment_lock_document_id)
+    if entrypoint.content_mode != "text" or environment_lock.content_mode != "text":
+        raise ValueError(
+            "research source entrypoint and environment lock must be text documents"
+        )
     legacy_python = int(schema_version) < 3
     python_fields = {"python_executable_relative_path", "python_executable_sha256"}
     interpreter_fields = {
@@ -619,7 +672,8 @@ def load_research_source_execution_spec(
         environment_probe_document_id = _required_text(
             payload, "environment_probe_document_id"
         )
-        research_sources.document(environment_probe_document_id)
+        if research_sources.document(environment_probe_document_id).content_mode != "text":
+            raise ValueError("research source environment probe must be a text document")
         executable_path_field = "interpreter_executable_relative_path"
         executable_hash_field = "interpreter_executable_sha256"
     source_commit = _required_text(payload, "source_commit")
@@ -828,6 +882,8 @@ def _stage_research_source_snapshot(
         staged_path = workspace_root / PurePosixPath(document.relative_path)
         staged_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source_path, staged_path)
+        if document.file_mode:
+            staged_path.chmod(0o755 if document.file_mode == "100755" else 0o644)
         if _file_sha256(staged_path) != document.sha256:
             raise ValueError(
                 f"staged research source hash mismatch: {document.document_id}"
@@ -1120,6 +1176,19 @@ def _capture_staged_result_artifacts(
         if observed_hashes.get(relative_path) != expected_hash:
             staged_input_mutated = True
             errors.append(f"staged source input changed during execution: {relative_path}")
+    for document in research_sources.documents:
+        if not document.file_mode:
+            continue
+        staged_path = workspace_root / PurePosixPath(document.relative_path)
+        if staged_path.is_symlink() or not staged_path.is_file():
+            continue
+        observed_executable = bool(stat.S_IMODE(staged_path.stat().st_mode) & 0o111)
+        if observed_executable != (document.file_mode == "100755"):
+            staged_input_mutated = True
+            errors.append(
+                "staged source executable mode changed during execution: "
+                + document.relative_path
+            )
 
     expected_workspace_paths = set(declared_hashes) | result_paths
     unexpected_paths = sorted(set(observed_hashes) - expected_workspace_paths)
@@ -1757,7 +1826,14 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
         relative_path = PurePosixPath(relative_path_value)
         if relative_path.is_absolute() or ".." in relative_path.parts:
             raise ValueError(f"research source {document_id} relative_path must stay inside source_root")
-        resolved_document = (source_root / relative_path).resolve()
+        unresolved_document = source_root
+        for part in relative_path.parts:
+            unresolved_document = unresolved_document / part
+            if unresolved_document.is_symlink():
+                raise ValueError(
+                    f"research source {document_id} path must not contain a symlink"
+                )
+        resolved_document = unresolved_document.resolve()
         try:
             resolved_document.relative_to(source_root)
         except ValueError as exc:
@@ -1770,12 +1846,68 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
         observed_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         if observed_sha256 != expected_sha256:
             raise ValueError(f"research source {document_id} sha256 mismatch: expected {expected_sha256}, observed {observed_sha256}")
-        try:
-            text = raw_bytes.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise ValueError(f"research source {document_id} must be UTF-8 text; extract binary sources first") from exc
-        if not text.strip():
-            raise ValueError(f"research source {document_id} must contain nonempty text")
+        content_mode_declared = "content_mode" in raw_document
+        content_mode = str(raw_document.get("content_mode", "text") or "text").strip().lower()
+        if content_mode not in {"text", "binary"}:
+            raise ValueError(
+                f"research source {document_id} content_mode must be text or binary"
+            )
+        media_type = str(
+            raw_document.get(
+                "media_type",
+                "text/plain" if content_mode == "text" else "application/octet-stream",
+            )
+            or ""
+        ).strip().lower()
+        if not media_type or "/" not in media_type or len(media_type) > 200:
+            raise ValueError(f"research source {document_id} media_type is invalid")
+        declared_byte_size = raw_document.get("byte_size", len(raw_bytes))
+        if (
+            isinstance(declared_byte_size, bool)
+            or not isinstance(declared_byte_size, int)
+            or declared_byte_size != len(raw_bytes)
+        ):
+            raise ValueError(f"research source {document_id} byte_size mismatch")
+        if content_mode == "text":
+            try:
+                text = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ValueError(
+                    f"research source {document_id} declared text is not UTF-8"
+                ) from exc
+            if not content_mode_declared and not text.strip():
+                raise ValueError(
+                    f"research source {document_id} must contain nonempty text"
+                )
+            lines = tuple(text.splitlines())
+        else:
+            lines = ()
+        file_mode = str(raw_document.get("file_mode", "") or "").strip()
+        if file_mode:
+            if file_mode not in {"100644", "100755"}:
+                raise ValueError(
+                    f"research source {document_id} file_mode is unsupported"
+                )
+            observed_executable = bool(
+                stat.S_IMODE(resolved_document.stat().st_mode) & 0o111
+            )
+            if observed_executable != (file_mode == "100755"):
+                raise ValueError(
+                    f"research source {document_id} executable mode mismatch"
+                )
+        git_blob_oid = str(raw_document.get("git_blob_oid", "") or "").strip().lower()
+        if git_blob_oid:
+            if len(git_blob_oid) not in {40, 64} or any(
+                character not in "0123456789abcdef" for character in git_blob_oid
+            ):
+                raise ValueError(
+                    f"research source {document_id} git_blob_oid is invalid"
+                )
+            algorithm = "sha1" if len(git_blob_oid) == 40 else "sha256"
+            if _git_blob_oid(raw_bytes, algorithm=algorithm) != git_blob_oid:
+                raise ValueError(
+                    f"research source {document_id} git blob identity mismatch"
+                )
         if document_id in document_ids:
             raise ValueError(f"duplicate research source document_id: {document_id}")
         normalized_relative_path = relative_path.as_posix()
@@ -1794,7 +1926,12 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
             publication_date=str(raw_document.get("publication_date", "") or "").strip(),
             git_commit=str(raw_document.get("git_commit", "") or "").strip(),
             license=str(raw_document.get("license", "") or "").strip(),
-            lines=tuple(text.splitlines()),
+            content_mode=content_mode,
+            media_type=media_type,
+            byte_size=len(raw_bytes),
+            file_mode=file_mode,
+            git_blob_oid=git_blob_oid,
+            lines=lines,
         )
         documents.append(document)
         normalized_index.append({**document.public_descriptor(),
@@ -1802,14 +1939,20 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
 
     documents.sort(key=lambda document: document.document_id)
     normalized_index.sort(key=lambda row: str(row["document_id"]))
-    snapshot_hash = stable_hash(
-        {
-            "schema_version": RESEARCH_SOURCE_SCHEMA_VERSION,
-            "snapshot_id": snapshot_id,
-            "source_horizon": source_horizon,
-            "documents": normalized_index,
-        }
+    repository_identity = _validated_repository_identity(
+        payload.get("repository_identity"),
+        documents=documents,
+        source_horizon=source_horizon,
     )
+    snapshot_identity = {
+        "schema_version": RESEARCH_SOURCE_SCHEMA_VERSION,
+        "snapshot_id": snapshot_id,
+        "source_horizon": source_horizon,
+        "documents": normalized_index,
+    }
+    if repository_identity:
+        snapshot_identity["repository_identity"] = repository_identity
+    snapshot_hash = stable_hash(snapshot_identity)
     declared_snapshot_hash = str(payload.get("snapshot_hash", "") or "").strip()
     if declared_snapshot_hash and declared_snapshot_hash != snapshot_hash:
         raise ValueError("research source snapshot_hash does not match its document index")
@@ -1821,6 +1964,7 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
         documents=tuple(documents),
         manifest_path=resolved_manifest,
         source_root=source_root,
+        repository_identity=repository_identity or None,
     )
 
 
@@ -1829,6 +1973,91 @@ def _required_text(payload: Mapping[str, Any], field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"research source manifest field {field} must be nonempty text")
     return value.strip()
+
+
+def _git_blob_oid(raw_bytes: bytes, *, algorithm: str) -> str:
+    header = f"blob {len(raw_bytes)}\0".encode("ascii")
+    digest = hashlib.new(algorithm)
+    digest.update(header)
+    digest.update(raw_bytes)
+    return digest.hexdigest()
+
+
+def _validated_repository_identity(
+    value: Any,
+    *,
+    documents: Sequence[ResearchSourceDocument],
+    source_horizon: str,
+) -> dict[str, Any]:
+    if value is None:
+        return {}
+    allowed = {
+        "repository_url", "git_commit", "git_object_format", "author_date",
+        "committer_date", "tracked_file_count", "tracked_byte_size",
+        "tree_index_hash",
+    }
+    if not isinstance(value, Mapping) or set(value) != allowed:
+        raise ValueError("research source repository_identity fields are invalid")
+    identity = dict(value)
+    object_format = str(identity["git_object_format"] or "").strip().lower()
+    commit = str(identity["git_commit"] or "").strip().lower()
+    oid_length = 40 if object_format == "sha1" else 64
+    if object_format not in {"sha1", "sha256"} or len(commit) != oid_length or any(
+        character not in "0123456789abcdef" for character in commit
+    ):
+        raise ValueError("research source repository commit identity is invalid")
+    if not all(
+        isinstance(identity[field], str)
+        for field in (
+            "repository_url", "git_commit", "git_object_format",
+            "author_date", "committer_date", "tree_index_hash",
+        )
+    ):
+        raise ValueError("research source repository identity text fields are invalid")
+    try:
+        horizon = date.fromisoformat(source_horizon)
+        author_time = datetime.fromisoformat(identity["author_date"])
+        committer_time = datetime.fromisoformat(identity["committer_date"])
+    except ValueError as exc:
+        raise ValueError("research source repository dates are invalid") from exc
+    if author_time.tzinfo is None or committer_time.tzinfo is None:
+        raise ValueError("research source repository dates must include timezones")
+    author_date = author_time.date()
+    committer_date = committer_time.date()
+    if author_date > horizon or committer_date > horizon:
+        raise ValueError("research source repository commit falls after source horizon")
+    if (
+        isinstance(identity["tracked_file_count"], bool)
+        or not isinstance(identity["tracked_file_count"], int)
+        or identity["tracked_file_count"] != len(documents)
+        or isinstance(identity["tracked_byte_size"], bool)
+        or not isinstance(identity["tracked_byte_size"], int)
+        or identity["tracked_byte_size"] != sum(document.byte_size for document in documents)
+    ):
+        raise ValueError("research source repository aggregate size identity mismatch")
+    tree_rows = []
+    for document in documents:
+        if (
+            document.git_commit != commit
+            or len(document.git_blob_oid) != oid_length
+            or not document.file_mode
+        ):
+            raise ValueError("research source repository document identity is incomplete")
+        tree_rows.append({
+            "relative_path": document.relative_path,
+            "git_blob_oid": document.git_blob_oid,
+            "file_mode": document.file_mode,
+            "byte_size": document.byte_size,
+        })
+    tree_rows.sort(key=lambda row: str(row["relative_path"]))
+    if str(identity["tree_index_hash"] or "") != stable_hash(tree_rows):
+        raise ValueError("research source repository tree identity mismatch")
+    identity.update({
+        "repository_url": str(identity["repository_url"] or "").strip(),
+        "git_commit": commit,
+        "git_object_format": object_format,
+    })
+    return identity
 
 
 def _required_sha256(payload: Mapping[str, Any], field: str) -> str:

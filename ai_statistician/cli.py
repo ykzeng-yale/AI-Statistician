@@ -106,6 +106,11 @@ from .research_source_discovery import (
     PublicResearchSourceDiscovery,
     PublicResearchSourceDiscoveryConfig,
 )
+from .research_source_project import (
+    MAX_REPOSITORY_SNAPSHOT_BYTES,
+    MAX_REPOSITORY_SNAPSHOT_FILES,
+    freeze_git_repository_snapshot,
+)
 from .research_schema import load_open_research_questions, research_question_payload
 from .research_architect import (
     AnthropicArchitectLLMProvider,
@@ -3381,6 +3386,26 @@ def _public_research_source_discovery_from_args(
     )
 
 
+def _freeze_research_source_project(args: argparse.Namespace) -> int:
+    snapshot = freeze_git_repository_snapshot(
+        repository_root=Path(args.repository),
+        revision=args.revision,
+        output_dir=Path(args.out),
+        snapshot_id=args.snapshot_id,
+        source_horizon=args.source_horizon,
+        repository_url=args.repository_url,
+        license_name=args.license,
+        max_files=args.max_files,
+        max_total_bytes=args.max_total_bytes,
+    )
+    print(json.dumps({
+        **snapshot.descriptor(),
+        "manifest_path": str(snapshot.manifest_path),
+        "source_root": str(snapshot.source_root),
+    }, indent=2, sort_keys=True))
+    return 0
+
+
 def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -6154,6 +6179,28 @@ def build_parser() -> argparse.ArgumentParser:
     research_eval.add_argument("--out", default="runs/research_eval", help="research evaluation output directory")
     research_eval.add_argument("--env-file", default=".env")
     research_eval.set_defaults(func=lambda args: asyncio.run(_research_eval(args)))
+
+    freeze_source_project = sub.add_parser(
+        "freeze-research-source-project",
+        help=(
+            "freeze one exact local Git commit as a hash-bound multi-file "
+            "research-source snapshot"
+        ),
+    )
+    freeze_source_project.add_argument("--repository", required=True)
+    freeze_source_project.add_argument("--revision", required=True)
+    freeze_source_project.add_argument("--snapshot-id", required=True)
+    freeze_source_project.add_argument("--source-horizon", required=True)
+    freeze_source_project.add_argument("--repository-url", default="")
+    freeze_source_project.add_argument("--license", default="")
+    freeze_source_project.add_argument(
+        "--max-files", type=int, default=MAX_REPOSITORY_SNAPSHOT_FILES
+    )
+    freeze_source_project.add_argument(
+        "--max-total-bytes", type=int, default=MAX_REPOSITORY_SNAPSHOT_BYTES
+    )
+    freeze_source_project.add_argument("--out", required=True)
+    freeze_source_project.set_defaults(func=_freeze_research_source_project)
 
     research_architect_theory = sub.add_parser(
         "research-architect-theory",

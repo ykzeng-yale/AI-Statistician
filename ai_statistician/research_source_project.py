@@ -1,0 +1,354 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import mimetypes
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import urllib.parse
+from dataclasses import replace
+from datetime import date, datetime
+from pathlib import Path, PurePosixPath
+from typing import Any, Mapping
+
+from .fingerprint import stable_hash
+from .research_source_library import (
+    MAX_SOURCE_FILE_BYTES,
+    ResearchSourceSnapshot,
+    load_research_source_snapshot,
+)
+
+
+MAX_REPOSITORY_SNAPSHOT_FILES = 20_000
+MAX_REPOSITORY_SNAPSHOT_BYTES = 2 * 1024 * 1024 * 1024
+_GIT_REGULAR_FILE_MODES = frozenset({"100644", "100755"})
+
+
+def freeze_git_repository_snapshot(
+    *,
+    repository_root: Path,
+    revision: str,
+    output_dir: Path,
+    snapshot_id: str,
+    source_horizon: str,
+    repository_url: str = "",
+    license_name: str = "",
+    max_files: int = MAX_REPOSITORY_SNAPSHOT_FILES,
+    max_total_bytes: int = MAX_REPOSITORY_SNAPSHOT_BYTES,
+) -> ResearchSourceSnapshot:
+    """Freeze one exact local Git commit as a source-replication project."""
+
+    repository = repository_root.expanduser().resolve()
+    destination = output_dir.expanduser().resolve()
+    normalized_revision = str(revision or "").strip()
+    normalized_snapshot_id = str(snapshot_id or "").strip()
+    if not repository.is_dir():
+        raise ValueError("repository_root must be an existing directory")
+    if (
+        not normalized_revision
+        or normalized_revision.startswith("-")
+        or len(normalized_revision) > 200
+        or not re.fullmatch(r"[0-9A-Za-z._/@+-]+", normalized_revision)
+    ):
+        raise ValueError("revision must be one bounded Git revision without options")
+    if not normalized_snapshot_id or len(normalized_snapshot_id) > 200:
+        raise ValueError("snapshot_id must be nonempty and bounded")
+    try:
+        horizon_date = date.fromisoformat(str(source_horizon or "").strip())
+    except ValueError as exc:
+        raise ValueError("source_horizon must be an ISO date") from exc
+    if (
+        isinstance(max_files, bool)
+        or not isinstance(max_files, int)
+        or not 1 <= max_files <= 100_000
+    ):
+        raise ValueError("max_files must be between 1 and 100000")
+    if (
+        isinstance(max_total_bytes, bool)
+        or not isinstance(max_total_bytes, int)
+        or not MAX_SOURCE_FILE_BYTES <= max_total_bytes <= 16 * 1024**3
+    ):
+        raise ValueError("max_total_bytes is outside the supported boundary")
+    if destination.exists():
+        raise ValueError("output_dir already exists")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    top_level = Path(
+        _git_text(repository, "rev-parse", "--show-toplevel")
+    ).resolve()
+    if top_level != repository:
+        raise ValueError("repository_root must be the Git worktree root")
+    object_format = _git_text(
+        repository, "rev-parse", "--show-object-format"
+    ).lower()
+    if object_format not in {"sha1", "sha256"}:
+        raise ValueError("Git repository object format is unsupported")
+    commit = _git_text(
+        repository,
+        "rev-parse",
+        "--verify",
+        "--end-of-options",
+        normalized_revision + "^{commit}",
+    ).lower()
+    expected_oid_length = 40 if object_format == "sha1" else 64
+    if len(commit) != expected_oid_length or any(
+        character not in "0123456789abcdef" for character in commit
+    ):
+        raise ValueError("revision did not resolve to one full commit identity")
+    commit_dates = _git_text(
+        repository, "show", "-s", "--format=%aI%n%cI", commit
+    ).splitlines()
+    if len(commit_dates) != 2:
+        raise ValueError("Git commit did not expose author and committer dates")
+    try:
+        author_date, committer_date = (
+            datetime.fromisoformat(value).date() for value in commit_dates
+        )
+    except ValueError as exc:
+        raise ValueError("Git commit dates are invalid") from exc
+    if author_date > horizon_date or committer_date > horizon_date:
+        raise ValueError("Git commit falls after the configured source horizon")
+
+    tree_rows = _git_tree_rows(repository, commit)
+    if not tree_rows:
+        raise ValueError("Git commit contains no regular files")
+    if len(tree_rows) > max_files:
+        raise ValueError("Git commit exceeds the configured file-count boundary")
+    total_bytes = sum(int(row["byte_size"]) for row in tree_rows)
+    if total_bytes > max_total_bytes:
+        raise ValueError("Git commit exceeds the configured aggregate byte boundary")
+
+    stage = Path(
+        tempfile.mkdtemp(prefix=".research-source-project-", dir=destination.parent)
+    )
+    try:
+        source_root = stage / "repository"
+        source_root.mkdir()
+        documents = _materialize_git_blobs(
+            repository=repository,
+            source_root=source_root,
+            tree_rows=tree_rows,
+            object_format=object_format,
+            commit=commit,
+            repository_url=str(repository_url or "").strip(),
+            license_name=str(license_name or "").strip(),
+        )
+        manifest = {
+            "schema_version": 1,
+            "snapshot_id": normalized_snapshot_id,
+            "source_horizon": str(source_horizon).strip(),
+            "source_root": "repository",
+            "repository_identity": {
+                "repository_url": str(repository_url or "").strip(),
+                "git_commit": commit,
+                "git_object_format": object_format,
+                "author_date": commit_dates[0],
+                "committer_date": commit_dates[1],
+                "tracked_file_count": len(documents),
+                "tracked_byte_size": total_bytes,
+                "tree_index_hash": stable_hash([
+                    {
+                        "relative_path": row["relative_path"],
+                        "git_blob_oid": row["git_blob_oid"],
+                        "file_mode": row["file_mode"],
+                        "byte_size": row["byte_size"],
+                    }
+                    for row in documents
+                ]),
+            },
+            "documents": documents,
+        }
+        (stage / "sources.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        validated_snapshot = load_research_source_snapshot(stage / "sources.json")
+        published_snapshot = replace(
+            validated_snapshot,
+            manifest_path=destination / "sources.json",
+            source_root=destination / "repository",
+        )
+        os.replace(stage, destination)
+        return published_snapshot
+    except Exception:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+
+
+def _git_tree_rows(repository: Path, commit: str) -> list[dict[str, Any]]:
+    raw = _run_git(
+        repository,
+        "ls-tree",
+        "-r",
+        "-z",
+        "-l",
+        "--full-tree",
+        commit,
+        text=False,
+    )
+    rows = []
+    for record in raw.split(b"\0"):
+        if not record:
+            continue
+        try:
+            header, raw_path = record.split(b"\t", 1)
+            mode, object_type, oid, raw_size = header.decode("ascii").split()
+            relative_path = raw_path.decode("utf-8")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise ValueError("Git tree contains an unsupported path or row") from exc
+        path = PurePosixPath(relative_path)
+        if (
+            path.is_absolute()
+            or any(part in {"", ".", ".."} for part in path.parts)
+            or path.as_posix() != relative_path
+        ):
+            raise ValueError("Git tree contains a non-canonical path")
+        if object_type != "blob" or mode not in _GIT_REGULAR_FILE_MODES:
+            raise ValueError(
+                "Git snapshot requires regular tracked files; symlinks and submodules "
+                f"must be frozen separately: {relative_path}"
+            )
+        byte_size = int(raw_size)
+        if byte_size > MAX_SOURCE_FILE_BYTES:
+            raise ValueError(
+                f"Git tracked file exceeds {MAX_SOURCE_FILE_BYTES} bytes: {relative_path}"
+            )
+        rows.append({
+            "relative_path": relative_path,
+            "file_mode": mode,
+            "git_blob_oid": oid.lower(),
+            "byte_size": byte_size,
+        })
+    return sorted(rows, key=lambda row: str(row["relative_path"]))
+
+
+def _materialize_git_blobs(
+    *,
+    repository: Path,
+    source_root: Path,
+    tree_rows: list[Mapping[str, Any]],
+    object_format: str,
+    commit: str,
+    repository_url: str,
+    license_name: str,
+) -> list[dict[str, Any]]:
+    documents = []
+    process = subprocess.Popen(
+        ["git", "-C", str(repository), "cat-file", "--batch"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if process.stdin is None or process.stdout is None or process.stderr is None:
+        process.kill()
+        raise ValueError("Git blob reader did not expose its process streams")
+    try:
+        for tree_row in tree_rows:
+            relative_path = str(tree_row["relative_path"])
+            expected_oid = str(tree_row["git_blob_oid"])
+            process.stdin.write((expected_oid + "\n").encode("ascii"))
+            process.stdin.flush()
+            header = process.stdout.readline().decode("ascii", errors="strict").strip()
+            try:
+                observed_oid, object_type, raw_size = header.split()
+                byte_size = int(raw_size)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Git blob reader returned an invalid header: {relative_path}"
+                ) from exc
+            if (
+                observed_oid != expected_oid
+                or object_type != "blob"
+                or byte_size != int(tree_row["byte_size"])
+            ):
+                raise ValueError(f"Git blob metadata mismatch: {relative_path}")
+            raw_bytes = process.stdout.read(byte_size)
+            terminator = process.stdout.read(1)
+            if len(raw_bytes) != byte_size or terminator != b"\n":
+                raise ValueError(f"Git blob was truncated: {relative_path}")
+            observed_oid = _git_blob_oid(raw_bytes, algorithm=object_format)
+            if observed_oid != expected_oid:
+                raise ValueError(f"Git blob identity mismatch: {relative_path}")
+            target = source_root / PurePosixPath(relative_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(raw_bytes)
+            target.chmod(0o755 if tree_row["file_mode"] == "100755" else 0o644)
+            try:
+                decoded = raw_bytes.decode("utf-8")
+                content_mode = "text" if "\x00" not in decoded else "binary"
+            except UnicodeDecodeError:
+                content_mode = "binary"
+            guessed_media = mimetypes.guess_type(relative_path)[0]
+            media_type = guessed_media or (
+                "text/plain" if content_mode == "text" else "application/octet-stream"
+            )
+            quoted_path = "/".join(
+                urllib.parse.quote(part, safe="")
+                for part in PurePosixPath(relative_path).parts
+            )
+            documents.append({
+                "document_id": "repository-file:"
+                + stable_hash([commit, relative_path])[:24],
+                "title": relative_path,
+                "source_kind": (
+                    "repository_text" if content_mode == "text" else "repository_asset"
+                ),
+                "relative_path": relative_path,
+                "sha256": hashlib.sha256(raw_bytes).hexdigest(),
+                "byte_size": len(raw_bytes),
+                "content_mode": content_mode,
+                "media_type": media_type,
+                "file_mode": str(tree_row["file_mode"]),
+                "git_blob_oid": str(tree_row["git_blob_oid"]),
+                "git_commit": commit,
+                "model_visible": True,
+                "url": (
+                    repository_url.rstrip("/") + f"/blob/{commit}/" + quoted_path
+                    if repository_url
+                    else ""
+                ),
+                "license": license_name,
+            })
+        process.stdin.close()
+        returncode = process.wait(timeout=30)
+        stderr = process.stderr.read().decode("utf-8", errors="replace").strip()
+        if returncode != 0:
+            raise ValueError("Git blob reader failed" + (": " + stderr if stderr else ""))
+    except Exception:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        raise
+    return documents
+
+
+def _git_blob_oid(raw_bytes: bytes, *, algorithm: str) -> str:
+    digest = hashlib.new(algorithm)
+    digest.update(f"blob {len(raw_bytes)}\0".encode("ascii"))
+    digest.update(raw_bytes)
+    return digest.hexdigest()
+
+
+def _git_text(repository: Path, *arguments: str) -> str:
+    return str(_run_git(repository, *arguments, text=True)).strip()
+
+
+def _run_git(
+    repository: Path,
+    *arguments: str,
+    text: bool = True,
+) -> str | bytes:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=text,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ValueError("Git project snapshot command failed") from exc
+    return result.stdout
