@@ -3607,14 +3607,15 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             },
         ),
     ) if revision_document_paths else ()
+    preflight_research_source_tools = tuple(
+        tool
+        for tool in research_source_client_tools()
+        if tool.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}
+    ) if research_sources is not None else ()
     tools = (
         *theory_document_client_tools(),
         *revision_tools,
-        *(
-            research_source_client_tools()
-            if research_sources is not None
-            else ()
-        ),
+        *preflight_research_source_tools,
         *(
             research_source_discovery_client_tools()
             if research_source_discovery is not None

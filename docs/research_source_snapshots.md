@@ -79,9 +79,10 @@ in the citation or source log. Pin repository material to a commit.
 
 The source root and every document path are resolved before the model runs. Path
 escape, symlink, missing file, hash/blob/mode mismatch, duplicate identity, or absent
-`model_visible=true` fails closed. Search and line reads cover text; binary assets are
-descriptor-only inputs that the separately pinned source executor may consume. Search
-and read observations return to the same TheoryDeveloper model. Persisted theory evidence stores only the snapshot,
+`model_visible=true` fails closed. A bounded directory listing exposes direct child
+identities, including empty text and binary assets, so a model can navigate an exact
+project before searching or reading text. Binary content remains descriptor-only for
+the separately pinned source executor. All observations return to the same source owner. Persisted theory evidence stores only the snapshot,
 query, document, hash, line-range, and `citation_ref` values; it does not recursively
 copy source text. When an authoritative theory document contains a `citation_ref`,
 the independent Critic receives that exact hash-verified range transiently for source

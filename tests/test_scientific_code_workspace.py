@@ -42,6 +42,7 @@ from ai_statistician.scientific_sandbox import (
 )
 from ai_statistician.simulation_engineer_llm import SimulationEngineerConfig
 from ai_statistician.research_source_library import (
+    RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceDocument,
@@ -648,6 +649,10 @@ def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) 
     }
     backend = ScriptedScientificBackend([
         _response(ClientToolCall(
+            call_id="list", name=RESEARCH_SOURCE_LIST_TOOL,
+            input={"directory": ""},
+        )),
+        _response(ClientToolCall(
             call_id="search", name=RESEARCH_SOURCE_SEARCH_TOOL,
             input={"query": "finite sample average"},
         )),
@@ -670,7 +675,7 @@ def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) 
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=5,
+        max_turns=6,
         max_no_progress_turns=2,
         artifact_id="question:public-source",
         initial_code_draft=None,
@@ -682,11 +687,13 @@ def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) 
         research_sources=snapshot,
     )
 
-    assert [tool.name for tool in backend.requests[0].tools[:2]] == [
-        RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
+    assert [tool.name for tool in backend.requests[0].tools[:3]] == [
+        RESEARCH_SOURCE_LIST_TOOL, RESEARCH_SOURCE_SEARCH_TOOL,
+        RESEARCH_SOURCE_READ_TOOL,
     ]
     assert [row["tool"] for row in result.evidence["research_source_refs"]] == [
-        RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
+        RESEARCH_SOURCE_LIST_TOOL, RESEARCH_SOURCE_SEARCH_TOOL,
+        RESEARCH_SOURCE_READ_TOOL,
     ]
     assert result.evidence["research_source_snapshot"]["snapshot_hash"] == (
         snapshot.snapshot_hash

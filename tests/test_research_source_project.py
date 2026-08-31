@@ -12,6 +12,8 @@ import pytest
 
 from ai_statistician.cli import main
 from ai_statistician.research_source_library import (
+    RESEARCH_SOURCE_LIST_TOOL,
+    execute_research_source_client_tool,
     execute_research_source,
     load_research_source_snapshot,
     load_research_source_execution_spec,
@@ -117,6 +119,51 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
     ).read_text(encoding="utf-8")
     assert documents["pkg/__init__.py"].content_mode == "text"
     assert documents["pkg/__init__.py"].byte_size == 0
+    root_listing = snapshot.list_directory("", limit=20)
+    assert [
+        (entry["entry_kind"], entry["name"])
+        for entry in root_listing["entries"]
+    ] == [
+        ("directory", "assets"),
+        ("directory", "data"),
+        ("directory", "pkg"),
+        ("directory", "tools"),
+        ("file", "environment-lock.txt"),
+        ("file", "environment_probe.py"),
+        ("file", "main.py"),
+    ]
+    first_page = snapshot.list_directory("", limit=2)
+    second_page = snapshot.list_directory("", offset=2, limit=2)
+    assert first_page["next_offset"] == 2
+    assert [entry["name"] for entry in second_page["entries"]] == ["pkg", "tools"]
+    assert first_page["directory_index_hash"] == second_page["directory_index_hash"]
+    package_listing = snapshot.list_directory("pkg")
+    empty_descriptor = next(
+        entry
+        for entry in package_listing["entries"]
+        if entry["name"] == "__init__.py"
+    )
+    assert empty_descriptor["content_mode"] == "text"
+    assert empty_descriptor["byte_size"] == 0
+    asset_listing = snapshot.list_directory("assets")
+    assert asset_listing["entries"][0]["content_mode"] == "binary"
+    assert asset_listing["entries"][0]["byte_size"] == len(binary)
+    listing_observation, listing_ref = execute_research_source_client_tool(
+        snapshot,
+        tool_name=RESEARCH_SOURCE_LIST_TOOL,
+        tool_input={"directory": "assets", "limit": 1},
+    )
+    assert listing_ref["snapshot_hash"] == snapshot.snapshot_hash
+    assert listing_ref["directory_index_hash"] == (
+        listing_observation["directory_index_hash"]
+    )
+    assert "content" not in listing_ref["entries"][0]
+    with pytest.raises(ValueError, match="canonical and relative"):
+        snapshot.list_directory("../assets")
+    with pytest.raises(ValueError, match="unknown or empty"):
+        snapshot.list_directory("missing")
+    with pytest.raises(ValueError, match="offset exceeds"):
+        snapshot.list_directory("assets", offset=2)
     empty_file_hits = snapshot.search("pkg init", top_k=5)["hits"]
     assert documents["pkg/__init__.py"].document_id not in {
         hit["document_id"] for hit in empty_file_hits

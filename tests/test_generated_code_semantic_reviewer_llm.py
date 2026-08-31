@@ -39,6 +39,7 @@ from ai_statistician.research_schema import (
 )
 from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.research_source_library import (
+    RESEARCH_SOURCE_LIST_TOOL,
     ResearchSourceDocument,
     ResearchSourceSnapshot,
 )
@@ -848,6 +849,10 @@ def test_reviewer_can_search_and_read_frozen_public_sources(tmp_path) -> None:
             self.requests.append(request)
             calls = (
                 (
+                    RESEARCH_SOURCE_LIST_TOOL,
+                    {"directory": ""},
+                ),
+                (
                     "search_research_sources",
                     {"query": "estimator finite variance", "top_k": 2},
                 ),
@@ -900,9 +905,10 @@ def test_reviewer_can_search_and_read_frozen_public_sources(tmp_path) -> None:
         research_sources=snapshot,
     )
 
-    assert len(backend.requests) == 3
+    assert len(backend.requests) == 4
     assert backend.requests[0].tool_choice == "any"
     assert [tool.name for tool in backend.requests[0].tools] == [
+        RESEARCH_SOURCE_LIST_TOOL,
         "search_research_sources",
         "read_research_source",
         "submit_generated_code_semantic_review",
@@ -913,6 +919,7 @@ def test_reviewer_can_search_and_read_frozen_public_sources(tmp_path) -> None:
     loop = packet["client_tool_loop"]
     assert loop["research_source_snapshot"]["snapshot_hash"] == snapshot.snapshot_hash
     assert [row["tool"] for row in loop["research_source_refs"]] == [
+        RESEARCH_SOURCE_LIST_TOOL,
         "search_research_sources",
         "read_research_source",
     ]

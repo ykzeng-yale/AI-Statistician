@@ -25,6 +25,7 @@ from .client_tool_loop import (
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 from .research_source_library import (
+    RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
     RESEARCH_SOURCE_RESULT_READ_TOOL,
@@ -1049,7 +1050,11 @@ def run_theory_artifact_workspace(
                 observation_key="theory-document:" + stable_hash(inspection_ref),
             )
 
-        if call.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}:
+        if call.name in {
+            RESEARCH_SOURCE_LIST_TOOL,
+            RESEARCH_SOURCE_SEARCH_TOOL,
+            RESEARCH_SOURCE_READ_TOOL,
+        }:
             if research_sources is None:
                 raise ClientToolInputError("research source snapshot is unavailable")
             try:
@@ -1061,9 +1066,9 @@ def run_theory_artifact_workspace(
             except ValueError as exc:
                 raise ClientToolInputError(str(exc)) from exc
             state[
-                "source_search_refs"
-                if call.name == RESEARCH_SOURCE_SEARCH_TOOL
-                else "source_read_refs"
+                "source_read_refs"
+                if call.name == RESEARCH_SOURCE_READ_TOOL
+                else "source_search_refs"
             ].append(source_ref)
             return ClientToolExecutionResult(
                 content=observation,
@@ -1761,10 +1766,11 @@ def run_theory_artifact_workspace(
     )
     source_guidance = (
         "A hash-bound model-visible research source snapshot is available. Use "
-        "search_research_sources and read_research_source directly in this same "
-        "session when a definition, assumption, theorem, algorithm, or claimed "
-        "precedent depends on prior work. Decide what to search and how to use it "
-        "yourself. For a method, model class, score, or implementation-specific "
+        "list_research_source_directory to navigate a frozen project when paths are "
+        "unknown, then search_research_sources and read_research_source directly in "
+        "this same session when a definition, assumption, theorem, algorithm, or "
+        "claimed precedent depends on prior work. Decide what to inspect and how to "
+        "use it yourself. For a method, model class, score, or implementation-specific "
         "claim, inspect the most specific primary definition or implementation "
         "available; do not substitute a nearby model family merely because its "
         "paper passage ranks highly. Cite the exact citation_ref returned by a "
@@ -2619,7 +2625,8 @@ def workspace_evidence_history(
         "read_current_scientific_source": current_source_message,
         "read_current_lean_source": current_source_message,
         **{name: source_message for name in (
-            RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
+            RESEARCH_SOURCE_LIST_TOOL, RESEARCH_SOURCE_SEARCH_TOOL,
+            RESEARCH_SOURCE_READ_TOOL,
             RESEARCH_SOURCE_RUN_TOOL, RESEARCH_SOURCE_RESULT_READ_TOOL,
             RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
             RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,

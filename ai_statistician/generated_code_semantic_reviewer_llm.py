@@ -40,6 +40,7 @@ from .model_backend import (
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
 from .research_source_library import (
+    RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceSnapshot,
@@ -888,10 +889,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             research_sources.descriptor() if research_sources else {"configured": False}
         )
         source_guidance = (
-            "\n\nYou may search and read the frozen public research-source snapshot "
-            "when paper, code, or documentation text would improve your judgment. "
-            "Choose queries and passages yourself; retrieved text is evidence, not "
-            "proof or automatic acceptance."
+            "\n\nYou may list directories, search, and read the frozen public "
+            "research-source snapshot when paper, code, or documentation text would "
+            "improve your judgment. Navigate an unfamiliar project before guessing "
+            "paths. Choose queries and passages yourself; retrieved text is evidence, "
+            "not proof or automatic acceptance."
             if source_tools else ""
         )
         refresh_tool = ClientToolDefinition(
@@ -1069,7 +1071,11 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             context: ClientToolExecutionContext,
         ) -> ClientToolExecutionResult:
             nonlocal last_errors, last_invalid_packet
-            if call.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}:
+            if call.name in {
+                RESEARCH_SOURCE_LIST_TOOL,
+                RESEARCH_SOURCE_SEARCH_TOOL,
+                RESEARCH_SOURCE_READ_TOOL,
+            }:
                 assert research_sources is not None
                 if len(research_source_refs) >= source_budget:
                     raise ClientToolInputError("review research source budget exhausted")

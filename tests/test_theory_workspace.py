@@ -21,6 +21,7 @@ from ai_statistician.model_backend import (
 )
 from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.research_source_library import (
+    RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
     RESEARCH_SOURCE_RESULT_READ_TOOL,
@@ -205,6 +206,13 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
         [
             _response(
                 ClientToolCall(
+                    call_id="list-source-root",
+                    name=RESEARCH_SOURCE_LIST_TOOL,
+                    input={"directory": ""},
+                )
+            ),
+            _response(
+                ClientToolCall(
                     call_id="search-source",
                     name=RESEARCH_SOURCE_SEARCH_TOOL,
                     input={
@@ -242,12 +250,14 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
 
     result = _run_workspace(
         backend,
+        max_turns=5,
         research_sources=research_sources,
     )
 
     tool_names = [tool.name for tool in backend.requests[0].tools]
     assert tool_names == [
         "read_theory_workspace",
+        RESEARCH_SOURCE_LIST_TOOL,
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
         THEORY_WORKSPACE_WRITE_TOOL,
@@ -270,9 +280,10 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     assert "Cite the exact citation_ref" in initial_prompt
     assert "most specific primary definition or implementation" in initial_prompt
     assert "do not substitute a nearby model family" in initial_prompt
-    assert "estimating equation" in str(backend.requests[1].messages)
+    assert "location.md" in str(backend.requests[1].messages)
+    assert "estimating equation" in str(backend.requests[2].messages)
     read_observation = json.loads(
-        backend.requests[2].messages[-1]["content"][0]["content"]
+        backend.requests[3].messages[-1]["content"][0]["content"]
     )
     assert read_observation["content"] == "\n".join(
         source_text.splitlines()[1:4]
@@ -281,8 +292,11 @@ def test_same_theory_model_searches_and_reads_hash_bound_sources_without_copying
     assert result.evidence["research_source_snapshot"]["snapshot_hash"] == (
         research_sources.snapshot_hash
     )
-    assert len(result.evidence["source_search_refs"]) == 1
-    assert result.evidence["source_search_refs"][0]["retrieval_policy"] == (
+    assert len(result.evidence["source_search_refs"]) == 2
+    assert result.evidence["source_search_refs"][0]["tool"] == (
+        RESEARCH_SOURCE_LIST_TOOL
+    )
+    assert result.evidence["source_search_refs"][1]["retrieval_policy"] == (
         "document_diverse_then_additional_ranges_v1"
     )
     assert len(result.evidence["source_read_refs"]) == 1
@@ -884,8 +898,9 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     assert calls[0]["execution"] is source_execution
     assert calls[0]["research_sources"] is research_sources
     first_tools = [tool.name for tool in backend.requests[0].tools]
-    assert first_tools[:5] == [
+    assert first_tools[:6] == [
         "read_theory_workspace",
+        RESEARCH_SOURCE_LIST_TOOL,
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
         RESEARCH_SOURCE_RUN_TOOL,

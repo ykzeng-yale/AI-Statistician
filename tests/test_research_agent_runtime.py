@@ -8326,7 +8326,8 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
     ]
     assert len(review_documents) == 1
     assert review_documents[0]["content"].startswith("# Independent Review")
-    assert [tool.name for tool in backend.requests[0].tools[:2]] == [
+    assert [tool.name for tool in backend.requests[0].tools[:3]] == [
+        "list_research_source_directory",
         "search_research_sources",
         "read_research_source",
     ]

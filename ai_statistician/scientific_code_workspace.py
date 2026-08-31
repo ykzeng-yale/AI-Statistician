@@ -42,6 +42,7 @@ from .research_schema import (
     research_workspace_authorization_fingerprint,
 )
 from .research_source_library import (
+    RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceSnapshot,
@@ -2169,7 +2170,11 @@ def run_scientific_code_workspace(
 
     def execute_tool(call, context):
         tool_input = dict(call.input)
-        if call.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}:
+        if call.name in {
+            RESEARCH_SOURCE_LIST_TOOL,
+            RESEARCH_SOURCE_SEARCH_TOOL,
+            RESEARCH_SOURCE_READ_TOOL,
+        }:
             assert research_sources is not None
             try:
                 observation, source_ref = execute_research_source_client_tool(
@@ -2838,6 +2843,8 @@ def run_scientific_code_workspace(
                 + (
                     "\n\nPublic research source snapshot:\n"
                     + _compact_json(research_sources.descriptor())
+                    + "\nUse list_research_source_directory to navigate an unfamiliar "
+                    "frozen project before searching or reading exact files."
                     if research_sources is not None
                     else ""
                 )

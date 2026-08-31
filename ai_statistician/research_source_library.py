@@ -27,6 +27,7 @@ from .retrieval import tokens
 
 
 RESEARCH_SOURCE_SCHEMA_VERSION = 1
+RESEARCH_SOURCE_LIST_TOOL = "list_research_source_directory"
 RESEARCH_SOURCE_SEARCH_TOOL = "search_research_sources"
 RESEARCH_SOURCE_READ_TOOL = "read_research_source"
 RESEARCH_SOURCE_RUN_TOOL = "run_research_source"
@@ -44,6 +45,7 @@ MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024
 MAX_SOURCE_READ_LINES = 240
 MAX_SOURCE_READ_CHARS = 50_000
 MAX_SOURCE_SEARCH_HITS = 10
+MAX_SOURCE_DIRECTORY_ENTRIES = 200
 MAX_SOURCE_EXECUTION_OUTPUT_BYTES = 16 * 1024 * 1024
 MAX_SOURCE_RESULT_TEXT_BYTES = 256 * 1024
 MAX_SOURCE_RESULT_ARTIFACTS = 32
@@ -63,6 +65,31 @@ PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
 
 def research_source_client_tools() -> tuple[ClientToolDefinition, ...]:
     return (
+        ClientToolDefinition(
+            name=RESEARCH_SOURCE_LIST_TOOL,
+            description=(
+                "List one directory in the configured hash-bound research-source "
+                "snapshot. Returns direct child directory and file identities, including "
+                "empty text and descriptor-only binary assets, without file content."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["directory"],
+                "properties": {
+                    "directory": {
+                        "type": "string",
+                        "description": "Canonical relative directory, or empty text for root.",
+                    },
+                    "offset": {"type": "integer", "minimum": 0},
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": MAX_SOURCE_DIRECTORY_ENTRIES,
+                    },
+                },
+            },
+        ),
         ClientToolDefinition(
             name=RESEARCH_SOURCE_SEARCH_TOOL,
             description=(
@@ -247,6 +274,113 @@ class ResearchSourceSnapshot:
                         + document.document_id
                     )
         return errors
+
+    def list_directory(
+        self,
+        directory: str,
+        *,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        if not isinstance(directory, str):
+            raise ValueError("research source directory must be text")
+        if directory:
+            path = PurePosixPath(directory)
+            if (
+                "\\" in directory
+                or "\x00" in directory
+                or path.is_absolute()
+                or path.as_posix() != directory
+                or any(part in {"", ".", ".."} for part in path.parts)
+            ):
+                raise ValueError(
+                    "research source directory must be canonical and relative"
+                )
+            directory_parts = path.parts
+        else:
+            directory_parts = ()
+        if (
+            isinstance(offset, bool)
+            or not isinstance(offset, int)
+            or offset < 0
+            or isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= MAX_SOURCE_DIRECTORY_ENTRIES
+        ):
+            raise ValueError("research source directory pagination is invalid")
+
+        directories: dict[str, set[str]] = {}
+        files: list[dict[str, Any]] = []
+        for document in self.documents:
+            relative = PurePosixPath(document.relative_path)
+            if relative.parts[: len(directory_parts)] != directory_parts:
+                continue
+            remaining = relative.parts[len(directory_parts) :]
+            if not remaining:
+                continue
+            if len(remaining) > 1:
+                child_path = PurePosixPath(*directory_parts, remaining[0]).as_posix()
+                directories.setdefault(child_path, set()).add(document.document_id)
+                continue
+            files.append({
+                "entry_kind": "file",
+                "name": remaining[0],
+                "relative_path": document.relative_path,
+                "document_id": document.document_id,
+                "source_kind": document.source_kind,
+                "sha256": document.sha256,
+                "content_mode": document.content_mode,
+                "media_type": document.media_type,
+                "byte_size": document.byte_size,
+                "line_count": len(document.lines),
+                **({"file_mode": document.file_mode} if document.file_mode else {}),
+                **(
+                    {"git_blob_oid": document.git_blob_oid}
+                    if document.git_blob_oid
+                    else {}
+                ),
+                **({"git_commit": document.git_commit} if document.git_commit else {}),
+            })
+        entries = [
+            {
+                "entry_kind": "directory",
+                "name": PurePosixPath(path).name,
+                "relative_path": path,
+                "descendant_document_count": len(document_ids),
+            }
+            for path, document_ids in directories.items()
+        ] + files
+        entries.sort(
+            key=lambda row: (
+                0 if row["entry_kind"] == "directory" else 1,
+                str(row["name"]),
+            )
+        )
+        if not entries:
+            raise ValueError(f"unknown or empty research source directory: {directory}")
+        if offset > len(entries):
+            raise ValueError("research source directory offset exceeds entry count")
+        page = entries[offset : offset + limit]
+        next_offset = offset + len(page)
+        return {
+            "ok": True,
+            "snapshot_id": self.snapshot_id,
+            "snapshot_hash": self.snapshot_hash,
+            "source_horizon": self.source_horizon,
+            "directory": directory,
+            "offset": offset,
+            "limit": limit,
+            "total_entries": len(entries),
+            "entries": page,
+            "next_offset": next_offset if next_offset < len(entries) else None,
+            "directory_index_hash": stable_hash(entries),
+            "content_returned": False,
+            "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+            "boundary": (
+                "This is project navigation over exact snapshot identities. Directory "
+                "structure is neither source semantics, execution evidence, nor proof."
+            ),
+        }
 
     def search(self, query: str, *, top_k: int = 5) -> dict[str, Any]:
         normalized_query = str(query or "").strip()
@@ -435,7 +569,44 @@ def execute_research_source_client_tool(
     tool_name: str,
     tool_input: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Execute the shared hash-bound source search/read contract."""
+    """Execute the shared hash-bound source navigation/search/read contract."""
+
+    if tool_name == RESEARCH_SOURCE_LIST_TOOL:
+        if set(tool_input) - {"directory", "offset", "limit"}:
+            raise ValueError(
+                "list_research_source_directory accepts directory, offset, and limit"
+            )
+        if "directory" not in tool_input:
+            raise ValueError(
+                "list_research_source_directory requires directory"
+            )
+        observation = research_sources.list_directory(
+            tool_input.get("directory"),
+            offset=tool_input.get("offset", 0),
+            limit=tool_input.get("limit", 100),
+        )
+        return observation, {
+            "tool": tool_name,
+            **{
+                key: observation[key]
+                for key in (
+                    "snapshot_id", "snapshot_hash", "directory", "offset", "limit",
+                    "total_entries", "next_offset", "directory_index_hash",
+                )
+            },
+            "entries": [
+                {
+                    key: entry[key]
+                    for key in (
+                        "entry_kind", "relative_path", "document_id", "sha256",
+                        "content_mode", "byte_size", "git_blob_oid",
+                    )
+                    if key in entry
+                }
+                for entry in observation["entries"]
+            ],
+            "proof_evidence_status": RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
+        }
 
     if tool_name == RESEARCH_SOURCE_SEARCH_TOOL:
         if set(tool_input) - {"query", "top_k"}:

@@ -12,6 +12,7 @@ import pytest
 
 from ai_statistician.research_source_library import (
     MAX_SOURCE_RESULT_TEXT_BYTES,
+    RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
     RESEARCH_SOURCE_SEARCH_TOOL,
@@ -98,9 +99,15 @@ def test_shared_source_client_tools_return_hash_bound_refs(tmp_path) -> None:
     snapshot = load_research_source_snapshot(manifest_path)
 
     assert [tool.name for tool in research_source_client_tools()] == [
+        RESEARCH_SOURCE_LIST_TOOL,
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
     ]
+    listing, listing_ref = execute_research_source_client_tool(
+        snapshot,
+        tool_name=RESEARCH_SOURCE_LIST_TOOL,
+        tool_input={"directory": ""},
+    )
     search, search_ref = execute_research_source_client_tool(
         snapshot,
         tool_name=RESEARCH_SOURCE_SEARCH_TOOL,
@@ -116,6 +123,23 @@ def test_shared_source_client_tools_return_hash_bound_refs(tmp_path) -> None:
         },
     )
 
+    assert listing["entries"] == [
+        {
+            "entry_kind": "file",
+            "name": "result.md",
+            "relative_path": "result.md",
+            "document_id": "published-result",
+            "source_kind": "paper",
+            "sha256": hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
+            "content_mode": "text",
+            "media_type": "text/plain",
+            "byte_size": len(source_text.encode("utf-8")),
+            "line_count": len(source_text.splitlines()),
+        }
+    ]
+    assert listing["content_returned"] is False
+    assert listing_ref["directory_index_hash"] == listing["directory_index_hash"]
+    assert listing_ref["entries"][0]["document_id"] == "published-result"
     assert search_ref["snapshot_hash"] == snapshot.snapshot_hash
     assert search_ref["hits"][0]["document_id"] == "published-result"
     assert read["content"] == "\n".join(source_text.splitlines()[2:5])
