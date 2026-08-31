@@ -104,7 +104,7 @@ drift that the extraction actually removes.
 | Workspace | Model-owned work | Harness-owned authority |
 |---|---|---|
 | TheoryDeveloper | Search sources, write and locally revise Markdown/LaTeX, run scratch calculations, retract claims, expose unresolved gaps | File identity, immutable checkpoints, source horizon, budgets, and artifact hashes |
-| AlgorithmEngineer | Search and inspect pinned public implementations, write Python/R source, execute current bytes, inspect raw stderr/tests, revise the same source | Source horizon, isolated scientific environment, resource/secret policy, source lineage |
+| AlgorithmEngineer | Search, inspect, and explicitly import exact pinned public source files; write Python/R source, execute current bytes, inspect raw stderr/tests, revise the same project | Source horizon, isolated scientific environment, resource/secret policy, source lineage |
 | SimulationEngineer | Search methodological sources, write or extend simulation source, run exploratory diagnostics, inspect consumer output | Source horizon, frozen confirmatory protocol, hidden cohorts, metric authority, execution evidence |
 | Formalizer | Search Statlib/Mathlib, inspect goals, write target/support modules, choose build order, compile, and revise from raw diagnostics | Active foundation identity, exact project hash, kernel and axiom authority |
 | Independent reviewer | Read exact immutable candidate and report discrete findings | Clean context, read-only candidate, reviewer identity, no source edits |
@@ -213,10 +213,10 @@ identity, execution, and provenance. No consumed task is reassessed.
 
 Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
 writes Markdown, and binds the report alone or into the same physical Theory workspace. The full evidence view retains that report, while a Theory packet excludes it from mathematical authority; non-theory tasks continue the frozen plan without another Architect call.
-Algorithm and Simulation resolve the exact checkpoint and read its report through hash-bound tools. Their retained source owner can create, read, edit, remove, run, and commit a complete Python/R source project; one project hash binds every support file through independent review, downstream estimator execution, and hidden evaluation. The Critic reloads the same evidence; execution never validates theory, code, simulation, novelty, or proof.
+Algorithm and Simulation resolve the exact checkpoint and read its report through hash-bound tools. Their retained source owner can create, read, edit, remove, or explicitly import a previously read commit/path/hash-bound public file, then run and commit the complete Python/R source project; one project hash binds every support file through independent review, downstream estimator execution, and hidden evaluation. The Critic reloads the same evidence; execution never validates theory, code, simulation, novelty, or proof.
 Declared PDFs and images now use the same Codex-style raw-observation principle: the exact hash-rechecked bytes return as provider-native media only when the source owner selects inspection. The harness neither captions them nor promotes visual access into semantic authority. [Anthropic's client-tool contract](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls) explicitly permits image and document content inside `tool_result`.
 
-Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv text and navigate pinned GitHub directories and files, but arbitrary publisher PDF/OCR,
+Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv text and navigate or import individual pinned GitHub files, but arbitrary publisher PDF/OCR,
 dataset acquisition, and general project reproduction remain incomplete:
 
 - long-horizon TheoryDeveloper quality and independent mathematical falsification;

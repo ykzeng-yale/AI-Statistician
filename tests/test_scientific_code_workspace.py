@@ -20,6 +20,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
     SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+    SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
     SCIENTIFIC_SOURCE_COMMIT_TOOL,
     SCIENTIFIC_SOURCE_EDIT_TOOL,
     SCIENTIFIC_SOURCE_READ_TOOL,
@@ -106,24 +107,139 @@ class FakeScientificDiscovery:
 
     def read(self, source_handle, **kwargs):
         self.reads.append(source_handle)
+        content = "def published_method(x):\n    return sum(x) / len(x)\n"
         return {
             "ok": True,
             "provider": self.provider_name,
             "source_handle": source_handle,
             "source_kind": "repository",
             "title": "Published implementation",
-            "url": "https://github.com/example/published",
+            "url": "https://github.com/example/published/blob/abc123/method.py",
             "publication_date": "2025-01-02",
             "revision": "abc123",
             "path": "method.py",
-            "content": "def published_method(x):\n    return sum(x) / len(x)\n",
-            "content_sha256": "source-sha256",
+            "content": content,
+            "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
             "content_line_count": 2,
+            "content_truncated": False,
             "line_start": 1,
             "line_end": 2,
             "content_range_sha256": "range-sha256",
             "citation_ref": "public:published-implementation:method.py:1-2",
         }
+
+
+def test_model_imports_inspected_pinned_public_source_into_scientific_project() -> None:
+    published_source = (
+        "def published_method(x):\n"
+        "    return sum(x) / len(x)\n"
+    )
+    published_sha256 = hashlib.sha256(published_source.encode()).hexdigest()
+    main_source = (
+        "from method import published_method\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'value': published_method([seed, replicates])}\n"
+    )
+    backend = ScriptedScientificBackend([
+        _response(ClientToolCall(
+            call_id="discover", name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+            input={"query": "published implementation", "source_kind": "repository"},
+        )),
+        _response(ClientToolCall(
+            call_id="submit-main", name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+            input={
+                "language": "python", "execution_profile": "stdlib",
+                "dependencies": [], "entrypoint": "run_sandbox", "code": main_source,
+            },
+        )),
+        _response(ClientToolCall(
+            call_id="import-before-read",
+            name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+            input={
+                "source_handle": "source:published-implementation",
+                "revision": "abc123", "source_path": "method.py",
+                "expected_content_sha256": published_sha256,
+                "project_path": "method.py",
+            },
+        )),
+        _response(ClientToolCall(
+            call_id="read-source", name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+            input={
+                "source_handle": "source:published-implementation",
+                "path": "method.py", "revision": "abc123",
+            },
+        )),
+        _response(ClientToolCall(
+            call_id="import-source",
+            name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+            input={
+                "source_handle": "source:published-implementation",
+                "revision": "abc123", "source_path": "method.py",
+                "expected_content_sha256": published_sha256,
+                "project_path": "method.py",
+            },
+        )),
+        _run_response(),
+        _commit_response(),
+    ])
+
+    def check(candidate):
+        rows = candidate.get("project_files", []) or []
+        accepted = bool(
+            candidate.get("code") == main_source
+            and len(rows) == 1
+            and rows[0].get("path") == "method.py"
+            and rows[0].get("content") == published_source
+        )
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": accepted,
+            "stderr": "" if accepted else "public source import mismatch",
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Inspect and reuse the pinned public implementation.",
+        user_prompt="Build and execute a source-grounded project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=7,
+        max_no_progress_turns=3,
+        artifact_id="question:pinned-public-source-import",
+        initial_code_draft=None,
+        initial_check_result={"accepted": False},
+        check_candidate=check,
+        workspace_operation="initial_authoring",
+        research_source_discovery=FakeScientificDiscovery(),
+    )
+
+    tool_names = [tool.name for tool in backend.requests[0].tools]
+    assert tool_names[:3] == [
+        RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
+        RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+        SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+    ]
+    early_error = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert "prior complete read" in early_error["detail"]
+    assert result.check_result["accepted"] is True
+    assert result.code_draft["project_files"] == [{
+        "path": "method.py",
+        "content": published_source,
+        "content_sha256": published_sha256,
+    }]
+    import_ref = result.evidence["research_source_refs"][-1]
+    assert import_ref["tool"] == SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
+    assert import_ref["source_content_sha256"] == published_sha256
+    assert import_ref["project_path"] == "method.py"
+    assert import_ref["resulting_project_hash"] == scientific_project_hash(
+        language="python", code=main_source,
+        project_files=result.code_draft["project_files"],
+    )
+    assert published_source not in str(result.evidence)
 
 
 def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
