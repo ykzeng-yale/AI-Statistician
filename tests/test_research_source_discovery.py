@@ -10,8 +10,10 @@ from ai_statistician.research_source_discovery import (
     MAX_DISCOVERY_OBSERVATION_CHARS,
     PublicResearchSourceDiscovery,
     PublicResearchSourceDiscoveryConfig,
+    RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     ResearchSourceDiscoveryError,
     ResearchSourceDiscoveryInputError,
+    execute_research_source_discovery_client_tool,
 )
 
 
@@ -94,7 +96,9 @@ def test_public_paper_discovery_is_horizon_bound_and_handle_scoped() -> None:
         provider.read("public-source:unknown")
 
 
-def test_public_repository_discovery_pins_horizon_commit_before_file_reads() -> None:
+def test_public_repository_discovery_pins_horizon_commit_before_file_reads(
+    tmp_path,
+) -> None:
     revision = "a" * 40
     source_body = (
         b"def estimate(data):\n    return sum(data) / len(data)\n"
@@ -126,15 +130,21 @@ def test_public_repository_discovery_pins_horizon_commit_before_file_reads() -> 
                 "encoding": "base64",
                 "content": base64.b64encode(source_body).decode("ascii"),
             }
+        if "/contents/src?" in url:
+            return [
+                {"type": "file", "path": "src/estimator.py"},
+                {"type": "dir", "path": "src/helpers"},
+            ]
         assert "/contents?" in url
         return [
             {"type": "file", "path": "README.md"},
-            {"type": "file", "path": "src/estimator.py"},
+            {"type": "dir", "path": "src"},
         ]
 
     provider = PublicResearchSourceDiscovery(
         config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-06-30"),
         github_token="secret-token",
+        state_dir=tmp_path / "repository-observations",
         json_fetcher=fetch_json,
     )
 
@@ -145,13 +155,41 @@ def test_public_repository_discovery_pins_horizon_commit_before_file_reads() -> 
     root = provider.read(handle)
 
     assert root["revision"] == revision
-    assert "`src/estimator.py`" in root["content"]
+    assert "`src`" in root["content"]
     commit_query = urllib.parse.parse_qs(
         urllib.parse.urlparse(
             next(url for url, _ in json_requests if "/commits?" in url)
         ).query
     )
     assert commit_query["until"] == ["2025-06-30T23:59:59Z"]
+
+    source_directory = provider.read(handle, path="src", revision=revision)
+
+    assert source_directory["revision"] == revision
+    assert source_directory["path"] == "src"
+    assert "`src/estimator.py`" in source_directory["content"]
+    assert "`src/helpers`" in source_directory["content"]
+    assert f"/tree/{revision}/src" in source_directory["url"]
+    assert source_directory["content_sha256"] == hashlib.sha256(
+        source_directory["content"].encode("utf-8")
+    ).hexdigest()
+    observed_directory, directory_ref, model_error = (
+        execute_research_source_discovery_client_tool(
+            provider,
+            tool_name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+            tool_input={
+                "source_handle": handle,
+                "path": "src",
+                "revision": revision,
+            },
+        )
+    )
+    assert model_error is False
+    assert observed_directory == source_directory
+    assert directory_ref["revision"] == revision
+    assert directory_ref["path"] == "src"
+    assert directory_ref["content_sha256"] == source_directory["content_sha256"]
+    assert "content" not in directory_ref
 
     source = provider.read(handle, path="src/estimator.py", revision=revision)
 
@@ -167,6 +205,21 @@ def test_public_repository_discovery_pins_horizon_commit_before_file_reads() -> 
     )
     assert source_headers["Authorization"] == "Bearer secret-token"
     assert "secret-token" not in str(source)
+
+    request_count = len(json_requests)
+    resumed = PublicResearchSourceDiscovery(
+        config=PublicResearchSourceDiscoveryConfig(source_horizon="2025-06-30"),
+        state_dir=tmp_path / "repository-observations",
+        json_fetcher=lambda *_args: pytest.fail(
+            "pinned repository observations must reopen without network"
+        ),
+    )
+    assert resumed.read(handle, path="src", revision=revision) == source_directory
+    assert resumed.read(
+        handle, path="src/estimator.py", revision=revision
+    ) == source
+    assert len(json_requests) == request_count
+
     with pytest.raises(ResearchSourceDiscoveryInputError, match="not resolved"):
         provider.read(handle, path="README.md", revision="b" * 40)
     with pytest.raises(ResearchSourceDiscoveryInputError, match="relative normalized"):

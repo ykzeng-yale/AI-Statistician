@@ -136,8 +136,9 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
         ClientToolDefinition(
             name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
             description=(
-                "Read bounded metadata, pinned arXiv HTML, or repository text from a handle. "
-                "Resolve a repository revision/root first, then read files or exact ranges."
+                "Read bounded metadata, pinned arXiv HTML, or pinned repository directories "
+                "and text from a handle. Resolve a repository revision/root first, then "
+                "navigate paths or read exact ranges."
             ),
             input_schema=read_schema,
         ),
@@ -732,28 +733,41 @@ class PublicResearchSourceDiscovery:
                 self._github_headers(),
                 self.config.timeout_seconds,
             )
-            if not isinstance(payload, Mapping) or payload.get("encoding") != "base64":
-                raise ResearchSourceDiscoveryInputError(
-                    "selected repository file has no inline base64 content"
+            if isinstance(payload, list):
+                content = _github_directory_markdown(
+                    repository,
+                    resolved_revision,
+                    normalized_path,
+                    payload,
                 )
-            encoded_content = re.sub(
-                r"\s+", "", str(payload.get("content", "") or "")
-            )
-            try:
-                raw_content = base64.b64decode(encoded_content, validate=True)
-                content = raw_content.decode("utf-8")
-            except (ValueError, UnicodeDecodeError) as exc:
-                raise ResearchSourceDiscoveryInputError(
-                    "selected repository file is not UTF-8 text"
-                ) from exc
-            if len(raw_content) > MAX_DISCOVERY_TEXT_BYTES:
-                raise ResearchSourceDiscoveryInputError(
-                    f"selected repository file exceeds {MAX_DISCOVERY_TEXT_BYTES} bytes"
+                pinned_url = (
+                    f"https://github.com/{repository}/tree/{resolved_revision}/"
+                    f"{urllib.parse.quote(normalized_path, safe='/')}"
                 )
-            pinned_url = (
-                f"https://github.com/{repository}/blob/{resolved_revision}/"
-                f"{urllib.parse.quote(normalized_path, safe='/')}"
-            )
+            elif isinstance(payload, Mapping) and payload.get("encoding") == "base64":
+                encoded_content = re.sub(
+                    r"\s+", "", str(payload.get("content", "") or "")
+                )
+                try:
+                    raw_content = base64.b64decode(encoded_content, validate=True)
+                    content = raw_content.decode("utf-8")
+                except (ValueError, UnicodeDecodeError) as exc:
+                    raise ResearchSourceDiscoveryInputError(
+                        "selected repository file is not UTF-8 text"
+                    ) from exc
+                if len(raw_content) > MAX_DISCOVERY_TEXT_BYTES:
+                    raise ResearchSourceDiscoveryInputError(
+                        f"selected repository file exceeds {MAX_DISCOVERY_TEXT_BYTES} bytes"
+                    )
+                pinned_url = (
+                    f"https://github.com/{repository}/blob/{resolved_revision}/"
+                    f"{urllib.parse.quote(normalized_path, safe='/')}"
+                )
+            else:
+                raise ResearchSourceDiscoveryInputError(
+                    "selected repository path is neither a directory listing nor an "
+                    "inline UTF-8 file"
+                )
         else:
             listing = self._json_fetcher(
                 f"https://api.github.com/repos/{quoted_repo}/contents?"
@@ -761,9 +775,10 @@ class PublicResearchSourceDiscovery:
                 self._github_headers(),
                 self.config.timeout_seconds,
             )
-            content = _github_root_markdown(
+            content = _github_directory_markdown(
                 repository,
                 resolved_revision,
+                "",
                 listing if isinstance(listing, list) else [],
                 description=str(row.get("summary", "") or ""),
             )
@@ -1205,19 +1220,20 @@ def _normalized_repository_path(value: str) -> str:
     parts = normalized.split("/")
     if normalized.startswith("/") or any(part in {"", ".", ".."} for part in parts):
         raise ResearchSourceDiscoveryInputError(
-            "repository path must be a relative normalized file path"
+            "repository path must be a relative normalized path"
         )
     if len(normalized) > 1_000:
         raise ResearchSourceDiscoveryInputError("repository path is too long")
     return normalized
 
 
-def _github_root_markdown(
+def _github_directory_markdown(
     repository: str,
     revision: str,
+    directory: str,
     listing: Sequence[Any],
     *,
-    description: str,
+    description: str = "",
 ) -> str:
     rows = []
     for item in listing:
@@ -1227,15 +1243,15 @@ def _github_root_markdown(
         kind = str(item.get("type", "") or "").strip()
         if path:
             rows.append(f"- {kind or 'entry'}: `{path}`")
-    return "\n".join(
-        [
-            f"# {repository}",
-            "",
-            f"- Pinned commit: `{revision}`",
-            f"- Description: {description}",
-            "",
-            "## Root entries",
-            "",
-            *(rows or ["- No root entries returned."]),
-        ]
-    ).strip() + "\n"
+    metadata = [f"- Pinned commit: `{revision}`"]
+    if directory:
+        metadata.append(f"- Directory: `{directory}`")
+    elif description:
+        metadata.append(f"- Description: {description}")
+    heading = repository + (f": {directory}" if directory else "")
+    section = "Entries" if directory else "Root entries"
+    empty = "directory" if directory else "root"
+    return "\n".join([
+        f"# {heading}", "", *metadata, "", f"## {section}", "",
+        *(rows or [f"- No {empty} entries returned."]),
+    ]).strip() + "\n"

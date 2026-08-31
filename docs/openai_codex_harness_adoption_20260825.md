@@ -216,7 +216,7 @@ writes Markdown, and binds the report alone or into the same physical Theory wor
 Algorithm and Simulation resolve the exact checkpoint and read its report through hash-bound tools. Their retained source owner can create, read, edit, remove, run, and commit a complete Python/R source project; one project hash binds every support file through independent review, downstream estimator execution, and hidden evaluation. The Critic reloads the same evidence; execution never validates theory, code, simulation, novelty, or proof.
 Declared PDFs and images now use the same Codex-style raw-observation principle: the exact hash-rechecked bytes return as provider-native media only when the source owner selects inspection. The harness neither captions them nor promotes visual access into semantic authority. [Anthropic's client-tool contract](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls) explicitly permits image and document content inside `tool_result`.
 
-Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv and GitHub text, but arbitrary publisher PDF/OCR,
+Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv text and navigate pinned GitHub directories and files, but arbitrary publisher PDF/OCR,
 dataset acquisition, and general project reproduction remain incomplete:
 
 - long-horizon TheoryDeveloper quality and independent mathematical falsification;
