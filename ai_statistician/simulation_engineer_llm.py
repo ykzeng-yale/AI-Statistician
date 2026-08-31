@@ -971,6 +971,21 @@ def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
             "exact_source_hash": _truncate_text(
                 row.get("exact_source_hash", ""), limit=120
             ),
+            "exact_project_hash": _truncate_text(
+                row.get("exact_project_hash", ""), limit=120
+            ),
+            "project_files": [
+                {
+                    "path": _truncate_text(
+                        project_file.get("path", ""), limit=240
+                    ),
+                    "content_sha256": _truncate_text(
+                        project_file.get("content_sha256", ""), limit=120
+                    ),
+                }
+                for project_file in row.get("exact_project_files", []) or []
+                if isinstance(project_file, Mapping)
+            ],
             "exact_smoke_result_hash": _truncate_text(
                 row.get("exact_smoke_result_hash", ""), limit=120
             ),

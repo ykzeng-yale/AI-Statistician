@@ -24,6 +24,10 @@ from .scientific_sandbox import (
     ScientificInputArtifactBinding,
     execute_scientific_sandbox,
 )
+from .scientific_project import (
+    normalized_scientific_project_files,
+    scientific_project_hash,
+)
 from .theory_derivation_trace import document_authoritative_theory_context
 from .theory_semantic_gold_judge import (
     THEORY_SEMANTIC_CANDIDATE_STRATEGIES,
@@ -1025,7 +1029,60 @@ def _evaluate_gold_task(
             ),
         )
         return base
+    try:
+        source_project_files = normalized_scientific_project_files(
+            source.get("exact_project_files", []),
+            language=str(source.get("language", "") or "python"),
+        )
+        source_project_hash = scientific_project_hash(
+            language=str(source.get("language", "") or "python"),
+            code=source_code,
+            project_files=source_project_files,
+        )
+    except ValueError as exc:
+        base["failure_reasons"].append(
+            "accepted estimator project is invalid: " + str(exc)
+        )
+        base["dimension_status"] = _dimension_status(
+            task,
+            runtime_requirements=runtime_requirements,
+            runtime_research_eval_complete=(
+                research_summary_row.get("research_eval_complete") is True
+            ),
+            hidden_theory_passed=hidden_theory_passed,
+            hidden_algorithm_passed=False,
+            hidden_empirical_passed=False,
+            runtime_result_observed=True,
+            source_replication_gap_disclosure_present=(
+                source_replication_gap_disclosure_present
+            ),
+        )
+        return base
+    persisted_project_hash = str(source.get("exact_project_hash", "") or "")
+    if (
+        persisted_project_hash
+        and persisted_project_hash != source_project_hash
+    ) or (source_project_files and not persisted_project_hash):
+        base["failure_reasons"].append(
+            "accepted estimator project hash is invalid"
+        )
+        base["dimension_status"] = _dimension_status(
+            task,
+            runtime_requirements=runtime_requirements,
+            runtime_research_eval_complete=(
+                research_summary_row.get("research_eval_complete") is True
+            ),
+            hidden_theory_passed=hidden_theory_passed,
+            hidden_algorithm_passed=False,
+            hidden_empirical_passed=False,
+            runtime_result_observed=True,
+            source_replication_gap_disclosure_present=(
+                source_replication_gap_disclosure_present
+            ),
+        )
+        return base
     base["evaluated_source_hash"] = source_hash
+    base["evaluated_project_hash"] = source_project_hash
 
     harness_path = _project_path(
         str(evaluator["harness_path"]),
@@ -1049,6 +1106,8 @@ def _evaluate_gold_task(
                 dependencies=tuple(
                     str(value) for value in source.get("dependencies", []) or []
                 ),
+                project_files=source_project_files,
+                project_hash=source_project_hash,
             ),
             seed=int(evaluator.get("seed", 0) or 0),
             replicates=int(evaluator.get("replicates", 1) or 1),
@@ -1106,6 +1165,8 @@ def _evaluate_gold_task(
                         str(value)
                         for value in source.get("dependencies", []) or []
                     ),
+                    project_files=source_project_files,
+                    project_hash=source_project_hash,
                 ),
                 seed=int(empirical_evaluator.get("seed", 0) or 0),
                 replicates=int(empirical_evaluator.get("replicates", 1) or 1),

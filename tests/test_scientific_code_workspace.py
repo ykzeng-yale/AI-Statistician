@@ -18,6 +18,8 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
 )
 from ai_statistician.scientific_code_workspace import (
+    SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
+    SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
     SCIENTIFIC_SOURCE_COMMIT_TOOL,
     SCIENTIFIC_SOURCE_EDIT_TOOL,
     SCIENTIFIC_SOURCE_READ_TOOL,
@@ -32,6 +34,7 @@ from ai_statistician.scientific_code_workspace import (
     scientific_source_candidate_accepted,
     scientific_workspace_prototype_observation,
 )
+from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.simulation_engineer_llm import SimulationEngineerConfig
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
@@ -230,6 +233,8 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+        SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
         SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
@@ -625,6 +630,8 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+        SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
         SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
@@ -770,6 +777,7 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
         "old_text",
         "new_text",
         "expected_occurrences",
+        "path",
     }
     assert "edits" not in edit_schema["properties"]
 
@@ -835,6 +843,8 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+        SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
         SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
@@ -1131,6 +1141,70 @@ def test_uncommitted_workspace_failure_cannot_promote_last_executed_source() -> 
     ) is False
 
 
+def test_unchanged_multifile_release_is_rejected_by_complete_project_identity() -> None:
+    candidate = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": (
+            "from helper import value\n\n"
+            "def run_sandbox(seed, replicates): return {'value': value()}\n"
+        ),
+        "project_files": [
+            {
+                "path": "helper.py",
+                "content": "def value():\n    return 1\n",
+            }
+        ],
+    }
+    release_hash = scientific_project_hash(
+        language="python",
+        code=candidate["code"],
+        project_files=candidate["project_files"],
+    )
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source owner controls this workspace")
+
+    class SourceAgent:
+        provider = Provider()
+
+        @staticmethod
+        def iterate_code_with_tools(**kwargs):
+            check = kwargs["check_candidate"](candidate)
+            assert check["accepted"] is False
+            assert check["prototype"]["prototype_status"] == (
+                "UNCHANGED_SOURCE_REJECTED"
+            )
+            raise PacketValidationError(
+                validation_label="scientific source workspace",
+                attempts=1,
+                errors=["unchanged release rejected"],
+                history=[],
+            )
+
+    prototype, tool_calls = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(),
+        question=object(),
+        artifact_id="question:unchanged-project",
+        code_draft={},
+        source_deferred=True,
+        workspace_context={},
+        execute_candidate=lambda _candidate: pytest.fail(
+            "unchanged project must fail before sandbox execution"
+        ),
+        failure_identity={"simulation_id": "unchanged-project"},
+        disallowed_unchanged_source_hashes=(release_hash,),
+    )
+
+    assert tool_calls == []
+    assert prototype["prototype_status"] == "UNCHANGED_SOURCE_REJECTED"
+    assert prototype["project_hash"] == release_hash
+
+
 def test_same_model_can_revise_after_technically_successful_execution() -> None:
     first = {
         "language": "python",
@@ -1357,6 +1431,8 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+        SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
         SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
@@ -1495,6 +1571,8 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+        SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
         SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
@@ -1747,6 +1825,8 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         == [
             SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             SCIENTIFIC_SOURCE_EDIT_TOOL,
+            SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+            SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
             SCIENTIFIC_SOURCE_READ_TOOL,
             SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
             SCIENTIFIC_SOURCE_COMMIT_TOOL,
@@ -2431,3 +2511,119 @@ def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
     assert "0.2" not in str(observation)
     assert "withheld-realized-value" not in str(observation)
     assert "23" not in str(observation)
+
+
+def test_model_owns_multifile_scientific_project_lifecycle() -> None:
+    main_source = (
+        "from helper import offset\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'value': offset(seed), 'n': replicates}\n"
+    )
+    helper_initial = "def offset(value):\n    return value + 1\n"
+    helper_final = "def offset(value):\n    return value + 4\n"
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="submit-main",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "stdlib",
+                        "dependencies": [],
+                        "entrypoint": "run_sandbox",
+                        "code": main_source,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-helper",
+                    name=SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+                    input={"path": "helper.py", "content": helper_initial},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-unused",
+                    name=SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+                    input={"path": "unused.py", "content": "VALUE = 1\n"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="edit-helper",
+                    name=SCIENTIFIC_SOURCE_EDIT_TOOL,
+                    input={
+                        "path": "helper.py",
+                        "old_text": "    return value + 1\n",
+                        "new_text": "    return value + 4\n",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="read-helper",
+                    name=SCIENTIFIC_SOURCE_READ_TOOL,
+                    input={"path": "helper.py", "line_start": 1, "line_end": 2},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="remove-unused",
+                    name=SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
+                    input={"path": "unused.py"},
+                )
+            ),
+            _run_response(),
+            _commit_response(),
+        ]
+    )
+
+    def check(candidate):
+        project_files = list(candidate.get("project_files", []) or [])
+        accepted = bool(
+            candidate.get("code") == main_source
+            and len(project_files) == 1
+            and project_files[0].get("path") == "helper.py"
+            and project_files[0].get("content") == helper_final
+        )
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": accepted,
+            "stderr": "" if accepted else "project mismatch",
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use project tools.",
+        user_prompt="Implement and execute the complete project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=8,
+        max_no_progress_turns=3,
+        artifact_id="question:multifile-project",
+        initial_code_draft=None,
+        initial_check_result={
+            "artifact_kind": "ScientificSourceAuthoringRequired",
+            "accepted": False,
+            "execution_attempted": False,
+        },
+        check_candidate=check,
+        workspace_operation="initial_authoring",
+    )
+
+    assert result.check_result["accepted"] is True
+    assert result.code_draft["code"] == main_source
+    assert [row["path"] for row in result.code_draft["project_files"]] == [
+        "helper.py"
+    ]
+    assert result.code_draft["project_files"][0]["content"] == helper_final
+    assert result.evidence["source_updates"] == 5
+    read_observation = json.loads(
+        backend.requests[5].messages[-1]["content"][0]["content"]
+    )
+    assert read_observation["content"].strip() == helper_final.strip()
+    assert "unused.py" not in str(result.code_draft)

@@ -5,6 +5,10 @@ import json
 from ai_statistician import research_agent_runtime as runtime_module
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.scientific_project import (
+    normalized_scientific_project_files,
+    scientific_project_hash,
+)
 from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
     build_simulation_engineer_prompt,
@@ -28,6 +32,26 @@ def _large_algorithm_handoff() -> dict[str, object]:
         ],
         "private_note": "RESULT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL",
     }
+    project_files = [
+        row.to_json()
+        for row in normalized_scientific_project_files(
+            [
+                {
+                    "path": "helper.py",
+                    "content": (
+                        "# PROJECT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL\n"
+                        "def transform(value): return value\n"
+                    ),
+                }
+            ],
+            language="python",
+        )
+    ]
+    project_hash = scientific_project_hash(
+        language="python",
+        code=source,
+        project_files=project_files,
+    )
     return {
         "source": "accepted_algorithm_semantic_review_materialization",
         "algorithm_sandbox_manifest_id": "algorithm:accepted",
@@ -43,6 +67,8 @@ def _large_algorithm_handoff() -> dict[str, object]:
                 "dependencies": ["numpy"],
                 "exact_source_code": source,
                 "exact_source_hash": stable_hash(source),
+                "exact_project_files": project_files,
+                "exact_project_hash": project_hash,
                 "exact_smoke_result": smoke_result,
                 "exact_smoke_result_hash": stable_hash(smoke_result),
                 "estimator_interface_contract_id": "interface:candidate",
@@ -100,12 +126,23 @@ def test_simulation_prompt_projects_large_dependency_artifacts_once() -> None:
     assert len(prompt) < 80_000
     assert "SOURCE_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in prompt
     assert "RESULT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in prompt
+    assert "PROJECT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in prompt
     assert artifact["estimator_id"] == "candidate"
     assert artifact["estimator_interface_contract"]["response_fields"][0][
         "meaning"
     ] == "Adjusted estimate"
     assert artifact["exact_source_hash"]
+    assert artifact["exact_project_hash"]
+    assert artifact["project_files"] == [
+        {
+            "path": "helper.py",
+            "content_sha256": handoff["exact_algorithm_artifacts"][0][
+                "exact_project_files"
+            ][0]["content_sha256"],
+        }
+    ]
     assert artifact["exact_smoke_result_hash"]
+    assert "content" not in artifact["project_files"][0]
     assert "exact_source_code" not in artifact
     assert "exact_smoke_result" not in artifact
     assert projected["exact_source_included"] is False
@@ -127,6 +164,7 @@ def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
         "smoke_passed": True,
         "script_hash": stable_hash(source),
         "result_hash": stable_hash(result),
+        "project_hash": artifact["exact_project_hash"],
         "llm_algorithm_engineer_target": {
             "estimator_interface_contract_id": "interface:candidate",
             "estimator_interface_contract": artifact[
@@ -141,6 +179,9 @@ def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
                 "source_row": source_row,
                 "exact_source_code": source,
                 "exact_source_hash": stable_hash(source),
+                "exact_project_files": artifact["exact_project_files"],
+                "exact_project_hash": artifact["exact_project_hash"],
+                "exact_project_files_complete": True,
                 "exact_result": result,
                 "exact_result_hash": stable_hash(result),
             }
@@ -163,6 +204,8 @@ def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
 
     assert projected["exact_source_code"] == source
     assert projected["exact_source_hash"] == stable_hash(source)
+    assert projected["exact_project_hash"] == artifact["exact_project_hash"]
+    assert projected["exact_project_files"] == artifact["exact_project_files"]
     assert projected["exact_smoke_result_hash"] == stable_hash(result)
     assert "exact_smoke_result" not in projected
     assert len(json.dumps(handoff)) < 25_000

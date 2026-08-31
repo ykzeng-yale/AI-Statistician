@@ -65,6 +65,12 @@ from .scientific_sandbox import (
     normalized_generated_code_profile,
     normalized_scientific_dependencies,
 )
+from .scientific_project import (
+    normalized_scientific_project_files,
+    scientific_main_path,
+    scientific_project_files_json_schema,
+    scientific_project_hash,
+)
 from .structured_output_retry import PacketValidationError
 from . import theory_workspace as theory_documents
 
@@ -79,6 +85,8 @@ SCIENTIFIC_SOURCE_READ_TOOL = "read_current_scientific_source"
 SCIENTIFIC_SOURCE_EDIT_TOOL = "edit_current_scientific_source"
 SCIENTIFIC_SOURCE_COMMIT_TOOL = "commit_scientific_source"
 SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
+SCIENTIFIC_PROJECT_FILE_WRITE_TOOL = "write_scientific_project_file"
+SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL = "remove_scientific_project_file"
 SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL = "report_bound_dependency_failure"
 SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
 SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = "return_to_bound_dependency_owner"
@@ -88,6 +96,34 @@ _SCIENTIFIC_PACKAGES = PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIE
 _OUTCOME_DERIVED_SHAPE_FIELDS = frozenset(
     {"length", "dimensions", "field_count", "truncated_field_count"}
 )
+
+
+def _scientific_project_manifest(draft: Mapping[str, Any]) -> list[dict[str, Any]]:
+    language = normalized_generated_code_language(draft.get("language"))
+    main_code = str(draft.get("code", "") or "")
+    rows = [
+        {
+            "path": scientific_main_path(language),
+            "content_hash": stable_hash(main_code),
+            "line_count": len(main_code.splitlines()),
+            "character_count": len(main_code),
+            "entrypoint": True,
+        }
+    ]
+    for project_file in normalized_scientific_project_files(
+        draft.get("project_files", []),
+        language=language,
+    ):
+        rows.append(
+            {
+                "path": project_file.path,
+                "content_hash": project_file.content_sha256,
+                "line_count": len(project_file.content.splitlines()),
+                "character_count": len(project_file.content),
+                "entrypoint": False,
+            }
+        )
+    return rows
 
 
 @dataclass(frozen=True)
@@ -934,7 +970,14 @@ def run_source_owner_scientific_workspace(
 
     def source_draft(row: Mapping[str, Any]) -> dict[str, Any]:
         return {key: deepcopy(row[key]) for key in
-                ("language", "execution_profile", "dependencies", "entrypoint", "code")
+                (
+                    "language",
+                    "execution_profile",
+                    "dependencies",
+                    "entrypoint",
+                    "code",
+                    "project_files",
+                )
                 if key in row}
 
     def source_candidate_accepted(prototype: Mapping[str, Any]) -> bool:
@@ -949,14 +992,29 @@ def run_source_owner_scientific_workspace(
         execution_candidate = {**dict(candidate), **bound_execution_fields}
         candidate_source = str(execution_candidate.get("code", "") or "")
         candidate_source_hash = stable_hash(candidate_source)
+        candidate_project_files = execution_candidate.get("project_files", [])
+        candidate_project_hash = scientific_project_hash(
+            language=normalized_generated_code_language(
+                execution_candidate.get("language")
+            ),
+            code=candidate_source,
+            project_files=candidate_project_files,
+        )
+        candidate_release_identity = (
+            candidate_project_hash
+            if candidate_project_files
+            else candidate_source_hash
+        )
         if (
             candidate_source
-            and candidate_source_hash in disallowed_unchanged_source_hashes
+            and candidate_release_identity in disallowed_unchanged_source_hashes
         ):
             prototype = failed_prototype(
                 "UNCHANGED_SOURCE_REJECTED",
                 source_code=candidate_source,
                 script_hash=candidate_source_hash,
+                project_files=deepcopy(list(candidate_project_files)),
+                project_hash=candidate_project_hash,
                 parent_script_hash=candidate_source_hash,
                 execution_attempted=False,
                 runtime_errors=[
@@ -1444,6 +1502,28 @@ def complete_scientific_source_draft(
     if not isinstance(dependencies, list):
         errors.append("executed scientific dependencies are not an array")
         dependencies = []
+    raw_project_files = row.get("project_files", [])
+    try:
+        project_files = [
+            project_file.to_json()
+            for project_file in normalized_scientific_project_files(
+                raw_project_files,
+                language=normalized_generated_code_language(row.get("language")),
+            )
+        ]
+    except ValueError as exc:
+        errors.append("executed scientific project is invalid: " + str(exc))
+        project_files = []
+    computed_project_hash = scientific_project_hash(
+        language=normalized_generated_code_language(row.get("language")),
+        code=source,
+        project_files=project_files,
+    )
+    persisted_project_hash = str(row.get("project_hash", "") or "").strip()
+    if project_files and not persisted_project_hash:
+        errors.append("executed scientific project hash is missing")
+    elif persisted_project_hash and persisted_project_hash != computed_project_hash:
+        errors.append("executed scientific project hash mismatch")
     draft = {
         "language": str(row.get("language", "") or ""),
         "execution_profile": str(
@@ -1455,6 +1535,8 @@ def complete_scientific_source_draft(
         "entrypoint": "run_sandbox",
         "code": source,
     }
+    if project_files:
+        draft["project_files"] = project_files
     if include_estimator_selection:
         required_estimator_ids = row.get("required_estimator_ids", [])
         if not isinstance(required_estimator_ids, list):
@@ -2051,6 +2133,12 @@ def run_scientific_code_workspace(
                 "source_updated": True,
                 "source_action": source_action,
                 "code_draft_hash": draft_hash,
+                "project_hash": scientific_project_hash(
+                    language=str(draft["language"]),
+                    code=str(draft["code"]),
+                    project_files=draft.get("project_files", []),
+                ),
+                "files": _scientific_project_manifest(draft),
                 "source_updates": state["source_updates"],
                 "execution_required": True,
                 "instruction": (
@@ -2117,9 +2205,17 @@ def run_scientific_code_workspace(
             )
             return ClientToolExecutionResult(content=observation)
         if call.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL:
-            if set(tool_input) != {
-                "language", "execution_profile", "dependencies", "entrypoint", "code"
-            }:
+            required_fields = {
+                "language",
+                "execution_profile",
+                "dependencies",
+                "entrypoint",
+                "code",
+            }
+            if (
+                not required_fields.issubset(tool_input)
+                or set(tool_input) - required_fields - {"project_files"}
+            ):
                 raise ClientToolInputError(
                     "submit_scientific_source requires one complete candidate"
                 )
@@ -2129,9 +2225,13 @@ def run_scientific_code_workspace(
             )
 
         if call.name == SCIENTIFIC_SOURCE_READ_TOOL:
-            if set(tool_input) != {"line_start", "line_end"}:
+            if (
+                not {"line_start", "line_end"}.issubset(tool_input)
+                or set(tool_input) - {"path", "line_start", "line_end"}
+            ):
                 raise ClientToolInputError(
-                    "read_current_scientific_source requires line_start and line_end"
+                    "read_current_scientific_source requires line_start and line_end; "
+                    "path is optional"
                 )
             line_start, line_end = tool_input["line_start"], tool_input["line_end"]
             if (
@@ -2150,7 +2250,25 @@ def run_scientific_code_workspace(
                 raise ClientToolInputError(
                     "no current scientific source exists; author it first"
                 )
-            lines = str(draft["code"]).splitlines(keepends=True)
+            main_path = scientific_main_path(str(draft["language"]))
+            path = str(tool_input.get("path", "") or main_path).strip()
+            if path == main_path:
+                source = str(draft["code"])
+                source_hash = stable_hash(source)
+            else:
+                project_rows = {
+                    str(row.get("path", "") or ""): row
+                    for row in draft.get("project_files", []) or []
+                    if isinstance(row, Mapping)
+                }
+                project_row = project_rows.get(path)
+                if project_row is None:
+                    raise ClientToolInputError(
+                        "scientific project file does not exist: " + path
+                    )
+                source = str(project_row.get("content", "") or "")
+                source_hash = str(project_row.get("content_sha256", "") or "")
+            lines = source.splitlines(keepends=True)
             if line_end > len(lines):
                 raise ClientToolInputError(
                     f"scientific source has {len(lines)} line(s)"
@@ -2163,28 +2281,35 @@ def run_scientific_code_workspace(
             return ClientToolExecutionResult(
                 content={
                     "ok": True,
-                    "path": "main.R" if draft["language"] == "r" else "main.py",
+                    "path": path,
                     "line_start": line_start,
                     "line_end": line_end,
                     "total_lines": len(lines),
                     "content": content,
-                    "source_hash": stable_hash(draft["code"]),
+                    "source_hash": source_hash,
+                    "project_hash": scientific_project_hash(
+                        language=str(draft["language"]),
+                        code=str(draft["code"]),
+                        project_files=draft.get("project_files", []),
+                    ),
                     "code_draft_hash": state["code_draft_hash"],
                 },
                 observation_key="scientific-source-read:"
-                + stable_hash([state["code_draft_hash"], line_start, line_end]),
+                + stable_hash(
+                    [state["code_draft_hash"], path, line_start, line_end]
+                ),
             )
 
         if call.name == SCIENTIFIC_SOURCE_EDIT_TOOL:
             required_fields = {"old_text", "new_text"}
-            optional_fields = {"expected_occurrences"}
+            optional_fields = {"path", "expected_occurrences"}
             if (
                 not required_fields.issubset(tool_input)
                 or set(tool_input) - required_fields - optional_fields
             ):
                 raise ClientToolInputError(
                     "edit_current_scientific_source requires top-level old_text and "
-                    "new_text; expected_occurrences is optional"
+                    "new_text; path and expected_occurrences are optional"
                 )
             current = deepcopy(dict(state["code_draft"]))
             if not current:
@@ -2192,15 +2317,108 @@ def run_scientific_code_workspace(
                     "edit_current_scientific_source requires existing source; use "
                     "submit_scientific_source for initial authoring"
                 )
-            current["code"], edit_records = apply_model_exact_text_edits(
-                str(current["code"]),
-                edits=[tool_input],
+            main_path = scientific_main_path(str(current["language"]))
+            path = str(tool_input.get("path", "") or main_path).strip()
+            project_rows = [
+                deepcopy(dict(row))
+                for row in current.get("project_files", []) or []
+                if isinstance(row, Mapping)
+            ]
+            if path == main_path:
+                source = str(current["code"])
+                project_index = None
+            else:
+                project_index = next(
+                    (
+                        index
+                        for index, row in enumerate(project_rows)
+                        if str(row.get("path", "") or "") == path
+                    ),
+                    None,
+                )
+                if project_index is None:
+                    raise ClientToolInputError(
+                        "scientific project file does not exist: " + path
+                    )
+                source = str(project_rows[project_index].get("content", "") or "")
+            edit_input = {
+                key: value for key, value in tool_input.items() if key != "path"
+            }
+            edited_source, edit_records = apply_model_exact_text_edits(
+                source,
+                edits=[edit_input],
                 replacement_key="new_text",
             )
+            if project_index is None:
+                current["code"] = edited_source
+            else:
+                project_rows[project_index]["content"] = edited_source
+                project_rows[project_index].pop("content_sha256", None)
+                current["project_files"] = project_rows
             return store_model_source(
                 current,
                 source_action="atomic_exact_text_edits",
-                edit_metadata={"n_edits": len(edit_records), "edits": edit_records},
+                edit_metadata={
+                    "path": path,
+                    "n_edits": len(edit_records),
+                    "edits": edit_records,
+                },
+            )
+
+        if call.name == SCIENTIFIC_PROJECT_FILE_WRITE_TOOL:
+            if set(tool_input) != {"path", "content"}:
+                raise ClientToolInputError(
+                    "write_scientific_project_file requires path and content"
+                )
+            current = deepcopy(dict(state["code_draft"]))
+            if not current:
+                raise ClientToolInputError(
+                    "write_scientific_project_file requires existing source; use "
+                    "submit_scientific_source for initial authoring"
+                )
+            path = str(tool_input.get("path", "") or "").strip()
+            rows = [
+                deepcopy(dict(row))
+                for row in current.get("project_files", []) or []
+                if isinstance(row, Mapping)
+                and str(row.get("path", "") or "") != path
+            ]
+            rows.append({"path": path, "content": str(tool_input["content"])})
+            current["project_files"] = rows
+            return store_model_source(
+                current,
+                source_action="complete_project_file_write",
+                edit_metadata={"path": path},
+            )
+
+        if call.name == SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL:
+            if set(tool_input) != {"path"}:
+                raise ClientToolInputError(
+                    "remove_scientific_project_file requires path"
+                )
+            current = deepcopy(dict(state["code_draft"]))
+            if not current:
+                raise ClientToolInputError(
+                    "remove_scientific_project_file requires existing source"
+                )
+            path = str(tool_input.get("path", "") or "").strip()
+            rows = [
+                deepcopy(dict(row))
+                for row in current.get("project_files", []) or []
+                if isinstance(row, Mapping)
+            ]
+            kept = [
+                row for row in rows if str(row.get("path", "") or "") != path
+            ]
+            if len(kept) == len(rows):
+                raise ClientToolInputError(
+                    "scientific project file does not exist: " + path
+                )
+            current["project_files"] = kept
+            return store_model_source(
+                current,
+                source_action="project_file_remove",
+                edit_metadata={"path": path},
             )
 
         if call.name == SCIENTIFIC_SOURCE_COMMIT_TOOL:
@@ -2382,7 +2600,9 @@ def run_scientific_code_workspace(
                     + f"\n\nThis retained source session has up to {max_turns} model/tool turns; retrieval, authoring, execution, and explicit commit share that allowance."
                     + "\n\nRetain observed source hashes and sandbox results. Do "
                     "not resubmit a previously observed byte-identical candidate. "
-                    "Source submission and exact edits do not execute. You may make "
+                    "The current artifact is a Python/R project: use path-aware read, "
+                    "exact edit, support-file write, or support-file remove tools as "
+                    "needed. Source changes do not execute. You may make "
                     "several one-replacement edit calls, then call "
                     "run_current_scientific_source only when "
                     "you want raw sandbox feedback. Commit remains separate and "
@@ -2397,9 +2617,19 @@ def run_scientific_code_workspace(
                     if not parent_draft
                     else "\n\nCurrent source artifact:\n"
                     + _compact_json({
-                        **{key: value for key, value in parent_draft.items() if key != "code"},
-                        "path": "main.R" if parent_draft["language"] == "r" else "main.py",
+                        **{
+                            key: value
+                            for key, value in parent_draft.items()
+                            if key not in {"code", "project_files"}
+                        },
+                        "path": scientific_main_path(parent_draft["language"]),
                         "source_hash": stable_hash(parent_draft["code"]),
+                        "project_hash": scientific_project_hash(
+                            language=parent_draft["language"],
+                            code=parent_draft["code"],
+                            project_files=parent_draft.get("project_files", []),
+                        ),
+                        "files": _scientific_project_manifest(parent_draft),
                         "code_draft_hash": parent_hash,
                         "line_count": len(str(parent_draft["code"]).splitlines()),
                         "character_count": len(str(parent_draft["code"])),
@@ -2687,6 +2917,16 @@ def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
     normalized_dependencies = list(
         normalized_scientific_dependencies(dependencies, language=language)
     )
+    try:
+        project_files = [
+            project_file.to_json()
+            for project_file in normalized_scientific_project_files(
+                value.get("project_files", []),
+                language=language,
+            )
+        ]
+    except ValueError as exc:
+        raise ClientToolInputError(str(exc)) from exc
     draft = {
         "language": language,
         "execution_profile": execution_profile,
@@ -2694,6 +2934,8 @@ def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
         "entrypoint": entrypoint,
         "code": code,
     }
+    if project_files:
+        draft["project_files"] = project_files
     contract_errors = generated_code_execution_contract_errors(draft)
     if contract_errors:
         raise ClientToolInputError("; ".join(contract_errors))
@@ -2708,6 +2950,13 @@ def _scientific_code_tools(
     research_sources_available: bool = False,
     research_source_discovery_available: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
+    edit_schema = deepcopy(model_exact_text_edit_json_schema())
+    edit_schema["properties"]["path"] = {
+        "type": "string",
+        "description": (
+            "Project-relative file path. Omit to edit main.py or main.R."
+        ),
+    }
     tools = [
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
@@ -2759,6 +3008,7 @@ def _scientific_code_tools(
                         "enum": ["run_sandbox"],
                     },
                     "code": {"type": "string"},
+                    "project_files": scientific_project_files_json_schema(),
                 },
             },
             terminal=False,
@@ -2766,19 +3016,53 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_EDIT_TOOL,
             description=(
-                "Apply one exact model-authored replacement to the current Python/R "
-                "source without executing it. Supply old_text and new_text directly as "
+                "Apply one exact model-authored replacement to a current Python/R "
+                "project file without executing it. Omit path for the main source. "
+                "Supply old_text and new_text directly as "
                 "top-level strings, not as a JSON-encoded value or edits array. Runtime "
                 "never interprets or repairs source; use multiple calls for multiple "
                 "replacements and explicitly run the complete result afterward."
             ),
-            input_schema=model_exact_text_edit_json_schema(),
+            input_schema=edit_schema,
+            terminal=False,
+        ),
+        ClientToolDefinition(
+            name=SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
+            description=(
+                "Create or replace one complete model-authored Python/R support file. "
+                "The path is project-relative and must use the current language's source "
+                "extension. This stores bytes without executing them."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path", "content"],
+                "properties": {
+                    "path": {"type": "string", "minLength": 1},
+                    "content": {"type": "string", "minLength": 1},
+                },
+            },
+            terminal=False,
+        ),
+        ClientToolDefinition(
+            name=SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
+            description=(
+                "Remove one current model-authored support file by project-relative "
+                "path. The main source cannot be removed. This does not execute code."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path"],
+                "properties": {"path": {"type": "string", "minLength": 1}},
+            },
             terminal=False,
         ),
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_READ_TOOL,
             description=(
-                "Read an exact line range from the current model-owned Python/R source. "
+                "Read an exact line range from a current model-owned Python/R project "
+                "file. Omit path for the main source. "
                 "The result includes the current source and draft hashes; this tool "
                 "never edits or executes source."
             ),
@@ -2787,6 +3071,7 @@ def _scientific_code_tools(
                 "additionalProperties": False,
                 "required": ["line_start", "line_end"],
                 "properties": {
+                    "path": {"type": "string", "minLength": 1},
                     "line_start": {"type": "integer", "minimum": 1},
                     "line_end": {"type": "integer", "minimum": 1},
                 },

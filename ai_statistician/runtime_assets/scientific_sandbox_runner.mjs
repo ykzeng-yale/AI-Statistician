@@ -43,26 +43,148 @@ function rValueToJson(node) {
   return converted;
 }
 
-async function runPython(request, source, estimatorSources, inputArtifacts) {
+function projectImportRoots(projectFiles) {
+  return [...new Set(Object.keys(projectFiles).map((filePath) => {
+    const first = String(filePath).split("/", 1)[0];
+    return first.endsWith(".py") ? first.slice(0, -3) : first;
+  }))].sort();
+}
+
+function materializePyodideProject(pyodide, root, mainPath, source, projectFiles) {
+  pyodide.FS.mkdirTree(root);
+  const files = { [mainPath]: source, ...projectFiles };
+  for (const [filePath, content] of Object.entries(files)) {
+    const absolutePath = `${root}/${filePath}`;
+    const parent = absolutePath.slice(0, absolutePath.lastIndexOf("/"));
+    pyodide.FS.mkdirTree(parent);
+    pyodide.FS.writeFile(absolutePath, new TextEncoder().encode(content));
+  }
+  return {
+    root,
+    main_path: mainPath,
+    local_import_roots: projectImportRoots(projectFiles),
+  };
+}
+
+async function materializeWebRProject(webR, root, mainPath, source, projectFiles) {
+  const mkdir = async (directory) => {
+    const parts = directory.split("/").filter(Boolean);
+    let current = "";
+    for (const part of parts) {
+      current += `/${part}`;
+      try {
+        await webR.FS.mkdir(current);
+      } catch (error) {
+        const node = await webR.FS.lookupPath(current).catch(() => null);
+        if (!node?.isFolder) {
+          throw error;
+        }
+      }
+    }
+  };
+  await mkdir(root);
+  const files = { [mainPath]: source, ...projectFiles };
+  for (const [filePath, content] of Object.entries(files)) {
+    const absolutePath = `${root}/${filePath}`;
+    await mkdir(absolutePath.slice(0, absolutePath.lastIndexOf("/")));
+    await webR.FS.writeFile(absolutePath, new TextEncoder().encode(content));
+  }
+  return { root, main_path: mainPath };
+}
+
+async function runPython(
+  request,
+  source,
+  estimatorSources,
+  inputArtifacts,
+  projectFiles,
+  estimatorProjectFiles,
+) {
   const moduleUrl = pathToFileURL(request.runtime.pyodide_entry).href;
   const { loadPyodide } = await import(moduleUrl);
   const pyodide = await loadPyodide({ indexURL: `${request.runtime.pyodide_root}/` });
   if (request.dependencies.length > 0) {
     await pyodide.loadPackage(request.dependencies);
   }
+  const simulationProject = materializePyodideProject(
+    pyodide,
+    "/ai_stat_projects/simulation",
+    String(request.main_path || "main.py"),
+    source,
+    projectFiles,
+  );
+  const estimatorProjects = Object.fromEntries(
+    Object.entries(estimatorSources).map(([artifactId, estimatorSource], index) => [
+      artifactId,
+      materializePyodideProject(
+        pyodide,
+        `/ai_stat_projects/estimator_${index}`,
+        String(request.estimators[index]?.main_path || "main.py"),
+        estimatorSource,
+        estimatorProjectFiles[artifactId] || {},
+      ),
+    ]),
+  );
   const bound = request.invocation_mode === "estimator_bound";
   const nativeEstimatorTransport = request.estimator_transport === "native";
   const hasInputArtifacts = Object.keys(inputArtifacts).length > 0;
   const requiredCallableExports = Array.isArray(request.required_callable_exports)
     ? request.required_callable_exports.map(String)
     : [];
+  const projectPrelude =
+    `import json as _ai_stat_json\n` +
+    `import os as _ai_stat_os\n` +
+    `import sys as _ai_stat_sys\n` +
+    `_ai_stat_simulation_project = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(simulationProject))})\n` +
+    `_ai_stat_estimator_projects = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(estimatorProjects))})\n` +
+    `def _ai_stat_project_module_names(_roots):\n` +
+    `    return [name for name in list(_ai_stat_sys.modules) if name.split('.', 1)[0] in _roots]\n` +
+    `def _ai_stat_load_project(_source, _project):\n` +
+    `    _roots = set(_project.get("local_import_roots", []))\n` +
+    `    _saved = {name: _ai_stat_sys.modules[name] for name in _ai_stat_project_module_names(_roots)}\n` +
+    `    for _name in list(_saved):\n` +
+    `        _ai_stat_sys.modules.pop(_name, None)\n` +
+    `    _old_path = list(_ai_stat_sys.path)\n` +
+    `    _old_cwd = _ai_stat_os.getcwd()\n` +
+    `    _namespace = {"__name__": "__main__", "__file__": _project["root"] + "/" + _project["main_path"]}\n` +
+    `    try:\n` +
+    `        _ai_stat_sys.path.insert(0, _project["root"])\n` +
+    `        _ai_stat_os.chdir(_project["root"])\n` +
+    `        exec(compile(_source, _namespace["__file__"], "exec"), _namespace, _namespace)\n` +
+    `        _loaded = {name: _ai_stat_sys.modules[name] for name in _ai_stat_project_module_names(_roots)}\n` +
+    `    finally:\n` +
+    `        for _name in _ai_stat_project_module_names(_roots):\n` +
+    `            _ai_stat_sys.modules.pop(_name, None)\n` +
+    `        _ai_stat_sys.modules.update(_saved)\n` +
+    `        _ai_stat_sys.path[:] = _old_path\n` +
+    `        _ai_stat_os.chdir(_old_cwd)\n` +
+    `    return _namespace, _loaded\n` +
+    `def _ai_stat_call_project(_function, _project, _modules, *args, **kwargs):\n` +
+    `    _roots = set(_project.get("local_import_roots", []))\n` +
+    `    _saved = {name: _ai_stat_sys.modules[name] for name in _ai_stat_project_module_names(_roots)}\n` +
+    `    for _name in list(_saved):\n` +
+    `        _ai_stat_sys.modules.pop(_name, None)\n` +
+    `    _ai_stat_sys.modules.update(_modules)\n` +
+    `    _old_path = list(_ai_stat_sys.path)\n` +
+    `    _old_cwd = _ai_stat_os.getcwd()\n` +
+    `    try:\n` +
+    `        _ai_stat_sys.path.insert(0, _project["root"])\n` +
+    `        _ai_stat_os.chdir(_project["root"])\n` +
+    `        return _function(*args, **kwargs)\n` +
+    `    finally:\n` +
+    `        _modules.clear()\n` +
+    `        _modules.update({name: _ai_stat_sys.modules[name] for name in _ai_stat_project_module_names(_roots)})\n` +
+    `        for _name in _ai_stat_project_module_names(_roots):\n` +
+    `            _ai_stat_sys.modules.pop(_name, None)\n` +
+    `        _ai_stat_sys.modules.update(_saved)\n` +
+    `        _ai_stat_sys.path[:] = _old_path\n` +
+    `        _ai_stat_os.chdir(_old_cwd)\n`;
   const wrapped = bound
-    ? `import json as _ai_stat_json\n` +
+    ? projectPrelude +
       `_ai_stat_simulation_source = ${JSON.stringify(source)}\n` +
       `_ai_stat_estimator_sources = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(estimatorSources))})\n` +
       `_ai_stat_input_artifacts = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(inputArtifacts))})\n` +
-      `_ai_stat_simulation_namespace = {}\n` +
-      `exec(compile(_ai_stat_simulation_source, "<generated_simulation>", "exec"), _ai_stat_simulation_namespace, _ai_stat_simulation_namespace)\n` +
+      `_ai_stat_simulation_namespace, _ai_stat_simulation_modules = _ai_stat_load_project(_ai_stat_simulation_source, _ai_stat_simulation_project)\n` +
       `_ai_stat_invocation_counts = {key: 0 for key in _ai_stat_estimator_sources}\n` +
       `_ai_stat_invocation_samples = {key: [] for key in _ai_stat_estimator_sources}\n` +
       `_ai_stat_runtime_failure = {"artifact_id": "", "error_message": "", "exception": None}\n` +
@@ -132,8 +254,8 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `            pass\n` +
       `    return {"type": type(_value).__name__}\n` +
       `def _ai_stat_bind_estimator(_artifact_id, _source):\n` +
-      `    _namespace = {}\n` +
-      `    exec(compile(_source, "<accepted_algorithm:" + _artifact_id + ">", "exec"), _namespace, _namespace)\n` +
+      `    _project = _ai_stat_estimator_projects[_artifact_id]\n` +
+      `    _namespace, _project_modules = _ai_stat_load_project(_source, _project)\n` +
       `    _implementation = _namespace.get("run_estimator")\n` +
       `    if not callable(_implementation):\n` +
       `        raise RuntimeError("ACCEPTED_ESTIMATOR_BINDING_ERROR: " + _artifact_id + ": accepted algorithm did not define callable run_estimator")\n` +
@@ -147,7 +269,7 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `        _ai_stat_invocation_counts[_artifact_id] += 1\n` +
       `        invocation_index = _ai_stat_invocation_counts[_artifact_id]\n` +
       `        try:\n` +
-      `            raw_response = _implementation(candidate_request)\n` +
+      `            raw_response = _ai_stat_call_project(_implementation, _project, _project_modules, candidate_request)\n` +
       `            if _ai_stat_native_estimator_transport:\n` +
       `                response = raw_response\n` +
       `            else:\n` +
@@ -176,18 +298,17 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `    raise RuntimeError("generated simulation did not define callable run_sandbox")\n` +
       `try:\n` +
       (hasInputArtifacts
-        ? `    _ai_stat_result = _ai_stat_json_native(_ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators, artifacts=_ai_stat_input_artifacts))\n`
-        : `    _ai_stat_result = _ai_stat_json_native(_ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators))\n`) +
+        ? `    _ai_stat_result = _ai_stat_json_native(_ai_stat_call_project(_ai_stat_run_sandbox, _ai_stat_simulation_project, _ai_stat_simulation_modules, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators, artifacts=_ai_stat_input_artifacts))\n`
+        : `    _ai_stat_result = _ai_stat_json_native(_ai_stat_call_project(_ai_stat_run_sandbox, _ai_stat_simulation_project, _ai_stat_simulation_modules, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=_ai_stat_estimators))\n`) +
       `except Exception as _ai_stat_error:\n` +
       `    if _ai_stat_runtime_failure["exception"] is _ai_stat_error:\n` +
       `        raise RuntimeError(_ai_stat_runtime_failure["error_message"]) from _ai_stat_error\n` +
       `    raise\n` +
       `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": _ai_stat_invocation_counts, "estimator_invocation_samples": _ai_stat_invocation_samples}, allow_nan=False, sort_keys=True)`
-    : `import json as _ai_stat_json\n` +
+    : projectPrelude +
       `_ai_stat_source = ${JSON.stringify(source)}\n` +
       `_ai_stat_input_artifacts = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(inputArtifacts))})\n` +
-      `_ai_stat_namespace = {}\n` +
-      `exec(compile(_ai_stat_source, "<generated_source>", "exec"), _ai_stat_namespace, _ai_stat_namespace)\n` +
+      `_ai_stat_namespace, _ai_stat_project_modules = _ai_stat_load_project(_ai_stat_source, _ai_stat_simulation_project)\n` +
       `_ai_stat_required_callable_exports = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(requiredCallableExports))})\n` +
       `for _ai_stat_export in _ai_stat_required_callable_exports:\n` +
       `    if not callable(_ai_stat_namespace.get(_ai_stat_export)):\n` +
@@ -213,20 +334,44 @@ async function runPython(request, source, estimatorSources, inputArtifacts) {
       `if not callable(_ai_stat_run_sandbox):\n` +
       `    raise RuntimeError("generated source did not export callable run_sandbox")\n` +
       (hasInputArtifacts
-        ? `_ai_stat_result = _ai_stat_json_native(_ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=_ai_stat_input_artifacts))\n`
-        : `_ai_stat_result = _ai_stat_json_native(_ai_stat_run_sandbox(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}))\n`) +
+        ? `_ai_stat_result = _ai_stat_json_native(_ai_stat_call_project(_ai_stat_run_sandbox, _ai_stat_simulation_project, _ai_stat_project_modules, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=_ai_stat_input_artifacts))\n`
+        : `_ai_stat_result = _ai_stat_json_native(_ai_stat_call_project(_ai_stat_run_sandbox, _ai_stat_simulation_project, _ai_stat_project_modules, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}))\n`) +
       `_ai_stat_json.dumps({"metrics": _ai_stat_result, "estimator_invocation_counts": {}}, allow_nan=False, sort_keys=True)`;
   const serialized = await pyodide.runPythonAsync(wrapped);
   return JSON.parse(String(serialized));
 }
 
-async function runR(request, source, estimatorSources, inputArtifacts) {
+async function runR(
+  request,
+  source,
+  estimatorSources,
+  inputArtifacts,
+  projectFiles,
+  estimatorProjectFiles,
+) {
   const moduleUrl = pathToFileURL(request.runtime.webr_entry).href;
   const { WebR } = await import(moduleUrl);
   const webR = new WebR();
   await webR.init();
   let result;
   try {
+    const simulationProject = await materializeWebRProject(
+      webR,
+      "/ai_stat_projects/simulation",
+      String(request.main_path || "main.R"),
+      source,
+      projectFiles,
+    );
+    const estimatorProjects = {};
+    for (const [index, [artifactId, estimatorSource]] of Object.entries(estimatorSources).entries()) {
+      estimatorProjects[artifactId] = await materializeWebRProject(
+        webR,
+        `/ai_stat_projects/estimator_${index}`,
+        String(request.estimators[index]?.main_path || "main.R"),
+        estimatorSource,
+        estimatorProjectFiles[artifactId] || {},
+      );
+    }
     const bound = request.invocation_mode === "estimator_bound";
     const nativeEstimatorTransport = request.estimator_transport === "native";
     const inputArtifactRows = Object.entries(inputArtifacts);
@@ -244,13 +389,33 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
     const estimatorSourceList = estimatorRows
       .map(([artifactId, estimatorSource]) => `${JSON.stringify(artifactId)}=${JSON.stringify(estimatorSource)}`)
       .join(",");
+    const estimatorProjectRootList = estimatorRows
+      .map(([artifactId]) => `${JSON.stringify(artifactId)}=${JSON.stringify(estimatorProjects[artifactId].root)}`)
+      .join(",");
+    const projectPrelude =
+      `.ai_stat_simulation_project_root <- ${JSON.stringify(simulationProject.root)}\n` +
+      `.ai_stat_estimator_project_roots <- list(${estimatorProjectRootList})\n` +
+      `.ai_stat_load_project <- function(source, root) {\n` +
+      `  .old <- getwd()\n` +
+      `  on.exit(setwd(.old), add=TRUE)\n` +
+      `  setwd(root)\n` +
+      `  .environment <- new.env(parent=globalenv())\n` +
+      `  eval(parse(text=source, srcfile=paste0(root, "/main.R")), envir=.environment)\n` +
+      `  .environment\n` +
+      `}\n` +
+      `.ai_stat_call_project <- function(.function, .root, ...) {\n` +
+      `  .old <- getwd()\n` +
+      `  on.exit(setwd(.old), add=TRUE)\n` +
+      `  setwd(.root)\n` +
+      `  .function(...)\n` +
+      `}\n`;
     const wrapped = bound
       ? `local({\n` +
+        projectPrelude +
         `.ai_stat_simulation_source <- ${JSON.stringify(source)}\n` +
         `.ai_stat_estimator_sources <- list(${estimatorSourceList})\n` +
         `.ai_stat_artifacts <- ${inputArtifactList}\n` +
-        `.ai_stat_simulation_environment <- new.env(parent=globalenv())\n` +
-        `eval(parse(text=.ai_stat_simulation_source), envir=.ai_stat_simulation_environment)\n` +
+        `.ai_stat_simulation_environment <- .ai_stat_load_project(.ai_stat_simulation_source, .ai_stat_simulation_project_root)\n` +
         `.ai_stat_invocation_counts <- setNames(as.list(rep(0L, length(.ai_stat_estimator_sources))), names(.ai_stat_estimator_sources))\n` +
         `.ai_stat_invocation_samples <- setNames(lapply(.ai_stat_estimator_sources, function(value) list()), names(.ai_stat_estimator_sources))\n` +
         `.ai_stat_runtime_failure <- list(artifact_id="", error_message="", condition=NULL)\n` +
@@ -311,8 +476,8 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
         `.ai_stat_estimators <- lapply(names(.ai_stat_estimator_sources), function(.artifact_id) {\n` +
         `  local({\n` +
         `    .id <- .artifact_id\n` +
-        `    .environment <- new.env(parent=globalenv())\n` +
-        `    eval(parse(text=.ai_stat_estimator_sources[[.id]]), envir=.environment)\n` +
+        `    .root <- .ai_stat_estimator_project_roots[[.id]]\n` +
+        `    .environment <- .ai_stat_load_project(.ai_stat_estimator_sources[[.id]], .root)\n` +
         `    if (!exists("run_estimator", envir=.environment, mode="function", inherits=FALSE)) stop(paste0("ACCEPTED_ESTIMATOR_BINDING_ERROR: ", .id, ": accepted algorithm did not define callable run_estimator"))\n` +
         `    .implementation <- get("run_estimator", envir=.environment, inherits=FALSE)\n` +
         `    function(request) {\n` +
@@ -322,7 +487,7 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
         `      .ai_stat_invocation_counts[[.id]] <<- .ai_stat_invocation_counts[[.id]] + 1L\n` +
         `      .invocation_index <- .ai_stat_invocation_counts[[.id]]\n` +
         `      .response <- withCallingHandlers({\n` +
-        `        .candidate <- .implementation(request)\n` +
+        `        .candidate <- .ai_stat_call_project(.implementation, .root, request)\n` +
         `        if (!.ai_stat_native_estimator_transport && (!is.list(.candidate) || is.null(names(.candidate)))) stop("run_estimator response must be a named list")\n` +
         `        if (!.ai_stat_native_estimator_transport && !.ai_stat_json_finite(.candidate)) stop("run_estimator response must contain finite JSON-compatible values")\n` +
         `        .candidate\n` +
@@ -344,8 +509,8 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
         `if (!exists("run_sandbox", envir=.ai_stat_simulation_environment, mode="function", inherits=FALSE)) stop("generated simulation did not define callable run_sandbox")\n` +
         `.ai_stat_result <- tryCatch(\n` +
         (hasInputArtifacts
-          ? `  get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators, artifacts=.ai_stat_artifacts),\n`
-          : `  get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators),\n`) +
+          ? `  .ai_stat_call_project(get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE), .ai_stat_simulation_project_root, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators, artifacts=.ai_stat_artifacts),\n`
+          : `  .ai_stat_call_project(get("run_sandbox", envir=.ai_stat_simulation_environment, inherits=FALSE), .ai_stat_simulation_project_root, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, estimators=.ai_stat_estimators),\n`) +
         `  error=function(.error) {\n` +
         `    if (!is.null(.ai_stat_runtime_failure$condition) && identical(.error, .ai_stat_runtime_failure$condition)) stop(.ai_stat_runtime_failure$error_message, call.=FALSE)\n` +
         `    stop(.error)\n` +
@@ -354,18 +519,18 @@ async function runR(request, source, estimatorSources, inputArtifacts) {
         `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts, estimator_invocation_samples=.ai_stat_invocation_samples)\n` +
         `})`
       : `local({\n` +
+        projectPrelude +
         `.ai_stat_source <- ${JSON.stringify(source)}\n` +
         `.ai_stat_artifacts <- ${inputArtifactList}\n` +
-        `.ai_stat_environment <- new.env(parent=globalenv())\n` +
-        `eval(parse(text=.ai_stat_source), envir=.ai_stat_environment)\n` +
+        `.ai_stat_environment <- .ai_stat_load_project(.ai_stat_source, .ai_stat_simulation_project_root)\n` +
         `.ai_stat_required_callable_exports <- ${requiredCallableExportVector}\n` +
         `for (.ai_stat_export in .ai_stat_required_callable_exports) {\n` +
         `  if (!exists(.ai_stat_export, envir=.ai_stat_environment, mode="function", inherits=FALSE)) stop(paste("generated source did not export callable", .ai_stat_export))\n` +
         `}\n` +
         `if (!exists("run_sandbox", envir=.ai_stat_environment, mode="function", inherits=FALSE)) stop("generated source did not export callable run_sandbox")\n` +
         (hasInputArtifacts
-          ? `.ai_stat_result <- get("run_sandbox", envir=.ai_stat_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=.ai_stat_artifacts)\n`
-          : `.ai_stat_result <- get("run_sandbox", envir=.ai_stat_environment, inherits=FALSE)(seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n`) +
+          ? `.ai_stat_result <- .ai_stat_call_project(get("run_sandbox", envir=.ai_stat_environment, inherits=FALSE), .ai_stat_simulation_project_root, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=.ai_stat_artifacts)\n`
+          : `.ai_stat_result <- .ai_stat_call_project(get("run_sandbox", envir=.ai_stat_environment, inherits=FALSE), .ai_stat_simulation_project_root, seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n`) +
         `list(metrics=.ai_stat_result, estimator_invocation_counts=list())\n` +
         `})`;
     result = await webR.evalR(wrapped);
@@ -395,10 +560,36 @@ if (!requestPath || !outputPath) {
 
 const request = JSON.parse(fs.readFileSync(requestPath, "utf8"));
 const source = fs.readFileSync(request.code_path, "utf8");
+const sourceSha256 = crypto.createHash("sha256").update(source, "utf8").digest("hex");
+if (sourceSha256 !== String(request.code_sha256)) {
+  throw new Error("scientific main source hash mismatch");
+}
+function readProjectFiles(rows, label) {
+  return Object.fromEntries((Array.isArray(rows) ? rows : []).map((row) => {
+    const filePath = String(row.path);
+    const content = fs.readFileSync(row.content_path, "utf8");
+    const observedSha256 = crypto.createHash("sha256").update(content, "utf8").digest("hex");
+    if (observedSha256 !== String(row.sha256)) {
+      throw new Error(`scientific project file hash mismatch: ${label}:${filePath}`);
+    }
+    return [filePath, content];
+  }));
+}
+const projectFiles = readProjectFiles(request.project_files, "main");
 const estimatorSources = Object.fromEntries(
+  (Array.isArray(request.estimators) ? request.estimators : []).map((row) => {
+    const content = fs.readFileSync(row.code_path, "utf8");
+    const observedSha256 = crypto.createHash("sha256").update(content, "utf8").digest("hex");
+    if (observedSha256 !== String(row.code_sha256)) {
+      throw new Error(`scientific estimator source hash mismatch: ${String(row.artifact_id)}`);
+    }
+    return [String(row.artifact_id), content];
+  }),
+);
+const estimatorProjectFiles = Object.fromEntries(
   (Array.isArray(request.estimators) ? request.estimators : []).map((row) => [
     String(row.artifact_id),
-    fs.readFileSync(row.code_path, "utf8"),
+    readProjectFiles(row.project_files, String(row.artifact_id)),
   ]),
 );
 const inputArtifacts = Object.fromEntries(
@@ -422,8 +613,22 @@ const startedAt = new Date().toISOString();
 let envelope;
 try {
   const execution = request.language === "r"
-    ? await runR(request, source, estimatorSources, inputArtifacts)
-    : await runPython(request, source, estimatorSources, inputArtifacts);
+    ? await runR(
+      request,
+      source,
+      estimatorSources,
+      inputArtifacts,
+      projectFiles,
+      estimatorProjectFiles,
+    )
+    : await runPython(
+      request,
+      source,
+      estimatorSources,
+      inputArtifacts,
+      projectFiles,
+      estimatorProjectFiles,
+    );
   const metrics = execution?.metrics;
   const estimatorInvocationCounts = execution?.estimator_invocation_counts || {};
   const estimatorInvocationSamples = execution?.estimator_invocation_samples || {};

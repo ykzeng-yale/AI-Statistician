@@ -13,6 +13,11 @@ from .agent_runtime import (
     restore_agent_task_continuation,
 )
 from .fingerprint import stable_hash
+from .scientific_project import (
+    normalized_scientific_project_files,
+    scientific_project_hash,
+)
+from .scientific_sandbox import normalized_generated_code_language
 from .theory_workspace import load_theory_workspace_document_rows
 
 
@@ -456,6 +461,12 @@ def generated_code_semantic_review_upstream_dependency_projection(
             "exact_source_hash": str(
                 row.get("exact_source_hash", "") or ""
             ),
+            "exact_project_files": deepcopy(
+                list(row.get("exact_project_files", []) or [])
+            ),
+            "exact_project_hash": str(
+                row.get("exact_project_hash", "") or ""
+            ),
             "exact_result_hash": str(
                 row.get("exact_smoke_result_hash", "") or ""
             ),
@@ -548,6 +559,30 @@ def generated_code_semantic_review_upstream_dependency_errors(
             errors.append(
                 f"upstream generated dependency source hash mismatch: {artifact_id}"
             )
+        try:
+            project_files = normalized_scientific_project_files(
+                row.get("exact_project_files", []),
+                language=normalized_generated_code_language(row.get("language")),
+            )
+            project_hash = scientific_project_hash(
+                language=normalized_generated_code_language(row.get("language")),
+                code=source,
+                project_files=project_files,
+            )
+        except ValueError as exc:
+            errors.append(
+                f"upstream generated dependency project invalid: {artifact_id}: {exc}"
+            )
+            project_files = ()
+            project_hash = ""
+        persisted_project_hash = str(row.get("exact_project_hash", "") or "")
+        if project_hash and (
+            persisted_project_hash != project_hash
+            and (project_files or persisted_project_hash)
+        ):
+            errors.append(
+                f"upstream generated dependency project hash mismatch: {artifact_id}"
+            )
         result_hash = str(row.get("exact_result_hash", "") or "")
         result_included = bool(
             row.get("exact_result_included", "exact_result" in row)
@@ -584,6 +619,13 @@ def generated_code_semantic_review_upstream_dependency_artifacts(
             "exact_source_hash": str(row.get("exact_source_hash", "") or ""),
             "exact_source_code": str(row.get("exact_source_code", "") or ""),
             "exact_source_code_complete": True,
+            "exact_project_files": deepcopy(
+                list(row.get("exact_project_files", []) or [])
+            ),
+            "exact_project_hash": str(
+                row.get("exact_project_hash", "") or ""
+            ),
+            "exact_project_files_complete": True,
             "exact_result_hash": str(row.get("exact_result_hash", "") or ""),
             "actual_runtime_arguments": {},
             "artifact_role": "upstream_generated_dependency",

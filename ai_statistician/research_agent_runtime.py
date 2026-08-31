@@ -120,6 +120,10 @@ from .scientific_sandbox import (
     normalized_generated_code_profile,
     normalized_scientific_dependencies,
 )
+from .scientific_project import (
+    normalized_scientific_project_files,
+    scientific_project_hash,
+)
 from .scientific_code_workspace import (
     SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
@@ -1926,6 +1930,32 @@ def _runtime_exact_algorithm_artifacts(
         source_row = raw_row.get("source_row", {})
         source = str(raw_row.get("exact_source_code", "") or "")
         result = raw_row.get("exact_result", {})
+        try:
+            project_files = normalized_scientific_project_files(
+                raw_row.get("exact_project_files", []),
+                language=normalized_generated_code_language(
+                    source_row.get("language")
+                    if isinstance(source_row, Mapping)
+                    else ""
+                ),
+            )
+            project_hash = scientific_project_hash(
+                language=normalized_generated_code_language(
+                    source_row.get("language")
+                    if isinstance(source_row, Mapping)
+                    else ""
+                ),
+                code=source,
+                project_files=project_files,
+            )
+        except ValueError:
+            continue
+        legacy_single_file = bool(
+            not project_files
+            and "exact_project_files" not in raw_row
+            and "exact_project_hash" not in raw_row
+            and "project_hash" not in source_row
+        )
         if not (
             isinstance(source_row, Mapping)
             and source
@@ -1939,6 +1969,16 @@ def _runtime_exact_algorithm_artifacts(
             == stable_hash(source)
             and str(raw_row.get("exact_result_hash", "") or "")
             == stable_hash(result)
+            and (
+                legacy_single_file
+                or (
+                    raw_row.get("exact_project_files_complete") is True
+                    and str(raw_row.get("exact_project_hash", "") or "")
+                    == project_hash
+                    and str(source_row.get("project_hash", "") or "")
+                    == project_hash
+                )
+            )
         ):
             continue
         exact_artifact = {
@@ -1951,6 +1991,10 @@ def _runtime_exact_algorithm_artifacts(
             "dependencies": list(source_row.get("dependencies", []) or []),
             "exact_source_code": source,
             "exact_source_hash": stable_hash(source),
+            "exact_project_files": [
+                project_file.to_json() for project_file in project_files
+            ],
+            "exact_project_hash": project_hash,
             "exact_smoke_result": dict(result),
             "exact_smoke_result_hash": stable_hash(result),
         }
@@ -2005,6 +2049,21 @@ def _runtime_materialized_exact_algorithm_artifacts(
         row = deepcopy(dict(raw_row))
         source = str(row.get("exact_source_code", "") or "")
         result = row.get("exact_smoke_result", {})
+        try:
+            project_files = normalized_scientific_project_files(
+                row.get("exact_project_files", []),
+                language=normalized_generated_code_language(row.get("language")),
+            )
+            project_hash = scientific_project_hash(
+                language=normalized_generated_code_language(row.get("language")),
+                code=source,
+                project_files=project_files,
+            )
+        except ValueError:
+            return []
+        legacy_single_file = bool(
+            not project_files and "exact_project_hash" not in row
+        )
         if not (
             str(row.get("estimator_id", "") or "").strip()
             and source
@@ -2013,8 +2072,16 @@ def _runtime_materialized_exact_algorithm_artifacts(
             == stable_hash(source)
             and str(row.get("exact_smoke_result_hash", "") or "")
             == stable_hash(dict(result))
+            and (
+                legacy_single_file
+                or str(row.get("exact_project_hash", "") or "") == project_hash
+            )
         ):
             return []
+        row["exact_project_files"] = [
+            project_file.to_json() for project_file in project_files
+        ]
+        row["exact_project_hash"] = project_hash
         exact_artifacts.append(row)
     return exact_artifacts
 
@@ -2237,6 +2304,9 @@ def _runtime_algorithm_handoff_receipt(
             "estimator_id": str(row.get("estimator_id", "") or ""),
             "language": str(row.get("language", "") or ""),
             "exact_source_hash": str(row.get("exact_source_hash", "") or ""),
+            "exact_project_hash": str(
+                row.get("exact_project_hash", "") or ""
+            ),
             "exact_smoke_result_hash": str(
                 row.get("exact_smoke_result_hash", "") or ""
             ),
@@ -2249,6 +2319,13 @@ def _runtime_algorithm_handoff_receipt(
     ]
     expected_source_hashes = {
         row["estimator_id"]: row["exact_source_hash"]
+        for row in artifact_refs
+        if row["estimator_id"] and row["exact_source_hash"]
+    }
+    expected_binding_hashes = {
+        row["estimator_id"]: (
+            row["exact_project_hash"] or row["exact_source_hash"]
+        )
         for row in artifact_refs
         if row["estimator_id"] and row["exact_source_hash"]
     }
@@ -2279,11 +2356,22 @@ def _runtime_algorithm_handoff_receipt(
             estimator_id: expected_source_hashes[estimator_id]
             for estimator_id in selected_ids
         }
+        selected_binding_hashes = {
+            estimator_id: expected_binding_hashes[estimator_id]
+            for estimator_id in selected_ids
+        }
         raw_hashes = row.get("bound_estimator_code_hashes", {})
+        raw_project_hashes = row.get("bound_estimator_project_hashes", {})
         raw_counts = row.get("estimator_invocation_counts", {})
         if not isinstance(raw_hashes, Mapping) or not isinstance(raw_counts, Mapping):
             continue
         bound_hashes = {str(key): str(value) for key, value in raw_hashes.items()}
+        bound_project_hashes = (
+            {str(key): str(value) for key, value in raw_project_hashes.items()}
+            if isinstance(raw_project_hashes, Mapping)
+            else {}
+        )
+        observed_binding_hashes = bound_project_hashes or bound_hashes
         try:
             invocation_counts = {
                 str(key): max(0, int(value or 0))
@@ -2294,8 +2382,9 @@ def _runtime_algorithm_handoff_receipt(
         if not (
             row.get("mechanical_estimator_invocation_verified") is True
             and bound_hashes == selected_source_hashes
+            and observed_binding_hashes == selected_binding_hashes
             and str(row.get("estimator_binding_hash", "") or "")
-            == stable_hash(selected_source_hashes)
+            == stable_hash(selected_binding_hashes)
             and all(
                 invocation_counts.get(estimator_id, 0) > 0
                 for estimator_id in selected_source_hashes
@@ -2319,6 +2408,7 @@ def _runtime_algorithm_handoff_receipt(
                     row.get("estimator_binding_hash", "") or ""
                 ),
                 "bound_estimator_code_hashes": bound_hashes,
+                "bound_estimator_project_hashes": bound_project_hashes,
                 "estimator_invocation_counts": invocation_counts,
                 "mechanical_estimator_invocation_verified": True,
             }
@@ -7192,16 +7282,73 @@ def _runtime_generated_code_semantic_review_material(
             errors.append(f"reviewed result hash mismatch: {artifact_id}")
         if stable_hash(result_payload) != stable_hash(row.get("metrics", {})):
             errors.append(f"reviewed result does not match manifest metrics: {artifact_id}")
+        raw_project_paths = row.get("project_file_paths", {})
+        raw_project_hashes = row.get("project_file_hashes", {})
+        project_paths = (
+            dict(raw_project_paths) if isinstance(raw_project_paths, Mapping) else {}
+        )
+        project_hashes = (
+            dict(raw_project_hashes)
+            if isinstance(raw_project_hashes, Mapping)
+            else {}
+        )
+        exact_project_files: list[dict[str, str]] = []
+        if set(project_paths) != set(project_hashes):
+            errors.append(f"reviewed project file inventory mismatch: {artifact_id}")
+        for project_path in sorted(set(project_paths).intersection(project_hashes)):
+            materialized_path = Path(str(project_paths[project_path] or ""))
+            if not materialized_path.is_file():
+                errors.append(
+                    f"reviewed project file missing: {artifact_id}:{project_path}"
+                )
+                continue
+            exact_project_files.append(
+                {
+                    "path": str(project_path),
+                    "content": materialized_path.read_text(encoding="utf-8"),
+                    "content_sha256": str(project_hashes[project_path] or ""),
+                }
+            )
+        try:
+            normalized_project_files = normalized_scientific_project_files(
+                exact_project_files,
+                language=normalized_generated_code_language(row.get("language")),
+            )
+            exact_project_files = [
+                project_file.to_json()
+                for project_file in normalized_project_files
+            ]
+            exact_project_hash = scientific_project_hash(
+                language=normalized_generated_code_language(row.get("language")),
+                code=source_code,
+                project_files=normalized_project_files,
+            )
+        except ValueError as exc:
+            errors.append(f"reviewed project invalid: {artifact_id}: {exc}")
+            exact_project_files = []
+            exact_project_hash = ""
+        persisted_project_hash = str(row.get("project_hash", "") or "")
+        if (
+            persisted_project_hash
+            and exact_project_hash != persisted_project_hash
+        ) or (project_paths and not persisted_project_hash):
+            errors.append(f"reviewed project hash mismatch: {artifact_id}")
         exact_artifacts.append(
             {
                 "artifact_id": artifact_id,
                 "source_row": {
-                    key: value
-                    for key, value in row.items()
-                    if key != "code_excerpt"
+                    **{
+                        key: value
+                        for key, value in row.items()
+                        if key != "code_excerpt"
+                    },
+                    "project_hash": exact_project_hash,
                 },
                 "exact_source_code": source_code,
                 "exact_source_hash": script_hash,
+                "exact_project_files": exact_project_files,
+                "exact_project_hash": exact_project_hash,
+                "exact_project_files_complete": True,
                 "exact_result": result_payload,
                 "exact_result_hash": result_hash,
                 "actual_runtime_arguments": {
@@ -7977,6 +8124,13 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                     row.get("exact_source_code", "") or ""
                 ),
                 "exact_source_code_complete": True,
+                "exact_project_files": deepcopy(
+                    list(row.get("exact_project_files", []) or [])
+                ),
+                "exact_project_hash": str(
+                    row.get("exact_project_hash", "") or ""
+                ),
+                "exact_project_files_complete": True,
                 "exact_result_hash": str(
                     row.get("exact_result_hash", "") or ""
                 ),
@@ -9037,6 +9191,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         confirmatory_source_revision_code_drafts: list[dict[str, Any]] = []
         confirmatory_source_revision_observation: dict[str, Any] = {}
         confirmatory_source_parent_hashes: dict[str, str] = {}
+        confirmatory_source_parent_release_hashes: dict[str, str] = {}
         confirmatory_source_parent_manifest_id = ""
         feedback_type = str(environment_feedback.get("feedback_type", "") or "")
         raw_revision_assessment = environment_feedback.get(
@@ -9391,6 +9546,20 @@ class SimulationEvaluatorRuntimeSubsystem:
             confirmatory_source_parent_hashes = {
                 str(row.get("simulation_id", "") or ""): stable_hash(
                     str(row.get("code", "") or "")
+                )
+                for row in confirmatory_source_revision_code_drafts
+            }
+            confirmatory_source_parent_release_hashes = {
+                str(row.get("simulation_id", "") or ""): (
+                    scientific_project_hash(
+                        language=normalized_generated_code_language(
+                            row.get("language")
+                        ),
+                        code=str(row.get("code", "") or ""),
+                        project_files=row.get("project_files", []),
+                    )
+                    if row.get("project_files")
+                    else stable_hash(str(row.get("code", "") or ""))
                 )
                 for row in confirmatory_source_revision_code_drafts
             }
@@ -9975,7 +10144,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                     confirmatory_result_blind=not exploratory_diagnostic,
                     defer_confirmatory_execution=evaluator_source_authoring,
                     disallowed_unchanged_source_hashes=(
-                        (parent_source_hash,) if parent_source_hash else ()
+                        (
+                            confirmatory_source_parent_release_hashes.get(
+                                simulation_id, parent_source_hash
+                            ),
+                        )
+                        if parent_source_hash
+                        else ()
                     ),
                     recovery_checkpoint=progress_checkpoints.get(simulation_id),
                     recovery_prototype=progress_parent_rows_by_id.get(simulation_id),
@@ -11743,6 +11918,17 @@ class AlgorithmEngineerRuntimeSubsystem:
             if isinstance(row, Mapping)
             and str(row.get("artifact_id", "") or "").strip()
         }
+        semantic_source_release_hashes = {
+            str(row.get("artifact_id", "") or "").strip(): str(
+                row.get("exact_project_hash", "")
+                or row.get("exact_source_hash", "")
+                or ""
+            ).strip()
+            for row in environment_feedback.get("reviewed_source_artifacts", [])
+            or []
+            if isinstance(row, Mapping)
+            and str(row.get("artifact_id", "") or "").strip()
+        }
         source_workspace_available = scientific_source_workspace_available(
             self.proposal_agent
         )
@@ -12381,9 +12567,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                         confirmatory_result_blind=consumer_revision_mode,
                         allow_current_source_run=dependency_environment_changed,
                         disallowed_unchanged_source_hashes=(
-                            (semantic_source_hashes[estimator_id],)
+                            (semantic_source_release_hashes[estimator_id],)
                             if semantic_source_revision
-                            and semantic_source_hashes.get(estimator_id)
+                            and semantic_source_release_hashes.get(estimator_id)
                             else ()
                         ),
                         recovery_checkpoint=progress_checkpoints.get(estimator_id),
@@ -23386,6 +23572,12 @@ def _run_generated_simulation_sandbox(
                 for value in row.get("dependencies", []) or []
                 if str(value).strip()
             ),
+            project_files=tuple(
+                row.get("exact_project_files", []) or []
+            ),
+            project_hash=str(
+                row.get("exact_project_hash", "") or ""
+            ).strip(),
         )
         for row in (upstream_algorithm_handoff or {}).get(
             "exact_algorithm_artifacts", []
@@ -23762,6 +23954,7 @@ def _run_generated_scientific_sandbox(
             artifact_id=estimator_id,
             language=language,
             code=code,
+            project_files=code_draft.get("project_files", []),
             dependencies=dependencies,
             seed=seed,
             replicates=replicates,
@@ -23862,6 +24055,9 @@ def _run_generated_scientific_sandbox(
     expected_estimator_code_hashes = {
         binding.artifact_id: binding.code_hash for binding in estimator_bindings
     }
+    expected_estimator_project_hashes = {
+        binding.artifact_id: binding.project_hash for binding in estimator_bindings
+    }
     estimator_invocation_counts = (
         dict(execution.estimator_invocation_counts)
         if execution is not None
@@ -23878,6 +24074,8 @@ def _run_generated_scientific_sandbox(
         and execution.status == "EXECUTED"
         and bool(execution.execution_envelope_hash)
         and execution.estimator_code_hashes == expected_estimator_code_hashes
+        and execution.estimator_project_hashes
+        == expected_estimator_project_hashes
         and all(
             estimator_invocation_counts.get(binding.artifact_id, 0) > 0
             for binding in estimator_bindings
@@ -23919,6 +24117,11 @@ def _run_generated_scientific_sandbox(
         "bound_estimator_code_hashes": (
             dict(execution.estimator_code_hashes) if execution is not None else {}
         ),
+        "bound_estimator_project_hashes": (
+            dict(execution.estimator_project_hashes)
+            if execution is not None
+            else {}
+        ),
         "estimator_invocation_counts": estimator_invocation_counts,
         "estimator_invocation_samples": estimator_invocation_samples,
         "mechanical_estimator_invocation_verified": (
@@ -23929,6 +24132,24 @@ def _run_generated_scientific_sandbox(
         ],
         "script_hash": stable_hash(code),
         "source_code": code,
+        "project_hash": (
+            execution.project_hash
+            if execution is not None
+            else scientific_project_hash(
+                language=language,
+                code=code,
+                project_files=code_draft.get("project_files", []),
+            )
+        ),
+        "project_files": deepcopy(
+            list(code_draft.get("project_files", []) or [])
+        ),
+        "project_file_paths": (
+            dict(execution.project_file_paths) if execution is not None else {}
+        ),
+        "project_file_hashes": (
+            dict(execution.project_file_hashes) if execution is not None else {}
+        ),
         "request_hash": execution.request_hash if execution is not None else "",
         "code_excerpt": code[:2000],
         "runtime_seed": seed,
@@ -23999,6 +24220,7 @@ def _run_generated_scientific_sandbox(
             "execution_profile": requested_profile,
             "dependencies": list(dependencies),
             "bound_estimator_code_hashes": expected_estimator_code_hashes,
+            "bound_estimator_project_hashes": expected_estimator_project_hashes,
             "required_callable_exports": [
                 str(value) for value in required_callable_exports
             ],
@@ -24016,6 +24238,16 @@ def _run_generated_scientific_sandbox(
                 "language": language,
                 "dependencies": list(dependencies),
                 "bound_estimator_code_hashes": expected_estimator_code_hashes,
+                "bound_estimator_project_hashes": expected_estimator_project_hashes,
+                "project_hash": (
+                    execution.project_hash
+                    if execution is not None
+                    else scientific_project_hash(
+                        language=language,
+                        code=code,
+                        project_files=code_draft.get("project_files", []),
+                    )
+                ),
                 "required_callable_exports": [
                     str(value) for value in required_callable_exports
                 ],

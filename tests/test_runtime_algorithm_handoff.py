@@ -5,6 +5,7 @@ from copy import deepcopy
 from ai_statistician import research_agent_runtime as runtime_module
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.scientific_project import scientific_project_hash
 
 
 QUESTION_ID = "generic-canonical-algorithm-handoff"
@@ -16,7 +17,22 @@ EXECUTION_ID = "review-execution:generic-canonical-algorithm-handoff"
 
 
 def _canonical_handoff_fixture() -> tuple[AgentTask, BlackboardState, dict, dict]:
-    source = "def run_estimator(request):\n    return {'estimate': request['x']}\n"
+    source = (
+        "from helper import estimate\n\n"
+        "def run_estimator(request):\n"
+        "    return {'estimate': estimate(request['x'])}\n"
+    )
+    project_files = [
+        {
+            "path": "helper.py",
+            "content": "def estimate(value):\n    return value\n",
+        }
+    ]
+    project_hash = scientific_project_hash(
+        language="python",
+        code=source,
+        project_files=project_files,
+    )
     result = {"estimate": 1.0}
     source_manifest = {
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
@@ -36,9 +52,13 @@ def _canonical_handoff_fixture() -> tuple[AgentTask, BlackboardState, dict, dict
                     "smoke_passed": True,
                     "script_hash": stable_hash(source),
                     "result_hash": stable_hash(result),
+                    "project_hash": project_hash,
                 },
                 "exact_source_code": source,
                 "exact_source_hash": stable_hash(source),
+                "exact_project_files": project_files,
+                "exact_project_hash": project_hash,
+                "exact_project_files_complete": True,
                 "exact_result": result,
                 "exact_result_hash": stable_hash(result),
             }
@@ -111,6 +131,12 @@ def test_algorithm_handoff_requires_task_owned_canonical_materialization() -> No
     task, blackboard, handoff, _ = _canonical_handoff_fixture()
 
     assert _validate(task, blackboard) == handoff
+    exact_artifact = handoff["exact_algorithm_artifacts"][0]
+    assert exact_artifact["exact_project_hash"] == scientific_project_hash(
+        language="python",
+        code=exact_artifact["exact_source_code"],
+        project_files=exact_artifact["exact_project_files"],
+    )
 
     context_only = AgentTask(
         task_id=task.task_id,
@@ -147,3 +173,13 @@ def test_algorithm_handoff_rejects_nested_legacy_review_material() -> None:
     )
 
     assert _validate(legacy_task, legacy_blackboard) == {}
+
+
+def test_algorithm_handoff_materialization_rejects_tampered_support_file() -> None:
+    _, _, _, review_material = _canonical_handoff_fixture()
+    tampered = deepcopy(review_material)
+    tampered["exact_executed_artifacts"][0]["exact_project_files"][0][
+        "content"
+    ] = "def estimate(value):\n    return value + 1\n"
+
+    assert runtime_module._runtime_exact_algorithm_artifacts(tampered) == []

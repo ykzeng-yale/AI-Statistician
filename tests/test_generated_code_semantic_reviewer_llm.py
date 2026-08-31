@@ -37,6 +37,7 @@ from ai_statistician.research_schema import (
     OpenResearchQuestion,
     research_question_payload,
 )
+from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.research_source_library import (
     ResearchSourceDocument,
     ResearchSourceSnapshot,
@@ -88,6 +89,21 @@ def _question_with_estimator_contract() -> OpenResearchQuestion:
 
 
 def test_simulation_proposal_review_uses_current_dependency_projection_only() -> None:
+    source = (
+        "from helper import transform\n\n"
+        "def run_estimator(request): return transform(request)\n"
+    )
+    project_files = [
+        {
+            "path": "helper.py",
+            "content": "def transform(request): return request\n",
+        }
+    ]
+    project_hash = scientific_project_hash(
+        language="python",
+        code=source,
+        project_files=project_files,
+    )
     projection = generated_code_semantic_review_proposal_projection(
         source_subsystem="SimulationEvaluator",
         proposal_packet={
@@ -121,10 +137,11 @@ def test_simulation_proposal_review_uses_current_dependency_projection_only() ->
             "exact_algorithm_artifacts": [
                 {
                     "estimator_id": "candidate",
-                    "exact_source_code": "def run_estimator(request): return {}",
-                    "exact_source_hash": stable_hash(
-                        "def run_estimator(request): return {}"
-                    ),
+                    "language": "python",
+                    "exact_source_code": source,
+                    "exact_source_hash": stable_hash(source),
+                    "exact_project_files": project_files,
+                    "exact_project_hash": project_hash,
                     "exact_smoke_result": {},
                     "exact_smoke_result_hash": stable_hash({}),
                 }
@@ -136,6 +153,7 @@ def test_simulation_proposal_review_uses_current_dependency_projection_only() ->
     exact_dependency = dependency["exact_dependency_artifacts"][0]
     assert exact_dependency["exact_result_included"] is False
     assert exact_dependency["exact_result_hash"] == stable_hash({})
+    assert exact_dependency["exact_project_hash"] == project_hash
     assert "exact_result" not in exact_dependency
 
     assert generated_code_semantic_review_upstream_dependency_errors(dependency) == []
@@ -148,6 +166,15 @@ def test_simulation_proposal_review_uses_current_dependency_projection_only() ->
     leaked_result["exact_dependency_artifacts"][0]["exact_result"] = {}
     assert generated_code_semantic_review_upstream_dependency_errors(leaked_result) == [
         "withheld upstream generated dependency unexpectedly includes a result: candidate"
+    ]
+    tampered_project = deepcopy(dependency)
+    tampered_project["exact_dependency_artifacts"][0]["exact_project_files"][0][
+        "content"
+    ] = "def transform(request): return {}\n"
+    assert generated_code_semantic_review_upstream_dependency_errors(
+        tampered_project
+    ) == [
+        "upstream generated dependency project hash mismatch: candidate"
     ]
 
 
@@ -2249,6 +2276,118 @@ def test_revision_prompt_defers_current_source_to_fresh_tool_observation() -> No
         '"exact_source_available_via_tool":"read_current_generated_source"'
         in prompt
     )
+
+
+def test_revision_reviewer_reads_exact_support_file_from_current_project() -> None:
+    material = _review_material()
+    support_source = "def metric(value):\n    return value + 1\n"
+    project_files = [{"path": "metrics/helper.py", "content": support_source}]
+    current_source = (
+        "from metrics.helper import metric\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'estimate': metric(seed)}\n"
+    )
+    artifact = material["exact_executed_artifacts"][0]
+    artifact["source_row"] = {"language": "python"}
+    artifact["exact_source_code"] = current_source
+    artifact["exact_source_hash"] = stable_hash(current_source)
+    artifact["exact_project_files"] = project_files
+    artifact["exact_project_hash"] = scientific_project_hash(
+        language="python",
+        code=current_source,
+        project_files=project_files,
+    )
+    material["prior_semantic_observations"] = {
+        "active_prior_finding_ledger": [
+            {
+                "finding_id": "generated_code_semantic_finding:project",
+                "status": "UNRESOLVED",
+                "finding": {
+                    "summary": "Inspect the revised metric helper.",
+                    "category": "implementation",
+                },
+            }
+        ]
+    }
+    submission = {
+        "prior_finding_reviews": [
+            {
+                "status": "RESOLVED_BY_CURRENT_ARTIFACT",
+                "rationale": "The exact helper now implements the intended metric.",
+                "evidence_refs": [
+                    "/exact_executed_artifacts/0/exact_project_files/0"
+                ],
+            }
+        ],
+        "dimension_reviews": _dimension_rows(),
+        "findings": [],
+    }
+
+    class ReadSupportThenSubmitBackend:
+        provider_name = "static"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                call = ClientToolCall(
+                    call_id="read-support",
+                    name="read_current_generated_source",
+                    input={
+                        "artifact_id": "simulation:1",
+                        "path": "metrics/helper.py",
+                    },
+                )
+            else:
+                call = ClientToolCall(
+                    call_id="submit-review",
+                    name="submit_generated_code_semantic_review",
+                    input=submission,
+                )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": call.input,
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider="static",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = ReadSupportThenSubmitBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="static",
+            model="static-haiku",
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert observation["path"] == "metrics/helper.py"
+    assert observation["exact_project_hash"] == artifact["exact_project_hash"]
+    assert "return value + 1" in observation["source_with_line_numbers"]
+    assert {row["path"] for row in observation["file_manifest"]} == {
+        "main.py",
+        "metrics/helper.py",
+    }
+    assert packet["overall_verdict"] == "ACCEPT"
 
 
 def test_unresolved_prior_finding_keeps_review_in_revise_without_restatement() -> None:

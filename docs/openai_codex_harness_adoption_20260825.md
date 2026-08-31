@@ -76,7 +76,7 @@ without duplicating the control plane.
 | turn-scoped model-visible tool plan | `ClientToolTurnRequest` plus workspace-specific `ClientToolDefinition` values |
 | function-call output returned to the model | `ClientToolExecutionResult` appended to the same Anthropic message history |
 | model-actionable versus fatal tool failure | `ClientToolInputError` versus `ClientToolRuntimeError` |
-| external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; the current Python/R source artifact is read on demand rather than copied into every opening |
+| external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; the current Python/R project manifest is opened first and exact files are read on demand rather than copied into every opening |
 | thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
@@ -213,14 +213,14 @@ identity, execution, and provenance. No consumed task is reassessed.
 
 Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
 writes Markdown, and binds the report alone or into the same physical Theory workspace. The full evidence view retains that report, while a Theory packet excludes it from mathematical authority; non-theory tasks continue the frozen plan without another Architect call.
-Algorithm and Simulation resolve the exact checkpoint and read its report through hash-bound tools. The Critic reloads the same evidence; execution never validates theory, code, simulation, novelty, or proof.
+Algorithm and Simulation resolve the exact checkpoint and read its report through hash-bound tools. Their retained source owner can create, read, edit, remove, run, and commit a complete Python/R source project; one project hash binds every support file through independent review, downstream estimator execution, and hidden evaluation. The Critic reloads the same evidence; execution never validates theory, code, simulation, novelty, or proof.
 Declared PDFs and images now use the same Codex-style raw-observation principle: the exact hash-rechecked bytes return as provider-native media only when the source owner selects inspection. The harness neither captions them nor promotes visual access into semantic authority. [Anthropic's client-tool contract](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls) explicitly permits image and document content inside `tool_result`.
 
 Remaining capability gaps are scientific rather than reasons to import Codex. Source owners can select horizon-safe arXiv and GitHub text, but arbitrary publisher PDF/OCR,
 dataset acquisition, and general project reproduction remain incomplete:
 
 - long-horizon TheoryDeveloper quality and independent mathematical falsification;
-- broader multi-file Python/R research projects;
+- arbitrary package/environment reconstruction, datasets, and full paper projects;
 - proof-state-driven Lean closure on exact statistical theorems;
 - fresh cross-family end-to-end evidence.
 

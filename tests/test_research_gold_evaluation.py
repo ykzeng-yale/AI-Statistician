@@ -28,6 +28,7 @@ from ai_statistician.scientific_sandbox import (
     ScientificEstimatorBinding,
     discover_scientific_sandbox_runtime,
 )
+from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_CONTENT_AUTHORITY,
     THEORY_WORKSPACE_HANDOFF_ROLE,
@@ -737,6 +738,99 @@ def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> Non
     assert "direct_reference_accuracy" not in serialized
     assert '"operator"' not in serialized
     assert '"observed"' not in serialized
+
+
+def test_gold_evaluator_binds_the_complete_accepted_project(tmp_path: Path) -> None:
+    runtime_result = _runtime_result()
+    accepted = runtime_result["blackboard"]["artifacts"][
+        "accepted_algorithm_handoff:test"
+    ]["exact_algorithm_artifacts"][0]
+    support_source = "def identity(value):\n    return value\n"
+    project_files = [{"path": "support.py", "content": support_source}]
+    project_hash = scientific_project_hash(
+        language="python",
+        code=accepted["exact_source_code"],
+        project_files=project_files,
+    )
+    accepted["exact_project_files"] = project_files
+    accepted["exact_project_hash"] = project_hash
+    implementation = runtime_result["blackboard"]["artifacts"][
+        "accepted_implementation_interface_handoff:test"
+    ]
+    implementation["source_accepted_algorithm_handoff_hash"] = stable_hash(
+        runtime_result["blackboard"]["artifacts"][
+            "accepted_algorithm_handoff:test"
+        ]
+    )
+    captured = {}
+
+    def project_harness(**kwargs) -> dict:
+        binding = kwargs["estimator_binding"]
+        captured["project_hash"] = binding.project_hash
+        captured["project_files"] = binding.project_files
+        return _passing_harness(**kwargs)
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=GOLD_MANIFEST,
+        out_dir=tmp_path,
+        run_harness=project_harness,
+    )
+
+    task = result["tasks"][0]
+    assert task["evaluated_project_hash"] == project_hash
+    assert captured["project_hash"] == project_hash
+    assert [row.path for row in captured["project_files"]] == ["support.py"]
+    assert captured["project_files"][0].content == support_source
+
+
+@pytest.mark.parametrize("identity_failure", ["missing", "stale"])
+def test_gold_evaluator_rejects_unbound_or_stale_multifile_project(
+    tmp_path: Path,
+    identity_failure: str,
+) -> None:
+    runtime_result = _runtime_result()
+    accepted = runtime_result["blackboard"]["artifacts"][
+        "accepted_algorithm_handoff:test"
+    ]["exact_algorithm_artifacts"][0]
+    original_files = [
+        {"path": "support.py", "content": "VALUE = 1\n"}
+    ]
+    accepted["exact_project_files"] = deepcopy(original_files)
+    if identity_failure == "stale":
+        accepted["exact_project_hash"] = scientific_project_hash(
+            language="python",
+            code=accepted["exact_source_code"],
+            project_files=original_files,
+        )
+        accepted["exact_project_files"][0]["content"] = "VALUE = 2\n"
+    implementation = runtime_result["blackboard"]["artifacts"][
+        "accepted_implementation_interface_handoff:test"
+    ]
+    implementation["source_accepted_algorithm_handoff_hash"] = stable_hash(
+        runtime_result["blackboard"]["artifacts"][
+            "accepted_algorithm_handoff:test"
+        ]
+    )
+    calls = []
+
+    def forbidden_harness(**kwargs) -> dict:
+        calls.append(kwargs)
+        return _passing_harness(**kwargs)
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=GOLD_MANIFEST,
+        out_dir=tmp_path / identity_failure,
+        run_harness=forbidden_harness,
+    )
+
+    assert calls == []
+    assert "accepted estimator project hash is invalid" in result["tasks"][0][
+        "failure_reasons"
+    ]
 
 
 def test_source_replication_component_is_scored_post_runtime_without_algorithm(

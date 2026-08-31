@@ -53,6 +53,11 @@ from .scientific_sandbox import (
     normalized_generated_code_language,
     normalized_scientific_dependencies,
 )
+from .scientific_project import (
+    normalized_scientific_project_files,
+    scientific_main_path,
+    scientific_project_hash,
+)
 
 GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 38
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
@@ -118,6 +123,19 @@ def _exact_estimator_probe_targets(
         source = str(raw.get("exact_source_code", "") or "")
         language = normalized_generated_code_language(row.get("language"))
         source_hash = stable_hash(source)
+        try:
+            project_files = normalized_scientific_project_files(
+                raw.get("exact_project_files", []),
+                language=language,
+            )
+            project_hash = scientific_project_hash(
+                language=language,
+                code=source,
+                project_files=project_files,
+            )
+        except ValueError:
+            continue
+        persisted_project_hash = str(raw.get("exact_project_hash", "") or "")
         if not (
             artifact_id
             and artifact_id not in targets
@@ -125,6 +143,10 @@ def _exact_estimator_probe_targets(
             and language in SCIENTIFIC_SANDBOX_LANGUAGES
             and raw.get("exact_source_hash") == source_hash
             and row.get("script_hash") == source_hash
+            and (
+                persisted_project_hash == project_hash
+                or (not project_files and not persisted_project_hash)
+            )
             and (
                 row.get("smoke_passed") is True
                 or row.get("execution_smoke_passed") is True
@@ -139,6 +161,8 @@ def _exact_estimator_probe_targets(
             "dependencies": normalized_scientific_dependencies(
                 row.get("dependencies", []), language=language
             ),
+            "project_files": project_files,
+            "project_hash": project_hash,
         }
     return targets
 
@@ -820,15 +844,44 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                                        frozen_estimator_execution_contract_empirical_claim_ids(contract))
         if contract_probe_target not in probe_targets:
             contract_probe_target, contract_probe_required = "", False
-        refresh_targets = {
-            str(row.get("artifact_id", "") or ""): str(
-                row.get("exact_source_code", "") or ""
-            )
-            for row in review_material.get("exact_executed_artifacts", []) or []
-            if isinstance(row, Mapping)
-            and str(row.get("artifact_id", "") or "")
-            and str(row.get("exact_source_code", "") or "")
-        } if _active_prior_findings(review_material) else {}
+        refresh_targets: dict[str, dict[str, Any]] = {}
+        if _active_prior_findings(review_material):
+            for row in review_material.get("exact_executed_artifacts", []) or []:
+                if not isinstance(row, Mapping):
+                    continue
+                artifact_id = str(row.get("artifact_id", "") or "").strip()
+                source = str(row.get("exact_source_code", "") or "")
+                source_row = row.get("source_row", {})
+                language = normalized_generated_code_language(
+                    source_row.get("language")
+                    if isinstance(source_row, Mapping)
+                    else ""
+                )
+                if not artifact_id or not source:
+                    continue
+                try:
+                    project_files = normalized_scientific_project_files(
+                        row.get("exact_project_files", []),
+                        language=language,
+                    )
+                except ValueError:
+                    continue
+                files = {
+                    scientific_main_path(language): source,
+                    **{
+                        project_file.path: project_file.content
+                        for project_file in project_files
+                    },
+                }
+                refresh_targets[artifact_id] = {
+                    "language": language,
+                    "files": files,
+                    "project_hash": scientific_project_hash(
+                        language=language,
+                        code=source,
+                        project_files=project_files,
+                    ),
+                }
         source_tools = research_source_client_tools() if research_sources else ()
         source_budget = GENERATED_CODE_SEMANTIC_REVIEW_MAX_RESEARCH_SOURCE_CALLS if source_tools else 0
         source_descriptor = (
@@ -844,14 +897,20 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         refresh_tool = ClientToolDefinition(
             name=GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL,
             description=(
-                "Read the complete immutable current target source after a producer revision. "
-                "This fresh observation supersedes prior source descriptions."
+                "Read one exact file from the immutable current target project after a "
+                "producer revision. Omit path for the main source. The returned manifest "
+                "lists every available file."
             ),
             input_schema={
                 "type": "object", "additionalProperties": False,
                 "required": ["artifact_id"],
-                "properties": {"artifact_id": {"type": "string",
-                                                  "enum": list(refresh_targets)}},
+                "properties": {
+                    "artifact_id": {
+                        "type": "string",
+                        "enum": list(refresh_targets),
+                    },
+                    "path": {"type": "string", "minLength": 1},
+                },
             },
         )
         probe_schema: dict[str, Any] = {
@@ -1029,15 +1088,33 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 )
             if call.name == GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL:
                 artifact_id = str(call.input.get("artifact_id", "") or "")
-                source = refresh_targets.get(artifact_id, "")
-                if not source:
+                target = refresh_targets.get(artifact_id, {})
+                if not target:
                     raise ClientToolInputError("unknown current generated source artifact")
+                files = target["files"]
+                main_path = scientific_main_path(str(target["language"]))
+                path = str(call.input.get("path", "") or main_path).strip()
+                source = files.get(path, "")
+                if not source:
+                    raise ClientToolInputError(
+                        "unknown current generated project file: " + path
+                    )
                 refreshed_source_ids.add(artifact_id)
                 source_lines = source.splitlines()
                 observation = {
                     "artifact_kind": "CurrentGeneratedSourceObservation",
                     "artifact_id": artifact_id,
+                    "path": path,
                     "exact_source_hash": stable_hash(source),
+                    "exact_project_hash": target["project_hash"],
+                    "file_manifest": [
+                        {
+                            "path": file_path,
+                            "content_hash": stable_hash(content),
+                            "line_count": len(content.splitlines()),
+                        }
+                        for file_path, content in sorted(files.items())
+                    ],
                     "line_count": len(source_lines),
                     "source_with_line_numbers": "\n".join(
                         f"{index:6d}  {line}"

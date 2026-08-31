@@ -36,6 +36,10 @@ from ai_statistician.scientific_sandbox import (
     normalized_generated_code_profile,
     scientific_python_safety_errors,
 )
+from ai_statistician.scientific_project import (
+    normalized_scientific_project_files,
+    scientific_project_hash,
+)
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     ScientificSourceWorkspaceUnavailableError,
@@ -1284,9 +1288,18 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
         resource_limits={"cpu_seconds": 5},
         execution_envelope_hash="execution-envelope-hash",
         estimator_code_hashes={"candidate": stable_hash(algorithm)},
+        estimator_project_hashes={
+            "candidate": scientific_project_hash(
+                language="python", code=algorithm
+            )
+        },
         estimator_invocation_counts={"candidate": 3},
         estimator_binding_hash=stable_hash(
-            {"candidate": stable_hash(algorithm)}
+            {
+                "candidate": scientific_project_hash(
+                    language="python", code=algorithm
+                )
+            }
         ),
     )
     seen: dict[str, object] = {}
@@ -1307,6 +1320,9 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
                 "dependencies": [],
                 "exact_source_code": algorithm,
                 "exact_source_hash": stable_hash(algorithm),
+                "exact_project_hash": scientific_project_hash(
+                    language="python", code=algorithm
+                ),
             },
             {
                 "estimator_id": "unused-candidate",
@@ -1314,6 +1330,9 @@ def test_runtime_simulation_dispatch_records_mechanical_estimator_reuse(
                 "dependencies": [],
                 "exact_source_code": unused_algorithm,
                 "exact_source_hash": stable_hash(unused_algorithm),
+                "exact_project_hash": scientific_project_hash(
+                    language="python", code=unused_algorithm
+                ),
             },
         ]
     }
@@ -1947,7 +1966,162 @@ def test_live_estimator_bound_simulation_invokes_exact_reviewed_source(
             "response": {"estimate": 6},
         }
     ]
-    assert result.estimator_binding_hash == stable_hash(result.estimator_code_hashes)
+
+
+@pytest.mark.parametrize(
+    ("language", "dependencies", "main_source", "support_path", "support_source"),
+    [
+        (
+            "python",
+            [],
+            "from helper import scale\n\n"
+            "def run_sandbox(seed, replicates):\n"
+            "    return {'value': scale(seed), 'n': replicates}\n",
+            "helper.py",
+            "def scale(value):\n    return value * 3\n",
+        ),
+        (
+            "r",
+            ["base", "stats"],
+            "source('helper.R', local=TRUE)\n"
+            "run_sandbox <- function(seed, replicates) "
+            "list(value=scale(seed), n=replicates)\n",
+            "helper.R",
+            "scale <- function(value) value * 3\n",
+        ),
+    ],
+)
+def test_live_scientific_project_executes_model_authored_support_files(
+    tmp_path: Path,
+    language: str,
+    dependencies: list[str],
+    main_source: str,
+    support_path: str,
+    support_source: str,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    available = runtime.python_available if language == "python" else runtime.r_available
+    if not available:
+        pytest.skip("pinned scientific WASM runtime is not installed on this host")
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id=f"project-{language}",
+        language=language,
+        code=main_source,
+        project_files=[{"path": support_path, "content": support_source}],
+        dependencies=dependencies,
+        seed=4,
+        replicates=9,
+        timeout_s=60,
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {"value": 12, "n": 9}
+    assert result.project_hash == scientific_project_hash(
+        language=language,
+        code=main_source,
+        project_files=[{"path": support_path, "content": support_source}],
+    )
+    assert set(result.project_file_paths) == {support_path}
+    assert set(result.project_file_hashes) == {support_path}
+    request = json.loads(Path(result.request_path).read_text(encoding="utf-8"))
+    assert request["project_hash"] == result.project_hash
+    assert request["code_sha256"] == hashlib.sha256(
+        main_source.encode("utf-8")
+    ).hexdigest()
+    assert [row["path"] for row in request["project_files"]] == [support_path]
+
+
+@pytest.mark.parametrize(
+    ("language", "dependencies", "simulation", "algorithm", "support_path", "support_source"),
+    [
+        (
+            "python",
+            [],
+            "from helper import scale\n\n"
+            "def run_sandbox(seed, replicates, estimators):\n"
+            "    fitted = estimators['candidate']({'x': seed})\n"
+            "    return {'combined': scale(seed) + fitted['value']}\n",
+            "from helper import scale\n\n"
+            "def run_estimator(request):\n"
+            "    return {'value': scale(request['x'])}\n",
+            "helper.py",
+            "def scale(value):\n    return value * 5\n",
+        ),
+        (
+            "r",
+            ["base", "stats"],
+            "scale <- function(x) 2 * x\n"
+            "run_sandbox <- function(seed, replicates, estimators) { "
+            "fitted <- estimators[['candidate']](list(x=seed)); "
+            "list(combined=scale(seed) + fitted$value) }\n",
+            "source('helper.R', local=TRUE)\n"
+            "run_estimator <- function(request) list(value=scale(request$x))\n",
+            "helper.R",
+            "scale <- function(value) value * 5\n",
+        ),
+    ],
+)
+def test_live_bound_estimator_project_preserves_exact_support_files(
+    tmp_path: Path,
+    language: str,
+    dependencies: list[str],
+    simulation: str,
+    algorithm: str,
+    support_path: str,
+    support_source: str,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    available = runtime.python_available if language == "python" else runtime.r_available
+    if not available:
+        pytest.skip("pinned scientific WASM runtime is not installed on this host")
+    estimator_files = normalized_scientific_project_files(
+        [{"path": support_path, "content": support_source}],
+        language=language,
+    )
+    estimator_project_hash = scientific_project_hash(
+        language=language,
+        code=algorithm,
+        project_files=estimator_files,
+    )
+    simulation_files = (
+        [{"path": "helper.py", "content": "def scale(value):\n    return value * 2\n"}]
+        if language == "python"
+        else []
+    )
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id=f"bound-project-{language}",
+        language=language,
+        code=simulation,
+        project_files=simulation_files,
+        dependencies=dependencies,
+        seed=3,
+        replicates=2,
+        timeout_s=60,
+        estimator_bindings=(
+            ScientificEstimatorBinding(
+                artifact_id="candidate",
+                language=language,
+                code=algorithm,
+                code_hash=stable_hash(algorithm),
+                dependencies=tuple(dependencies),
+                project_files=estimator_files,
+                project_hash=estimator_project_hash,
+            ),
+        ),
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {"combined": 21}
+    assert result.estimator_project_hashes == {
+        "candidate": estimator_project_hash
+    }
+    assert result.estimator_binding_hash == stable_hash(
+        result.estimator_project_hashes
+    )
 
 
 def test_live_estimator_binding_exposes_only_json_normalized_request(

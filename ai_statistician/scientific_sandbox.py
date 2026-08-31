@@ -13,6 +13,15 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .scientific_project import (
+    ScientificProjectFile,
+    normalized_scientific_project_files,
+    scientific_main_path,
+    scientific_project_file_errors,
+    scientific_project_files_json_schema,
+    scientific_project_hash,
+    scientific_python_local_import_roots,
+)
 
 try:  # POSIX execution is required only when an isolation provider is available.
     import resource
@@ -98,6 +107,8 @@ class ScientificEstimatorBinding:
     code: str
     code_hash: str
     dependencies: tuple[str, ...] = ()
+    project_files: tuple[ScientificProjectFile, ...] = ()
+    project_hash: str = ""
 
 
 @dataclass(frozen=True)
@@ -133,12 +144,16 @@ class ScientificSandboxExecution:
     result_hash: str
     subprocess_environment_keys: tuple[str, ...]
     resource_limits: dict[str, int]
+    project_hash: str = ""
+    project_file_paths: dict[str, str] = field(default_factory=dict)
+    project_file_hashes: dict[str, str] = field(default_factory=dict)
     execution_envelope_path: str = ""
     execution_envelope_hash: str = ""
     invocation_mode: str = "standalone"
     required_callable_exports: tuple[str, ...] = ()
     estimator_code_paths: dict[str, str] = field(default_factory=dict)
     estimator_code_hashes: dict[str, str] = field(default_factory=dict)
+    estimator_project_hashes: dict[str, str] = field(default_factory=dict)
     estimator_invocation_counts: dict[str, int] = field(default_factory=dict)
     estimator_invocation_samples: dict[str, list[dict[str, Any]]] = field(
         default_factory=dict
@@ -246,6 +261,12 @@ def generated_code_execution_contract_errors(draft: Mapping[str, Any]) -> list[s
         errors.append("generated code draft is empty")
     if len(code) > 100_000:
         errors.append("generated code draft exceeds artifact-size boundary")
+    errors.extend(
+        scientific_project_file_errors(
+            draft.get("project_files", []),
+            language=language,
+        )
+    )
     return sorted(set(errors))
 
 
@@ -282,6 +303,7 @@ def scientific_python_safety_errors(
     *,
     dependencies: Sequence[str],
     required_functions: Sequence[str] = ("run_sandbox",),
+    local_import_roots: Sequence[str] = (),
 ) -> list[str]:
     if not str(code or "").strip():
         return ["empty generated scientific Python draft"]
@@ -296,6 +318,7 @@ def scientific_python_safety_errors(
         )
     stdlib_roots = set(getattr(sys, "stdlib_module_names", ()))
     stdlib_roots.add("__future__")
+    local_roots = {str(value) for value in local_import_roots if str(value)}
     forbidden_calls = {
         "__import__",
         "breakpoint",
@@ -373,14 +396,15 @@ def scientific_python_safety_errors(
                         + alias.name
                     )
                 elif root not in stdlib_roots and root not in declared_package_roots:
-                    errors.append(
-                        "generated scientific Python third-party import is not "
-                        "declared: "
-                        + alias.name
-                    )
+                    if root not in local_roots:
+                        errors.append(
+                            "generated scientific Python third-party import is not "
+                            "declared: "
+                            + alias.name
+                        )
         elif isinstance(node, ast.ImportFrom):
             root = str(node.module or "").split(".", 1)[0]
-            if node.level:
+            if node.level and not local_roots:
                 errors.append(
                     "generated scientific Python relative import is forbidden: "
                     + str(node.module or "")
@@ -391,7 +415,12 @@ def scientific_python_safety_errors(
                     "isolated runtime: "
                     + str(node.module or "")
                 )
-            elif root not in stdlib_roots and root not in declared_package_roots:
+            elif (
+                not node.level
+                and root not in stdlib_roots
+                and root not in declared_package_roots
+                and root not in local_roots
+            ):
                 errors.append(
                     "generated scientific Python third-party from-import is not "
                     "declared: "
@@ -456,6 +485,10 @@ def scientific_sandbox_contract(
                 "function_contract": (
                     "run_sandbox(seed, replicates) returns a named JSON-finite metric object"
                 ),
+                "project_contract": (
+                    "The main source may import or source model-authored support files "
+                    "from one isolated hash-bound Python/R project."
+                ),
                 "estimator_binding_contract": (
                     "A confirmatory DGP harness defines run_sandbox(seed, replicates, "
                     "estimators). Each exact reviewed algorithm exports module-level "
@@ -505,6 +538,7 @@ def generated_code_draft_json_schema(
             "minLength": 1,
             "maxLength": max(1, int(code_max_length)),
         },
+        "project_files": scientific_project_files_json_schema(),
     }
 
     dependency_values = list(
@@ -768,7 +802,9 @@ def _empty_execution(
     errors: Sequence[str],
     sandbox_dir: Path,
     code_hash: str,
+    project_hash: str,
     resource_limits: Mapping[str, int],
+    project_files: Sequence[ScientificProjectFile] = (),
     estimator_bindings: Sequence[ScientificEstimatorBinding] = (),
     estimator_binding_errors: Sequence[str] = (),
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
@@ -777,6 +813,9 @@ def _empty_execution(
     backend = "webr" if language == "r" else "pyodide"
     estimator_code_hashes = {
         binding.artifact_id: binding.code_hash for binding in estimator_bindings
+    }
+    estimator_project_hashes = {
+        binding.artifact_id: binding.project_hash for binding in estimator_bindings
     }
     input_artifact_hashes = {
         binding.artifact_id: binding.content_sha256
@@ -800,6 +839,8 @@ def _empty_execution(
         request_path="",
         result_path="",
         code_hash=code_hash,
+        project_hash=project_hash,
+        project_file_hashes={row.path: row.content_sha256 for row in project_files},
         request_hash="",
         result_hash="",
         subprocess_environment_keys=tuple(
@@ -809,8 +850,11 @@ def _empty_execution(
         invocation_mode="estimator_bound" if estimator_bindings else "standalone",
         required_callable_exports=tuple(required_callable_exports),
         estimator_code_hashes=estimator_code_hashes,
+        estimator_project_hashes=estimator_project_hashes,
         estimator_binding_hash=(
-            stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
+            stable_hash(estimator_project_hashes)
+            if estimator_project_hashes
+            else ""
         ),
         estimator_binding_errors=tuple(estimator_binding_errors),
         input_artifact_hashes=input_artifact_hashes,
@@ -828,6 +872,7 @@ def execute_scientific_sandbox(
     artifact_id: str,
     language: str,
     code: str,
+    project_files: Sequence[ScientificProjectFile | Mapping[str, Any]] = (),
     dependencies: Sequence[str],
     seed: int,
     replicates: int,
@@ -845,19 +890,75 @@ def execute_scientific_sandbox(
         dependencies,
         language=language,
     )
-    normalized_bindings = tuple(
-        ScientificEstimatorBinding(
-            artifact_id=str(binding.artifact_id or "").strip(),
-            language=normalized_generated_code_language(binding.language),
-            code=str(binding.code or ""),
-            code_hash=str(binding.code_hash or "").strip(),
-            dependencies=normalized_scientific_dependencies(
-                binding.dependencies,
-                language=normalized_generated_code_language(binding.language),
-            ),
-        )
-        for binding in estimator_bindings
+    project_file_errors = scientific_project_file_errors(
+        project_files,
+        language=language,
     )
+    normalized_project_files = (
+        ()
+        if project_file_errors
+        else normalized_scientific_project_files(project_files, language=language)
+    )
+    computed_project_hash = (
+        scientific_project_hash(
+            language=language,
+            code=code,
+            project_files=normalized_project_files,
+        )
+        if not project_file_errors
+        else ""
+    )
+    normalized_binding_rows: list[ScientificEstimatorBinding] = []
+    binding_project_errors: list[str] = []
+    for binding in estimator_bindings:
+        binding_language = normalized_generated_code_language(binding.language)
+        raw_binding_files = tuple(binding.project_files or ())
+        file_errors = scientific_project_file_errors(
+            raw_binding_files,
+            language=binding_language,
+        )
+        if file_errors:
+            binding_project_errors.extend(
+                f"estimator binding {binding.artifact_id}: {error}"
+                for error in file_errors
+            )
+            normalized_binding_files: tuple[ScientificProjectFile, ...] = ()
+            computed_binding_project_hash = ""
+        else:
+            normalized_binding_files = normalized_scientific_project_files(
+                raw_binding_files,
+                language=binding_language,
+            )
+            computed_binding_project_hash = scientific_project_hash(
+                language=binding_language,
+                code=str(binding.code or ""),
+                project_files=normalized_binding_files,
+            )
+        supplied_project_hash = str(binding.project_hash or "").strip()
+        if (
+            supplied_project_hash
+            and computed_binding_project_hash
+            and supplied_project_hash != computed_binding_project_hash
+        ):
+            binding_project_errors.append(
+                "estimator binding project hash mismatch: "
+                + str(binding.artifact_id or "").strip()
+            )
+        normalized_binding_rows.append(
+            ScientificEstimatorBinding(
+                artifact_id=str(binding.artifact_id or "").strip(),
+                language=binding_language,
+                code=str(binding.code or ""),
+                code_hash=str(binding.code_hash or "").strip(),
+                dependencies=normalized_scientific_dependencies(
+                    binding.dependencies,
+                    language=binding_language,
+                ),
+                project_files=normalized_binding_files,
+                project_hash=computed_binding_project_hash,
+            )
+        )
+    normalized_bindings = tuple(normalized_binding_rows)
     normalized_input_artifacts = tuple(
         ScientificInputArtifactBinding(
             artifact_id=str(binding.artifact_id or "").strip(),
@@ -889,13 +990,32 @@ def execute_scientific_sandbox(
             "dependencies": list(dependencies),
             "entrypoint": "run_sandbox",
             "code": code,
+            "project_files": [row.to_json() for row in normalized_project_files],
         }
     )
+    contract_errors.extend(project_file_errors)
     if language == "python":
-        contract_errors.extend(
-            scientific_python_safety_errors(code, dependencies=dependencies)
+        local_import_roots = scientific_python_local_import_roots(
+            normalized_project_files
         )
+        contract_errors.extend(
+            scientific_python_safety_errors(
+                code,
+                dependencies=dependencies,
+                local_import_roots=local_import_roots,
+            )
+        )
+        for project_file in normalized_project_files:
+            contract_errors.extend(
+                scientific_python_safety_errors(
+                    project_file.content,
+                    dependencies=dependencies,
+                    required_functions=(),
+                    local_import_roots=local_import_roots,
+                )
+            )
     binding_contract_errors: list[str] = []
+    binding_contract_errors.extend(binding_project_errors)
     binding_ids: set[str] = set()
     for binding in normalized_bindings:
         if not binding.artifact_id:
@@ -936,13 +1056,26 @@ def execute_scientific_sandbox(
                 + ", ".join(unsupported_binding_dependencies)
             )
         if binding.language == "python":
+            binding_local_import_roots = scientific_python_local_import_roots(
+                binding.project_files
+            )
             binding_contract_errors.extend(
                 scientific_python_safety_errors(
                     binding.code,
                     dependencies=binding.dependencies,
                     required_functions=("run_estimator",),
+                    local_import_roots=binding_local_import_roots,
                 )
             )
+            for project_file in binding.project_files:
+                binding_contract_errors.extend(
+                    scientific_python_safety_errors(
+                        project_file.content,
+                        dependencies=binding.dependencies,
+                        required_functions=(),
+                        local_import_roots=binding_local_import_roots,
+                    )
+                )
     contract_errors.extend(binding_contract_errors)
     if estimator_transport not in {"json_finite", "native"}:
         contract_errors.append("estimator transport must be json_finite or native")
@@ -993,7 +1126,9 @@ def execute_scientific_sandbox(
             errors=sorted(set(contract_errors)),
             sandbox_dir=sandbox_dir,
             code_hash=code_hash,
+            project_hash=computed_project_hash,
             resource_limits=limits,
+            project_files=normalized_project_files,
             estimator_bindings=normalized_bindings,
             estimator_binding_errors=sorted(set(binding_contract_errors)),
             input_artifacts=normalized_input_artifacts,
@@ -1014,7 +1149,9 @@ def execute_scientific_sandbox(
             ),
             sandbox_dir=sandbox_dir,
             code_hash=code_hash,
+            project_hash=computed_project_hash,
             resource_limits=limits,
+            project_files=normalized_project_files,
             estimator_bindings=normalized_bindings,
             input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
@@ -1033,7 +1170,9 @@ def execute_scientific_sandbox(
             errors=cache_errors,
             sandbox_dir=sandbox_dir,
             code_hash=code_hash,
+            project_hash=computed_project_hash,
             resource_limits=limits,
+            project_files=normalized_project_files,
             estimator_bindings=normalized_bindings,
             input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
@@ -1053,8 +1192,9 @@ def execute_scientific_sandbox(
             "seed": int(seed),
             "replicates": int(replicates),
             "code_hash": code_hash,
+            "project_hash": computed_project_hash,
             "estimator_bindings": {
-                binding.artifact_id: binding.code_hash
+                binding.artifact_id: binding.project_hash
                 for binding in normalized_bindings
             },
             "estimator_transport": estimator_transport,
@@ -1074,13 +1214,32 @@ def execute_scientific_sandbox(
     stdout_path = sandbox_dir / f"{safe_id}_{execution_key}_stdout.txt"
     stderr_path = sandbox_dir / f"{safe_id}_{execution_key}_stderr.txt"
     code_path.write_text(code, encoding="utf-8")
+    project_root = sandbox_dir / f"{safe_id}_{execution_key}_project"
+    project_file_paths: dict[str, Path] = {}
+    for project_file in normalized_project_files:
+        support_path = project_root / project_file.path
+        support_path.parent.mkdir(parents=True, exist_ok=True)
+        support_path.write_text(project_file.content, encoding="utf-8")
+        project_file_paths[project_file.path] = support_path
     estimator_code_paths: dict[str, Path] = {}
+    estimator_project_file_paths: dict[str, dict[str, Path]] = {}
     for index, binding in enumerate(normalized_bindings):
         estimator_path = sandbox_dir / (
             f"{safe_id}_{execution_key}_estimator_{index}.{extension}"
         )
         estimator_path.write_text(binding.code, encoding="utf-8")
         estimator_code_paths[binding.artifact_id] = estimator_path
+        estimator_project_root = sandbox_dir / (
+            f"{safe_id}_{execution_key}_estimator_{index}_project"
+        )
+        estimator_project_file_paths[binding.artifact_id] = {}
+        for project_file in binding.project_files:
+            support_path = estimator_project_root / project_file.path
+            support_path.parent.mkdir(parents=True, exist_ok=True)
+            support_path.write_text(project_file.content, encoding="utf-8")
+            estimator_project_file_paths[binding.artifact_id][
+                project_file.path
+            ] = support_path
     input_artifact_paths: dict[str, Path] = {}
     for index, binding in enumerate(normalized_input_artifacts):
         input_path = sandbox_dir / (
@@ -1104,6 +1263,19 @@ def execute_scientific_sandbox(
         "replicates": int(replicates),
         "code_path": str(code_path.resolve()),
         "code_hash": code_hash,
+        "code_sha256": hashlib.sha256(code.encode("utf-8")).hexdigest(),
+        "main_path": scientific_main_path(language),
+        "project_hash": computed_project_hash,
+        "project_files": [
+            {
+                "path": project_file.path,
+                "content_path": str(
+                    project_file_paths[project_file.path].resolve()
+                ),
+                "sha256": project_file.content_sha256,
+            }
+            for project_file in normalized_project_files
+        ],
         "invocation_mode": (
             "estimator_bound" if normalized_bindings else "standalone"
         ),
@@ -1118,6 +1290,23 @@ def execute_scientific_sandbox(
                 "dependencies": list(binding.dependencies),
                 "code_path": str(estimator_code_paths[binding.artifact_id].resolve()),
                 "code_hash": binding.code_hash,
+                "code_sha256": hashlib.sha256(
+                    binding.code.encode("utf-8")
+                ).hexdigest(),
+                "main_path": scientific_main_path(binding.language),
+                "project_hash": binding.project_hash,
+                "project_files": [
+                    {
+                        "path": project_file.path,
+                        "content_path": str(
+                            estimator_project_file_paths[binding.artifact_id][
+                                project_file.path
+                            ].resolve()
+                        ),
+                        "sha256": project_file.content_sha256,
+                    }
+                    for project_file in binding.project_files
+                ],
             }
             for binding in normalized_bindings
         ],
@@ -1169,7 +1358,13 @@ def execute_scientific_sandbox(
             readable_paths=(
                 code_path,
                 request_path,
+                *project_file_paths.values(),
                 *estimator_code_paths.values(),
+                *(
+                    path
+                    for paths in estimator_project_file_paths.values()
+                    for path in paths.values()
+                ),
                 *input_artifact_paths.values(),
             ),
             writable_paths=(result_path, stdout_path, stderr_path),
@@ -1297,6 +1492,9 @@ def execute_scientific_sandbox(
     estimator_code_hashes = {
         binding.artifact_id: binding.code_hash for binding in normalized_bindings
     }
+    estimator_project_hashes = {
+        binding.artifact_id: binding.project_hash for binding in normalized_bindings
+    }
     input_artifact_hashes = {
         binding.artifact_id: binding.content_sha256
         for binding in normalized_input_artifacts
@@ -1319,6 +1517,13 @@ def execute_scientific_sandbox(
         request_path=str(request_path),
         result_path=str(metrics_path if metrics else result_path),
         code_hash=code_hash,
+        project_hash=computed_project_hash,
+        project_file_paths={
+            path: str(file_path) for path, file_path in project_file_paths.items()
+        },
+        project_file_hashes={
+            row.path: row.content_sha256 for row in normalized_project_files
+        },
         request_hash=request_hash,
         result_hash=stable_hash(metrics) if metrics else "",
         subprocess_environment_keys=tuple(sorted(environment)),
@@ -1334,10 +1539,13 @@ def execute_scientific_sandbox(
             for artifact_id, path in estimator_code_paths.items()
         },
         estimator_code_hashes=estimator_code_hashes,
+        estimator_project_hashes=estimator_project_hashes,
         estimator_invocation_counts=estimator_invocation_counts,
         estimator_invocation_samples=estimator_invocation_samples,
         estimator_binding_hash=(
-            stable_hash(estimator_code_hashes) if estimator_code_hashes else ""
+            stable_hash(estimator_project_hashes)
+            if estimator_project_hashes
+            else ""
         ),
         estimator_binding_errors=runtime_estimator_binding_errors,
         estimator_runtime_failure_ids=estimator_runtime_failure_ids,
