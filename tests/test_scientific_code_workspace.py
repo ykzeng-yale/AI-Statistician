@@ -107,17 +107,21 @@ class FakeScientificDiscovery:
 
     def read(self, source_handle, **kwargs):
         self.reads.append(source_handle)
-        content = "def published_method(x):\n    return sum(x) / len(x)\n"
+        path = str(kwargs.get("path", "method.py") or "method.py")
+        content = {
+            "method.py": "def published_method(x):\n    return sum(x) / len(x)\n",
+            "adjust.py": "def adjust(x):\n    return x + 1\n",
+        }.get(path, "# inspected repository file\n")
         return {
             "ok": True,
             "provider": self.provider_name,
             "source_handle": source_handle,
             "source_kind": "repository",
             "title": "Published implementation",
-            "url": "https://github.com/example/published/blob/abc123/method.py",
+            "url": "https://github.com/example/published/blob/abc123/" + path,
             "publication_date": "2025-01-02",
             "revision": "abc123",
-            "path": "method.py",
+            "path": path,
             "content": content,
             "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
             "content_line_count": 2,
@@ -125,7 +129,7 @@ class FakeScientificDiscovery:
             "line_start": 1,
             "line_end": 2,
             "content_range_sha256": "range-sha256",
-            "citation_ref": "public:published-implementation:method.py:1-2",
+            "citation_ref": "public:published-implementation:" + path + ":1-2",
         }
 
 
@@ -135,10 +139,13 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
         "    return sum(x) / len(x)\n"
     )
     published_sha256 = hashlib.sha256(published_source.encode()).hexdigest()
+    adjustment_source = "def adjust(x):\n    return x + 1\n"
+    adjustment_sha256 = hashlib.sha256(adjustment_source.encode()).hexdigest()
     main_source = (
         "from method import published_method\n\n"
+        "from adjust import adjust\n\n"
         "def run_sandbox(seed, replicates):\n"
-        "    return {'value': published_method([seed, replicates])}\n"
+        "    return {'value': adjust(published_method([seed, replicates]))}\n"
     )
     backend = ScriptedScientificBackend([
         _response(ClientToolCall(
@@ -155,29 +162,46 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
         _response(ClientToolCall(
             call_id="import-before-read",
             name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
-            input={
+            input={"imports": [{
                 "source_handle": "source:published-implementation",
                 "revision": "abc123", "source_path": "method.py",
                 "expected_content_sha256": published_sha256,
                 "project_path": "method.py",
-            },
+            }]},
         )),
-        _response(ClientToolCall(
-            call_id="read-source", name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
-            input={
-                "source_handle": "source:published-implementation",
-                "path": "method.py", "revision": "abc123",
-            },
-        )),
+        _response(
+            ClientToolCall(
+                call_id="read-method", name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                input={
+                    "source_handle": "source:published-implementation",
+                    "path": "method.py", "revision": "abc123",
+                },
+            ),
+            ClientToolCall(
+                call_id="read-adjust", name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                input={
+                    "source_handle": "source:published-implementation",
+                    "path": "adjust.py", "revision": "abc123",
+                },
+            ),
+        ),
         _response(ClientToolCall(
             call_id="import-source",
             name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
-            input={
-                "source_handle": "source:published-implementation",
-                "revision": "abc123", "source_path": "method.py",
-                "expected_content_sha256": published_sha256,
-                "project_path": "method.py",
-            },
+            input={"imports": [
+                {
+                    "source_handle": "source:published-implementation",
+                    "revision": "abc123", "source_path": "method.py",
+                    "expected_content_sha256": published_sha256,
+                    "project_path": "method.py",
+                },
+                {
+                    "source_handle": "source:published-implementation",
+                    "revision": "abc123", "source_path": "adjust.py",
+                    "expected_content_sha256": adjustment_sha256,
+                    "project_path": "adjust.py",
+                },
+            ]},
         )),
         _run_response(),
         _commit_response(),
@@ -187,9 +211,10 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
         rows = candidate.get("project_files", []) or []
         accepted = bool(
             candidate.get("code") == main_source
-            and len(rows) == 1
-            and rows[0].get("path") == "method.py"
-            and rows[0].get("content") == published_source
+            and {row.get("path"): row.get("content") for row in rows} == {
+                "adjust.py": adjustment_source,
+                "method.py": published_source,
+            }
         )
         return {
             "code_draft_hash": stable_hash(dict(candidate)),
@@ -226,20 +251,132 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
     )
     assert "prior complete read" in early_error["detail"]
     assert result.check_result["accepted"] is True
-    assert result.code_draft["project_files"] == [{
-        "path": "method.py",
-        "content": published_source,
-        "content_sha256": published_sha256,
-    }]
+    assert result.code_draft["project_files"] == [
+        {
+            "path": "adjust.py", "content": adjustment_source,
+            "content_sha256": adjustment_sha256,
+        },
+        {
+            "path": "method.py", "content": published_source,
+            "content_sha256": published_sha256,
+        },
+    ]
     import_ref = result.evidence["research_source_refs"][-1]
     assert import_ref["tool"] == SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
-    assert import_ref["source_content_sha256"] == published_sha256
-    assert import_ref["project_path"] == "method.py"
+    assert import_ref["source_file_count"] == 2
+    assert {
+        (row["source_path"], row["source_content_sha256"], row["project_path"])
+        for row in import_ref["imports"]
+    } == {
+        ("method.py", published_sha256, "method.py"),
+        ("adjust.py", adjustment_sha256, "adjust.py"),
+    }
     assert import_ref["resulting_project_hash"] == scientific_project_hash(
         language="python", code=main_source,
         project_files=result.code_draft["project_files"],
     )
     assert published_source not in str(result.evidence)
+
+
+def test_public_source_file_batch_is_atomic_when_one_exact_read_drifts() -> None:
+    class DriftingDiscovery(FakeScientificDiscovery):
+        def __init__(self) -> None:
+            super().__init__()
+            self.path_reads: dict[str, int] = {}
+
+        def read(self, source_handle, **kwargs):
+            observation = super().read(source_handle, **kwargs)
+            path = str(kwargs.get("path", "method.py") or "method.py")
+            self.path_reads[path] = self.path_reads.get(path, 0) + 1
+            if path == "adjust.py" and self.path_reads[path] > 1:
+                content = "def adjust(x):\n    return x + 2\n"
+                observation.update({
+                    "content": content,
+                    "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
+                })
+            return observation
+
+    method = "def published_method(x):\n    return sum(x) / len(x)\n"
+    adjust = "def adjust(x):\n    return x + 1\n"
+    main = "def run_sandbox(seed, replicates):\n    return {'seed': seed}\n"
+    imports = [
+        {
+            "source_handle": "source:published-implementation",
+            "revision": "abc123", "source_path": "method.py",
+            "expected_content_sha256": hashlib.sha256(method.encode()).hexdigest(),
+            "project_path": "method.py",
+        },
+        {
+            "source_handle": "source:published-implementation",
+            "revision": "abc123", "source_path": "adjust.py",
+            "expected_content_sha256": hashlib.sha256(adjust.encode()).hexdigest(),
+            "project_path": "adjust.py",
+        },
+    ]
+    backend = ScriptedScientificBackend([
+        _response(ClientToolCall(
+            call_id="submit", name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+            input={
+                "language": "python", "execution_profile": "stdlib",
+                "dependencies": [], "entrypoint": "run_sandbox", "code": main,
+            },
+        )),
+        _response(
+            ClientToolCall(
+                call_id="read-method", name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                input={
+                    "source_handle": "source:published-implementation",
+                    "path": "method.py", "revision": "abc123",
+                },
+            ),
+            ClientToolCall(
+                call_id="read-adjust", name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                input={
+                    "source_handle": "source:published-implementation",
+                    "path": "adjust.py", "revision": "abc123",
+                },
+            ),
+        ),
+        _response(ClientToolCall(
+            call_id="import", name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+            input={"imports": imports},
+        )),
+        _run_response(),
+        _commit_response(),
+    ])
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Inspect exact upstream files before deciding whether to reuse them.",
+        user_prompt="Keep the current project when an atomic import fails.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=5,
+        max_no_progress_turns=3,
+        artifact_id="question:atomic-pinned-source-import",
+        initial_code_draft=None,
+        initial_check_result={"accepted": False},
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": not candidate.get("project_files"),
+        },
+        workspace_operation="initial_authoring",
+        research_source_discovery=DriftingDiscovery(),
+    )
+
+    import_error = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert import_error["error"] == "client_tool_input_rejected"
+    assert "import index 1 changed" in import_error["detail"]
+    assert result.check_result["accepted"] is True
+    assert "project_files" not in result.code_draft
+    assert not any(
+        ref.get("tool") == SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
+        for ref in result.evidence["research_source_refs"]
+    )
 
 
 def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:

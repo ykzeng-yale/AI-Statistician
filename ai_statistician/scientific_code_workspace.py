@@ -67,6 +67,7 @@ from .scientific_sandbox import (
     normalized_scientific_dependencies,
 )
 from .scientific_project import (
+    MAX_SCIENTIFIC_PROJECT_FILES,
     normalized_scientific_project_files,
     scientific_main_path,
     scientific_project_files_json_schema,
@@ -89,7 +90,7 @@ SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
 SCIENTIFIC_PROJECT_FILE_WRITE_TOOL = "write_scientific_project_file"
 SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL = "remove_scientific_project_file"
 SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL = (
-    "import_discovered_research_source_file"
+    "import_discovered_research_source_files"
 )
 SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL = "report_bound_dependency_failure"
 SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
@@ -2201,122 +2202,179 @@ def run_scientific_code_workspace(
                 observation_key=call.name + ":" + stable_hash(source_ref or observation),
             )
         if call.name == SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL:
-            required_fields = {
-                "source_handle",
-                "revision",
-                "source_path",
-                "expected_content_sha256",
-                "project_path",
-            }
-            if set(tool_input) != required_fields:
+            if set(tool_input) != {"imports"}:
                 raise ClientToolInputError(
-                    "import_discovered_research_source_file requires source_handle, "
-                    "revision, source_path, expected_content_sha256, and project_path"
+                    "import_discovered_research_source_files requires one imports array"
                 )
             current = deepcopy(dict(state["code_draft"]))
             if not current:
                 raise ClientToolInputError(
-                    "import_discovered_research_source_file requires an existing "
+                    "import_discovered_research_source_files requires an existing "
                     "scientific source project"
                 )
-            source_handle = str(tool_input["source_handle"] or "").strip()
-            revision = str(tool_input["revision"] or "").strip()
-            source_path = str(tool_input["source_path"] or "").strip()
-            expected_sha256 = str(
-                tool_input["expected_content_sha256"] or ""
-            ).strip().lower()
-            project_path = str(tool_input["project_path"] or "").strip()
-            inspected = next(
-                (
-                    row
-                    for row in reversed(research_source_refs)
-                    if row.get("tool") == RESEARCH_SOURCE_DISCOVERY_READ_TOOL
-                    and row.get("source_kind") == "repository"
-                    and str(row.get("source_handle", "") or "") == source_handle
-                    and str(row.get("revision", "") or "") == revision
-                    and str(row.get("path", "") or "") == source_path
-                    and str(row.get("content_sha256", "") or "").lower()
-                    == expected_sha256
-                ),
-                None,
-            )
-            if inspected is None or inspected.get("content_truncated") is not False:
-                raise ClientToolInputError(
-                    "import requires a prior complete read of the exact repository "
-                    "handle, revision, path, and content SHA-256 in this workspace"
-                )
-            assert research_source_discovery is not None
-            try:
-                observation, refreshed_ref, is_error = (
-                    execute_research_source_discovery_client_tool(
-                        research_source_discovery,
-                        tool_name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
-                        tool_input={
-                            "source_handle": source_handle,
-                            "revision": revision,
-                            "path": source_path,
-                        },
-                    )
-                )
-            except ResearchSourceDiscoveryInputError as exc:
-                raise ClientToolInputError(str(exc)) from exc
-            if is_error:
-                return ClientToolExecutionResult(
-                    content=observation,
-                    is_error=True,
-                    observation_key=(
-                        SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
-                        + ":"
-                        + stable_hash(observation)
-                    ),
-                )
-            content = str(observation.get("content", "") or "")
-            actual_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            raw_imports = tool_input["imports"]
             if (
-                observation.get("source_kind") != "repository"
-                or observation.get("content_truncated") is not False
-                or str(observation.get("source_handle", "") or "")
-                != source_handle
-                or str(observation.get("revision", "") or "") != revision
-                or str(observation.get("path", "") or "") != source_path
-                or str(observation.get("content_sha256", "") or "").lower()
-                != expected_sha256
-                or actual_sha256 != expected_sha256
+                not isinstance(raw_imports, list)
+                or not raw_imports
+                or len(raw_imports) > MAX_SCIENTIFIC_PROJECT_FILES
             ):
                 raise ClientToolInputError(
-                    "public repository source changed or did not return complete "
-                    "bytes for the inspected identity"
+                    "imports must be a nonempty bounded array"
                 )
+            required_fields = {
+                "source_handle", "revision", "source_path",
+                "expected_content_sha256", "project_path",
+            }
+            imports = []
+            project_paths: set[str] = set()
+            for index, raw_import in enumerate(raw_imports):
+                if not isinstance(raw_import, Mapping) or set(raw_import) != required_fields:
+                    raise ClientToolInputError(
+                        f"import index {index} requires source_handle, revision, "
+                        "source_path, expected_content_sha256, and project_path"
+                    )
+                row = {
+                    key: str(raw_import[key] or "").strip()
+                    for key in required_fields
+                }
+                row["expected_content_sha256"] = row[
+                    "expected_content_sha256"
+                ].lower()
+                if (
+                    any(not row[key] for key in required_fields)
+                    or len(row["expected_content_sha256"]) != 64
+                    or any(
+                        character not in "0123456789abcdef"
+                        for character in row["expected_content_sha256"]
+                    )
+                ):
+                    raise ClientToolInputError(
+                        f"import index {index} has an empty identity or invalid SHA-256"
+                    )
+                if row["project_path"] in project_paths:
+                    raise ClientToolInputError(
+                        "imports contain duplicate project path: "
+                        + row["project_path"]
+                    )
+                project_paths.add(row["project_path"])
+                inspected = next(
+                    (
+                        ref
+                        for ref in reversed(research_source_refs)
+                        if ref.get("tool") == RESEARCH_SOURCE_DISCOVERY_READ_TOOL
+                        and ref.get("source_kind") == "repository"
+                        and str(ref.get("source_handle", "") or "")
+                        == row["source_handle"]
+                        and str(ref.get("revision", "") or "") == row["revision"]
+                        and str(ref.get("path", "") or "") == row["source_path"]
+                        and str(ref.get("content_sha256", "") or "").lower()
+                        == row["expected_content_sha256"]
+                    ),
+                    None,
+                )
+                if inspected is None or inspected.get("content_truncated") is not False:
+                    raise ClientToolInputError(
+                        f"import index {index} requires a prior complete read of the "
+                        "exact repository handle, revision, path, and content SHA-256"
+                    )
+                imports.append(row)
+            assert research_source_discovery is not None
+            imported_files = []
+            for index, row in enumerate(imports):
+                try:
+                    observation, refreshed_ref, is_error = (
+                        execute_research_source_discovery_client_tool(
+                            research_source_discovery,
+                            tool_name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+                            tool_input={
+                                "source_handle": row["source_handle"],
+                                "revision": row["revision"],
+                                "path": row["source_path"],
+                            },
+                        )
+                    )
+                except ResearchSourceDiscoveryInputError as exc:
+                    raise ClientToolInputError(str(exc)) from exc
+                if is_error:
+                    return ClientToolExecutionResult(
+                        content={
+                            **dict(observation),
+                            "import_index": index,
+                            "project_state_changed": False,
+                        },
+                        is_error=True,
+                        observation_key=(
+                            SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
+                            + ":"
+                            + stable_hash([index, observation])
+                        ),
+                    )
+                content = str(observation.get("content", "") or "")
+                actual_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+                if (
+                    observation.get("source_kind") != "repository"
+                    or observation.get("content_truncated") is not False
+                    or str(observation.get("source_handle", "") or "")
+                    != row["source_handle"]
+                    or str(observation.get("revision", "") or "")
+                    != row["revision"]
+                    or str(observation.get("path", "") or "")
+                    != row["source_path"]
+                    or str(observation.get("content_sha256", "") or "").lower()
+                    != row["expected_content_sha256"]
+                    or actual_sha256 != row["expected_content_sha256"]
+                ):
+                    raise ClientToolInputError(
+                        f"public repository source at import index {index} changed "
+                        "or did not return complete bytes for the inspected identity"
+                    )
+                imported_files.append({
+                    **row,
+                    "content": content,
+                    "provider": refreshed_ref.get("provider", ""),
+                    "citation_ref": refreshed_ref.get("citation_ref", ""),
+                })
             rows = [
                 deepcopy(dict(row))
                 for row in current.get("project_files", []) or []
                 if isinstance(row, Mapping)
-                and str(row.get("path", "") or "") != project_path
+                and str(row.get("path", "") or "") not in project_paths
             ]
-            rows.append({"path": project_path, "content": content})
+            rows.extend(
+                {
+                    "path": row["project_path"],
+                    "content": row["content"],
+                }
+                for row in imported_files
+            )
             current["project_files"] = rows
             update = store_model_source(
                 current,
-                source_action="pinned_public_source_import",
+                source_action="pinned_public_source_files_import",
                 edit_metadata={
-                    "project_path": project_path,
-                    "source_handle": source_handle,
-                    "revision": revision,
-                    "source_path": source_path,
-                    "source_content_sha256": expected_sha256,
+                    "import_count": len(imported_files),
+                    "project_paths": sorted(project_paths),
                 },
             )
             import_ref = {
                 "tool": SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
-                "provider": refreshed_ref.get("provider", ""),
-                "source_handle": source_handle,
-                "source_kind": "repository",
-                "revision": revision,
-                "source_path": source_path,
-                "source_content_sha256": expected_sha256,
-                "project_path": project_path,
+                "source_kind": "repository_files",
+                "imports": [
+                    {
+                        "provider": row["provider"],
+                        "source_handle": row["source_handle"],
+                        "revision": row["revision"],
+                        "source_path": row["source_path"],
+                        "source_content_sha256": row[
+                            "expected_content_sha256"
+                        ],
+                        "project_path": row["project_path"],
+                        "citation_ref": row["citation_ref"],
+                    }
+                    for row in imported_files
+                ],
+                "source_file_count": len(imported_files),
                 "resulting_project_hash": update.content["project_hash"],
-                "citation_ref": refreshed_ref.get("citation_ref", ""),
                 "proof_evidence_status": (
                     "PUBLIC_SOURCE_IMPORT_NOT_EXECUTION_OR_PROOF_EVIDENCE"
                 ),
@@ -3262,31 +3320,48 @@ def _scientific_code_tools(
             ClientToolDefinition(
                 name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
                 description=(
-                    "Copy one exact, previously and completely read public repository "
-                    "file into the current Python/R project under a model-selected "
-                    "support path. Bind the opaque handle, pinned revision, source path, "
-                    "and observed SHA-256. This stores bytes without executing them; "
-                    "run and review the resulting complete project afterward."
+                    "Atomically copy one or more exact, previously and completely read "
+                    "public repository files into the current Python/R project under "
+                    "model-selected support paths. Bind every opaque handle, pinned "
+                    "revision, source path, and observed SHA-256. This stores bytes "
+                    "without executing them; run and review the complete project afterward."
                 ),
                 input_schema={
                     "type": "object",
                     "additionalProperties": False,
-                    "required": [
-                        "source_handle",
-                        "revision",
-                        "source_path",
-                        "expected_content_sha256",
-                        "project_path",
-                    ],
+                    "required": ["imports"],
                     "properties": {
-                        "source_handle": {"type": "string", "minLength": 1},
-                        "revision": {"type": "string", "minLength": 1},
-                        "source_path": {"type": "string", "minLength": 1},
-                        "expected_content_sha256": {
-                            "type": "string",
-                            "pattern": "^[0-9a-fA-F]{64}$",
+                        "imports": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": MAX_SCIENTIFIC_PROJECT_FILES,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": [
+                                    "source_handle", "revision", "source_path",
+                                    "expected_content_sha256", "project_path",
+                                ],
+                                "properties": {
+                                    "source_handle": {
+                                        "type": "string", "minLength": 1,
+                                    },
+                                    "revision": {
+                                        "type": "string", "minLength": 1,
+                                    },
+                                    "source_path": {
+                                        "type": "string", "minLength": 1,
+                                    },
+                                    "expected_content_sha256": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-fA-F]{64}$",
+                                    },
+                                    "project_path": {
+                                        "type": "string", "minLength": 1,
+                                    },
+                                },
+                            },
                         },
-                        "project_path": {"type": "string", "minLength": 1},
                     },
                 },
                 terminal=False,

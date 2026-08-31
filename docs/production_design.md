@@ -165,7 +165,7 @@ runtime edit.
 Exploratory source may start before the complete theorem program is closed once
 its consumed interfaces are stable. A bound replication report is exposed through
 the same hash-bound read-only document tools but never as mathematical authority.
-Such runs may falsify theory but cannot satisfy frozen confirmatory gates. With public discovery, the same model may import one previously completed commit/path/hash-bound repository read as a support file; the resulting project and provenance remain separately hash-bound and must still execute and pass independent review.
+Such runs may falsify theory but cannot satisfy frozen confirmatory gates. With public discovery, the same model may atomically import a selected set of previously completed commit/path/hash-bound repository reads as project files; any failed identity check leaves the project unchanged, and the resulting complete project and provenance remain separately hash-bound and must still execute and pass independent review.
 
 For live providers with native client tools, the structured proposal carries only
 artifact identity and immutable bindings; source is authored in the same model-owned
