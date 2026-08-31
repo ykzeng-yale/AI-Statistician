@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `79b04f1a`](https://github.com/openai/codex/tree/79b04f1ab5079d65e84e6a8006255a9c2cf9944e), Apache-2.0. The only change since the prior pin is TUI rate-limit presentation; the inspected turn loop, ToolRouter, bounded context, multi-agent, and App Server harness surfaces are unchanged. AI Statistician has no analogue of the earlier first-Node-execution Guardian fast path and adopts no first-execution bypass.
+Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `a9519cbc`](https://github.com/openai/codex/tree/a9519cbcdd2d664530edb2469224ee03c1056799), Apache-2.0. Since the prior pin, Codex added core-owned history-ingestion metadata and made `update_plan` plus its bundled prompt guidance capability-conditional. This reinforces reserved runtime metadata and exact agreement between exposed tools and model instructions; it does not supply a reusable statistical or Lean control plane. AI Statistician adopts no first-execution bypass.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -76,7 +76,7 @@ without duplicating the control plane.
 | turn-scoped model-visible tool plan | `ClientToolTurnRequest` plus workspace-specific `ClientToolDefinition` values |
 | function-call output returned to the model | `ClientToolExecutionResult` appended to the same Anthropic message history |
 | model-actionable versus fatal tool failure | `ClientToolInputError` versus `ClientToolRuntimeError` |
-| external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; current Python/R project and Lean source manifests open first, exact files are read on demand, and read bodies are omitted from persisted evidence |
+| external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; Python/R and Lean target/support manifests open first, exact files are read on demand, and accepted Lean projects persist as content-addressed references |
 | thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
@@ -106,7 +106,7 @@ drift that the extraction actually removes.
 | TheoryDeveloper | Search sources, write and locally revise Markdown/LaTeX, run scratch calculations, retract claims, expose unresolved gaps | File identity, immutable checkpoints, source horizon, budgets, and artifact hashes |
 | AlgorithmEngineer | Search and inspect pinned public implementations, write Python/R source, execute current bytes, inspect raw stderr/tests, revise the same source | Source horizon, isolated scientific environment, resource/secret policy, source lineage |
 | SimulationEngineer | Search methodological sources, write or extend simulation source, run exploratory diagnostics, inspect consumer output | Source horizon, frozen confirmatory protocol, hidden cohorts, metric authority, execution evidence |
-| Formalizer | Search Statlib/Mathlib and project declarations, inspect goals, write Lean, compile, and revise from raw diagnostics | Active Lean project identity, theorem target hash, kernel and axiom authority |
+| Formalizer | Search Statlib/Mathlib, inspect goals, write target/support modules, choose build order, compile, and revise from raw diagnostics | Active foundation identity, exact project hash, kernel and axiom authority |
 | Independent reviewer | Read exact immutable candidate and report discrete findings | Clean context, read-only candidate, reviewer identity, no source edits |
 | Architect | Resolve unfrozen evidence requirements and genuine cross-workspace conflicts | One outer graph, operator-frozen intent, stopping and resource ownership |
 
@@ -191,7 +191,7 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 
 ## Current Assessment
 
-The inner harness is no longer the main architecture blocker. It preserves exact files, stable tools, checkpoint identity, isolated review, and bounded workspace continuation. Same-owner progress and author-review-author feedback stay inside independently bounded contiguous collaboration segments; accepted evidence entering another lane and cross-artifact conflicts remain outer graph transitions. Continued referees keep exact raw observations in the hash-bound parent transcript, replay only a bounded recent tool/result window, and use their own Markdown report as durable reasoning state instead of copying every prior observation into a new opening.
+The inner harness is no longer the main architecture blocker. It preserves exact files, capability-matched tools and instructions, checkpoint identity, isolated review, and bounded continuation. Lean target/support files use model-selected compile order and incremental `.olean` reuse inside one session, while semantic review and kernel promotion bind and cleanly replay the same content-addressed project. Same-owner progress and author-review-author feedback stay inside independently bounded collaboration segments; accepted evidence entering another lane and cross-artifact conflicts remain outer graph transitions.
 Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, model-owned dimensions remain revisable on genuine replans, and the provider schema is the sole structural contract.
 Three immutable evaluations refined these boundaries without changing scores:
 
@@ -234,13 +234,13 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/79b04f1ab5079d65e84e6a8006255a9c2cf9944e/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/79b04f1ab5079d65e84e6a8006255a9c2cf9944e/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/79b04f1ab5079d65e84e6a8006255a9c2cf9944e/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/79b04f1ab5079d65e84e6a8006255a9c2cf9944e/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/79b04f1ab5079d65e84e6a8006255a9c2cf9944e/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/79b04f1ab5079d65e84e6a8006255a9c2cf9944e/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/a9519cbcdd2d664530edb2469224ee03c1056799/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/a9519cbcdd2d664530edb2469224ee03c1056799/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/a9519cbcdd2d664530edb2469224ee03c1056799/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/a9519cbcdd2d664530edb2469224ee03c1056799/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/a9519cbcdd2d664530edb2469224ee03c1056799/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/a9519cbcdd2d664530edb2469224ee03c1056799/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Authorization revision surviving compaction](https://github.com/openai/codex/commit/0a12b855a0b21068108a8a3b311d492712737e0f)
 - [First Node REPL execution while Guardian classifies asynchronously](https://github.com/openai/codex/commit/cefa060695594cdeebfb4306170cc27487c8a088)
-- [App Server protocol](https://github.com/openai/codex/blob/79b04f1ab5079d65e84e6a8006255a9c2cf9944e/codex-rs/app-server/README.md)
+- [App Server protocol](https://github.com/openai/codex/blob/a9519cbcdd2d664530edb2469224ee03c1056799/codex-rs/app-server/README.md)
 - [Codex as a platform: build on the open agent harness](https://developers.openai.com/blog/codex-as-a-platform)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

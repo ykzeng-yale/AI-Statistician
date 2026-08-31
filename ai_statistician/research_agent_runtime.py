@@ -192,6 +192,12 @@ from .lean_candidate_revision_tool_loop import (
     seal_lean_candidate_workspace_checkpoint,
 )
 from .lean_kernel_promotion import evaluate_lean_kernel_promotion
+from .lean_project import (
+    LeanProjectExecutor,
+    load_model_authored_lean_project,
+    materialize_lean_project_workspace,
+    validated_model_authored_lean_project_artifact,
+)
 from .formalizer_llm import (
     FORMALIZER_BOUNDARY,
     FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
@@ -15470,6 +15476,22 @@ def _materialize_formalizer_lean_candidate_artifacts(
         candidate_lean_declaration = str(
             candidate.get("candidate_lean_declaration", "") or ""
         ).strip()
+        lean_project_errors: list[str] = []
+        try:
+            candidate_lean_project = validated_model_authored_lean_project_artifact(
+                candidate.get("lean_project", {}),
+                target_source=source,
+            )
+            candidate_project_rows, candidate_project_order = (
+                load_model_authored_lean_project(
+                    candidate_lean_project,
+                    target_source=source,
+                )
+            )
+        except ValueError as exc:
+            candidate_lean_project = {}
+            candidate_project_rows, candidate_project_order = (), ()
+            lean_project_errors.append(str(exc))
         source_boundary_errors = _formalizer_lean_candidate_source_boundary_errors(
             source,
         )
@@ -15481,17 +15503,37 @@ def _materialize_formalizer_lean_candidate_artifacts(
                     "AgentRuntime will not infer declaration identity from Lean source"
                 )
         precheck_errors = sorted(
-            set([*source_boundary_errors, *identity_binding_errors])
+            set(
+                [
+                    *source_boundary_errors,
+                    *identity_binding_errors,
+                    *lean_project_errors,
+                ]
+            )
         )
-        blocking_precheck_errors = list(source_boundary_errors)
+        blocking_precheck_errors = [
+            *source_boundary_errors,
+            *lean_project_errors,
+        ]
         artifact_path = ""
         source_hash = stable_hash(source)
         if not blocking_precheck_errors:
             artifact_dir.mkdir(parents=True, exist_ok=True)
-            path = artifact_dir / (
-                f"{index:03d}_{_safe_identifier(candidate_id)}_{source_hash[:10]}.lean"
-            )
-            path.write_text(source, encoding="utf-8")
+            project_files = [row.to_json() for row in candidate_project_rows]
+            if project_files:
+                candidate_project_dir = artifact_dir / (
+                    f"{index:03d}_{_safe_identifier(candidate_id)}_{source_hash[:10]}"
+                )
+                path, _ = materialize_lean_project_workspace(
+                    workspace_root=candidate_project_dir,
+                    target_source=source,
+                    project_files=project_files,
+                )
+            else:
+                path = artifact_dir / (
+                    f"{index:03d}_{_safe_identifier(candidate_id)}_{source_hash[:10]}.lean"
+                )
+                path.write_text(source, encoding="utf-8")
             artifact_path = str(path)
         proof_state_artifact_path = (
             _formalizer_lean_candidate_project_local_proof_state_artifact(
@@ -15506,15 +15548,31 @@ def _materialize_formalizer_lean_candidate_artifacts(
             if artifact_path
             else ""
         )
-        local_lean_result = (
-            _run_formalizer_lean_candidate_local_check(
+        if (
+            local_lean
+            and artifact_path
+            and lean_project is not None
+            and candidate_project_rows
+        ):
+            local_lean_result = LeanProjectExecutor(
+                active_project=lean_project,
+                workspace_root=Path(artifact_path).parent,
+                timeout_s=lean_timeout,
+            ).check_target(
+                target_source=source,
+                candidate_lean_declaration=candidate_lean_declaration,
+                project_files=candidate_project_rows,
+                support_build_order=candidate_project_order,
+            )
+        elif local_lean and artifact_path:
+            local_lean_result = _run_formalizer_lean_candidate_local_check(
                 artifact_path=Path(artifact_path),
                 candidate_lean_declaration=candidate_lean_declaration,
                 lean_project=lean_project,
                 lean_timeout=lean_timeout,
             )
-            if local_lean and artifact_path
-            else {
+        else:
+            local_lean_result = {
                 "local_lean_attempted": False,
                 "local_lean_compiled": False,
                 "local_lean_source_compiled": False,
@@ -15538,7 +15596,6 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "candidate_identity_lean_stderr": "",
                 "candidate_identity_lean_command": [],
             }
-        )
         candidate_identity_lean_checked = _bool_like(
             local_lean_result.get("candidate_identity_lean_checked", False)
         )
@@ -15639,6 +15696,10 @@ def _materialize_formalizer_lean_candidate_artifacts(
                 "source_packet_id": str(proposal_packet.get("packet_id", "") or ""),
                 "source_field": str(candidate.get("source_field", "") or ""),
                 "source_hash": source_hash,
+                "lean_project": candidate_lean_project,
+                "lean_project_hash": str(
+                    candidate_lean_project.get("project_hash", "") or ""
+                ),
                 "lean_imports": declared_lean_imports,
                 "lean_environment_source": (
                     f"{str(candidate.get('source_field', '') or '')}.lean_imports"
@@ -17103,6 +17164,9 @@ def _formalizer_candidate_workspace_context(
         expected_source_hash = str(
             diagnostic.get("source_hash", "") or ""
         ).strip()
+        expected_project_hash = str(
+            diagnostic.get("lean_project_hash", "") or ""
+        ).strip()
         identity_errors = tuple(
             str(value).strip()
             for value in diagnostic.get("target_identity_errors", []) or []
@@ -17177,7 +17241,9 @@ def _formalizer_candidate_workspace_context(
         lineage_payload = {
             "lineage_candidate_artifact_path": artifact_path_text,
             "lineage_candidate_artifact_hash": expected_source_hash,
+            "lineage_candidate_lean_project_hash": expected_project_hash,
             "target_declaration_source_hash": expected_source_hash,
+            "target_declaration_lean_project_hash": expected_project_hash,
             "target_theorem_statement_hash": (
                 lean_target_statement_hash(target_statement)
             ),
@@ -17842,6 +17908,11 @@ def _formalizer_lean_candidate_sources(
                 "formal_target_role": formal_target_role,
                 "lean_source": source,
                 "lean_imports": lean_imports,
+                "lean_project": deepcopy(
+                    dict(row.get("lean_project", {}) or {})
+                )
+                if isinstance(row.get("lean_project", {}), Mapping)
+                else row.get("lean_project", {}),
                 "candidate_lean_declaration": candidate_lean_declaration,
                 "candidate_lean_declaration_source": (
                     candidate_lean_declaration_source
@@ -17960,6 +18031,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         == "RuntimeFormalizerLeanCandidateMaterialization"
     )
     artifact_path_text = ""
+    parent_lean_project: dict[str, Any] = {}
     if initial_authoring:
         parent_packet = build_formalizer_workspace_target(
             question=question,
@@ -17975,6 +18047,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         candidate_declaration = ""
         source_field = "formal_targets"
         parent_source = ""
+        parent_lean_project = {}
         expected_source_hash = stable_hash(parent_source)
         parent_packet_id = str(
             parent_packet.get("target_ref_id", "") or ""
@@ -18060,6 +18133,24 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 errors=["current candidate artifact is missing or hash-stale"],
                 history=[],
             )
+        raw_parent_lean_project = candidate.get("lean_project", {})
+        parent_lean_project = (
+            deepcopy(dict(raw_parent_lean_project))
+            if isinstance(raw_parent_lean_project, Mapping)
+            else {}
+        )
+        try:
+            load_model_authored_lean_project(
+                parent_lean_project,
+                target_source=parent_source,
+            )
+        except ValueError as exc:
+            raise PacketValidationError(
+                validation_label="Formalizer Lean project lineage",
+                attempts=1,
+                errors=[str(exc)],
+                history=[],
+            ) from exc
         parent_packet_id = str(
             materialization.get("source_formalizer_packet_id", "") or ""
         ).strip()
@@ -18102,6 +18193,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 recovery_checkpoint.get("rejected_source_hash", "") or ""
             ),
             checkpoint=recovery_checkpoint,
+            rejected_lean_project_hash=str(
+                recovery_checkpoint.get("rejected_lean_project_hash", "") or ""
+            ),
             parent_formalizer_artifact_id=parent_packet_id,
             initial_authoring=initial_authoring,
         )
@@ -18118,6 +18212,12 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         / stable_hash(
             [task.task_id, materialization_id, candidate_id, expected_source_hash]
         )[:12]
+    )
+    project_execution_root = workspace_root / "lean_project"
+    project_executor = LeanProjectExecutor(
+        active_project=Path(lean_candidate_lean_project),
+        workspace_root=project_execution_root,
+        timeout_s=lean_candidate_lean_timeout,
     )
 
     def check_candidate(
@@ -18223,6 +18323,30 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             ),
             "local_lean_project": str(lean_candidate_lean_project),
         }
+
+    def check_candidate_project(
+        source: str,
+        submitted_declaration: str,
+        project_files: Sequence[Mapping[str, Any]],
+        support_build_order: Sequence[str],
+    ) -> Mapping[str, Any]:
+        return project_executor.check_target(
+            target_source=source,
+            candidate_lean_declaration=submitted_declaration,
+            project_files=project_files,
+            support_build_order=support_build_order,
+        )
+
+    def check_support_file(
+        relative_path: str,
+        project_files: Sequence[Mapping[str, Any]],
+        prior_build_order: Sequence[str],
+    ) -> Mapping[str, Any]:
+        return project_executor.check_support_file(
+            relative_path=relative_path,
+            project_files=project_files,
+            prior_build_order=prior_build_order,
+        )
 
     source_scope_ids = _formalizer_formal_source_scope_ids(revision_context)
 
@@ -18450,6 +18574,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 environment_feedback=environment_feedback,
                 check_candidate=check_candidate,
                 search_formal_environment=search_formal_environment,
+                check_candidate_project=check_candidate_project,
+                check_support_file=check_support_file,
+                initial_lean_project=parent_lean_project,
                 search_proof_candidates=(
                     search_proof_candidates
                     if proof_search_provider is not None

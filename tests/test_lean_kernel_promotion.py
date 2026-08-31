@@ -5,6 +5,10 @@ from pathlib import Path
 import ai_statistician.lean_kernel_promotion as promotion_module
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.lean_kernel_promotion import evaluate_lean_kernel_promotion
+from ai_statistician.lean_project import (
+    model_authored_lean_project,
+    persist_model_authored_lean_project,
+)
 
 
 def _reviewed_artifacts(source_path: Path) -> tuple[dict, dict]:
@@ -111,6 +115,73 @@ def test_kernel_promotion_reruns_unchanged_reviewed_source(
             "candidate_lean_declaration": "target",
             "lean_project": tmp_path,
             "lean_timeout": 5,
+        }
+    ]
+
+
+def test_kernel_promotion_replays_exact_reviewed_support_project(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = "import AIStat.Support\n\ntheorem target : True := by exact AIStat.helper\n"
+    source_path = tmp_path / "Target.lean"
+    source_path.write_text(source, encoding="utf-8")
+    artifacts, feedback = _reviewed_artifacts(source_path)
+    support_path = "AIStat/Support.lean"
+    support_source = "namespace AIStat\ntheorem helper : True := by trivial\nend AIStat\n"
+    project = model_authored_lean_project(
+        target_source=source,
+        project_files=[{"path": support_path, "content": support_source}],
+        support_build_order=(support_path,),
+    )
+    project_ref = persist_model_authored_lean_project(
+        project,
+        target_source=source,
+        root=tmp_path / "formalizer-owner",
+    )
+    materialization = artifacts[feedback["candidate_materialization_id"]]
+    materialization["candidate_rows"][0].update(
+        {
+            "lean_project": project_ref,
+            "lean_project_hash": project["project_hash"],
+        }
+    )
+    execution = artifacts[feedback["semantic_review_execution_id"]]
+    execution["candidate_lean_project_hash"] = project["project_hash"]
+    feedback["candidate_lean_project_hash"] = project["project_hash"]
+    calls: list[dict] = []
+
+    def check_target(_self, **kwargs):
+        calls.append(kwargs)
+        return {
+            "local_lean_attempted": True,
+            "local_lean_compiled": True,
+            "local_lean_source_compiled": True,
+            "candidate_identity_lean_verified": True,
+            "candidate_axiom_audit_clean": True,
+            "lean_project_hash": project["project_hash"],
+        }
+
+    monkeypatch.setattr(
+        promotion_module.LeanProjectExecutor,
+        "check_target",
+        check_target,
+    )
+    result = evaluate_lean_kernel_promotion(
+        blackboard_artifacts=artifacts,
+        environment_feedback=feedback,
+        lean_project=tmp_path,
+        lean_timeout=5,
+    )
+
+    assert result is not None
+    assert result["source_theorem_kernel_verified"] is True
+    assert result["exact_lean_project_hash_preserved"] is True
+    assert calls == [
+        {
+            "target_source": source,
+            "candidate_lean_declaration": "target",
+            "project_files": project["support_files"],
+            "support_build_order": project["support_build_order"],
         }
     ]
 

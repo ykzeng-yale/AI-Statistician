@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -47,6 +48,7 @@ def run_lean_candidate_identity_probe(
     lean_project: Path | None = None,
     lean_timeout: int = 30,
     lean_command: Sequence[str] | None = None,
+    lean_environment: Mapping[str, str] | None = None,
 ) -> dict[str, object]:
     """Compile a Lean artifact, then ask Lean to resolve its declared identity."""
 
@@ -68,6 +70,11 @@ def run_lean_candidate_identity_probe(
                 capture_output=True,
                 text=True,
                 timeout=timeout_s,
+                env=(
+                    {**os.environ, **dict(lean_environment)}
+                    if lean_environment is not None
+                    else None
+                ),
             )
             return (
                 str(int(completed.returncode)),

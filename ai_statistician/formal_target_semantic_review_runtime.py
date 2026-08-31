@@ -24,6 +24,7 @@ from .lean_candidate_identity import (
     LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
     lean_target_statement_hash,
 )
+from .lean_project import canonical_model_authored_lean_project
 from .formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_BOUNDARY,
     FORMAL_TARGET_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE,
@@ -80,6 +81,7 @@ def _prior_semantic_review_observation(task: AgentTask) -> dict[str, Any]:
             "semantic_review_packet_id",
             "semantic_review_packet_hash",
             "candidate_source_hash",
+            "candidate_lean_project_hash",
             "overall_verdict",
             "dimension_reviews",
             "findings",
@@ -127,8 +129,14 @@ def _compact_formalizer_grounding_observations(
         "independently_rejected_source_hash": str(
             evidence.get("independently_rejected_source_hash", "") or ""
         ),
+        "independently_rejected_lean_project_hash": str(
+            evidence.get("independently_rejected_lean_project_hash", "") or ""
+        ),
         "submitted_source_hash": str(
             evidence.get("submitted_source_hash", "") or ""
+        ),
+        "submitted_lean_project_hash": str(
+            evidence.get("lean_project_hash", "") or ""
         ),
         "source_updates": _nonnegative_int(evidence.get("source_updates", 0)),
         "declaration_inspections": _nonnegative_int(
@@ -255,6 +263,44 @@ def _runtime_formal_target_semantic_review_dispatch(
         dispatch_validation_errors.append(
             "candidate descriptor is not bound to the exact path and source hash"
         )
+    candidate_lean_project: dict[str, Any] = {}
+    candidate_lean_project_hash = ""
+    candidate_lean_project_declared = bool(
+        candidate_row.get("lean_project", {})
+        or candidate_row.get("lean_project_hash", "")
+    )
+    if candidate_row and candidate_lean_project_declared:
+        candidate_project_target_source = str(
+            candidate_row.get("lean_source", "") or ""
+        )
+        if stable_hash(candidate_project_target_source) != candidate_source_hash:
+            try:
+                candidate_project_target_source = Path(candidate_path).read_text(
+                    encoding="utf-8"
+                )
+            except OSError as exc:
+                dispatch_validation_errors.append(
+                    f"candidate Lean project target unreadable: {exc!r}"
+                )
+        try:
+            candidate_lean_project = canonical_model_authored_lean_project(
+                candidate_row.get("lean_project", {}),
+                target_source=candidate_project_target_source,
+            )
+            candidate_lean_project_hash = str(
+                candidate_lean_project.get("project_hash", "") or ""
+            )
+            declared_project_hash = str(
+                candidate_row.get("lean_project_hash", "") or ""
+            )
+            if declared_project_hash and (
+                candidate_lean_project_hash != declared_project_hash
+            ):
+                dispatch_validation_errors.append(
+                    "candidate Lean project hash is stale"
+                )
+        except ValueError as exc:
+            dispatch_validation_errors.append(str(exc))
 
     candidate_materialization_id = str(
         candidate_materialization.get("manifest_id", "") or ""
@@ -322,6 +368,7 @@ def _runtime_formal_target_semantic_review_dispatch(
         "candidate_materialization_id": candidate_materialization_id,
         "candidate_id": candidate_id,
         "candidate_source_hash": candidate_source_hash,
+        "candidate_lean_project_hash": candidate_lean_project_hash,
         "target_theorem_statement_hash": target_statement_hash,
         "target_theorem_statement_hash_algorithm": (
             target_statement_hash_algorithm
@@ -371,6 +418,7 @@ def _runtime_formal_target_semantic_review_dispatch(
         "candidate_id": candidate_id,
         "candidate_artifact_path": candidate_path,
         "candidate_source_hash": candidate_source_hash,
+        "candidate_lean_project_hash": candidate_lean_project_hash,
         "target_lean_declaration": str(
             target_context.get("target_lean_declaration", "") or ""
         ),
@@ -509,6 +557,7 @@ def _runtime_formal_target_semantic_review_dispatch(
             "work_order_hash": work_order_hash,
             "candidate_id": candidate_id,
             "candidate_source_hash": candidate_source_hash,
+            "candidate_lean_project_hash": candidate_lean_project_hash,
             "target_theorem_statement_hash": target_statement_hash,
             "target_theorem_statement_hash_algorithm": (
                 target_statement_hash_algorithm
@@ -551,6 +600,9 @@ def _runtime_formal_target_semantic_review_material(
     candidate_source_hash = str(
         work_order.get("candidate_source_hash", "") or ""
     )
+    candidate_lean_project_hash = str(
+        work_order.get("candidate_lean_project_hash", "") or ""
+    )
     matching_rows = [
         dict(row)
         for row in candidate_materialization.get("candidate_rows", []) or []
@@ -558,6 +610,10 @@ def _runtime_formal_target_semantic_review_material(
         and str(row.get("candidate_id", "") or "") == candidate_id
         and str(row.get("artifact_path", "") or "") == candidate_path
         and str(row.get("source_hash", "") or "") == candidate_source_hash
+        and str(
+            row.get("lean_project_hash", "") or candidate_lean_project_hash
+        )
+        == candidate_lean_project_hash
     ]
     if len(matching_rows) != 1:
         errors.append("formal-target candidate descriptor is not uniquely bound")
@@ -640,6 +696,21 @@ def _runtime_formal_target_semantic_review_material(
             errors.append(f"formal-target exact source artifact unreadable: {exc!r}")
     if source and stable_hash(source) != candidate_source_hash:
         errors.append("formal-target exact source hash mismatch")
+    exact_lean_project: dict[str, Any] = {}
+    if source and (
+        candidate_lean_project_hash or candidate_row.get("lean_project", {})
+    ):
+        try:
+            exact_lean_project = canonical_model_authored_lean_project(
+                candidate_row.get("lean_project", {}),
+                target_source=source,
+            )
+            if str(exact_lean_project.get("project_hash", "") or "") != (
+                candidate_lean_project_hash
+            ):
+                errors.append("formal-target exact Lean project hash mismatch")
+        except ValueError as exc:
+            errors.append(str(exc))
     target_statement = str(
         work_order.get("target_theorem_statement", "") or ""
     ).strip()
@@ -700,6 +771,8 @@ def _runtime_formal_target_semantic_review_material(
             ),
             "exact_lean_source": source,
             "exact_lean_source_hash": candidate_source_hash,
+            "exact_lean_project": exact_lean_project,
+            "exact_lean_project_hash": candidate_lean_project_hash,
             "source_theorem_target_provenance": dict(
                 work_order.get("source_theorem_target_provenance", {}) or {}
             ),
@@ -959,6 +1032,7 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "proposal_packet_hash",
                 "candidate_id",
                 "candidate_source_hash",
+                "candidate_lean_project_hash",
                 "target_lean_declaration",
                 "target_theorem_statement_hash",
                 "target_theorem_statement_hash_algorithm",
@@ -1155,6 +1229,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "candidate_source_hash": str(
                 work_order.get("candidate_source_hash", "") or ""
             ),
+            "candidate_lean_project_hash": str(
+                work_order.get("candidate_lean_project_hash", "") or ""
+            ),
             "target_theorem_statement_hash": str(
                 work_order.get("target_theorem_statement_hash", "") or ""
             ),
@@ -1211,6 +1288,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             "candidate_id": str(work_order.get("candidate_id", "") or ""),
             "candidate_source_hash": str(
                 work_order.get("candidate_source_hash", "") or ""
+            ),
+            "candidate_lean_project_hash": str(
+                work_order.get("candidate_lean_project_hash", "") or ""
             ),
             "target_theorem_statement_hash": str(
                 work_order.get("target_theorem_statement_hash", "") or ""
@@ -1277,6 +1357,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     "formal_target_semantic_review_candidate_source_hash": str(
                         work_order.get("candidate_source_hash", "") or ""
                     ),
+                    "formal_target_semantic_review_candidate_lean_project_hash": str(
+                        work_order.get("candidate_lean_project_hash", "") or ""
+                    ),
                     "formal_target_semantic_review_target_statement_hash": str(
                         work_order.get("target_theorem_statement_hash", "") or ""
                     ),
@@ -1294,6 +1377,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     ),
                     "formalizer_candidate_semantic_review_candidate_source_hash": str(
                         work_order.get("candidate_source_hash", "") or ""
+                    ),
+                    "formalizer_candidate_semantic_review_candidate_lean_project_hash": str(
+                        work_order.get("candidate_lean_project_hash", "") or ""
                     ),
                     "formalizer_candidate_semantic_review_target_statement_hash": str(
                         work_order.get("target_theorem_statement_hash", "") or ""
@@ -1328,6 +1414,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "review_packet_hash": review_packet_hash,
                 "candidate_source_hash": str(
                     work_order.get("candidate_source_hash", "") or ""
+                ),
+                "candidate_lean_project_hash": str(
+                    work_order.get("candidate_lean_project_hash", "") or ""
                 ),
                 "target_theorem_statement_hash": str(
                     work_order.get("target_theorem_statement_hash", "") or ""
@@ -1384,6 +1473,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     ),
                     "formalizer_candidate_semantic_review_candidate_source_hash": str(
                         work_order.get("candidate_source_hash", "") or ""
+                    ),
+                    "formalizer_candidate_semantic_review_candidate_lean_project_hash": str(
+                        work_order.get("candidate_lean_project_hash", "") or ""
                     ),
                     "formalizer_candidate_semantic_review_target_statement_hash": str(
                         work_order.get("target_theorem_statement_hash", "") or ""
@@ -1454,6 +1546,9 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "candidate_id": str(work_order.get("candidate_id", "") or ""),
                 "candidate_source_hash": str(
                     work_order.get("candidate_source_hash", "") or ""
+                ),
+                "candidate_lean_project_hash": str(
+                    work_order.get("candidate_lean_project_hash", "") or ""
                 ),
                 "overall_verdict": verdict,
                 "reviewer_model": reviewer_model,

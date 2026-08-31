@@ -21,12 +21,19 @@ from ai_statistician.lean_candidate_revision_tool_loop import (
     LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
     LEAN_FORMAL_GAP_TOOL,
     LEAN_SCRATCH_TOOL,
+    LEAN_SUPPORT_FILE_CHECK_TOOL,
+    LEAN_SUPPORT_FILE_WRITE_TOOL,
     LEAN_SOURCE_EDIT_TOOL,
     LEAN_SOURCE_READ_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
     lean_candidate_workspace_continuation_errors,
     run_lean_candidate_revision_tool_loop,
     seal_lean_candidate_workspace_checkpoint,
+)
+from ai_statistician.lean_project import (
+    load_model_authored_lean_project,
+    model_authored_lean_project,
+    persist_model_authored_lean_project,
 )
 from ai_statistician.lean_candidate_identity import (
     TRUSTED_LEAN_AXIOMS,
@@ -431,6 +438,216 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     )
     assert result.evidence["model_explicit_submit"] is True
     assert result.evidence["submit_and_check_atomic"] is True
+
+
+def test_lean_candidate_tool_loop_accepts_model_revised_support_project(
+    tmp_path: Path,
+) -> None:
+    target = (
+        "import AIStatWorkspace.Support\n\n"
+        "theorem target : True := by exact AIStatWorkspace.support_true\n"
+    )
+    support_path = "AIStatWorkspace/Support.lean"
+    old_support = (
+        "namespace AIStatWorkspace\n"
+        "theorem support_true : True := by trivial\n"
+        "end AIStatWorkspace\n"
+    )
+    new_support = old_support.replace("by trivial", "by exact True.intro")
+    initial_project = model_authored_lean_project(
+        target_source=target,
+        project_files=[{"path": support_path, "content": old_support}],
+        support_build_order=(support_path,),
+    )
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "replace-support",
+                    LEAN_SUPPORT_FILE_WRITE_TOOL,
+                    {"path": support_path, "content": new_support},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "check-support",
+                    LEAN_SUPPORT_FILE_CHECK_TOOL,
+                    {"path": support_path},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-target",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": target,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    checked_projects: list[tuple[list[dict], list[str]]] = []
+
+    def check_project(source, declaration, files, order):
+        assert source == target
+        assert declaration == "target"
+        checked_projects.append((list(files), list(order)))
+        return {"source_hash": stable_hash(source), "compiled": True}
+
+    def check_support(path, files, prior_order):
+        assert path == support_path
+        assert prior_order == []
+        assert files[0]["content"] == new_support
+        return {
+            "relative_path": path,
+            "source_hash": stable_hash(new_support),
+            "compiled": True,
+            "local_lean_stderr": "",
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Revise the rejected project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=target,
+        initial_lean_project=initial_project,
+        check_candidate=lambda *_args: pytest.fail("single-file checker used"),
+        check_candidate_project=check_project,
+        check_support_file=check_support,
+        search_formal_environment=lambda query, k: {"query": query, "hits": []},
+        rejected_source_hash=stable_hash(target),
+        rejected_lean_project_hash=initial_project["project_hash"],
+        session_dir=tmp_path / "formalizer-session",
+    )
+
+    project_rows, project_order = load_model_authored_lean_project(
+        result.lean_project,
+        target_source=target,
+    )
+    assert result.lean_source == target
+    assert result.lean_project["project_hash"] != initial_project["project_hash"]
+    assert result.lean_project["artifact_kind"] == "ModelAuthoredLeanProjectRef"
+    assert project_rows[0].content == new_support
+    assert project_order == (support_path,)
+    assert result.evidence["runtime_selected_lean_code"] is False
+    assert result.evidence["lean_support_file_writes"] == 1
+    assert result.evidence["lean_support_file_checks"] == 1
+    assert len(checked_projects) == 2
+    assert checked_projects[-1][1] == [support_path]
+
+
+def test_lean_support_project_checkpoint_resumes_same_model_workspace() -> None:
+    target = "import AIStat.Support\n\ntheorem target : True := by exact AIStat.helper\n"
+    support_path = "AIStat/Support.lean"
+    support_source = "namespace AIStat\ntheorem helper : True := by trivial\nend AIStat\n"
+
+    def check_project(source, declaration, files, order):
+        return {
+            "source_hash": stable_hash(source),
+            "candidate_lean_declaration": declaration,
+            "compiled": bool(files and order == [support_path]),
+        }
+
+    def check_support(path, files, prior_order):
+        assert path == support_path
+        assert prior_order == []
+        assert files[0]["content"] == support_source
+        return {
+            "relative_path": path,
+            "source_hash": stable_hash(support_source),
+            "compiled": True,
+        }
+
+    first_backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "write-support",
+                    LEAN_SUPPORT_FILE_WRITE_TOOL,
+                    {"path": support_path, "content": support_source},
+                )
+            )
+        ]
+    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        run_lean_candidate_revision_tool_loop(
+            provider=first_backend,
+            system_prompt="Use tools.",
+            user_prompt="Build the project.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=1,
+            max_no_progress_turns=1,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="target",
+            initial_source=target,
+            check_candidate=lambda *_args: pytest.fail("single-file checker used"),
+            check_candidate_project=check_project,
+            check_support_file=check_support,
+            search_formal_environment=lambda query, k: {"query": query, "hits": []},
+        )
+    checkpoint = dict(exc_info.value.recovery_checkpoint)
+    assert checkpoint["schema_version"] == 3
+    assert checkpoint["support_files"][0]["content"] == support_source
+    assert checkpoint["support_build_order"] == []
+    assert checkpoint["resumable"] is True
+
+    resumed_backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "check-support",
+                    LEAN_SUPPORT_FILE_CHECK_TOOL,
+                    {"path": support_path},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-target",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": target,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    result = run_lean_candidate_revision_tool_loop(
+        provider=resumed_backend,
+        system_prompt="Use tools.",
+        user_prompt="Continue the project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=target,
+        check_candidate=lambda *_args: pytest.fail("single-file checker used"),
+        check_candidate_project=check_project,
+        check_support_file=check_support,
+        search_formal_environment=lambda query, k: {"query": query, "hits": []},
+        recovery_checkpoint=checkpoint,
+    )
+
+    assert result.lean_project["support_build_order"] == [support_path]
+    assert result.evidence["resumed_from_checkpoint_id"] == checkpoint[
+        "checkpoint_id"
+    ]
 
 
 def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_source() -> None:
@@ -4056,6 +4273,68 @@ def test_formalizer_materialization_preserves_exact_workspace_source_hash(
     row = materialization["candidate_rows"][0]
     assert row["source_hash"] == stable_hash(source)
     assert Path(row["artifact_path"]).read_text(encoding="utf-8") == source
+
+
+def test_formalizer_materialization_preserves_exact_multifile_project(
+    tmp_path,
+) -> None:
+    source = "import AIStat.Support\n\ntheorem target : True := by exact AIStat.helper\n"
+    support_path = "AIStat/Support.lean"
+    support_source = "namespace AIStat\ntheorem helper : True := by trivial\nend AIStat\n"
+    project = model_authored_lean_project(
+        target_source=source,
+        project_files=[{"path": support_path, "content": support_source}],
+        support_build_order=(support_path,),
+    )
+    project_ref = persist_model_authored_lean_project(
+        project,
+        target_source=source,
+        root=tmp_path / "formalizer-owner",
+    )
+    question = OpenResearchQuestion(
+        id="exact-project-identity",
+        title="Exact project identity",
+        description="Preserve model-authored Lean project bytes.",
+    )
+    task = AgentTask(
+        task_id="formalize:exact-project-identity:1",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Materialize the exact model project.",
+    )
+    proposal_packet = {
+        "packet_id": "formalizer_proposal:exact-project-identity",
+        "formal_targets": [
+            {
+                "id": "target-candidate",
+                "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
+                "candidate_lean_declaration": "target",
+                "lean_statement_sketch": source,
+                "lean_project": project_ref,
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "target",
+                },
+            }
+        ],
+    }
+
+    materialization = runtime_module._materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path,
+        question=question,
+        task=task,
+        proposal_packet=proposal_packet,
+    )
+
+    row = materialization["candidate_rows"][0]
+    assert row["lean_project"] == project_ref
+    assert row["lean_project_hash"] == project["project_hash"]
+    target_path = Path(row["artifact_path"])
+    assert target_path.name == "Main.lean"
+    assert target_path.read_text(encoding="utf-8") == source
+    assert (target_path.parent / support_path).read_text(encoding="utf-8") == (
+        support_source
+    )
 
 
 def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspace(

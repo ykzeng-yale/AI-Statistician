@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .lean_candidate_identity import run_lean_candidate_identity_probe
+from .lean_project import (
+    LeanProjectExecutor,
+    canonical_model_authored_lean_project,
+)
 
 
 KERNEL_PROMOTION_BOUNDARY = (
-    "Promotion reruns the exact hash-bound model-authored source in the configured "
-    "Lean project after an independent semantic review. It never edits source or "
-    "selects a proof."
+    "Promotion reruns the exact hash-bound model-authored source and support project "
+    "in the configured Lean foundation after independent semantic review. It never "
+    "edits source, infers imports, or selects a proof."
 )
 
 
@@ -31,6 +36,9 @@ def evaluate_lean_kernel_promotion(
     candidate_id = str(environment_feedback.get("candidate_id", "") or "").strip()
     expected_source_hash = str(
         environment_feedback.get("candidate_source_hash", "") or ""
+    ).strip()
+    expected_lean_project_hash = str(
+        environment_feedback.get("candidate_lean_project_hash", "") or ""
     ).strip()
     review_execution_id = str(
         environment_feedback.get("semantic_review_execution_id", "") or ""
@@ -77,9 +85,18 @@ def evaluate_lean_kernel_promotion(
         "review_packet_id": review_packet_id,
         "review_packet_hash": expected_review_packet_hash,
     }
+    if expected_lean_project_hash:
+        execution_bindings["candidate_lean_project_hash"] = (
+            expected_lean_project_hash
+        )
     for key, expected in execution_bindings.items():
         if str(review_execution.get(key, "") or "") != expected:
             blockers.append(f"semantic review execution {key} mismatch")
+    reviewed_project_hash = str(
+        review_execution.get("candidate_lean_project_hash", "") or ""
+    ).strip()
+    if reviewed_project_hash != expected_lean_project_hash:
+        blockers.append("semantic review execution Lean project binding mismatch")
     if review_execution.get("semantic_review_accepted") is not True:
         blockers.append("semantic review execution is not accepted")
 
@@ -89,6 +106,11 @@ def evaluate_lean_kernel_promotion(
         if isinstance(row, Mapping)
         and str(row.get("candidate_id", "") or "") == candidate_id
         and str(row.get("source_hash", "") or "") == expected_source_hash
+        and (
+            not expected_lean_project_hash
+            or str(row.get("lean_project_hash", "") or "")
+            == expected_lean_project_hash
+        )
     ]
     if len(candidate_rows) != 1:
         blockers.append("candidate row is not uniquely bound to the reviewed source")
@@ -129,6 +151,25 @@ def evaluate_lean_kernel_promotion(
             blockers.append(f"reviewed Lean source is unreadable: {exc}")
     if source and stable_hash(source) != expected_source_hash:
         blockers.append("reviewed Lean source hash mismatch")
+    candidate_lean_project: dict[str, Any] = {}
+    raw_candidate_lean_project = candidate.get("lean_project", {})
+    project_payload_present = isinstance(raw_candidate_lean_project, Mapping) and bool(
+        raw_candidate_lean_project
+    )
+    if source and (project_payload_present or expected_lean_project_hash):
+        try:
+            candidate_lean_project = canonical_model_authored_lean_project(
+                raw_candidate_lean_project,
+                target_source=source,
+            )
+        except ValueError as exc:
+            blockers.append(str(exc))
+        else:
+            observed_project_hash = str(
+                candidate_lean_project.get("project_hash", "") or ""
+            )
+            if observed_project_hash != expected_lean_project_hash:
+                blockers.append("reviewed Lean project hash mismatch")
     declaration = str(
         candidate.get("candidate_lean_declaration", "")
         or candidate.get("target_lean_declaration", "")
@@ -141,14 +182,30 @@ def evaluate_lean_kernel_promotion(
 
     kernel_check: dict[str, Any] = {}
     if not blockers and artifact_path is not None:
-        kernel_check = dict(
-            run_lean_candidate_identity_probe(
-                artifact_path=artifact_path,
-                candidate_lean_declaration=declaration,
-                lean_project=Path(lean_project),
-                lean_timeout=lean_timeout,
+        if candidate_lean_project:
+            with TemporaryDirectory(prefix="ai-statistician-lean-promotion-") as tmp:
+                kernel_check = LeanProjectExecutor(
+                    active_project=Path(lean_project),
+                    workspace_root=Path(tmp),
+                    timeout_s=lean_timeout,
+                ).check_target(
+                    target_source=source,
+                    candidate_lean_declaration=declaration,
+                    project_files=candidate_lean_project["support_files"],
+                    support_build_order=candidate_lean_project[
+                        "support_build_order"
+                    ],
+                )
+                kernel_check.pop("lean_project", None)
+        else:
+            kernel_check = dict(
+                run_lean_candidate_identity_probe(
+                    artifact_path=artifact_path,
+                    candidate_lean_declaration=declaration,
+                    lean_project=Path(lean_project),
+                    lean_timeout=lean_timeout,
+                )
             )
-        )
         if kernel_check.get("local_lean_source_compiled") is not True:
             blockers.append("exact reviewed source did not compile in local Lean")
         if kernel_check.get("candidate_identity_lean_verified") is not True:
@@ -166,6 +223,7 @@ def evaluate_lean_kernel_promotion(
                 materialization_id,
                 candidate_id,
                 expected_source_hash,
+                expected_lean_project_hash,
                 review_execution_id,
                 kernel_check,
             ]
@@ -174,6 +232,7 @@ def evaluate_lean_kernel_promotion(
         "question_id": question_id,
         "candidate_id": candidate_id,
         "candidate_source_hash": expected_source_hash,
+        "candidate_lean_project_hash": expected_lean_project_hash,
         "candidate_artifact_path": artifact_path_text,
         "target_lean_declaration": declaration,
         "target_ids": target_ids,
@@ -194,6 +253,11 @@ def evaluate_lean_kernel_promotion(
         ),
         "exact_source_hash_preserved": bool(
             source and stable_hash(source) == expected_source_hash
+        ),
+        "exact_lean_project_hash_preserved": bool(
+            not expected_lean_project_hash
+            or str(candidate_lean_project.get("project_hash", "") or "")
+            == expected_lean_project_hash
         ),
         "independent_semantic_review_accepted": bool(
             review_execution.get("semantic_review_accepted") is True

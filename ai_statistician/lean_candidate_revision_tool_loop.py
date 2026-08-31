@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass
@@ -21,12 +22,28 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
+from .lean_project import (
+    MAX_LEAN_PROJECT_FILE_BYTES,
+    LeanProjectFile,
+    lean_project_build_order_errors,
+    lean_project_hash,
+    load_model_authored_lean_project,
+    model_authored_lean_project,
+    normalized_lean_project_files,
+    persist_model_authored_lean_project,
+)
 from .structured_output_retry import PacketValidationError
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 from . import theory_workspace as theory_documents
 
 
 LeanCandidateCheck = Callable[[str, str], Mapping[str, Any]]
+LeanCandidateProjectCheck = Callable[
+    [str, str, Sequence[Mapping[str, Any]], Sequence[str]], Mapping[str, Any]
+]
+LeanSupportFileCheck = Callable[
+    [str, Sequence[Mapping[str, Any]], Sequence[str]], Mapping[str, Any]
+]
 FormalEnvironmentSearch = Callable[[str, int], Any]
 ProofCandidateSearch = Callable[[str, str, int, Mapping[str, Any]], Any]
 LeanStateInspection = Callable[[str, Mapping[str, Any]], Any]
@@ -36,6 +53,11 @@ LeanDeclarationInspection = Callable[
 LEAN_SOURCE_SUBMISSION_TOOL = "submit_lean_source"
 LEAN_SOURCE_EDIT_TOOL = "edit_current_lean_source"
 LEAN_SOURCE_READ_TOOL = "read_current_lean_source"
+LEAN_SUPPORT_FILE_WRITE_TOOL = "write_lean_support_file"
+LEAN_SUPPORT_FILE_EDIT_TOOL = "edit_lean_support_file"
+LEAN_SUPPORT_FILE_READ_TOOL = "read_lean_support_file"
+LEAN_SUPPORT_FILE_REMOVE_TOOL = "remove_lean_support_file"
+LEAN_SUPPORT_FILE_CHECK_TOOL = "check_lean_support_file"
 LEAN_SCRATCH_TOOL = "run_lean_scratch"
 LEAN_FORMAL_GAP_TOOL = "report_formal_gap"
 LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND = (
@@ -45,6 +67,11 @@ _LEAN_WORKSPACE_COUNTER_FIELDS = (
     "source_updates",
     "declaration_updates",
     "source_reads",
+    "support_file_writes",
+    "support_file_edits",
+    "support_file_reads",
+    "support_file_removals",
+    "support_file_checks",
     "searches",
     "proof_searches",
     "state_inspections",
@@ -58,6 +85,7 @@ _LEAN_WORKSPACE_OBSERVATION_FIELDS = (
     "latest_proof_search",
     "latest_state_inspection",
     "latest_declaration_inspection",
+    "latest_support_file_check",
     "theory_document_inspection_refs",
 )
 
@@ -70,6 +98,7 @@ class LeanCandidateRevisionToolLoopResult:
     disposition: str
     formal_gap: Mapping[str, Any]
     check_result: Mapping[str, Any]
+    lean_project: Mapping[str, Any]
     evidence: Mapping[str, Any]
 
 
@@ -119,12 +148,14 @@ def _lean_workspace_checkpoint_identity_errors(
     parent_candidate_lean_declaration: str | None = None,
     parent_source: str | None = None,
     rejected_source_hash: str | None = None,
+    rejected_lean_project_hash: str | None = None,
     require_resumable: bool = True,
 ) -> list[str]:
     errors: list[str] = []
     if checkpoint.get("artifact_kind") != LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND:
         errors.append("checkpoint artifact kind is not the canonical Lean workspace kind")
-    if checkpoint.get("schema_version") != 2:
+    checkpoint_schema = checkpoint.get("schema_version")
+    if checkpoint_schema not in {2, 3}:
         errors.append("checkpoint schema version is not supported")
     checkpoint_id = str(checkpoint.get("checkpoint_id", "") or "").strip()
     expected_checkpoint = seal_lean_candidate_workspace_checkpoint(checkpoint)
@@ -148,6 +179,10 @@ def _lean_workspace_checkpoint_identity_errors(
         checkpoint.get("rejected_source_hash", "") or ""
     ).strip() != str(rejected_source_hash or "").strip():
         errors.append("checkpoint rejected-source binding changed across continuation")
+    if rejected_lean_project_hash is not None and str(
+        checkpoint.get("rejected_lean_project_hash", "") or ""
+    ).strip() != str(rejected_lean_project_hash or "").strip():
+        errors.append("checkpoint rejected-project binding changed across continuation")
 
     source = str(checkpoint.get("current_source", "") or "")
     source_hash = str(checkpoint.get("current_source_hash", "") or "")
@@ -176,7 +211,29 @@ def _lean_workspace_checkpoint_identity_errors(
         errors.append("checkpoint current source exceeds the artifact-size boundary")
     if source.strip() and not declaration:
         errors.append("checkpoint source has no model-selected Lean declaration")
-    if checkpoint.get("model_owned_lean_code") is not bool(source.strip()):
+    support_files: tuple[LeanProjectFile, ...] = ()
+    support_build_order: tuple[str, ...] = ()
+    try:
+        support_files = normalized_lean_project_files(
+            checkpoint.get("support_files", [])
+        )
+        support_build_order = tuple(
+            checkpoint.get("support_build_order", []) or []
+        )
+        errors.extend(
+            lean_project_build_order_errors(
+                support_build_order,
+                project_files=support_files,
+                require_complete=False,
+            )
+        )
+    except ValueError as exc:
+        errors.append(str(exc))
+    if checkpoint_schema == 2 and (support_files or support_build_order):
+        errors.append("legacy Lean checkpoint cannot contain project support files")
+    if checkpoint.get("model_owned_lean_code") is not bool(
+        source.strip() or support_files
+    ):
         errors.append("checkpoint model-owned source boundary is inconsistent")
     if (
         checkpoint.get("runtime_selected_lean_code") is not False
@@ -207,22 +264,34 @@ def _lean_workspace_checkpoint_identity_errors(
         counters[field] = value
 
     checked_rows = checkpoint.get("checked_candidate_keys", [])
-    checked_keys: set[tuple[str, str]] = set()
+    checked_keys: set[tuple[str, str, str]] = set()
+    empty_project_hash = lean_project_hash(
+        target_source=source,
+        project_files=(),
+        support_build_order=(),
+    )
     if not isinstance(checked_rows, list):
         errors.append("checkpoint checked Lean candidates are malformed")
     else:
         for row in checked_rows:
-            if not isinstance(row, Mapping) or set(row) != {
-                "source_hash",
-                "candidate_lean_declaration",
-            }:
+            expected_fields = (
+                {"source_hash", "candidate_lean_declaration"}
+                if checkpoint_schema == 2
+                else {
+                    "source_hash",
+                    "candidate_lean_declaration",
+                    "lean_project_hash",
+                }
+            )
+            if not isinstance(row, Mapping) or set(row) != expected_fields:
                 errors.append("checkpoint contains an invalid checked Lean candidate")
                 continue
             key = (
                 str(row.get("source_hash", "") or ""),
                 str(row.get("candidate_lean_declaration", "") or "").strip(),
+                str(row.get("lean_project_hash", "") or empty_project_hash),
             )
-            if not key[0] or not key[1] or key in checked_keys:
+            if not key[0] or not key[1] or not key[2] or key in checked_keys:
                 errors.append("checkpoint checked Lean candidate identity is invalid")
                 continue
             checked_keys.add(key)
@@ -238,10 +307,20 @@ def _lean_workspace_checkpoint_identity_errors(
         checkpoint.get("last_check_hash", "") or ""
     ):
         errors.append("checkpoint last Lean check identity is stale")
-    if counters.get("checks", 0):
+    if last_check:
+        if not counters.get("checks", 0):
+            errors.append("checkpoint has a Lean check without a recorded check action")
         if (
             str(last_check.get("source_hash", "") or "") != source_hash
-            or (source_hash, declaration) not in checked_keys
+            or (
+                source_hash,
+                declaration,
+                str(
+                    last_check.get("lean_project_hash", "")
+                    or empty_project_hash
+                ),
+            )
+            not in checked_keys
         ):
             errors.append("checkpoint last Lean check is not bound to current source")
         latest_check = checkpoint.get("latest_check_observation", {})
@@ -249,8 +328,10 @@ def _lean_workspace_checkpoint_identity_errors(
             stable_hash(last_check)
         ):
             errors.append("checkpoint latest Lean diagnostic is not exact")
-    elif last_check:
-        errors.append("checkpoint has a Lean check without a recorded check action")
+    elif checkpoint_schema == 2 and counters.get("checks", 0):
+        errors.append("legacy checkpoint lost its current Lean diagnostic")
+    elif checkpoint.get("latest_check_observation", {}):
+        errors.append("checkpoint retained a stale current Lean diagnostic")
     fingerprints = checkpoint.get("workspace_observation_fingerprints", [])
     if (
         not isinstance(fingerprints, list)
@@ -259,13 +340,19 @@ def _lean_workspace_checkpoint_identity_errors(
     ):
         errors.append("checkpoint workspace observation identities are malformed")
         fingerprints = []
-    if counters.get("checks", 0):
+    if last_check:
+        check_fingerprint_material = {
+            "source_hash": source_hash,
+            "candidate_lean_declaration": declaration,
+            "check_result": last_check,
+        }
+        if checkpoint_schema == 3:
+            check_fingerprint_material["lean_project_hash"] = str(
+                last_check.get("lean_project_hash", "")
+                or empty_project_hash
+            )
         check_fingerprint = "lean-check:" + stable_hash(
-            {
-                "source_hash": source_hash,
-                "candidate_lean_declaration": declaration,
-                "check_result": last_check,
-            }
+            check_fingerprint_material
         )
         if check_fingerprint not in fingerprints:
             errors.append("checkpoint current Lean check observation is untracked")
@@ -295,6 +382,7 @@ def load_lean_candidate_workspace_checkpoint(
     parent_source: str,
     rejected_source_hash: str,
     checkpoint: Mapping[str, Any],
+    rejected_lean_project_hash: str = "",
     parent_formalizer_artifact_id: str | None = None,
     initial_authoring: bool | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -306,6 +394,7 @@ def load_lean_candidate_workspace_checkpoint(
         parent_candidate_lean_declaration=candidate_lean_declaration,
         parent_source=parent_source,
         rejected_source_hash=rejected_source_hash,
+        rejected_lean_project_hash=rejected_lean_project_hash,
     )
     if parent_formalizer_artifact_id is not None:
         lane_binding = (
@@ -328,15 +417,22 @@ def load_lean_candidate_workspace_checkpoint(
             history=[],
             recovery_checkpoint=checkpoint,
         )
+    current_source = str(checkpoint.get("current_source", "") or "")
+    legacy_project_hash = lean_project_hash(
+        target_source=current_source,
+        project_files=(),
+        support_build_order=(),
+    )
     checked_keys = {
         (
             str(row["source_hash"]),
             str(row["candidate_lean_declaration"]),
+            str(row.get("lean_project_hash", "") or legacy_project_hash),
         )
         for row in checkpoint.get("checked_candidate_keys", [])
     }
     state = {
-        "source": str(checkpoint.get("current_source", "") or ""),
+        "source": current_source,
         "source_hash": str(checkpoint.get("current_source_hash", "") or ""),
         "candidate_lean_declaration": str(
             checkpoint.get("candidate_lean_declaration", "") or ""
@@ -344,6 +440,15 @@ def load_lean_candidate_workspace_checkpoint(
         "checked_candidate_keys": checked_keys,
         "workspace_observation_fingerprints": set(
             checkpoint.get("workspace_observation_fingerprints", [])
+        ),
+        "support_files": {
+            row.path: row.content
+            for row in normalized_lean_project_files(
+                checkpoint.get("support_files", [])
+            )
+        },
+        "support_build_order": list(
+            checkpoint.get("support_build_order", []) or []
         ),
         **{
             field: int(checkpoint.get(field, 0) or 0)
@@ -465,10 +570,14 @@ def run_lean_candidate_revision_tool_loop(
     initial_source: str,
     check_candidate: LeanCandidateCheck,
     search_formal_environment: FormalEnvironmentSearch,
+    check_candidate_project: LeanCandidateProjectCheck | None = None,
+    check_support_file: LeanSupportFileCheck | None = None,
+    initial_lean_project: Mapping[str, Any] | None = None,
     search_proof_candidates: ProofCandidateSearch | None = None,
     inspect_lean_state: LeanStateInspection | None = None,
     inspect_lean_declaration: LeanDeclarationInspection | None = None,
     rejected_source_hash: str = "",
+    rejected_lean_project_hash: str = "",
     allow_formal_gap: bool = False,
     request_metadata: Mapping[str, Any] | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
@@ -492,9 +601,25 @@ def run_lean_candidate_revision_tool_loop(
     parent_source_hash = stable_hash(parent_source)
     parent_candidate_lean_declaration = candidate_lean_declaration.strip()
     rejected_source_hash = str(rejected_source_hash or "").strip()
+    rejected_lean_project_hash = str(rejected_lean_project_hash or "").strip()
     if rejected_source_hash and not parent_source.strip():
         raise ValueError("a rejected source hash requires an existing Lean source")
+    if rejected_lean_project_hash and not rejected_source_hash:
+        raise ValueError("a rejected Lean project hash requires a rejected source hash")
     workspace_phase = "revision" if parent_source.strip() else "initial_authoring"
+    initial_project_files, initial_support_build_order = (
+        load_model_authored_lean_project(
+            initial_lean_project,
+            target_source=parent_source,
+        )
+    )
+    project_tools_enabled = bool(
+        check_candidate_project is not None and check_support_file is not None
+    )
+    if initial_project_files and not project_tools_enabled:
+        raise ValueError(
+            "an existing multi-file Lean project requires project check tools"
+        )
     theory_document_catalog, theory_document_map = (
         theory_documents.externalize_theory_document_rows(
             authoritative_theory_document_rows
@@ -523,9 +648,18 @@ def run_lean_candidate_revision_tool_loop(
         "candidate_lean_declaration": parent_candidate_lean_declaration,
         "checked_candidate_keys": set(),
         "workspace_observation_fingerprints": set(),
+        "support_files": {
+            row.path: row.content for row in initial_project_files
+        },
+        "support_build_order": list(initial_support_build_order),
         "source_updates": 0,
         "declaration_updates": 0,
         "source_reads": 0,
+        "support_file_writes": 0,
+        "support_file_edits": 0,
+        "support_file_reads": 0,
+        "support_file_removals": 0,
+        "support_file_checks": 0,
         "searches": 0,
         "proof_searches": 0,
         "state_inspections": 0,
@@ -538,6 +672,7 @@ def run_lean_candidate_revision_tool_loop(
         "latest_proof_search": {},
         "latest_state_inspection": {},
         "latest_declaration_inspection": {},
+        "latest_support_file_check": {},
         "theory_document_inspection_refs": [],
     }
     resume_metadata = {
@@ -552,6 +687,7 @@ def run_lean_candidate_revision_tool_loop(
             parent_source=parent_source,
             rejected_source_hash=rejected_source_hash,
             checkpoint=recovery_checkpoint,
+            rejected_lean_project_hash=rejected_lean_project_hash,
         )
     state["authoritative_theory_document_catalog"] = deepcopy(theory_document_catalog)
     state["authoritative_theory_document_set_hash"] = theory_document_set_hash
@@ -560,15 +696,60 @@ def run_lean_candidate_revision_tool_loop(
         include_state_inspection=inspect_lean_state is not None,
         include_declaration_inspection=inspect_lean_declaration is not None,
         include_formal_gap=allow_formal_gap,
+        include_project_tools=project_tools_enabled,
     )
     if theory_document_map:
         tools = (*tools, *theory_documents.theory_document_client_tools())
 
-    def check_current_source() -> dict[str, Any]:
-        raw_result = check_candidate(
-            str(state["source"]),
-            str(state["candidate_lean_declaration"]),
+    def current_project_files() -> tuple[LeanProjectFile, ...]:
+        return normalized_lean_project_files(
+            [
+                {"path": path, "content": content}
+                for path, content in state["support_files"].items()
+            ]
         )
+
+    def current_project_payload(*, require_complete: bool = True) -> dict[str, Any]:
+        rows = current_project_files()
+        errors = lean_project_build_order_errors(
+            state["support_build_order"],
+            project_files=rows,
+            require_complete=require_complete,
+        )
+        if errors:
+            raise ClientToolInputError("; ".join(errors))
+        if require_complete:
+            return model_authored_lean_project(
+                target_source=str(state["source"]),
+                project_files=rows,
+                support_build_order=state["support_build_order"],
+            )
+        return {
+            "support_files": [row.to_json() for row in rows],
+            "support_build_order": list(state["support_build_order"]),
+            "workspace_project_hash": stable_hash(
+                {
+                    "target_source_hash": state["source_hash"],
+                    "support_files": [row.to_json() for row in rows],
+                    "support_build_order": list(state["support_build_order"]),
+                }
+            ),
+        }
+
+    def check_current_source() -> dict[str, Any]:
+        project = current_project_payload(require_complete=True)
+        if check_candidate_project is not None:
+            raw_result = check_candidate_project(
+                str(state["source"]),
+                str(state["candidate_lean_declaration"]),
+                project["support_files"],
+                project["support_build_order"],
+            )
+        else:
+            raw_result = check_candidate(
+                str(state["source"]),
+                str(state["candidate_lean_declaration"]),
+            )
         if not isinstance(raw_result, Mapping):
             raise ClientToolInputError("Lean checker returned a non-object result")
         check_result = deepcopy(dict(raw_result))
@@ -577,6 +758,17 @@ def run_lean_candidate_revision_tool_loop(
             raise ClientToolInputError(
                 "Lean checker result is not bound to the current source hash"
             )
+        observed_project_hash = str(
+            check_result.get("lean_project_hash", "")
+            or project["project_hash"]
+        )
+        if observed_project_hash != project["project_hash"]:
+            raise ClientToolInputError(
+                "Lean checker result is not bound to the current project hash"
+            )
+        check_result.pop("lean_project", None)
+        if project_tools_enabled:
+            check_result["lean_project_hash"] = project["project_hash"]
         state["checks"] += 1
         state["last_check"] = check_result
         state["latest_check_observation"] = check_result
@@ -584,19 +776,22 @@ def run_lean_candidate_revision_tool_loop(
             (
                 str(state["source_hash"]),
                 str(state["candidate_lean_declaration"]),
+                project["project_hash"],
             )
         )
+        check_fingerprint_material = {
+            "source_hash": state["source_hash"],
+            "candidate_lean_declaration": state[
+                "candidate_lean_declaration"
+            ],
+            "check_result": check_result,
+        }
+        if project_tools_enabled:
+            check_fingerprint_material["lean_project_hash"] = project[
+                "project_hash"
+            ]
         state["workspace_observation_fingerprints"].add(
-            "lean-check:"
-            + stable_hash(
-                {
-                    "source_hash": state["source_hash"],
-                    "candidate_lean_declaration": state[
-                        "candidate_lean_declaration"
-                    ],
-                    "check_result": check_result,
-                }
-            )
+            "lean-check:" + stable_hash(check_fingerprint_material)
         )
         return check_result
 
@@ -614,8 +809,18 @@ def run_lean_candidate_revision_tool_loop(
     )
 
     def current_workspace_observation() -> dict[str, Any]:
+        support_rows = current_project_files()
         return {
             "current_source_hash": str(state["source_hash"]),
+            "lean_support_files": [
+                {
+                    "path": row.path,
+                    "content_sha256": row.content_sha256,
+                    "byte_size": len(row.content.encode("utf-8")),
+                }
+                for row in support_rows
+            ],
+            "support_build_order": list(state["support_build_order"]),
             **(
                 {
                     "candidate_lean_declaration": str(
@@ -648,7 +853,16 @@ def run_lean_candidate_revision_tool_loop(
         source_hash = stable_hash(source)
         changed = source_hash != state["source_hash"]
         declaration_changed = declaration != state["candidate_lean_declaration"]
-        candidate_key = (source_hash, declaration)
+        try:
+            project = model_authored_lean_project(
+                target_source=source,
+                project_files=current_project_files(),
+                support_build_order=state["support_build_order"],
+            )
+            project_hash = str(project["project_hash"])
+        except ValueError as exc:
+            raise ClientToolInputError(str(exc)) from exc
+        candidate_key = (source_hash, declaration, project_hash)
         if candidate_key in state["checked_candidate_keys"]:
             raise ClientToolInputError(
                 "the resulting source and declaration are byte-identical to a "
@@ -670,6 +884,10 @@ def run_lean_candidate_revision_tool_loop(
             compiled
             and rejected_source_hash
             and source_hash == rejected_source_hash
+            and (
+                not rejected_lean_project_hash
+                or project_hash == rejected_lean_project_hash
+            )
         )
         content = {
             **check_result,
@@ -679,6 +897,7 @@ def run_lean_candidate_revision_tool_loop(
             "declaration_changed": declaration_changed,
             "source_hash": source_hash,
             "candidate_lean_declaration": declaration,
+            "lean_project_hash": project_hash,
             "source_updates": state["source_updates"],
             "declaration_updates": state["declaration_updates"],
             "checks": state["checks"],
@@ -693,11 +912,12 @@ def run_lean_candidate_revision_tool_loop(
                 {
                     "error": "independently_rejected_source_unchanged",
                     "rejected_source_hash": rejected_source_hash,
+                    "rejected_lean_project_hash": rejected_lean_project_hash,
                     "detail": (
-                        "Lean compiled these bytes, but they are byte-identical "
-                        "to the source rejected by independent semantic review. "
-                        "Use the supplied review findings to author a changed "
-                        "source, or report a grounded formal gap."
+                        "Lean compiled this exact source-and-support project, but "
+                        "it is identical to the project rejected by independent "
+                        "semantic review. Use the findings to author a changed "
+                        "project, or report a grounded formal gap."
                     ),
                 }
             )
@@ -722,6 +942,9 @@ def run_lean_candidate_revision_tool_loop(
                         "candidate_lean_declaration"
                     ],
                     "check_result": deepcopy(check_result),
+                    "lean_project": deepcopy(
+                        check_result.get("lean_project", project)
+                    ),
                     "source_action": source_action,
                 }
                 if compiled and not rejected_source_reused
@@ -733,6 +956,7 @@ def run_lean_candidate_revision_tool_loop(
                     "source_action": source_action,
                     "source_hash": source_hash,
                     "candidate_lean_declaration": declaration,
+                    "lean_project_hash": project_hash,
                     "check_result": check_result,
                     "rejected_source_reused": rejected_source_reused,
                     "edit_metadata": dict(edit_metadata or {}),
@@ -834,6 +1058,259 @@ def run_lean_candidate_revision_tool_loop(
                 observation_key=observation_key,
             )
 
+        if call.name == LEAN_SUPPORT_FILE_WRITE_TOOL:
+            if not project_tools_enabled:
+                raise ClientToolInputError("Lean project support files are unavailable")
+            if set(tool_input) != {"path", "content"}:
+                raise ClientToolInputError(
+                    "write_lean_support_file requires exactly path and content"
+                )
+            path = tool_input.get("path")
+            content = tool_input.get("content")
+            if not isinstance(path, str) or not isinstance(content, str):
+                raise ClientToolInputError(
+                    "Lean support file path and content must be strings"
+                )
+            previous = state["support_files"].get(path)
+            if previous == content:
+                raise ClientToolInputError(
+                    "Lean support file is byte-identical to the current file"
+                )
+            prospective = dict(state["support_files"])
+            prospective[path] = content
+            try:
+                rows = normalized_lean_project_files(
+                    [
+                        {"path": file_path, "content": file_content}
+                        for file_path, file_content in prospective.items()
+                    ]
+                )
+            except ValueError as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            state["support_files"] = {
+                row.path: row.content for row in rows
+            }
+            state["support_build_order"] = []
+            state["support_file_writes"] += 1
+            state["last_check"] = {}
+            state["latest_check_observation"] = {}
+            content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            observation = {
+                "ok": True,
+                "path": path,
+                "content_sha256": content_sha256,
+                "byte_size": len(content.encode("utf-8")),
+                "support_file_count": len(rows),
+                "support_build_order_reset": True,
+                "runtime_edited_source": False,
+                "proof_evidence_status": "LEAN_SUPPORT_FILE_WRITE_NOT_PROOF_EVIDENCE",
+            }
+            observation_key = "lean-support-write:" + stable_hash(observation)
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=observation,
+                state_changed=True,
+                observation_key=observation_key,
+            )
+
+        if call.name == LEAN_SUPPORT_FILE_EDIT_TOOL:
+            if not project_tools_enabled:
+                raise ClientToolInputError("Lean project support files are unavailable")
+            if set(tool_input) != {"path", "current_content_sha256", "edits"}:
+                raise ClientToolInputError(
+                    "edit_lean_support_file requires path, current_content_sha256, and edits"
+                )
+            path = tool_input.get("path")
+            if not isinstance(path, str) or path not in state["support_files"]:
+                raise ClientToolInputError("unknown Lean support file")
+            current = str(state["support_files"][path])
+            current_sha256 = hashlib.sha256(current.encode("utf-8")).hexdigest()
+            if tool_input.get("current_content_sha256") != current_sha256:
+                raise ClientToolInputError(
+                    "Lean support file edit is stale; read the current hash first"
+                )
+            try:
+                updated, edit_rows = apply_model_exact_text_edits(
+                    current,
+                    edits=tool_input.get("edits"),
+                    replacement_key="new_text",
+                )
+                normalized_lean_project_files(
+                    [
+                        {
+                            "path": file_path,
+                            "content": updated if file_path == path else file_content,
+                        }
+                        for file_path, file_content in state["support_files"].items()
+                    ]
+                )
+            except (ClientToolInputError, ValueError) as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            state["support_files"][path] = updated
+            state["support_build_order"] = []
+            state["support_file_edits"] += 1
+            state["last_check"] = {}
+            state["latest_check_observation"] = {}
+            updated_sha256 = hashlib.sha256(updated.encode("utf-8")).hexdigest()
+            observation = {
+                "ok": True,
+                "path": path,
+                "previous_content_sha256": current_sha256,
+                "content_sha256": updated_sha256,
+                "model_authored_exact_edits": deepcopy(edit_rows),
+                "support_build_order_reset": True,
+                "runtime_edited_source": False,
+                "proof_evidence_status": "LEAN_SUPPORT_FILE_EDIT_NOT_PROOF_EVIDENCE",
+            }
+            observation_key = "lean-support-edit:" + stable_hash(observation)
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=observation,
+                state_changed=True,
+                observation_key=observation_key,
+            )
+
+        if call.name == LEAN_SUPPORT_FILE_READ_TOOL:
+            if not project_tools_enabled:
+                raise ClientToolInputError("Lean project support files are unavailable")
+            if set(tool_input) != {"path", "line_start", "line_end"}:
+                raise ClientToolInputError(
+                    "read_lean_support_file requires path, line_start, and line_end"
+                )
+            path = tool_input.get("path")
+            line_start = tool_input.get("line_start")
+            line_end = tool_input.get("line_end")
+            if not isinstance(path, str) or path not in state["support_files"]:
+                raise ClientToolInputError("unknown Lean support file")
+            if (
+                isinstance(line_start, bool)
+                or not isinstance(line_start, int)
+                or isinstance(line_end, bool)
+                or not isinstance(line_end, int)
+                or line_start < 1
+                or line_end < line_start
+            ):
+                raise ClientToolInputError(
+                    "Lean support file line range must be positive and ordered"
+                )
+            file_content = str(state["support_files"][path])
+            lines = file_content.splitlines(keepends=True)
+            if line_end > len(lines):
+                raise ClientToolInputError(
+                    f"Lean support file has {len(lines)} line(s)"
+                )
+            selected = "".join(lines[line_start - 1 : line_end])
+            state["support_file_reads"] += 1
+            observation = {
+                "ok": True,
+                "path": path,
+                "line_start": line_start,
+                "line_end": line_end,
+                "total_lines": len(lines),
+                "content": selected,
+                "content_sha256": hashlib.sha256(
+                    file_content.encode("utf-8")
+                ).hexdigest(),
+                "proof_evidence_status": "LEAN_SUPPORT_FILE_READ_NOT_PROOF_EVIDENCE",
+            }
+            observation_key = "lean-support-read:" + stable_hash(observation)
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key=observation_key,
+            )
+
+        if call.name == LEAN_SUPPORT_FILE_REMOVE_TOOL:
+            if not project_tools_enabled:
+                raise ClientToolInputError("Lean project support files are unavailable")
+            if set(tool_input) != {"path", "current_content_sha256"}:
+                raise ClientToolInputError(
+                    "remove_lean_support_file requires path and current_content_sha256"
+                )
+            path = tool_input.get("path")
+            if not isinstance(path, str) or path not in state["support_files"]:
+                raise ClientToolInputError("unknown Lean support file")
+            current = str(state["support_files"][path])
+            current_sha256 = hashlib.sha256(current.encode("utf-8")).hexdigest()
+            if tool_input.get("current_content_sha256") != current_sha256:
+                raise ClientToolInputError(
+                    "Lean support file removal is stale; read the current hash first"
+                )
+            del state["support_files"][path]
+            state["support_build_order"] = []
+            state["support_file_removals"] += 1
+            state["last_check"] = {}
+            state["latest_check_observation"] = {}
+            observation = {
+                "ok": True,
+                "path": path,
+                "removed_content_sha256": current_sha256,
+                "support_build_order_reset": True,
+                "runtime_edited_source": False,
+                "proof_evidence_status": "LEAN_SUPPORT_FILE_REMOVE_NOT_PROOF_EVIDENCE",
+            }
+            observation_key = "lean-support-remove:" + stable_hash(observation)
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=observation,
+                state_changed=True,
+                observation_key=observation_key,
+            )
+
+        if call.name == LEAN_SUPPORT_FILE_CHECK_TOOL:
+            if not project_tools_enabled or check_support_file is None:
+                raise ClientToolInputError("Lean project support checks are unavailable")
+            if set(tool_input) != {"path"}:
+                raise ClientToolInputError(
+                    "check_lean_support_file requires exactly path"
+                )
+            path = tool_input.get("path")
+            if not isinstance(path, str) or path not in state["support_files"]:
+                raise ClientToolInputError("unknown Lean support file")
+            if path in state["support_build_order"]:
+                raise ClientToolInputError(
+                    "Lean support file is already checked in the current build order"
+                )
+            rows = current_project_files()
+            raw_result = check_support_file(
+                path,
+                [row.to_json() for row in rows],
+                list(state["support_build_order"]),
+            )
+            if not isinstance(raw_result, Mapping):
+                raise ClientToolInputError(
+                    "Lean support checker returned a non-object result"
+                )
+            observation = deepcopy(dict(raw_result))
+            expected_hash = stable_hash(str(state["support_files"][path]))
+            if str(observation.get("source_hash", "") or "") != expected_hash:
+                raise ClientToolInputError(
+                    "Lean support check is not bound to the current file hash"
+                )
+            compiled = bool(observation.get("compiled", False))
+            if compiled:
+                state["support_build_order"].append(path)
+            state["support_file_checks"] += 1
+            state["latest_support_file_check"] = deepcopy(observation)
+            content = {
+                **observation,
+                "ok": compiled,
+                "support_build_order": list(state["support_build_order"]),
+                "support_files_remaining": sorted(
+                    set(state["support_files"]) - set(state["support_build_order"])
+                ),
+                "support_file_checks": state["support_file_checks"],
+                "proof_evidence_status": "LEAN_SUPPORT_FILE_CHECK_NOT_TARGET_PROOF_EVIDENCE",
+            }
+            observation_key = "lean-support-check:" + stable_hash(content)
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=content,
+                is_error=not compiled,
+                state_changed=compiled,
+                observation_key=observation_key,
+            )
+
         if call.name == LEAN_SCRATCH_TOOL:
             if set(tool_input) != {"lean_source"}:
                 raise ClientToolInputError("run_lean_scratch requires exactly lean_source")
@@ -906,6 +1383,7 @@ def run_lean_candidate_revision_tool_loop(
                 int(state[key] or 0)
                 for key in (
                     "checks",
+                    "support_file_checks",
                     "scratch_checks",
                     "searches",
                     "proof_searches",
@@ -1163,6 +1641,17 @@ def run_lean_candidate_revision_tool_loop(
             "complete_source_inline": False,
             "content_transport": LEAN_SOURCE_READ_TOOL,
         },
+        "lean_support_file_catalog": [
+            {
+                "path": row.path,
+                "content_sha256": row.content_sha256,
+                "byte_size": len(row.content.encode("utf-8")),
+                "line_count": len(row.content.splitlines()),
+                "content_transport": LEAN_SUPPORT_FILE_READ_TOOL,
+            }
+            for row in current_project_files()
+        ],
+        "support_build_order": list(state["support_build_order"]),
         "latest_check_observation": _compact_lean_check_observation(
             state["latest_check_observation"]
         ),
@@ -1192,8 +1681,9 @@ def run_lean_candidate_revision_tool_loop(
             {
                 "revision_requirement": {
                     "rejected_source_hash": rejected_source_hash,
+                    "rejected_lean_project_hash": rejected_lean_project_hash,
                     "required_disposition": (
-                        "author a changed source or report grounded formal gap"
+                        "author a changed source/support project or report grounded formal gap"
                     ),
                 }
             }
@@ -1202,8 +1692,9 @@ def run_lean_candidate_revision_tool_loop(
         ),
         "proof_evidence_status": "WORKSPACE_STATE_NOT_PROOF_EVIDENCE",
     }
-    root_authorization_fingerprint = client_tool_authorization_fingerprint(request_metadata) or stable_hash(
-        ["lean", candidate_id, theory_document_set_hash]
+    root_authorization_fingerprint = (
+        client_tool_authorization_fingerprint(request_metadata)
+        or stable_hash(["lean", candidate_id, theory_document_set_hash])
     )
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
@@ -1218,6 +1709,15 @@ def run_lean_candidate_revision_tool_loop(
                     "Use read_current_lean_source for exact line ranges before a "
                     "localized edit; submit_lean_source remains available for a "
                     "complete replacement or initial authoring."
+                    + (
+                        " Support files are optional model-owned project state. "
+                        "Create, read, edit, remove, and compile them with the Lean "
+                        "support-file tools. Compile dependencies before dependents; "
+                        "the resulting successful order is replayed exactly before "
+                        "every target check and final kernel promotion."
+                        if project_tools_enabled
+                        else ""
+                    )
                     + "\n\nInitial authoritative Lean workspace state:\n"
                     + json.dumps(
                         initial_workspace,
@@ -1246,6 +1746,11 @@ def run_lean_candidate_revision_tool_loop(
             "candidate_lean_declaration": state["candidate_lean_declaration"],
             "parent_source_hash": parent_source_hash,
             "rejected_source_hash": rejected_source_hash,
+            **(
+                {"rejected_lean_project_hash": rejected_lean_project_hash}
+                if project_tools_enabled
+                else {}
+            ),
             "resumed_from_checkpoint_id": resume_metadata[
                 "resume_checkpoint_id"
             ],
@@ -1303,7 +1808,7 @@ def run_lean_candidate_revision_tool_loop(
             > segment_start_observation_count
         )
         checkpoint_body = {
-            "schema_version": 2,
+            "schema_version": 3 if project_tools_enabled else 2,
             "artifact_kind": LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND,
             "candidate_id": candidate_id,
             "parent_candidate_lean_declaration": (
@@ -1315,14 +1820,28 @@ def run_lean_candidate_revision_tool_loop(
             "workspace_phase": workspace_phase,
             "parent_source_hash": parent_source_hash,
             "rejected_source_hash": rejected_source_hash,
+            **(
+                {"rejected_lean_project_hash": rejected_lean_project_hash}
+                if project_tools_enabled
+                else {}
+            ),
             "current_source_hash": state["source_hash"],
             "current_source": state["source"],
+            "support_files": [
+                row.to_json() for row in current_project_files()
+            ],
+            "support_build_order": list(state["support_build_order"]),
             "checked_candidate_keys": [
                 {
                     "source_hash": source_hash,
                     "candidate_lean_declaration": declaration,
+                    **(
+                        {"lean_project_hash": project_hash}
+                        if project_tools_enabled
+                        else {}
+                    ),
                 }
-                for source_hash, declaration in sorted(
+                for source_hash, declaration, project_hash in sorted(
                     state["checked_candidate_keys"]
                 )
             ],
@@ -1371,7 +1890,9 @@ def run_lean_candidate_revision_tool_loop(
             "resumable": new_progress,
             "accepted": False,
             "runtime_selected_lean_code": False,
-            "model_owned_lean_code": bool(str(state["source"]).strip()),
+            "model_owned_lean_code": bool(
+                str(state["source"]).strip() or state["support_files"]
+            ),
             "model_owned_workspace_actions": new_progress,
             "kernel_verified": False,
             "proof_evidence_status": (
@@ -1428,6 +1949,8 @@ def run_lean_candidate_revision_tool_loop(
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
             rejected_source_hash=rejected_source_hash,
+            rejected_lean_project_hash=rejected_lean_project_hash,
+            lean_project_persistence_root=resolved_session_dir,
             turns=loop.turns,
             tool_calls=loop.tool_calls,
             runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
@@ -1460,14 +1983,42 @@ def run_lean_candidate_revision_tool_loop(
         terminal.get("candidate_lean_declaration", "") or ""
     ).strip()
     check_result = terminal.get("check_result", {})
+    terminal_project = terminal.get("lean_project", {})
+    try:
+        terminal_project_files, terminal_build_order = (
+            load_model_authored_lean_project(
+                terminal_project,
+                target_source=source,
+            )
+        )
+        terminal_project_hash = lean_project_hash(
+            target_source=source,
+            project_files=terminal_project_files,
+            support_build_order=terminal_build_order,
+        )
+    except ValueError:
+        terminal_project_hash = ""
     if (
         not source.strip()
         or source_hash != stable_hash(source)
         or not submitted_declaration
         or not isinstance(check_result, Mapping)
         or str(check_result.get("source_hash", "") or "") != source_hash
+        or str(
+            check_result.get("lean_project_hash", "")
+            or terminal_project_hash
+        )
+        != terminal_project_hash
+        or not terminal_project_hash
         or not bool(check_result.get("compiled", False))
-        or bool(rejected_source_hash and source_hash == rejected_source_hash)
+        or bool(
+            rejected_source_hash
+            and source_hash == rejected_source_hash
+            and (
+                not rejected_lean_project_hash
+                or terminal_project_hash == rejected_lean_project_hash
+            )
+        )
     ):
         raise PacketValidationError(
             validation_label="LLM Formalizer Lean candidate client-tool workspace",
@@ -1496,6 +2047,8 @@ def run_lean_candidate_revision_tool_loop(
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
         rejected_source_hash=rejected_source_hash,
+        rejected_lean_project_hash=rejected_lean_project_hash,
+        lean_project_persistence_root=resolved_session_dir,
         turns=loop.turns,
         tool_calls=loop.tool_calls,
         runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
@@ -1532,6 +2085,8 @@ def _lean_candidate_revision_success_result(
     max_tool_calls: int,
     max_no_progress_turns: int,
     rejected_source_hash: str,
+    rejected_lean_project_hash: str,
+    lean_project_persistence_root: Path | None,
     turns: int,
     tool_calls: int,
     runtime_executed_tool_calls: int,
@@ -1552,10 +2107,41 @@ def _lean_candidate_revision_success_result(
 ) -> LeanCandidateRevisionToolLoopResult:
     source_hash = stable_hash(source)
     accepted_model_source = disposition == "AUTHOR_LEAN"
-    model_owned_lean_code = bool(source.strip())
+    project_rows = normalized_lean_project_files(
+        [
+            {"path": path, "content": content}
+            for path, content in state.get("support_files", {}).items()
+        ]
+    )
+    if accepted_model_source:
+        lean_project = model_authored_lean_project(
+            target_source=source,
+            project_files=project_rows,
+            support_build_order=state.get("support_build_order", []),
+        )
+        lean_project = persist_model_authored_lean_project(
+            lean_project,
+            target_source=source,
+            root=lean_project_persistence_root,
+        )
+    else:
+        lean_project = {
+            "artifact_kind": "ModelAuthoredLeanProjectDraft",
+            "main_source_hash": source_hash,
+            "support_files": [row.to_json() for row in project_rows],
+            "support_build_order": list(
+                state.get("support_build_order", [])
+            ),
+            "runtime_edited_source": False,
+            "proof_evidence_status": "LEAN_PROJECT_DRAFT_NOT_PROOF_EVIDENCE",
+        }
+    model_owned_lean_code = bool(source.strip() or project_rows)
     model_explicit_submit = bool(
         int(state["source_updates"] or 0)
         or int(state["declaration_updates"] or 0)
+        or int(state.get("support_file_writes", 0) or 0)
+        or int(state.get("support_file_edits", 0) or 0)
+        or int(state.get("support_file_removals", 0) or 0)
     )
     latest_check_compiled = bool(
         check_result.get(
@@ -1576,7 +2162,7 @@ def _lean_candidate_revision_success_result(
         dict.fromkeys([*state_provider_tools, *declaration_provider_tools])
     )
     evidence = {
-        "schema_version": 2,
+        "schema_version": 3,
         "artifact_kind": "LeanCandidateClientToolWorkspace",
         "transport": "native_client_tools",
         "candidate_id": candidate_id,
@@ -1620,6 +2206,24 @@ def _lean_candidate_revision_success_result(
         "current_source_read_available": LEAN_SOURCE_READ_TOOL
         in {tool.name for tool in tools},
         "current_source_content_transport": LEAN_SOURCE_READ_TOOL,
+        "lean_project": deepcopy(lean_project),
+        "lean_project_hash": str(lean_project.get("project_hash", "") or ""),
+        "lean_support_file_count": len(project_rows),
+        "lean_support_file_writes": int(
+            state.get("support_file_writes", 0) or 0
+        ),
+        "lean_support_file_edits": int(
+            state.get("support_file_edits", 0) or 0
+        ),
+        "lean_support_file_reads": int(
+            state.get("support_file_reads", 0) or 0
+        ),
+        "lean_support_file_removals": int(
+            state.get("support_file_removals", 0) or 0
+        ),
+        "lean_support_file_checks": int(
+            state.get("support_file_checks", 0) or 0
+        ),
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],
         "declaration_updates": state["declaration_updates"],
@@ -1627,6 +2231,15 @@ def _lean_candidate_revision_success_result(
         **(
             {"independently_rejected_source_hash": rejected_source_hash}
             if rejected_source_hash
+            else {}
+        ),
+        **(
+            {
+                "independently_rejected_lean_project_hash": (
+                    rejected_lean_project_hash
+                )
+            }
+            if rejected_lean_project_hash
             else {}
         ),
         "formal_environment_searches": state["searches"],
@@ -1729,6 +2342,7 @@ def _lean_candidate_revision_success_result(
         disposition=disposition,
         formal_gap=deepcopy(dict(formal_gap)),
         check_result=deepcopy(dict(check_result)),
+        lean_project=deepcopy(lean_project),
         evidence=evidence,
     )
 
@@ -1738,6 +2352,7 @@ def _compact_lean_check_observation(value: Any) -> dict[str, Any]:
         return {}
     keys = (
         "source_hash",
+        "lean_project_hash",
         "candidate_lean_declaration",
         "compiled",
         "precheck_errors",
@@ -1794,6 +2409,7 @@ def _lean_candidate_revision_tools(
     include_state_inspection: bool = False,
     include_declaration_inspection: bool = False,
     include_formal_gap: bool = False,
+    include_project_tools: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     tools = [
         ClientToolDefinition(
@@ -1885,6 +2501,98 @@ def _lean_candidate_revision_tools(
             },
         ),
     ]
+    if include_project_tools:
+        tools[3:3] = [
+            ClientToolDefinition(
+                name=LEAN_SUPPORT_FILE_WRITE_TOOL,
+                description=(
+                    "Create or replace one complete model-authored .lean support file "
+                    "at a canonical project-relative path. This changes no target "
+                    "source and performs no compile; check the file explicitly before "
+                    "the target imports it."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path", "content"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "content": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": MAX_LEAN_PROJECT_FILE_BYTES,
+                        },
+                    },
+                },
+            ),
+            ClientToolDefinition(
+                name=LEAN_SUPPORT_FILE_EDIT_TOOL,
+                description=(
+                    "Apply one atomic exact model-authored edit batch to a current "
+                    "support file. Supply its current SHA-256; all generated build "
+                    "state is invalidated and the runtime never parses Lean."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path", "current_content_sha256", "edits"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "current_content_sha256": {"type": "string", "minLength": 64},
+                        "edits": model_exact_text_edits_json_schema(),
+                    },
+                },
+            ),
+            ClientToolDefinition(
+                name=LEAN_SUPPORT_FILE_READ_TOOL,
+                description=(
+                    "Read an exact line range from one current model-authored Lean "
+                    "support file, including its SHA-256."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path", "line_start", "line_end"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "line_start": {"type": "integer", "minimum": 1},
+                        "line_end": {"type": "integer", "minimum": 1},
+                    },
+                },
+            ),
+            ClientToolDefinition(
+                name=LEAN_SUPPORT_FILE_REMOVE_TOOL,
+                description=(
+                    "Remove one current model-authored Lean support file using its "
+                    "exact current SHA-256."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path", "current_content_sha256"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "current_content_sha256": {"type": "string", "minLength": 64},
+                    },
+                },
+            ),
+            ClientToolDefinition(
+                name=LEAN_SUPPORT_FILE_CHECK_TOOL,
+                description=(
+                    "Compile one selected current support file after the already "
+                    "successful model-established build order. Raw Lean diagnostics "
+                    "return here; success is support evidence, never target proof."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                    },
+                },
+            ),
+        ]
     if include_formal_gap:
         tools.append(
             ClientToolDefinition(

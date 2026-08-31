@@ -14,6 +14,7 @@ from ai_statistician.lean_candidate_identity import (
     lean_target_statement_hash,
 )
 from ai_statistician.lean_kernel_promotion import evaluate_lean_kernel_promotion
+from ai_statistician.lean_project import model_authored_lean_project
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.formal_target_semantic_review_runtime import (
     FormalTargetSemanticReviewerRuntimeSubsystem,
@@ -132,6 +133,7 @@ def _runtime_fixture(
     workspace_evidence: Mapping[str, Any] | None = None,
     formal_only: bool = False,
     omit_theory_packet: bool = False,
+    lean_project: Mapping[str, Any] | None = None,
 ) -> tuple[
     FormalTargetSemanticReviewerRuntimeSubsystem,
     AgentTask,
@@ -221,6 +223,7 @@ def _runtime_fixture(
                 "id": "exact_source",
                 "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
                 "lean_statement_sketch": source,
+                **({"lean_project": dict(lean_project)} if lean_project else {}),
             }
         ],
     }
@@ -236,6 +239,16 @@ def _runtime_fixture(
                 "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
                 "artifact_path": str(artifact_path),
                 "source_hash": source_hash,
+                **(
+                    {
+                        "lean_project": dict(lean_project),
+                        "lean_project_hash": str(
+                            lean_project.get("project_hash", "") or ""
+                        ),
+                    }
+                    if lean_project
+                    else {}
+                ),
                 "target_lean_declaration": "exact_source",
                 "candidate_lean_declaration": "exact_source",
                 "target_ids": ["exact_source"],
@@ -381,6 +394,51 @@ def test_accept_routes_hash_bound_target_to_model_owned_lean_generation(
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["kernel_verified"] is False
     assert validate_formal_target_semantic_review_packet(packet) == []
+
+
+def test_semantic_review_binds_exact_model_authored_lean_project(
+    tmp_path: Path,
+) -> None:
+    source = (
+        "import Mathlib\n\n"
+        "theorem exact_source (p : Prop) (hp : p) : p := by\n"
+        "  exact hp\n"
+    )
+    project = model_authored_lean_project(
+        target_source=source,
+        project_files=[
+            {
+                "path": "AIStat/Support.lean",
+                "content": "namespace AIStat\ntheorem helper : True := by trivial\nend AIStat\n",
+            }
+        ],
+        support_build_order=("AIStat/Support.lean",),
+    )
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accepted=True,
+        lean_project=project,
+    )
+    backend = _CapturingBackend([_review_response(accepted=True)])
+    subsystem.reviewer = LLMFormalTargetSemanticReviewerAgent(
+        provider=backend,
+        config=FormalTargetSemanticReviewerConfig(
+            provider_name="static",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            max_validation_retries=0,
+        ),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REROUTE"
+    payload = json.loads(backend.requests[0].user_prompt.split("\n\n", 1)[1])
+    exact = payload["review_material"]["exact_formal_target"]
+    assert exact["exact_lean_project"] == project
+    assert exact["exact_lean_project_hash"] == project["project_hash"]
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["candidate_lean_project_hash"] == project["project_hash"]
 
 
 def test_operator_frozen_formal_only_target_uses_question_authority(

@@ -19,6 +19,8 @@ from .structured_output_retry import (
 )
 from .lean_candidate_revision_tool_loop import (
     LeanCandidateCheck,
+    LeanCandidateProjectCheck,
+    LeanSupportFileCheck,
     LeanDeclarationInspection,
     LeanStateInspection,
     FormalEnvironmentSearch,
@@ -244,6 +246,9 @@ class LLMFormalizerProofEngineerAgent:
         environment_feedback: Mapping[str, Any],
         check_candidate: LeanCandidateCheck,
         search_formal_environment: FormalEnvironmentSearch,
+        check_candidate_project: LeanCandidateProjectCheck | None = None,
+        check_support_file: LeanSupportFileCheck | None = None,
+        initial_lean_project: Mapping[str, Any] | None = None,
         search_proof_candidates: ProofCandidateSearch | None = None,
         inspect_lean_state: LeanStateInspection | None = None,
         inspect_lean_declaration: LeanDeclarationInspection | None = None,
@@ -280,6 +285,7 @@ class LLMFormalizerProofEngineerAgent:
             or ""
         ) == "INDEPENDENT_SEMANTIC_REVIEW_REVISE_NOT_PROOF_EVIDENCE"
         rejected_source_hash = ""
+        rejected_lean_project_hash = ""
         if semantic_revision_required:
             rejected_source_hash = str(
                 workspace_context.get(
@@ -293,6 +299,14 @@ class LLMFormalizerProofEngineerAgent:
                 raise ValueError(
                     "formal-target semantic revision lacks its rejected source hash"
                 )
+            rejected_lean_project_hash = str(
+                workspace_context.get(
+                    "formalizer_candidate_semantic_review_candidate_lean_project_hash",
+                    "",
+                )
+                or environment_feedback.get("candidate_lean_project_hash", "")
+                or ""
+            ).strip()
         theory_document_rows = load_theory_workspace_document_rows(theory_packet)
         theory_document_manifest, _ = externalize_theory_document_rows(
             theory_document_rows
@@ -320,7 +334,7 @@ class LLMFormalizerProofEngineerAgent:
             provider=self.provider,
             system_prompt=(
                 FORMALIZER_SYSTEM_PROMPT
-                + "\nOwn the complete Lean source and every search query for this "
+                + "\nOwn the complete Lean target, support modules, and every search query for this "
                 "unchanged hash-bound target; do not answer with prose or JSON. Use "
                 "the tools to read Theory context, run independent Lean scratch, inspect "
                 "the active environment, and compile early. Retrieval and review are observations, "
@@ -366,10 +380,14 @@ class LLMFormalizerProofEngineerAgent:
             initial_source=initial_source,
             check_candidate=check_candidate,
             search_formal_environment=search_formal_environment,
+            check_candidate_project=check_candidate_project,
+            check_support_file=check_support_file,
+            initial_lean_project=initial_lean_project,
             search_proof_candidates=search_proof_candidates,
             inspect_lean_state=inspect_lean_state,
             inspect_lean_declaration=inspect_lean_declaration,
             rejected_source_hash=rejected_source_hash,
+            rejected_lean_project_hash=rejected_lean_project_hash,
             allow_formal_gap=True,
             recovery_checkpoint=(
                 environment_feedback.get("formalizer_recovery_checkpoint", {})
@@ -420,6 +438,7 @@ class LLMFormalizerProofEngineerAgent:
                 candidate_source_field=candidate_source_field,
                 candidate_lean_declaration=loop.candidate_lean_declaration,
                 lean_source=loop.lean_source,
+                lean_project=loop.lean_project,
             )
         elif loop.disposition == "FORMAL_GAP":
             _bind_model_reported_formal_gap(
@@ -663,6 +682,7 @@ def _formalizer_payload_from_workspace_target(
                 "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
                 "lean_statement_sketch": "",
                 "candidate_lean_declaration": "",
+                "lean_project": {},
                 "lean_imports": [],
                 "expected_status": "FORMAL_GAP",
                 "formal_gap": deepcopy(dict(formal_gap)),
@@ -682,6 +702,7 @@ def _bind_model_authored_lean_candidate_source(
     candidate_source_field: str,
     candidate_lean_declaration: str,
     lean_source: str,
+    lean_project: Mapping[str, Any],
 ) -> None:
     """Bind exact model-authored source to one immutable candidate row."""
 
@@ -712,6 +733,7 @@ def _bind_model_authored_lean_candidate_source(
     row["lean_imports"] = []
     row["lean_statement_sketch"] = lean_source
     row["candidate_lean_declaration"] = candidate_lean_declaration
+    row["lean_project"] = deepcopy(dict(lean_project))
     provenance = row.get("source_theorem_target_provenance", {})
     provenance = dict(provenance) if isinstance(provenance, Mapping) else {}
     provenance["target_lean_declaration"] = candidate_lean_declaration
@@ -749,6 +771,7 @@ def _bind_model_reported_formal_gap(
             "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_FORMAL_GAP,
             "lean_statement_sketch": "",
             "candidate_lean_declaration": "",
+            "lean_project": {},
             "lean_imports": [],
             "expected_status": "FORMAL_GAP",
             "formal_gap": gap,
@@ -2076,6 +2099,7 @@ def _complete_lean_candidate_revision_feedback(
         "formalizer_candidate_semantic_review_packet_id",
         "formalizer_candidate_semantic_review_packet_hash",
         "formalizer_candidate_semantic_review_candidate_source_hash",
+        "formalizer_candidate_semantic_review_candidate_lean_project_hash",
         "formalizer_candidate_semantic_review_target_statement_hash",
         "formalizer_candidate_semantic_review_target_statement_hash_algorithm",
         "formal_source_grounding_policy",
@@ -2091,6 +2115,7 @@ def _complete_lean_candidate_revision_feedback(
         "candidate_id",
         "candidate_kind",
         "source_hash",
+        "lean_project_hash",
         "candidate_lean_declaration",
         "target_lean_declaration",
         "precheck_errors",
@@ -2149,6 +2174,7 @@ def _complete_lean_candidate_revision_feedback(
         "candidate_id",
         "candidate_lean_declaration",
         "parent_source_hash",
+        "rejected_lean_project_hash",
         "current_source_hash",
         "checkpoint_id",
         "resumed_from_checkpoint_id",
@@ -2234,6 +2260,7 @@ def _complete_lean_candidate_revision_feedback(
                 "source_manifest_path",
                 "candidate_materialization_id",
                 "candidate_source_hash",
+                "candidate_lean_project_hash",
                 "source_formalizer_packet_id",
                 "source_theory_packet_id",
                 "source_theory_packet_hash",

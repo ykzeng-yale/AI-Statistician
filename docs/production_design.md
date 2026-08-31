@@ -63,7 +63,7 @@ and [AxProverBase](https://github.com/Axiomatic-AI/ax-prover-base): a general so
 real feedback, optional search, and bounded context. Long work may use LeanMarathon's
 blueprint/DAG; ERA search stays inside an existing executable source workspace.
 
-The general harness audit is reproducibly pinned to [OpenAI Codex at `94cbbdda`](https://github.com/openai/codex/tree/94cbbddafc1776d5e377bca1b05932c697e82238). We adopt incremental history, stable capability-accurate tools, raw tool-error feedback, checkpoint/resume, cancellation, bounded context, explicit continuation provenance, isolated findings-first review over the exact target, authorization revision independent of compaction, and queued-message versus work-trigger semantics. Repository documents are a map and system of record, not one giant injected manual. A tool is stable within one retained session but is omitted when its underlying workspace or authority is absent; an empty search surface is not a model capability. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, metadata, immutable source/tool environment, and root authorization fingerprint. Codex's first-Node-execution Guardian fast path has no product analogue here and is not adopted. Codex Core, App Server, SDK, provider transport, and multi-agent scheduler remain outside the product because importing them would create a second runtime rather than improve statistical reasoning. The exact selective-adoption map is maintained in [`openai_codex_harness_adoption_20260825.md`](openai_codex_harness_adoption_20260825.md).
+The general harness audit is reproducibly pinned to [OpenAI Codex at `a9519cbc`](https://github.com/openai/codex/tree/a9519cbcdd2d664530edb2469224ee03c1056799). We adopt incremental history, stable capability-accurate tools and matching prompt instructions, raw tool-error feedback, checkpoint/resume, cancellation, bounded context, explicit continuation provenance, isolated findings-first review over the exact target, authorization revision independent of compaction, and queued-message versus work-trigger semantics. Repository documents are a map and system of record, not one giant injected manual. A tool is stable within one retained session but is omitted when its underlying workspace or authority is absent; an empty search surface is not a model capability. The Claude transport retains one Anthropic SDK client across consecutive rounds while every request still binds its exact model, history, tools, metadata, immutable source/tool environment, and root authorization fingerprint. Codex's first-Node-execution Guardian fast path has no product analogue here and is not adopted. Codex Core, App Server, SDK, provider transport, and multi-agent scheduler remain outside the product because importing them would create a second runtime rather than improve statistical reasoning. The exact selective-adoption map is maintained in [`openai_codex_harness_adoption_20260825.md`](openai_codex_harness_adoption_20260825.md).
 We do not embed `codex-core`, App Server, its Responses transport, shared-directory subagents, or another scheduler. Each scientific workspace is the domain session and AgentRuntime remains the sole outer graph; any sidecar requires model, tool, lineage, isolation, and resume parity and can never become authority.
 Like Codex `run_turn`, a response without a tool call ends the workspace segment. The harness persists the exact response and state for explicit hash-verified continuation; it never appends a private tool instruction or resamples. Progress attributes the inner subsystem, agent, and stage separately from the outer task owner.
 
@@ -262,14 +262,14 @@ while strict formal-capability evaluation remains `required` and `dual_track`.
 Formalizer/ProofEngineer receives one exact theorem-goal reference already owned by
 the outer research graph. Runtime resolves that upstream ID and hash only; it makes
 no second LLM target-binding call. Initial authoring and later revision use the same
-client-tool workspace. The model chooses retrieval, inspection, complete source plus
-declaration-name submission, or a concrete task-bound formal-gap report. Each source
-is stored unchanged and checked immediately; raw Lean failure returns to that model.
+client-tool workspace. The model chooses retrieval, inspection, target/support edits,
+dependency order, declaration submission, or a task-bound formal gap. Exact files are
+checked unchanged, and raw Lean failure returns to that model.
 Runtime injects no import, theorem statement, tactic, or proof-body fragment.
 
 One global turn/call budget covers every action. The initial message carries the
-complete current source, hash, declaration, and a fresh raw Lean check. One bounded
-linear model-tool transcript then retains every model action and environment
+target/support manifests, hashes, declaration, and a fresh raw Lean check; exact files
+are read on demand. One bounded transcript then retains every model action and environment
 observation, which also leaves an append-only prefix for provider prompt caching.
 A resumed source is rechecked in the active Lake project before the first model turn;
 old checkpoint checks and search/state payloads are not copied into the new session.
@@ -277,19 +277,19 @@ Declaration inspection resolves the model-selected active-project symbol through
 task-bound RAG and OpenProver's `lean-lsp-mcp`; the candidate file is only a local
 fallback. All such observations remain explicitly non-proof evidence.
 
-The stable initial/revision tool surface offers complete-source submission,
-declaration/proof-state inspection, formal RAG, proof-candidate search, and a typed
+The stable initial/revision tool surface offers target/support read-write-edit operations,
+support compilation, declaration/proof-state inspection, formal RAG, proof search, and a typed
 formal gap. A revision gap preserves exact target provenance, clears proof-candidate
 source fields, and remains non-proof. Independent review must distinguish a true
 missing foundation from a fixable API or modeling error. Temporary admitted bodies or Lean `#check`/`#print` commands are diagnostic only: Lean reports elaboration and axioms, and only a complete axiom-clean source may enter review or promotion.
 
 Every changed statement receives independent target-semantic review. When a
 candidate is rejected, it cannot be handed back unchanged after temporary edits:
-the same Formalizer receives a hash-bound observation and must submit changed
-complete source or report a grounded formal gap. It can count as theorem evidence
+the same Formalizer receives a hash-bound observation and must submit a changed
+target/support project or report a grounded formal gap. It can count as theorem evidence
 only when all of the following bind to the same artifact:
 
-- question, theorem target, declaration, project, path, and source hash;
+- question, theorem target, declaration, content-addressed project, build order, path, and source hash;
 - independent semantic acceptance of the exact statement;
 - a fresh active-project Lean check of the exact bytes;
 - Lean/AXLE/kernel success with no admitted proof or unsupported axiom policy.
