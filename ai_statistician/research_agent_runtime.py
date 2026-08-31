@@ -823,6 +823,241 @@ def _compiled_post_theory_workspace_owner(
     return "CriticEvaluator"
 
 
+def _exploratory_theory_revision_task(
+    *,
+    question: OpenResearchQuestion,
+    architect_context: Mapping[str, Any],
+    preflight_feedback: Mapping[str, Any],
+    route_identity: Sequence[Any],
+) -> AgentTask:
+    """Return the exact Theory workspace after one exploratory scientific run."""
+
+    return AgentTask(
+        task_id=(
+            f"theory-after-exploration:{question.id}:"
+            f"{stable_hash(route_identity)[:8]}"
+        ),
+        owner_subsystem="TheoryDeveloper",
+        objective=(
+            "Continue the exact theory workspace after reviewed exploratory "
+            "scientific execution while every preflight finding remains active."
+        ),
+        inputs={
+            "question": _question_to_payload(question),
+            "theory_packet_id": _architect_context_theory_packet_id(
+                architect_context
+            ),
+            "architect_context": dict(architect_context),
+            "theory_preflight_packet_id": str(
+                preflight_feedback.get("preflight_packet_id", "") or ""
+            ),
+            "exploratory_implementation_theory_revision": True,
+        },
+        allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
+        expected_artifacts=("theory_derivation_packet",),
+        acceptance_gate=(
+            "fresh parent-bound theory revision addresses findings without "
+            "promoting exploratory execution"
+        ),
+        stop_condition="revised theory checkpoint or typed gap recorded",
+    )
+
+
+def _provisional_theory_continuation_matches(
+    deferred_payload: Mapping[str, Any] | None,
+    preflight_feedback: Mapping[str, Any] | None,
+) -> bool:
+    deferred = deferred_payload if isinstance(deferred_payload, Mapping) else {}
+    feedback = preflight_feedback if isinstance(preflight_feedback, Mapping) else {}
+    deferred_inputs = deferred.get("inputs", {})
+    deferred_inputs = (
+        deferred_inputs if isinstance(deferred_inputs, Mapping) else {}
+    )
+    preflight_id = str(feedback.get("preflight_packet_id", "") or "")
+    return bool(
+        deferred.get("owner_subsystem") == "TheoryDeveloper"
+        and deferred_inputs.get("exploratory_implementation_theory_revision")
+        is True
+        and preflight_id
+        and str(deferred_inputs.get("theory_preflight_packet_id", "") or "")
+        == preflight_id
+        and feedback.get("artifact_kind")
+        == "RuntimeArchitectTheoryExecutionPreflightAcceptedObservation"
+        and feedback.get("theory_quality_accepted") is False
+        and feedback.get("exploratory_execution_ready") is True
+    )
+
+
+def _bind_exploratory_scientific_observation_to_theory(
+    *,
+    deferred_task: AgentTask,
+    question: OpenResearchQuestion,
+    source_subsystem: str,
+    source_manifest: Mapping[str, Any],
+    theory_packet: Mapping[str, Any],
+    blackboard_artifacts: Mapping[str, Any],
+    source_review_packet_id: str = "",
+    source_review_execution_id: str = "",
+    algorithm_handoff: Mapping[str, Any] | None = None,
+) -> tuple[AgentTask | None, dict[str, Any], list[str]]:
+    """Bind raw exploratory execution to its immutable parent Theory workspace."""
+
+    preflight_id = str(
+        deferred_task.inputs.get("theory_preflight_packet_id", "") or ""
+    )
+    preflight = blackboard_artifacts.get(preflight_id, {})
+    theory_id = str(theory_packet.get("packet_id", "") or "")
+    theory_hash = stable_hash(theory_packet)
+    errors = []
+    if not (
+        deferred_task.owner_subsystem == "TheoryDeveloper"
+        and deferred_task.inputs.get("exploratory_implementation_theory_revision")
+        is True
+    ):
+        errors.append("deferred task is not an exploratory Theory continuation")
+    if not (
+        isinstance(preflight, Mapping)
+        and preflight.get("artifact_kind")
+        == "ArchitectTheoryExecutionPreflightReviewPacket"
+        and str(preflight.get("packet_id", "") or "") == preflight_id
+        and str(preflight.get("source_theory_packet_id", "") or "") == theory_id
+        and str(preflight.get("source_theory_packet_hash", "") or "")
+        == theory_hash
+        and preflight.get("overall_verdict") != "ACCEPT"
+        and str(preflight.get("execution_handoff_status", "") or "")
+        == PREFLIGHT_EXECUTION_HANDOFF_READY
+    ):
+        errors.append("exploratory observation does not match the parent preflight")
+    manifest_id = str(source_manifest.get("manifest_id", "") or "")
+    if not manifest_id or source_subsystem not in {
+        "AlgorithmEngineer",
+        "SimulationEvaluator",
+    }:
+        errors.append("exploratory scientific source identity is invalid")
+    if errors:
+        return None, {}, errors
+
+    row_key = (
+        "prototypes"
+        if source_subsystem == "AlgorithmEngineer"
+        else "generated_simulation_sandbox_prototypes"
+    )
+    row_id_key = (
+        "estimator_id" if source_subsystem == "AlgorithmEngineer" else "simulation_id"
+    )
+    row_fields = (
+        row_id_key,
+        "prototype_status",
+        "script_hash",
+        "result_hash",
+        "runtime_seed",
+        "runtime_replicates",
+        "smoke_passed",
+        "execution_smoke_passed",
+        "execution_attempted",
+        "metrics",
+        "execution_error",
+        "validation_errors",
+        "estimator_binding_errors",
+        "estimator_runtime_errors",
+        "metric_gate_errors",
+    )
+    scientific_observation = {
+        "source_subsystem": source_subsystem,
+        "source_manifest_ref": runtime_artifact_reference(
+            manifest_id,
+            source_manifest,
+        ),
+        "source_semantic_review_status": (
+            "ACCEPT" if source_review_packet_id else "NOT_REVIEWED"
+        ),
+        "source_review_packet_id": source_review_packet_id,
+        "source_review_execution_id": source_review_execution_id,
+        "execution_rows": [
+            {
+                key: deepcopy(row[key])
+                for key in row_fields
+                if key in row
+            }
+            for row in source_manifest.get(row_key, []) or []
+            if isinstance(row, Mapping)
+        ],
+    }
+    if isinstance(algorithm_handoff, Mapping) and algorithm_handoff:
+        scientific_observation["accepted_algorithm_handoff_ref"] = {
+            "handoff_id": str(algorithm_handoff.get("handoff_id", "") or ""),
+            "content_hash": stable_hash(algorithm_handoff),
+        }
+    feedback = {
+        "artifact_kind": "RuntimeExploratoryScientificTheoryObservation",
+        "feedback_type": "exploratory_scientific_theory_observation",
+        "feedback_source": (
+            GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM
+            if source_review_packet_id
+            else source_subsystem
+        ),
+        "question_id": question.id,
+        "source_theory_packet_id": theory_id,
+        "source_theory_packet_hash": theory_hash,
+        "preflight_packet_id": preflight_id,
+        "preflight_packet_hash": stable_hash(preflight),
+        "findings": [
+            deepcopy(dict(row))
+            for row in preflight.get("findings", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "active_unresolved_finding_ids": list(
+            preflight.get("active_unresolved_finding_ids", []) or []
+        ),
+        "exploratory_scientific_observation": scientific_observation,
+        "overall_verdict": "REVISE",
+        "target_consumer_subsystem": "TheoryDeveloper",
+        "execution_results_observed": True,
+        "execution_authorized": False,
+        "confirmatory_simulation_authorized": False,
+        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+        "boundary": (
+            "Exploratory execution is diagnostic, not theory acceptance or "
+            "confirmatory evidence; active findings return to the exact parent "
+            "Theory workspace."
+        ),
+    }
+    feedback["feedback_id"] = (
+        "exploratory_scientific_theory_observation:"
+        + stable_hash(feedback)[:20]
+    )
+    next_inputs = dict(deferred_task.inputs)
+    next_context = dict(next_inputs.get("architect_context", {}) or {})
+    metric_gate = next_context.get("architect_metric_protocol_gate", {})
+    metric_gate = dict(metric_gate) if isinstance(metric_gate, Mapping) else {}
+    revision_count = int(metric_gate.get("upstream_theory_revision_count", 0) or 0) + 1
+    next_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = (
+        build_theory_developer_revision_binding(
+            revision_source=(
+                "theory_preflight_after_exploratory_scientific_execution"
+            ),
+            question_id=question.id,
+            source_feedback=feedback,
+            parent_theory_packet=theory_packet,
+            feedback_id=str(feedback["feedback_id"]),
+            upstream_theory_revision_count=revision_count,
+            execution_results_observed=True,
+            source_review_packet_id=source_review_packet_id,
+            source_review_execution_id=source_review_execution_id,
+        )
+    )
+    next_context["environment_feedback"] = feedback
+    if metric_gate:
+        next_context["architect_metric_protocol_gate"] = {
+            **metric_gate,
+            "upstream_theory_revision_count": revision_count,
+        }
+    next_inputs.update(
+        {"architect_context": next_context, "environment_feedback": feedback}
+    )
+    return replace(deferred_task, inputs=next_inputs), feedback, []
+
+
 def _architect_theory_preflight_accepted_result(
     *,
     task: AgentTask,
@@ -850,14 +1085,37 @@ def _architect_theory_preflight_accepted_result(
     theory_packet_id = str(theory_material.get("source_theory_packet_id", "") or "")
     theory_packet_hash = str(theory_material.get("source_theory_packet_hash", "") or "")
     theory_packet = blackboard.artifacts.get(theory_packet_id, {})
+    implementation_gaps = (
+        _implementation_gaps(theory_packet)
+        if isinstance(theory_packet, Mapping)
+        else []
+    )
+    next_workspace_owner = _compiled_post_theory_workspace_owner(
+        context,
+        implementation_gaps=implementation_gaps,
+    )
     active_unresolved_finding_ids = [
         str(value) for value in preflight_packet.get("active_unresolved_finding_ids", []) or []
         if str(value).strip()
     ]
     theory_quality_accepted = bool(preflight_packet.get("overall_verdict") == "ACCEPT" and not active_unresolved_finding_ids)
     execution_handoff_status = str(preflight_packet.get("execution_handoff_status", "") or "")
-    exploratory_execution_ready = bool(execution_handoff_status == PREFLIGHT_EXECUTION_HANDOFF_READY and algorithm_execution_available)
-    review_state = {"theory_quality_accepted": theory_quality_accepted, "execution_handoff_status": execution_handoff_status, "exploratory_execution_ready": exploratory_execution_ready, "active_unresolved_finding_ids": active_unresolved_finding_ids}
+    exploratory_execution_owner = (
+        next_workspace_owner
+        if next_workspace_owner in {"AlgorithmEngineer", "SimulationEvaluator"}
+        else ""
+    )
+    exploratory_execution_ready = bool(
+        execution_handoff_status == PREFLIGHT_EXECUTION_HANDOFF_READY
+        and exploratory_execution_owner
+    )
+    review_state = {
+        "theory_quality_accepted": theory_quality_accepted,
+        "execution_handoff_status": execution_handoff_status,
+        "exploratory_execution_ready": exploratory_execution_ready,
+        "exploratory_execution_owner": exploratory_execution_owner,
+        "active_unresolved_finding_ids": active_unresolved_finding_ids,
+    }
     transition_boundary = "Independent review accepted current theory quality. This neither authorizes empirical execution nor proves a theorem." if theory_quality_accepted else "Independent review kept theory findings active while marking the finite handoff ready only for exploratory implementation. This is not theory acceptance, confirmatory authority, or proof."
     transition_status = "THEORY_PREFLIGHT_ACCEPTED_PLAN_TRANSITION_COMPILED" if theory_quality_accepted else "EXPLORATORY_EXECUTION_HANDOFF_READY_THEORY_FINDINGS_ACTIVE"
     transition_summary = "theory quality accepted; frozen research path compiled" if theory_quality_accepted else "exploratory handoff ready with theory findings active"
@@ -989,6 +1247,7 @@ def _architect_theory_preflight_accepted_result(
             "execution_authorized": False,
             "algorithm_execution_available": algorithm_execution_available,
             "algorithm_execution_authorized": False,
+            "exploratory_execution_owner": exploratory_execution_owner,
             "confirmatory_simulation_authorized": False,
             "consumed": False,
             "preflight_acceptance_id": acceptance_id,
@@ -997,21 +1256,15 @@ def _architect_theory_preflight_accepted_result(
                 "ARCHITECT_METRIC_PROTOCOL_GATE_NOT_PROOF_EVIDENCE"
             ),
             "boundary": (
-                "If the existing Architect plan selects AlgorithmEngineer, only "
-                "exploratory execution is authorized and full metric authoring "
-                "remains deferred until independent implementation review accepts "
-                "a hash-bound executable interface."
+                "The frozen plan may select one exploratory scientific workspace; "
+                "full metric authoring remains deferred while Theory findings are "
+                "active, and this gate cannot authorize confirmatory execution."
             ),
         }
     else:
         context.pop("architect_metric_protocol_gate", None)
         context.pop("architect_metric_protocol_prior_rejection", None)
-    implementation_gaps = _implementation_gaps(theory_packet)
     context["implementation_gaps"] = implementation_gaps
-    next_workspace_owner = _compiled_post_theory_workspace_owner(
-        context,
-        implementation_gaps=implementation_gaps,
-    )
     route_feedback_body = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": (
@@ -3161,6 +3414,34 @@ def _architect_initial_routing_decision(
             context["environment_feedback"] = dict(feedback)
             inputs["environment_feedback"] = dict(feedback)
             inputs["architect_context"] = context
+        preflight_feedback = context.get("environment_feedback", {})
+        theory_revision_pending = bool(
+            isinstance(preflight_feedback, Mapping)
+            and preflight_feedback.get("theory_quality_accepted") is False
+            and preflight_feedback.get("exploratory_execution_ready") is True
+            and preflight_feedback.get("exploratory_execution_owner")
+            == "SimulationEvaluator"
+        )
+        if theory_revision_pending:
+            deferred_theory_task = _exploratory_theory_revision_task(
+                question=routed_question,
+                architect_context=context,
+                preflight_feedback=preflight_feedback,
+                route_identity=(packet_id, "SimulationEvaluator"),
+            )
+            inputs.update(
+                {
+                    "empirical_evaluation_phase": (
+                        EMPIRICAL_EVALUATION_PHASE_EXPLORATORY
+                    ),
+                    "exploration_before_theory_acceptance": True,
+                    "deferred_metric_protocol_task": asdict(
+                        deferred_theory_task
+                    ),
+                    "environment_feedback": dict(preflight_feedback),
+                    "architect_context": context,
+                }
+            )
         routing_rationale = (
             "ArchitectCoordinator recorded a compact research decision and "
             "is routing directly to SimulationEvaluator because the model "
@@ -3269,23 +3550,17 @@ def _architect_initial_routing_decision(
             inputs["architect_context"] = context
             acceptance_id = str(metric_gate.get("preflight_acceptance_id", "") or "")
             preflight_feedback = context.get("environment_feedback", {})
-            theory_revision_pending = isinstance(preflight_feedback, Mapping) and preflight_feedback.get("theory_quality_accepted") is False and preflight_feedback.get("exploratory_execution_ready") is True
+            theory_revision_pending = bool(
+                isinstance(preflight_feedback, Mapping)
+                and preflight_feedback.get("theory_quality_accepted") is False
+                and preflight_feedback.get("exploratory_execution_ready") is True
+            )
             if theory_revision_pending:
-                deferred_metric_task = AgentTask(
-                    task_id=f"theory-after-exploration:{question.id}:{stable_hash([packet_id, acceptance_id])[:8]}",
-                    owner_subsystem="TheoryDeveloper",
-                    objective="Continue the exact theory workspace after reviewed exploratory implementation while every preflight finding remains active.",
-                    inputs={
-                        "question": _question_to_payload(routed_question),
-                        "theory_packet_id": _architect_context_theory_packet_id(context),
-                        "architect_context": context,
-                        "theory_preflight_packet_id": str(preflight_feedback.get("preflight_packet_id", "") or ""),
-                        "exploratory_implementation_theory_revision": True,
-                    },
-                    allowed_tools=("model_backend", "rag_memory", "evidence_ledger"),
-                    expected_artifacts=("theory_derivation_packet",),
-                    acceptance_gate="fresh parent-bound theory revision addresses findings without promoting exploratory execution",
-                    stop_condition="revised theory checkpoint or typed gap recorded",
+                deferred_metric_task = _exploratory_theory_revision_task(
+                    question=routed_question,
+                    architect_context=context,
+                    preflight_feedback=preflight_feedback,
+                    route_identity=(packet_id, acceptance_id, "AlgorithmEngineer"),
                 )
             else:
                 deferred_metric_task = build_executable_evaluator_authoring_task(
@@ -8474,59 +8749,43 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 next_context["algorithm_sandbox_manifest_id"] = str(
                     algorithm_handoff["algorithm_sandbox_manifest_id"]
                 )
-            if algorithm_handoff and deferred_task.owner_subsystem == "TheoryDeveloper" and deferred_task.inputs.get("exploratory_implementation_theory_revision") is True:
-                preflight_id = str(deferred_task.inputs.get("theory_preflight_packet_id", "") or "")
-                preflight = blackboard.artifacts.get(preflight_id, {})
-                theory_id, theory_hash = str(theory_packet.get("packet_id", "") or ""), stable_hash(theory_packet)
-                valid_preflight = isinstance(preflight, Mapping) and preflight.get("artifact_kind") == "ArchitectTheoryExecutionPreflightReviewPacket" and str(preflight.get("packet_id", "") or "") == preflight_id and str(preflight.get("source_theory_packet_id", "") or "") == theory_id and str(preflight.get("source_theory_packet_hash", "") or "") == theory_hash and preflight.get("overall_verdict") != "ACCEPT" and str(preflight.get("execution_handoff_status", "") or "") == PREFLIGHT_EXECUTION_HANDOFF_READY
-                if not valid_preflight:
+            if (
+                deferred_task.owner_subsystem == "TheoryDeveloper"
+                and deferred_task.inputs.get(
+                    "exploratory_implementation_theory_revision"
+                )
+                is True
+            ):
+                provisional_task = replace(
+                    deferred_task,
+                    inputs={**next_inputs, "architect_context": next_context},
+                )
+                provisional_task, feedback, continuation_errors = (
+                    _bind_exploratory_scientific_observation_to_theory(
+                        deferred_task=provisional_task,
+                        question=question,
+                        source_subsystem=source_subsystem,
+                        source_manifest=source_manifest,
+                        theory_packet=theory_packet,
+                        blackboard_artifacts=blackboard.artifacts,
+                        source_review_packet_id=review_packet_id,
+                        source_review_execution_id=execution_id,
+                        algorithm_handoff=algorithm_handoff,
+                    )
+                )
+                if provisional_task is None:
                     return AgentStepResult(
                         status="BLOCKED",
-                        rationale="The accepted implementation could not resume an exact parent-bound theory revision.",
+                        rationale=(
+                            "The accepted scientific source could not resume its "
+                            "exact parent-bound Theory revision: "
+                            + "; ".join(continuation_errors)
+                        ),
                         failure_classification="exploratory_theory_revision_lineage_invalid",
                     )
-                feedback = {
-                    "artifact_kind": "RuntimeExploratoryImplementationTheoryObservation",
-                    "feedback_type": "exploratory_implementation_theory_observation",
-                    "feedback_source": GENERATED_CODE_SEMANTIC_REVIEWER_SUBSYSTEM,
-                    "question_id": question.id,
-                    "source_theory_packet_id": theory_id,
-                    "source_theory_packet_hash": theory_hash,
-                    "preflight_packet_id": preflight_id,
-                    "preflight_packet_hash": stable_hash(preflight),
-                    "findings": [deepcopy(dict(row)) for row in preflight.get("findings", []) or [] if isinstance(row, Mapping)],
-                    "active_unresolved_finding_ids": list(preflight.get("active_unresolved_finding_ids", []) or []),
-                    "exploratory_algorithm_observation": {
-                        "handoff_id": str(algorithm_handoff["handoff_id"]),
-                        "handoff_hash": stable_hash(algorithm_handoff),
-                        "semantic_review_execution_id": execution_id,
-                        "semantic_review_packet_id": review_packet_id,
-                    },
-                    "overall_verdict": "REVISE",
-                    "target_consumer_subsystem": "TheoryDeveloper",
-                    "execution_results_observed": True,
-                    "execution_authorized": False,
-                    "confirmatory_simulation_authorized": False,
-                    "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-                    "boundary": "Exploratory executability is not theory acceptance; active findings return to the exact parent Theory workspace before evaluator authoring.",
-                }
-                feedback["feedback_id"] = "exploratory_implementation_theory_observation:" + stable_hash(feedback)[:20]
-                metric_gate = next_context.get("architect_metric_protocol_gate", {})
-                revision_count = int(metric_gate.get("upstream_theory_revision_count", 0) or 0) + 1
-                next_context[THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY] = build_theory_developer_revision_binding(
-                    revision_source="theory_preflight_after_exploratory_implementation",
-                    question_id=question.id,
-                    source_feedback=feedback,
-                    parent_theory_packet=theory_packet,
-                    feedback_id=str(feedback["feedback_id"]),
-                    upstream_theory_revision_count=revision_count,
-                    execution_results_observed=True,
-                    source_review_packet_id=review_packet_id,
-                    source_review_execution_id=execution_id,
-                )
-                next_context["environment_feedback"] = feedback
-                next_context["architect_metric_protocol_gate"] = {**dict(metric_gate), "upstream_theory_revision_count": revision_count}
-                next_inputs["environment_feedback"] = feedback
+                produced_artifacts[str(feedback["feedback_id"])] = feedback
+                next_inputs = dict(provisional_task.inputs)
+                next_context = dict(next_inputs.get("architect_context", {}) or {})
             next_inputs["architect_context"] = next_context
             next_task = replace(
                 deferred_task,
@@ -8930,6 +9189,55 @@ class SimulationEvaluatorRuntimeSubsystem:
             if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
             else {}
         )
+        if task.inputs.get("exploration_before_theory_acceptance") is True:
+            deferred_payload = task.inputs.get(
+                "deferred_metric_protocol_task", {}
+            )
+            provisional_errors = []
+            if not exploratory_diagnostic:
+                provisional_errors.append(
+                    "provisional Theory feedback requires exploratory execution"
+                )
+            if not _provisional_theory_continuation_matches(
+                deferred_payload
+                if isinstance(deferred_payload, Mapping)
+                else {},
+                environment_feedback,
+            ):
+                provisional_errors.append(
+                    "deferred Theory continuation does not match the active preflight"
+                )
+            if environment_feedback.get("exploratory_execution_owner") != (
+                "SimulationEvaluator"
+            ):
+                provisional_errors.append(
+                    "active preflight did not select SimulationEvaluator"
+                )
+            if provisional_errors:
+                return AgentStepResult(
+                    status="BLOCKED",
+                    rationale=(
+                        "SimulationEvaluator rejected an invalid provisional Theory "
+                        "continuation before any model or sandbox call."
+                    ),
+                    observations=(
+                        EnvironmentObservation(
+                            observation_type=(
+                                "simulation_provisional_theory_continuation_rejected"
+                            ),
+                            summary="; ".join(provisional_errors),
+                            payload={
+                                "validation_errors": provisional_errors,
+                                "model_call_authorized": False,
+                                "execution_authorized": False,
+                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            },
+                        ),
+                    ),
+                    failure_classification=(
+                        "simulation_provisional_theory_continuation_invalid"
+                    ),
+                )
         effective_context = _runtime_context_with_environment_feedback_contract(
             context,
             environment_feedback,
@@ -11004,13 +11312,45 @@ class SimulationEvaluatorRuntimeSubsystem:
                 deferred_gate = _agent_task_from_runtime_payload(
                     deferred_metric_protocol_payload
                 )
-                deferred_inputs = dict(deferred_gate.inputs)
-                deferred_context = dict(
-                    deferred_inputs.get("architect_context", {}) or {}
-                )
-                deferred_context["exploratory_diagnostic_feedback"] = feedback
-                deferred_inputs["architect_context"] = deferred_context
-                deferred_inputs["environment_feedback"] = feedback
+                if deferred_gate.owner_subsystem == "TheoryDeveloper":
+                    deferred_gate, theory_feedback, continuation_errors = (
+                        _bind_exploratory_scientific_observation_to_theory(
+                            deferred_task=deferred_gate,
+                            question=question,
+                            source_subsystem="SimulationEvaluator",
+                            source_manifest=manifest,
+                            theory_packet=packet,
+                            blackboard_artifacts=blackboard.artifacts,
+                        )
+                    )
+                    if deferred_gate is None:
+                        return AgentStepResult(
+                            status="BLOCKED",
+                            rationale="; ".join(continuation_errors),
+                            produced_artifacts=produced_artifacts,
+                            failure_classification=(
+                                "exploratory_theory_revision_lineage_invalid"
+                            ),
+                        )
+                    produced_artifacts[str(theory_feedback["feedback_id"])] = (
+                        theory_feedback
+                    )
+                else:
+                    deferred_inputs = dict(deferred_gate.inputs)
+                    deferred_context = dict(
+                        deferred_inputs.get("architect_context", {}) or {}
+                    )
+                    deferred_context["exploratory_diagnostic_feedback"] = feedback
+                    deferred_inputs.update(
+                        {
+                            "architect_context": deferred_context,
+                            "environment_feedback": feedback,
+                        }
+                    )
+                    deferred_gate = replace(
+                        deferred_gate,
+                        inputs=deferred_inputs,
+                    )
                 next_task = replace(
                     deferred_gate,
                     task_id=(
@@ -11434,6 +11774,37 @@ class SimulationEvaluatorRuntimeSubsystem:
                     observations.append(semantic_review_dispatch["observation"])
                     semantic_review_evidence = semantic_review_dispatch["evidence"]
                     next_task = semantic_review_dispatch["next_task"]
+            if (
+                semantic_review_dispatch is None
+                and next_task is not None
+                and next_task.owner_subsystem == "TheoryDeveloper"
+                and next_task.inputs.get(
+                    "exploratory_implementation_theory_revision"
+                )
+                is True
+            ):
+                next_task, theory_feedback, continuation_errors = (
+                    _bind_exploratory_scientific_observation_to_theory(
+                        deferred_task=next_task,
+                        question=question,
+                        source_subsystem="SimulationEvaluator",
+                        source_manifest=manifest,
+                        theory_packet=packet,
+                        blackboard_artifacts=blackboard.artifacts,
+                    )
+                )
+                if next_task is None:
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale="; ".join(continuation_errors),
+                        produced_artifacts=produced_artifacts,
+                        failure_classification=(
+                            "exploratory_theory_revision_lineage_invalid"
+                        ),
+                    )
+                produced_artifacts[str(theory_feedback["feedback_id"])] = (
+                    theory_feedback
+                )
             if evaluator_source_authoring and semantic_review_dispatch is None:
                 return AgentStepResult(
                     status="BLOCKED",

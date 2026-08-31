@@ -1111,6 +1111,211 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit(
     assert blocked.failure_classification == "confirmatory_theory_authority_missing"
 
 
+def test_provisional_theory_handoff_routes_direct_simulation_back_to_theory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="provisional-direct-simulation",
+        title="Use one exploratory diagnostic to revise theory",
+        description="No estimator implementation is required for this diagnostic.",
+        task_intent={
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+    )
+    theory_id = "theory:provisional-direct-simulation"
+    theory = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": theory_id,
+        "question": runtime_module._question_to_payload(question),
+        "problem_card": {"research_setup": "Check one finite diagnostic."},
+        "estimator_specs": [],
+        "theorem_cards": [],
+    }
+    finding_id = "finding:finite-diagnostic-needed"
+    preflight_id = "theory_preflight:provisional-direct-simulation"
+    preflight = {
+        "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
+        "packet_id": preflight_id,
+        "source_theory_packet_id": theory_id,
+        "source_theory_packet_hash": runtime_module.stable_hash(theory),
+        "overall_verdict": "REVISE",
+        "execution_handoff_status": runtime_module.PREFLIGHT_EXECUTION_HANDOFF_READY,
+        "findings": [
+            {
+                "finding_id": finding_id,
+                "severity": "high",
+                "summary": "A finite diagnostic is needed before revising the claim.",
+            }
+        ],
+        "active_unresolved_finding_ids": [finding_id],
+    }
+    contract = runtime_module._runtime_requested_evidence_contract(
+        formal_verification_policy="optional",
+        evaluation_mode="research_eval",
+        task_intent=question.task_intent,
+    )
+    context = {
+        "runtime_requested_evidence_contract": contract,
+        "architect_runtime_plan": {
+            "evidence_contract": contract,
+            "subsystem_execution_plan": [
+                {"subsystem": "SimulationEvaluator"},
+                {"subsystem": "CriticEvaluator"},
+            ],
+        },
+        "architect_metric_protocol_theory_material": {
+            "source_theory_packet_id": theory_id,
+            "source_theory_packet_hash": runtime_module.stable_hash(theory),
+        },
+    }
+    blackboard = BlackboardState(
+        project_id=question.id,
+        artifacts={theory_id: theory, preflight_id: preflight},
+    )
+    route = runtime_module._architect_theory_preflight_accepted_result(
+        task=AgentTask(
+            task_id="architect-theory-preflight:provisional-direct-simulation",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Review the finite diagnostic handoff.",
+            inputs={"question": runtime_module._question_to_payload(question)},
+        ),
+        question=question,
+        architect_context=context,
+        preflight_packet=preflight,
+        runtime_config=ResearchAgentRuntimeConfig(n_runs=8, seed=17),
+        blackboard=blackboard,
+    )
+
+    assert route.status == "REROUTE"
+    assert route.next_task is not None
+    assert route.next_task.owner_subsystem == "SimulationEvaluator"
+    assert route.next_task.inputs["exploration_before_theory_acceptance"] is True
+    deferred = runtime_module._agent_task_from_runtime_payload(
+        route.next_task.inputs["deferred_metric_protocol_task"]
+    )
+    assert deferred.owner_subsystem == "TheoryDeveloper"
+    assert deferred.inputs["theory_preflight_packet_id"] == preflight_id
+
+    class SimulationProvider:
+        provider_name = "static"
+
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("source workspace is stubbed below")
+
+    class SimulationAgent:
+        provider = SimulationProvider()
+        propose_calls = 0
+
+        @classmethod
+        def propose(cls, **_kwargs):
+            cls.propose_calls += 1
+            return {
+                "artifact_kind": "SimulationEngineerProposalPacket",
+                "packet_id": "simulation-proposal:provisional-direct",
+                "source_agent": "LLMSimulationEngineerAgent",
+                "model": LIVE_EVALUATION_CLAUDE_MODEL,
+                "model_tier": "haiku",
+                "source_workspace_planning_owned": True,
+                "scientific_source_transport": "native_client_tools",
+                "simulation_targets": [{"procedure_id": "diagnostic"}],
+                "simulation_code_drafts": [
+                    {"simulation_id": "diagnostic", "required_estimator_ids": []}
+                ],
+                "metric_contracts": [],
+            }
+
+        @staticmethod
+        def iterate_code_with_tools(**_kwargs):
+            raise AssertionError("source workspace is stubbed below")
+
+    def source_workspace(**_kwargs):
+        source = "def run_sandbox(seed, replicates):\n    return {'diagnostic': 0.25}\n"
+        return (
+            {
+                "simulation_id": "diagnostic",
+                "prototype_status": "EXECUTED",
+                "executor": "generated_simulation_sandbox",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "required_estimator_ids": [],
+                "source_code": source,
+                "script_hash": runtime_module.stable_hash(source),
+                "smoke_passed": True,
+                "execution_smoke_passed": True,
+                "execution_attempted": True,
+                "metrics": {"diagnostic": 0.25},
+                "metric_contracts": [],
+                "metric_contract_evaluation": {},
+            },
+            [],
+        )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_simulation_metric_protocol_guard",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_run_source_owner_scientific_workspace",
+        source_workspace,
+    )
+    blackboard.artifacts.update(route.produced_artifacts)
+    result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "simulation",
+        semantic_reviewer_available=False,
+    ).run(route.next_task, blackboard)
+
+    assert result.status == "REROUTE"
+    assert result.next_task is not None
+    assert result.next_task.owner_subsystem == "TheoryDeveloper"
+    assert "evaluator_source_authoring" not in result.next_task.inputs
+    next_context = result.next_task.inputs["architect_context"]
+    binding = next_context[
+        runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    ]
+    assert binding["source_theory_packet_id"] == theory_id
+    assert binding["source_theory_packet_hash"] == runtime_module.stable_hash(theory)
+    assert binding["source_feedback"]["active_unresolved_finding_ids"] == [
+        finding_id
+    ]
+    observation = binding["source_feedback"][
+        "exploratory_scientific_observation"
+    ]
+    assert observation["source_subsystem"] == "SimulationEvaluator"
+    assert observation["source_semantic_review_status"] == "NOT_REVIEWED"
+    assert observation["execution_rows"][0]["metrics"] == {"diagnostic": 0.25}
+    manifest = next(
+        artifact
+        for artifact in result.produced_artifacts.values()
+        if artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    )
+    assert manifest["confirmatory_empirical_evidence_eligible"] is False
+    assert manifest["simulation_passed"] is False
+
+    forged_inputs = deepcopy(route.next_task.inputs)
+    forged_inputs["deferred_metric_protocol_task"]["inputs"][
+        "theory_preflight_packet_id"
+    ] = "theory_preflight:forged"
+    forged = runtime_module.SimulationEvaluatorRuntimeSubsystem(
+        proposal_agent=SimulationAgent(),
+        sandbox_root=tmp_path / "forged",
+    ).run(replace(route.next_task, inputs=forged_inputs), blackboard)
+    assert forged.status == "BLOCKED"
+    assert forged.failure_classification == (
+        "simulation_provisional_theory_continuation_invalid"
+    )
+    assert SimulationAgent.propose_calls == 1
+
+
 def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1308,10 +1513,17 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     assert outcome.next_task.owner_subsystem == "TheoryDeveloper"
     next_context = outcome.next_task.inputs["architect_context"]
     binding = next_context[runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY]
-    assert binding["revision_source"] == "theory_preflight_after_exploratory_implementation"
+    assert binding["revision_source"] == (
+        "theory_preflight_after_exploratory_scientific_execution"
+    )
     assert binding["execution_results_observed"] is True
     assert binding["source_feedback"]["active_unresolved_finding_ids"] == [finding_id]
-    assert binding["source_feedback"]["exploratory_algorithm_observation"]["handoff_id"]
+    scientific_observation = binding["source_feedback"][
+        "exploratory_scientific_observation"
+    ]
+    assert scientific_observation["source_subsystem"] == "AlgorithmEngineer"
+    assert scientific_observation["accepted_algorithm_handoff_ref"]["handoff_id"]
+    assert scientific_observation["execution_rows"][0]["metrics"] == result_payload
     assert next_context["architect_metric_protocol_gate"]["upstream_theory_revision_count"] == 1
     assert "evaluator_source_authoring" not in outcome.next_task.inputs
 
@@ -1369,7 +1581,9 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     }
     assert captured_revision_context[
         runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
-    ]["revision_source"] == "theory_preflight_after_exploratory_implementation"
+    ]["revision_source"] == (
+        "theory_preflight_after_exploratory_scientific_execution"
+    )
     revised_id = revised_theory["packet_id"]
     stored_revision = theory_result.produced_artifacts[revised_id]
     assert stored_revision["parent_theory_packet_id"] == theory_id
