@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Mapping
 
 from .formal_source_index import build_formal_source_index, formal_source_index_fingerprint
 from .frontier_coverage_audit import audit_frontier_coverage
@@ -39,6 +40,61 @@ class ProverComponentRow:
     missing_or_next: tuple[str, ...]
 
 
+def _live_capability_evidence(project_root: Path) -> dict[str, Any]:
+    """Read the explicit live-evidence boundary without inferring capability."""
+
+    status_path = project_root / "docs" / "main_worker_status.json"
+    unavailable = {
+        "status": "UNAVAILABLE",
+        "status_path": str(status_path),
+        "goal_status": "unknown",
+        "validated_code_head": "",
+        "trusted_full_task_credit": "unavailable",
+        "strict_formal_completion_rate": "unavailable",
+        "development_panel_exact_lean_closure": "unavailable",
+        "strict_formal_boundary": "unavailable",
+    }
+    if not status_path.is_file():
+        return unavailable
+    try:
+        payload = json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return unavailable
+    if not isinstance(payload, Mapping):
+        return unavailable
+    maturity = payload.get("maturity_estimate", {})
+    if not isinstance(maturity, Mapping):
+        maturity = {}
+    development_closure = "unavailable"
+    for key, value in payload.items():
+        if not str(key).startswith("latest_") or not isinstance(value, Mapping):
+            continue
+        candidate = str(
+            value.get("development_panel_exact_lean_closure", "") or ""
+        ).strip()
+        if candidate:
+            development_closure = candidate
+            break
+    return {
+        "status": "AVAILABLE",
+        "status_path": str(status_path),
+        "goal_status": str(payload.get("goal_status", "unknown") or "unknown"),
+        "validated_code_head": str(payload.get("validated_code_head", "") or ""),
+        "trusted_full_task_credit": str(
+            maturity.get("fully_gold_covered_research_tasks", "unavailable")
+            or "unavailable"
+        ),
+        "strict_formal_completion_rate": str(
+            maturity.get("frozen_strict_protocol_completion_rate", "unavailable")
+            or "unavailable"
+        ),
+        "development_panel_exact_lean_closure": development_closure,
+        "strict_formal_boundary": str(
+            maturity.get("boundary", "unavailable") or "unavailable"
+        ),
+    }
+
+
 def build_prover_component_audit(
     *,
     root: Path | None = None,
@@ -62,6 +118,7 @@ def build_prover_component_audit(
     questions = load_open_research_questions(question_path)
     frontier = audit_frontier_coverage(benchmark_file=frontier_path)
     source_inventory = build_research_source_inventory()
+    live_capability = _live_capability_evidence(project_root)
     autoform_profile = build_autoform_harness_profile()
     algorithms = all_research_algorithm_specs()
     obligations = all_obligations()
@@ -86,44 +143,48 @@ def build_prover_component_audit(
         ProverComponentRow(
             component="formal data and frontier benchmarks",
             paper_stack_layer="Layer 2: Formal Data / Autoformalization / Benchmarks",
-            status="READY_FOR_CURRENT_RELEASE",
+            status="BENCHMARK_SURFACE_ONLY",
             trained_or_built="Built deterministic benchmark/intake data; not a learned autoformalization dataset.",
             why_it_matters="The system needs stable tasks and held-out frontier-style questions before model training or RL makes sense.",
             current_evidence=(
                 f"open_research_questions={len(questions)}",
                 f"frontier_supported={frontier['n_supported']}/{frontier['n_questions']}",
                 f"frontier_unsupported_backlog={frontier['n_unsupported']}",
+                "trusted_full_task_credit="
+                + str(live_capability["trusted_full_task_credit"]),
+                "strict_formal_completion_rate="
+                + str(live_capability["strict_formal_completion_rate"]),
                 str(question_path),
                 str(frontier_path),
             ),
             missing_or_next=(
-                "No large traced Lean proof-state dataset.",
-                "No natural-language paper-to-Lean theorem SFT corpus yet.",
+                "Registry coverage and benchmark classification are task-surface facts, not live capability credit.",
+                "No broad natural-language paper-to-Lean theorem corpus with verifier-filtered semantic fidelity yet.",
             ),
         ),
         ProverComponentRow(
             component="statistical problem formalizer / autoformalizer",
             paper_stack_layer="Layer 2: Formal Data / Autoformalization / Benchmarks",
             status="PARTIAL",
-            trained_or_built="Built registry-gated statistical formalizer for DGP/estimand/assumptions/asymptotic regime; not trained.",
+            trained_or_built="Built retained model-owned Markdown/LaTeX and Lean authoring workspaces plus a registry baseline; semantic fidelity is not trained or generally established.",
             why_it_matters="It turns paper-style questions into structured theory-lab problems while refusing unsupported topics.",
             current_evidence=(
-                "ProblemFormalizer extracts registered statistical problem classes",
-                "research-intake-audit checks supported acceptance and unsupported rejection",
-                "Markdown paper-style examples are supported",
+                "TheoryDeveloper writes arbitrary Markdown/LaTeX and compact handoff indexes in a retained tool workspace",
+                "Formalizer writes complete Lean source and revises from raw active-project diagnostics",
+                "ProblemFormalizer remains a benchmark baseline rather than fresh model-authored theory authority",
                 f"autoform_bot_harness_ready={autoform_profile.exists and autoform_profile.has_statement_extraction and autoform_profile.has_lean_eval}",
                 f"autoform_bot_commit={autoform_profile.git_commit[:12]}",
             ),
             missing_or_next=(
-                "No general LLM autoformalizer that writes arbitrary Lean theorem statements from new papers.",
+                "Live exact-statement fidelity and full theorem closure remain unreliable across statistical families.",
                 "No verifier-filtered training loop for informal-to-formal statistical statements.",
             ),
         ),
         ProverComponentRow(
             component="premise retrieval / Lean RAG / formal-source search",
             paper_stack_layer="Layer 3: Mathlib Retrieval / Knowledge Graph / Long-Term Memory",
-            status="PARTIAL_STRONG_LOCAL",
-            trained_or_built="Built local declaration-level retrieval with SQLite FTS, theorem compression, declaration-symbol graph expansion, OpenProver-token fallback, and optional Loogle evidence; not learned semantic retrieval.",
+            status="PARTIAL_DIRECT_PROOF_STATE",
+            trained_or_built="Built active-project declaration search, dependency graphs, proof-state trace retrieval, direct Lean state inspection, and optional OpenProver search; not a trained retriever.",
             why_it_matters="Most current proof failures are premise-selection failures. Efficient local retrieval is the path from Mathlib/StatInference source to proof-bank expansion.",
             current_evidence=(
                 f"formal_source_declarations={len(declarations)}",
@@ -131,17 +192,19 @@ def build_prover_component_audit(
                 f"knowledge_cards={len(KNOWLEDGE_CARDS)}",
                 f"formal_infrastructure_cards={len(FORMAL_INFRASTRUCTURE_KNOWLEDGE)}",
                 f"source_inventory_ok={source_inventory['n_ok']}/{source_inventory['n_sources']}",
+                "Formalizer tools include search_formal_environment, inspect_lean_state, inspect_lean_declaration, and search_proof_candidates",
+                "lean-stat-learning-theory and upstream Statlib remain snapshot-scoped retrieval sources, not importable proof authority",
             ),
             missing_or_next=(
-                "No Lean Finder/ReProver runtime provider fusion yet.",
-                "No embedding index, proof-dependency graph from traced proofs, or tactic-state-aware retrieval yet.",
+                "No trained semantic premise policy or demonstrated reliable cross-family proof-state retrieval policy.",
+                "Every retrieved declaration or proof action still requires active-project elaboration and kernel checking.",
             ),
         ),
         ProverComponentRow(
             component="tactic / whole-proof policy model",
             paper_stack_layer="Layer 4: Formal Prover Engines / RL / Proof Search",
             status="PARTIAL_WHOLE_PROOF_POLICY_TRAINER",
-            trained_or_built="Built a deterministic trainable whole-proof candidate ranker over proof SFT examples; no tactic-state policy yet.",
+            trained_or_built="Built a direct model-owned Lean source loop plus a deterministic whole-proof candidate ranker; no trained tactic-state policy yet.",
             why_it_matters="A real prover needs a policy that proposes tactics/proof blocks from proof states and retrieved premises.",
             current_evidence=(
                 "Proof-bank obligations contain known proof bodies",
@@ -150,23 +213,24 @@ def build_prover_component_audit(
                 f"proof_policy_model_schema_version={PROOF_POLICY_MODEL_SCHEMA_VERSION}",
                 "proof-policy-baseline evaluates proof-memory predictions on validation examples",
                 "proof-policy-train writes proof_policy_model.json plus train/validation proof-body ranking predictions",
+                "the same Formalizer receives raw compiler, goal, declaration, and proof-state observations before authoring changed Lean source",
             ),
             missing_or_next=(
                 "Integrate a neural or external whole-proof generator over traced Lean states.",
-                "Add error-message repair and pass@k proof sampling.",
-                "Upgrade from whole-proof proof-body ranking to tactic-state policy learning.",
+                "Learn a tactic-state policy only from exact verifier-grounded transitions; source revision remains model-owned.",
             ),
         ),
         ProverComponentRow(
             component="search controller / MCTS / best-first proof search",
             paper_stack_layer="Layer 4: Formal Prover Engines / RL / Proof Search",
             status="PARTIAL_WHOLE_PROOF_SEARCH",
-            trained_or_built="Built a bounded best-first whole-proof search controller over proof-body candidates; not tactic-state search or MCTS.",
+            trained_or_built="Built bounded whole-proof best-first search, optional OpenProver HLM search, and a direct state-observing Lean coding loop; not tactic-state tree search or MCTS.",
             why_it_matters="Search decides which proof branch to expand when one-shot proof generation fails.",
             current_evidence=(
                 f"proof_search_schema_version={PROOF_SEARCH_SCHEMA_VERSION}",
                 "BestFirstWholeProofSearchController expands a bounded candidate frontier and verifies each node",
                 "proof-search-audit writes proof_search_results.jsonl with node-level verifier feedback",
+                "OpenProver candidates remain suggestions and must be rerun in the exact AI-Statistician Lean project",
             ),
             missing_or_next=(
                 "Build a Lean step environment wrapper.",
@@ -225,12 +289,13 @@ def build_prover_component_audit(
         ProverComponentRow(
             component="construction/procedure generator",
             paper_stack_layer="Layer 5: Discovery / Construction / Conjecturing",
-            status="PARTIAL_REGISTRY",
-            trained_or_built="Built registry-backed candidate procedure generation and vetted algorithms; not free-form estimator/procedure invention.",
+            status="PARTIAL_MODEL_OWNED_SOURCE",
+            trained_or_built="Fresh Algorithm and Simulation workspaces author and execute model-owned Python/R source; the registry remains a baseline, not fresh-source authority.",
             why_it_matters="For AI Statistician, construction means proposing estimators, scores, confidence sets, tests, and algorithms before proving/evaluating them.",
             current_evidence=(
                 f"vetted_research_algorithms={sum(1 for row in algorithms if row.registry_status == 'vetted')}/{len(algorithms)}",
                 f"algorithm_registry_fingerprint={research_algorithm_registry_fingerprint()[:16]}",
+                "Scientific source owners edit, execute, observe raw sandbox output, and commit exact source in one retained session",
             ),
             missing_or_next=(
                 "No learned estimator/procedure construction model.",
@@ -241,11 +306,11 @@ def build_prover_component_audit(
             component="counterexample / disproof / falsification loop",
             paper_stack_layer="Layer 5: Discovery / Construction / Conjecturing",
             status="PARTIAL_EMPIRICAL",
-            trained_or_built="Built simulation-based falsification of procedure behavior; not formal counterexample generation.",
+            trained_or_built="Built model-owned Python/R scratch and exploratory simulation loops; not a formal counterexample generator.",
             why_it_matters="False statistical conjectures should be killed early by small counterexamples or simulation stress tests.",
             current_evidence=(
-                "ResearchSimulator flags bias, coverage, FDR, power, optional-stopping error, PCA alignment, and tail coverage",
-                "Unsupported topics are rejected rather than hallucinated",
+                "TheoryDeveloper and its isolated referee can run model-authored Python/R/SymPy scratch programs",
+                "Exploratory simulation may return non-confirmatory counterevidence to the exact parent Theory workspace",
             ),
             missing_or_next=(
                 "No Lean counterexample generator for false theorem statements.",
@@ -255,16 +320,17 @@ def build_prover_component_audit(
         ProverComponentRow(
             component="simulation/evaluator loop for statistical claims",
             paper_stack_layer="Domain-specific evaluator beside Layers 4-5",
-            status="READY_FOR_CURRENT_RELEASE",
-            trained_or_built="Built Monte Carlo environments and diagnostics for registered frontier-style problem classes.",
+            status="HARNESS_READY_LIVE_PARTIAL",
+            trained_or_built="Built model-owned Python/R source iteration, independent source review, blinded confirmatory execution, and immutable outcome release; broad live correctness remains partial.",
             why_it_matters="Simulation is not proof, but it is the empirical critic that catches estimator/procedure failures before formalization effort is spent.",
             current_evidence=(
-                f"vetted_research_algorithms={len(algorithms)}",
-                "research-system-audit requires zero simulation-flagged supported benchmark traces",
+                "Simulation source authors DGP, measurements, decisions, and requested precision before confirmatory outcomes are released",
+                "trusted_full_task_credit="
+                + str(live_capability["trusted_full_task_credit"]),
             ),
             missing_or_next=(
-                "No automatic adversarial DGP generator.",
-                "No simulator-to-theory gradient/training loop yet.",
+                "No broad passing cross-family live panel for model-authored Python/R and confirmatory simulation.",
+                "No learned simulator-to-theory policy; exploratory findings remain untrusted observations.",
             ),
         ),
         ProverComponentRow(
@@ -334,20 +400,31 @@ def build_prover_component_audit(
         ),
     ]
 
-    achieved = sum(1 for row in rows if row.status in {"READY", "READY_FOR_CURRENT_RELEASE"})
-    partial = sum(1 for row in rows if row.status.startswith("PARTIAL"))
-    missing = len(rows) - achieved - partial
+    achieved = sum(1 for row in rows if row.status == "READY")
+    missing = sum(
+        1 for row in rows if row.status.startswith(("MISSING", "NOT_ACHIEVED"))
+    )
+    partial = len(rows) - achieved - missing
     payload = {
+        "schema_version": 2,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "paper_outline": str(paper_outline),
         "paper_outline_exists": paper_outline.exists(),
         "summary": {
             "components": len(rows),
             "ready": achieved,
+            "harness_ready_live_partial": sum(
+                1 for row in rows if row.status.startswith("HARNESS_READY")
+            ),
             "partial": partial,
             "missing_or_not_trained": missing,
             "honest_goal_complete": False,
+            "evidence_boundary": (
+                "Component presence and benchmark coverage do not imply live "
+                "scientific or theorem-solving capability."
+            ),
         },
+        "live_capability_evidence": live_capability,
         "provenance": {
             "proof_bank_fingerprint": proof_bank_fingerprint(),
             "formal_source_index_fingerprint": formal_source_index_fingerprint(declarations),
@@ -371,6 +448,8 @@ def write_prover_component_audit(payload: dict[str, object], out_dir: Path) -> t
 def _component_audit_markdown(payload: dict[str, object]) -> str:
     summary = payload["summary"]  # type: ignore[index]
     rows = payload["rows"]  # type: ignore[index]
+    live = payload.get("live_capability_evidence", {})
+    live = live if isinstance(live, Mapping) else {}
     lines = [
         "# AI Statistician Prover Component Audit",
         "",
@@ -380,10 +459,15 @@ def _component_audit_markdown(payload: dict[str, object]) -> str:
         "## Summary",
         "",
         f"- Components audited: {summary['components']}",  # type: ignore[index]
-        f"- Ready/current-release: {summary['ready']}",  # type: ignore[index]
+        f"- Ready infrastructure components: {summary['ready']}",  # type: ignore[index]
+        f"- Harness-ready but live-partial components: {summary['harness_ready_live_partial']}",  # type: ignore[index]
         f"- Partial: {summary['partial']}",  # type: ignore[index]
         f"- Missing or not trained: {summary['missing_or_not_trained']}",  # type: ignore[index]
         f"- Full goal complete: {summary['honest_goal_complete']}",  # type: ignore[index]
+        f"- Trusted full-task credit: {live.get('trusted_full_task_credit', 'unavailable')}",
+        f"- Strict formal completion: {live.get('strict_formal_completion_rate', 'unavailable')}",
+        f"- Development exact Lean closure: {live.get('development_panel_exact_lean_closure', 'unavailable')}",
+        f"- Evidence boundary: {summary['evidence_boundary']}",  # type: ignore[index]
         "",
         "## Component Table",
         "",
