@@ -481,6 +481,55 @@ class LeanProjectExecutor:
         self._successful_build_order = ()
         return target_path
 
+    def _support_prefix_reusable(
+        self,
+        *,
+        project_files: Sequence[LeanProjectFile],
+        support_build_order: Sequence[str],
+    ) -> bool:
+        state_hash = stable_hash(
+            [(row.path, row.content_sha256) for row in project_files]
+        )
+        if not (
+            self.workspace_root.is_dir()
+            and self._support_state_hash == state_hash
+            and self._successful_build_order == tuple(support_build_order)
+        ):
+            return False
+        rows_by_path = {row.path: row for row in project_files}
+        for row in project_files:
+            source_path = self.workspace_root / PurePosixPath(row.path)
+            try:
+                source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+            except OSError:
+                return False
+            if source_sha256 != row.content_sha256:
+                return False
+        for relative_path in support_build_order:
+            row = rows_by_path.get(relative_path)
+            if row is None or not (
+                self.workspace_root / PurePosixPath(relative_path)
+            ).with_suffix(".olean").is_file():
+                return False
+        return True
+
+    def _write_target_preserving_support(self, target_source: str) -> Path:
+        target_path = self.workspace_root / LEAN_PROJECT_MAIN_PATH
+        for suffix in (
+            ".olean",
+            ".ilean",
+            ".candidate_identity_probe.lean",
+            ".candidate_identity_probe.olean",
+            ".candidate_identity_probe.ilean",
+        ):
+            generated = target_path.with_suffix(suffix)
+            try:
+                generated.unlink()
+            except FileNotFoundError:
+                pass
+        target_path.write_text(target_source, encoding="utf-8")
+        return target_path
+
     def _compile_support(
         self,
         *,
@@ -559,19 +608,9 @@ class LeanProjectExecutor:
             )
         if errors:
             raise ValueError("; ".join(errors))
-        state_hash = stable_hash(
-            [(row.path, row.content_sha256) for row in rows]
-        )
-        reuse_prefix = bool(
-            self.workspace_root.is_dir()
-            and self._support_state_hash == state_hash
-            and self._successful_build_order == tuple(prior_build_order)
-            and all(
-                (self.workspace_root / PurePosixPath(path)).with_suffix(
-                    ".olean"
-                ).is_file()
-                for path in prior_build_order
-            )
+        reuse_prefix = self._support_prefix_reusable(
+            project_files=rows,
+            support_build_order=prior_build_order,
         )
         if not reuse_prefix:
             self._materialize(target_source=None, project_files=rows)
@@ -651,9 +690,17 @@ class LeanProjectExecutor:
         )
         if errors:
             raise ValueError("; ".join(errors))
-        target_path = self._materialize(
-            target_source=target_source,
+        reuse_support_prefix = self._support_prefix_reusable(
             project_files=rows,
+            support_build_order=support_build_order,
+        )
+        target_path = (
+            self._write_target_preserving_support(target_source)
+            if reuse_support_prefix
+            else self._materialize(
+                target_source=target_source,
+                project_files=rows,
+            )
         )
         project = model_authored_lean_project(
             target_source=target_source,
@@ -682,11 +729,12 @@ class LeanProjectExecutor:
                 "candidate_axiom_audit_checked": False,
                 "candidate_axiom_audit_clean": False,
                 "support_build_attempts": [],
+                "compiled_support_prefix_reused": reuse_support_prefix,
                 "lean_project": project,
                 "lean_project_hash": project["project_hash"],
             }
         support_attempts = []
-        for relative_path in support_build_order:
+        for relative_path in (() if reuse_support_prefix else support_build_order):
             attempt = self._compile_support(
                 lean_binary=lean_binary,
                 environment=environment,
@@ -713,12 +761,14 @@ class LeanProjectExecutor:
                     "candidate_axiom_audit_checked": False,
                     "candidate_axiom_audit_clean": False,
                     "support_build_attempts": support_attempts,
+                    "compiled_support_prefix_reused": reuse_support_prefix,
                     "lean_project": model_authored_lean_project(
                         target_source=target_source,
                         project_files=rows,
                         support_build_order=support_build_order,
                     ),
                 }
+        self._successful_build_order = tuple(support_build_order)
         local_result = dict(
             run_lean_candidate_identity_probe(
                 artifact_path=target_path,
@@ -741,6 +791,7 @@ class LeanProjectExecutor:
             "proof_state_artifact_path": str(target_path),
             **local_result,
             "support_build_attempts": support_attempts,
+            "compiled_support_prefix_reused": reuse_support_prefix,
             "lean_project": project,
             "lean_project_hash": project["project_hash"],
         }

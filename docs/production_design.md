@@ -264,8 +264,8 @@ the outer research graph. Runtime resolves that upstream ID and hash only; it ma
 no second LLM target-binding call. Initial authoring and later revision use the same
 client-tool workspace. The model chooses retrieval, inspection, target/support edits,
 dependency order, declaration submission, or a task-bound formal gap. Exact files are
-checked unchanged, and raw Lean failure returns to that model.
-Runtime injects no import, theorem statement, tactic, or proof-body fragment.
+checked unchanged. Exact support hashes and build order permit `.olean` reuse only inside
+that session; any drift rebuilds, and final promotion starts clean. Raw Lean failure returns to that model. Runtime injects no import, theorem statement, tactic, or proof body.
 
 One global turn/call budget covers every action. The initial message carries the
 target/support manifests, hashes, declaration, and a fresh raw Lean check; exact files

@@ -209,12 +209,36 @@ def test_pinned_statlib_foundation_compiles_model_authored_multifile_project(
         project_files=files,
         support_build_order=(base_path, support_path),
     )
+    revised_target = executor.check_target(
+        target_source=target_source + "\n-- revised target source\n",
+        candidate_lean_declaration="ai_stat_workspace_target",
+        project_files=files,
+        support_build_order=(base_path, support_path),
+    )
+    workspace = tmp_path / "lean-workspace"
+    (workspace / base_path).write_text("invalid cached source\n", encoding="utf-8")
+    rebuilt_target = executor.check_target(
+        target_source=target_source + "\n-- rebuilt after cache invalidation\n",
+        candidate_lean_declaration="ai_stat_workspace_target",
+        project_files=files,
+        support_build_order=(base_path, support_path),
+    )
 
     assert base["compiled"] is True, base["local_lean_stderr"]
     assert support["compiled"] is True, support["local_lean_stderr"]
     assert support["compiled_prefix_reused"] is True
     assert len(support["support_build_attempts"]) == 1
     assert target["local_lean_compiled"] is True, target["local_lean_stderr"]
+    assert target["compiled_support_prefix_reused"] is True
+    assert target["support_build_attempts"] == []
     assert target["candidate_identity_lean_verified"] is True
     assert target["candidate_axiom_audit_clean"] is True
     assert target["lean_project_hash"] == target["lean_project"]["project_hash"]
+    assert revised_target["local_lean_compiled"] is True
+    assert revised_target["compiled_support_prefix_reused"] is True
+    assert revised_target["support_build_attempts"] == []
+    assert revised_target["lean_project_hash"] != target["lean_project_hash"]
+    assert rebuilt_target["local_lean_compiled"] is True
+    assert rebuilt_target["compiled_support_prefix_reused"] is False
+    assert len(rebuilt_target["support_build_attempts"]) == 2
+    assert (workspace / base_path).read_text(encoding="utf-8") == base_source
