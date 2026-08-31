@@ -20,6 +20,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_COMMIT_TOOL,
     SCIENTIFIC_SOURCE_EDIT_TOOL,
+    SCIENTIFIC_SOURCE_READ_TOOL,
     SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
     SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
@@ -229,6 +230,7 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
@@ -239,6 +241,71 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
     assert dict(result.code_draft) == authored
     assert content.strip() not in str(result.evidence)
     assert "workspace document content omitted" in str(result.evidence["history"])
+
+
+def test_scientific_owner_reads_current_source_on_demand() -> None:
+    initial = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates):\n    return {'marker': 'old'}\n",
+    }
+    revised = {**initial, "code": initial["code"].replace("'old'", "'new'")}
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="read-current",
+                    name=SCIENTIFIC_SOURCE_READ_TOOL,
+                    input={"line_start": 1, "line_end": 2},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="submit-revised",
+                    name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    input=revised,
+                )
+            ),
+            _run_response(),
+            _commit_response(),
+        ]
+    )
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use the exact current source.",
+        user_prompt="Revise the source after inspection.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=4,
+        max_no_progress_turns=2,
+        artifact_id="question:on-demand-source",
+        initial_code_draft=initial,
+        initial_check_result={
+            "code_draft_hash": stable_hash(initial),
+            "accepted": False,
+        },
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": dict(candidate) == revised,
+        },
+    )
+
+    opening = str(backend.requests[0].messages)
+    assert initial["code"] not in opening
+    assert stable_hash(initial["code"]) in opening
+    observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert observation["content"] == initial["code"]
+    assert observation["source_hash"] == stable_hash(initial["code"])
+    assert observation["code_draft_hash"] == stable_hash(initial)
+    assert observation["path"] == "main.py"
+    assert dict(result.code_draft) == revised
 
 
 def test_scientific_workspace_externalizes_replication_report_without_theory_authority() -> None:
@@ -558,6 +625,7 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
@@ -767,6 +835,7 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
@@ -1288,6 +1357,7 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
         SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL,
@@ -1425,6 +1495,7 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
     assert [tool.name for tool in backend.requests[0].tools] == [
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
+        SCIENTIFIC_SOURCE_READ_TOOL,
         SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
         SCIENTIFIC_SOURCE_COMMIT_TOOL,
     ]
@@ -1676,6 +1747,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         == [
             SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             SCIENTIFIC_SOURCE_EDIT_TOOL,
+            SCIENTIFIC_SOURCE_READ_TOOL,
             SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
             SCIENTIFIC_SOURCE_COMMIT_TOOL,
         ]

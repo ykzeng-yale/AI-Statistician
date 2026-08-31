@@ -75,6 +75,7 @@ ScientificCandidateExecutor = Callable[[Mapping[str, Any]], tuple[dict[str, Any]
 SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS = "native_client_tools"
 SCIENTIFIC_SOURCE_TRANSPORT_STRUCTURED_PACKET = "structured_packet"
 SCIENTIFIC_SOURCE_SUBMISSION_TOOL = "submit_scientific_source"
+SCIENTIFIC_SOURCE_READ_TOOL = "read_current_scientific_source"
 SCIENTIFIC_SOURCE_EDIT_TOOL = "edit_current_scientific_source"
 SCIENTIFIC_SOURCE_COMMIT_TOOL = "commit_scientific_source"
 SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
@@ -2127,6 +2128,53 @@ def run_scientific_code_workspace(
                 source_action="complete_source_submission",
             )
 
+        if call.name == SCIENTIFIC_SOURCE_READ_TOOL:
+            if set(tool_input) != {"line_start", "line_end"}:
+                raise ClientToolInputError(
+                    "read_current_scientific_source requires line_start and line_end"
+                )
+            line_start, line_end = tool_input["line_start"], tool_input["line_end"]
+            if (
+                isinstance(line_start, bool)
+                or isinstance(line_end, bool)
+                or not isinstance(line_start, int)
+                or not isinstance(line_end, int)
+                or line_start < 1
+                or line_end < line_start
+            ):
+                raise ClientToolInputError(
+                    "scientific source line range must be positive and ordered"
+                )
+            draft = deepcopy(dict(state["code_draft"]))
+            if not draft:
+                raise ClientToolInputError(
+                    "no current scientific source exists; author it first"
+                )
+            lines = str(draft["code"]).splitlines(keepends=True)
+            if line_end > len(lines):
+                raise ClientToolInputError(
+                    f"scientific source has {len(lines)} line(s)"
+                )
+            content = "".join(lines[line_start - 1 : line_end])
+            if len(content) > 55_000:
+                raise ClientToolInputError(
+                    "selected scientific source range exceeds one observation; read less"
+                )
+            return ClientToolExecutionResult(
+                content={
+                    "ok": True,
+                    "path": "main.R" if draft["language"] == "r" else "main.py",
+                    "line_start": line_start,
+                    "line_end": line_end,
+                    "total_lines": len(lines),
+                    "content": content,
+                    "source_hash": stable_hash(draft["code"]),
+                    "code_draft_hash": state["code_draft_hash"],
+                },
+                observation_key="scientific-source-read:"
+                + stable_hash([state["code_draft_hash"], line_start, line_end]),
+            )
+
         if call.name == SCIENTIFIC_SOURCE_EDIT_TOOL:
             required_fields = {"old_text", "new_text"}
             optional_fields = {"expected_occurrences"}
@@ -2347,8 +2395,16 @@ def run_scientific_code_workspace(
                     "then explicitly call run_current_scientific_source when the "
                     "current source is ready for sandbox execution."
                     if not parent_draft
-                    else "\n\nCurrent complete code candidate:\n"
-                    + _compact_json(parent_draft)
+                    else "\n\nCurrent source artifact:\n"
+                    + _compact_json({
+                        **{key: value for key, value in parent_draft.items() if key != "code"},
+                        "path": "main.R" if parent_draft["language"] == "r" else "main.py",
+                        "source_hash": stable_hash(parent_draft["code"]),
+                        "code_draft_hash": parent_hash,
+                        "line_count": len(str(parent_draft["code"]).splitlines()),
+                        "character_count": len(str(parent_draft["code"])),
+                        "content_transport": SCIENTIFIC_SOURCE_READ_TOOL,
+                    })
                 )
                 + "\n\nInitial workspace observation:\n"
                 + _compact_json(initial_check_result)
@@ -2717,6 +2773,24 @@ def _scientific_code_tools(
                 "replacements and explicitly run the complete result afterward."
             ),
             input_schema=model_exact_text_edit_json_schema(),
+            terminal=False,
+        ),
+        ClientToolDefinition(
+            name=SCIENTIFIC_SOURCE_READ_TOOL,
+            description=(
+                "Read an exact line range from the current model-owned Python/R source. "
+                "The result includes the current source and draft hashes; this tool "
+                "never edits or executes source."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["line_start", "line_end"],
+                "properties": {
+                    "line_start": {"type": "integer", "minimum": 1},
+                    "line_end": {"type": "integer", "minimum": 1},
+                },
+            },
             terminal=False,
         ),
         ClientToolDefinition(
