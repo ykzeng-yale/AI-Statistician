@@ -140,7 +140,7 @@ def build_theory_claim_revision_delta(
         revised_theory_packet.get("theory_workspace_manifest")
     )
     body = {
-        "schema_version": 1,
+        "schema_version": 2,
         "artifact_kind": THEORY_CLAIM_REVISION_DELTA_KIND,
         "question_id": revised_question_id or parent_question_id,
         "parent_theory_packet_id": parent_packet_id,
@@ -150,6 +150,7 @@ def build_theory_claim_revision_delta(
         "parent_document_set_hash": str(
             parent_manifest.get("document_set_hash", "") or ""
         ),
+        "parent_theory_workspace_manifest": deepcopy(parent_manifest),
         "revised_document_set_hash": str(
             revised_manifest.get("document_set_hash", "") or ""
         ),
@@ -180,9 +181,11 @@ def build_theory_claim_revision_delta(
         ),
         "boundary": (
             "This delta records model-authored claim IDs, direct dependencies, "
-            "statuses, document anchors, and document hashes across one exact theory "
-            "revision. It contains no mathematical body, execution result, semantic "
-            "acceptance, or proof evidence."
+            "statuses, document anchors, document hashes, and the immutable parent "
+            "workspace manifest across one exact theory revision. The manifest is a "
+            "file reference, not copied mathematics. This delta contains no "
+            "mathematical body, execution result, semantic acceptance, or proof "
+            "evidence."
         ),
     }
     body["delta_id"] = "theory_claim_revision_delta:" + stable_hash(body)[:20]

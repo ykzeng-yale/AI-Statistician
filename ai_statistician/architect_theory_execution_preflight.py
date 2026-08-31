@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import re
@@ -55,6 +56,7 @@ from .research_source_discovery import (
     ResearchSourceDiscoveryInputError,
 )
 from .theory_workspace import (
+    MAX_THEORY_DOCUMENT_OBSERVATION_CHARS,
     MAX_THEORY_DOCUMENT_SEARCH_HITS,
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
     THEORY_SCRATCHPAD_TOOL,
@@ -63,6 +65,7 @@ from .theory_workspace import (
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     TheoryScratchpadConfig,
     execute_theory_scratchpad_tool,
+    load_theory_workspace_documents,
     load_theory_workspace_document_rows,
     read_theory_document_lines,
     research_source_discovery_client_tools,
@@ -83,7 +86,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SOURCE_TRANSPORT = (
-    "client_tool_model_directed_document_and_source_inspection_v18"
+    "client_tool_model_directed_document_and_source_inspection_v19"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_TRANSPORT = "model_owned_markdown_referee_workspace_with_compact_disposition_v11"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REVIEW_AUTHORITY = "model_authored_markdown_referee_report"
@@ -93,6 +96,9 @@ PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED = "NOT_REQUIRED"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL = "write_theory_preflight_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL = "edit_theory_preflight_report"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL = "read_theory_preflight_report"
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL = (
+    "compare_theory_document_revision"
+)
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND = "TheoryExecutionPreflightReviewDraft"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 24
@@ -296,6 +302,7 @@ def _preflight_review_workspace_root(
     )[:20]
     return str((run_root / "theory_reviews" / f"preflight-{review_id}").resolve())
 
+
 def build_architect_theory_execution_preflight_material(
     *,
     question: OpenResearchQuestion,
@@ -305,6 +312,12 @@ def build_architect_theory_execution_preflight_material(
 ) -> dict[str, Any]:
     semantic_material = theory_protocol_material.get("theory_semantic_material", {})
     semantic = dict(semantic_material) if isinstance(semantic_material, Mapping) else {}
+    source_theory_packet_id = str(
+        theory_protocol_material.get("source_theory_packet_id", "") or ""
+    )
+    source_theory_packet_hash = str(
+        theory_protocol_material.get("source_theory_packet_hash", "") or ""
+    )
     derivation = semantic.get("theory_derivation_packet", {})
     derivation = dict(derivation) if isinstance(derivation, Mapping) else {}
     estimator_specs, estimator_ids = _project_estimator_specs(
@@ -375,12 +388,14 @@ def build_architect_theory_execution_preflight_material(
         "theory_claim_revision_delta", {}
     )
     if isinstance(claim_revision_delta, Mapping) and claim_revision_delta:
+        prompt_revision_delta = deepcopy(dict(claim_revision_delta))
+        prompt_revision_delta.pop("parent_theory_workspace_manifest", None)
         sections = (
             *sections,
             (
                 "theory.claim_revision_delta",
                 "claim_revision_delta",
-                claim_revision_delta,
+                prompt_revision_delta,
             ),
         )
     anchor_catalog = [
@@ -433,15 +448,12 @@ def build_architect_theory_execution_preflight_material(
         == dimension_requirements.get("empirical")
         == "not_applicable"
     )
-    source_theory_packet_hash = str(
-        theory_protocol_material.get("source_theory_packet_hash", "") or ""
-    )
-    return {
+    material = {
         "schema_version": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_SCHEMA_VERSION,
         "artifact_kind": "ArchitectTheoryExecutionPreflightMaterial",
         "question_id": question.id,
         "source_theory_packet_id": str(
-            theory_protocol_material.get("source_theory_packet_id", "") or ""
+            source_theory_packet_id
         ),
         "source_theory_packet_hash": source_theory_packet_hash,
         "execution_results_available": False,
@@ -474,6 +486,11 @@ def build_architect_theory_execution_preflight_material(
         "proof_evidence_status": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_NOT_PROOF_EVIDENCE,
         "boundary": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_BOUNDARY,
     }
+    if isinstance(claim_revision_delta, Mapping) and claim_revision_delta:
+        material["theory_claim_revision_delta"] = deepcopy(
+            dict(claim_revision_delta)
+        )
+    return material
 
 
 def _runtime_review_scope(material: Mapping[str, Any]) -> dict[str, Any]:
@@ -551,6 +568,29 @@ def build_architect_theory_execution_preflight_prompt(
         == "authoritative_theory_document"
     ]
     source_material["authoritative_theory_documents"] = authoritative_documents
+    revision_documents = _preflight_revision_document_index(material)
+    source_material["available_theory_document_revisions"] = [
+        {
+            key: deepcopy(row[key])
+            for key in (
+                "path",
+                "change",
+                "parent_sha256",
+                "parent_line_count",
+                "revised_sha256",
+                "revised_line_count",
+            )
+            if key in row
+        }
+        for row in revision_documents.values()
+    ]
+    if source_material["available_theory_document_revisions"]:
+        source_material["theory_document_revision_policy"] = (
+            "Use compare_theory_document_revision only to navigate one exact "
+            "parent-to-current change. It cannot establish or close a finding; "
+            "inspect the relevant current ranges and audit the complete current "
+            "candidate."
+        )
     canonical_document_tool_context = bool(authoritative_documents) and not (
         include_authoritative_document_content
     )
@@ -720,6 +760,167 @@ def _preflight_authoritative_theory_documents(
             "byte_size": len(content.encode("utf-8")),
         }
     return documents
+
+
+def _preflight_revision_document_index(
+    material: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    delta = material.get("theory_claim_revision_delta", {})
+    if not isinstance(delta, Mapping) or not delta:
+        return {}
+    parent_manifest = delta.get("parent_theory_workspace_manifest", {})
+    if not isinstance(parent_manifest, Mapping) or not str(
+        parent_manifest.get("workspace_root", "") or ""
+    ).strip():
+        return {}
+    delta_body = dict(delta)
+    delta_id = str(delta_body.pop("delta_id", "") or "")
+    if delta_id != "theory_claim_revision_delta:" + stable_hash(delta_body)[:20]:
+        raise ValueError("theory revision delta fingerprint mismatch")
+    if str(delta.get("revised_theory_packet_id", "") or "") != str(
+        material.get("source_theory_packet_id", "") or ""
+    ) or str(delta.get("revised_theory_packet_hash", "") or "") != str(
+        material.get("source_theory_packet_hash", "") or ""
+    ):
+        raise ValueError("theory revision delta does not identify the current packet")
+    parent_documents = load_theory_workspace_documents(
+        {"theory_workspace_manifest": parent_manifest}
+    )
+    current_documents = _preflight_authoritative_theory_documents(material)
+    rows = delta.get("changed_document_refs", []) or []
+    if not isinstance(rows, list):
+        raise ValueError("theory revision document references are invalid")
+    index: dict[str, dict[str, Any]] = {}
+    for raw_row in rows:
+        if not isinstance(raw_row, Mapping):
+            raise ValueError("theory revision document reference is invalid")
+        path = str(raw_row.get("document_path", "") or "").strip()
+        change = str(raw_row.get("change", "") or "").strip()
+        if (
+            not path
+            or path in index
+            or change not in {"ADDED", "REMOVED", "MODIFIED"}
+        ):
+            raise ValueError("theory revision document identity is invalid")
+        parent_ref = raw_row.get("parent", {})
+        revised_ref = raw_row.get("revised", {})
+        parent_ref = dict(parent_ref) if isinstance(parent_ref, Mapping) else {}
+        revised_ref = dict(revised_ref) if isinstance(revised_ref, Mapping) else {}
+        parent_content = parent_documents.get(path)
+        current = current_documents.get(path)
+        current_content = str(current.get("content", "") or "") if current else None
+        if (parent_content is None) != (change == "ADDED") or (
+            current_content is None
+        ) != (change == "REMOVED"):
+            raise ValueError("theory revision document presence mismatch")
+        parent_sha256 = (
+            _preflight_text_sha256(parent_content)
+            if parent_content is not None
+            else ""
+        )
+        current_sha256 = (
+            _preflight_text_sha256(current_content)
+            if current_content is not None
+            else ""
+        )
+        if parent_sha256 != str(parent_ref.get("sha256", "") or "") or (
+            current_sha256 != str(revised_ref.get("sha256", "") or "")
+        ):
+            raise ValueError("theory revision document hash mismatch")
+        index[path] = {
+            "path": path,
+            "change": change,
+            "parent_content": parent_content or "",
+            "parent_sha256": parent_sha256,
+            "parent_line_count": len((parent_content or "").splitlines()),
+            "revised_sha256": current_sha256,
+            "revised_line_count": len((current_content or "").splitlines()),
+        }
+    return index
+
+
+def _compare_preflight_theory_document_revision(
+    *,
+    material: Mapping[str, Any],
+    path: Any,
+    context_lines: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not isinstance(path, str) or not path.strip():
+        raise ClientToolInputError("theory revision path must be nonempty text")
+    if (
+        isinstance(context_lines, bool)
+        or not isinstance(context_lines, int)
+        or context_lines < 0
+        or context_lines > 10
+    ):
+        raise ClientToolInputError(
+            "theory revision context_lines must be between 0 and 10"
+        )
+    normalized_path = path.strip()
+    revision = _preflight_revision_document_index(material).get(normalized_path)
+    if revision is None:
+        raise ClientToolInputError(
+            f"unknown changed theory document: {normalized_path}"
+        )
+    current_documents = _preflight_authoritative_theory_documents(material)
+    parent_content = str(revision.get("parent_content", "") or "")
+    current_content = str(
+        current_documents.get(normalized_path, {}).get("content", "") or ""
+    )
+    parent_sha256 = _preflight_text_sha256(parent_content) if parent_content else ""
+    current_sha256 = _preflight_text_sha256(current_content) if current_content else ""
+    if parent_sha256 != str(revision.get("parent_sha256", "") or ""):
+        raise ValueError("theory revision parent content hash mismatch")
+    if current_sha256 != str(revision.get("revised_sha256", "") or ""):
+        raise ValueError("theory revision current content hash mismatch")
+    unified_diff = "".join(
+        difflib.unified_diff(
+            parent_content.splitlines(keepends=True),
+            current_content.splitlines(keepends=True),
+            fromfile=f"{normalized_path}@parent:{parent_sha256[:12] or 'absent'}",
+            tofile=f"{normalized_path}@current:{current_sha256[:12] or 'absent'}",
+            n=context_lines,
+        )
+    )
+    if not unified_diff:
+        raise ValueError("theory revision catalog contains an unchanged document")
+    if len(unified_diff) > MAX_THEORY_DOCUMENT_OBSERVATION_CHARS:
+        raise ClientToolInputError(
+            "theory document revision diff exceeds one model observation; inspect "
+            "the current document with search and range reads"
+        )
+    diff_sha256 = _preflight_text_sha256(unified_diff)
+    inspection_ref = {
+        "tool": ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL,
+        "path": normalized_path,
+        "change": str(revision.get("change", "") or ""),
+        "parent_document_sha256": parent_sha256,
+        "current_document_sha256": current_sha256,
+        "context_lines": context_lines,
+        "diff_sha256": diff_sha256,
+        "source_theory_packet_hash": str(
+            material.get("source_theory_packet_hash", "") or ""
+        ),
+        "proof_evidence_status": (
+            "THEORY_DOCUMENT_REVISION_COMPARISON_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    return (
+        {
+            "ok": True,
+            "path": normalized_path,
+            "change": inspection_ref["change"],
+            "parent_document_sha256": parent_sha256,
+            "current_document_sha256": current_sha256,
+            "context_lines": context_lines,
+            "unified_diff": unified_diff,
+            "diff_sha256": diff_sha256,
+            "navigation_only": True,
+            "current_document_read_still_required": True,
+            "proof_evidence_status": inspection_ref["proof_evidence_status"],
+        },
+        inspection_ref,
+    )
 
 
 def _search_preflight_theory_documents(
@@ -1881,6 +2082,25 @@ def _preflight_theory_document_inspection_errors(
                     errors.append(
                         f"theory document inspection {index} search hit hash mismatch"
                     )
+        elif tool == (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL
+        ):
+            try:
+                _, expected_ref = _compare_preflight_theory_document_revision(
+                    material=material,
+                    path=ref.get("path"),
+                    context_lines=ref.get("context_lines"),
+                )
+            except (ClientToolInputError, ValueError) as exc:
+                errors.append(
+                    f"theory document inspection {index} revision diff is invalid: "
+                    f"{exc}"
+                )
+                continue
+            if dict(ref) != expected_ref:
+                errors.append(
+                    f"theory document inspection {index} revision diff mismatch"
+                )
         else:
             errors.append(f"theory document inspection {index} tool is invalid")
     return errors
@@ -3360,8 +3580,36 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             },
         ),
     ) if compact_source_search_available else ()
+    revision_document_paths = sorted(
+        _preflight_revision_document_index(material)
+    )
+    revision_tools = (
+        ClientToolDefinition(
+            name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL,
+            description=(
+                "Show the exact unified diff from one immutable parent Theory "
+                "document to the current candidate. Use it only to navigate a "
+                "revision; it is not semantic evidence and does not replace reading "
+                "and auditing the current document."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path", "context_lines"],
+                "properties": {
+                    "path": {"type": "string", "enum": revision_document_paths},
+                    "context_lines": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10,
+                    },
+                },
+            },
+        ),
+    ) if revision_document_paths else ()
     tools = (
         *theory_document_client_tools(),
+        *revision_tools,
         *(
             research_source_client_tools()
             if research_sources is not None
@@ -3754,6 +4002,32 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             return ClientToolExecutionResult(
                 content=observation,
                 observation_key="preflight-theory-document-read:"
+                + stable_hash(inspection_ref),
+            )
+
+        if call.name == (
+            ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL
+        ):
+            if set(tool_input) != {"path", "context_lines"}:
+                raise ClientToolInputError(
+                    "compare_theory_document_revision requires path and context_lines"
+                )
+            observation, inspection_ref = (
+                _compare_preflight_theory_document_revision(
+                    material=material,
+                    path=tool_input.get("path"),
+                    context_lines=tool_input.get("context_lines"),
+                )
+            )
+            state["document_inspection_refs"].append(inspection_ref)
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content=observation,
+            )
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="preflight-theory-document-revision:"
                 + stable_hash(inspection_ref),
             )
 

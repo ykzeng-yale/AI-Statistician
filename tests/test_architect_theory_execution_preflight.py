@@ -30,6 +30,7 @@ from ai_statistician.architect_metric_contract_authoring import (
     build_architect_upstream_research_contract,
 )
 from ai_statistician.architect_theory_execution_preflight import (
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
@@ -42,6 +43,7 @@ from ai_statistician.architect_theory_execution_preflight import (
     PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED,
     PREFLIGHT_EXECUTION_HANDOFF_READY,
     _architect_theory_execution_preflight_submit_schema,
+    _compare_preflight_theory_document_revision,
     _preflight_scratchpad_evidence_errors,
     _search_preflight_sources,
     architect_theory_preflight_workspace_continuation_errors,
@@ -59,6 +61,7 @@ from ai_statistician.evaluation_protocol_revision import (
 )
 from ai_statistician.metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_THEORY_INFORMED_AUTHORING_REQUIRED,
+    build_theory_informed_metric_protocol_material,
 )
 from ai_statistician.model_backend import (
     ClientToolCall,
@@ -88,6 +91,9 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     TheoryScratchpadConfig,
     theory_workspace_document_manifest,
+)
+from ai_statistician.theory_revision_lineage import (
+    build_theory_claim_revision_delta,
 )
 
 
@@ -183,6 +189,162 @@ def test_preflight_preserves_the_exact_frozen_research_target() -> None:
         question_anchor["content"]
     )
     assert late_obligation in prompt
+
+
+def test_preflight_referee_can_compare_exact_parent_revision_without_treating_diff_as_authority(
+    tmp_path: Path,
+) -> None:
+    parent_text = (
+        "# Candidate derivation\n"
+        "\n"
+        "Claim C1 uses the parent-only unsupported step.\n"
+        "The finite procedure returns a typed result.\n"
+    )
+    revised_text = (
+        "# Candidate derivation\n"
+        "\n"
+        "Claim C1 now derives the step from the stated finite definition.\n"
+        "The finite procedure returns a typed result.\n"
+    )
+    parent_root = tmp_path / "parent"
+    revised_root = tmp_path / "revised"
+    parent_root.mkdir()
+    revised_root.mkdir()
+    (parent_root / "theory.md").write_text(parent_text, encoding="utf-8")
+    (revised_root / "theory.md").write_text(revised_text, encoding="utf-8")
+
+    claim_index = [
+        {
+            "id": "C1",
+            "kind": "theorem",
+            "status": "OPEN",
+            "document_path": "theory.md",
+            "anchor": "Claim C1",
+            "depends_on": [],
+        }
+    ]
+    base_semantic = deepcopy(_theory_material()["theory_semantic_material"])
+    assert isinstance(base_semantic, dict)
+    base_semantic["theory_content_authority"] = THEORY_WORKSPACE_CONTENT_AUTHORITY
+    base_semantic["structured_handoff_role"] = THEORY_WORKSPACE_HANDOFF_ROLE
+    base_semantic["theory_derivation_packet"]["claim_index"] = claim_index
+    parent_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory:parent-revision",
+        "question": {"id": _question().id},
+        **deepcopy(base_semantic),
+        "theory_workspace_manifest": theory_workspace_document_manifest(
+            {"theory.md": parent_text}, workspace_dir=parent_root
+        ),
+    }
+    revised_packet = {
+        "artifact_kind": "TheoryDerivationPacket",
+        "packet_id": "theory:current-revision",
+        "question": {"id": _question().id},
+        **deepcopy(base_semantic),
+        "theory_workspace_manifest": theory_workspace_document_manifest(
+            {"theory.md": revised_text}, workspace_dir=revised_root
+        ),
+    }
+    delta = build_theory_claim_revision_delta(
+        parent_theory_packet=parent_packet,
+        revised_theory_packet=revised_packet,
+    )
+    theory_material = build_theory_informed_metric_protocol_material(
+        theory_packet=revised_packet,
+        theory_packet_id=revised_packet["packet_id"],
+        theory_claim_revision_delta=delta,
+    )
+    material = build_architect_theory_execution_preflight_material(
+        question=_question(),
+        theory_protocol_material=theory_material,
+        upstream_research_contract={
+            "formal_targets": [],
+            "simulation_targets": ["evaluate the declared risk"],
+        },
+    )
+    prompt = build_architect_theory_execution_preflight_prompt(material)
+    observation, inspection_ref = _compare_preflight_theory_document_revision(
+        material=material,
+        path="theory.md",
+        context_lines=1,
+    )
+
+    assert "parent-only unsupported step" not in json.dumps(material)
+    assert "parent-only unsupported step" not in prompt
+    assert "available_theory_document_revisions" in prompt
+    assert "-Claim C1 uses the parent-only unsupported step." in observation[
+        "unified_diff"
+    ]
+    assert "+Claim C1 now derives the step" in observation["unified_diff"]
+    assert observation["navigation_only"] is True
+    assert observation["current_document_read_still_required"] is True
+    assert inspection_ref["proof_evidence_status"] == (
+        "THEORY_DOCUMENT_REVISION_COMPARISON_NOT_PROOF_EVIDENCE"
+    )
+
+    class RevisionReviewBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+            self.diff_observation = {}
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            turn = len(self.requests)
+            if turn == 1:
+                return _tool_response(
+                    ClientToolCall(
+                        "compare-parent-current",
+                        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL,
+                        {"path": "theory.md", "context_lines": 1},
+                    )
+                )
+            if turn == 2:
+                self.diff_observation = _last_tool_result(request)
+                return _tool_response(
+                    ClientToolCall(
+                        "read-current-candidate",
+                        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                        {"path": "theory.md", "line_start": 1, "line_end": 4},
+                    )
+                )
+            return _tool_response(
+                ClientToolCall(
+                    "submit-after-current-audit",
+                    "submit_theory_preflight_review",
+                    _compact_submission(_payload(accept=True)),
+                )
+            )
+
+    backend = RevisionReviewBackend()
+    packet = _tool_review(
+        backend,
+        theory_protocol_material=theory_material,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert backend.diff_observation["navigation_only"] is True
+    assert [tool.name for tool in backend.requests[0].tools][:3] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL,
+    ]
+    assert [
+        row["tool"] for row in packet["theory_document_inspection_refs"]
+    ] == [
+        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    ]
+    tampered = deepcopy(packet)
+    tampered["theory_document_inspection_refs"][0]["diff_sha256"] = "0" * 64
+    assert "revision diff mismatch" in " ".join(
+        validate_architect_theory_execution_preflight_packet(
+            tampered,
+            material=material,
+        )
+    )
 
 
 def test_source_acceptance_protocol_materializes_one_stable_boolean_abi() -> None:
@@ -867,7 +1029,7 @@ def test_preflight_client_tool_loop_searches_before_grounded_submission() -> Non
     assert packet["overall_verdict"] == "REVISE"
     assert packet["source_grounding_required"] is True
     assert packet["source_grounding_transport"] == (
-        "client_tool_model_directed_document_and_source_inspection_v18"
+        "client_tool_model_directed_document_and_source_inspection_v19"
     )
     assert packet["preflight_source_search_count"] == 1
     assert packet["client_tool_loop_turns"] == 2

@@ -147,6 +147,7 @@ def test_claim_revision_delta_contains_only_hash_bound_reference_changes() -> No
     )
 
     assert delta["artifact_kind"] == THEORY_CLAIM_REVISION_DELTA_KIND
+    assert delta["schema_version"] == 2
     assert delta["parent_theory_packet_hash"] == stable_hash(parent)
     assert delta["revised_theory_packet_hash"] == stable_hash(revised)
     assert [row["claim_id"] for row in delta["added_claim_refs"]] == ["C2"]
@@ -157,6 +158,9 @@ def test_claim_revision_delta_contains_only_hash_bound_reference_changes() -> No
         "depends_on",
     }
     assert delta["changed_document_refs"][0]["document_path"] == "notes.md"
+    assert delta["parent_theory_workspace_manifest"] == (
+        parent["theory_workspace_manifest"]
+    )
     assert delta["counts"] == {
         "parent_claims": 3,
         "revised_claims": 3,

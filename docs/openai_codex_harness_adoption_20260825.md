@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-08-30. Current audited upstream: [`openai/codex` at `a9519cbc`](https://github.com/openai/codex/tree/a9519cbcdd2d664530edb2469224ee03c1056799), Apache-2.0. Since the prior pin, Codex added core-owned history-ingestion metadata and made `update_plan` plus its bundled prompt guidance capability-conditional. This reinforces reserved runtime metadata and exact agreement between exposed tools and model instructions; it does not supply a reusable statistical or Lean control plane. AI Statistician adopts no first-execution bypass.
+Updated: 2026-08-31. Current audited upstream: [`openai/codex` at `a9519cbc`](https://github.com/openai/codex/tree/a9519cbcdd2d664530edb2469224ee03c1056799), Apache-2.0. A fresh fetch found no newer upstream commit. Codex still does not supply a reusable statistical or Lean control plane, so AI Statistician adopts no first-execution bypass or second runtime.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -192,6 +192,7 @@ single-runtime, exact-Haiku, and verifier-owned authority contracts of this proj
 ## Current Assessment
 
 The inner harness is no longer the main architecture blocker. It preserves exact files, capability-matched tools and instructions, checkpoint identity, isolated review, and bounded continuation. Lean target/support files use model-selected compile order and incremental `.olean` reuse inside one session, while semantic review and kernel promotion bind and cleanly replay the same content-addressed project. Same-owner progress and author-review-author feedback stay inside independently bounded collaboration segments; accepted evidence entering another lane and cross-artifact conflicts remain outer graph transitions.
+For file-backed Theory revisions, the isolated referee may request an exact parent-to-current unified diff from the immutable checkpoint manifest; the diff is navigation only, current candidate ranges remain mandatory review input, and neither a changed hunk nor its hash is mathematical evidence.
 Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, model-owned dimensions remain revisable on genuine replans, and the provider schema is the sole structural contract.
 Three immutable evaluations refined these boundaries without changing scores:
 
