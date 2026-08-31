@@ -22,6 +22,7 @@ from ai_statistician.lean_candidate_revision_tool_loop import (
     LEAN_FORMAL_GAP_TOOL,
     LEAN_SCRATCH_TOOL,
     LEAN_SOURCE_EDIT_TOOL,
+    LEAN_SOURCE_READ_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
     lean_candidate_workspace_continuation_errors,
     run_lean_candidate_revision_tool_loop,
@@ -159,6 +160,7 @@ def _lean_workspace_checkpoint(
         for field in (
             "source_updates",
             "declaration_updates",
+            "source_reads",
             "searches",
             "proof_searches",
             "state_inspections",
@@ -186,6 +188,7 @@ def _lean_workspace_checkpoint(
         "workspace_observation_fingerprints": fingerprints,
         "source_updates": max(1, prior_counters["source_updates"]),
         "declaration_updates": prior_counters["declaration_updates"],
+        "source_reads": prior_counters["source_reads"],
         "searches": max(searches, prior_counters["searches"]),
         "proof_searches": prior_counters["proof_searches"],
         "state_inspections": prior_counters["state_inspections"],
@@ -400,6 +403,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     assert all(request.enable_prompt_caching for request in backend.requests)
     assert set(tool.name for tool in backend.requests[0].tools) == {
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SOURCE_READ_TOOL,
         LEAN_SCRATCH_TOOL,
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
@@ -409,7 +413,16 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
         for request in backend.requests
     )
     initial_workspace = _initial_workspace(backend.requests[0])
-    assert initial_workspace["current_lean_source"] == initial
+    assert "current_lean_source" not in initial_workspace
+    assert initial_workspace["current_source_manifest"] == {
+        "source_hash": stable_hash(initial),
+        "line_count": 3,
+        "character_count": len(initial),
+        "source_present": True,
+        "complete_source_inline": False,
+        "content_transport": LEAN_SOURCE_READ_TOOL,
+    }
+    assert initial not in json.dumps(backend.requests[0].messages)
     assert initial_workspace["latest_check_observation"][
         "local_lean_stderr"
     ] == "unknown module"
@@ -489,6 +502,81 @@ def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_sourc
     assert edit_tool.terminal is True
     assert edit_tool.input_schema["required"] == ["edits"]
     assert "ordered atomic batch" in edit_tool.description
+
+
+def test_lean_candidate_tool_loop_reads_hash_bound_source_before_exact_edit() -> None:
+    initial = (
+        "-- source-visible-only-through-read\n"
+        "theorem target : True := by\n"
+        "  exact missing_name\n"
+    )
+    revised = initial.replace("exact missing_name", "exact True.intro")
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "read-current-source",
+                    LEAN_SOURCE_READ_TOOL,
+                    {"line_start": 1, "line_end": 3},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "edit-current-source",
+                    LEAN_SOURCE_EDIT_TOOL,
+                    {"edits": [{
+                        "old_text": "exact missing_name",
+                        "new_text": "exact True.intro",
+                    }]},
+                )
+            ),
+        ]
+    )
+    checked_sources: list[str] = []
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Read the retained source before a localized edit.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=lambda source, _declaration: (
+            checked_sources.append(source)
+            or {
+                "source_hash": stable_hash(source),
+                "compiled": source == revised,
+                "local_lean_stderr": (
+                    "unknown identifier 'missing_name'"
+                    if source == initial
+                    else ""
+                ),
+            }
+        ),
+        search_formal_environment=lambda query, k: [],
+    )
+
+    opening_context = json.dumps(backend.requests[0].messages, sort_keys=True)
+    read_context = json.dumps(backend.requests[1].messages, sort_keys=True)
+    assert "source-visible-only-through-read" not in opening_context
+    assert "source-visible-only-through-read" in read_context
+    assert stable_hash(initial) in read_context
+    assert checked_sources == [initial, revised]
+    assert result.lean_source == revised
+    assert result.evidence["current_source_reads"] == 1
+    assert result.evidence["current_source_read_available"] is True
+    assert result.evidence["current_source_content_transport"] == (
+        LEAN_SOURCE_READ_TOOL
+    )
+    persisted_history = json.dumps(result.evidence["history"], sort_keys=True)
+    assert "source-visible-only-through-read" not in persisted_history
+    assert "current model-owned source content omitted" in persisted_history
 
 
 def test_lean_candidate_tool_loop_returns_ambiguous_edit_error_to_same_model() -> None:
@@ -615,7 +703,11 @@ def test_lean_candidate_tool_loop_continues_checkpoint_with_exact_edit() -> None
     )
 
     assert checked_sources == [revised]
-    assert _initial_workspace(backend.requests[0])["current_lean_source"] == current
+    continued_workspace = _initial_workspace(backend.requests[0])
+    assert "current_lean_source" not in continued_workspace
+    assert continued_workspace["current_source_manifest"]["source_hash"] == (
+        stable_hash(current)
+    )
     assert result.lean_source == revised
     assert result.evidence["resumed_from_checkpoint_id"] == checkpoint[
         "checkpoint_id"
@@ -1219,7 +1311,7 @@ def test_formalizer_reads_exact_theory_document_in_same_lean_session(
         "proof_evidence_status"
     ] == "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE"
     assert "UNIQUE_FORMALIZER_THEORY_BODY" not in str(evidence)
-    assert "theory document content omitted" in str(evidence["history"])
+    assert "workspace document content omitted" in str(evidence["history"])
     assert evidence["local_lean_checks"] == 1
     assert evidence["kernel_verified"] is False
 
@@ -1783,6 +1875,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
     assert [tool.name for tool in backend.requests[1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL,
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SOURCE_READ_TOOL,
         LEAN_SCRATCH_TOOL,
         "search_formal_environment",
     ]
@@ -1845,6 +1938,7 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> Non
 
     expected_tools = {
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SOURCE_READ_TOOL,
         LEAN_SCRATCH_TOOL,
         LEAN_SOURCE_SUBMISSION_TOOL,
         "search_formal_environment",
@@ -1929,6 +2023,7 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
     assert [tool.name for tool in backend.requests[1].tools] == [
         LEAN_SOURCE_SUBMISSION_TOOL,
         LEAN_SOURCE_EDIT_TOOL,
+        LEAN_SOURCE_READ_TOOL,
         LEAN_SCRATCH_TOOL,
         "search_formal_environment",
     ]
@@ -2017,6 +2112,7 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
             == [
                 LEAN_SOURCE_SUBMISSION_TOOL,
                 LEAN_SOURCE_EDIT_TOOL,
+                LEAN_SOURCE_READ_TOOL,
                 LEAN_SCRATCH_TOOL,
                 "search_formal_environment",
                 LEAN_FORMAL_GAP_TOOL,
@@ -2633,7 +2729,10 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
     )
 
     resumed_state = _initial_workspace(second_backend.requests[0])
-    assert resumed_state["current_lean_source"] == failed
+    assert "current_lean_source" not in resumed_state
+    assert resumed_state["current_source_manifest"]["source_hash"] == (
+        stable_hash(failed)
+    )
     assert resumed_state["latest_check_observation"]["local_lean_stderr"] == (
         "unknown identifier 'missing_revision'"
     )

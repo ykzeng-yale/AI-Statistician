@@ -2612,9 +2612,12 @@ def workspace_evidence_history(
 ) -> list[dict[str, Any]]:
     document_message = "[workspace document content omitted from persisted evidence; use the hash-bound document inspection refs]"
     source_message = "[research source text omitted from persisted evidence; raw execution also omitted from transcript; use snapshot/document/range or source-replication refs]"
+    current_source_message = "[current model-owned source content omitted from persisted evidence; use the hash-bound source inspection refs]"
     redactions = {
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL: document_message,
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL: document_message,
+        "read_current_scientific_source": current_source_message,
+        "read_current_lean_source": current_source_message,
         **{name: source_message for name in (
             RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL,
             RESEARCH_SOURCE_RUN_TOOL, RESEARCH_SOURCE_RESULT_READ_TOOL,

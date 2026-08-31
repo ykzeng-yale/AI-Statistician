@@ -76,7 +76,7 @@ without duplicating the control plane.
 | turn-scoped model-visible tool plan | `ClientToolTurnRequest` plus workspace-specific `ClientToolDefinition` values |
 | function-call output returned to the model | `ClientToolExecutionResult` appended to the same Anthropic message history |
 | model-actionable versus fatal tool failure | `ClientToolInputError` versus `ClientToolRuntimeError` |
-| external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; the current Python/R project manifest is opened first and exact files are read on demand rather than copied into every opening |
+| external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; current Python/R project and Lean source manifests open first, exact files are read on demand, and read bodies are omitted from persisted evidence |
 | thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` and checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |

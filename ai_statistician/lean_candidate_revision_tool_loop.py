@@ -35,6 +35,7 @@ LeanDeclarationInspection = Callable[
 ]
 LEAN_SOURCE_SUBMISSION_TOOL = "submit_lean_source"
 LEAN_SOURCE_EDIT_TOOL = "edit_current_lean_source"
+LEAN_SOURCE_READ_TOOL = "read_current_lean_source"
 LEAN_SCRATCH_TOOL = "run_lean_scratch"
 LEAN_FORMAL_GAP_TOOL = "report_formal_gap"
 LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND = (
@@ -43,6 +44,7 @@ LEAN_CANDIDATE_WORKSPACE_CHECKPOINT_KIND = (
 _LEAN_WORKSPACE_COUNTER_FIELDS = (
     "source_updates",
     "declaration_updates",
+    "source_reads",
     "searches",
     "proof_searches",
     "state_inspections",
@@ -427,6 +429,7 @@ def lean_candidate_workspace_checkpoint_summary(
             parent_hash and source_hash and parent_hash != source_hash
         ),
         "source_updates": int(checkpoint.get("source_updates", 0) or 0),
+        "current_source_reads": int(checkpoint.get("source_reads", 0) or 0),
         "local_lean_checks": int(checkpoint.get("checks", 0) or 0),
         "latest_check_compiled": bool(last_check.get("compiled", False)),
         "n_client_tool_calls": int(checkpoint.get("tool_calls", 0) or 0),
@@ -522,6 +525,7 @@ def run_lean_candidate_revision_tool_loop(
         "workspace_observation_fingerprints": set(),
         "source_updates": 0,
         "declaration_updates": 0,
+        "source_reads": 0,
         "searches": 0,
         "proof_searches": 0,
         "state_inspections": 0,
@@ -771,6 +775,63 @@ def run_lean_candidate_revision_tool_loop(
                 declaration=str(state["candidate_lean_declaration"]),
                 source_action="atomic_exact_text_edits",
                 edit_metadata=edit_metadata,
+            )
+
+        if call.name == LEAN_SOURCE_READ_TOOL:
+            if set(tool_input) != {"line_start", "line_end"}:
+                raise ClientToolInputError(
+                    "read_current_lean_source requires line_start and line_end"
+                )
+            line_start = tool_input.get("line_start")
+            line_end = tool_input.get("line_end")
+            if (
+                isinstance(line_start, bool)
+                or not isinstance(line_start, int)
+                or isinstance(line_end, bool)
+                or not isinstance(line_end, int)
+                or line_start < 1
+                or line_end < line_start
+            ):
+                raise ClientToolInputError(
+                    "Lean source line range must be positive and ordered"
+                )
+            source = str(state["source"] or "")
+            if not source.strip():
+                raise ClientToolInputError(
+                    "no current Lean source exists; author it first"
+                )
+            lines = source.splitlines(keepends=True)
+            if line_end > len(lines):
+                raise ClientToolInputError(
+                    f"current Lean source has {len(lines)} line(s)"
+                )
+            content = "".join(lines[line_start - 1 : line_end])
+            state["source_reads"] += 1
+            observation = {
+                "ok": True,
+                "line_start": line_start,
+                "line_end": line_end,
+                "total_lines": len(lines),
+                "content": content,
+                "source_hash": state["source_hash"],
+                "candidate_lean_declaration": state[
+                    "candidate_lean_declaration"
+                ],
+                "source_reads": state["source_reads"],
+                "proof_evidence_status": "LEAN_SOURCE_READ_NOT_PROOF_EVIDENCE",
+            }
+            observation_key = "lean-source-read:" + stable_hash(
+                {
+                    "source_hash": state["source_hash"],
+                    "line_start": line_start,
+                    "line_end": line_end,
+                    "content": content,
+                }
+            )
+            state["workspace_observation_fingerprints"].add(observation_key)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key=observation_key,
             )
 
         if call.name == LEAN_SCRATCH_TOOL:
@@ -1093,8 +1154,15 @@ def run_lean_candidate_revision_tool_loop(
         "artifact_kind": "LeanCandidateWorkspaceInitialState",
         "candidate_id": candidate_id,
         "candidate_lean_declaration": state["candidate_lean_declaration"],
-        "current_lean_source": state["source"],
         "current_source_hash": state["source_hash"],
+        "current_source_manifest": {
+            "source_hash": state["source_hash"],
+            "line_count": len(str(state["source"]).splitlines()),
+            "character_count": len(str(state["source"])),
+            "source_present": bool(str(state["source"]).strip()),
+            "complete_source_inline": False,
+            "content_transport": LEAN_SOURCE_READ_TOOL,
+        },
         "latest_check_observation": _compact_lean_check_observation(
             state["latest_check_observation"]
         ),
@@ -1145,6 +1213,11 @@ def run_lean_candidate_revision_tool_loop(
                 "content": (
                     user_prompt
                     + f"\n\nThis retained Lean session has up to {max_turns} model/tool turns; retrieval, source revision, checks, and terminal submission share that allowance."
+                    + "\n\nThe complete current Lean source is authoritative in "
+                    "the retained workspace and is not copied into this opening. "
+                    "Use read_current_lean_source for exact line ranges before a "
+                    "localized edit; submit_lean_source remains available for a "
+                    "complete replacement or initial authoring."
                     + "\n\nInitial authoritative Lean workspace state:\n"
                     + json.dumps(
                         initial_workspace,
@@ -1309,7 +1382,7 @@ def run_lean_candidate_revision_tool_loop(
             validation_label="LLM Formalizer Lean candidate client-tool workspace",
             attempts=exc.turns,
             errors=[exc.reason],
-            history=theory_documents.theory_document_evidence_history(
+            history=theory_documents.workspace_evidence_history(
                 exc.history
             ),
             recovery_checkpoint=seal_lean_candidate_workspace_checkpoint(
@@ -1334,7 +1407,7 @@ def run_lean_candidate_revision_tool_loop(
                 validation_label="LLM Formalizer Lean candidate client-tool workspace",
                 attempts=loop.turns,
                 errors=["terminal formal-gap payload is incomplete"],
-                history=theory_documents.theory_document_evidence_history(
+                history=theory_documents.workspace_evidence_history(
                     loop.history
                 ),
             )
@@ -1400,7 +1473,7 @@ def run_lean_candidate_revision_tool_loop(
             validation_label="LLM Formalizer Lean candidate client-tool workspace",
             attempts=loop.turns,
             errors=["terminal payload was not bound to a compiled current source"],
-            history=theory_documents.theory_document_evidence_history(
+            history=theory_documents.workspace_evidence_history(
                 loop.history
             ),
         )
@@ -1544,9 +1617,13 @@ def _lean_candidate_revision_success_result(
         "model_source_action_and_check_atomic": True,
         "incremental_exact_edit_available": LEAN_SOURCE_EDIT_TOOL
         in {tool.name for tool in tools},
+        "current_source_read_available": LEAN_SOURCE_READ_TOOL
+        in {tool.name for tool in tools},
+        "current_source_content_transport": LEAN_SOURCE_READ_TOOL,
         "tool_names": [tool.name for tool in tools],
         "source_updates": state["source_updates"],
         "declaration_updates": state["declaration_updates"],
+        "current_source_reads": state["source_reads"],
         **(
             {"independently_rejected_source_hash": rejected_source_hash}
             if rejected_source_hash
@@ -1587,7 +1664,7 @@ def _lean_candidate_revision_success_result(
         "model": model,
         "model_tier": model_tier,
         "provider_usage": dict(provider_usage),
-        "history": theory_documents.theory_document_evidence_history(
+        "history": theory_documents.workspace_evidence_history(
             history
         ),
         "transcript_fingerprint": transcript_fingerprint,
@@ -1753,6 +1830,23 @@ def _lean_candidate_revision_tools(
                 "properties": {"edits": model_exact_text_edits_json_schema()},
             },
             terminal=True,
+        ),
+        ClientToolDefinition(
+            name=LEAN_SOURCE_READ_TOOL,
+            description=(
+                "Read one exact line range from the current model-owned Lean source. "
+                "The observation includes the complete source hash and declaration "
+                "identity; it never edits, compiles, or promotes the source."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["line_start", "line_end"],
+                "properties": {
+                    "line_start": {"type": "integer", "minimum": 1},
+                    "line_end": {"type": "integer", "minimum": 1},
+                },
+            },
         ),
         ClientToolDefinition(
             name=LEAN_SCRATCH_TOOL,

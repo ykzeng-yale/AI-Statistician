@@ -311,6 +311,10 @@ def test_scientific_owner_reads_current_source_on_demand() -> None:
     assert observation["code_draft_hash"] == stable_hash(initial)
     assert observation["path"] == "main.py"
     assert dict(result.code_draft) == revised
+    assert initial["code"] not in str(result.evidence["history"])
+    assert "current model-owned source content omitted" in str(
+        result.evidence["history"]
+    )
 
 
 def test_scientific_workspace_externalizes_replication_report_without_theory_authority() -> None:
