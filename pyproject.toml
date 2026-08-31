@@ -30,7 +30,7 @@ ai-statistician = "ai_statistician.cli:main"
 include = ["ai_statistician*"]
 
 [tool.setuptools.package-data]
-ai_statistician = ["policies/*.json", "runtime_assets/*.mjs"]
+ai_statistician = ["policies/*.json", "resources/*.json", "runtime_assets/*.mjs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
