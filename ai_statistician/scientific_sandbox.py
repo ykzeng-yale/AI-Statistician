@@ -53,11 +53,30 @@ PYTHON_SCIENTIFIC_DEPENDENCIES = (
     "statsmodels",
     "sympy",
 )
-R_SCIENTIFIC_DEPENDENCIES = (
+R_SCIENTIFIC_PRELOADED_NAMESPACES = (
     "base",
+    "datasets",
+    "grdevices",
+    "graphics",
+    "methods",
     "stats",
     "utils",
+    "webr",
+)
+R_SCIENTIFIC_DEPENDENCIES = (
+    "base",
+    "compiler",
+    "datasets",
+    "grdevices",
+    "graphics",
+    "grid",
     "methods",
+    "parallel",
+    "splines",
+    "stats",
+    "stats4",
+    "tools",
+    "utils",
 )
 _PYTHON_PACKAGE_IMPORT_ROOTS = {
     "numpy": {"numpy"},
@@ -481,6 +500,13 @@ def scientific_sandbox_contract(
                 "languages": ["python", "r"],
                 "python_dependencies": list(PYTHON_SCIENTIFIC_DEPENDENCIES),
                 "r_dependencies": list(R_SCIENTIFIC_DEPENDENCIES),
+                "r_preloaded_namespaces": list(
+                    R_SCIENTIFIC_PRELOADED_NAMESPACES
+                ),
+                "r_dependency_enforcement": (
+                    "Every non-preloaded WebR namespace active after source load or "
+                    "execution must be present in the model-authored dependency list."
+                ),
                 "entrypoint": "run_sandbox",
                 "function_contract": (
                     "run_sandbox(seed, replicates) returns a named JSON-finite metric object"

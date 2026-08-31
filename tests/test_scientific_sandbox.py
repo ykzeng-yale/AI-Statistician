@@ -24,6 +24,9 @@ from ai_statistician.generated_metric_contract import (
     GENERATED_METRIC_SOURCE_ACCEPTANCE_PATH,
 )
 from ai_statistician.scientific_sandbox import (
+    PYTHON_SCIENTIFIC_DEPENDENCIES,
+    R_SCIENTIFIC_DEPENDENCIES,
+    R_SCIENTIFIC_PRELOADED_NAMESPACES,
     SCIENTIFIC_SANDBOX_BOUNDARY,
     ScientificEstimatorBinding,
     ScientificInputArtifactBinding,
@@ -34,6 +37,7 @@ from ai_statistician.scientific_sandbox import (
     generated_code_draft_json_schema,
     generated_code_execution_contract_errors,
     normalized_generated_code_profile,
+    scientific_sandbox_contract,
     scientific_python_safety_errors,
 )
 from ai_statistician.scientific_project import (
@@ -114,16 +118,8 @@ def test_generated_code_schema_uses_one_compact_runtime_validated_shape() -> Non
     assert schema["properties"]["language"]["enum"] == ["python", "r"]
     assert "dependencies" in schema["required"]
     assert schema["properties"]["dependencies"]["items"]["enum"] == [
-        "numpy",
-        "scipy",
-        "pandas",
-        "scikit-learn",
-        "statsmodels",
-        "sympy",
-        "base",
-        "stats",
-        "utils",
-        "methods",
+        *PYTHON_SCIENTIFIC_DEPENDENCIES,
+        *R_SCIENTIFIC_DEPENDENCIES,
     ]
     dependency_description = schema["properties"]["dependencies"]["description"]
     assert "language=python" in dependency_description
@@ -131,7 +127,65 @@ def test_generated_code_schema_uses_one_compact_runtime_validated_shape() -> Non
         dependency_description
     )
     assert "language=r" in dependency_description
-    assert "base, stats, utils, methods" in dependency_description
+    assert "compiler, datasets, grdevices, graphics, grid" in (
+        dependency_description
+    )
+    contract = scientific_sandbox_contract()["profiles"]["scientific_wasm"]
+    assert contract["r_preloaded_namespaces"] == list(
+        R_SCIENTIFIC_PRELOADED_NAMESPACES
+    )
+    assert "model-authored dependency list" in contract[
+        "r_dependency_enforcement"
+    ]
+
+
+def test_live_r_requires_declared_optional_namespace_and_runs_pinned_splines(
+    tmp_path: Path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.r_available:
+        pytest.skip("pinned WebR runtime is not installed on this host")
+    code = (
+        "run_sandbox <- function(seed, replicates) {\n"
+        "  basis <- splines::bs(c(0, 1, 2, 3), df=3)\n"
+        "  list(rows=nrow(basis), columns=ncol(basis), "
+        "dataset_rows=nrow(datasets::iris), finite=all(is.finite(basis)))\n"
+        "}\n"
+    )
+
+    undeclared = execute_scientific_sandbox(
+        sandbox_dir=tmp_path / "undeclared",
+        artifact_id="r-undeclared-splines",
+        language="r",
+        code=code,
+        dependencies=["base"],
+        seed=1,
+        replicates=1,
+        timeout_s=60,
+    )
+    declared = execute_scientific_sandbox(
+        sandbox_dir=tmp_path / "declared",
+        artifact_id="r-declared-splines",
+        language="r",
+        code=code,
+        dependencies=["base", "splines"],
+        seed=1,
+        replicates=1,
+        timeout_s=60,
+    )
+
+    assert undeclared.status == "FAILED"
+    assert any(
+        "undeclared package namespace(s): splines" in error
+        for error in undeclared.errors
+    )
+    assert declared.status == "EXECUTED"
+    assert declared.metrics == {
+        "rows": 4,
+        "columns": 3,
+        "dataset_rows": 150,
+        "finite": True,
+    }
 
 
 def test_scientific_python_guard_requires_declared_packages_and_blocks_bridges() -> None:

@@ -35,6 +35,10 @@ from ai_statistician.scientific_code_workspace import (
     scientific_workspace_prototype_observation,
 )
 from ai_statistician.scientific_project import scientific_project_hash
+from ai_statistician.scientific_sandbox import (
+    discover_scientific_sandbox_runtime,
+    execute_scientific_sandbox,
+)
 from ai_statistician.simulation_engineer_llm import SimulationEngineerConfig
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
@@ -661,7 +665,9 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
         dependency_description
     )
     assert "language=r" in dependency_description
-    assert "base, stats, utils, methods" in dependency_description
+    assert "compiler, datasets, grdevices, graphics, grid" in (
+        dependency_description
+    )
 
 
 def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None:
@@ -784,6 +790,89 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
         "path",
     }
     assert "edits" not in edit_schema["properties"]
+
+
+def test_r_source_owner_declares_namespace_from_raw_webr_feedback(
+    tmp_path,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.r_available:
+        pytest.skip("pinned WebR runtime is not installed on this host")
+    code = (
+        "run_sandbox <- function(seed, replicates) {\n"
+        "  basis <- splines::bs(c(0, 1, 2, 3), df=3)\n"
+        "  list(columns=ncol(basis))\n"
+        "}\n"
+    )
+    initial = {
+        "language": "r",
+        "execution_profile": "scientific_wasm",
+        "dependencies": ["base"],
+        "entrypoint": "run_sandbox",
+        "code": code,
+    }
+    revised = {**initial, "dependencies": ["base", "splines"]}
+
+    def execute(candidate, label):
+        execution = execute_scientific_sandbox(
+            sandbox_dir=tmp_path / label,
+            artifact_id=label,
+            language=candidate["language"],
+            code=candidate["code"],
+            dependencies=candidate["dependencies"],
+            seed=1,
+            replicates=1,
+            timeout_s=60,
+        )
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": execution.status == "EXECUTED",
+            "execution_status": execution.status,
+            "errors": list(execution.errors),
+            "stderr": execution.stderr_summary,
+        }
+
+    initial_check = execute(initial, "initial-r-dependency")
+    backend = ScriptedScientificBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "declare-splines",
+                    SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                    revised,
+                )
+            ),
+            _run_response(),
+            _commit_response(),
+        ]
+    )
+    checked = []
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Use raw execution feedback to revise the current R project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=3,
+        max_no_progress_turns=2,
+        artifact_id="question:r-declared-namespace",
+        initial_code_draft=initial,
+        initial_check_result=initial_check,
+        check_candidate=lambda candidate: (
+            checked.append(dict(candidate))
+            or execute(dict(candidate), "revised-r-dependency")
+        ),
+    )
+
+    assert "undeclared package namespace(s): splines" in str(
+        backend.requests[0].messages
+    )
+    assert checked == [revised]
+    assert dict(result.code_draft) == revised
+    assert result.evidence["runtime_edited_source"] is False
 
 
 def test_same_model_authors_initial_source_before_sandbox_execution() -> None:

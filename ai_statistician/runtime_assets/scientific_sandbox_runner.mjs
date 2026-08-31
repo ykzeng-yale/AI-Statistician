@@ -385,6 +385,12 @@ async function runR(
     const requiredCallableExportVector = requiredCallableExports.length > 0
       ? `c(${requiredCallableExports.map((value) => JSON.stringify(value)).join(",")})`
       : "character()";
+    const declaredDependencies = Array.isArray(request.dependencies)
+      ? request.dependencies.map((value) => String(value).toLowerCase())
+      : [];
+    const declaredDependencyVector = declaredDependencies.length > 0
+      ? `c(${declaredDependencies.map((value) => JSON.stringify(value)).join(",")})`
+      : "character()";
     const estimatorRows = Object.entries(estimatorSources);
     const estimatorSourceList = estimatorRows
       .map(([artifactId, estimatorSource]) => `${JSON.stringify(artifactId)}=${JSON.stringify(estimatorSource)}`)
@@ -393,6 +399,14 @@ async function runR(
       .map(([artifactId]) => `${JSON.stringify(artifactId)}=${JSON.stringify(estimatorProjects[artifactId].root)}`)
       .join(",");
     const projectPrelude =
+      `.ai_stat_declared_dependencies <- ${declaredDependencyVector}\n` +
+      `.ai_stat_preloaded_namespaces <- tolower(loadedNamespaces())\n` +
+      `.ai_stat_assert_declared_namespaces <- function() {\n` +
+      `  .active <- setdiff(tolower(loadedNamespaces()), .ai_stat_preloaded_namespaces)\n` +
+      `  .undeclared <- setdiff(.active, .ai_stat_declared_dependencies)\n` +
+      `  if (length(.undeclared) > 0L) stop(paste0("generated R loaded undeclared package namespace(s): ", paste(sort(.undeclared), collapse=", "), "; declare every optional package in dependencies"))\n` +
+      `  invisible(.active)\n` +
+      `}\n` +
       `.ai_stat_simulation_project_root <- ${JSON.stringify(simulationProject.root)}\n` +
       `.ai_stat_estimator_project_roots <- list(${estimatorProjectRootList})\n` +
       `.ai_stat_load_project <- function(source, root) {\n` +
@@ -401,6 +415,7 @@ async function runR(
       `  setwd(root)\n` +
       `  .environment <- new.env(parent=globalenv())\n` +
       `  eval(parse(text=source, srcfile=paste0(root, "/main.R")), envir=.environment)\n` +
+      `  .ai_stat_assert_declared_namespaces()\n` +
       `  .environment\n` +
       `}\n` +
       `.ai_stat_call_project <- function(.function, .root, ...) {\n` +
@@ -516,6 +531,7 @@ async function runR(
         `    stop(.error)\n` +
         `  }\n` +
         `)\n` +
+        `.ai_stat_assert_declared_namespaces()\n` +
         `list(metrics=.ai_stat_result, estimator_invocation_counts=.ai_stat_invocation_counts, estimator_invocation_samples=.ai_stat_invocation_samples)\n` +
         `})`
       : `local({\n` +
@@ -531,6 +547,7 @@ async function runR(
         (hasInputArtifacts
           ? `.ai_stat_result <- .ai_stat_call_project(get("run_sandbox", envir=.ai_stat_environment, inherits=FALSE), .ai_stat_simulation_project_root, seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=.ai_stat_artifacts)\n`
           : `.ai_stat_result <- .ai_stat_call_project(get("run_sandbox", envir=.ai_stat_environment, inherits=FALSE), .ai_stat_simulation_project_root, seed=${Number(request.seed)}, replicates=${Number(request.replicates)})\n`) +
+        `.ai_stat_assert_declared_namespaces()\n` +
         `list(metrics=.ai_stat_result, estimator_invocation_counts=list())\n` +
         `})`;
     result = await webR.evalR(wrapped);

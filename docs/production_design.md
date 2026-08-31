@@ -150,8 +150,8 @@ It writes one findings-first authoritative Markdown report. Its compact envelope
 
 AlgorithmEngineer and SimulationEngineer own complete source and use the shared
 `ScientificCodeWorkspace` loop. Python and R are first-class languages. The
-scientific profile uses pinned Pyodide and WebR runtimes, with explicit package
-declarations, bounded subprocesses, no inherited secrets, and no network access.
+pinned Pyodide/WebR profile checks explicit package declarations against
+runtime-observed namespaces, bounds subprocesses, omits secrets, and blocks network.
 Safety comes from isolation and resource policy, not from banning the scientific
 computing ecosystem.
 
