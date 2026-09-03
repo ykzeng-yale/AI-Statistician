@@ -2494,6 +2494,123 @@ def _source_replication_checkpoint_packet(
     return {**checkpoint, "llm_client_tool_loop": workspace}
 
 
+def test_runtime_binds_complete_model_selected_source_attempt_lineage() -> None:
+    question = OpenResearchQuestion(
+        id="model-selected-source-runtime",
+        title="Model-selected source runtime",
+        description="Diagnose and reproduce a frozen public project.",
+        task_intent={
+            "source_replication": "required",
+            "theory": "optional",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+            "unresolved_gaps": "required",
+        },
+    )
+    packet = _source_replication_checkpoint_packet(question)
+    workspace = deepcopy(packet.pop("llm_client_tool_loop"))
+    template = workspace["source_replication_manifests"][0]
+    sources = []
+    for index, status in enumerate(("FAILED", "EXECUTED"), start=1):
+        body = {
+            **{key: value for key, value in template.items() if key != "manifest_hash"},
+            "artifact_id": f"source_replication:{question.id}:{index}",
+            "execution_status": status,
+            "command_owned_by_model": True,
+            "command_selection_mode": "model_selected",
+            "command_request_hash": f"command-{index}",
+            "execution_attempt_id": f"source_attempt:{index}",
+        }
+        sources.append({**body, "manifest_hash": runtime_module.stable_hash(body)})
+    checkpoint_body = {
+        **{
+            key: value
+            for key, value in packet.items()
+            if key not in {"checkpoint_id", "source_replication_manifest_ref"}
+        },
+        "source_replication_manifest_ref": {
+            key: sources[-1][key]
+            for key in (
+                "artifact_id", "manifest_hash", "execution_status", "stdout_sha256"
+            )
+        },
+        "source_execution_attempt_refs": [
+            {
+                "source_run": index,
+                **{
+                    key: source[key]
+                    for key in (
+                        "artifact_id", "manifest_hash", "execution_status",
+                        "command_request_hash", "execution_attempt_id",
+                    )
+                },
+            }
+            for index, source in enumerate(sources, start=1)
+        ],
+        "selected_source_run": 2,
+    }
+    checkpoint = {
+        **checkpoint_body,
+        "checkpoint_id": "source_replication_checkpoint:"
+        + runtime_module.stable_hash(checkpoint_body)[:20],
+    }
+    workspace.update({
+        "source_replication_runs": 2,
+        "source_replication_manifests": sources,
+        "submitted_core_packet_hash": runtime_module.stable_hash(checkpoint),
+    })
+    _, refs = runtime_module._source_replication_artifacts_from_theory_workspace(
+        workspace,
+        question_id=question.id,
+    )
+    stored_workspace = deepcopy(workspace)
+    stored_workspace.pop("source_replication_manifests")
+    stored_workspace["source_replication_refs"] = refs
+
+    bound = runtime_module._bind_source_replication_checkpoint(
+        raw_checkpoint=checkpoint,
+        workspace=stored_workspace,
+        source_refs=refs,
+        question=question,
+    )
+
+    assert bound["selected_source_run"] == 2
+    assert bound["source_replication_manifest_ref"]["artifact_id"] == (
+        sources[-1]["artifact_id"]
+    )
+    assert "exploratory reproduction" in bound["boundary"]
+    result = runtime_module._source_replication_checkpoint_result(
+        task=AgentTask(
+            task_id="source:model-selected-source-runtime",
+            owner_subsystem="TheoryDeveloper",
+            objective="Reproduce the frozen project.",
+            inputs={},
+        ),
+        question=question,
+        packet={**checkpoint, "llm_client_tool_loop": workspace},
+        checkpoint_allowed=True,
+    )
+    assert result.status == "ACCEPTED"
+    assert result.observations[0].payload["source_replication_ref"][
+        "artifact_id"
+    ] == sources[-1]["artifact_id"]
+    assert "model-selected frozen-project command chain" in result.rationale
+    tampered = deepcopy(checkpoint)
+    tampered["source_execution_attempt_refs"][0]["command_request_hash"] = "changed"
+    tampered_body = deepcopy(tampered)
+    tampered_body.pop("checkpoint_id")
+    tampered["checkpoint_id"] = "source_replication_checkpoint:" + (
+        runtime_module.stable_hash(tampered_body)[:20]
+    )
+    assert runtime_module._bind_source_replication_checkpoint(
+        raw_checkpoint=tampered,
+        workspace=stored_workspace,
+        source_refs=refs,
+        question=question,
+    ) == {}
+
+
 def test_source_only_checkpoint_ends_runtime_without_fixed_pipeline_handoff() -> None:
     question = OpenResearchQuestion(
         id="source-only-runtime",

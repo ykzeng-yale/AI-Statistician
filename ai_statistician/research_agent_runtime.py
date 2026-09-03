@@ -316,7 +316,10 @@ from .research_schema import (
     research_task_intent_requirement,
 )
 from .research_source_discovery import ResearchSourceDiscovery
-from .research_source_library import ResearchSourceSnapshot
+from .research_source_library import (
+    SOURCE_COMMAND_MODEL_SELECTED,
+    ResearchSourceSnapshot,
+)
 from .runtime_research_problem_adapter import (
     derive_runtime_research_problem,
     frozen_direct_initial_task as _frozen_direct_initial_task,
@@ -5335,22 +5338,42 @@ def _source_replication_artifacts_from_theory_workspace(
             continue
         manifest["manifest_hash"] = declared_hash
         artifacts[artifact_id] = manifest
-        refs.append(
-            {
-                "artifact_id": artifact_id,
-                "manifest_hash": declared_hash,
-                "execution_status": str(
-                    manifest.get("execution_status", "") or ""
+        source_ref = {
+            "artifact_id": artifact_id,
+            "manifest_hash": declared_hash,
+            "execution_status": str(
+                manifest.get("execution_status", "") or ""
+            ),
+            "source_snapshot_hash": str(
+                manifest.get("source_snapshot_hash", "") or ""
+            ),
+            "stdout_sha256": str(manifest.get("stdout_sha256", "") or ""),
+            "proof_evidence_status": str(
+                manifest.get("proof_evidence_status", "") or ""
+            ),
+        }
+        if manifest.get("command_owned_by_model") is True:
+            if not (
+                manifest.get("command_selection_mode")
+                == SOURCE_COMMAND_MODEL_SELECTED
+                and str(manifest.get("command_request_hash", "") or "")
+                and str(manifest.get("execution_attempt_id", "") or "")
+            ):
+                artifacts.pop(artifact_id, None)
+                continue
+            source_ref.update({
+                "command_owned_by_model": True,
+                "command_selection_mode": str(
+                    manifest.get("command_selection_mode", "") or ""
                 ),
-                "source_snapshot_hash": str(
-                    manifest.get("source_snapshot_hash", "") or ""
+                "command_request_hash": str(
+                    manifest.get("command_request_hash", "") or ""
                 ),
-                "stdout_sha256": str(manifest.get("stdout_sha256", "") or ""),
-                "proof_evidence_status": str(
-                    manifest.get("proof_evidence_status", "") or ""
+                "execution_attempt_id": str(
+                    manifest.get("execution_attempt_id", "") or ""
                 ),
-            }
-        )
+            })
+        refs.append(source_ref)
     return artifacts, refs
 
 
@@ -5364,11 +5387,38 @@ def _bind_source_replication_checkpoint(
     """Bind one model-authored report to a source-only or integrated workspace."""
 
     checkpoint = deepcopy(dict(raw_checkpoint)) if isinstance(raw_checkpoint, Mapping) else {}
-    if not checkpoint or len(source_refs) != 1:
+    if not checkpoint or not source_refs:
         return {}
     checkpoint_body = deepcopy(checkpoint)
     checkpoint_id = str(checkpoint_body.pop("checkpoint_id", "") or "")
     source_ref = checkpoint.get("source_replication_manifest_ref", {})
+    attempt_refs = checkpoint.get("source_execution_attempt_refs", [])
+    model_selected = bool(attempt_refs)
+    if model_selected:
+        if (
+            not isinstance(attempt_refs, list)
+            or len(attempt_refs) != len(source_refs)
+            or checkpoint.get("selected_source_run") != len(source_refs)
+            or any(
+                not isinstance(attempt, Mapping)
+                or attempt.get("source_run") != index
+                or source.get("command_owned_by_model") is not True
+                or any(
+                    attempt.get(key) != source.get(key)
+                    for key in (
+                        "artifact_id", "manifest_hash", "execution_status",
+                        "command_request_hash", "execution_attempt_id",
+                    )
+                )
+                for index, (attempt, source) in enumerate(
+                    zip(attempt_refs, source_refs), start=1
+                )
+            )
+        ):
+            return {}
+    elif len(source_refs) != 1 or source_refs[0].get("command_owned_by_model") is True:
+        return {}
+    selected_source_ref = source_refs[-1]
     report = checkpoint.get("report_document", {})
     workspace_manifest = workspace.get("theory_workspace_manifest", {})
     documents = workspace_manifest.get("documents", []) if isinstance(workspace_manifest, Mapping) else []
@@ -5401,7 +5451,7 @@ def _bind_source_replication_checkpoint(
         in (workspace.get("changed_document_paths", []) or [])
         and isinstance(source_ref, Mapping)
         and all(
-            source_ref.get(key) == source_refs[0].get(key)
+            source_ref.get(key) == selected_source_ref.get(key)
             for key in ("artifact_id", "manifest_hash", "execution_status", "stdout_sha256")
         )
         and (integrated or workspace.get("submitted_core_packet_hash") == stable_hash(checkpoint))
@@ -5418,9 +5468,13 @@ def _bind_source_replication_checkpoint(
         if source_ref.get("execution_status") == "EXECUTED"
         else "SOURCE_EXECUTION_FAILED_WITH_MODEL_REPORTED_GAPS",
         "boundary": (
-            "A model-owned retained workspace bound an immutable source run and its "
-            "Markdown report. Replication does not validate theory, generated code, "
-            "simulation, novelty, or proof; independent authority remains separate."
+            "A retained source owner bound a model-selected frozen-project command "
+            "attempt chain and its Markdown report. This is exploratory reproduction, "
+            "not preregistered replication, theory, confirmation, novelty, or proof."
+            if model_selected
+            else "A model-owned retained workspace bound an immutable source run and "
+            "its Markdown report. Replication does not validate theory, generated "
+            "code, simulation, novelty, or proof; independent authority remains separate."
         ),
     }
 
@@ -5493,16 +5547,28 @@ def _source_replication_checkpoint_result(
         )
 
     checkpoint_id = str(bound["checkpoint_id"])
-    source_ref = source_refs[0]
+    source_ref = source_refs[-1]
     source_completed = source_ref.get("execution_status") == "EXECUTED"
     evidence_status = (
         "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
         if source_completed else "SOURCE_EXECUTION_FAILED_RECORDED"
     )
-    rationale = ("The source prerequisite recorded one immutable run and model-authored report."
-        if source_completed else "The immutable source run failed with model-reported gaps.")
-    summary = ("immutable source execution recorded for hidden evaluation"
-        if source_completed else "immutable source execution failed with explicit gaps")
+    model_selected = bool(bound.get("source_execution_attempt_refs"))
+    source_label = (
+        "model-selected frozen-project command chain"
+        if model_selected
+        else "immutable operator-fixed source run"
+    )
+    rationale = (
+        f"The source prerequisite recorded the {source_label} and model-authored report."
+        if source_completed
+        else f"The {source_label} failed with model-reported gaps."
+    )
+    summary = (
+        f"{source_label} recorded for hidden evaluation"
+        if source_completed
+        else f"{source_label} failed with explicit gaps"
+    )
     checkpoint_payload = {
         "source_replication_ref": source_ref,
         "report_document": deepcopy(bound.get("report_document", {})),

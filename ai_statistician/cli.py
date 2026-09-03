@@ -6257,8 +6257,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--research-source-execution-manifest",
         default="",
         help=(
-            "optional operator-bound immutable Python entrypoint and environment; "
-            "requires --research-source-manifest and exposes only a no-input run tool"
+            "optional operator-bound immutable source environment; schema versions "
+            "1-3 expose one fixed no-input run, while schema version 4 lets the same "
+            "source owner iteratively select frozen-project commands"
         ),
     )
     research_architect_theory.add_argument(
@@ -6391,8 +6392,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--research-source-execution-manifest",
         default="",
         help=(
-            "optional operator-bound immutable Python entrypoint and environment; "
-            "requires --research-source-manifest and never exposes a model-owned command"
+            "optional operator-bound immutable source environment; schema versions "
+            "1-3 fix one command, while schema version 4 lets the same source owner "
+            "iteratively select commands inside the frozen project"
         ),
     )
     research_agent_runtime.add_argument(

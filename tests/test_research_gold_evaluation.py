@@ -892,6 +892,47 @@ def test_source_replication_component_is_scored_post_runtime_without_algorithm(
     assert task["failure_reasons"] == []
 
 
+def test_strict_source_replication_gold_rejects_model_selected_command(
+    tmp_path: Path,
+) -> None:
+    runtime_result = _runtime_result_with_source_replication(
+        workspace_dir=tmp_path / "workspace"
+    )
+    manifest = runtime_result["blackboard"]["artifacts"][
+        "source_replication:test"
+    ]
+    manifest.pop("manifest_hash")
+    manifest.update({
+        "command_owned_by_model": True,
+        "command_selection_mode": "model_selected",
+        "command_request_hash": "model-command",
+        "execution_attempt_id": "source_attempt:1",
+    })
+    manifest["manifest_hash"] = stable_hash(manifest)
+    calls = []
+
+    def forbidden_source_runner(**kwargs) -> dict:
+        calls.append(kwargs)
+        return {}
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary={"rows": []},
+        benchmark_manifest_path=_source_replication_component_manifest(tmp_path),
+        out_dir=tmp_path / "out",
+        run_artifact_harness=forbidden_source_runner,
+    )
+
+    assert calls == []
+    task = result["tasks"][0]
+    assert task["hidden_source_replication_identity_passed"] is False
+    assert task["dimension_status"]["source_replication"]["gold_validated"] is False
+    assert task["task_passed"] is False
+    assert "source replication manifest lineage is invalid" in task[
+        "failure_reasons"
+    ]
+
+
 def test_hidden_artifact_harness_transports_large_candidate_as_data(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

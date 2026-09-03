@@ -22,7 +22,7 @@ There is one outer typed graph:
 
 ```text
 Goal, source policy, and plan
-  -> source search or exact replication when available
+  -> source search, exact replication, or frozen-project reproduction
   -> persistent Markdown/LaTeX Theory workspace
   -> Scientific coding and simulation workspace
   -> Independent semantic review
@@ -116,7 +116,10 @@ TheoryDeveloper session with `--research-source-manifest`; see
 [Research Source Snapshots](docs/research_source_snapshots.md). The runtime checks
 visibility, path containment, and hashes, while the model chooses searches and
 interprets exact line-addressed source text. Hidden evaluation gold never belongs
-in that snapshot.
+in that snapshot. A separate execution manifest either fixes one preregistered
+command or lets that same retained source owner iteratively choose commands inside
+the frozen project while the runtime keeps the interpreter, environment, network,
+resources, and source bytes fixed.
 
 The frozen development/held-out protocol is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
@@ -168,8 +171,9 @@ returning.
 The largest remaining design debts are:
 
 - an oversized metric authoring/review/preflight implementation;
-- exact public GitHub commits can be acquired and frozen, but complete paper/data/
-  environment replication is not yet a model-owned workspace;
+- frozen projects support same-owner command diagnosis in an operator-owned
+  environment, but dependency reconstruction, external datasets, Git LFS, and
+  complete paper environments remain incomplete;
 - the persistent Markdown/LaTeX TheoryDeveloper and source-grounded referee still
   need unrelated live known-result evidence;
 - no post-simplification live two-family exact-theorem closure yet;

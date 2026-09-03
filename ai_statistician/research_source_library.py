@@ -11,7 +11,7 @@ import shutil
 import stat
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
@@ -39,8 +39,10 @@ RESEARCH_SOURCE_NOT_PROOF_EVIDENCE = (
 SOURCE_REPLICATION_NOT_PROOF_EVIDENCE = (
     "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
 )
-SOURCE_EXECUTION_SCHEMA_VERSION = 3
-SUPPORTED_SOURCE_EXECUTION_SCHEMA_VERSIONS = frozenset({1, 2, 3})
+SOURCE_EXECUTION_SCHEMA_VERSION = 4
+SUPPORTED_SOURCE_EXECUTION_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
+SOURCE_COMMAND_OPERATOR_FIXED = "operator_fixed"
+SOURCE_COMMAND_MODEL_SELECTED = "model_selected"
 MAX_SOURCE_FILE_BYTES = 20 * 1024 * 1024
 MAX_SOURCE_READ_LINES = 240
 MAX_SOURCE_READ_CHARS = 50_000
@@ -795,6 +797,8 @@ class ResearchSourceExecutionSpec:
     result_artifact_paths: tuple[str, ...] = ()
     interpreter_arguments: tuple[str, ...] = ()
     runtime_environment: tuple[tuple[str, str], ...] = ()
+    command_selection_mode: str = SOURCE_COMMAND_OPERATOR_FIXED
+    selected_command_reason: str = ""
 
     def descriptor(self, snapshot: ResearchSourceSnapshot) -> dict[str, Any]:
         entrypoint = snapshot.document(self.entrypoint_document_id)
@@ -832,12 +836,21 @@ class ResearchSourceExecutionSpec:
             "secret_environment_inherited": False,
             "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
             "boundary": (
-                "The operator fixed the exact interpreter, entrypoint, arguments, "
+                "The operator fixed the interpreter, environment, source hashes, "
+                "network policy, and execution limits before the model session. The "
+                "model selects only a frozen-project entrypoint, working directory, "
+                "arguments, and declared outputs; each run is exploratory reproduction "
+                "evidence, not preregistered replication or theorem proof."
+                if self.command_selection_mode == SOURCE_COMMAND_MODEL_SELECTED
+                else "The operator fixed the exact interpreter, entrypoint, arguments, "
                 "environment, and source hashes before the model session. The model "
                 "may inspect sources and request this run, but cannot change the "
                 "command. Raw execution is replication evidence, not a theorem proof."
             ),
         }
+        if self.command_selection_mode == SOURCE_COMMAND_MODEL_SELECTED:
+            descriptor["command_selection_mode"] = self.command_selection_mode
+            descriptor["command_owned_by_model"] = True
         if self.schema_version < 3:
             descriptor["python_executable_sha256"] = self.interpreter_executable_sha256
         return descriptor
@@ -862,7 +875,8 @@ def load_research_source_execution_spec(
         environment_probe_document_id runtime_read_roots runtime_executables
         interpreter_arguments runtime_environment
         working_directory_relative arguments package_distributions timeout_seconds
-        max_output_bytes execution_workspace_mode result_artifact_paths""".split()
+        max_output_bytes execution_workspace_mode result_artifact_paths
+        command_selection_mode""".split()
     )
     unknown_fields = sorted(set(payload) - allowed_fields)
     if unknown_fields:
@@ -885,6 +899,19 @@ def load_research_source_execution_spec(
     ):
         raise ValueError(
             "research source execution schema_version 1 cannot declare a staged workspace"
+        )
+    if int(schema_version) < 4 and "command_selection_mode" in payload:
+        raise ValueError(
+            "research source execution schema versions 1 through 3 use an "
+            "operator-fixed command"
+        )
+    command_selection_mode = str(
+        payload.get("command_selection_mode", SOURCE_COMMAND_OPERATOR_FIXED) or ""
+    ).strip()
+    if int(schema_version) == 4 and command_selection_mode != SOURCE_COMMAND_MODEL_SELECTED:
+        raise ValueError(
+            "research source execution schema version 4 requires "
+            "command_selection_mode=model_selected"
         )
     if payload.get("artifact_kind") != "ResearchSourceExecutionSpec":
         raise ValueError(
@@ -926,7 +953,9 @@ def load_research_source_execution_spec(
     if legacy_python and set(payload) & interpreter_fields:
         raise ValueError("source execution schema versions 1 and 2 use Python fields")
     if not legacy_python and set(payload) & python_fields:
-        raise ValueError("source execution schema version 3 uses interpreter fields")
+        raise ValueError(
+            "source execution schema versions 3 and 4 use interpreter fields"
+        )
     if legacy_python:
         runtime_language = "python"
         environment_probe_document_id = ""
@@ -1156,6 +1185,114 @@ def load_research_source_execution_spec(
         result_artifact_paths=tuple(result_artifact_paths),
         interpreter_arguments=tuple(raw_interpreter_arguments),
         runtime_environment=tuple(runtime_environment),
+        command_selection_mode=command_selection_mode,
+    )
+
+
+def select_research_source_execution_command(
+    execution: ResearchSourceExecutionSpec,
+    *,
+    research_sources: ResearchSourceSnapshot,
+    command: Mapping[str, Any],
+) -> ResearchSourceExecutionSpec:
+    """Bind one model-selected command inside an operator-owned environment."""
+
+    if execution.command_selection_mode != SOURCE_COMMAND_MODEL_SELECTED:
+        raise ValueError("research source execution command is operator-fixed")
+    required_fields = {
+        "reason",
+        "entrypoint_document_id",
+        "working_directory_relative",
+        "arguments",
+        "result_artifact_paths",
+    }
+    if set(command) != required_fields:
+        raise ValueError(
+            "model-selected source command requires exactly: "
+            + ", ".join(sorted(required_fields))
+        )
+    reason = command.get("reason")
+    if not isinstance(reason, str) or not reason.strip() or len(reason) > 4000:
+        raise ValueError("model-selected source command reason must be nonempty text")
+    entrypoint_id = command.get("entrypoint_document_id")
+    if not isinstance(entrypoint_id, str) or not entrypoint_id.strip():
+        raise ValueError("model-selected source entrypoint id must be nonempty text")
+    entrypoint = research_sources.document(entrypoint_id.strip())
+    if entrypoint.content_mode != "text" or entrypoint.file_mode == "120000":
+        raise ValueError("model-selected source entrypoint must be a regular text file")
+    if entrypoint.git_commit and entrypoint.git_commit != execution.source_commit:
+        raise ValueError("model-selected source entrypoint commit is not authorized")
+
+    working_relative = command.get("working_directory_relative")
+    if not isinstance(working_relative, str) or not working_relative.strip():
+        raise ValueError("model-selected source working directory must be text")
+    working_path = PurePosixPath(working_relative.strip())
+    if working_path.is_absolute() or ".." in working_path.parts:
+        raise ValueError("model-selected working directory must stay inside source_root")
+    working_directory = (research_sources.source_root / working_path).resolve()
+    try:
+        working_directory.relative_to(research_sources.source_root)
+    except ValueError as exc:
+        raise ValueError(
+            "model-selected working directory escaped source_root"
+        ) from exc
+    if not working_directory.is_dir():
+        raise ValueError("model-selected source working directory is unavailable")
+
+    arguments = command.get("arguments")
+    if (
+        not isinstance(arguments, list)
+        or len(arguments) > 32
+        or not all(isinstance(value, str) and "\x00" not in value for value in arguments)
+    ):
+        raise ValueError("model-selected source arguments must be at most 32 text values")
+    raw_result_paths = command.get("result_artifact_paths")
+    if (
+        not isinstance(raw_result_paths, list)
+        or len(raw_result_paths) > MAX_SOURCE_RESULT_ARTIFACTS
+    ):
+        raise ValueError(
+            "model-selected result paths must be an array of at most "
+            f"{MAX_SOURCE_RESULT_ARTIFACTS} paths"
+        )
+    result_paths: list[str] = []
+    for raw_path in raw_result_paths:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError("model-selected result paths must be nonempty text")
+        path = PurePosixPath(raw_path.strip())
+        if path.is_absolute() or ".." in path.parts or str(path) == ".":
+            raise ValueError("model-selected result paths must stay inside source_root")
+        normalized_path = path.as_posix()
+        if normalized_path in result_paths:
+            raise ValueError("model-selected result paths must be unique")
+        result_paths.append(normalized_path)
+    protected_paths = {
+        entrypoint.relative_path,
+        research_sources.document(
+            execution.environment_lock_document_id
+        ).relative_path,
+    }
+    if execution.environment_probe_document_id:
+        protected_paths.add(
+            research_sources.document(
+                execution.environment_probe_document_id
+            ).relative_path
+        )
+    if protected_paths.intersection(result_paths):
+        raise ValueError(
+            "model-selected results cannot replace the entrypoint, environment "
+            "lock, or environment probe"
+        )
+    return replace(
+        execution,
+        entrypoint_document_id=entrypoint.document_id,
+        working_directory_relative=working_path.as_posix(),
+        arguments=tuple(arguments),
+        execution_workspace_mode=(
+            "staged_copy_on_write" if result_paths else "immutable_source"
+        ),
+        result_artifact_paths=tuple(result_paths),
+        selected_command_reason=reason.strip(),
     )
 
 
@@ -1357,6 +1494,8 @@ def source_replication_model_observation(
         runtime_version python_executable_sha256 runtime_executable_sha256
         environment_probe_sha256 python_version package_versions
         working_directory_relative interpreter_arguments arguments runtime_environment
+        command_selection_mode command_request_hash execution_attempt_id
+        selected_command_reason
         execution_attempted returncode errors
         stdout_sha256 stderr_sha256 stdout_bytes stderr_bytes
         execution_workspace_mode
@@ -1711,9 +1850,10 @@ def execute_research_source(
     research_sources: ResearchSourceSnapshot,
     output_dir: Path,
     question_id: str,
+    execution_attempt_id: str = "",
     process_executor: PinnedProcessExecutor | None = None,
 ) -> dict[str, Any]:
-    """Execute one operator-bound author entrypoint without model-owned commands."""
+    """Execute one frozen-project entrypoint in an operator-owned environment."""
 
     if not str(question_id or "").strip():
         raise ValueError("source replication requires question identity")
@@ -1723,6 +1863,28 @@ def execute_research_source(
         or execution.source_manifest_sha256 != research_sources.manifest_sha256
     ):
         raise ValueError("source execution spec is not bound to this source snapshot")
+    command_owned_by_model = (
+        execution.command_selection_mode == SOURCE_COMMAND_MODEL_SELECTED
+    )
+    if command_owned_by_model and not execution.selected_command_reason:
+        raise ValueError(
+            "model-selected source execution requires a bound command request"
+        )
+    normalized_attempt_id = str(execution_attempt_id or "").strip()
+    if command_owned_by_model and not normalized_attempt_id:
+        raise ValueError(
+            "model-selected source execution requires a runtime attempt identity"
+        )
+    command_request = {
+        "entrypoint_document_id": execution.entrypoint_document_id,
+        "working_directory_relative": execution.working_directory_relative,
+        "interpreter_arguments": list(execution.interpreter_arguments),
+        "arguments": list(execution.arguments),
+        "runtime_environment": dict(execution.runtime_environment),
+        "execution_workspace_mode": execution.execution_workspace_mode,
+        "result_artifact_paths": list(execution.result_artifact_paths),
+    }
+    command_request_hash = stable_hash(command_request)
     resolved_output = output_dir.expanduser().resolve()
     resolved_output.mkdir(parents=True, exist_ok=False)
     entrypoint = research_sources.document(execution.entrypoint_document_id)
@@ -1883,7 +2045,11 @@ def execute_research_source(
         errors.extend(str(value) for value in source_result.get("errors", []) or [])
         if source_result.get("returncode") != 0:
             errors.append(
-                "pinned research source exited "
+                (
+                    "research source exited "
+                    if command_owned_by_model
+                    else "pinned research source exited "
+                )
                 + str(source_result.get("returncode"))
             )
 
@@ -1943,20 +2109,21 @@ def execute_research_source(
     probe_stderr_sha256 = hashlib.sha256(
         full_probe_stderr.encode("utf-8")
     ).hexdigest()
-    artifact_id = "source_replication:" + stable_hash(
-        [
-            question_id,
-            execution.execution_id,
-            research_sources.snapshot_hash,
-            entrypoint.sha256,
-            stdout_sha256,
-            probe_stdout_sha256,
-            probe_stderr_sha256,
-            [artifact.get("sha256", "") for artifact in result_artifacts],
-            probe_result.get("returncode"),
-            source_result.get("returncode"),
-        ]
-    )[:20]
+    artifact_identity = [
+        question_id,
+        execution.execution_id,
+        research_sources.snapshot_hash,
+        entrypoint.sha256,
+        stdout_sha256,
+        probe_stdout_sha256,
+        probe_stderr_sha256,
+        [artifact.get("sha256", "") for artifact in result_artifacts],
+        probe_result.get("returncode"),
+        source_result.get("returncode"),
+    ]
+    if command_owned_by_model:
+        artifact_identity.extend([command_request_hash, normalized_attempt_id])
+    artifact_id = "source_replication:" + stable_hash(artifact_identity)[:20]
     manifest_path = resolved_output / "source_replication_manifest.json"
     runtime_version_key = "python_version" if execution.schema_version < 3 else "runtime_version"
     runtime_version = str(probe_payload.get(runtime_version_key, "") or "")
@@ -2003,12 +2170,17 @@ def execute_research_source(
         "source_workspace_hash_before": source_workspace_hash_before, "source_workspace_hash_after": source_workspace_hash_after,
         "staged_source_inputs_mutated": staged_source_inputs_mutated, "unexpected_workspace_artifacts": unexpected_workspace_artifacts,
         "source_mutated": source_mutated, "runtime_edited_source": False,
-        "command_owned_by_model": False, "network_access": False,
+        "command_owned_by_model": command_owned_by_model, "network_access": False,
         "secret_environment_inherited": False, "execution_status": "EXECUTED" if not errors else "FAILED",
         "manifest_path": str(manifest_path), "runtime_generated": True, "model_authored": False,
         "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE, "kernel_verified": False,
         "boundary": (
-            "This manifest records an exact hash-bound author-source rerun, raw "
+            "This manifest records a model-selected command over an exact hash-bound "
+            "source snapshot in an operator-owned, network-denied environment. It is "
+            "exploratory reproduction evidence, not a preregistered exact rerun, "
+            "statistical validation, or Lean proof evidence."
+            if command_owned_by_model
+            else "This manifest records an exact hash-bound author-source rerun, raw "
             "environment feedback, and any operator-declared result artifacts from "
             "an isolated copy-on-write workspace. It does not validate a rewritten "
             "implementation, establish a statistical theorem, or count as Lean proof "
@@ -2018,6 +2190,13 @@ def execute_research_source(
     if execution.schema_version < 3:
         manifest["python_executable_sha256"] = execution.interpreter_executable_sha256
         manifest["python_version"] = runtime_version
+    if command_owned_by_model:
+        manifest.update({
+            "command_selection_mode": execution.command_selection_mode,
+            "command_request_hash": command_request_hash,
+            "execution_attempt_id": normalized_attempt_id,
+            "selected_command_reason": execution.selected_command_reason,
+        })
     manifest["manifest_hash"] = stable_hash(manifest)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return manifest

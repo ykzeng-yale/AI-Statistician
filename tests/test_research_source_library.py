@@ -17,6 +17,7 @@ from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
     RESEARCH_SOURCE_SEARCH_TOOL,
+    SOURCE_COMMAND_MODEL_SELECTED,
     SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
     _execute_pinned_process,
     _source_execution_sandbox_profile,
@@ -27,6 +28,7 @@ from ai_statistician.research_source_library import (
     load_research_source_snapshot,
     read_source_replication_result,
     research_source_client_tools,
+    select_research_source_execution_command,
     source_replication_model_observation,
 )
 
@@ -770,9 +772,14 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
     descriptor = execution.descriptor(snapshot)
     assert descriptor["working_directory_relative"] == "."
     assert descriptor["arguments"] == ["--operator-fixed"]
+    assert "command_selection_mode" not in descriptor
     assert manifest["source_mutated"] is False
     assert manifest["runtime_edited_source"] is False
     assert manifest["command_owned_by_model"] is False
+    assert "command_selection_mode" not in manifest
+    assert "command_request_hash" not in manifest
+    assert "execution_attempt_id" not in manifest
+    assert "selected_command_reason" not in manifest
     assert manifest["network_access"] is False
     assert manifest["raw_stdout"].startswith("coef std err")
     assert manifest["stdout_sha256"] == hashlib.sha256(
@@ -792,6 +799,118 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
         "source_stdout",
         "source_stderr",
     }
+
+
+def test_model_selects_command_inside_operator_owned_source_environment(
+    tmp_path,
+) -> None:
+    snapshot, _, _, execution_manifest_path = _source_execution_fixture(tmp_path)
+    payload = json.loads(execution_manifest_path.read_text(encoding="utf-8"))
+    payload.update({
+        "schema_version": 4,
+        "runtime_language": "python",
+        "interpreter_executable_relative_path": payload.pop(
+            "python_executable_relative_path"
+        ),
+        "interpreter_executable_sha256": payload.pop("python_executable_sha256"),
+        "command_selection_mode": SOURCE_COMMAND_MODEL_SELECTED,
+    })
+    execution_manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    authority = load_research_source_execution_spec(
+        execution_manifest_path,
+        research_sources=snapshot,
+    )
+    with pytest.raises(ValueError, match="bound command request"):
+        execute_research_source(
+            execution=authority,
+            research_sources=snapshot,
+            output_dir=tmp_path / "unbound-output",
+            question_id="model-selected-source-task",
+        )
+    selected = select_research_source_execution_command(
+        authority,
+        research_sources=snapshot,
+        command={
+            "reason": "Run the documented example with its visible flag.",
+            "entrypoint_document_id": "published-example",
+            "working_directory_relative": ".",
+            "arguments": ["--model-selected"],
+            "result_artifact_paths": [],
+        },
+    )
+    with pytest.raises(ValueError, match="runtime attempt identity"):
+        execute_research_source(
+            execution=selected,
+            research_sources=snapshot,
+            output_dir=tmp_path / "missing-attempt-output",
+            question_id="model-selected-source-task",
+        )
+    calls = []
+
+    def fake_executor(**kwargs):
+        calls.append(kwargs)
+        if str(kwargs["command"][-1]).endswith("environment_probe.py"):
+            stdout = json.dumps({
+                "runtime_language": "python",
+                "runtime_version": "3.test",
+                "package_versions": {"Demo": "1.2.3"},
+            })
+        else:
+            stdout = "model-selected reproduction complete\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=selected,
+        research_sources=snapshot,
+        output_dir=tmp_path / "selected-output",
+        question_id="model-selected-source-task",
+        execution_attempt_id="source_attempt:test-1",
+        process_executor=fake_executor,
+    )
+
+    assert calls[1]["command"] == (
+        str(authority.interpreter_executable),
+        str(snapshot.document_path("published-example")),
+        "--model-selected",
+    )
+    assert manifest["command_owned_by_model"] is True
+    assert manifest["command_selection_mode"] == SOURCE_COMMAND_MODEL_SELECTED
+    assert manifest["selected_command_reason"].startswith("Run the documented")
+    assert manifest["command_request_hash"]
+    assert manifest["execution_attempt_id"] == "source_attempt:test-1"
+    assert manifest["execution_status"] == "EXECUTED"
+    assert "not a preregistered exact rerun" in manifest["boundary"]
+    assert authority.descriptor(snapshot)["command_owned_by_model"] is True
+    repeated_manifest = execute_research_source(
+        execution=selected,
+        research_sources=snapshot,
+        output_dir=tmp_path / "selected-output-repeat",
+        question_id="model-selected-source-task",
+        execution_attempt_id="source_attempt:test-2",
+        process_executor=fake_executor,
+    )
+    assert repeated_manifest["command_request_hash"] == manifest[
+        "command_request_hash"
+    ]
+    assert repeated_manifest["artifact_id"] != manifest["artifact_id"]
+    with pytest.raises(ValueError, match="stay inside source_root"):
+        select_research_source_execution_command(
+            authority,
+            research_sources=snapshot,
+            command={
+                "reason": "Try an escaping output.",
+                "entrypoint_document_id": "published-example",
+                "working_directory_relative": ".",
+                "arguments": [],
+                "result_artifact_paths": ["../outside.csv"],
+            },
+        )
 
 
 def test_long_source_stream_is_hash_bound_and_readable_without_manifest_copy(

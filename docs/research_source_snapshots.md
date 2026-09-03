@@ -121,9 +121,19 @@ including empty modules, remain unexecuted until the model runs the complete pro
 binary and data assets stay in the separately bound replication lane.
 
 A frozen project still does not define an executable environment. Bind it separately
-with `--research-source-execution-manifest`: exact interpreter, lock, arguments,
-working directory, declared result files, no network, and copy-on-write execution.
-Schema-v3 Python may use the runtime-owned hash-bound version probe so the original
+with `--research-source-execution-manifest`. Schema versions 1-3 fix the exact
+interpreter, lock, entrypoint, arguments, working directory, and declared results for
+one operator-preregistered execution. Schema version 4 uses
+`command_selection_mode=model_selected`: the same retained Theory source owner may
+choose a regular text entrypoint from the frozen snapshot, its in-project working
+directory, arguments, and declared outputs, then revise that choice after raw
+stdout/stderr. Every attempt has a distinct runtime identity and fresh isolated
+workspace. The operator still owns the interpreter, lock, package probe, runtime
+executables, environment variables, network denial, secrets policy, and resource
+limits. Model-selected commands are exploratory reproduction evidence; strict exact
+replication gold continues to require an operator-fixed command.
+
+Schema-v3 and v4 Python may use the runtime-owned hash-bound version probe so the original
 repository need not contain an AI-Statistician helper; other languages require an
 explicit snapshot probe document. The manifest records which probe authority ran
 and returns its return code, transport errors, exact stream hashes and bounded raw

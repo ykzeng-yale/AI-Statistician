@@ -30,7 +30,9 @@ from .research_source_library import (
     RESEARCH_SOURCE_RESULT_INSPECT_TOOL,
     RESEARCH_SOURCE_RESULT_READ_TOOL,
     RESEARCH_SOURCE_RUN_TOOL,
+    MAX_SOURCE_RESULT_ARTIFACTS,
     RESEARCH_SOURCE_SEARCH_TOOL,
+    SOURCE_COMMAND_MODEL_SELECTED,
     ResearchSourceExecutionSpec,
     ResearchSourceSnapshot,
     execute_research_source_client_tool,
@@ -38,6 +40,7 @@ from .research_source_library import (
     inspect_source_replication_result,
     load_source_replication_text_result,
     read_source_replication_result,
+    select_research_source_execution_command,
     research_source_client_tools,
     source_replication_model_observation,
 )
@@ -527,9 +530,12 @@ def _theory_progress_workspace_state(
         raise ValueError(
             "prior theory progress source-run count does not match manifests"
         )
-    if state["source_replication_runs"] > 1:
+    if state["source_replication_runs"] > 1 and not all(
+        manifest.get("command_owned_by_model") is True
+        for manifest in state["source_replication_manifests"]
+    ):
         raise ValueError(
-            "prior theory progress contains repeated immutable source execution"
+            "repeated source execution requires model-selected command lineage"
         )
     return state
 
@@ -614,6 +620,11 @@ def run_theory_artifact_workspace(
     if source_replication_required and research_source_execution is None:
         raise ValueError("required source replication requires source execution")
     integrated_source_replication_required = source_replication_required and not allow_source_replication_checkpoint
+    model_selected_source_execution = bool(
+        research_source_execution is not None
+        and research_source_execution.command_selection_mode
+        == SOURCE_COMMAND_MODEL_SELECTED
+    )
     integrated_commit_fields = ({"source_replication_report_document_path",
         "source_replication_readiness_rationale", "source_replication_unresolved_gaps"}
         if integrated_source_replication_required else set())
@@ -642,6 +653,17 @@ def run_theory_artifact_workspace(
     ):
         raise ValueError(
             "continued source-replication state requires source execution"
+        )
+    restored_source_manifests = restored_tool_state[
+        "source_replication_manifests"
+    ]
+    if restored_source_manifests and any(
+        (manifest.get("command_owned_by_model") is True)
+        != model_selected_source_execution
+        for manifest in restored_source_manifests
+    ):
+        raise ValueError(
+            "continued source-execution state changed command authority"
         )
     parent = {
         str(name): deepcopy(value)
@@ -775,6 +797,7 @@ def run_theory_artifact_workspace(
         research_sources_enabled=research_sources is not None,
         research_source_discovery_enabled=research_source_discovery is not None,
         research_source_execution_enabled=research_source_execution is not None,
+        model_selected_source_execution=model_selected_source_execution,
         source_replication_checkpoint_enabled=allow_source_replication_checkpoint,
         integrated_source_replication_required=(
             integrated_source_replication_required
@@ -1051,8 +1074,10 @@ def run_theory_artifact_workspace(
         gaps_field: str,
     ) -> dict[str, Any]:
         manifests = state["source_replication_manifests"]
-        if state["source_replication_runs"] != 1 or len(manifests) != 1:
-            raise ClientToolInputError("source replication checkpoint requires one completed source run")
+        if not manifests or state["source_replication_runs"] != len(manifests):
+            raise ClientToolInputError(
+                "source replication checkpoint requires completed source runs"
+            )
         report_path = _normalized_theory_document_path(tool_input.get(report_field))
         if report_path not in state["documents"]:
             raise ClientToolInputError("source replication report document is unavailable")
@@ -1066,7 +1091,25 @@ def run_theory_artifact_workspace(
             isinstance(value, str) and value.strip() for value in unresolved_gaps
         ):
             raise ClientToolInputError("source replication unresolved_gaps must be an array of nonempty text")
-        source_manifest = manifests[0]
+        source_manifest = manifests[-1]
+        model_selected_lineage = (
+            source_manifest.get("command_owned_by_model") is True
+        )
+        if model_selected_lineage and any(
+            manifest.get("command_owned_by_model") is not True
+            or manifest.get("command_selection_mode")
+            != SOURCE_COMMAND_MODEL_SELECTED
+            or not str(manifest.get("command_request_hash", "") or "")
+            or not str(manifest.get("execution_attempt_id", "") or "")
+            for manifest in manifests
+        ):
+            raise ClientToolInputError(
+                "model-selected source attempts have incomplete lineage"
+            )
+        if not model_selected_lineage and len(manifests) != 1:
+            raise ClientToolInputError(
+                "operator-fixed source execution requires exactly one run"
+            )
         if source_manifest.get("execution_status") != "EXECUTED" and not unresolved_gaps:
             raise ClientToolInputError("failed source execution requires an explicit unresolved gap")
         report_rows = [
@@ -1090,10 +1133,47 @@ def run_theory_artifact_workspace(
             "model_authored_report": True, "kernel_verified": False,
             "proof_evidence_status": "SOURCE_REPLICATION_CHECKPOINT_NOT_PROOF_EVIDENCE",
         }
+        if source_manifest.get("command_owned_by_model") is True:
+            checkpoint_body.update({
+                "source_execution_attempt_refs": [
+                    {
+                        "source_run": index,
+                        "artifact_id": str(manifest.get("artifact_id", "") or ""),
+                        "manifest_hash": str(manifest.get("manifest_hash", "") or ""),
+                        "execution_status": str(
+                            manifest.get("execution_status", "") or ""
+                        ),
+                        "command_request_hash": str(
+                            manifest.get("command_request_hash", "") or ""
+                        ),
+                        "execution_attempt_id": str(
+                            manifest.get("execution_attempt_id", "") or ""
+                        ),
+                    }
+                    for index, manifest in enumerate(manifests, start=1)
+                ],
+                "selected_source_run": len(manifests),
+            })
         return {
             **checkpoint_body,
             "checkpoint_id": "source_replication_checkpoint:" + stable_hash(checkpoint_body)[:20],
         }
+
+    def source_manifest_for_run(raw_source_run: Any = None) -> dict[str, Any]:
+        manifests = state["source_replication_manifests"]
+        if not manifests:
+            raise ClientToolInputError(
+                "source result inspection requires a completed source run"
+            )
+        source_run = len(manifests) if raw_source_run is None else raw_source_run
+        if (
+            isinstance(source_run, bool)
+            or not isinstance(source_run, int)
+            or source_run < 1
+            or source_run > len(manifests)
+        ):
+            raise ClientToolInputError("unknown source_run")
+        return manifests[source_run - 1]
 
     def execute_tool(call, context):
         del context
@@ -1271,12 +1351,25 @@ def run_theory_artifact_workspace(
         if call.name == RESEARCH_SOURCE_RUN_TOOL:
             if research_sources is None or research_source_execution is None:
                 raise ClientToolInputError("research source execution is unavailable")
-            if tool_input:
-                raise ClientToolInputError("run_research_source accepts no input fields")
-            if state["source_replication_runs"]:
-                raise ClientToolInputError(
-                    "the immutable research source has already been executed"
-                )
+            if model_selected_source_execution:
+                try:
+                    active_execution = select_research_source_execution_command(
+                        research_source_execution,
+                        research_sources=research_sources,
+                        command=tool_input,
+                    )
+                except ValueError as exc:
+                    raise ClientToolInputError(str(exc)) from exc
+            else:
+                if tool_input:
+                    raise ClientToolInputError(
+                        "run_research_source accepts no input fields"
+                    )
+                if state["source_replication_runs"]:
+                    raise ClientToolInputError(
+                        "the immutable research source has already been executed"
+                    )
+                active_execution = research_source_execution
             execution_root = (
                 resolved_workspace_dir
                 if resolved_workspace_dir is not None
@@ -1291,41 +1384,65 @@ def run_theory_artifact_workspace(
             )
             try:
                 manifest = execute_research_source(
-                    execution=research_source_execution,
+                    execution=active_execution,
                     research_sources=research_sources,
                     output_dir=output_dir,
                     question_id=question_id,
+                    execution_attempt_id=(
+                        "source_attempt:"
+                        + stable_hash(
+                            [workspace_id, authoring_binding_id, run_index]
+                        )[:20]
+                        if model_selected_source_execution
+                        else ""
+                    ),
                 )
             except (OSError, UnicodeError, ValueError) as exc:
                 raise ClientToolInputError(str(exc)) from exc
             state["source_replication_runs"] = run_index
             state["source_replication_manifests"].append(deepcopy(manifest))
+            execution_observation = {
+                "ok": manifest.get("execution_status") == "EXECUTED",
+                "source_replication_manifest": (
+                    source_replication_model_observation(manifest)
+                ),
+            }
+            if model_selected_source_execution:
+                execution_observation.update({
+                    "source_run": run_index,
+                    "additional_model_selected_commands_allowed": True,
+                })
+            else:
+                execution_observation["remaining_source_replication_runs"] = 0
             return ClientToolExecutionResult(
-                content={
-                    "ok": manifest.get("execution_status") == "EXECUTED",
-                    "source_replication_manifest": (
-                        source_replication_model_observation(manifest)
-                    ),
-                    "remaining_source_replication_runs": 0,
-                },
+                content=execution_observation,
                 state_changed=True,
                 observation_key="research-source-execution:"
                 + str(manifest.get("manifest_hash", "") or stable_hash(manifest)),
             )
 
         if call.name == RESEARCH_SOURCE_RESULT_READ_TOOL:
-            if set(tool_input) != {"relative_path", "line_start", "line_end"}:
+            result_read_fields = {
+                "relative_path", "line_start", "line_end"
+            }
+            if model_selected_source_execution:
+                result_read_fields.add("source_run")
+            if set(tool_input) - result_read_fields or not {
+                "relative_path", "line_start", "line_end"
+            }.issubset(tool_input):
                 raise ClientToolInputError(
                     "read_research_source_result requires relative_path, "
                     "line_start, and line_end"
+                    + (
+                        "; source_run is optional"
+                        if model_selected_source_execution
+                        else ""
+                    )
                 )
-            if len(state["source_replication_manifests"]) != 1:
-                raise ClientToolInputError(
-                    "read_research_source_result requires one completed source run"
-                )
+            source_manifest = source_manifest_for_run(tool_input.get("source_run"))
             try:
                 observation = read_source_replication_result(
-                    state["source_replication_manifests"][0],
+                    source_manifest,
                     relative_path=tool_input.get("relative_path"),
                     line_start=tool_input.get("line_start"),
                     line_end=tool_input.get("line_end"),
@@ -1345,6 +1462,12 @@ def run_theory_artifact_workspace(
                     "proof_evidence_status",
                 )
             }
+            if model_selected_source_execution:
+                result_ref["source_run"] = (
+                    int(tool_input["source_run"])
+                    if "source_run" in tool_input
+                    else len(state["source_replication_manifests"])
+                )
             state["source_result_read_refs"].append(result_ref)
             return ClientToolExecutionResult(
                 content=observation,
@@ -1353,20 +1476,35 @@ def run_theory_artifact_workspace(
             )
 
         if call.name == RESEARCH_SOURCE_RESULT_INSPECT_TOOL:
-            if (set(tool_input) != {"relative_path"}
-                    or len(state["source_replication_manifests"]) != 1):
+            result_inspection_fields = {"relative_path"}
+            if model_selected_source_execution:
+                result_inspection_fields.add("source_run")
+            if set(tool_input) - result_inspection_fields or (
+                "relative_path" not in tool_input
+            ):
                 raise ClientToolInputError(
-                    "inspect_research_source_result requires one relative_path "
-                    "after one completed source run"
+                    "inspect_research_source_result requires relative_path"
+                    + (
+                        "; source_run is optional"
+                        if model_selected_source_execution
+                        else ""
+                    )
                 )
+            source_manifest = source_manifest_for_run(tool_input.get("source_run"))
             try:
                 observation, media_block = inspect_source_replication_result(
-                    state["source_replication_manifests"][0],
+                    source_manifest,
                     relative_path=tool_input.get("relative_path"),
                 )
             except (OSError, UnicodeError, ValueError) as exc:
                 raise ClientToolInputError(str(exc)) from exc
             result_ref = {**observation, "tool": call.name}
+            if model_selected_source_execution:
+                result_ref["source_run"] = (
+                    int(tool_input["source_run"])
+                    if "source_run" in tool_input
+                    else len(state["source_replication_manifests"])
+                )
             state["source_result_read_refs"].append(result_ref)
             return ClientToolExecutionResult(
                 content=observation, model_content_blocks=(media_block,),
@@ -1681,12 +1819,7 @@ def run_theory_artifact_workspace(
                 )
             input_artifacts: list[ScientificInputArtifactBinding] = []
             if raw_result_paths:
-                if len(state["source_replication_manifests"]) != 1:
-                    raise ClientToolInputError(
-                        "theory scratchpad source-result inputs require one "
-                        "completed source run"
-                    )
-                source_manifest = state["source_replication_manifests"][0]
+                source_manifest = source_manifest_for_run()
                 result_rows = {
                     str(row.get("relative_path", "") or ""): row
                     for row in source_manifest.get("result_artifacts", []) or []
@@ -2022,25 +2155,49 @@ def run_theory_artifact_workspace(
         else ""
     )
     source_execution_guidance = (
-        "An operator-bound hash-verified author-source execution is available through "
-        "run_research_source. The tool accepts no command, path, argument, or code from "
-        "you: it revalidates the pinned snapshot and environment, denies network and "
-        "secret inheritance, runs the exact published entrypoint, and returns raw "
-        "stdout/stderr plus any operator-declared result artifacts from an isolated "
-        "copy-on-write source workspace to this same session. Inspect and interpret "
-        "that observation yourself. The visible execution descriptor and returned "
-        "manifest state the exact working directory and argument vector. For larger "
-        "UTF-8 outputs, either read exact lines or select the result paths in your "
-        "existing scratch tool and analyze them with model-authored code. "
-        "For declared PDF or image outputs, inspect the exact artifact visually. "
-        "It is source-replication evidence, not model-authored "
-        "scientific code, confirmatory simulation, or theorem proof. "
-        if research_source_execution is not None
-        else ""
-    )
+        (
+            "A model-directed reproduction environment is available through "
+            "run_research_source. Inspect the frozen project, then choose one exact "
+            "entrypoint document, working directory, argument vector, and declared "
+            "result paths. The runtime fixes and revalidates the interpreter, packages, "
+            "snapshot, resource policy, network denial, and secret isolation. Each "
+            "command runs in a fresh workspace and raw feedback returns here; revise "
+            "your command choice rather than asking a repair worker. The latest run is "
+            "the selected checkpoint candidate and all attempt hashes remain evidence. "
+            "Inspect and interpret each observation yourself. The visible execution "
+            "descriptor and returned manifest state the exact working directory and "
+            "argument vector. For larger UTF-8 outputs, either read exact lines or "
+            "select the result paths in your existing scratch tool and analyze them "
+            "with model-authored code. For declared PDF or image outputs, inspect the "
+            "exact artifact visually. It is exploratory source-execution evidence, "
+            "not model-authored scientific code, confirmatory simulation, or theorem "
+            "proof. "
+        )
+        if model_selected_source_execution
+        else (
+            "An operator-bound hash-verified author-source execution is available through "
+            "run_research_source. The tool accepts no command, path, argument, or code from "
+            "you: it revalidates the pinned snapshot and environment, denies network and "
+            "secret inheritance, runs the exact published entrypoint, and returns raw "
+            "stdout/stderr plus any operator-declared result artifacts from an isolated "
+            "copy-on-write source workspace to this same session. Inspect and interpret "
+            "that observation yourself. The visible execution descriptor and returned "
+            "manifest state the exact working directory and argument vector. For larger "
+            "UTF-8 outputs, either read exact lines or select the result paths in your "
+            "existing scratch tool and analyze them with model-authored code. For "
+            "declared PDF or image outputs, inspect the exact artifact visually. It is "
+            "source-replication evidence, not model-authored scientific code, "
+            "confirmatory simulation, or theorem proof. "
+        )
+    ) if research_source_execution is not None else ""
     source_checkpoint_guidance = (
-        "This task has no required substantive lane beyond exact source replication "
-        "and honest gap disclosure. After inspecting the sources and raw run, write a "
+        "This task has no required substantive lane beyond "
+        + (
+            "model-directed source reproduction "
+            if model_selected_source_execution
+            else "exact source replication "
+        )
+        + "and honest gap disclosure. After inspecting the sources and raw run, write a "
         "durable Markdown report with the reproduced outputs, identity evidence, "
         "comparison, interpretation, and caveats. Keep exact execution facts separate "
         "from mathematical interpretation; if an interpretation is not grounded in "
@@ -2060,8 +2217,14 @@ def run_theory_artifact_workspace(
         else ""
     )
     integrated_source_checkpoint_guidance = (
-        "This task requires exact source replication plus further research. In this retained "
-        "workspace, run the pinned source once and write a durable Markdown report. Audit it "
+        "This task requires "
+        + (
+            "model-directed source reproduction"
+            if model_selected_source_execution
+            else "exact source replication"
+        )
+        + " plus further research. In this retained workspace, execute the configured "
+        "source lane and write a durable Markdown report. Audit it "
         "against raw observations and exact reads; distinguish facts, interpretation, and gaps. "
         "Pass its path, a replication-specific rationale, and plain-string gaps to the final "
         "theory commit. That commit binds both artifacts but replication validates neither "
@@ -2418,11 +2581,11 @@ def run_theory_artifact_workspace(
             and isinstance(report, Mapping)
             and str(report.get("relative_path", "") or "")
             and isinstance(source_ref, Mapping)
-            and len(source_manifests) == 1
+            and bool(source_manifests)
             and source_ref.get("artifact_id")
-            == source_manifests[0].get("artifact_id")
+            == source_manifests[-1].get("artifact_id")
             and source_ref.get("manifest_hash")
-            == source_manifests[0].get("manifest_hash")
+            == source_manifests[-1].get("manifest_hash")
         ):
             terminal_errors.append(
                 "terminal source replication checkpoint identity is invalid"
@@ -2950,6 +3113,7 @@ def _theory_workspace_tools(
     research_sources_enabled: bool = False,
     research_source_discovery_enabled: bool = False,
     research_source_execution_enabled: bool = False,
+    model_selected_source_execution: bool = False,
     source_replication_checkpoint_enabled: bool = False,
     integrated_source_replication_required: bool = False,
     document_authority_enabled: bool = False,
@@ -3003,20 +3167,66 @@ def _theory_workspace_tools(
                 ClientToolDefinition(
                     name=RESEARCH_SOURCE_RUN_TOOL,
                     description=(
-                        "Run the exact operator-pinned published entrypoint once in its "
-                        "hash-bound, network-denied environment. This tool accepts no "
-                        "model-selected command or source. Raw stdout/stderr, plus any "
-                        "operator-declared CSV, text, or binary result artifacts from "
-                        "an isolated copy-on-write workspace, return to this same "
-                        "session as hash-bound compact observations. Use "
-                        "read_research_source_result for exact result lines instead of "
-                        "requesting embedded files."
+                        (
+                            "Run one model-selected entrypoint from the exact frozen "
+                            "project in the operator-owned, network-denied environment. "
+                            "Choose the working directory, arguments, and expected result "
+                            "paths; the interpreter, packages, source bytes, resource limits, "
+                            "and isolation remain fixed. Raw feedback returns to this same "
+                            "session so you may inspect and choose another command. "
+                        )
+                        if model_selected_source_execution
+                        else (
+                            "Run the exact operator-pinned published entrypoint once in its "
+                            "hash-bound, network-denied environment. This tool accepts no "
+                            "model-selected command or source. Raw stdout/stderr, plus any "
+                            "operator-declared CSV, text, or binary result artifacts from "
+                            "an isolated copy-on-write workspace, return to this same "
+                            "session as hash-bound compact observations. "
+                        )
+                    ) + (
+                        "Use read_research_source_result for exact result lines instead "
+                        "of requesting embedded files."
                     ),
-                    input_schema={
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {},
-                    },
+                    input_schema=(
+                        {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "reason",
+                                "entrypoint_document_id",
+                                "working_directory_relative",
+                                "arguments",
+                                "result_artifact_paths",
+                            ],
+                            "properties": {
+                                "reason": {"type": "string", "minLength": 1},
+                                "entrypoint_document_id": {
+                                    "type": "string", "minLength": 1
+                                },
+                                "working_directory_relative": {
+                                    "type": "string", "minLength": 1
+                                },
+                                "arguments": {
+                                    "type": "array",
+                                    "maxItems": 32,
+                                    "items": {"type": "string"},
+                                },
+                                "result_artifact_paths": {
+                                    "type": "array",
+                                    "maxItems": MAX_SOURCE_RESULT_ARTIFACTS,
+                                    "uniqueItems": True,
+                                    "items": {"type": "string", "minLength": 1},
+                                },
+                            },
+                        }
+                        if model_selected_source_execution
+                        else {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {},
+                        }
+                    ),
                 ),
                 ClientToolDefinition(
                     name=RESEARCH_SOURCE_RESULT_READ_TOOL,
@@ -3047,6 +3257,16 @@ def _theory_workspace_tools(
                                 "type": "integer",
                                 "minimum": 1,
                             },
+                            **(
+                                {
+                                    "source_run": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                    }
+                                }
+                                if model_selected_source_execution
+                                else {}
+                            ),
                         },
                     },
                 ),
@@ -3061,8 +3281,20 @@ def _theory_workspace_tools(
                     input_schema={
                         "type": "object", "additionalProperties": False,
                         "required": ["relative_path"],
-                        "properties": {"relative_path": {"type": "string",
-                                                          "minLength": 1}},
+                        "properties": {
+                            "relative_path": {
+                                "type": "string", "minLength": 1
+                            },
+                            **(
+                                {
+                                    "source_run": {
+                                        "type": "integer", "minimum": 1
+                                    }
+                                }
+                                if model_selected_source_execution
+                                else {}
+                            ),
+                        },
                     },
                 ),
             )

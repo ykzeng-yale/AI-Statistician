@@ -27,6 +27,7 @@ from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_RESULT_READ_TOOL,
     RESEARCH_SOURCE_RUN_TOOL,
     RESEARCH_SOURCE_SEARCH_TOOL,
+    SOURCE_COMMAND_MODEL_SELECTED,
     ResearchSourceExecutionSpec,
     load_research_source_snapshot,
 )
@@ -920,6 +921,25 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         RESEARCH_SOURCE_RESULT_READ_TOOL,
     ]
     assert RESEARCH_SOURCE_RESULT_INSPECT_TOOL in first_tools
+    fixed_result_read_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == RESEARCH_SOURCE_RESULT_READ_TOOL
+    )
+    assert "source_run" not in fixed_result_read_tool.input_schema["properties"]
+    fixed_result_inspect_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == RESEARCH_SOURCE_RESULT_INSPECT_TOOL
+    )
+    assert "source_run" not in fixed_result_inspect_tool.input_schema[
+        "properties"
+    ]
+    fixed_execution_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert fixed_execution_observation["remaining_source_replication_runs"] == 0
+    assert "source_run" not in fixed_execution_observation
     assert "coef=0.5" in str(backend.requests[1].messages)
     assert "probe startup warning" in str(backend.requests[1].messages)
     assert "raw_text" not in str(backend.requests[1].messages)
@@ -965,6 +985,220 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     assert "coef=0.5" not in json.dumps(result.evidence["history"])
     assert "method,error" not in json.dumps(result.evidence["history"])
     assert "source-replication refs" in json.dumps(result.evidence["history"])
+
+
+def test_same_theory_owner_iterates_model_selected_source_commands(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    research_sources, _ = _research_source_snapshot(tmp_path)
+    source_execution = ResearchSourceExecutionSpec(
+        execution_id="model-selected-execution",
+        benchmark_id="model-selected-benchmark",
+        manifest_sha256="a" * 64,
+        source_snapshot_id=research_sources.snapshot_id,
+        source_snapshot_hash=research_sources.snapshot_hash,
+        source_manifest_sha256=research_sources.manifest_sha256,
+        source_commit="",
+        entrypoint_document_id="robust-location-paper",
+        environment_lock_document_id="robust-location-paper",
+        environment_root=tmp_path,
+        runtime_language="python",
+        interpreter_executable=tmp_path / "python",
+        interpreter_executable_sha256="b" * 64,
+        environment_probe_document_id="",
+        runtime_read_roots=(),
+        working_directory_relative=".",
+        arguments=(),
+        package_distributions=(("Demo", "demo"),),
+        timeout_seconds=30,
+        max_output_bytes=8192,
+        schema_version=4,
+        command_selection_mode=SOURCE_COMMAND_MODEL_SELECTED,
+    )
+    calls = []
+
+    def fake_execute_research_source(**kwargs):
+        selected = kwargs["execution"]
+        calls.append(selected)
+        run_index = len(calls)
+        body = {
+            "schema_version": 4,
+            "artifact_kind": "SourceReplicationManifest",
+            "artifact_id": f"source_replication:model-selected-{run_index}",
+            "question_id": "q1",
+            "execution_status": "FAILED" if run_index == 1 else "EXECUTED",
+            "raw_stdout": "" if run_index == 1 else "reproduction complete\n",
+            "raw_stderr": "missing argument\n" if run_index == 1 else "",
+            "stdout_sha256": hashlib.sha256(
+                ("" if run_index == 1 else "reproduction complete\n").encode()
+            ).hexdigest(),
+            "command_owned_by_model": True,
+            "command_selection_mode": SOURCE_COMMAND_MODEL_SELECTED,
+            "command_request_hash": stable_hash({
+                "arguments": list(selected.arguments),
+                "reason": selected.selected_command_reason,
+            }),
+            "execution_attempt_id": kwargs["execution_attempt_id"],
+            "runtime_generated": True,
+            "model_authored": False,
+            "runtime_edited_source": False,
+            "proof_evidence_status": (
+                "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        return {**body, "manifest_hash": stable_hash(body)}
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_research_source",
+        fake_execute_research_source,
+    )
+    inspected_runs = []
+
+    def fake_read_source_replication_result(manifest, **kwargs):
+        inspected_runs.append(manifest["artifact_id"])
+        content = "missing argument"
+        return {
+            "artifact_id": manifest["artifact_id"],
+            "relative_path": kwargs["relative_path"],
+            "artifact_sha256": hashlib.sha256(
+                b"missing argument\n"
+            ).hexdigest(),
+            "line_count": 1,
+            "line_start": kwargs["line_start"],
+            "line_end": kwargs["line_end"],
+            "content": content,
+            "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
+            "proof_evidence_status": (
+                "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+            ),
+        }
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.read_source_replication_result",
+        fake_read_source_replication_result,
+    )
+    command = {
+        "entrypoint_document_id": "robust-location-paper",
+        "working_directory_relative": ".",
+        "result_artifact_paths": [],
+    }
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(ClientToolCall(
+                call_id="first-command",
+                name=RESEARCH_SOURCE_RUN_TOOL,
+                input={
+                    **command,
+                    "reason": "Try the documented entrypoint.",
+                    "arguments": [],
+                },
+            )),
+            _response(ClientToolCall(
+                call_id="revised-command",
+                name=RESEARCH_SOURCE_RUN_TOOL,
+                input={
+                    **command,
+                    "reason": "Add the argument requested by stderr.",
+                    "arguments": ["--required"],
+                },
+            )),
+            _response(ClientToolCall(
+                call_id="inspect-first-command",
+                name=RESEARCH_SOURCE_RESULT_READ_TOOL,
+                input={
+                    "relative_path": "source.stderr",
+                    "line_start": 1,
+                    "line_end": 1,
+                    "source_run": 1,
+                },
+            )),
+            _response(ClientToolCall(
+                call_id="write-reproduction-report",
+                name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                input={
+                    "path": "replication/report.md",
+                    "content": (
+                        "# Reproduction report\n\nThe first command failed; the "
+                        "second exact command completed. This execution does not "
+                        "validate the source's scientific claims.\n"
+                    ),
+                },
+            )),
+            _response(ClientToolCall(
+                call_id="commit-reproduction-report",
+                name=SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
+                input={
+                    "report_document_path": "replication/report.md",
+                    "readiness_rationale": (
+                        "The report distinguishes both command observations from "
+                        "scientific validation."
+                    ),
+                    "unresolved_gaps": [],
+                },
+            )),
+        ]
+    )
+
+    task_intent = {
+        "source_replication": "required",
+        "theory": "optional",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "unresolved_gaps": "required",
+    }
+    result = _run_workspace(
+        backend,
+        research_sources=research_sources,
+        research_source_execution=source_execution,
+        allow_source_replication_checkpoint=True,
+        task_intent=task_intent,
+        workspace_dir=tmp_path / "model-selected-source-workspace",
+        require_document_authority=True,
+    )
+
+    assert [selected.arguments for selected in calls] == [(), ("--required",)]
+    assert [selected.selected_command_reason for selected in calls] == [
+        "Try the documented entrypoint.",
+        "Add the argument requested by stderr.",
+    ]
+    assert len({
+        manifest["execution_attempt_id"]
+        for manifest in result.evidence["source_replication_manifests"]
+    }) == 2
+    assert inspected_runs == ["source_replication:model-selected-1"]
+    first_run = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert first_run["source_run"] == 1
+    assert first_run["additional_model_selected_commands_allowed"] is True
+    assert "missing argument" in first_run["source_replication_manifest"][
+        "raw_stderr"
+    ]
+    assert "missing argument" in str(backend.requests[3].messages)
+    assert result.evidence["source_replication_runs"] == 2
+    assert len(result.evidence["source_replication_manifests"]) == 2
+    assert result.core_packet["selected_source_run"] == 2
+    assert [
+        row["source_run"]
+        for row in result.core_packet["source_execution_attempt_refs"]
+    ] == [1, 2]
+    assert result.core_packet["source_replication_manifest_ref"][
+        "artifact_id"
+    ].endswith("-2")
+    run_tool = next(
+        tool for tool in backend.requests[0].tools
+        if tool.name == RESEARCH_SOURCE_RUN_TOOL
+    )
+    assert set(run_tool.input_schema["required"]) == {
+        "reason",
+        "entrypoint_document_id",
+        "working_directory_relative",
+        "arguments",
+        "result_artifact_paths",
+    }
+    assert "another command" in run_tool.description
 
 
 def test_source_only_intent_commits_markdown_report_without_theory_packet(
