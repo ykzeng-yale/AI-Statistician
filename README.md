@@ -168,8 +168,8 @@ returning.
 The largest remaining design debts are:
 
 - an oversized metric authoring/review/preflight implementation;
-- source acquisition and exact paper/code/data replication are not yet a complete
-  model-owned workspace;
+- exact public GitHub commits can be acquired and frozen, but complete paper/data/
+  environment replication is not yet a model-owned workspace;
 - the persistent Markdown/LaTeX TheoryDeveloper and source-grounded referee still
   need unrelated live known-result evidence;
 - no post-simplification live two-family exact-theorem closure yet;

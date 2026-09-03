@@ -107,8 +107,10 @@ from .research_source_discovery import (
     PublicResearchSourceDiscoveryConfig,
 )
 from .research_source_project import (
+    DEFAULT_PUBLIC_GITHUB_FETCH_TIMEOUT_SECONDS,
     MAX_REPOSITORY_SNAPSHOT_BYTES,
     MAX_REPOSITORY_SNAPSHOT_FILES,
+    acquire_public_github_repository_snapshot,
     freeze_git_repository_snapshot,
 )
 from .research_schema import load_open_research_questions, research_question_payload
@@ -3406,6 +3408,26 @@ def _freeze_research_source_project(args: argparse.Namespace) -> int:
     return 0
 
 
+def _acquire_public_research_source_project(args: argparse.Namespace) -> int:
+    snapshot = acquire_public_github_repository_snapshot(
+        repository_url=args.repository_url,
+        revision=args.revision,
+        output_dir=Path(args.out),
+        snapshot_id=args.snapshot_id,
+        source_horizon=args.source_horizon,
+        license_name=args.license,
+        max_files=args.max_files,
+        max_total_bytes=args.max_total_bytes,
+        fetch_timeout_seconds=args.fetch_timeout_seconds,
+    )
+    print(json.dumps({
+        **snapshot.descriptor(),
+        "manifest_path": str(snapshot.manifest_path),
+        "source_root": str(snapshot.source_root),
+    }, indent=2, sort_keys=True))
+    return 0
+
+
 def _research_architect_theory_develop(args: argparse.Namespace) -> int:
     _load_dotenv(Path(args.env_file))
     questions = load_open_research_questions(Path(args.question_file))
@@ -6201,6 +6223,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     freeze_source_project.add_argument("--out", required=True)
     freeze_source_project.set_defaults(func=_freeze_research_source_project)
+
+    acquire_source_project = sub.add_parser(
+        "acquire-public-research-source-project",
+        help=(
+            "fetch one exact public GitHub commit without credentials and freeze "
+            "it as a hash-bound multi-file research-source snapshot"
+        ),
+    )
+    acquire_source_project.add_argument("--repository-url", required=True)
+    acquire_source_project.add_argument("--revision", required=True)
+    acquire_source_project.add_argument("--snapshot-id", required=True)
+    acquire_source_project.add_argument("--source-horizon", required=True)
+    acquire_source_project.add_argument("--license", default="")
+    acquire_source_project.add_argument(
+        "--max-files", type=int, default=MAX_REPOSITORY_SNAPSHOT_FILES
+    )
+    acquire_source_project.add_argument(
+        "--max-total-bytes", type=int, default=MAX_REPOSITORY_SNAPSHOT_BYTES
+    )
+    acquire_source_project.add_argument(
+        "--fetch-timeout-seconds",
+        type=int,
+        default=DEFAULT_PUBLIC_GITHUB_FETCH_TIMEOUT_SECONDS,
+    )
+    acquire_source_project.add_argument("--out", required=True)
+    acquire_source_project.set_defaults(func=_acquire_public_research_source_project)
 
     research_architect_theory = sub.add_parser(
         "research-architect-theory",

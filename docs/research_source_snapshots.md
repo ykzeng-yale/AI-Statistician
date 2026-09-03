@@ -9,8 +9,24 @@ ai-statistician research-agent-runtime \
   ...
 ```
 
-For a published repository already acquired locally, freeze the exact tracked tree
-from a commit before any model or evaluator run:
+For a public GitHub repository, an operator or evaluator can acquire one exact full
+commit without ambient credentials and immediately freeze it:
+
+```bash
+ai-statistician acquire-public-research-source-project \
+  --repository-url https://github.com/owner/project \
+  --revision FULL_40_CHARACTER_COMMIT \
+  --snapshot-id published-project-v1 \
+  --source-horizon 2026-08-31 \
+  --license MIT \
+  --out /path/to/frozen-project
+```
+
+The acquisition uses an empty private Git home, HTTPS only, no credential or prompt
+surface, a shallow exact-commit fetch, and a per-blob filter. It verifies the fetched
+commit before handing the object database to the local-only freezer. It is an
+operator/evaluator command, not model shell authority. For a repository already
+acquired locally, freeze the exact tracked tree directly:
 
 ```bash
 ai-statistician freeze-research-source-project \
@@ -27,9 +43,12 @@ The freezer reads Git blobs directly from the commit, not mutable worktree files
 `git archive` export rules. It binds every path, Git object ID, executable mode,
 byte size, SHA-256, author/committer dates, and aggregate tree identity; a commit
 after the declared source horizon is rejected. Nested modules, empty tracked files,
-UTF-8 data, and binary execution assets are retained. Symlinks, submodules, oversized
-files, path escapes, and output reuse fail before a snapshot is published. Git LFS
-pointers remain pointers; required LFS objects must be frozen separately.
+UTF-8 data, binary execution assets, and relative links to regular files inside the
+same exact tree are retained. Absolute, escaping, dangling, directory, chained, or
+non-UTF-8 links, submodules, missing or oversized blobs, path escapes, and output
+reuse fail before a snapshot is published. Snapshot-time Git reads cannot lazy-fetch
+missing objects. Git LFS pointers remain pointers; required LFS objects must be
+frozen separately.
 
 ```bash
 ai-statistician research-architect-theory \

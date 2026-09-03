@@ -25,7 +25,9 @@ from .research_source_library import (
 
 MAX_REPOSITORY_SNAPSHOT_FILES = 20_000
 MAX_REPOSITORY_SNAPSHOT_BYTES = 2 * 1024 * 1024 * 1024
+DEFAULT_PUBLIC_GITHUB_FETCH_TIMEOUT_SECONDS = 300
 _GIT_BLOB_FILE_MODES = frozenset({"100644", "100755", "120000"})
+_GITHUB_REPOSITORY_PART = re.compile(r"[0-9A-Za-z_.-]+")
 
 
 def _local_git_environment() -> dict[str, str]:
@@ -48,33 +50,16 @@ def _local_git_environment() -> dict[str, str]:
     return environment
 
 
-def freeze_git_repository_snapshot(
+def _validated_snapshot_request(
     *,
-    repository_root: Path,
-    revision: str,
     output_dir: Path,
     snapshot_id: str,
     source_horizon: str,
-    repository_url: str = "",
-    license_name: str = "",
-    max_files: int = MAX_REPOSITORY_SNAPSHOT_FILES,
-    max_total_bytes: int = MAX_REPOSITORY_SNAPSHOT_BYTES,
-) -> ResearchSourceSnapshot:
-    """Freeze one exact local Git commit as a source-replication project."""
-
-    repository = repository_root.expanduser().resolve()
+    max_files: int,
+    max_total_bytes: int,
+) -> tuple[Path, str, date]:
     destination = output_dir.expanduser().resolve()
-    normalized_revision = str(revision or "").strip()
     normalized_snapshot_id = str(snapshot_id or "").strip()
-    if not repository.is_dir():
-        raise ValueError("repository_root must be an existing directory")
-    if (
-        not normalized_revision
-        or normalized_revision.startswith("-")
-        or len(normalized_revision) > 200
-        or not re.fullmatch(r"[0-9A-Za-z._/@+-]+", normalized_revision)
-    ):
-        raise ValueError("revision must be one bounded Git revision without options")
     if not normalized_snapshot_id or len(normalized_snapshot_id) > 200:
         raise ValueError("snapshot_id must be nonempty and bounded")
     try:
@@ -96,6 +81,189 @@ def freeze_git_repository_snapshot(
     if destination.exists():
         raise ValueError("output_dir already exists")
     destination.parent.mkdir(parents=True, exist_ok=True)
+    return destination, normalized_snapshot_id, horizon_date
+
+
+def acquire_public_github_repository_snapshot(
+    *,
+    repository_url: str,
+    revision: str,
+    output_dir: Path,
+    snapshot_id: str,
+    source_horizon: str,
+    license_name: str = "",
+    max_files: int = MAX_REPOSITORY_SNAPSHOT_FILES,
+    max_total_bytes: int = MAX_REPOSITORY_SNAPSHOT_BYTES,
+    fetch_timeout_seconds: int = DEFAULT_PUBLIC_GITHUB_FETCH_TIMEOUT_SECONDS,
+) -> ResearchSourceSnapshot:
+    """Fetch one exact public GitHub commit, then freeze it without network."""
+
+    canonical_url = _canonical_public_github_repository_url(repository_url)
+    normalized_revision = str(revision or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", normalized_revision):
+        raise ValueError("public GitHub revision must be one full SHA-1 commit")
+    if (
+        isinstance(fetch_timeout_seconds, bool)
+        or not isinstance(fetch_timeout_seconds, int)
+        or not 1 <= fetch_timeout_seconds <= 3_600
+    ):
+        raise ValueError("fetch_timeout_seconds must be between 1 and 3600")
+    destination, normalized_snapshot_id, _ = _validated_snapshot_request(
+        output_dir=output_dir,
+        snapshot_id=snapshot_id,
+        source_horizon=source_horizon,
+        max_files=max_files,
+        max_total_bytes=max_total_bytes,
+    )
+
+    stage = Path(
+        tempfile.mkdtemp(
+            prefix=".research-source-acquisition-",
+            dir=destination.parent,
+        )
+    )
+    try:
+        repository = stage / "repository"
+        repository.mkdir()
+        private_home = stage / "home"
+        private_home.mkdir()
+        _run_public_git(
+            ["git", "-C", str(repository), "init", "--quiet"],
+            private_home=private_home,
+            timeout_seconds=fetch_timeout_seconds,
+        )
+        _run_public_git(
+            [
+                "git",
+                "-C",
+                str(repository),
+                "-c",
+                "fetch.unpackLimit=1",
+                "-c",
+                "http.followRedirects=false",
+                "fetch",
+                "--quiet",
+                "--no-tags",
+                "--depth=1",
+                f"--filter=blob:limit={MAX_SOURCE_FILE_BYTES + 1}",
+                canonical_url + ".git",
+                normalized_revision,
+            ],
+            private_home=private_home,
+            timeout_seconds=fetch_timeout_seconds,
+        )
+        observed_commit = _git_text(
+            repository,
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            "FETCH_HEAD^{commit}",
+        ).lower()
+        if observed_commit != normalized_revision:
+            raise ValueError("public GitHub fetch returned a different commit")
+        return freeze_git_repository_snapshot(
+            repository_root=repository,
+            revision=observed_commit,
+            output_dir=destination,
+            snapshot_id=normalized_snapshot_id,
+            source_horizon=source_horizon,
+            repository_url=canonical_url,
+            license_name=license_name,
+            max_files=max_files,
+            max_total_bytes=max_total_bytes,
+        )
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
+def _canonical_public_github_repository_url(value: str) -> str:
+    normalized = str(value or "").strip()
+    try:
+        parsed = urllib.parse.urlsplit(normalized)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("public repository URL is invalid") from exc
+    path = parsed.path.rstrip("/")
+    if path.endswith(".git"):
+        path = path[:-4]
+    parts = path.split("/")
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "github.com"
+        or port is not None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or len(parts) != 3
+        or parts[0]
+        or any(not _GITHUB_REPOSITORY_PART.fullmatch(part) for part in parts[1:])
+        or urllib.parse.unquote(path) != path
+    ):
+        raise ValueError(
+            "public repository URL must be https://github.com/owner/repository"
+        )
+    return "https://github.com/" + "/".join(parts[1:])
+
+
+def _run_public_git(
+    command: list[str],
+    *,
+    private_home: Path,
+    timeout_seconds: int,
+) -> None:
+    environment = _local_git_environment()
+    environment.update({
+        "GIT_ALLOW_PROTOCOL": "https",
+        "HOME": str(private_home),
+        "XDG_CONFIG_HOME": str(private_home / ".config"),
+    })
+    environment.pop("GIT_NO_LAZY_FETCH", None)
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            timeout=timeout_seconds,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise ValueError("public GitHub repository acquisition failed") from exc
+
+
+def freeze_git_repository_snapshot(
+    *,
+    repository_root: Path,
+    revision: str,
+    output_dir: Path,
+    snapshot_id: str,
+    source_horizon: str,
+    repository_url: str = "",
+    license_name: str = "",
+    max_files: int = MAX_REPOSITORY_SNAPSHOT_FILES,
+    max_total_bytes: int = MAX_REPOSITORY_SNAPSHOT_BYTES,
+) -> ResearchSourceSnapshot:
+    """Freeze one exact local Git commit as a source-replication project."""
+
+    repository = repository_root.expanduser().resolve()
+    normalized_revision = str(revision or "").strip()
+    if not repository.is_dir():
+        raise ValueError("repository_root must be an existing directory")
+    if (
+        not normalized_revision
+        or normalized_revision.startswith("-")
+        or len(normalized_revision) > 200
+        or not re.fullmatch(r"[0-9A-Za-z._/@+-]+", normalized_revision)
+    ):
+        raise ValueError("revision must be one bounded Git revision without options")
+    destination, normalized_snapshot_id, horizon_date = _validated_snapshot_request(
+        output_dir=output_dir,
+        snapshot_id=snapshot_id,
+        source_horizon=source_horizon,
+        max_files=max_files,
+        max_total_bytes=max_total_bytes,
+    )
 
     top_level = Path(
         _git_text(repository, "rev-parse", "--show-toplevel")

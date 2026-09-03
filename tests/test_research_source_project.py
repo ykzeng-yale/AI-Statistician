@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import ai_statistician.research_source_project as research_source_project_module
 from ai_statistician.cli import main
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_LIST_TOOL,
@@ -19,6 +20,7 @@ from ai_statistician.research_source_library import (
     load_research_source_execution_spec,
 )
 from ai_statistician.research_source_project import (
+    acquire_public_github_repository_snapshot,
     freeze_git_repository_snapshot,
 )
 
@@ -435,6 +437,119 @@ def test_git_project_snapshot_does_not_lazy_fetch_missing_blobs(
         "HEAD",
     ).splitlines() == missing_before
     assert not (tmp_path / "partial-snapshot").exists()
+
+
+def test_public_github_project_acquisition_fetches_exact_commit_without_credentials(
+    tmp_path: Path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "public-source"
+    repository.mkdir()
+    _git(repository, "init")
+    _git(repository, "config", "user.email", "fixture@example.org")
+    _git(repository, "config", "user.name", "Fixture Author")
+    (repository / "README.md").write_text(
+        "# Public project\n",
+        encoding="utf-8",
+    )
+    _git(repository, "add", "README.md")
+    _git(repository, "commit", "-m", "public fixture")
+    commit = _git(repository, "rev-parse", "HEAD")
+    remote = tmp_path / "public-remote.git"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--bare", str(repository), str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _git(remote, "config", "uploadpack.allowFilter", "true")
+
+    public_url = "https://github.com/example/public-fixture"
+    original_run = subprocess.run
+    fetch_environments = []
+
+    def run_with_local_public_remote(command, *args, **kwargs):
+        if "fetch" in command and public_url + ".git" in command:
+            environment = dict(kwargs["env"])
+            fetch_environments.append(environment)
+            assert environment["GIT_ALLOW_PROTOCOL"] == "https"
+            assert environment["GIT_TERMINAL_PROMPT"] == "0"
+            assert environment["GIT_CONFIG_GLOBAL"] == os.devnull
+            assert all(
+                secret not in environment
+                for secret in (
+                    "ANTHROPIC_API_KEY",
+                    "GH_TOKEN",
+                    "GITHUB_TOKEN",
+                    "HTTPS_PROXY",
+                )
+            )
+            command = [
+                remote.as_uri() if value == public_url + ".git" else value
+                for value in command
+            ]
+            kwargs = {
+                **kwargs,
+                "env": {**environment, "GIT_ALLOW_PROTOCOL": "file"},
+            }
+        return original_run(command, *args, **kwargs)
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-enter-git")
+    monkeypatch.setenv("GH_TOKEN", "must-not-enter-git")
+    monkeypatch.setenv("GITHUB_TOKEN", "must-not-enter-git")
+    monkeypatch.setenv("HTTPS_PROXY", "https://must-not-enter-git.invalid")
+    monkeypatch.setattr(
+        research_source_project_module.subprocess,
+        "run",
+        run_with_local_public_remote,
+    )
+    output_dir = tmp_path / "public-snapshot"
+
+    exit_code = main([
+        "acquire-public-research-source-project",
+        "--repository-url", public_url + ".git",
+        "--revision", commit,
+        "--snapshot-id", "public-project-v1",
+        "--source-horizon", "2026-08-31",
+        "--license", "MIT",
+        "--out", str(output_dir),
+    ])
+
+    emitted = json.loads(capsys.readouterr().out)
+    snapshot = load_research_source_snapshot(output_dir / "sources.json")
+    assert exit_code == 0
+    assert len(fetch_environments) == 1
+    assert emitted["repository_identity"]["git_commit"] == commit
+    assert snapshot.documents[0].title == "README.md"
+    assert snapshot.document_path(snapshot.documents[0].document_id).read_text(
+        encoding="utf-8"
+    ) == "# Public project\n"
+    assert not list(tmp_path.glob(".research-source-acquisition-*"))
+
+
+@pytest.mark.parametrize(
+    "repository_url",
+    [
+        "http://github.com/example/project",
+        "https://example.com/example/project",
+        "https://user@github.com/example/project",
+        "https://github.com/example/project?token=secret",
+        "file:///tmp/example/project",
+    ],
+)
+def test_public_github_project_acquisition_rejects_noncanonical_urls(
+    tmp_path: Path,
+    repository_url: str,
+) -> None:
+    with pytest.raises(ValueError, match="https://github.com/owner/repository"):
+        acquire_public_github_repository_snapshot(
+            repository_url=repository_url,
+            revision="a" * 40,
+            output_dir=tmp_path / "invalid-snapshot",
+            snapshot_id="invalid-snapshot",
+            source_horizon="2026-08-31",
+        )
 
 
 def test_freeze_research_source_project_cli_emits_loadable_snapshot(
