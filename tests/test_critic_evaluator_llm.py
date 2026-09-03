@@ -16,6 +16,7 @@ from ai_statistician.critic_evaluator_llm import (
     LLMCriticEvaluatorAgent,
     build_critic_canonical_evidence_view,
     build_critic_evaluator_prompt,
+    source_replication_evidence_view,
     validate_critic_evaluator_packet,
 )
 from ai_statistician.fingerprint import stable_hash
@@ -1175,6 +1176,8 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
     assert source_view["lineage_verified"] is True
     assert source_view["report_document"]["content"] == report_content
     assert source_view["source_execution"]["raw_stdout"] == "metric=0.75\n"
+    assert "source_run" not in source_view["source_execution"]
+    assert "source_execution_attempts" not in source_view
     exact_observations = source_view["author_source_observations"]
     assert exact_observations["resolved_exact_source_count"] == 1
     assert exact_observations["observations"][0]["content"] == source_text.rstrip()
@@ -1267,6 +1270,217 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
     assert tampered_source_view["author_source_observations"]["observations"][0][
         "content"
     ] == ""
+
+
+def test_source_replication_critic_validates_model_selected_attempt_lineage(
+    tmp_path,
+) -> None:
+    question_id = "model-selected-source-critic"
+    report_content = (
+        "# Reproduction report\n\nRun one completed; a later diagnostic failed.\n"
+    )
+    workspace_dir = tmp_path / "model-selected-workspace"
+    workspace_dir.mkdir()
+    (workspace_dir / "report.md").write_text(report_content, encoding="utf-8")
+    report_manifest = theory_workspace_document_manifest(
+        {"report.md": report_content},
+        workspace_dir=workspace_dir,
+    )
+    report_document = deepcopy(report_manifest["documents"][0])
+
+    manifests = []
+    workspace_refs = []
+    attempt_refs = []
+    for source_run, execution_status in enumerate(
+        ("EXECUTED", "FAILED"),
+        start=1,
+    ):
+        raw_stdout = "estimate=0.75\n" if source_run == 1 else ""
+        raw_stderr = "" if source_run == 1 else "diagnostic unavailable\n"
+        unsigned_manifest = {
+            "artifact_kind": "SourceReplicationManifest",
+            "artifact_id": f"source_replication:model-selected:{source_run}",
+            "question_id": question_id,
+            "runtime_generated": True,
+            "model_authored": False,
+            "runtime_edited_source": False,
+            "command_owned_by_model": True,
+            "command_selection_mode": "model_selected",
+            "command_request_hash": f"command-{source_run}",
+            "execution_attempt_id": f"attempt-{source_run}",
+            "execution_status": execution_status,
+            "returncode": 0 if source_run == 1 else 2,
+            "source_snapshot_id": "snapshot:model-selected",
+            "source_snapshot_hash": "s" * 64,
+            "source_commit": "commit:model-selected",
+            "entrypoint_document_id": "analysis-script",
+            "executed_entrypoint_sha256": "e" * 64,
+            "environment_lock_sha256": "l" * 64,
+            "runtime_language": "python",
+            "runtime_version": "3.12.0",
+            "interpreter_executable_sha256": "i" * 64,
+            "interpreter_arguments": [],
+            "working_directory_relative": ".",
+            "arguments": [] if source_run == 1 else ["--diagnostic"],
+            "runtime_environment": {},
+            "package_versions": {"example": "1.0"},
+            "raw_stdout": raw_stdout,
+            "raw_stderr": raw_stderr,
+            "stdout_sha256": hashlib.sha256(raw_stdout.encode()).hexdigest(),
+            "stderr_sha256": hashlib.sha256(raw_stderr.encode()).hexdigest(),
+            "errors": [] if source_run == 1 else ["research source exited 2"],
+            "source_mutated": False,
+            "staged_source_inputs_mutated": False,
+            "unexpected_workspace_artifacts": [],
+            "result_artifacts": [],
+            "proof_evidence_status": (
+                "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        manifest = {
+            **unsigned_manifest,
+            "manifest_hash": stable_hash(unsigned_manifest),
+        }
+        manifests.append(manifest)
+        workspace_ref = {
+            "artifact_id": manifest["artifact_id"],
+            "manifest_hash": manifest["manifest_hash"],
+            "execution_status": execution_status,
+            "source_snapshot_hash": manifest["source_snapshot_hash"],
+            "stdout_sha256": manifest["stdout_sha256"],
+            "proof_evidence_status": manifest["proof_evidence_status"],
+            "command_owned_by_model": True,
+            "command_selection_mode": "model_selected",
+            "command_request_hash": manifest["command_request_hash"],
+            "execution_attempt_id": manifest["execution_attempt_id"],
+        }
+        workspace_refs.append(workspace_ref)
+        attempt_refs.append(
+            {
+                "source_run": source_run,
+                **{
+                    key: workspace_ref[key]
+                    for key in (
+                        "artifact_id",
+                        "manifest_hash",
+                        "execution_status",
+                        "command_request_hash",
+                        "execution_attempt_id",
+                    )
+                },
+            }
+        )
+
+    selected_ref = {
+        key: workspace_refs[0][key]
+        for key in (
+            "artifact_id",
+            "manifest_hash",
+            "execution_status",
+            "stdout_sha256",
+        )
+    }
+    checkpoint_body = {
+        "schema_version": 1,
+        "artifact_kind": "SourceReplicationCheckpoint",
+        "question_id": question_id,
+        "workspace_id": "source-workspace:model-selected",
+        "task_intent": {"source_replication": "required"},
+        "source_replication_manifest_ref": selected_ref,
+        "source_execution_attempt_refs": attempt_refs,
+        "selected_source_run": 1,
+        "report_document": report_document,
+        "readiness_rationale": "The first run is the report candidate.",
+        "unresolved_gaps": ["The later diagnostic did not run."],
+        "model_authored_report": True,
+        "runtime_edited_report": False,
+        "runtime_edited_source": False,
+        "kernel_verified": False,
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_CHECKPOINT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    checkpoint_id = (
+        "source_replication_checkpoint:" + stable_hash(checkpoint_body)[:20]
+    )
+    checkpoint_core = {**checkpoint_body, "checkpoint_id": checkpoint_id}
+    workspace = {
+        "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+        "artifact_id": "source_replication_workspace:model-selected",
+        "question_id": question_id,
+        "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
+        "checkpoint_committed": True,
+        "submitted_core_packet_hash": stable_hash(checkpoint_core),
+        "model_owned_source_report": True,
+        "model_owned_theory": False,
+        "runtime_edited_source": False,
+        "runtime_edited_theory": False,
+        "kernel_verified": False,
+        "changed_document_paths": ["report.md"],
+        "theory_workspace_manifest": report_manifest,
+        "source_replication_refs": workspace_refs,
+        "source_read_refs": [],
+    }
+    checkpoint = {
+        **checkpoint_core,
+        "workspace_evidence_id": workspace["artifact_id"],
+        "workspace_evidence_hash": stable_hash(workspace),
+        "runtime_completion_status": (
+            "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
+        ),
+    }
+    artifacts = {
+        **{manifest["artifact_id"]: manifest for manifest in manifests},
+        workspace["artifact_id"]: workspace,
+        checkpoint_id: checkpoint,
+    }
+
+    view = source_replication_evidence_view(
+        question_id=question_id,
+        artifacts=artifacts,
+        research_sources=None,
+    )
+
+    assert view["lineage_verified"] is True
+    assert view["selected_source_run"] == 1
+    assert view["source_execution"]["artifact_id"] == manifests[0]["artifact_id"]
+    assert [row["execution_status"] for row in view["source_execution_attempts"]] == [
+        "EXECUTED",
+        "FAILED",
+    ]
+    assert [row["selected_for_checkpoint"] for row in view["source_execution_attempts"]] == [
+        True,
+        False,
+    ]
+    assert view["runtime_audit"]["attempt_lineage_verified"] is True
+
+    tampered_checkpoint_artifacts = deepcopy(artifacts)
+    tampered_checkpoint_artifacts[checkpoint_id][
+        "readiness_rationale"
+    ] = "Changed after checkpoint creation."
+    tampered_checkpoint_view = source_replication_evidence_view(
+        question_id=question_id,
+        artifacts=tampered_checkpoint_artifacts,
+        research_sources=None,
+    )
+    assert tampered_checkpoint_view["lineage_verified"] is False
+    assert "checkpoint_identity_mismatch" in tampered_checkpoint_view[
+        "lineage_errors"
+    ]
+
+    tampered_artifacts = deepcopy(artifacts)
+    tampered_artifacts[manifests[1]["artifact_id"]][
+        "command_request_hash"
+    ] = "tampered-command"
+    tampered_view = source_replication_evidence_view(
+        question_id=question_id,
+        artifacts=tampered_artifacts,
+        research_sources=None,
+    )
+    assert tampered_view["lineage_verified"] is False
+    assert "source_execution_attempt_lineage_mismatch" in tampered_view[
+        "lineage_errors"
+    ]
 
 
 def test_required_source_replication_blocks_unsupported_critic_acceptance() -> None:

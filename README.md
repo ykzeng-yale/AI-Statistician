@@ -120,7 +120,9 @@ in that snapshot. A separate execution manifest either fixes one preregistered
 command or lets that same retained source owner iteratively choose commands inside
 the frozen project while the runtime keeps the interpreter, environment, network,
 resources, and source bytes fixed. The owner explicitly selects which completed
-attempt its report advances; every attempted command remains immutable lineage.
+attempt its report advances; every attempted command remains immutable lineage
+that the terminal Critic independently reloads. Model-selected runs remain
+exploratory and cannot satisfy the operator-fixed preregistered replication gold.
 
 The frozen development/held-out protocol is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).

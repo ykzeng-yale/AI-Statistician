@@ -31,7 +31,10 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
-from .research_source_library import ResearchSourceSnapshot
+from .research_source_library import (
+    SOURCE_COMMAND_MODEL_SELECTED,
+    ResearchSourceSnapshot,
+)
 from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
 from .theory_workspace import (
     THEORY_MODEL_REASONING_CONTRACT,
@@ -1160,7 +1163,7 @@ def source_replication_evidence_view(
     research_sources: ResearchSourceSnapshot | None,
     checkpoint_id: str = "",
 ) -> dict[str, Any]:
-    """Load the latest runtime-bound source report and observations for review."""
+    """Load the runtime-selected source report and observations for review."""
 
     audit = {
         "lineage_verified": False,
@@ -1212,6 +1215,20 @@ def source_replication_evidence_view(
     workspace_evidence_hash = str(
         checkpoint.get("workspace_evidence_hash", "") or ""
     )
+    checkpoint_core = deepcopy(checkpoint)
+    for runtime_field in (
+        "workspace_evidence_id",
+        "workspace_evidence_hash",
+        "runtime_completion_status",
+        "boundary",
+    ):
+        checkpoint_core.pop(runtime_field, None)
+    checkpoint_body = deepcopy(checkpoint_core)
+    checkpoint_body.pop("checkpoint_id", None)
+    if checkpoint_id != (
+        "source_replication_checkpoint:" + stable_hash(checkpoint_body)[:20]
+    ):
+        errors.append("checkpoint_identity_mismatch")
     if not (
         checkpoint.get("model_authored_report") is True
         and checkpoint.get("runtime_edited_report") is False
@@ -1229,20 +1246,63 @@ def source_replication_evidence_view(
         if isinstance(raw_source_manifest, Mapping)
         else {}
     )
+
+    def source_manifest_identity_verified(
+        manifest: Mapping[str, Any],
+        *,
+        artifact_id: str,
+        model_selected: bool,
+    ) -> bool:
+        declared_hash = str(manifest.get("manifest_hash", "") or "")
+        unsigned_manifest = deepcopy(dict(manifest))
+        unsigned_manifest.pop("manifest_hash", None)
+        command_authority_verified = (
+            bool(
+                manifest.get("command_owned_by_model") is True
+                and manifest.get("command_selection_mode")
+                == SOURCE_COMMAND_MODEL_SELECTED
+                and manifest.get("command_request_hash")
+                and manifest.get("execution_attempt_id")
+            )
+            if model_selected
+            else manifest.get("command_owned_by_model") is False
+        )
+        return bool(
+            artifact_id
+            and manifest.get("artifact_kind") == "SourceReplicationManifest"
+            and manifest.get("artifact_id") == artifact_id
+            and manifest.get("question_id") == question_id
+            and manifest.get("runtime_generated") is True
+            and manifest.get("model_authored") is False
+            and manifest.get("runtime_edited_source") is False
+            and command_authority_verified
+            and declared_hash
+            and stable_hash(unsigned_manifest) == declared_hash
+        )
+
+    raw_attempt_refs = checkpoint.get("source_execution_attempt_refs")
+    model_selected_checkpoint = bool(
+        "source_execution_attempt_refs" in checkpoint
+        or "selected_source_run" in checkpoint
+        or source_manifest.get("command_owned_by_model") is True
+    )
+    selected_source_run = (
+        checkpoint.get("selected_source_run")
+        if model_selected_checkpoint
+        else 1
+    )
+    selected_source_run_valid = bool(
+        not isinstance(selected_source_run, bool)
+        and isinstance(selected_source_run, int)
+        and selected_source_run >= 1
+    )
     declared_source_hash = str(source_manifest.get("manifest_hash", "") or "")
-    unsigned_source_manifest = deepcopy(source_manifest)
-    unsigned_source_manifest.pop("manifest_hash", None)
     source_lineage_verified = bool(
-        source_artifact_id
-        and source_manifest.get("artifact_kind") == "SourceReplicationManifest"
-        and source_manifest.get("artifact_id") == source_artifact_id
-        and source_manifest.get("question_id") == question_id
-        and source_manifest.get("runtime_generated") is True
-        and source_manifest.get("model_authored") is False
-        and source_manifest.get("command_owned_by_model") is False
-        and source_manifest.get("runtime_edited_source") is False
-        and declared_source_hash
-        and stable_hash(unsigned_source_manifest) == declared_source_hash
+        source_manifest_identity_verified(
+            source_manifest,
+            artifact_id=source_artifact_id,
+            model_selected=model_selected_checkpoint,
+        )
         and source_ref.get("manifest_hash") == declared_source_hash
         and source_ref.get("execution_status")
         == source_manifest.get("execution_status")
@@ -1268,7 +1328,7 @@ def source_replication_evidence_view(
         workspace.get("disposition"), workspace.get("model_owned_theory")
     ) in {("SOURCE_REPLICATION_CHECKPOINT_COMMITTED", False),
           ("THEORY_CHECKPOINT_COMMITTED", True)}
-    workspace_lineage_verified = bool(
+    workspace_binding_verified = bool(
         workspace_evidence_id
         and workspace_evidence_hash
         and stable_hash(workspace) == workspace_evidence_hash
@@ -1282,19 +1342,116 @@ def source_replication_evidence_view(
         and workspace.get("runtime_edited_theory") is False
         and workspace.get("kernel_verified") is False
         and isinstance(workspace_source_refs, list)
-        and any(
-            isinstance(row, Mapping)
-            and all(
-                row.get(key) == source_ref.get(key)
-                for key in (
-                    "artifact_id",
-                    "manifest_hash",
-                    "execution_status",
-                    "stdout_sha256",
+    )
+    attempt_manifests: list[dict[str, Any]] = []
+    attempt_lineage_verified = True
+    selected_ref_keys = (
+        "artifact_id",
+        "manifest_hash",
+        "execution_status",
+        "stdout_sha256",
+    )
+    attempt_ref_keys = (
+        "artifact_id",
+        "manifest_hash",
+        "execution_status",
+        "command_request_hash",
+        "execution_attempt_id",
+    )
+    if model_selected_checkpoint:
+        attempt_refs = (
+            raw_attempt_refs if isinstance(raw_attempt_refs, list) else []
+        )
+        attempt_lineage_verified = bool(
+            isinstance(raw_attempt_refs, list)
+            and raw_attempt_refs
+            and selected_source_run_valid
+            and selected_source_run <= len(attempt_refs)
+            and len(attempt_refs) == len(workspace_source_refs)
+        )
+        if attempt_lineage_verified:
+            for index, (raw_attempt, raw_workspace_ref) in enumerate(
+                zip(attempt_refs, workspace_source_refs),
+                start=1,
+            ):
+                attempt = (
+                    dict(raw_attempt) if isinstance(raw_attempt, Mapping) else {}
+                )
+                workspace_ref = (
+                    dict(raw_workspace_ref)
+                    if isinstance(raw_workspace_ref, Mapping)
+                    else {}
+                )
+                artifact_id = str(
+                    workspace_ref.get("artifact_id", "") or ""
+                )
+                raw_manifest = artifacts.get(artifact_id, {})
+                manifest = (
+                    deepcopy(dict(raw_manifest))
+                    if isinstance(raw_manifest, Mapping)
+                    else {}
+                )
+                row_verified = bool(
+                    attempt.get("source_run") == index
+                    and source_manifest_identity_verified(
+                        manifest,
+                        artifact_id=artifact_id,
+                        model_selected=True,
+                    )
+                    and all(
+                        workspace_ref.get(key) == manifest.get(key)
+                        for key in selected_ref_keys
+                    )
+                    and all(
+                        attempt.get(key) == workspace_ref.get(key)
+                        == manifest.get(key)
+                        for key in attempt_ref_keys
+                    )
+                )
+                if research_sources is not None:
+                    row_verified = bool(
+                        row_verified
+                        and manifest.get("source_snapshot_hash")
+                        == research_sources.snapshot_hash
+                    )
+                attempt_lineage_verified = bool(
+                    attempt_lineage_verified and row_verified
+                )
+                attempt_manifests.append(manifest)
+            selected_attempt = attempt_refs[selected_source_run - 1]
+            selected_workspace_ref = workspace_source_refs[
+                selected_source_run - 1
+            ]
+            attempt_lineage_verified = bool(
+                attempt_lineage_verified
+                and isinstance(selected_attempt, Mapping)
+                and isinstance(selected_workspace_ref, Mapping)
+                and all(
+                    selected_attempt.get(key) == source_ref.get(key)
+                    for key in selected_ref_keys[:-1]
+                )
+                and all(
+                    selected_workspace_ref.get(key) == source_ref.get(key)
+                    for key in selected_ref_keys
                 )
             )
-            for row in workspace_source_refs
+    else:
+        attempt_manifests = [source_manifest] if source_manifest else []
+        attempt_lineage_verified = bool(
+            raw_attempt_refs is None
+            and "selected_source_run" not in checkpoint
+            and isinstance(workspace_source_refs, list)
+            and len(workspace_source_refs) == 1
+            and isinstance(workspace_source_refs[0], Mapping)
+            and all(
+                workspace_source_refs[0].get(key) == source_ref.get(key)
+                for key in selected_ref_keys
+            )
         )
+    if not attempt_lineage_verified:
+        errors.append("source_execution_attempt_lineage_mismatch")
+    workspace_lineage_verified = bool(
+        workspace_binding_verified and attempt_lineage_verified
     )
     if not workspace_lineage_verified:
         errors.append("source_workspace_lineage_mismatch")
@@ -1355,14 +1512,74 @@ def source_replication_evidence_view(
         "source_mutated", "staged_source_inputs_mutated",
         "unexpected_workspace_artifacts", "proof_evidence_status",
     )
-    execution_projection = {
-        "present": bool(source_manifest),
-        "artifact_id": source_artifact_id,
-        "manifest_hash": declared_source_hash,
-        "lineage_verified": source_lineage_verified,
-        **{key: deepcopy(source_manifest.get(key)) for key in execution_keys},
-    }
+    model_selected_execution_keys = (
+        *execution_keys,
+        "entrypoint_document_id", "working_directory_relative", "arguments",
+        "result_artifacts",
+        "command_owned_by_model", "command_selection_mode",
+        "command_request_hash", "execution_attempt_id",
+    )
+
+    def execution_projection(
+        manifest: Mapping[str, Any],
+        *,
+        source_run: int,
+        selected: bool,
+        verified: bool,
+    ) -> dict[str, Any]:
+        return {
+            "present": bool(manifest),
+            "source_run": source_run,
+            "selected_for_checkpoint": selected,
+            "artifact_id": str(manifest.get("artifact_id", "") or ""),
+            "manifest_hash": str(manifest.get("manifest_hash", "") or ""),
+            "lineage_verified": verified,
+            **{
+                key: deepcopy(manifest.get(key))
+                for key in model_selected_execution_keys
+            },
+        }
+
+    if model_selected_checkpoint:
+        selected_execution_projection = execution_projection(
+            source_manifest,
+            source_run=(selected_source_run if selected_source_run_valid else 0),
+            selected=True,
+            verified=source_lineage_verified and attempt_lineage_verified,
+        )
+        attempt_execution_projections = [
+            execution_projection(
+                manifest,
+                source_run=index,
+                selected=index == selected_source_run,
+                verified=attempt_lineage_verified,
+            )
+            for index, manifest in enumerate(attempt_manifests, start=1)
+        ]
+    else:
+        selected_execution_projection = {
+            "present": bool(source_manifest),
+            "artifact_id": source_artifact_id,
+            "manifest_hash": declared_source_hash,
+            "lineage_verified": source_lineage_verified,
+            **{
+                key: deepcopy(source_manifest.get(key))
+                for key in execution_keys
+            },
+        }
+        attempt_execution_projections = []
     audit["lineage_verified"] = lineage_verified
+    if model_selected_checkpoint:
+        audit.update(
+            {
+                "model_selected_command_lineage": True,
+                "attempt_lineage_verified": attempt_lineage_verified,
+                "attempt_count": len(attempt_execution_projections),
+                "selected_source_run": (
+                    selected_source_run if selected_source_run_valid else 0
+                ),
+            }
+        )
     return {
         "present": True,
         "checkpoint_id": checkpoint_id,
@@ -1381,7 +1598,17 @@ def source_replication_evidence_view(
             "content": report_content,
             "load_error": report_load_error,
         },
-        "source_execution": execution_projection,
+        "source_execution": selected_execution_projection,
+        **(
+            {
+                "source_execution_attempts": attempt_execution_projections,
+                "selected_source_run": (
+                    selected_source_run if selected_source_run_valid else 0
+                ),
+            }
+            if model_selected_checkpoint
+            else {}
+        ),
         "author_source_observations": source_observations,
         "unresolved_gaps": unresolved_gaps,
         "readiness_rationale": str(
