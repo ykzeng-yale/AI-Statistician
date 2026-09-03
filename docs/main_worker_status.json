@@ -1,12 +1,29 @@
 {
-  "schema_version": 405,
+  "schema_version": 406,
   "updated_at": "2026-09-03",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
-  "validated_code_head": "11d27896",
+  "validated_code_head": "c1cf1c13",
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
+  "latest_codex_direct_algorithm_workspace_consolidation": {
+    "code_commit": "c1cf1c134ef516d05072b2db315d5a3b889fcd46",
+    "official_codex_reference_head": "728cb12fe5794b0c3a8e776fb4994b1650b973a8",
+    "upstream_status": "A fresh primary-source ls-remote check found official openai/codex main unchanged at the audited Apache-2.0 pin. Its retained run_turn model/tool continuation, capability-accurate ToolRouter split, raw tool-result return, durable state, detached review, and explicit queued-message versus work-trigger semantics remain the reusable harness mechanisms. Codex Core, App Server, SDK session ownership, provider transport, worktrees, Guardian, and its multi-agent scheduler remain deliberately excluded because they would duplicate AI Statistician's shared inner loop or sole outer graph.",
+    "measured_defect": "Canonical Algorithm execution already entered the shared retained Python/R workspace, but algorithm_engineer_llm still carried a second stateless structured planner with a large JSON prompt and response schema, complete-packet regeneration, validation retry configuration, embedded-source and compact-packet transports, planner feedback projection, fake proposal evidence, and dead propose() tests. The CLI also advertised static replay and the generator-only OpenAI backend as Algorithm and Simulation workspace providers even though neither can execute native retained client-tool turns.",
+    "change": "The Algorithm structured planner, prompt/schema, JSON extraction and regeneration, embedded-source transport, proposal feedback projection, compact packet helpers, static replay options, retry setting, and dead tests were deleted. One deterministic runtime intent now authorizes one retained LLMAlgorithmEngineerAgent Python/R workspace in which the same model selects implementation, project files, diagnostics, executions, and every revision from raw observations. After accepted execution, runtime creates only an AlgorithmSourceWorkspaceRecord containing source hashes, workspace and transcript references, model provenance, Theory or frozen-question estimator ABI bindings, and explicit non-evidence boundaries; it carries no source bytes or substantive plan. Algorithm and Simulation CLI builders now fail before a model call when the resolved provider lacks native client-tool turns.",
+    "codex_harness_alignment": "This reuses Codex's harness invariants without embedding Codex: one retained source owner chooses tools and edits, exact tool and reviewer observations return to that owner, model-visible capabilities match executable registrations, and files plus compact references hold durable state. AgentRuntime remains the sole outer research graph and client_tool_loop remains the shared inner loop. No repair worker, retry, fallback, second scheduler, task-family condition, statistical formula, source patcher, model escalation, or generic agent framework was added.",
+    "verification": "Python compileall passed. The affected Algorithm, scientific workspace, AgentRuntime, Simulation projection, Architect, estimator-contract, Theory-consumer, and semantic-feedback panel passed 266/266 in 35.21 seconds. The exact final repository state passed 1223/1223 in 301.50 seconds. Diff hygiene, changed-file credential scanning, forbidden-model and task-family/repair/fallback scans passed. The code commit is +365/-1377, a net deletion of 1012 lines. Production Python is 147231 lines, research_agent_runtime.py is 24648 lines, algorithm_engineer_llm.py is 429 lines, cli.py is 7115 lines, production_design.md is 398 lines, and the Codex adoption document remains 249 lines.",
+    "model_calls": 0,
+    "evaluator_calls": 0,
+    "task114_product_calls": 0,
+    "trusted_capability_credit": "unchanged at 7/113",
+    "strict_formal_completion_rate": "unchanged at 0%",
+    "development_panel_exact_lean_closure": "unchanged at 0/2",
+    "remaining_gaps": "This proves a smaller and more capability-accurate coding harness, not that exact Haiku writes a scientifically faithful estimator. No fresh immutable task demonstrates correct theory-to-ABI interpretation, robust Python/R behavior, independent source-review acceptance, confirmatory empirical success, published-result reproduction, or full end-to-end completion. Long-horizon Theory quality, arbitrary paper and environment replication, statistical semantic review, exact Lean closure, and cross-family generalization remain unproved.",
+    "boundary": "All 113 consumed tasks remain immutable. No task was rerun, resumed, repaired, reevaluated, rescored, resampled, or promoted; Task114 and the standalone betareg candidate remain sealed. Intent creation, source execution, unit tests, review records, and harness audits are mechanism evidence only. Tests and evaluations remain pinned to exact Claude Haiku 4.5, Opus and automatic escalation remain forbidden, formalization remains task-intent driven, and only the designated independent or verifier-owned authority may satisfy each evidence dimension."
+  },
   "latest_codex_direct_simulation_workspace_consolidation": {
     "code_commit": "11d27896231df458638ea728ba84c0b24f96fc5b",
     "official_codex_reference_head": "728cb12fe5794b0c3a8e776fb4994b1650b973a8",
@@ -6397,6 +6414,7 @@
       "exact target-bound Lean kernel promotion"
     ],
     "fixed_in_validated_head": [
+      "AlgorithmEngineer retaining a second stateless JSON planner, packet-regeneration retry, embedded-source proposal transport, and static or generator-only provider paths beside its canonical retained Python/R source-owner workspace",
       "metric authoring regenerating detached structured-output packets after independent review instead of retaining one model-owned source document, exact validator observations, parent-hash lineage, and the same source-owner transcript",
       "generated-code semantic review declaring an interface valid without a dedicated dimension that traces every public field and rejection clause through actual source-language behavior",
       "evaluator-only reports persisting anonymous ordered booleans and aggregate semantic counts without privacy-preserving check or claim references for one-draw audit",
@@ -6557,7 +6575,7 @@
       "the post-Ridge generated-code reviewer now uses the existing native client-tool loop so model-actionable terminal validation returns to the same isolated reviewer context; this is regression-tested future-task mechanism evidence and has not changed Ridge or any prior score",
       "the active Lean foundation pins Statlib 6575d611 on Lean 4.30, while fetched Statlib origin/main 01d2a03 adds EVariable and DPI foundations on Lean 4.33. The active importable corpus and latest upstream discovery corpus must retain distinct snapshot identities until a deliberate compatibility migration succeeds",
       "paper ingest, gold snapshot curation, novelty auditing, and learned research/proof policies remain incomplete",
-      "research_agent_runtime.py remains large at 24207 lines even though declaration-source inspection and canonical review are outside its central control body and fresh Algorithm/Simulation planning lives in source-owner workspaces; any further extraction must remove a measured central responsibility rather than add another outer interface"
+      "research_agent_runtime.py remains large at 24648 lines even though declaration-source inspection and canonical review are outside its central control body and fresh Algorithm/Simulation planning lives in source-owner workspaces; any further extraction must remove a measured central responsibility rather than add another outer interface"
     ],
     "wrong_next_move": "Do not add a repair worker, packet patcher, theorem-specific bridge, Lean grammar fixer, forced tactic policy, hardcoded statistical answer, fixed universal simulation count, more outer budget, or another scheduler."
   },
@@ -6574,7 +6592,7 @@
     "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24942,
+    "research_agent_runtime_lines": 24648,
     "evaluation_protocol_revision_lines": 1298,
     "scientific_code_workspace_lines": 3541,
     "theory_workspace_lines": 3927,
@@ -6589,9 +6607,9 @@
     "lean_agent_providers_lines": 1745,
     "client_tool_loop_lines": 1122,
     "agent_runtime_lines": 1365,
-    "cli_lines": 7132,
+    "cli_lines": 7115,
     "top_level_python_modules": 141,
-    "top_level_package_lines": 149774,
+    "top_level_package_lines": 147231,
     "latest_runtime_manifest_bytes": 41146
   },
   "next_gates": [
