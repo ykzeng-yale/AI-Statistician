@@ -28,6 +28,26 @@ MAX_REPOSITORY_SNAPSHOT_BYTES = 2 * 1024 * 1024 * 1024
 _GIT_BLOB_FILE_MODES = frozenset({"100644", "100755", "120000"})
 
 
+def _local_git_environment() -> dict[str, str]:
+    environment = {
+        "PATH": os.environ.get("PATH", os.defpath),
+        "LC_ALL": "C",
+        "LANG": "C",
+        "GIT_ALLOW_PROTOCOL": "",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_NO_LAZY_FETCH": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_PROTOCOL_FROM_USER": "0",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    for name in ("SYSTEMROOT", "TEMP", "TMP", "TMPDIR"):
+        value = os.environ.get(name)
+        if value:
+            environment[name] = value
+    return environment
+
+
 def freeze_git_repository_snapshot(
     *,
     repository_root: Path,
@@ -212,7 +232,13 @@ def _git_tree_rows(repository: Path, commit: str) -> list[dict[str, Any]]:
                 "Git snapshot supports regular files and internal file symlinks; "
                 f"submodules and other tree entries are unsupported: {relative_path}"
             )
-        byte_size = int(raw_size)
+        try:
+            byte_size = int(raw_size)
+        except ValueError as exc:
+            raise ValueError(
+                "Git snapshot requires every tracked blob to be available locally: "
+                + relative_path
+            ) from exc
         if byte_size > MAX_SOURCE_FILE_BYTES:
             raise ValueError(
                 f"Git tracked file exceeds {MAX_SOURCE_FILE_BYTES} bytes: {relative_path}"
@@ -247,6 +273,7 @@ def _materialize_git_blobs(
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        env=_local_git_environment(),
     )
     if process.stdin is None or process.stdout is None or process.stderr is None:
         process.kill()
@@ -403,6 +430,7 @@ def _run_git(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=text,
+            env=_local_git_environment(),
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise ValueError("Git project snapshot command failed") from exc

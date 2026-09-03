@@ -370,6 +370,73 @@ def test_git_project_snapshot_rejects_escaping_or_chained_symlinks(
         )
 
 
+def test_git_project_snapshot_does_not_lazy_fetch_missing_blobs(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "promisor-source"
+    repository.mkdir()
+    _git(repository, "init")
+    _git(repository, "config", "user.email", "fixture@example.org")
+    _git(repository, "config", "user.name", "Fixture Author")
+    (repository / "README.md").write_text(
+        "# Promisor fixture\n",
+        encoding="utf-8",
+    )
+    _git(repository, "add", "README.md")
+    _git(repository, "commit", "-m", "promisor fixture")
+
+    remote = tmp_path / "promisor-remote.git"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--bare", str(repository), str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _git(remote, "config", "uploadpack.allowFilter", "true")
+    partial = tmp_path / "partial"
+    subprocess.run(
+        [
+            "git",
+            "clone",
+            "--quiet",
+            "--filter=blob:none",
+            "--no-checkout",
+            remote.as_uri(),
+            str(partial),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    missing_before = _git(
+        partial,
+        "rev-list",
+        "--objects",
+        "--missing=print",
+        "HEAD",
+    ).splitlines()
+    if not any(row.startswith("?") for row in missing_before):
+        pytest.skip("Git did not create a blobless promisor clone")
+
+    with pytest.raises(ValueError, match="blob to be available locally"):
+        freeze_git_repository_snapshot(
+            repository_root=partial,
+            revision="HEAD",
+            output_dir=tmp_path / "partial-snapshot",
+            snapshot_id="partial-snapshot",
+            source_horizon="2026-08-31",
+        )
+
+    assert _git(
+        partial,
+        "rev-list",
+        "--objects",
+        "--missing=print",
+        "HEAD",
+    ).splitlines() == missing_before
+    assert not (tmp_path / "partial-snapshot").exists()
+
+
 def test_freeze_research_source_project_cli_emits_loadable_snapshot(
     tmp_path: Path,
     capsys,
