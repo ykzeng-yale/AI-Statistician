@@ -10,7 +10,6 @@ from ai_statistician.critic_evaluator_llm import (
     CRITIC_EVIDENCE_READ_TOOL,
     CRITIC_EVIDENCE_SEARCH_TOOL,
     CRITIC_EVALUATOR_JSON_SCHEMA,
-    CRITIC_EVALUATOR_OUTPUT_CONTRACT,
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
     CRITIC_GAP_DISCLOSURE_COMPLETE,
     CriticEvaluatorConfig,
@@ -123,6 +122,17 @@ def _critic_packet() -> dict[str, object]:
     }
 
 
+def _critic_submission() -> dict[str, object]:
+    packet = _critic_packet()
+    for field in (
+        "proof_evidence_status",
+        "kernel_verified",
+        "full_frontier_theorem_proved",
+    ):
+        packet.pop(field)
+    return packet
+
+
 def test_cross_workspace_scope_requires_two_exact_artifact_ids() -> None:
     packet = _critic_packet()
     assert validate_critic_evaluator_packet(packet) == []
@@ -163,14 +173,53 @@ def test_nonaccept_disposition_requires_complete_explicit_gap_disclosure() -> No
     assert "blocking dimensions require explicit dimension gaps: theory" in errors
 
 
-def test_gap_disclosure_tool_contract_and_validator_share_one_enum() -> None:
-    assert CRITIC_EVALUATOR_OUTPUT_CONTRACT["gap_disclosure"]["status"] == (
-        CRITIC_GAP_DISCLOSURE_COMPLETE
-    )
+def test_gap_disclosure_tool_schema_and_validator_share_one_enum() -> None:
     assert CRITIC_EVALUATOR_JSON_SCHEMA["properties"]["gap_disclosure"][
         "properties"
     ]["status"]["enum"] == [CRITIC_GAP_DISCLOSURE_COMPLETE]
     assert validate_critic_evaluator_packet(_critic_packet()) == []
+
+
+def test_critic_tool_schema_is_the_only_structured_output_contract() -> None:
+    prompt = build_critic_evaluator_prompt(
+        question=OpenResearchQuestion(
+            id="critic-single-contract",
+            title="Use one Critic tool contract",
+            description="Keep the final review ABI in one schema.",
+        ),
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view={"view_hash": "critic-view"},
+        client_tool_submission=True,
+    )
+
+    assert CRITIC_EVALUATOR_JSON_SCHEMA["additionalProperties"] is False
+    assert "coordination_assessment" in CRITIC_EVALUATOR_JSON_SCHEMA["required"]
+    assert CRITIC_EVALUATOR_JSON_SCHEMA["properties"][
+        "current_observation_assessment"
+    ]["additionalProperties"] is False
+    dimensions = CRITIC_EVALUATOR_JSON_SCHEMA["properties"][
+        "dimension_assessments"
+    ]
+    assert dimensions["minItems"] == dimensions["maxItems"] == 5
+    assert "maxItems" not in CRITIC_EVALUATOR_JSON_SCHEMA["properties"][
+        "critic_findings"
+    ]
+    assert "maxItems" not in CRITIC_EVALUATOR_JSON_SCHEMA["properties"][
+        "current_observation_assessment"
+    ]["properties"]["causal_hypotheses"]
+    assert "required_output_contract" not in prompt
+    assert "at most 3 causal hypotheses" not in prompt
+    assert "5 audit or finding rows" not in prompt
+
+    packet = _critic_packet()
+    packet.pop("coordination_assessment")
+    assert "missing or empty field: coordination_assessment" in (
+        validate_critic_evaluator_packet(packet)
+    )
 
 
 def test_critic_can_accept_without_inventing_a_finding() -> None:
@@ -1352,7 +1401,7 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
                     ClientToolCall(
                         call_id="submit-critic",
                         name=CRITIC_EVALUATION_SUBMIT_TOOL,
-                        input=_critic_packet(),
+                        input=_critic_submission(),
                     ),
                 )
             return ClientToolTurnResponse(
@@ -1423,9 +1472,11 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
     assert "Only catalog path values are valid document tool paths" in first_prompt
     assert "Batch independent read/search calls" in first_prompt
     assert provider.requests[0].disable_parallel_tool_use is False
+    assert provider.requests[0].metadata["strict_terminal_tool_schema"] is True
+    assert provider.requests[0].metadata["reviewer_local_retry_budget"] is False
     assert packet["canonical_evidence_view_hash"] == "canonical-view-hash"
     loop = packet["client_tool_loop"]
-    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v2"
+    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v3"
     assert loop["turns"] == 2
     assert loop["tool_calls"] == 3
     assert loop["document_access_count"] == 2
@@ -1451,7 +1502,7 @@ def test_critic_omits_document_tools_when_all_evidence_is_inline() -> None:
             call = ClientToolCall(
                 call_id="submit-inline-critic",
                 name=CRITIC_EVALUATION_SUBMIT_TOOL,
-                input=_critic_packet(),
+                input=_critic_submission(),
             )
             return ClientToolTurnResponse(
                 content_blocks=(
@@ -1543,7 +1594,7 @@ def test_critic_terminal_submission_waits_for_same_turn_read_observation() -> No
                     ClientToolCall(
                         call_id="premature-submit",
                         name=CRITIC_EVALUATION_SUBMIT_TOOL,
-                        input=_critic_packet(),
+                        input=_critic_submission(),
                     ),
                 )
             else:
@@ -1554,7 +1605,7 @@ def test_critic_terminal_submission_waits_for_same_turn_read_observation() -> No
                     ClientToolCall(
                         call_id="informed-submit",
                         name=CRITIC_EVALUATION_SUBMIT_TOOL,
-                        input=_critic_packet(),
+                        input=_critic_submission(),
                     ),
                 )
             return ClientToolTurnResponse(
@@ -1619,8 +1670,99 @@ def test_critic_terminal_submission_waits_for_same_turn_read_observation() -> No
     assert validate_critic_evaluator_packet(packet) == []
 
 
+def test_critic_corrects_invalid_judgment_in_same_retained_session() -> None:
+    invalid = _critic_submission()
+    for row in invalid["dimension_assessments"]:
+        if row["dimension"] == "theory":
+            row["status"] = "INCONCLUSIVE"
+            row["gaps"] = ["Theory evidence is incomplete."]
+        elif row["dimension"] in {"scientific_code", "empirical"}:
+            row["status"] = "SUPPORTED"
+            row["gaps"] = []
+    invalid["research_disposition"] = {
+        "status": "ACCEPT",
+        "blocking_dimensions": [],
+        "rationale": "The first judgment incorrectly accepts incomplete theory.",
+    }
+    corrected = deepcopy(invalid)
+    corrected["research_disposition"] = {
+        "status": "INCONCLUSIVE",
+        "blocking_dimensions": ["theory"],
+        "rationale": "Required theory evidence remains incomplete.",
+    }
+
+    class CorrectingCriticBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            payload = invalid if len(self.requests) == 1 else corrected
+            call = ClientToolCall(
+                call_id=f"submit-critic-{len(self.requests)}",
+                name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                input=deepcopy(payload),
+            )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": dict(call.input),
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider=self.provider_name,
+                model="claude-haiku-4-5-20251001",
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    provider = CorrectingCriticBackend()
+    packet = LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    ).propose(
+        question=OpenResearchQuestion(
+            id="critic-same-session-correction",
+            title="Correct one invalid Critic judgment",
+            description="Use the validator observation in the retained session.",
+        ),
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view={
+            "artifact_kind": "CriticCanonicalEvidenceView",
+            "view_hash": "critic-correction-view",
+            "dimension_requirements": {
+                "source_replication": "not_applicable",
+                "theory": "required",
+                "scientific_code": "required",
+                "empirical": "required",
+                "formal": "not_applicable",
+            },
+        },
+    )
+
+    assert len(provider.requests) == 2
+    assert provider.requests[0].tools[-1].strict is True
+    assert "ACCEPT evidence mismatch:" in str(provider.requests[1].messages)
+    assert packet["research_disposition"]["status"] == "INCONCLUSIVE"
+    assert packet["client_tool_loop"]["turns"] == 2
+    assert validate_critic_evaluator_packet(packet) == []
+
+
 def test_failed_critic_session_preserves_last_submission_and_exact_errors() -> None:
-    invalid = _critic_packet()
+    invalid = _critic_submission()
     for row in invalid["dimension_assessments"]:
         if row["dimension"] == "theory":
             row["status"] = "INCONCLUSIVE"
@@ -1670,7 +1812,7 @@ def test_failed_critic_session_preserves_last_submission_and_exact_errors() -> N
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
             provider_name="anthropic",
-            max_validation_retries=0,
+            client_tool_max_no_progress_turns=1,
         ),
     )
     canonical_view = {
@@ -1700,7 +1842,8 @@ def test_failed_critic_session_preserves_last_submission_and_exact_errors() -> N
             canonical_evidence_view=canonical_view,
         )
     except PacketValidationError as exc:
-        assert provider.calls >= 2
+        assert provider.calls == 2
+        assert exc.attempts == 2
         assert exc.last_invalid_packet is not None
         assert exc.last_invalid_packet["research_disposition"]["status"] == "ACCEPT"
         feedback_history = json.dumps(exc.history, sort_keys=True)

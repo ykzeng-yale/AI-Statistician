@@ -2146,6 +2146,56 @@ def test_runtime_config_has_no_legacy_prover_authoring_plane() -> None:
         assert not hasattr(runtime_module, removed_symbol)
 
 
+def test_critic_validation_failure_records_retained_session_not_retry() -> None:
+    question = OpenResearchQuestion(
+        id="critic-retained-session-failure",
+        title="Record one stopped Critic session",
+        description="Preserve exact retained reviewer observations.",
+    )
+    task = AgentTask(
+        task_id="critic:retained-session-failure",
+        owner_subsystem="CriticEvaluator",
+        objective="Audit the exact current evidence.",
+        inputs={"question": runtime_module._question_to_payload(question)},
+    )
+    error = PacketValidationError(
+        validation_label="LLM CriticEvaluator packet",
+        attempts=3,
+        errors=["critic judgment is inconsistent"],
+        history=[{"turn": 1}, {"turn": 2}, {"turn": 3}],
+        last_invalid_packet={
+            "research_disposition": {"status": "ACCEPT"}
+        },
+    )
+
+    _, failure, feedback, _, evidence = (
+        runtime_module._critic_packet_validation_failure_bundle(
+            task=task,
+            question=question,
+            retrieval_manifest={},
+            theory_packet={},
+            simulation_manifest={},
+            algorithm_manifest={},
+            formalization_manifest={},
+            runtime_observations={},
+            exc=error,
+        )
+    )
+
+    assert feedback["reviewer_turns"] == 3
+    assert feedback["validation_boundary"] == {
+        "retained_reviewer_session_stopped": True,
+        "runtime_edits_candidate": False,
+        "outer_same_owner_retry_created": False,
+    }
+    assert "attempts" not in feedback
+    assert failure["reviewer_turns"] == 3
+    assert failure["retained_reviewer_history"] == error.history
+    assert "structured_output_retry_history" not in failure
+    assert "bounded retained reviewer session" in failure["boundary"]
+    assert evidence.payload["reviewer_turns"] == 3
+
+
 def test_canonical_runtime_has_no_outer_same_owner_source_retry_tasks() -> None:
     source = inspect.getsource(runtime_module)
     forbidden_task_prefixes = (

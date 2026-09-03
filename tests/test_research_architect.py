@@ -3896,6 +3896,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     )
     assert critic.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert critic.config.model_tier == "sonnet"
+    assert not hasattr(critic.config, "max_validation_retries")
     runtime_args.generated_code_semantic_reviewer_provider = "same"
     semantic_reviewer = _build_generated_code_semantic_reviewer_agent_from_args(
         runtime_args,
@@ -3987,6 +3988,7 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert all(agent.config.model == expected_model for agent in agents)
     assert not hasattr(agents[1].config, "max_validation_retries")
     assert not hasattr(agents[2].config, "max_validation_retries")
+    assert not hasattr(agents[4].config, "max_validation_retries")
     assert not hasattr(agents[6].config, "max_validation_retries")
     assert not hasattr(agents[5].config, "max_validation_retries")
     architect = agents[0]

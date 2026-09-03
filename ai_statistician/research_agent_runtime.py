@@ -18856,12 +18856,12 @@ def _critic_packet_validation_failure_bundle(
         "failure_classification": "critic_packet_validation_failed",
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
-        "attempts": exc.attempts,
+        "reviewer_turns": exc.attempts,
         "last_attempt_summary": exc.history[-1] if exc.history else {},
         "rejected_candidate": rejected_candidate,
         "critic_input_refs": input_refs,
         "validation_boundary": {
-            "in_call_structured_output_retry_exhausted": True,
+            "retained_reviewer_session_stopped": True,
             "runtime_edits_candidate": False,
             "outer_same_owner_retry_created": False,
         },
@@ -18880,7 +18880,8 @@ def _critic_packet_validation_failure_bundle(
         "validation_label": exc.validation_label,
         "failure_classification": "critic_packet_validation_failed",
         "validation_errors": validation_errors,
-        "structured_output_retry_history": exc.history,
+        "reviewer_turns": exc.attempts,
+        "retained_reviewer_history": exc.history,
         "rejected_candidate": rejected_candidate,
         "critic_input_refs": input_refs,
         "proof_evidence_status": (
@@ -18889,7 +18890,7 @@ def _critic_packet_validation_failure_bundle(
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "boundary": (
             "This artifact records a rejected CriticEvaluator model packet and "
-            "the exact validator observations after bounded in-call regeneration. "
+            "the exact observations from its bounded retained reviewer session. "
             "Runtime does not edit the packet or create an outer Critic retry."
         ),
     }
@@ -18900,6 +18901,7 @@ def _critic_packet_validation_failure_bundle(
             "failure_id": failure_id,
             "failure_classification": "critic_packet_validation_failed",
             "validation_errors": validation_errors,
+            "reviewer_turns": exc.attempts,
             "proof_evidence_status": (
                 "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
             ),
@@ -18915,7 +18917,7 @@ def _critic_packet_validation_failure_bundle(
         payload={
             "failure_classification": "critic_packet_validation_failed",
             "validation_errors": validation_errors,
-            "attempts": exc.attempts,
+            "reviewer_turns": exc.attempts,
             "proof_evidence_status": (
                 "CRITIC_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
             ),

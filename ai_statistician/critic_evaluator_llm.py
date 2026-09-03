@@ -44,7 +44,7 @@ from .theory_workspace import (
 )
 
 
-CRITIC_EVALUATOR_SCHEMA_VERSION = 4
+CRITIC_EVALUATOR_SCHEMA_VERSION = 5
 CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE = "LLM_CRITIC_EVALUATOR_PROPOSAL_NOT_PROOF_EVIDENCE"
 CRITIC_EVALUATOR_BOUNDARY = (
     "LLM CriticEvaluator packets are observation and causal-assessment artifacts "
@@ -62,7 +62,6 @@ CRITIC_EVIDENCE_READ_TOOL = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
 CRITIC_EVIDENCE_SEARCH_TOOL = THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL
 CRITIC_EVALUATION_SUBMIT_TOOL = "submit_critic_evaluation"
 CRITIC_EVIDENCE_EXTERNALIZE_MIN_CHARS = 1200
-CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS = 24
 
 
 @dataclass(frozen=True)
@@ -72,7 +71,9 @@ class CriticEvaluatorConfig:
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
-    max_validation_retries: int = 1
+    client_tool_max_turns: int = 64
+    client_tool_max_tool_calls: int = 64
+    client_tool_max_no_progress_turns: int = 2
 
 
 class LLMCriticEvaluatorAgent:
@@ -177,7 +178,7 @@ def _run_critic_client_tool_review(
             ),
             input_schema=CRITIC_EVALUATOR_JSON_SCHEMA,
             terminal=True,
-            strict=False,
+            strict=True,
         ),
     )
     request = ClientToolTurnRequest(
@@ -199,6 +200,8 @@ def _run_critic_client_tool_review(
             "client_tool_transport": True,
             "evidence_document_count": len(documents),
             "evidence_document_catalog_hash": stable_hash(catalog),
+            "strict_terminal_tool_schema": True,
+            "reviewer_local_retry_budget": False,
             "full_packet_regeneration_disabled": True,
         },
     )
@@ -278,7 +281,7 @@ def _run_critic_client_tool_review(
             )
         if errors:
             raise ClientToolInputError(
-                "critic submission rejected: " + "; ".join(sorted(set(errors))[:12])
+                "critic submission rejected: " + "; ".join(sorted(set(errors)))
             )
         return ClientToolExecutionResult(
             content={"ok": True, "submitted": True},
@@ -292,23 +295,23 @@ def _run_critic_client_tool_review(
             backend=provider,
             request=request,
             execute_tool=execute_tool,
-            max_turns=CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS
-            + max(0, int(config.max_validation_retries)),
-            max_tool_calls=CRITIC_EVALUATOR_MAX_DOCUMENT_TOOL_CALLS,
-            max_no_progress_turns=2,
+            max_turns=max(1, int(config.client_tool_max_turns)),
+            max_tool_calls=max(1, int(config.client_tool_max_tool_calls)),
+            max_no_progress_turns=max(
+                1, int(config.client_tool_max_no_progress_turns)
+            ),
         )
     except ClientToolLoopError as exc:
         raise PacketValidationError(
             validation_label="LLM CriticEvaluator packet",
-            attempts=1,
+            attempts=exc.turns,
             errors=[exc.reason],
             history=list(exc.history),
             last_invalid_packet=next(
                 (
                     block.get("input")
-                    for block in reversed(
-                        (exc.messages[-2] if len(exc.messages) > 1 else {}).get("content", [])
-                    )
+                    for message in reversed(exc.messages)
+                    for block in reversed(message.get("content", []) or [])
                     if isinstance(block, Mapping)
                     and block.get("name") == CRITIC_EVALUATION_SUBMIT_TOOL
                 ),
@@ -319,11 +322,12 @@ def _run_critic_client_tool_review(
     if not isinstance(payload, Mapping):
         raise PacketValidationError(
             validation_label="LLM CriticEvaluator packet",
-            attempts=1,
+            attempts=loop.turns,
             errors=["accepted client-tool submission payload is malformed"],
+            history=list(loop.history),
         )
     transport = {
-        "transport": "native_same_reviewer_evidence_workspace_v2",
+        "transport": "native_same_reviewer_evidence_workspace_v3",
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -360,8 +364,9 @@ def _run_critic_client_tool_review(
     if final_errors:
         raise PacketValidationError(
             validation_label="LLM CriticEvaluator packet",
-            attempts=1,
+            attempts=loop.turns,
             errors=final_errors,
+            history=list(loop.history),
             last_invalid_packet=packet,
         )
     return packet
@@ -400,30 +405,28 @@ def build_critic_evaluator_prompt(
         "current_environment_observation": deepcopy(
             dict(environment_feedback or {})
         ),
-        "required_output_contract": CRITIC_EVALUATOR_OUTPUT_CONTRACT,
         "boundary": CRITIC_EVALUATOR_BOUNDARY,
     }
     if client_tool_submission and client_tool_evidence_documents_available:
         submission_instruction = (
             "Use the supplied read/search tools to inspect exact externalized evidence, then "
-            f"call {CRITIC_EVALUATION_SUBMIT_TOOL} with the complete required_output_contract. "
+            f"call {CRITIC_EVALUATION_SUBMIT_TOOL} with the complete independent judgment. "
             "Only catalog path values are valid document tool paths; source filenames and json_path values are evidence references. Batch independent read/search calls when useful, do not reread unchanged ranges, and submit the terminal judgment alone in a later turn after inspecting the retained observations. The model owns the review sequence; prose alone cannot submit a judgment."
         )
     elif client_tool_submission:
         submission_instruction = (
             "All exact evidence is already present in this request; no external evidence "
             f"document tools are available. Call {CRITIC_EVALUATION_SUBMIT_TOOL} directly "
-            "with the complete required_output_contract. Prose alone cannot submit a judgment."
+            "with the complete independent judgment. Prose alone cannot submit a judgment."
         )
     else:
         submission_instruction = (
-            "Return ONLY JSON matching required_output_contract, with no optional prose."
+            "Return only one complete independent judgment matching the Critic tool schema."
         )
     return (
         "Review this AI Statistician trace as CriticEvaluator. "
         + submission_instruction
-        + " Use at most 3 causal hypotheses and 5 audit or finding rows. "
-        "canonical_evidence_view is authoritative; omitted legacy "
+        + " canonical_evidence_view is authoritative; omitted legacy "
         "fields are not missing evidence. Ground every claim in that view or the current "
         "observation. Do not invent a failure: when none is supported, use "
         "NO_BLOCKING_FAILURE, an empty observed_failure, and no critic_findings. Assess every "
@@ -484,77 +487,13 @@ claim theorem proof evidence.
 """
 
 
-CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
-    "current_observation_assessment": {
-        "observed_status": "NO_BLOCKING_FAILURE | FAILURE_OBSERVED | INCONCLUSIVE",
-        "observed_failure": "short string or empty when no failure is observed",
-        "evidence_refs": ["artifact id, field path, or exact diagnostic"],
-        "causal_hypotheses": [
-            {
-                "hypothesis": "short string",
-                "supporting_evidence": ["direct observation"],
-                "contradicting_evidence": ["direct observation or empty"],
-                "uncertainty": "short string",
-            }
-        ],
-        "independent_missing_evidence": [
-            "missing evidence that is not asserted to cause the current failure"
-        ],
-    },
-    "coordination_assessment": {
-        "scope": "none | same_workspace | cross_workspace",
-        "conflicting_artifact_ids": ["artifact id or empty"],
-        "rationale": "short evidence-grounded explanation",
-    },
-    "evidence_boundary_audit": [
-        {
-            "artifact_id": "string",
-            "evidence_type": "string",
-            "boundary_ok": "boolean",
-            "observed_claim": "short string",
-            "authority_boundary": "short string",
-            "boundary_observation": "short string",
-        }
-    ],
-    "critic_findings": [
-        {
-            "critic": "string",
-            "finding": "short string",
-            "evidence_refs": ["direct observation"],
-            "uncertainty": "short string",
-        }
-    ],
-    "dimension_assessments": [
-        {
-            "dimension": "source_replication | theory | scientific_code | empirical | formal",
-            "status": "SUPPORTED | INCONCLUSIVE | CONTRADICTED | NOT_REQUESTED",
-            "evidence_refs": ["canonical evidence path or artifact id"],
-            "rationale": "short evidence-grounded rationale",
-            "gaps": ["unresolved evidence deficit; empty for SUPPORTED or NOT_REQUESTED"],
-        }
-    ],
-    "gap_disclosure": {
-        "status": CRITIC_GAP_DISCLOSURE_COMPLETE,
-        "disclosed_gaps": ["short gap statement or empty"],
-        "evidence_refs": ["canonical evidence path or artifact id"],
-        "rationale": "short rationale",
-    },
-    "research_disposition": {
-        "status": "ACCEPT | INCONCLUSIVE | REJECT",
-        "blocking_dimensions": [
-            "source_replication | theory | scientific_code | empirical | formal, or empty"
-        ],
-        "rationale": "short evidence-grounded rationale",
-    },
-}
-
-
 CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
-    "additionalProperties": True,
+    "additionalProperties": False,
     "required": [
         "current_observation_assessment",
+        "coordination_assessment",
         "evidence_boundary_audit",
         "critic_findings",
         "dimension_assessments",
@@ -562,13 +501,192 @@ CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
         "research_disposition",
     ],
     "properties": {
-        "current_observation_assessment": {"type": "object"},
-        "coordination_assessment": {"type": "object"},
-        "evidence_boundary_audit": {"type": "array", "minItems": 1},
-        "critic_findings": {"type": "array"},
-        "dimension_assessments": {"type": "array", "minItems": 5},
-        "gap_disclosure": {"type": "object", "additionalProperties": True, "required": ["status"], "properties": {"status": {"type": "string", "enum": [CRITIC_GAP_DISCLOSURE_COMPLETE]}}},
-        "research_disposition": {"type": "object"},
+        "current_observation_assessment": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "observed_status",
+                "observed_failure",
+                "evidence_refs",
+                "causal_hypotheses",
+                "independent_missing_evidence",
+            ],
+            "properties": {
+                "observed_status": {
+                    "type": "string",
+                    "enum": [
+                        "NO_BLOCKING_FAILURE",
+                        "FAILURE_OBSERVED",
+                        "INCONCLUSIVE",
+                    ],
+                },
+                "observed_failure": {"type": "string"},
+                "evidence_refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "causal_hypotheses": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "hypothesis",
+                            "supporting_evidence",
+                            "contradicting_evidence",
+                            "uncertainty",
+                        ],
+                        "properties": {
+                            "hypothesis": {"type": "string", "minLength": 1},
+                            "supporting_evidence": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "contradicting_evidence": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "uncertainty": {"type": "string", "minLength": 1},
+                        },
+                    },
+                },
+                "independent_missing_evidence": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+            },
+        },
+        "coordination_assessment": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["scope", "conflicting_artifact_ids", "rationale"],
+            "properties": {
+                "scope": {
+                    "type": "string",
+                    "enum": ["none", "same_workspace", "cross_workspace"],
+                },
+                "conflicting_artifact_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "rationale": {"type": "string", "minLength": 1},
+            },
+        },
+        "evidence_boundary_audit": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "artifact_id",
+                    "evidence_type",
+                    "boundary_ok",
+                    "observed_claim",
+                    "authority_boundary",
+                    "boundary_observation",
+                ],
+                "properties": {
+                    "artifact_id": {"type": "string", "minLength": 1},
+                    "evidence_type": {"type": "string", "minLength": 1},
+                    "boundary_ok": {"type": "boolean"},
+                    "observed_claim": {"type": "string"},
+                    "authority_boundary": {"type": "string", "minLength": 1},
+                    "boundary_observation": {"type": "string", "minLength": 1},
+                },
+            },
+        },
+        "critic_findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["critic", "finding", "evidence_refs", "uncertainty"],
+                "properties": {
+                    "critic": {"type": "string", "minLength": 1},
+                    "finding": {"type": "string", "minLength": 1},
+                    "evidence_refs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "uncertainty": {"type": "string", "minLength": 1},
+                },
+            },
+        },
+        "dimension_assessments": {
+            "type": "array",
+            "minItems": len(CRITIC_RESEARCH_DIMENSIONS),
+            "maxItems": len(CRITIC_RESEARCH_DIMENSIONS),
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "dimension",
+                    "status",
+                    "evidence_refs",
+                    "rationale",
+                    "gaps",
+                ],
+                "properties": {
+                    "dimension": {
+                        "type": "string",
+                        "enum": list(CRITIC_RESEARCH_DIMENSIONS),
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": sorted(CRITIC_DIMENSION_STATUSES),
+                    },
+                    "evidence_refs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "rationale": {"type": "string", "minLength": 1},
+                    "gaps": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "gap_disclosure": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["status", "disclosed_gaps", "evidence_refs", "rationale"],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [CRITIC_GAP_DISCLOSURE_COMPLETE],
+                },
+                "disclosed_gaps": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "evidence_refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "rationale": {"type": "string", "minLength": 1},
+            },
+        },
+        "research_disposition": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["status", "blocking_dimensions", "rationale"],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": sorted(CRITIC_RESEARCH_DISPOSITIONS),
+                },
+                "blocking_dimensions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": list(CRITIC_RESEARCH_DIMENSIONS),
+                    },
+                },
+                "rationale": {"type": "string", "minLength": 1},
+            },
+        },
     },
 }
 
@@ -581,6 +699,7 @@ def validate_critic_evaluator_packet(
     errors: list[str] = []
     for field in (
         "current_observation_assessment",
+        "coordination_assessment",
         "evidence_boundary_audit",
         "dimension_assessments",
         "gap_disclosure",
