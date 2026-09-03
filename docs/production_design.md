@@ -275,7 +275,7 @@ task-bound RAG and OpenProver's `lean-lsp-mcp`; the candidate file is only a loc
 fallback. All such observations remain explicitly non-proof evidence.
 
 The stable initial/revision tool surface offers target/support read-write-edit operations,
-support compilation, declaration/proof-state inspection, formal RAG, proof search, and a typed
+support compilation, declaration/proof-state inspection, formal RAG, model-intent-bound proof search, and a typed
 formal gap. A revision gap preserves exact target provenance, clears proof-candidate
 source fields, and remains non-proof. Independent review must distinguish a true
 missing foundation from a fixable API or modeling error. Temporary admitted bodies or Lean `#check`/`#print` commands are diagnostic only: Lean reports elaboration and axioms, and only a complete axiom-clean source may enter review or promotion.
