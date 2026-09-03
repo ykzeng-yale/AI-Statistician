@@ -2069,7 +2069,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
     assert "not confirmatory simulation" in observation["boundary"]
 
 
-def test_theory_progress_restores_cumulative_scratch_state(
+def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -2135,6 +2135,19 @@ def test_theory_progress_restores_cumulative_scratch_state(
             ),
             _response(
                 ClientToolCall(
+                    call_id="attempt-second-run-in-same-segment",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": ["numpy"],
+                        "entrypoint": "run_sandbox",
+                        "code": source,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
                     call_id="write-partial-document",
                     name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                     input={
@@ -2170,12 +2183,18 @@ def test_theory_progress_restores_cumulative_scratch_state(
     )
     assert checkpoint["scratch_runs"] == 1
     assert len(checkpoint["scratch_execution_refs"]) == 1
+    assert "fresh segment-local scratch allowance" in str(
+        first.requests[0].messages[0]["content"]
+    )
+    assert "workspace-segment run budget is exhausted" in str(
+        first.requests[2].messages[-1]
+    )
 
     continued = ScriptedTheoryWorkspaceBackend(
         [
             _response(
                 ClientToolCall(
-                    call_id="attempt-duplicate-small-case",
+                    call_id="recheck-small-case-in-next-segment",
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
@@ -2214,14 +2233,20 @@ def test_theory_progress_restores_cumulative_scratch_state(
         prior_workspace_checkpoint=checkpoint,
     )
 
-    assert len(executions) == 1
-    assert "scratchpad run budget is exhausted" in str(
-        continued.requests[1].messages[-1]
+    assert len(executions) == 2
+    continuation_observation = json.loads(
+        continued.requests[1].messages[-1]["content"][0]["content"]
     )
-    assert result.evidence["scratch_runs"] == 1
-    assert result.evidence["scratch_execution_refs"] == (
-        checkpoint["scratch_execution_refs"]
+    assert continuation_observation["scratch_run"] == 2
+    assert continuation_observation["remaining_scratch_runs"] == 0
+    assert continuation_observation["scratch_run_budget_scope"] == (
+        "workspace_segment"
     )
+    assert result.evidence["scratch_runs"] == 2
+    assert result.evidence["scratch_execution_refs"][0] == (
+        checkpoint["scratch_execution_refs"][0]
+    )
+    assert result.evidence["scratch_execution_refs"][1]["scratch_run"] == 2
     assert result.evidence["cumulative_tool_state_restored"] is True
 
 
