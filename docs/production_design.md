@@ -164,9 +164,11 @@ its consumed interfaces are stable. A bound replication report is exposed throug
 the same hash-bound read-only document tools but never as mathematical authority.
 Such runs may falsify theory but cannot satisfy frozen confirmatory gates. The same model may atomically import selected exact UTF-8 source modules, configuration, fixtures, or text data from either previously completed commit/path/hash-bound public reads or an observed evaluator-approved frozen snapshot; any failed identity check leaves the project unchanged, and one complete project hash binds every imported file through execution and independent review. For evaluator-approved replication, an exact public GitHub SHA may be fetched shallowly through an empty no-credential HTTPS-only Git home, or an existing local commit may be used; both enter the same complete blob/mode/hash-bound freezer and no-network copy-on-write executor. Snapshot-time Git object reads disable lazy fetch, credentials, prompts and transports, while missing blobs and escaping, dangling, directory, chained, or mutated links fail closed. Acquisition, snapshot, import, and execution remain observations, never semantic authority.
 
-For live providers with native client tools, the structured proposal carries only
-artifact identity and immutable bindings; source is authored in the same model-owned
-workspace. Submission and exact edits store complete Python or R source. The model
+For live providers with native client tools, fresh Algorithm planning envelopes carry
+only artifact identity and immutable bindings. Simulation instead starts from one
+runtime-owned source intent with no separate model planner. In both lanes, source is
+authored in the same retained model-owned workspace. Submission and exact edits store
+complete Python or R source. The model
 explicitly runs the current source for raw sandbox feedback, so it may batch coherent
 edits before an expensive simulation. A later `commit_scientific_source` requires an
 accepted hash-bound execution observation.
