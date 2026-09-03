@@ -1908,6 +1908,7 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
 def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
     initial = "theorem target : True := by\n  exact missing\n"
     revised = "theorem target : True := by\n  exact True.intro\n"
+    exact_goal = "⊢ True"
     backend = ScriptedLeanToolBackend(
         [
             _response(
@@ -1949,7 +1950,17 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
             "provider": "lean_lsp_mcp",
             "source_hash": stable_hash(source),
             "lean_project_hash": last_check.get("lean_project_hash", ""),
-            "goals": ["|- True"],
+            "rows": [
+                {
+                    "residual_goals": [exact_goal],
+                    "tool_call_trace": [
+                        {
+                            "tool": "lean_lsp_mcp.lean_goal",
+                            "goal_observations": [exact_goal],
+                        }
+                    ],
+                }
+            ],
             "executed_tools": ["lean_lsp_mcp.lean_goal"],
         }
 
@@ -1973,6 +1984,13 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
 
     assert inspections[0][0] == initial
     assert inspections[0][1]["source_hash"] == stable_hash(initial)
+    retained_observation = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )["observation"]
+    assert retained_observation["rows"][0]["residual_goals"] == [exact_goal]
+    assert retained_observation["rows"][0]["tool_call_trace"][0][
+        "goal_observations"
+    ] == [exact_goal]
     assert result.lean_source == revised
     assert result.evidence["lean_state_inspections"] == 1
     assert "inspect_lean_state" in result.evidence["tool_names"]

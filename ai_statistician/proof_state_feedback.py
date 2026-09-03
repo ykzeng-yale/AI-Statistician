@@ -88,7 +88,6 @@ def bind_candidate_axiom_audit_to_proof_state_feedback(
             row,
             attempt_status="local_lean_untrusted_axioms",
             diagnostics=tuple(dict.fromkeys((*row.diagnostics, detail))),
-            residual_goals=tuple(dict.fromkeys((*row.residual_goals, detail))),
             route_revision_recommended=True,
         )
         for row in rows
@@ -352,7 +351,6 @@ class LocalLeanProofStateFeedbackProvider:
     def _inspect_subclaim(self, subclaim: FormalSubclaim) -> ProofStateFeedbackRow:
         statement = str(subclaim.lean_statement or "")
         diagnostics: list[str] = []
-        residual_goals: list[str] = []
         attempt_status = ""
         checked = False
         returncode: int | None = None
@@ -369,12 +367,10 @@ class LocalLeanProofStateFeedbackProvider:
             attempt_status = "missing_lean_statement"
             diagnostics.append("subclaim has no Lean statement to inspect")
             requested_tools = ("lean_diagnostic_messages", "formalizer_author_lean")
-            residual_goals.extend(_residual_goals_for_subclaim(subclaim, "missing Lean statement"))
         elif not self.lean_command:
             attempt_status = "local_lean_unavailable"
             diagnostics.append("local Lean command unavailable; configure lake/lean before live proof-state diagnostics")
             requested_tools = ("lean_diagnostic_messages", "lean_goal")
-            residual_goals.extend(_residual_goals_for_subclaim(subclaim, "local Lean unavailable"))
         else:
             result = self._run_local_lean(statement)
             checked = True
@@ -401,18 +397,11 @@ class LocalLeanProofStateFeedbackProvider:
                     "lean_multi_attempt",
                     "local_lean_or_axle_rerun",
                 )
-                residual_goals.extend(
-                    _residual_goals_for_subclaim(
-                        subclaim,
-                        str(result.get("first_error") or "local Lean failed"),
-                    )
-                )
             else:
                 requested_tools = (
                     "lean_diagnostic_messages",
                     "local_lean_or_axle_rerun",
                 )
-        residual_goals = sorted(dict.fromkeys(goal for goal in residual_goals if goal))
         return ProofStateFeedbackRow(
             schema_version=1,
             feedback_id="proof_state_feedback:" + stable_hash(
@@ -421,7 +410,7 @@ class LocalLeanProofStateFeedbackProvider:
                     subclaim.proof_obligation_id or "",
                     attempt_status,
                     diagnostics[:3],
-                    residual_goals[:5],
+                    (),
                 ]
             )[:20],
             subclaim_id=subclaim.id,
@@ -437,7 +426,7 @@ class LocalLeanProofStateFeedbackProvider:
             requested_tools=requested_tools,
             attempt_status=attempt_status,
             diagnostics=tuple(diagnostics or ["no proof-state diagnostic emitted"]),
-            residual_goals=tuple(residual_goals),
+            residual_goals=(),
             route_revision_recommended=attempt_status
             in {
                 "local_lean_failed",
@@ -710,6 +699,14 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
             artifact_path,
             compiler_diagnostics=base.diagnostics,
         )
+        residual_goals = tuple(
+            dict.fromkeys(
+                goal
+                for trace in traces
+                for goal in trace.get("goal_observations", []) or []
+                if isinstance(goal, str) and goal.strip()
+            )
+        )
         diagnostics = tuple(
             item
             for item in (
@@ -746,6 +743,7 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 )
             ),
             diagnostics=diagnostics,
+            residual_goals=residual_goals,
             executed_tools=tuple(
                 [
                     *base.executed_tools,
@@ -879,23 +877,6 @@ def proof_state_feedback_row_to_json(row: ProofStateFeedbackRow) -> dict[str, An
     return asdict(row)
 
 
-def _residual_goals_for_subclaim(subclaim: FormalSubclaim, reason: str) -> list[str]:
-    rows: list[str] = []
-    if subclaim.gap_reason:
-        rows.append(str(subclaim.gap_reason))
-    rows.extend(str(error) for error in subclaim.errors[:3])
-    if subclaim.proof_dependencies:
-        rows.append("review proof dependencies: " + ", ".join(subclaim.proof_dependencies[:5]))
-    if subclaim.primitive_formal_source_hits:
-        rows.append(
-            "bridge primitives: "
-            + ", ".join(sorted(str(key) for key in subclaim.primitive_formal_source_hits.keys())[:8])
-        )
-    if not rows:
-        rows.append(reason)
-    return rows
-
-
 def _diagnostic_lines(text: str, *, limit: int = 40) -> list[str]:
     """Bound Lean output without classifying its grammar or error semantics."""
 
@@ -948,7 +929,8 @@ def _openprover_mcp_event_trace(
     )
     error = event.get("error", {})
     result = event.get("result", {})
-    return {
+    goal_observations = _openprover_mcp_goal_observations(event)
+    trace = {
         "tool": "lean_lsp_mcp." + str(event.get("tool_name", "") or ""),
         "status": status,
         "artifact_path": artifact_path,
@@ -973,6 +955,44 @@ def _openprover_mcp_event_trace(
         },
         "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
     }
+    if goal_observations:
+        trace.update(
+            {
+                "goal_observations": goal_observations,
+                "goal_observations_hash": stable_hash(goal_observations),
+            }
+        )
+    return trace
+
+
+def _openprover_mcp_goal_observations(
+    event: Mapping[str, Any],
+) -> list[str]:
+    """Return exact goals from OpenProver's normalized lean_goal response."""
+
+    if (
+        str(event.get("tool_name", "") or "") != "lean_goal"
+        or not bool(event.get("ok", False))
+        or bool(event.get("timed_out", False))
+    ):
+        return []
+    result = event.get("result", {})
+    if not isinstance(result, Mapping):
+        return []
+    structured = result.get("structuredContent", {})
+    if isinstance(structured, Mapping):
+        for key in ("goals_before", "goals_after", "goals"):
+            goals = structured.get(key)
+            if isinstance(goals, Sequence) and not isinstance(goals, (str, bytes)):
+                observed = [
+                    goal for goal in goals if isinstance(goal, str) and goal.strip()
+                ]
+                if observed:
+                    return list(dict.fromkeys(observed))
+    text = result.get("text")
+    if isinstance(text, str) and text.strip():
+        return [text]
+    return []
 
 
 def _json_excerpt(payload: Mapping[str, Any] | dict[str, Any]) -> str:

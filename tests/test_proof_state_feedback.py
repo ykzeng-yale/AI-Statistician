@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import ai_statistician.proof_state_feedback as proof_state_module
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.proof_state_feedback import (
     LeanLspMcpProofStateFeedbackProvider,
     LocalLeanProofStateFeedbackProvider,
@@ -79,7 +82,127 @@ def test_axiom_audit_keeps_elaborated_placeholder_feedback_untrusted(
     assert bound[0].attempt_status == "local_lean_untrusted_axioms"
     assert bound[0].route_revision_recommended is True
     assert any("sorryAx" in value for value in bound[0].diagnostics)
-    assert any("untrusted dependencies" in value for value in bound[0].residual_goals)
+    assert bound[0].residual_goals == ()
+
+
+def test_local_provider_does_not_invent_residual_lean_goals(monkeypatch) -> None:
+    monkeypatch.setattr(
+        proof_state_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="Candidate.lean:2:3: error: unknown identifier 'missing'",
+        ),
+    )
+    provider = LocalLeanProofStateFeedbackProvider(lean_command=("lean",))
+
+    row = provider.inspect(
+        [
+            FormalSubclaim(
+                id="target",
+                title="Failed source inspection",
+                status="FAILED",
+                claim="Inspect the current model source.",
+                lean_statement="theorem target : True := by\n  exact missing\n",
+                gap_reason="a host-side gap label, not a Lean goal",
+                errors=["a prior error, not a Lean goal"],
+                proof_dependencies=["Example.helper"],
+            )
+        ]
+    )[0]
+
+    assert row.attempt_status == "local_lean_failed"
+    assert row.residual_goals == ()
+    assert any("unknown identifier" in value for value in row.diagnostics)
+
+
+def test_lsp_provider_promotes_only_exact_lean_goal_observations(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "LeanProject"
+    project.mkdir()
+    (project / "lean-toolchain").write_text("leanprover/lean4:test\n")
+    artifact = project / "Candidate.lean"
+    source = "theorem target (p : Prop) (hp : p) : p := by\n  exact missing\n"
+    artifact.write_text(source, encoding="utf-8")
+    exact_goal = "p : Prop\nhp : p\n⊢ p"
+
+    monkeypatch.setattr(
+        proof_state_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="Candidate.lean:2:9: error: unknown identifier 'missing'",
+        ),
+    )
+
+    def collect_transcript(**kwargs):
+        transcript = {
+            "events": [
+                {
+                    "tool_name": "lean_goal",
+                    "arguments": {"line": 2, "column": 9},
+                    "ok": True,
+                    "result": {
+                        "text": exact_goal,
+                        "structuredContent": {"goals_before": [exact_goal]},
+                    },
+                },
+                {
+                    "tool_name": "lean_diagnostic_messages",
+                    "arguments": {"start_line": 1, "end_line": 4},
+                    "ok": True,
+                    "result": {"text": "unknown identifier 'missing'"},
+                },
+                {
+                    "tool_name": "lean_goal",
+                    "arguments": {"line": 2, "column": 9},
+                    "ok": False,
+                    "result": {"text": "stale transport output must not be a goal"},
+                    "error": {"message": "transport closed"},
+                },
+            ]
+        }
+        Path(kwargs["out"]).write_text(json.dumps(transcript), encoding="utf-8")
+        return {
+            "trace_collection_mode": "live",
+            "mcp_client_restarts": 0,
+            "honesty_boundary": "route_evidence_only_not_kernel_verified",
+        }
+
+    provider = LeanLspMcpProofStateFeedbackProvider(
+        project_root=project,
+        lean_command=("lean",),
+        mcp_transcript_collector=collect_transcript,
+    )
+    row = provider.inspect(
+        [
+            FormalSubclaim(
+                id="target",
+                title="Exact goal inspection",
+                status="FAILED",
+                claim="Inspect the current model source.",
+                lean_statement=source,
+                artifact_path=str(artifact),
+                gap_reason="a host-side gap label, not a Lean goal",
+                errors=["a prior error, not a Lean goal"],
+            )
+        ]
+    )[0]
+
+    assert row.residual_goals == (exact_goal,)
+    assert all("host-side" not in value for value in row.residual_goals)
+    assert all("stale transport" not in value for value in row.residual_goals)
+    goal_trace = next(
+        trace
+        for trace in row.tool_call_trace
+        if trace.get("tool") == "lean_lsp_mcp.lean_goal"
+    )
+    assert goal_trace["goal_observations"] == [exact_goal]
+    assert goal_trace["goal_observations_hash"] == stable_hash([exact_goal])
 
 
 def test_indexed_dependency_source_is_inspectable_without_lsp(tmp_path) -> None:
