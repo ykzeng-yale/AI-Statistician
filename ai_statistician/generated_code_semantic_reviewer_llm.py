@@ -60,15 +60,14 @@ from .scientific_project import (
     scientific_project_hash,
 )
 
-GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 38
+GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 39
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 GENERATED_CODE_SEMANTIC_REVIEW_BOUNDARY = "Generated-code semantic review may reject an artifact, but is not acceptance or proof evidence."
-GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v16"
+GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_artifact_scoped_authority_v17"
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
-GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES = 6
-GENERATED_CODE_SEMANTIC_REVIEW_MAX_RESEARCH_SOURCE_CALLS = 8
+GENERATED_CODE_SEMANTIC_REVIEW_MAX_TOOL_CALLS = 24
 GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
     "in_scope": (
         "implemented statistical object and metric meaning", "declared assumptions and theory alignment",
@@ -840,11 +839,16 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             else {}
         )
         contract = question.estimator_execution_contract
-        contract_probe_target = str(contract.get("estimator_id", "") or "").strip() if isinstance(contract, Mapping) else ""
-        contract_probe_required = bool(frozen_estimator_execution_contract_clause_ids(contract) -
-                                       frozen_estimator_execution_contract_empirical_claim_ids(contract))
-        if contract_probe_target not in probe_targets:
-            contract_probe_target, contract_probe_required = "", False
+        contract_probe_target = (
+            str(contract.get("estimator_id", "") or "").strip()
+            if isinstance(contract, Mapping)
+            else ""
+        )
+        contract_probe_relevant = bool(
+            contract_probe_target in probe_targets
+            and frozen_estimator_execution_contract_clause_ids(contract)
+            - frozen_estimator_execution_contract_empirical_claim_ids(contract)
+        )
         refresh_targets: dict[str, dict[str, Any]] = {}
         if _active_prior_findings(review_material):
             for row in review_material.get("exact_executed_artifacts", []) or []:
@@ -884,7 +888,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     ),
                 }
         source_tools = research_source_client_tools() if research_sources else ()
-        source_budget = GENERATED_CODE_SEMANTIC_REVIEW_MAX_RESEARCH_SOURCE_CALLS if source_tools else 0
         source_descriptor = (
             research_sources.descriptor() if research_sources else {"configured": False}
         )
@@ -1000,19 +1003,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                             else ""
                         )
                         + (
-                            " Before ACCEPT, run at least one successful reviewer-authored "
-                            "executable-contract probe. Treat each public clause ID as an address, "
-                            "not an atomic coverage claim: independently decompose compound "
-                            "positive, malformed-input, boundary, transformation, and output "
-                            "obligations that the clause actually states. When public request "
-                            "fields or a closed-object clause specify rejection behavior, the probe "
-                            "must include representative malformed requests selected from every "
-                            "such field and the closed-object rule, call the exact candidate, and "
-                            "record that each expected rejection actually occurred. A valid-only "
-                            "probe or an in-domain boundary example does not test rejection or "
-                            "anti-coercion behavior. Do not infer an untested obligation from a "
-                            "neighboring passing example; record it as a finding instead of accepting."
-                            if contract_probe_required else ""
+                            " Decide whether an executable probe would materially improve your "
+                            "contract judgment. If you use one, choose cases that discriminate the "
+                            "exact public obligations, including malformed, boundary, or "
+                            "transformation behavior when relevant. Do not infer an untested "
+                            "obligation from a neighboring passing example."
+                            if contract_probe_relevant else ""
                         )
                         + " Prose alone cannot submit or accept a review."
                     ),
@@ -1077,8 +1073,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 RESEARCH_SOURCE_READ_TOOL,
             }:
                 assert research_sources is not None
-                if len(research_source_refs) >= source_budget:
-                    raise ClientToolInputError("review research source budget exhausted")
                 try:
                     observation, source_ref = execute_research_source_client_tool(
                         research_sources,
@@ -1133,8 +1127,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                     observation_key="current-generated-source:" + stable_hash(observation),
                 )
             if call.name == GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL:
-                if len(probe_executions) >= GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES:
-                    raise ClientToolInputError("review probe budget exhausted")
                 probe_input = dict(call.input)
                 required = {"artifact_id", "dependencies", "code", "seed", "replicates"}
                 if set(probe_input) != required:
@@ -1157,10 +1149,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 target = probe_targets.get(str(probe_input["artifact_id"] or ""))
                 if not target or probe_sandbox_dir is None:
                     raise ClientToolInputError("unknown exact estimator probe target")
-                if contract_probe_required and target["artifact_id"] != contract_probe_target:
-                    raise ClientToolInputError(
-                        "contract probe must bind the advertised estimator target"
-                    )
                 probe_code = str(probe_input["code"] or "")
                 execution = execute_scientific_sandbox(
                     sandbox_dir=(
@@ -1234,7 +1222,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 }
                 probe_executions.append(record)
                 observation = dict(record)
-                if contract_probe_required and isinstance(contract, Mapping):
+                if (
+                    isinstance(contract, Mapping)
+                    and target["artifact_id"] == contract_probe_target
+                ):
                     observation["authoritative_estimator_execution_contract"] = deepcopy(dict(contract))
                     observation["review_instruction"] = (
                         "Reconcile this raw probe result and the exact source against every "
@@ -1265,28 +1256,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             errors = validate_generated_code_semantic_review_packet(
                 packet, review_material=review_material
             )
-            if any(row.get("failure_origin") ==
-                   "REVIEWER_PROBE_SOURCE_BEFORE_TARGET_INVOCATION"
-                for row in probe_executions
-            ) and not any(
-                row.get("target_source_invoked") is True or row.get(
-                    "failed_probe_is_target_source_evidence") is True
-                for row in probe_executions):
-                errors.append(
-                    "reviewer-owned probe failure before target invocation cannot support "
-                    "a source judgment; correct the probe and obtain a target observation "
-                    "before submitting"
-                )
-            if (
-                packet.get("overall_verdict") == "ACCEPT"
-                and contract_probe_required
-                and not any(
-                    row.get("target_artifact_id") == contract_probe_target
-                    and row.get("successful_exact_invocation") is True
-                    for row in probe_executions
-                )
-            ):
-                errors.append("ACCEPT requires a successful model-authored executable-contract probe")
             reviewed_text = str(payload.get("review_document", "") or "")
             for row in probe_executions:
                 result_hash = str(row.get("result_hash", "") or "")
@@ -1303,18 +1272,29 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             if errors:
                 last_errors = list(errors)
                 last_invalid_packet = deepcopy(packet)
+                validation_exhausted = len(validation_history) > max(
+                    0, int(self.config.max_validation_retries)
+                )
                 rejection = {
                     "ok": False,
                     "error": "generated_code_semantic_review_submission_rejected",
                     "validation_errors": list(errors[:12]),
                     "instruction": (
-                        "Re-submit the complete judgment using every validation "
+                        "The validation allowance is exhausted."
+                        if validation_exhausted
+                        else "Re-submit the complete judgment using every validation "
                         "observation; immutable reviewed artifacts cannot change."
                     ),
                 }
                 return ClientToolExecutionResult(
                     content=rejection,
                     is_error=True,
+                    terminal=validation_exhausted,
+                    terminal_payload=(
+                        {"validation_exhausted": True}
+                        if validation_exhausted
+                        else None
+                    ),
                     observation_key=(
                         "generated-code-semantic-review-rejected:"
                         + stable_hash(rejection)
@@ -1336,17 +1316,19 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 ),
             )
 
-        observation_budget = source_budget + len(refresh_targets) + (
-            GENERATED_CODE_SEMANTIC_REVIEW_MAX_PROBES if probe_targets else 0
+        tool_call_budget = max(
+            GENERATED_CODE_SEMANTIC_REVIEW_MAX_TOOL_CALLS,
+            len(refresh_targets)
+            + 1
+            + max(0, int(self.config.max_validation_retries)),
         )
         try:
             loop = run_bounded_client_tool_loop(
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=observation_budget + 1
-                + max(0, int(self.config.max_validation_retries)),
-                max_tool_calls=observation_budget + 1,
+                max_turns=tool_call_budget,
+                max_tool_calls=tool_call_budget,
                 max_no_progress_turns=1,
             )
         except ClientToolLoopError as exc:
@@ -1359,6 +1341,14 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 last_invalid_packet=last_invalid_packet,
             ) from exc
 
+        if loop.terminal_payload.get("validation_exhausted") is True:
+            raise PacketValidationError(
+                validation_label="generated-code semantic review packet",
+                attempts=len(validation_history),
+                errors=list(last_errors),
+                history=list(validation_history),
+                last_invalid_packet=last_invalid_packet,
+            )
         payload = loop.terminal_payload.get("review_payload", {})
         if not isinstance(payload, Mapping):
             raise PacketValidationError(

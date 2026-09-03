@@ -1506,10 +1506,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert probe_record["authority"].endswith("NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF")
 
 
-def test_reviewer_accept_requires_model_authored_executable_contract_probe(
-    monkeypatch,
-    tmp_path,
-) -> None:
+def test_reviewer_chooses_whether_to_probe_executable_contract(tmp_path) -> None:
     estimator_source = (
         "def run_estimator(request):\n"
         "    return {'estimate': float(request['value'])}\n"
@@ -1519,32 +1516,17 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
         source=estimator_source,
         dependencies=[],
     )
-    contract_probe = {
-        "artifact_id": "candidate",
-        "dependencies": [],
-        "code": (
-            "def run_sandbox(seed, replicates, estimators):\n"
-            "    return {'ok': estimators['candidate']({'value': 2})['estimate'] == 2.0}\n"
-        ),
-        "seed": 17,
-        "replicates": 1,
+    submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe exact source and execution are aligned.",
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No current-source defect was found.",
+            "evidence_refs": [],
+        },
     }
-
-    def submission(*result_hashes: str) -> dict[str, object]:
-        return {
-            "prior_finding_reviews": [],
-            "overall_verdict": "ACCEPT",
-            "review_document": (
-                "# Review\n\nThe exact contract probes completed: "
-                + ", ".join(result_hashes)
-            ),
-            "findings": [],
-            "source_revision_assessment": {
-                "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
-                "rationale": "No current-source defect was found.",
-                "evidence_refs": [],
-            },
-        }
 
     class ContractCoverageBackend:
         provider_name = "anthropic"
@@ -1554,19 +1536,112 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            sequence = (
-                (
-                    "submit_generated_code_semantic_review",
-                    submission(),
+            name = "submit_generated_code_semantic_review"
+            call_id = "review-call-1"
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call_id,
+                        "name": name,
+                        "input": submission,
+                    },
                 ),
-                ("run_exact_estimator_review_probe", contract_probe),
-                (
-                    "submit_generated_code_semantic_review",
-                    submission("probe-result-1"),
+                tool_calls=(
+                    ClientToolCall(call_id=call_id, name=name, input=submission),
                 ),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
             )
-            name, payload = sequence[len(self.requests) - 1]
-            call_id = f"review-call-{len(self.requests)}"
+
+    backend = ContractCoverageBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=_question_with_estimator_contract(),
+        review_material=material,
+        trusted_lineage=_algorithm_lineage(),
+        probe_sandbox_dir=tmp_path,
+    )
+
+    probe_schema = next(
+        tool.input_schema
+        for tool in backend.requests[0].tools
+        if tool.name == "run_exact_estimator_review_probe"
+    )
+    assert "tested_contract_clause_ids" not in probe_schema["required"]
+    assert "tested_contract_clause_ids" not in probe_schema["properties"]
+    assert "Decide whether an executable probe would materially improve" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert "Do not infer an untested obligation" in str(
+        backend.requests[0].messages[0]["content"]
+    )
+    assert len(backend.requests) == 1
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["client_tool_loop"]["validation_submissions"] == 1
+    assert packet["client_tool_loop"]["review_probe_executions"] == []
+
+
+def test_reviewer_allocates_shared_budget_across_more_than_six_probes(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    source = (
+        "def run_estimator(request):\n"
+        "    return {'estimate': float(request['value'])}\n"
+    )
+    material = _algorithm_review_material(
+        language="python",
+        source=source,
+        dependencies=[],
+    )
+    result_hashes = [f"probe-result-{index}" for index in range(1, 8)]
+    submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\n" + "\n".join(result_hashes),
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The exact source and observations are aligned.",
+            "evidence_refs": [],
+        },
+    }
+
+    class SevenProbeBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            index = len(self.requests)
+            if index <= 7:
+                name = "run_exact_estimator_review_probe"
+                payload = {
+                    "artifact_id": "candidate",
+                    "dependencies": [],
+                    "code": (
+                        "def run_sandbox(seed, replicates, estimators):\n"
+                        f"    return {{'case': {index}, 'value': "
+                        "estimators['candidate']({'value': 2})['estimate']}}\n"
+                    ),
+                    "seed": index,
+                    "replicates": 1,
+                }
+            else:
+                name = "submit_generated_code_semantic_review"
+                payload = submission
+            call_id = f"review-call-{index}"
             return ClientToolTurnResponse(
                 content_blocks=(
                     {
@@ -1592,16 +1667,17 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
         index = len(executions)
         return SimpleNamespace(
             status="EXECUTED",
-            metrics={"ok": True},
+            metrics={"case": index, "value": 2.0},
             errors=(),
             stdout_summary="",
             stderr_summary="",
             estimator_binding_errors=(),
             estimator_runtime_failure_ids=(),
             estimator_invocation_counts={"candidate": 1},
+            estimator_invocation_samples={},
             estimator_runtime_errors=(),
             request_hash=f"probe-request-{index}",
-            result_hash=f"probe-result-{index}",
+            result_hash=result_hashes[index - 1],
             code_path=str(tmp_path / f"probe-source-{index}"),
             result_path=str(tmp_path / f"probe-result-{index}"),
         )
@@ -1611,7 +1687,7 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
         "execute_scientific_sandbox",
         fake_execute_scientific_sandbox,
     )
-    backend = ContractCoverageBackend()
+    backend = SevenProbeBackend()
     packet = LLMGeneratedCodeSemanticReviewerAgent(
         provider=backend,
         config=GeneratedCodeSemanticReviewerConfig(
@@ -1620,49 +1696,18 @@ def test_reviewer_accept_requires_model_authored_executable_contract_probe(
             model_tier="haiku",
         ),
     ).review(
-        question=_question_with_estimator_contract(),
+        question=_question(),
         review_material=material,
         trusted_lineage=_algorithm_lineage(),
         probe_sandbox_dir=tmp_path,
     )
 
-    probe_schema = next(
-        tool.input_schema
-        for tool in backend.requests[0].tools
-        if tool.name == "run_exact_estimator_review_probe"
-    )
-    assert "tested_contract_clause_ids" not in probe_schema["required"]
-    assert "tested_contract_clause_ids" not in probe_schema["properties"]
-    assert "Treat each public clause ID as an address" in str(
-        backend.requests[0].messages[0]["content"]
-    )
-    assert "record it as a finding instead of accepting" in str(
-        backend.requests[0].messages[0]["content"]
-    )
-    assert "representative malformed requests" in str(
-        backend.requests[0].messages[0]["content"]
-    )
-    assert "selected from every such field and the closed-object rule" in str(
-        backend.requests[0].messages[0]["content"]
-    )
-    assert "valid-only probe" in str(backend.requests[0].messages[0]["content"])
-    assert "anti-coercion behavior" in str(
-        backend.requests[0].messages[0]["content"]
-    )
-    assert "ACCEPT requires a successful model-authored executable-contract probe" in str(
-        backend.requests[1].messages
-    )
-    probe_observation = str(backend.requests[2].messages[-1])
-    assert "authoritative_estimator_execution_contract" in probe_observation
-    assert "invariant.closed_object" in probe_observation
-    assert "probe again or report any gap" in probe_observation
+    assert len(backend.requests) == 8
+    assert len(packet["client_tool_loop"]["review_probe_executions"]) == 7
     assert packet["overall_verdict"] == "ACCEPT"
-    assert packet["client_tool_loop"]["validation_submissions"] == 2
-    probe_rows = packet["client_tool_loop"]["review_probe_executions"]
-    assert len(probe_rows) == 1
 
 
-def test_failed_reviewer_probe_must_be_corrected_before_source_judgment(
+def test_failed_reviewer_probe_remains_non_evidence_without_forcing_retry(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1682,43 +1727,12 @@ def test_failed_reviewer_probe_must_be_corrected_before_source_judgment(
         "seed": 17,
         "replicates": 4,
     }
-    successful_probe = {
-        "artifact_id": "candidate",
-        "dependencies": [],
-        "code": (
-            "def run_sandbox(seed, replicates, estimators):\n"
-            "    return {'candidate_observed_json_request': "
-            "estimators['candidate']({'value': [1, 2, 3]})['estimate'] == 2.0}\n"
-        ),
-        "seed": 17,
-        "replicates": 4,
-    }
-    invalid_submission = {
-        "prior_finding_reviews": [],
-        "overall_verdict": "REVISE",
-        "review_document": (
-            "# Review\n\nThe reviewer probe failed before the candidate was called."
-        ),
-        "findings": [
-            {
-                "severity": "high",
-                "category": "probe_failure",
-                "summary": "The reviewer probe did not run.",
-                "observed_behavior": "The reviewer harness failed before target invocation.",
-                "expected_behavior": "The reviewer probe should execute.",
-            }
-        ],
-        "source_revision_assessment": {
-            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
-            "rationale": "The producer should rewrite source despite no target observation.",
-        },
-    }
     accepted_submission = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
         "review_document": (
-            "# Review\n\nThe current estimator is aligned after target observation "
-            "`successful-result-hash`."
+            "# Review\n\nThe failed optional probe never reached the target and is not "
+            "source evidence. The exact source and prior execution are aligned."
         ),
         "findings": [],
         "source_revision_assessment": {
@@ -1738,8 +1752,6 @@ def test_failed_reviewer_probe_must_be_corrected_before_source_judgment(
             self.requests.append(request)
             sequence = (
                 ("run_exact_estimator_review_probe", failed_probe),
-                ("submit_generated_code_semantic_review", invalid_submission),
-                ("run_exact_estimator_review_probe", successful_probe),
                 ("submit_generated_code_semantic_review", accepted_submission),
             )
             name, payload = sequence[len(self.requests) - 1]
@@ -1757,49 +1769,23 @@ def test_failed_reviewer_probe_must_be_corrected_before_source_judgment(
                 metadata={"provider_stop_reason": "tool_use"},
             )
 
-    executions = iter(
-        (
-            SimpleNamespace(
-                status="FAILED",
-                metrics={},
-                errors=("run_sandbox signature mismatch",),
-                stdout_summary="",
-                stderr_summary="run_sandbox signature mismatch",
-                estimator_invocation_counts={},
-                estimator_invocation_samples={},
-                estimator_runtime_errors=(),
-                request_hash="failed-request-hash",
-                result_hash="",
-                code_path=str(tmp_path / "failed-probe-source"),
-                result_path=str(tmp_path / "failed-probe-result"),
-            ),
-            SimpleNamespace(
-                status="EXECUTED",
-                metrics={"candidate_observed_json_request": True},
-                errors=(),
-                stdout_summary="",
-                stderr_summary="",
-                estimator_invocation_counts={"candidate": 1},
-                estimator_invocation_samples={
-                    "candidate": [
-                        {
-                            "invocation_index": 1,
-                            "request": {"value": [1, 2, 3]},
-                            "response": {"estimate": 2.0},
-                        }
-                    ]
-                },
-                estimator_runtime_errors=(),
-                request_hash="successful-request-hash",
-                result_hash="successful-result-hash",
-                code_path=str(tmp_path / "successful-probe-source"),
-                result_path=str(tmp_path / "successful-probe-result"),
-            ),
-        )
+    execution = SimpleNamespace(
+        status="FAILED",
+        metrics={},
+        errors=("run_sandbox signature mismatch",),
+        stdout_summary="",
+        stderr_summary="run_sandbox signature mismatch",
+        estimator_invocation_counts={},
+        estimator_invocation_samples={},
+        estimator_runtime_errors=(),
+        request_hash="failed-request-hash",
+        result_hash="",
+        code_path=str(tmp_path / "failed-probe-source"),
+        result_path=str(tmp_path / "failed-probe-result"),
     )
 
     def fake_execute_scientific_sandbox(**kwargs):
-        return next(executions)
+        return execution
 
     monkeypatch.setattr(
         reviewer_module,
@@ -1821,26 +1807,22 @@ def test_failed_reviewer_probe_must_be_corrected_before_source_judgment(
         probe_sandbox_dir=tmp_path,
     )
 
-    assert len(backend.requests) == 4
+    assert len(backend.requests) == 2
     failed_observation = backend.requests[1].messages[-1]["content"][0]
     assert failed_observation["type"] == "tool_result"
     assert failed_observation["is_error"] is True
     assert "run_sandbox signature mismatch" in str(failed_observation)
-    rejection_observation = backend.requests[2].messages[-1]["content"][0]
-    assert rejection_observation["is_error"] is True
-    assert "cannot support a source judgment" in str(rejection_observation)
     assert packet["overall_verdict"] == "ACCEPT"
     loop = packet["client_tool_loop"]
-    assert loop["validation_submissions"] == 2
-    assert loop["validation_feedback_observed"] is True
+    assert loop["validation_submissions"] == 1
+    assert loop["validation_feedback_observed"] is False
     assert [row["status"] for row in loop["review_probe_executions"]] == [
         "FAILED",
-        "EXECUTED",
     ]
     assert [
         row["successful_exact_invocation"]
         for row in loop["review_probe_executions"]
-    ] == [False, True]
+    ] == [False]
     failed_record = loop["review_probe_executions"][0]
     assert failed_record["originating_tool_call_id"] == "review-call-1"
     assert failed_record["failure_origin"] == (
@@ -1851,16 +1833,6 @@ def test_failed_reviewer_probe_must_be_corrected_before_source_judgment(
     assert failed_record["authority"].endswith(
         "NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF"
     )
-    successful_record = loop["review_probe_executions"][1]
-    assert successful_record["target_request_boundary"]["observed_samples"] == {
-        "candidate": [
-            {
-                "invocation_index": 1,
-                "request": {"value": [1, 2, 3]},
-                "response": {"estimate": 2.0},
-            }
-        ]
-    }
 
 
 @pytest.mark.parametrize("tamper_hash", [False, True])
