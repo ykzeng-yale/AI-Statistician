@@ -1,5 +1,5 @@
 {
-  "schema_version": 383,
+  "schema_version": 384,
   "updated_at": "2026-09-03",
   "role": "sole main responsible worker",
   "active_branch": "codex/runtime-eval-alignment-20260625",
@@ -7,6 +7,17 @@
   "upstream_lean_rag_head": "4cec7860",
   "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
   "goal_status": "active",
+  "latest_openai_codex_upstream_refresh": {
+    "official_codex_reference_head": "728cb12fe5794b0c3a8e776fb4994b1650b973a8",
+    "previous_audited_head": "8ff74cc9b11ac54c4c4446ef60a87b49ae657a1f",
+    "upstream_delta": "The only new official-main commit exposes thread originators through the App Server API. The audited core session, tool router, compaction, detached-review, Guardian, and multi-agent paths are tree-identical to the previous pin.",
+    "adoption_decision": "Keep the existing native exact-Haiku retained client-tool loop and sole AgentRuntime. No Codex Core, App Server, SDK, provider transport, thread store, Guardian, worktree manager, multi-agent scheduler, wrapper, dependency, or new abstraction is justified by this delta.",
+    "collaboration_boundary": "Theory, Python/R, Simulation, Lean, and independent review remain separate hash-bound workspaces over one shared inner loop. Raw local observations return to the same source owner; only typed artifact references and explicit AgentTasks cross workspaces; Architect handles initial intent, genuine cross-artifact conflicts, resource allocation, and stopping rather than routine compiler or reviewer traffic.",
+    "verification_scope": "Read-only upstream source and tree-diff audit plus canonical documentation pin refresh; no product code, model call, evaluator call, task run, scientific result, proof, or capability credit changed.",
+    "trusted_capability_credit": "unchanged at 7/113",
+    "development_panel_exact_lean_closure": "unchanged at 0/2",
+    "boundary": "All 113 consumed tasks remain immutable. Task114 and the standalone betareg candidate remain sealed."
+  },
   "latest_lean_environment_observation_identity": {
     "code_commit": "f61e1c1d8f25aa54a5191be1a4ed28d1b1ef1e44",
     "official_codex_reference_head": "8ff74cc9b11ac54c4c4446ef60a87b49ae657a1f",
