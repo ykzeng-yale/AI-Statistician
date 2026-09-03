@@ -74,6 +74,63 @@ def read_hash_bound_utf8_file(
     return (content if not errors else ""), tuple(errors)
 
 
+def externalize_client_tool_text_documents(
+    value: Any,
+    *,
+    min_characters: int,
+    path_prefix: str,
+) -> tuple[Any, dict[str, str], list[dict[str, Any]]]:
+    """Replace long exact strings with content-addressed read/search references."""
+
+    if isinstance(min_characters, bool) or int(min_characters) < 1:
+        raise ValueError("client-tool document threshold must be positive")
+    prefix = PurePosixPath(str(path_prefix or "").strip())
+    if (
+        not str(prefix)
+        or prefix.is_absolute()
+        or any(part in {"", ".", ".."} for part in prefix.parts)
+    ):
+        raise ValueError("client-tool document prefix must be canonical and relative")
+    documents: dict[str, str] = {}
+    catalog: list[dict[str, Any]] = []
+
+    def externalize(current: Any, json_path: str) -> Any:
+        if isinstance(current, str) and len(current) >= int(min_characters):
+            document_path = (
+                prefix.as_posix()
+                + "/"
+                + stable_hash([json_path, stable_hash(current)])[:20]
+                + ".md"
+            )
+            documents[document_path] = current
+            row = {
+                "path": document_path,
+                "json_path": json_path,
+                "content_hash": stable_hash(current),
+                "character_count": len(current),
+                "line_count": max(1, len(current.splitlines())),
+            }
+            catalog.append(row)
+            return {
+                "client_tool_evidence_document_ref": document_path,
+                **row,
+                "content_externalized_without_loss": True,
+            }
+        if isinstance(current, Mapping):
+            return {
+                str(key): externalize(child, f"{json_path}/{key}")
+                for key, child in current.items()
+            }
+        if isinstance(current, (list, tuple)):
+            return [
+                externalize(child, f"{json_path}/{index}")
+                for index, child in enumerate(current)
+            ]
+        return deepcopy(current)
+
+    return externalize(value, "$"), documents, catalog
+
+
 class ClientToolLoopError(RuntimeError):
     def __init__(
         self,

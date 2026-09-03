@@ -23,6 +23,7 @@ from ai_statistician.formal_target_semantic_review_runtime import (
 from ai_statistician.formal_target_semantic_reviewer_llm import (
     FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS,
     FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA,
+    FORMAL_TARGET_SEMANTIC_REVIEW_SUBMIT_TOOL,
     FormalTargetSemanticReviewerConfig,
     LLMFormalTargetSemanticReviewerAgent,
     build_formal_target_semantic_review_prompt,
@@ -32,14 +33,16 @@ from ai_statistician.formalizer_llm import (
     FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
 )
 from ai_statistician.model_backend import (
+    ClientToolCall,
+    ClientToolTurnRequest,
+    ClientToolTurnResponse,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
-    PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY,
-    PROVIDER_STRUCTURED_OUTPUT_ON_RETRY_METADATA_KEY,
-    GeneratorRequest,
-    GeneratorResponse,
-    StaticJSONGeneratorBackend,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    theory_workspace_document_manifest,
+)
 
 
 def _question() -> OpenResearchQuestion:
@@ -93,31 +96,88 @@ def _reviewer(
     response: dict[str, Any] | None = None,
 ) -> LLMFormalTargetSemanticReviewerAgent:
     return LLMFormalTargetSemanticReviewerAgent(
-        provider=StaticJSONGeneratorBackend(
-            response if response is not None else _review_response(accepted=accepted)
+        provider=_ClientToolReviewBackend(
+            [response if response is not None else _review_response(accepted=accepted)]
         ),
         config=FormalTargetSemanticReviewerConfig(
-            provider_name="static",
+            provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
 
-class _CapturingBackend:
-    provider_name = "static"
+class _ClientToolReviewBackend:
+    provider_name = "anthropic"
 
-    def __init__(self, responses: list[dict[str, Any]]) -> None:
-        self.responses = list(responses)
-        self.requests: list[GeneratorRequest] = []
+    def __init__(
+        self,
+        actions: list[
+            dict[str, Any] | tuple[str, Mapping[str, Any]] | str
+        ],
+    ) -> None:
+        self.actions = list(actions)
+        self.requests: list[ClientToolTurnRequest] = []
 
-    def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+    def generate_client_tool_turn(
+        self,
+        request: ClientToolTurnRequest,
+    ) -> ClientToolTurnResponse:
         self.requests.append(request)
-        return GeneratorResponse(
-            text=json.dumps(self.responses.pop(0)),
+        if not self.actions:
+            return ClientToolTurnResponse(
+                content_blocks=(),
+                tool_calls=(),
+                text="The retained reviewer cannot produce a valid submission.",
+                provider=self.provider_name,
+                model=request.model,
+                metadata={
+                    "client_tool_transport": True,
+                    "tools_executed_by_backend": False,
+                    "provider_stop_reason": "end_turn",
+                },
+            )
+        action = self.actions.pop(0)
+        if action == "read_first_externalized_document":
+            prompt = str(request.messages[0]["content"])
+            payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+            document = payload["exact_evidence_document_catalog"][0]
+            tool_name = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
+            tool_input = {
+                "path": document["path"],
+                "line_start": 1,
+                "line_end": min(20, int(document["line_count"])),
+            }
+        elif isinstance(action, tuple):
+            tool_name, tool_input = action
+        else:
+            tool_name, tool_input = (
+                FORMAL_TARGET_SEMANTIC_REVIEW_SUBMIT_TOOL,
+                action,
+            )
+        call = ClientToolCall(
+            call_id=f"formal-review-call-{len(self.requests)}",
+            name=tool_name,
+            input=dict(tool_input),
+        )
+        return ClientToolTurnResponse(
+            content_blocks=(
+                {
+                    "type": "tool_use",
+                    "id": call.call_id,
+                    "name": call.name,
+                    "input": dict(call.input),
+                },
+            ),
+            tool_calls=(call,),
+            text="",
             provider=self.provider_name,
             model=request.model,
+            metadata={
+                "client_tool_transport": True,
+                "tools_executed_by_backend": False,
+                "provider_stop_reason": "tool_use",
+            },
         )
 
 
@@ -134,6 +194,7 @@ def _runtime_fixture(
     formal_only: bool = False,
     omit_theory_packet: bool = False,
     lean_project: Mapping[str, Any] | None = None,
+    theory_documents: Mapping[str, str] | None = None,
 ) -> tuple[
     FormalTargetSemanticReviewerRuntimeSubsystem,
     AgentTask,
@@ -210,6 +271,17 @@ def _runtime_fixture(
             }
         ],
     }
+    if theory_documents:
+        for relative_path, content in theory_documents.items():
+            target = tmp_path / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
+        theory_packet["theory_workspace_manifest"] = (
+            theory_workspace_document_manifest(
+                theory_documents,
+                workspace_dir=tmp_path,
+            )
+        )
     if formal_only or omit_theory_packet:
         theory_packet = {}
     proposal_packet = {
@@ -419,21 +491,21 @@ def test_semantic_review_binds_exact_model_authored_lean_project(
         accepted=True,
         lean_project=project,
     )
-    backend = _CapturingBackend([_review_response(accepted=True)])
+    backend = _ClientToolReviewBackend([_review_response(accepted=True)])
     subsystem.reviewer = LLMFormalTargetSemanticReviewerAgent(
         provider=backend,
         config=FormalTargetSemanticReviewerConfig(
-            provider_name="static",
+            provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
     result = subsystem.run(task, blackboard)
 
     assert result.status == "REROUTE"
-    payload = json.loads(backend.requests[0].user_prompt.split("\n\n", 1)[1])
+    initial_prompt = str(backend.requests[0].messages[0]["content"])
+    payload = json.loads(initial_prompt.rsplit("\n\n", 1)[1])
     exact = payload["review_material"]["exact_formal_target"]
     assert exact["exact_lean_project"] == project
     assert exact["exact_lean_project_hash"] == project["project_hash"]
@@ -566,7 +638,7 @@ def test_invalid_observation_packet_fails_closed_without_owner_fallback(
     failure = _artifact_of_kind(
         result, "RuntimeFormalTargetSemanticReviewValidationFailure"
     )
-    assert failure["llm_packet_regeneration_history"]
+    assert failure["retained_reviewer_history"]
     assert failure["last_invalid_packet"]["findings"][0][
         "observed_behavior"
     ] == "The conclusion proves only a weaker claim."
@@ -623,7 +695,7 @@ def test_prompt_requests_observations_and_forbids_runtime_repair_planning() -> N
 
     assert "observed_behavior" in prompt
     assert "expected_behavior" in prompt
-    assert "ArchitectCoordinator decides what acts next" in prompt
+    assert "Runtime handles the next typed task outside" in prompt
     assert "Do not write Lean" in prompt
     assert "missing proof" in prompt
     assert "not a semantic finding" in prompt
@@ -703,20 +775,20 @@ def test_revision_review_receives_prior_findings_and_formalizer_grounding(
         prior_review_feedback=prior_feedback,
         workspace_evidence=workspace_evidence,
     )
-    backend = _CapturingBackend([_review_response(accepted=False)])
+    backend = _ClientToolReviewBackend([_review_response(accepted=False)])
     subsystem.reviewer = LLMFormalTargetSemanticReviewerAgent(
         provider=backend,
         config=FormalTargetSemanticReviewerConfig(
-            provider_name="static",
+            provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
     subsystem.run(task, blackboard)
 
-    payload = json.loads(backend.requests[0].user_prompt.split("\n\n", 1)[1])
+    initial_prompt = str(backend.requests[0].messages[0]["content"])
+    payload = json.loads(initial_prompt.rsplit("\n\n", 1)[1])
     material = payload["review_material"]
     assert material["prior_semantic_review_observation"]["findings"] == (
         prior_feedback["findings"]
@@ -752,6 +824,153 @@ def test_dimension_schema_uses_required_provider_safe_slots() -> None:
     assert "dimension" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA["$defs"][
         "dimension_review"
     ]["properties"]
+
+
+def test_formal_target_review_reports_every_material_finding_without_cap() -> None:
+    response = _review_response(accepted=False)
+    response["findings"] = [
+        {
+            **response["findings"][0],
+            "summary": f"Material semantic defect {index}",
+            "observed_behavior": f"Observed defect {index}",
+        }
+        for index in range(12)
+    ]
+    backend = _ClientToolReviewBackend([response])
+    agent = LLMFormalTargetSemanticReviewerAgent(
+        provider=backend,
+        config=FormalTargetSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+        ),
+    )
+    packet = agent.review(
+        question=_question(),
+        review_material={"exact_formal_target": {"source": "theorem t : True"}},
+        trusted_lineage={
+            "work_order_id": "work-order",
+            "work_order_hash": "work-order-hash",
+            "source_task_id": "source-task",
+            "source_subsystem": "FormalizationEvaluator",
+            "candidate_materialization_id": "materialization",
+            "candidate_materialization_hash": "materialization-hash",
+            "semantic_authority_mode": "theory_derivation_packet",
+            "semantic_authority_hash": "theory-packet-hash",
+            "theory_packet_id": "theory-packet",
+            "theory_packet_hash": "theory-packet-hash",
+            "proposal_packet_id": "proposal-packet",
+            "proposal_packet_hash": "proposal-packet-hash",
+            "candidate_id": "candidate",
+            "candidate_source_hash": "candidate-source-hash",
+            "target_lean_declaration": "exact_source",
+            "target_theorem_statement_hash": "target-statement-hash",
+            "target_theorem_statement_hash_algorithm": "sha256",
+            "source_model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            "source_model_tier": "haiku",
+            "source_agent": "LLMFormalizerProofEngineerAgent",
+        },
+    )
+
+    assert "maxItems" not in FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA[
+        "properties"
+    ]["findings"]
+    assert len(packet["findings"]) == 12
+    assert validate_formal_target_semantic_review_packet(packet) == []
+
+
+def test_long_exact_evidence_is_read_inside_retained_reviewer_session() -> None:
+    long_source = "\n".join(
+        ["theorem exact_source : True := by trivial"]
+        + [f"-- exact semantic line {index}: " + ("x" * 80) for index in range(30)]
+    )
+    backend = _ClientToolReviewBackend(
+        ["read_first_externalized_document", _review_response(accepted=True)]
+    )
+    agent = LLMFormalTargetSemanticReviewerAgent(
+        provider=backend,
+        config=FormalTargetSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+        ),
+    )
+    packet = agent.review(
+        question=_question(),
+        review_material={
+            "exact_formal_target": {"exact_lean_source": long_source}
+        },
+        trusted_lineage={
+            "work_order_id": "work-order",
+            "work_order_hash": "work-order-hash",
+            "source_task_id": "source-task",
+            "source_subsystem": "FormalizationEvaluator",
+            "candidate_materialization_id": "materialization",
+            "candidate_materialization_hash": "materialization-hash",
+            "semantic_authority_mode": "theory_derivation_packet",
+            "semantic_authority_hash": "theory-packet-hash",
+            "theory_packet_id": "theory-packet",
+            "theory_packet_hash": "theory-packet-hash",
+            "proposal_packet_id": "proposal-packet",
+            "proposal_packet_hash": "proposal-packet-hash",
+            "candidate_id": "candidate",
+            "candidate_source_hash": "candidate-source-hash",
+            "target_lean_declaration": "exact_source",
+            "target_theorem_statement_hash": "target-statement-hash",
+            "target_theorem_statement_hash_algorithm": "sha256",
+            "source_model": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            "source_model_tier": "haiku",
+            "source_agent": "LLMFormalizerProofEngineerAgent",
+        },
+    )
+
+    transport = packet["client_tool_loop"]
+    assert transport["evidence_document_count"] == 1
+    assert transport["document_access_count"] == 1
+    assert transport["turns"] == 2
+    second_request = backend.requests[1]
+    assert "exact semantic line 0" in json.dumps(second_request.messages[-1])
+
+
+def test_runtime_supplies_hash_bound_theory_markdown_to_retained_reviewer(
+    tmp_path: Path,
+) -> None:
+    theory_content = "\n".join(
+        ["# Exact claim", "", "The target must preserve every assumption."]
+        + [f"Derivation line {index}: " + ("z" * 80) for index in range(30)]
+    )
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path,
+        accepted=True,
+        theory_documents={"derivations/exact-claim.md": theory_content},
+    )
+    backend = _ClientToolReviewBackend(
+        ["read_first_externalized_document", _review_response(accepted=True)]
+    )
+    subsystem.reviewer = LLMFormalTargetSemanticReviewerAgent(
+        provider=backend,
+        config=FormalTargetSemanticReviewerConfig(
+            provider_name="anthropic",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+        ),
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    review = _artifact_of_kind(result, "FormalTargetSemanticReviewPacket")
+    prompt = str(backend.requests[0].messages[0]["content"])
+    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    catalog = payload["exact_evidence_document_catalog"]
+    assert any(
+        row["json_path"]
+        == "$/authoritative_theory_documents/0/content"
+        for row in catalog
+    )
+    assert review["client_tool_loop"]["document_access_count"] == 1
+    assert theory_content.splitlines()[0] in json.dumps(
+        backend.requests[1].messages[-1]
+    )
 
 
 def test_required_slots_survive_anthropic_strict_transform() -> None:
@@ -804,17 +1023,18 @@ def test_slot_mapping_normalizes_without_model_copied_identity(
     )
 
 
-def test_reviewer_requests_native_schema_for_generation_and_regeneration() -> None:
+def test_invalid_submission_returns_to_same_retained_reviewer_session() -> None:
     invalid = _review_response(accepted=True)
     invalid["findings"] = _review_response(accepted=False)["findings"]
-    backend = _CapturingBackend([invalid, _review_response(accepted=True)])
+    backend = _ClientToolReviewBackend(
+        [invalid, _review_response(accepted=True)]
+    )
     agent = LLMFormalTargetSemanticReviewerAgent(
         provider=backend,
         config=FormalTargetSemanticReviewerConfig(
-            provider_name="static",
+            provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=1,
         ),
     )
     lineage = {
@@ -848,19 +1068,14 @@ def test_reviewer_requests_native_schema_for_generation_and_regeneration() -> No
 
     assert packet["overall_verdict"] == "ACCEPT"
     assert len(backend.requests) == 2
-    assert backend.requests[0].metadata[
-        PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
-    ] is True
-    assert backend.requests[0].metadata[
-        PROVIDER_STRUCTURED_OUTPUT_ON_RETRY_METADATA_KEY
-    ] is True
-    assert backend.requests[1].metadata[
-        PROVIDER_STRUCTURED_OUTPUT_METADATA_KEY
-    ] is True
-    assert "all-PASS semantic reviews must leave findings empty" in (
-        backend.requests[1].user_prompt
+    assert backend.requests[0].tools == backend.requests[1].tools
+    assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
+    assert len(backend.requests[1].messages) == 3
+    returned_observation = json.dumps(
+        backend.requests[1].messages[-1],
+        sort_keys=True,
     )
-    assert backend.requests[1].schema == backend.requests[0].schema
-    assert backend.requests[1].metadata["structured_output_retry_mode"] == (
-        "full_packet_regeneration"
-    )
+    assert "client_tool_input_rejected" in returned_observation
+    assert "all-PASS semantic reviews must leave findings empty" in returned_observation
+    assert packet["client_tool_loop"]["turns"] == 2
+    assert packet["client_tool_loop"]["full_packet_regeneration_used"] is False

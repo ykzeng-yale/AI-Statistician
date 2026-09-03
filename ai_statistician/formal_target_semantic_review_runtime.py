@@ -40,6 +40,7 @@ from .research_schema import (
     research_question_payload,
 )
 from .runtime_research_problem_adapter import is_frozen_formal_only_question
+from .theory_workspace import load_theory_workspace_document_rows
 
 
 RUNTIME_SCHEMA_VERSION = 1
@@ -594,6 +595,15 @@ def _runtime_formal_target_semantic_review_material(
     proposal_packet: Mapping[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
+    try:
+        authoritative_theory_documents = (
+            load_theory_workspace_document_rows(theory_packet)
+            if theory_packet
+            else []
+        )
+    except ValueError as exc:
+        authoritative_theory_documents = []
+        errors.append(f"formal-target authoritative theory documents invalid: {exc}")
     authority_mode = str(work_order.get("semantic_authority_mode", "") or "")
     candidate_id = str(work_order.get("candidate_id", "") or "")
     candidate_path = str(work_order.get("candidate_artifact_path", "") or "")
@@ -747,6 +757,7 @@ def _runtime_formal_target_semantic_review_material(
             "operator_frozen_question_and_target": frozen_authority,
         },
         "theory_derivation_packet": dict(theory_packet),
+        "authoritative_theory_documents": authoritative_theory_documents,
         "formalizer_proposal_packet": dict(proposal_packet),
         "bound_target_contract": {
             "candidate_id": candidate_id,
@@ -1071,7 +1082,6 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                     "overall_verdict",
                     "dimension_reviews",
                     "findings",
-                    "routing_authority",
                     "runtime_selected_owner",
                     "proof_evidence_status",
                 )
@@ -1103,8 +1113,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                 "materialization_hash": stable_hash(materialization),
                 "validation_label": exc.validation_label,
                 "validation_errors": list(exc.errors),
-                "validation_attempts": exc.attempts,
-                "llm_packet_regeneration_history": [
+                "reviewer_turns": exc.attempts,
+                "retained_reviewer_history": [
                     dict(row) for row in exc.history
                 ],
                 "last_invalid_packet_available": bool(last_invalid_packet),
@@ -1126,8 +1136,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
-                    "The independent formal-target reviewer exhausted typed packet "
-                    "regeneration without a contract-valid observation packet."
+                    "The retained independent formal-target reviewer stopped without "
+                    "a contract-valid observation submission."
                 ),
                 produced_artifacts={
                     materialization_id: materialization,
@@ -1141,8 +1151,8 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
                             "work_order_id": work_order_id,
                             "failure_id": failure_id,
                             "validation_errors": list(exc.errors),
-                            "validation_attempts": exc.attempts,
-                                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+                            "reviewer_turns": exc.attempts,
+                            "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },
                     ),
                 ),

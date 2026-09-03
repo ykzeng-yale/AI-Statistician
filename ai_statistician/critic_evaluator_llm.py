@@ -12,6 +12,7 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    externalize_client_tool_text_documents,
     read_hash_bound_utf8_file,
     run_bounded_client_tool_loop,
 )
@@ -123,48 +124,6 @@ class LLMCriticEvaluatorAgent:
         )
 
 
-def _externalize_critic_evidence_documents(
-    value: Any,
-) -> tuple[Any, dict[str, str], list[dict[str, Any]]]:
-    """Replace long exact text with references available through read/search tools."""
-
-    documents: dict[str, str] = {}
-    catalog: list[dict[str, Any]] = []
-
-    def externalize(current: Any, path: str) -> Any:
-        if isinstance(current, str) and len(current) >= CRITIC_EVIDENCE_EXTERNALIZE_MIN_CHARS:
-            document_path = (
-                "evidence/" + stable_hash([path, stable_hash(current)])[:20] + ".md"
-            )
-            documents[document_path] = current
-            row = {
-                "path": document_path,
-                "json_path": path,
-                "content_hash": stable_hash(current),
-                "character_count": len(current),
-                "line_count": max(1, len(current.splitlines())),
-            }
-            catalog.append(row)
-            return {
-                "critic_evidence_document_ref": document_path,
-                **row,
-                "content_externalized_without_loss": True,
-            }
-        if isinstance(current, Mapping):
-            return {
-                str(key): externalize(child, f"{path}/{key}")
-                for key, child in current.items()
-            }
-        if isinstance(current, (list, tuple)):
-            return [
-                externalize(child, f"{path}/{index}")
-                for index, child in enumerate(current)
-            ]
-        return deepcopy(current)
-
-    return externalize(value, "$"), documents, catalog
-
-
 def _run_critic_client_tool_review(
     *,
     provider: GeneratorBackend,
@@ -179,11 +138,13 @@ def _run_critic_client_tool_review(
     environment_feedback: Mapping[str, Any],
     request_model: str,
 ) -> dict[str, Any]:
-    compact_material, documents, catalog = _externalize_critic_evidence_documents(
+    compact_material, documents, catalog = externalize_client_tool_text_documents(
         {
             "canonical_evidence_view": deepcopy(dict(canonical_evidence_view)),
             "environment_feedback": deepcopy(dict(environment_feedback)),
-        }
+        },
+        min_characters=CRITIC_EVIDENCE_EXTERNALIZE_MIN_CHARS,
+        path_prefix="evidence",
     )
     compact_view = dict(compact_material["canonical_evidence_view"])
     compact_feedback = dict(compact_material["environment_feedback"])

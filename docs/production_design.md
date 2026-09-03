@@ -282,8 +282,8 @@ formal gap. A revision gap preserves exact target provenance, clears proof-candi
 source fields, and remains non-proof. Independent review must distinguish a true
 missing foundation from a fixable API or modeling error. Temporary admitted bodies or Lean `#check`/`#print` commands are diagnostic only: Lean reports elaboration and axioms, and only a complete axiom-clean source may enter review or promotion.
 
-Every changed statement receives independent target-semantic review. When a
-candidate is rejected, it cannot be handed back unchanged after temporary edits:
+Every changed statement receives independent target-semantic review in one retained
+read/search/submit session over exact Lean evidence and hash-verified Theory documents. When a candidate is rejected, it cannot be handed back unchanged after temporary edits:
 the same Formalizer receives a hash-bound observation and must submit a changed
 target/support project or report a grounded formal gap. It can count as theorem evidence
 only when all of the following bind to the same artifact:

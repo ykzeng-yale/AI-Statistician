@@ -726,7 +726,7 @@ SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
     *GENERATOR_PROVIDER_CHOICES,
     "none",
 )
-SOURCE_WORKSPACE_PROVIDER_CHOICES = (
+CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES = (
     "same",
     "anthropic",
     "none",
@@ -962,14 +962,15 @@ def _build_formalizer_agent_from_args(args: argparse.Namespace, *, default_model
         return None
     if provider_choice == "same":
         provider_choice = getattr(args, "provider", _default_live_generator_provider())
-    static_file = getattr(args, "formalizer_static_response_file", "")
-    if provider_choice == "static" and not static_file:
-        return None
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
-        static_response_file=static_file,
+        static_response_file="",
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        raise ValueError(
+            "Formalizer requires a backend with native client-tool turns"
+        )
     model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -996,14 +997,15 @@ def _build_critic_evaluator_agent_from_args(args: argparse.Namespace, *, default
         return None
     if provider_choice == "same":
         provider_choice = getattr(args, "provider", _default_live_generator_provider())
-    static_file = getattr(args, "critic_static_response_file", "")
-    if provider_choice == "static" and not static_file:
-        return None
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
-        static_response_file=static_file,
+        static_response_file="",
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        raise ValueError(
+            "CriticEvaluator requires a backend with native client-tool turns"
+        )
     model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -1038,18 +1040,15 @@ def _build_generated_code_semantic_reviewer_agent_from_args(
         return None
     if provider_choice == "same":
         provider_choice = getattr(args, "provider", _default_live_generator_provider())
-    static_file = getattr(
-        args,
-        "generated_code_semantic_reviewer_static_response_file",
-        "",
-    )
-    if provider_choice == "static" and not static_file:
-        return None
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
-        static_response_file=static_file,
+        static_response_file="",
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        raise ValueError(
+            "GeneratedCodeSemanticReviewer requires a backend with native client-tool turns"
+        )
     model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -1097,18 +1096,15 @@ def _build_formal_target_semantic_reviewer_agent_from_args(
         return None
     if provider_choice == "same":
         provider_choice = getattr(args, "provider", _default_live_generator_provider())
-    static_file = getattr(
-        args,
-        "formal_target_semantic_reviewer_static_response_file",
-        "",
-    )
-    if provider_choice == "static" and not static_file:
-        return None
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
-        static_response_file=static_file,
+        static_response_file="",
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        raise ValueError(
+            "FormalTargetSemanticReviewer requires a backend with native client-tool turns"
+        )
     model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -4372,30 +4368,6 @@ def _research_agent_runtime_static_subsystem_config_errors(
             "ArchitectCoordinator",
             "--architect-static-response-file",
         ),
-        (
-            "formalizer_provider",
-            "formalizer_static_response_file",
-            "Formalizer/ProofEngineer",
-            "--formalizer-static-response-file",
-        ),
-        (
-            "critic_evaluator_provider",
-            "critic_static_response_file",
-            "CriticEvaluator",
-            "--critic-static-response-file",
-        ),
-        (
-            "generated_code_semantic_reviewer_provider",
-            "generated_code_semantic_reviewer_static_response_file",
-            "GeneratedCodeSemanticReviewer",
-            "--generated-code-semantic-reviewer-static-response-file",
-        ),
-        (
-            "formal_target_semantic_reviewer_provider",
-            "formal_target_semantic_reviewer_static_response_file",
-            "FormalTargetSemanticReviewer",
-            "--formal-target-semantic-reviewer-static-response-file",
-        ),
     )
     main_provider = str(getattr(args, "provider", "") or "")
     for provider_field, static_file_field, subsystem, flag in subsystem_static_files:
@@ -6601,7 +6573,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--simulation-engineer-provider",
-        choices=SOURCE_WORKSPACE_PROVIDER_CHOICES,
+        choices=CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES,
         default="same",
         help=(
             "live backend for the retained SimulationEngineer source workspace; "
@@ -6617,7 +6589,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--simulation-temperature", type=float, default=0.1)
     research_agent_runtime.add_argument(
         "--algorithm-engineer-provider",
-        choices=SOURCE_WORKSPACE_PROVIDER_CHOICES,
+        choices=CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES,
         default="same",
         help=(
             "live backend for the retained AlgorithmEngineer source workspace; "
@@ -6633,22 +6605,17 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--algorithm-temperature", type=float, default=0.1)
     research_agent_runtime.add_argument(
         "--formalizer-provider",
-        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        choices=CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES,
         default="same",
         help=(
-            "generator backend for Formalizer/ProofEngineer proposals; same reuses "
-            "the main live provider, while static requires --formalizer-static-response-file"
+            "live backend for the retained Formalizer Lean workspace; same reuses "
+            "the main live provider"
         ),
-    )
-    research_agent_runtime.add_argument(
-        "--formalizer-static-response-file",
-        default="",
-        help="JSON Formalizer/ProofEngineer response to replay when --formalizer-provider static",
     )
     research_agent_runtime.add_argument(
         "--formalizer-llm-model",
         default="",
-        help="model name for Formalizer/ProofEngineer proposals; Anthropic defaults to Claude Sonnet 4.6",
+        help="model name for the retained Formalizer Lean workspace",
     )
     research_agent_runtime.add_argument("--formalizer-max-tokens", type=int, default=6000)
     research_agent_runtime.add_argument("--formalizer-temperature", type=float, default=0.1)
@@ -6805,23 +6772,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--critic-evaluator-provider",
-        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        choices=CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES,
         default="same",
         help=(
-            "generator backend for CriticEvaluator boundary-audit proposals; same "
-            "reuses the main live provider, while static requires --critic-static-response-file"
+            "live backend for the retained Critic evidence-review workspace; same "
+            "reuses the main live provider"
         ),
-    )
-    research_agent_runtime.add_argument(
-        "--critic-static-response-file",
-        default="",
-        help="JSON CriticEvaluator response to replay when --critic-evaluator-provider static",
     )
     research_agent_runtime.add_argument(
         "--critic-llm-model",
         default="",
         help=(
-            "model name for CriticEvaluator proposals; production Anthropic "
+            "model name for the retained Critic reviewer; production Anthropic "
             "defaults to Claude Sonnet, while live evaluation modes pin every "
             "agent to the current Haiku snapshot"
         ),
@@ -6830,20 +6792,12 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--critic-temperature", type=float, default=0.1)
     research_agent_runtime.add_argument(
         "--generated-code-semantic-reviewer-provider",
-        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        choices=CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES,
         default="none",
         help=(
             "independent generator backend for semantic review of exact executed "
             "generated code; live evaluations use the independent same-provider "
             "current Haiku model"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--generated-code-semantic-reviewer-static-response-file",
-        default="",
-        help=(
-            "JSON semantic-review response to replay when "
-            "--generated-code-semantic-reviewer-provider static"
         ),
     )
     research_agent_runtime.add_argument(
@@ -6877,20 +6831,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--formal-target-semantic-reviewer-provider",
-        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        choices=CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES,
         default="none",
         help=(
             "independent generator backend for mathematical review of exact Lean "
             "theorem targets before proof search; live evaluations are pinned to "
             "the current Haiku model"
-        ),
-    )
-    research_agent_runtime.add_argument(
-        "--formal-target-semantic-reviewer-static-response-file",
-        default="",
-        help=(
-            "JSON formal-target review response to replay when "
-            "--formal-target-semantic-reviewer-provider static"
         ),
     )
     research_agent_runtime.add_argument(

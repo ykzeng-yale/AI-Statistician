@@ -3751,9 +3751,17 @@ def test_research_architect_cli_binds_explicit_haiku_to_serious_mode(
         ("--algorithm-engineer-provider", "openai"),
         ("--simulation-engineer-provider", "static"),
         ("--simulation-engineer-provider", "openai"),
+        ("--formalizer-provider", "static"),
+        ("--formalizer-provider", "openai"),
+        ("--critic-evaluator-provider", "static"),
+        ("--critic-evaluator-provider", "openai"),
+        ("--generated-code-semantic-reviewer-provider", "static"),
+        ("--generated-code-semantic-reviewer-provider", "openai"),
+        ("--formal-target-semantic-reviewer-provider", "static"),
+        ("--formal-target-semantic-reviewer-provider", "openai"),
     ),
 )
-def test_retained_source_workspaces_reject_non_tool_providers(
+def test_retained_client_tool_workspaces_reject_non_tool_providers(
     provider_flag: str,
     provider_name: str,
 ) -> None:
@@ -3763,14 +3771,30 @@ def test_retained_source_workspaces_reject_non_tool_providers(
         )
 
 
-def test_same_source_workspace_provider_fails_closed_for_generator_only_main() -> None:
+def test_same_client_tool_workspace_provider_fails_closed_for_generator_only_main() -> None:
     args = build_parser().parse_args(
         ["research-agent-runtime", "--provider", "openai"]
     )
+    args.generated_code_semantic_reviewer_provider = "same"
+    args.formal_target_semantic_reviewer_provider = "same"
     with pytest.raises(ValueError, match="native client-tool turns"):
         _build_algorithm_engineer_agent_from_args(args, default_model="gpt-test")
     with pytest.raises(ValueError, match="native client-tool turns"):
         _build_simulation_engineer_agent_from_args(args, default_model="gpt-test")
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        _build_formalizer_agent_from_args(args, default_model="gpt-test")
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        _build_critic_evaluator_agent_from_args(args, default_model="gpt-test")
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        _build_generated_code_semantic_reviewer_agent_from_args(
+            args,
+            default_model="gpt-test",
+        )
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        _build_formal_target_semantic_reviewer_agent_from_args(
+            args,
+            default_model="gpt-test",
+        )
 
 
 def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3891,6 +3915,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert formal_target_reviewer is not None
     assert formal_target_reviewer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
     assert formal_target_reviewer.config.model_tier == "sonnet"
+    assert not hasattr(formal_target_reviewer.config, "max_validation_retries")
 
 
 def test_live_evaluation_builders_are_pinned_to_current_haiku(
@@ -3962,6 +3987,7 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert all(agent.config.model == expected_model for agent in agents)
     assert not hasattr(agents[1].config, "max_validation_retries")
     assert not hasattr(agents[2].config, "max_validation_retries")
+    assert not hasattr(agents[6].config, "max_validation_retries")
     assert agents[5].config.max_validation_retries == 1
     architect = agents[0]
     assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
