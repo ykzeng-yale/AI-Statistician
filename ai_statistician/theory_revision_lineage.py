@@ -482,15 +482,18 @@ def resolve_theory_developer_revision_parent_material(
         theory_packet_id=packet_id,
     )
     material["source_theory_packet_hash"] = expected_packet_hash
-    session_refs = [
-        deepcopy(dict(session_ref))
+    matching_workspace_evidence = [
+        artifact
         for artifact in artifacts.values()
         if isinstance(artifact, Mapping)
         and artifact.get("artifact_kind") == "TheoryDeveloperWorkspaceEvidence"
         and artifact.get("runtime_source_theory_packet_id") == packet_id
-        and artifact.get("runtime_source_theory_packet_hash")
-        == expected_packet_hash
-        and isinstance(
+        and artifact.get("runtime_source_theory_packet_hash") == expected_packet_hash
+    ]
+    session_refs = [
+        deepcopy(dict(session_ref))
+        for artifact in matching_workspace_evidence
+        if isinstance(
             (session_ref := artifact.get("client_tool_session_ref", {})),
             Mapping,
         )
@@ -502,6 +505,14 @@ def resolve_theory_developer_revision_parent_material(
         raise ValueError("theory revision parent has conflicting session references")
     if session_refs:
         material["parent_client_tool_session_ref"] = session_refs[-1]
+    scratch_ref_sets = [deepcopy(list(refs)) for artifact in matching_workspace_evidence
+                        if isinstance(
+                            (refs := artifact.get("scratch_execution_refs", [])), list)
+                        and refs]
+    if len({stable_hash(refs) for refs in scratch_ref_sets}) > 1:
+        raise ValueError("theory revision parent has conflicting scratch references")
+    if scratch_ref_sets:
+        material["parent_scratch_execution_refs"] = scratch_ref_sets[-1]
     return material
 
 

@@ -61,14 +61,6 @@ def is_explicit_task_family(value: Any) -> bool:
     )
 
 
-def explicit_task_family_list(values: Any) -> list[str]:
-    return [
-        task_family_value(value)
-        for value in compact_string_list(values)
-        if is_explicit_task_family(value)
-    ]
-
-
 def task_family_from_tags(tags: Any) -> str:
     for tag in compact_string_list(tags):
         value = task_family_value(tag)

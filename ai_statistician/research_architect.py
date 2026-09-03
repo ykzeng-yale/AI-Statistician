@@ -2490,6 +2490,10 @@ def build_theory_developer_revision_inputs(
             )
             else {}
         ),
+        "parent_scratch_execution_refs": deepcopy(list(
+            material.get("parent_scratch_execution_refs", []))
+            if isinstance(material.get("parent_scratch_execution_refs", []), list)
+            else []),
         "base_core_payload": base_core_payload,
         "base_core_payload_fingerprint": stable_hash(base_core_payload),
     }
@@ -3607,6 +3611,9 @@ def _generate_theory_workspace_revision(
         ),
         prior_workspace_checkpoint=(
             progress_checkpoint if progress_checkpoint else None
+        ),
+        prior_scratch_execution_refs=revision_inputs.get(
+            "parent_scratch_execution_refs", ()
         ),
         request_metadata={
             CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: research_workspace_authorization_fingerprint(

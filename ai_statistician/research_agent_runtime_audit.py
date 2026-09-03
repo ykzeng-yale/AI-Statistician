@@ -122,18 +122,6 @@ def _payload(row: Mapping[str, Any]) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _all_questions(
-    question_ids: Iterable[str],
-    rows_by_question: Mapping[str, list[Mapping[str, Any]]],
-    predicate: Callable[[Mapping[str, Any]], bool],
-) -> bool:
-    ids = list(question_ids)
-    return bool(ids) and all(
-        any(predicate(row) for row in rows_by_question.get(question_id, []))
-        for question_id in ids
-    )
-
-
 def _enabled_model_rows(manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     topology = manifest.get("llm_runtime_topology", {})
     rows = topology.get("llm_agents", []) if isinstance(topology, Mapping) else []
@@ -461,17 +449,6 @@ def _source_owner_revision_summary(
         valid_revisions,
         restored_requests,
         valid_questions,
-    )
-
-
-def _failed_algorithm(payload: Mapping[str, Any]) -> bool:
-    return bool(
-        _int(payload.get("n_generated_code_execution_failed")) > 0
-        or _int(payload.get("n_generated_code_metric_gate_failed")) > 0
-        or (
-            _int(payload.get("n_generated_code_executed")) > 0
-            and _int(payload.get("n_generated_code_passed")) <= 0
-        )
     )
 
 

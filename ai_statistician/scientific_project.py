@@ -125,17 +125,6 @@ def normalized_scientific_project_files(
     return tuple(sorted(normalized, key=lambda row: row.path))
 
 
-def scientific_project_file_rows(
-    value: Any,
-    *,
-    language: str,
-) -> list[dict[str, str]]:
-    return [
-        row.to_json()
-        for row in normalized_scientific_project_files(value, language=language)
-    ]
-
-
 def scientific_project_hash(
     *,
     language: str,

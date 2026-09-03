@@ -88,8 +88,12 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
+    THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    THEORY_SCRATCHPAD_READ_TOOL,
+    THEORY_SCRATCHPAD_TOOL,
     THEORY_FILE_CLAIM_KINDS,
     THEORY_FILE_CLAIM_STATUSES,
+    TheoryScratchpadConfig,
     TheoryWorkspaceProgressError,
     TheoryWorkspaceResult,
     theory_workspace_document_manifest,
@@ -2583,10 +2587,33 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             "persisted": True,
         },
     )
+    scratch_root = tmp_path / "theory-scratch"
+    scratch_root.mkdir()
+    scratch_source = "def run_sandbox(seed, replicates):\n    return {'gap': 0.125}\n"
+    scratch_result = {"gap": 0.125}
+    scratch_source_path = scratch_root / "prior.py"
+    scratch_result_path = scratch_root / "prior.json"
+    scratch_source_path.write_text(scratch_source, encoding="utf-8")
+    scratch_result_path.write_text(json.dumps(scratch_result), encoding="utf-8")
+    scratch_refs = [{
+        "scratch_run": 1,
+        "code_path": str(scratch_source_path),
+        "code_hash": stable_hash(scratch_source),
+        "result_path": str(scratch_result_path),
+        "result_hash": stable_hash(scratch_result),
+        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    }]
+    context[THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY][
+        "parent_scratch_execution_refs"
+    ] = scratch_refs
+    scratchpad = TheoryScratchpadConfig(
+        sandbox_dir=scratch_root, seed=23, replicates=10
+    )
     revision_inputs = build_theory_developer_revision_inputs(
         context,
         question=question,
     )
+    assert revision_inputs["parent_scratch_execution_refs"] == scratch_refs
     revised_core = json.loads(json.dumps(revision_inputs["base_core_payload"]))
     revised_core["lemma_cards"].append(
         {
@@ -2617,6 +2644,13 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     )
     first_provider = ScriptedTheoryToolBackend(
         tool_responses=[
+            _theory_tool_response(
+                ClientToolCall(
+                    call_id="reopen-parent-scratch",
+                    name=THEORY_SCRATCHPAD_READ_TOOL,
+                    input={"scratch_run": 1},
+                )
+            ),
             _theory_tool_response(
                 ClientToolCall(
                     call_id="read-reviewer-index",
@@ -2690,7 +2724,11 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     )
 
     with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
-        first_developer.derive(question, architect_context=context)
+        first_developer.derive(
+            question,
+            architect_context=context,
+            theory_scratchpad=scratchpad,
+        )
 
     checkpoint = exc_info.value.progress_checkpoint
     assert checkpoint["workspace_operation"] == "targeted_revision"
@@ -2699,6 +2737,8 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     ]
     assert checkpoint["changed_document_paths"] == ["theory/workspace.md"]
     assert checkpoint["changed_artifact_names"] == []
+    assert checkpoint["scratch_execution_refs"] == scratch_refs
+    assert checkpoint["scratch_inspection_refs"][0]["scratch_run"] == 1
     second_provider = ScriptedTheoryToolBackend(
         tool_responses=[
             _theory_tool_response(
@@ -2764,13 +2804,14 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     packet = second_developer.derive(
         question,
         architect_context=continued_context,
+        theory_scratchpad=scratchpad,
     )
 
     assert packet["ok"] is True
     assert packet["lemma_cards"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
-    assert len(first_provider.tool_requests) == 5
+    assert len(first_provider.tool_requests) == 6
     assert len(second_provider.tool_requests) == 5
     assert first_provider.generator_requests == []
     assert second_provider.generator_requests == []
@@ -2792,6 +2833,8 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         THEORY_WORKSPACE_PROGRESS_TOOL,
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
+        THEORY_SCRATCHPAD_READ_TOOL,
+        THEORY_SCRATCHPAD_TOOL,
     }
     first_prompt = str(first_tool_request.messages[0]["content"])
     assert json.dumps(revision_inputs["base_core_payload"]) not in first_prompt
@@ -2800,15 +2843,15 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert "read_only_context_documents" in first_prompt
     assert "current_review_document" in first_prompt
     assert "REPORT_ONLY" not in first_prompt
-    assert "REPORT_ONLY" not in str(first_provider.tool_requests[1].messages)
-    assert "REPORT_ONLY" in str(first_provider.tool_requests[2].messages)
+    assert "REPORT_ONLY" not in str(first_provider.tool_requests[2].messages)
+    assert "REPORT_ONLY" in str(first_provider.tool_requests[3].messages)
     assert "Propagate a chosen correction" in first_prompt
     assert "Scratch observations are exploratory" in first_prompt
     assert revised_core["lemma_cards"][0]["id"] in str(
-        first_provider.tool_requests[3].messages
+        first_provider.tool_requests[4].messages
     )
     assert "The bounded-outcome premise is not explicit." in str(
-        first_provider.tool_requests[2].messages
+        first_provider.tool_requests[3].messages
     )
     continuation_user_messages = [
         message
@@ -2852,7 +2895,8 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     workspace_evidence = packet["llm_client_tool_loop"]
     assert workspace_evidence["model_owned_theory"] is True
     assert workspace_evidence["runtime_edited_theory"] is False
-    assert workspace_evidence["reads"] == 6
+    assert workspace_evidence["reads"] == 7
+    assert workspace_evidence["scratch_execution_refs"] == scratch_refs
     assert workspace_evidence["submissions"] == 2
     assert workspace_evidence["n_model_document_writes"] == 1
     assert workspace_evidence["cumulative_tool_state_restored"] is True

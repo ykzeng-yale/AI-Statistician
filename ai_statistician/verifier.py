@@ -490,10 +490,6 @@ class CachingProofVerifier:
         }
 
 
-def run_async(coro):
-    return asyncio.run(coro)
-
-
 def _resolve_local_lean_project(project_root: str | Path | None) -> Path | None:
     candidates = (Path(project_root),) if project_root else tuple(
         path for path in DEFAULT_LOCAL_LEAN_PROJECTS if path is not None

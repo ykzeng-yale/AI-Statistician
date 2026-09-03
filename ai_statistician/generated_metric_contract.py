@@ -1582,14 +1582,6 @@ def _generated_metric_expected_gate_numeric_field_names(
     return fields
 
 
-def generated_metric_expected_gate_field_names(
-    requirement: Mapping[str, Any],
-) -> list[str]:
-    """Expose the evaluator-owned canonical field order to typed transports."""
-
-    return _generated_metric_expected_gate_numeric_field_names(requirement)
-
-
 def generated_metric_gate_field_authority_rollup(
     gate_field_authorities: Sequence[Mapping[str, Any]],
     *,

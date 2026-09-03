@@ -45,6 +45,7 @@ from ai_statistician.theory_workspace import (
     SOURCE_REPLICATION_CHECKPOINT_KIND,
     SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL,
     THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    THEORY_SCRATCHPAD_READ_TOOL,
     THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_CHECKPOINT_KIND,
     THEORY_WORKSPACE_COMMIT_TOOL,
@@ -2056,6 +2057,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
     assert tool_names == [
         "read_theory_workspace",
         THEORY_SCRATCHPAD_TOOL,
+        THEORY_SCRATCHPAD_READ_TOOL,
         THEORY_WORKSPACE_WRITE_TOOL,
         THEORY_WORKSPACE_COMMIT_TOOL,
         THEORY_WORKSPACE_GAP_TOOL,
@@ -2092,6 +2094,12 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
     def fake_execute_scientific_sandbox(**kwargs):
         executions.append(dict(kwargs))
         metrics = {"small_case_gap": 0.125, "seed": 23}
+        sandbox_dir = Path(kwargs["sandbox_dir"])
+        sandbox_dir.mkdir(parents=True, exist_ok=True)
+        code_path = sandbox_dir / "scratch.py"
+        result_path = sandbox_dir / "result.json"
+        code_path.write_text(source, encoding="utf-8")
+        result_path.write_text(json.dumps(metrics), encoding="utf-8")
         return ScientificSandboxExecution(
             status="EXECUTED",
             language="python",
@@ -2106,9 +2114,9 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
             stdout_summary="",
             stderr_summary="",
             result_parse_error="",
-            code_path=str(tmp_path / "scratch.py"),
+            code_path=str(code_path),
             request_path=str(tmp_path / "request.json"),
-            result_path=str(tmp_path / "result.json"),
+            result_path=str(result_path),
             code_hash=stable_hash(source),
             request_hash="scratch-request-hash",
             result_hash=stable_hash(metrics),
@@ -2233,15 +2241,9 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
         [
             _response(
                 ClientToolCall(
-                    call_id="recheck-small-case-in-next-segment",
-                    name=THEORY_SCRATCHPAD_TOOL,
-                    input={
-                        "language": "python",
-                        "execution_profile": "scientific_wasm",
-                        "dependencies": ["numpy"],
-                        "entrypoint": "run_sandbox",
-                        "code": source,
-                    },
+                    call_id="reopen-small-case-in-next-segment",
+                    name=THEORY_SCRATCHPAD_READ_TOOL,
+                    input={"scratch_run": 1},
                 )
             ),
             _response(
@@ -2272,18 +2274,23 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
         prior_workspace_checkpoint=checkpoint,
     )
 
-    assert len(executions) == 5
+    assert len(executions) == 4
     continuation_observation = json.loads(
         continued.requests[1].messages[-1]["content"][0]["content"]
     )
-    assert continuation_observation["scratch_run"] == 5
+    assert continuation_observation["source"] == source
+    assert continuation_observation["result"] == {
+        "small_case_gap": 0.125,
+        "seed": 23,
+    }
+    assert continuation_observation["inspection_ref"]["scratch_run"] == 1
     assert "remaining_scratch_runs" not in continuation_observation
     assert "scratch_run_budget_scope" not in continuation_observation
-    assert result.evidence["scratch_runs"] == 5
-    assert result.evidence["scratch_execution_refs"][:4] == (
-        checkpoint["scratch_execution_refs"]
-    )
-    assert result.evidence["scratch_execution_refs"][4]["scratch_run"] == 5
+    assert result.evidence["scratch_runs"] == 4
+    assert result.evidence["scratch_execution_refs"] == checkpoint[
+        "scratch_execution_refs"
+    ]
+    assert result.evidence["scratch_inspection_refs"][0]["scratch_run"] == 1
     assert result.evidence["cumulative_tool_state_restored"] is True
 
 

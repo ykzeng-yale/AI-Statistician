@@ -18,7 +18,10 @@ from ai_statistician.theory_revision_lineage import (
     resolve_theory_developer_revision_parent_material,
     theory_developer_revision_binding_errors,
 )
-from ai_statistician.theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
+from ai_statistician.theory_workspace import (
+    THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    THEORY_WORKSPACE_CONTENT_AUTHORITY,
+)
 
 
 def _theory_packet() -> dict:
@@ -347,6 +350,16 @@ def test_theory_revision_binding_uses_exact_nonproof_parent_reference() -> None:
         "relative_path": ".client_tool_sessions/session.json",
         "sha256": "a" * 64,
     }
+    scratch_refs = [
+        {
+            "scratch_run": 1,
+            "code_path": "/bound/scratch.py",
+            "code_hash": "code-hash",
+            "result_path": "/bound/result.json",
+            "result_hash": "result-hash",
+            "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+        }
+    ]
     material_with_session = resolve_theory_developer_revision_parent_material(
         revision_binding=binding,
         artifacts={
@@ -356,10 +369,12 @@ def test_theory_revision_binding_uses_exact_nonproof_parent_reference() -> None:
                 "runtime_source_theory_packet_id": packet["packet_id"],
                 "runtime_source_theory_packet_hash": stable_hash(packet),
                 "client_tool_session_ref": session_ref,
+                "scratch_execution_refs": scratch_refs,
             },
         },
     )
     assert material_with_session["parent_client_tool_session_ref"] == session_ref
+    assert material_with_session["parent_scratch_execution_refs"] == scratch_refs
 
     tampered_packet = {**packet, "problem_card": {"estimand": "changed"}}
     with pytest.raises(ValueError, match="unavailable or stale"):

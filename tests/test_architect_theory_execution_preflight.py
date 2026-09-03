@@ -46,7 +46,6 @@ from ai_statistician.architect_theory_execution_preflight import (
     _architect_theory_execution_preflight_submit_schema,
     _compare_preflight_theory_document_revision,
     _preflight_scratchpad_evidence_errors,
-    _read_author_theory_scratch,
     _search_preflight_sources,
     architect_theory_preflight_workspace_continuation_errors,
     build_architect_theory_execution_preflight_material,
@@ -92,6 +91,7 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     TheoryScratchpadConfig,
+    read_theory_scratch_execution,
     theory_workspace_document_manifest,
 )
 from ai_statistician.theory_revision_lineage import (
@@ -1262,7 +1262,7 @@ def test_author_scratch_inspection_rejects_stale_or_unbound_files(tmp_path) -> N
     }
 
     with pytest.raises(ClientToolInputError, match="source hash is stale"):
-        _read_author_theory_scratch(
+        read_theory_scratch_execution(
             ref={**base_ref, "code_hash": "stale"},
             scratch_root=scratch_root,
         )
@@ -1270,7 +1270,7 @@ def test_author_scratch_inspection_rejects_stale_or_unbound_files(tmp_path) -> N
     outside_path = tmp_path / "outside.py"
     outside_path.write_text(source, encoding="utf-8")
     with pytest.raises(ClientToolInputError, match="outside its sandbox"):
-        _read_author_theory_scratch(
+        read_theory_scratch_execution(
             ref={**base_ref, "code_path": str(outside_path)},
             scratch_root=scratch_root,
         )

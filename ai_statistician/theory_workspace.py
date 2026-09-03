@@ -74,6 +74,7 @@ THEORY_WORKSPACE_PROGRESS_TOOL = "checkpoint_theory_progress"
 SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL = "commit_source_replication_checkpoint"
 THEORY_WORKSPACE_GAP_TOOL = "report_theory_gap"
 THEORY_SCRATCHPAD_TOOL = "run_theory_scratchpad"
+THEORY_SCRATCHPAD_READ_TOOL = "read_theory_scratch"
 THEORY_WORKSPACE_CONTENT_AUTHORITY = "model_authored_markdown_latex_documents"
 THEORY_WORKSPACE_HANDOFF_ROLE = "structured_cross_agent_index_and_abi"
 THEORY_MODEL_REASONING_CONTRACT = (
@@ -335,6 +336,86 @@ def execute_theory_scratchpad_tool(
     return result, execution_ref
 
 
+def theory_scratch_execution_catalog(refs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Validate scratch identity while withholding host filesystem paths."""
+    catalog: list[dict[str, Any]] = []
+    seen_runs: set[int] = set()
+    for raw_ref in refs:
+        if not isinstance(raw_ref, Mapping):
+            raise ValueError("theory scratch ref must be an object")
+        scratch_run = raw_ref.get("scratch_run")
+        if (isinstance(scratch_run, bool) or not isinstance(scratch_run, int)
+                or scratch_run < 1 or scratch_run in seen_runs):
+            raise ValueError("theory scratch run identity is invalid or duplicated")
+        seen_runs.add(scratch_run)
+        code_hash = str(raw_ref.get("code_hash", "") or "").strip()
+        result_hash = str(raw_ref.get("result_hash", "") or "").strip()
+        if not code_hash or not str(raw_ref.get("code_path", "") or "").strip():
+            raise ValueError("theory scratch source identity is incomplete")
+        if result_hash and not str(raw_ref.get("result_path", "") or "").strip():
+            raise ValueError("theory scratch result identity is incomplete")
+        if raw_ref.get("proof_evidence_status") != THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE:
+            raise ValueError("theory scratch ref crosses the proof boundary")
+        catalog.append({
+            "scratch_run": scratch_run,
+            "code_hash": code_hash,
+            "result_hash": result_hash,
+            "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+        })
+    return sorted(catalog, key=lambda row: int(row["scratch_run"]))
+
+
+def read_theory_scratch_execution(*, ref: Mapping[str, Any], scratch_root: Path) -> dict[str, Any]:
+    """Read one exact exploratory calculation without promoting its result."""
+    root = scratch_root.expanduser().resolve()
+
+    def bound_path(raw_path: Any, *, label: str) -> Path:
+        path = Path(str(raw_path or "")).expanduser()
+        try:
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(root)
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            raise ClientToolInputError(
+                f"theory scratch {label} path is unavailable or outside its sandbox") from exc
+        if path.is_symlink() or not resolved.is_file():
+            raise ClientToolInputError(f"theory scratch {label} is not a regular file")
+        return resolved
+    source_path = bound_path(ref.get("code_path"), label="source")
+    try:
+        source = source_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ClientToolInputError("theory scratch source is not readable UTF-8") from exc
+    if stable_hash(source) != str(ref.get("code_hash", "") or ""):
+        raise ClientToolInputError("theory scratch source hash is stale")
+    result_payload: Any = None
+    result_hash = str(ref.get("result_hash", "") or "").strip()
+    if result_hash:
+        result_path = bound_path(ref.get("result_path"), label="result")
+        try:
+            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ClientToolInputError("theory scratch result is not readable JSON") from exc
+        if stable_hash(result_payload) != result_hash:
+            raise ClientToolInputError("theory scratch result hash is stale")
+    inspection_ref = {
+        "scratch_run": int(ref["scratch_run"]),
+        "code_hash": str(ref["code_hash"]),
+        "result_hash": result_hash,
+        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    }
+    inspection_ref["inspection_id"] = (
+        "theory-scratch-inspection:" + stable_hash(inspection_ref)[:20])
+    return {
+        "ok": True,
+        "source": source,
+        "result": result_payload,
+        "inspection_ref": inspection_ref,
+        "boundary": ("This is one exact TheoryDeveloper exploratory calculation. It may expose "
+                     "a counterexample, but does not validate the encoded claim, establish "
+                     "confirmatory evidence, or prove a theorem."),
+    }
+
+
 _THEORY_PROGRESS_COUNTER_FIELDS = (
     "reads",
     "submissions",
@@ -346,6 +427,7 @@ _THEORY_PROGRESS_ROW_FIELDS = (
     "model_document_writes",
     "document_inspection_refs",
     "scratch_execution_refs",
+    "scratch_inspection_refs",
     "source_search_refs",
     "source_read_refs",
     "source_discovery_search_refs",
@@ -460,6 +542,7 @@ def run_theory_artifact_workspace(
     prior_removed_document_paths: Sequence[str] = (),
     prior_client_tool_session_ref: Mapping[str, Any] | None = None,
     prior_workspace_checkpoint: Mapping[str, Any] | None = None,
+    prior_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
 ) -> TheoryWorkspaceResult:
     """Let one model author text mathematics and a structured handoff in place."""
 
@@ -512,6 +595,18 @@ def run_theory_artifact_workspace(
         authoring_binding_id=authoring_binding_id,
         workspace_operation=workspace_operation,
     )
+    inherited_scratch_refs = [deepcopy(dict(ref)) for ref in prior_scratch_execution_refs]
+    theory_scratch_execution_catalog(inherited_scratch_refs)
+    if inherited_scratch_refs and restored_tool_state["scratch_execution_refs"]:
+        if stable_hash(inherited_scratch_refs) != stable_hash(
+                restored_tool_state["scratch_execution_refs"]):
+            raise ValueError("continued theory scratch lineage conflicts with checkpoint")
+    elif inherited_scratch_refs:
+        restored_tool_state["scratch_execution_refs"] = inherited_scratch_refs
+        restored_tool_state["scratch_runs"] = len(inherited_scratch_refs)
+    theory_scratch_execution_catalog(restored_tool_state["scratch_execution_refs"])
+    if restored_tool_state["scratch_execution_refs"] and scratchpad is None:
+        raise ValueError("continued theory scratch lineage requires its sandbox")
     if (
         restored_tool_state["source_replication_runs"]
         and research_source_execution is None
@@ -1519,6 +1614,28 @@ def run_theory_artifact_workspace(
                 + checkpoint_hash,
             )
 
+        if call.name == THEORY_SCRATCHPAD_READ_TOOL:
+            if scratchpad is None:
+                raise ClientToolInputError("theory scratch environment is unavailable")
+            if set(tool_input) != {"scratch_run"}:
+                raise ClientToolInputError("read_theory_scratch requires scratch_run")
+            scratch_run = tool_input.get("scratch_run")
+            if isinstance(scratch_run, bool) or not isinstance(scratch_run, int):
+                raise ClientToolInputError("theory scratch_run must be an integer")
+            refs_by_run = {int(ref["scratch_run"]): ref
+                           for ref in state["scratch_execution_refs"]}
+            if scratch_run not in refs_by_run:
+                raise ClientToolInputError("unknown theory scratch_run")
+            observation = read_theory_scratch_execution(
+                ref=refs_by_run[scratch_run], scratch_root=scratchpad.sandbox_dir)
+            state["scratch_inspection_refs"].append(observation["inspection_ref"])
+            state["reads"] += 1
+            return ClientToolExecutionResult(
+                content={**observation, "reads": state["reads"]},
+                observation_key="theory-scratch-read:" + stable_hash(
+                    observation["inspection_ref"]),
+            )
+
         if call.name == THEORY_SCRATCHPAD_TOOL:
             if scratchpad is None:
                 raise ClientToolInputError("theory scratchpad is unavailable")
@@ -1753,6 +1870,9 @@ def run_theory_artifact_workspace(
         }
         for name in artifact_names
     }
+    scratch_catalog = theory_scratch_execution_catalog(
+        state["scratch_execution_refs"]
+    )
     document_catalog = {
         row["relative_path"]: {
             "media_type": row["media_type"],
@@ -1834,7 +1954,9 @@ def run_theory_artifact_workspace(
         "sides, residuals, predicates, or witnesses computed from definitions rather "
         "than a prewritten conclusion; a weaker consequence cannot validate a stronger "
         "claim merely by taking its label. "
-        "Interpret the raw observation yourself. If it conflicts with an active "
+        "Use read_theory_scratch(scratch_run) to reopen any exact prior source and "
+        "result after a checkpoint instead of rerunning it from memory. Interpret the "
+        "raw observation yourself. If it conflicts with an active "
         "document or earlier calculation, rederive and revise, retract, or mark the claim uncertain before checkpointing. Scratch output is exploratory, not "
         "confirmatory simulation or proof; a universal claim still needs an argument. "
         if scratchpad is not None
@@ -1953,6 +2075,7 @@ def run_theory_artifact_workspace(
                         {
                             "structured_handoff_artifacts": catalog,
                             "mathematical_documents": document_catalog,
+                            "theory_scratch_executions": scratch_catalog,
                             **(
                                 {
                                     "read_only_context_documents": (
@@ -2155,6 +2278,9 @@ def run_theory_artifact_workspace(
             "scratch_runs": state["scratch_runs"],
             "scratch_execution_refs": deepcopy(
                 state["scratch_execution_refs"]
+            ),
+            "scratch_inspection_refs": deepcopy(
+                state["scratch_inspection_refs"]
             ),
             "research_source_snapshot": (
                 research_sources.descriptor()
@@ -2505,6 +2631,9 @@ def run_theory_artifact_workspace(
             "reads": state["reads"],
             "submissions": state["submissions"],
             "scratch_runs": state["scratch_runs"],
+            "scratch_inspection_refs": deepcopy(
+                state["scratch_inspection_refs"]
+            ),
             "research_source_snapshot": (
                 research_sources.descriptor()
                 if research_sources is not None
@@ -2652,6 +2781,7 @@ def run_theory_artifact_workspace(
         "scratchpad_enabled": scratchpad is not None,
         "scratch_runs": state["scratch_runs"],
         "scratch_execution_refs": deepcopy(state["scratch_execution_refs"]),
+        "scratch_inspection_refs": deepcopy(state["scratch_inspection_refs"]),
         "research_source_snapshot": (
             research_sources.descriptor()
             if research_sources is not None
@@ -2693,20 +2823,6 @@ def run_theory_artifact_workspace(
     return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
 
 
-def theory_document_evidence_history(
-    history: Sequence[Mapping[str, Any]],
-) -> list[dict[str, Any]]:
-    """Omit exact Theory text from telemetry while retaining tool lineage."""
-
-    return _redact_workspace_history(history, {
-        name: "[theory document content omitted from persisted evidence; use the hash-bound document inspection refs]"
-        for name in (
-            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
-            THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
-        )
-    })
-
-
 def workspace_evidence_history(
     history: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -2727,6 +2843,7 @@ def workspace_evidence_history(
             RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
         )},
         "read_theory_workspace": "[theory workspace content omitted from persisted evidence; use hash-bound artifact or document inspection refs]",
+        THEORY_SCRATCHPAD_READ_TOOL: "[theory scratch source and result omitted from persisted evidence; use scratch inspection refs]",
     }
     return _redact_workspace_history(history, redactions)
 
@@ -2922,7 +3039,24 @@ def _theory_workspace_tools(
             )
         )
     if scratchpad_enabled:
-        tools.append(theory_scratchpad_client_tool())
+        tools.extend(
+            (
+                theory_scratchpad_client_tool(),
+                ClientToolDefinition(
+                    name=THEORY_SCRATCHPAD_READ_TOOL,
+                    description=("Read one exact prior model-authored Theory scratch source and "
+                                 "JSON result by scratch_run after a checkpoint or context window. "
+                                 "The runtime rechecks sandbox location and hashes; this is an "
+                                 "exploratory observation, not theory, confirmation, or proof."),
+                    input_schema={
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["scratch_run"],
+                        "properties": {"scratch_run": {"type": "integer", "minimum": 1}},
+                    },
+                ),
+            )
+        )
     if document_authority_enabled:
         tools.append(
             ClientToolDefinition(

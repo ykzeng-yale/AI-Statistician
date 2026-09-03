@@ -184,13 +184,6 @@ def get_question(question_id: str) -> StatisticalQuestion:
         raise KeyError(f"unknown question: {question_id}") from exc
 
 
-def get_estimator_for_question(question_id: str) -> EstimatorSpec:
-    try:
-        return ESTIMATORS[question_id]
-    except KeyError as exc:
-        raise KeyError(f"no estimator registered for question: {question_id}") from exc
-
-
 def derive_estimator_for_question(question: StatisticalQuestion) -> EstimatorSpec:
     try:
         template = ESTIMATOR_FAMILIES[question.estimator_family]

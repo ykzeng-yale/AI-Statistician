@@ -67,10 +67,12 @@ from .theory_workspace import (
     execute_theory_scratchpad_tool,
     load_theory_workspace_documents,
     load_theory_workspace_document_rows,
+    read_theory_scratch_execution,
     read_theory_document_lines,
     research_source_discovery_client_tools,
     search_theory_document_lines,
     theory_document_client_tools,
+    theory_scratch_execution_catalog,
     theory_scratchpad_client_tool,
 )
 
@@ -419,7 +421,9 @@ def build_architect_theory_execution_preflight_material(
                 "content_byte_size": len(document["content"].encode("utf-8")),
             }
         )
-    author_scratch_catalog = _author_scratch_execution_catalog(author_scratch_execution_refs)
+    author_scratch_catalog = theory_scratch_execution_catalog(
+        author_scratch_execution_refs
+    )
     anchor_catalog_id = "architect_theory_execution_preflight_catalog:" + stable_hash(
         anchor_catalog
     )[:20]
@@ -494,98 +498,6 @@ def build_architect_theory_execution_preflight_material(
             dict(claim_revision_delta)
         )
     return material
-
-
-def _author_scratch_execution_catalog(refs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """Validate author scratch identity and expose no filesystem paths."""
-
-    catalog: list[dict[str, Any]] = []
-    seen_runs: set[int] = set()
-    for raw_ref in refs:
-        if not isinstance(raw_ref, Mapping):
-            raise ValueError("author scratch ref must be an object")
-        scratch_run = raw_ref.get("scratch_run")
-        if isinstance(scratch_run, bool) or not isinstance(scratch_run, int):
-            raise ValueError("author scratch run identity is invalid or duplicated")
-        if scratch_run < 1 or scratch_run in seen_runs:
-            raise ValueError("author scratch run identity is invalid or duplicated")
-        seen_runs.add(scratch_run)
-        code_hash = str(raw_ref.get("code_hash", "") or "").strip()
-        result_hash = str(raw_ref.get("result_hash", "") or "").strip()
-        if not code_hash or not str(raw_ref.get("code_path", "") or "").strip():
-            raise ValueError("author scratch source identity is incomplete")
-        if result_hash and not str(raw_ref.get("result_path", "") or "").strip():
-            raise ValueError("author scratch result identity is incomplete")
-        if raw_ref.get("proof_evidence_status") != THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE:
-            raise ValueError("author scratch ref crosses the proof boundary")
-        catalog.append(
-            {
-                "scratch_run": scratch_run,
-                "code_hash": code_hash,
-                "result_hash": result_hash,
-                "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
-            }
-        )
-    return sorted(catalog, key=lambda row: int(row["scratch_run"]))
-
-
-def _read_author_theory_scratch(*, ref: Mapping[str, Any], scratch_root: Path) -> dict[str, Any]:
-    """Read one exact author calculation without promoting its result."""
-
-    root = scratch_root.expanduser().resolve()
-
-    def bound_path(raw_path: Any, *, label: str) -> Path:
-        path = Path(str(raw_path or "")).expanduser()
-        try:
-            resolved = path.resolve(strict=True)
-            resolved.relative_to(root)
-        except (FileNotFoundError, OSError, ValueError) as exc:
-            raise ClientToolInputError(
-                f"author scratch {label} path is unavailable or outside its sandbox"
-            ) from exc
-        if path.is_symlink() or not resolved.is_file():
-            raise ClientToolInputError(f"author scratch {label} is not a regular file")
-        return resolved
-
-    source_path = bound_path(ref.get("code_path"), label="source")
-    try:
-        source = source_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise ClientToolInputError("author scratch source is not readable UTF-8") from exc
-    if stable_hash(source) != str(ref.get("code_hash", "") or ""):
-        raise ClientToolInputError("author scratch source hash is stale")
-
-    result_payload: Any = None
-    result_hash = str(ref.get("result_hash", "") or "").strip()
-    if result_hash:
-        result_path = bound_path(ref.get("result_path"), label="result")
-        try:
-            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise ClientToolInputError("author scratch result is not readable JSON") from exc
-        if stable_hash(result_payload) != result_hash:
-            raise ClientToolInputError("author scratch result hash is stale")
-
-    inspection_ref = {
-        "scratch_run": int(ref["scratch_run"]),
-        "code_hash": str(ref["code_hash"]),
-        "result_hash": result_hash,
-        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
-    }
-    inspection_ref["inspection_id"] = "author-theory-scratch-inspection:" + stable_hash(
-        inspection_ref
-    )[:20]
-    return {
-        "ok": True,
-        "source": source,
-        "result": result_payload,
-        "inspection_ref": inspection_ref,
-        "boundary": (
-            "This is one exact TheoryDeveloper exploratory calculation. It may expose "
-            "a counterexample, but does not validate the encoded claim, establish "
-            "confirmatory evidence, or prove a theorem."
-        ),
-    }
 
 
 def _runtime_review_scope(material: Mapping[str, Any]) -> dict[str, Any]:
@@ -4192,7 +4104,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             if scratch_run not in author_scratch_refs_by_run:
                 raise ClientToolInputError("author scratch run is unavailable for this theory")
             assert theory_scratchpad is not None
-            observation = _read_author_theory_scratch(
+            observation = read_theory_scratch_execution(
                 ref=author_scratch_refs_by_run[int(scratch_run)],
                 scratch_root=theory_scratchpad.sandbox_dir,
             )
