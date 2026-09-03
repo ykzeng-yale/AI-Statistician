@@ -1664,6 +1664,7 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
                     "search_proof_candidates",
                     {
                         "query": "close target from current goal",
+                        "openprover_task": {"context": [], "target": "True"},
                         "max_results": 2,
                         "lean_header": "import Mathlib\nopen scoped BigOperators\n",
                     },
@@ -1724,6 +1725,10 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
                 "model_lean_header": (
                     "import Mathlib\nopen scoped BigOperators\n"
                 ),
+                "model_openprover_task": {
+                    "context": [],
+                    "target": "True",
+                },
             },
         )
     ]
@@ -1733,6 +1738,67 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
     assert result.evidence["runtime_selected_lean_code"] is False
     assert result.evidence["model_owned_lean_code"] is True
     assert "search_proof_candidates" in result.evidence["tool_names"]
+
+
+def test_proof_search_missing_model_selected_task_returns_to_same_formalizer() -> None:
+    initial = "theorem target : True := by\n  exact missing\n"
+    passing = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "proof-search-invalid",
+                    "search_proof_candidates",
+                    {"query": "close the current goal"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-after-observation",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": passing,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    proof_search_calls = 0
+
+    def search(_source: str, _query: str, _k: int, _context):
+        nonlocal proof_search_calls
+        proof_search_calls += 1
+        raise AssertionError("invalid tool input must not reach the prover")
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Prove the exact target.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=2,
+        max_no_progress_turns=2,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=lambda source, _declaration: {
+            "source_hash": stable_hash(source),
+            "compiled": source == passing,
+        },
+        search_formal_environment=lambda query, k: [],
+        search_proof_candidates=search,
+    )
+
+    first_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert first_observation["error"] == "client_tool_input_rejected"
+    assert "openprover_task" in first_observation["detail"]
+    assert proof_search_calls == 0
+    assert result.lean_source == passing
 
 
 def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
@@ -1746,7 +1812,13 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
                 ClientToolCall(
                     "proof-search-1",
                     "search_proof_candidates",
-                    {"query": "close the inspected goal"},
+                    {
+                        "query": "close the inspected goal",
+                        "openprover_task": {
+                            "context": [],
+                            "target": "True",
+                        },
+                    },
                 )
             ),
             _response(
@@ -1763,7 +1835,13 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
                 ClientToolCall(
                     "proof-search-2",
                     "search_proof_candidates",
-                    {"query": "inspect the revised failure"},
+                    {
+                        "query": "inspect the revised failure",
+                        "openprover_task": {
+                            "context": [],
+                            "target": "True",
+                        },
+                    },
                 )
             ),
             _response(
@@ -4196,6 +4274,10 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
                             **self.check_result,
                             "latest_state_inspection": self.state_result,
                             "model_lean_header": "import Mathlib\n",
+                            "model_openprover_task": {
+                                "context": [],
+                                "target": "True",
+                            },
                         },
                     )
                 )
@@ -4367,6 +4449,10 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     )
     assert proof_request["residual_goal_excerpt"] == ["|- True"]
     assert proof_request["lean_header"] == "import Mathlib\n"
+    assert proof_request["openprover_task"] == {
+        "context": [],
+        "target": "True",
+    }
     assert len(trace_requests) == 1
     assert trace_requests[0]["model_query"] == (
         "close the current inspected goal"

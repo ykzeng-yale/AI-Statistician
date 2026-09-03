@@ -18497,6 +18497,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     "residual_goal_excerpt": residual_goals,
                 }
             )
+        model_openprover_task = last_check.get("model_openprover_task", {})
+        if isinstance(model_openprover_task, Mapping) and model_openprover_task:
+            request["openprover_task"] = deepcopy(dict(model_openprover_task))
         if source_scope_ids:
             request["formal_source_scope_ids"] = list(source_scope_ids)
         request = attach_ai4slt_proof_state_trace_rag(

@@ -14,7 +14,7 @@ LLM_PROOF_BODY_GENERATION_CONTRACT: dict[str, Any] = {
         "emperical_process_lean_rag",
         "openprover_verified_feedback_assets",
     ],
-    "task_normalization": "llm_structured_json",
+    "task_normalization": "model_selected_current_goal_task",
     "candidate_response_contract": "json_schema",
     "compiler_feedback_retry": True,
     "openprover_initial_static_search": False,

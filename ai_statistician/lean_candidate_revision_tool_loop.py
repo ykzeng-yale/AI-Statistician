@@ -1494,9 +1494,15 @@ def run_lean_candidate_revision_tool_loop(
         if call.name == "search_proof_candidates":
             if search_proof_candidates is None:
                 raise ClientToolInputError("proof-candidate search is unavailable")
-            if set(tool_input) - {"query", "max_results", "lean_header"}:
+            if set(tool_input) - {
+                "query",
+                "max_results",
+                "lean_header",
+                "openprover_task",
+            }:
                 raise ClientToolInputError(
-                    "search_proof_candidates accepts query, max_results, and lean_header"
+                    "search_proof_candidates accepts query, openprover_task, "
+                    "max_results, and lean_header"
                 )
             query = tool_input.get("query")
             if not isinstance(query, str) or not query.strip():
@@ -1509,6 +1515,55 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "lean_header must be text within the artifact-size boundary"
                 )
+            openprover_task = tool_input.get("openprover_task")
+            if not isinstance(openprover_task, Mapping):
+                raise ClientToolInputError(
+                    "openprover_task must contain the model-selected current Lean "
+                    "context and target"
+                )
+            if set(openprover_task) != {"context", "target"}:
+                raise ClientToolInputError(
+                    "openprover_task requires exactly context and target"
+                )
+            task_context = openprover_task.get("context")
+            task_target = openprover_task.get("target")
+            if not isinstance(task_context, list) or not isinstance(
+                task_target, str
+            ) or not task_target.strip():
+                raise ClientToolInputError(
+                    "openprover_task requires context[] and a nonempty target"
+                )
+            seen_binding_names: set[str] = set()
+            for index, binding in enumerate(task_context):
+                if not isinstance(binding, Mapping) or set(binding) != {
+                    "name",
+                    "typ",
+                    "kind",
+                }:
+                    raise ClientToolInputError(
+                        f"openprover_task context[{index}] requires exactly name, "
+                        "typ, and kind"
+                    )
+                name = binding.get("name")
+                typ = binding.get("typ")
+                kind = binding.get("kind")
+                if (
+                    not isinstance(name, str)
+                    or not name.strip()
+                    or not isinstance(typ, str)
+                    or not typ.strip()
+                    or kind not in {"explicit", "instance"}
+                ):
+                    raise ClientToolInputError(
+                        f"openprover_task context[{index}] requires nonempty name "
+                        "and typ plus explicit/instance kind"
+                    )
+                if name.strip() in seen_binding_names:
+                    raise ClientToolInputError(
+                        f"openprover_task context[{index}] duplicates binding name "
+                        f"{name.strip()}"
+                    )
+                seen_binding_names.add(name.strip())
             k = max(1, min(8, requested_k))
             state["proof_searches"] += 1
             search_context = deepcopy(dict(state["last_check"]))
@@ -1525,6 +1580,9 @@ def run_lean_candidate_revision_tool_loop(
                 )
             if lean_header.strip():
                 search_context["model_lean_header"] = lean_header
+            search_context["model_openprover_task"] = deepcopy(
+                dict(openprover_task)
+            )
             results = search_proof_candidates(
                 str(state["source"]),
                 query.strip(),
@@ -2688,17 +2746,44 @@ def _lean_candidate_revision_tools(
                 description=(
                     "Ask the configured prover for candidate proof bodies and raw "
                     "diagnostics for the exact current target. Results are suggestions "
-                    "only. Optionally provide exact model-authored imports and local "
-                    "declarations as lean_header for the prover's isolated compile; "
-                    "runtime neither derives nor applies it. Choose any useful idea "
-                    "yourself, then submit the complete source for an immediate Lean check."
+                    "only. Read or inspect the current Lean goal, then provide its local "
+                    "bindings and target in openprover_task yourself; runtime does not "
+                    "parse Lean or invoke a second task-normalizer model. Optionally "
+                    "provide exact model-authored imports and local declarations as "
+                    "lean_header for the prover's isolated compile. Choose any useful "
+                    "idea yourself, then submit the complete source for an immediate "
+                    "Lean check."
                 ),
                 input_schema={
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["query"],
+                    "required": ["query", "openprover_task"],
                     "properties": {
                         "query": {"type": "string"},
+                        "openprover_task": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["context", "target"],
+                            "properties": {
+                                "context": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": False,
+                                        "required": ["name", "typ", "kind"],
+                                        "properties": {
+                                            "name": {"type": "string", "minLength": 1},
+                                            "typ": {"type": "string", "minLength": 1},
+                                            "kind": {
+                                                "type": "string",
+                                                "enum": ["explicit", "instance"],
+                                            },
+                                        },
+                                    },
+                                },
+                                "target": {"type": "string", "minLength": 1},
+                            },
+                        },
                         "lean_header": {
                             "type": "string",
                             "maxLength": 20000,

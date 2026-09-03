@@ -705,29 +705,11 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
         provider_name = "anthropic"
 
         def __init__(self) -> None:
-            self.normalization_calls = 0
-            self.normalization_prompts: list[str] = []
             self.generation_prompts: list[str] = []
 
         def generate(self, request):
-            if request.metadata.get("agent") == "StructuredLeanTaskNormalizer":
-                assert request.metadata["provider_structured_output"] is True
-                assert request.schema is not None
-                self.normalization_calls += 1
-                self.normalization_prompts.append(request.user_prompt)
-                text = (
-                    ""
-                    if self.normalization_calls == 1
-                    else (
-                        '{"context":['
-                        '{"name":"p","typ":"Prop","kind":"explicit"},'
-                        '{"name":"hp","typ":"p","kind":"explicit"}'
-                        '],"target":"p"}'
-                    )
-                )
-            else:
-                self.generation_prompts.append(request.user_prompt)
-                text = '{"candidates":["exact hp"]}'
+            self.generation_prompts.append(request.user_prompt)
+            text = '{"candidates":["exact hp"]}'
             return GeneratorResponse(
                 text=text,
                 provider="anthropic",
@@ -830,6 +812,13 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
             ),
             "current_proof_body_excerpt": "exact missing",
             "model_query": "use the inspected local hypothesis directly",
+            "openprover_task": {
+                "context": [
+                    {"name": "p", "typ": "Prop", "kind": "explicit"},
+                    {"name": "hp", "typ": "p", "kind": "explicit"},
+                ],
+                "target": "p",
+            },
             "residual_goal_excerpt": ["p : Prop", "hp : p", "|- p"],
             "failed_proof_body_attempts": ["unknown identifier missing"],
             "compiler_feedback": {
@@ -911,21 +900,56 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
         "proof_state_observation",
         "proof_state_trace_rag",
     ]
-    assert result["task_normalization"]["source"] == "llm_structured_json"
-    assert result["task_normalization"]["context_binding_count"] == 2
-    assert backend.normalization_calls == 2
-    assert "use the inspected local hypothesis directly" in (
-        backend.normalization_prompts[0]
+    assert result["task_normalization"]["source"] == (
+        "model_selected_current_goal_task"
     )
+    assert result["task_normalization"]["context_binding_count"] == 2
+    assert result["task_normalization"]["hidden_model_calls"] == 0
+    assert len(backend.generation_prompts) == 1
     assert "use the inspected local hypothesis directly" in (
         backend.generation_prompts[0]
     )
     assert "Fixture.prior_goal" in backend.generation_prompts[0]
     assert "state_before" in backend.generation_prompts[0]
-    assert result["task_normalization"]["response"][
-        "structured_output_retry_attempts"
-    ] == 1
-    assert result["task_normalization"]["response"][
-        "structured_output_retry_history"
-    ][0]["ok"] is False
     assert Path(result["report_path"]).exists()
+
+
+def test_openprover_hlm_requires_the_current_formalizer_to_select_the_task(
+    tmp_path: Path,
+) -> None:
+    lean_project = tmp_path / "lean-project"
+    lean_project.mkdir()
+
+    class Backend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, _request):
+            self.calls += 1
+            raise AssertionError("missing task must not start a hidden model call")
+
+    backend = Backend()
+    provider = OpenProverHLMProofSearchProvider(
+        generator_backend=backend,  # type: ignore[arg-type]
+        config=OpenProverHLMConfig(
+            root=tmp_path / "OpenProver",
+            out_dir=tmp_path / "runs",
+            lean_project=lean_project,
+            model=TEST_HAIKU_MODEL,
+        ),
+        runtime_loader=lambda: {},
+    )
+
+    result = provider.run(
+        {
+            "target_lean_declaration": "target",
+            "target_theorem_statement": "theorem target : True",
+            "model_query": "close the current goal",
+        }
+    )
+
+    assert result["status"] == "BLOCKED_TASK_NORMALIZATION"
+    assert "current Formalizer" in result["blocker"]
+    assert backend.calls == 0
