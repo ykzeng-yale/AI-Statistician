@@ -31,6 +31,11 @@ EVALUATOR_ROOT = Path(
 )
 CANDIDATE_PATH = EVALUATOR_ROOT / "sealed_gold_candidate.json"
 HARNESS_PATH = EVALUATOR_ROOT / "hidden_source_replication_harness.py"
+LEDGER_PATH = Path(
+    "docs/evaluation_activations/"
+    "betareg_gasoline_precision_candidate_preactivation.json"
+)
+LADDER_PATH = Path("benchmarks/research_capability_ladder_20260814.json")
 
 SYNTHETIC_STDOUT = """
 Call:
@@ -235,6 +240,36 @@ def test_sealed_candidate_source_execution_reuses_exact_snapshot() -> None:
     assert stable_hash(question) != stable_hash(
         _visible_question_hash_payload(question)
     )
+
+
+def test_preactivation_ledger_exposes_only_identity_and_no_ladder_admission() -> None:
+    ledger = json.loads(LEDGER_PATH.read_text(encoding="utf-8"))
+    ladder = json.loads(LADDER_PATH.read_text(encoding="utf-8"))
+
+    assert ledger["task_id"] == TASK_ID
+    assert ledger["benchmark_id"] == BENCHMARK_ID
+    assert ledger["candidate_bundle_commit"] == (
+        "b276777da6fe26705768db9ac9f2d5151eed5268"
+    )
+    assert ledger["status"] == (
+        "sealed_pending_exact_haiku_semantic_qualification"
+    )
+    assert ledger["candidate_is_numbered_ladder_task"] is False
+    assert ledger["candidate_is_active"] is False
+    assert ledger["candidate_is_consumed"] is False
+    assert ledger["preactivation_product_model_calls"] == 0
+    assert ledger["preactivation_evaluator_model_calls"] == 0
+    assert ledger["sealed_gold_candidate_sha256"] == _sha256(CANDIDATE_PATH)
+    assert ledger["visible_questions_sha256"] == _sha256(VISIBLE_PATH)
+    assert ledger["source_execution_spec_sha256"] == _sha256(EXECUTION_PATH)
+    assert ledger["semantic_qualification"]["activation_record_present"] is False
+    assert ledger["semantic_qualification"]["status"] == "NOT_QUALIFIED"
+    assert not any(
+        row.get("id") == TASK_ID for row in ladder["initial_candidate_queue"]
+    )
+    public_ledger = LEDGER_PATH.read_text(encoding="utf-8")
+    assert "440.2783" not in public_ledger
+    assert "577.7907" not in public_ledger
 
 
 def test_hidden_source_harness_accepts_focused_reference_and_pdf_hash_drift() -> None:
