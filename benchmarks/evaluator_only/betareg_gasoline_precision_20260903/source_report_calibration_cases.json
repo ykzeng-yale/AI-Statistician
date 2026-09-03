@@ -1,0 +1,65 @@
+{
+  "cases": [
+    {
+      "case_id": "complete-reference-positive-control",
+      "expected_status": "PASS",
+      "documents": [
+        {
+          "document_id": "source_report_reference.md",
+          "source_path": "benchmarks/evaluator_only/betareg_gasoline_precision_20260903/source_report_reference.md",
+          "sha256": "77ef8090be5609237bd6f731bb970d7beb1c3e470b4c8c20dd1e5ba49413efc8"
+        }
+      ]
+    },
+    {
+      "case_id": "wrong-model-and-link-parameterization",
+      "expected_status": "FAIL",
+      "documents": [
+        {
+          "path": "wrong.md",
+          "content": "The first GasolineYield fit is yield ~ temp only. It uses an identity link for the mean and a log link with temperature covariates for precision. The batch indicators are not part of the published model."
+        }
+      ]
+    },
+    {
+      "case_id": "wrong-precision-values-and-direction",
+      "expected_status": "FAIL",
+      "documents": [
+        {
+          "path": "wrong.md",
+          "content": "The source reports precision 577.7907 before omission and 440.2783 after observation 4 is omitted, so fitted precision decreases after omission."
+        }
+      ]
+    },
+    {
+      "case_id": "causal-and-universal-overclaim",
+      "expected_status": "FAIL",
+      "documents": [
+        {
+          "path": "wrong.md",
+          "content": "The increase in fitted precision proves that observation 4 caused the excess variance. It establishes that deleting influential observations is generally the best beta-regression procedure and validates the package's theory for all bounded responses."
+        }
+      ]
+    },
+    {
+      "case_id": "invented-pdf-inspection-and-byte-authority",
+      "expected_status": "FAIL",
+      "documents": [
+        {
+          "path": "wrong.md",
+          "content": "Because Rplots.pdf exists, I visually verified that every diagnostic plot improved. A valid rerun must produce a PDF with the exact same SHA-256 bytes, and any different PDF hash invalidates otherwise identical numerical output."
+        }
+      ]
+    },
+    {
+      "case_id": "false-full-environment-and-article-replication",
+      "expected_status": "FAIL",
+      "documents": [
+        {
+          "path": "wrong.md",
+          "content": "Running the companion source with R 4.4.3 and selected historical package versions exactly reconstructs the authors' complete 2010 operating system, R, BLAS, graphics device, and dependency environment and fully replicates every result in the article."
+        }
+      ]
+    }
+  ]
+}

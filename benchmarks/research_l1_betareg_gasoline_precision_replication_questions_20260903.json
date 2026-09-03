@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "betareg_jss_gasoline_precision_public_replication",
+      "title": "Replicate the GasolineYield precision comparison in the JSS beta-regression example",
+      "description": "Conduct one narrow L1 public-source replication of Section 4.1 of Francisco Cribari-Neto and Achim Zeileis's 2010 Journal of Statistical Software article, Beta Regression in R. Use only the operator-supplied hash-bound source snapshot and operator-pinned execution. Run the unmodified official R companion source once; do not edit it, wrap it, replace it, choose arguments, or use the network. In a durable Markdown report, identify the article, DOI, source snapshot, official R entrypoint, exact execution identity, interpreter, package versions, and integrity outcome. Focus the scientific account only on the first GasolineYield fixed-dispersion beta regression: state its mean formula, mean link and precision-link parameterization; report the observed precision estimates before and after the source omits observation 4; and interpret the direction of that change under the fitted beta model without causal, robustness, universal-superiority, or package-wide claims. Record the declared Rplots.pdf artifact as present or absent from execution metadata, but do not claim visual inspection or require byte-identical PDF output. The official source continues through other article examples, but those analyses are outside this task's scoring scope and need not be audited. Distinguish this current pinned execution from reconstruction of the authors' complete 2010 computing environment, and disclose remaining source, environment, numerical, visualization, inferential, and scientific-scope gaps. No model-authored estimator, replacement simulation, new theorem, novelty claim, or Lean formalization is required.",
+      "tags": [
+        "R",
+        "beta regression",
+        "precision parameter",
+        "source replication",
+        "reproducibility",
+        "L1"
+      ],
+      "task_intent": {
+        "source_replication": "required",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "source": {
+        "paper_title": "Beta Regression in R",
+        "authors": [
+          "Francisco Cribari-Neto",
+          "Achim Zeileis"
+        ],
+        "venue": "Journal of Statistical Software",
+        "volume": "34",
+        "issue": "2",
+        "year": 2010,
+        "pages": "1-24",
+        "doi": "10.18637/jss.v034.i02",
+        "paper_url": "https://www.jstatsoft.org/article/view/v034i02",
+        "official_pdf_url": "https://www.jstatsoft.org/article/download/v034i02/378",
+        "official_pdf_sha256": "afff539469a20ede1b0a2598269f3c8313b3c9b5bd6413f0ad7b6fdd4ccaad31",
+        "official_source_url": "https://www.jstatsoft.org/article/download/v034i02/2016",
+        "official_source_sha256": "0725416e1d260a76acf2f27db9a028ee5cf8366a1bb766e3e8115c5b381de57d",
+        "betareg_archive_sha256": "ce02e410447b4085275930e4a928eededc921f79962b847330e7b4df58e05094",
+        "formula_archive_sha256": "7df40dbfacee15a98acb281620a33557eee09acccf30cbdf71d3f32627768d23",
+        "code_license": "official journal companion source; supplied historical package source files are GPL-2",
+        "research_source_snapshot_id": "betareg-jss-2010-r-public-replication-20260829-v1",
+        "research_source_snapshot_hash": "3c4c642b44ea9413b8b29f456606568a356e2b9c0b6301b8829ae3d640b67c8b",
+        "research_source_manifest_sha256": "a3af9e0459f026a34bf305f4685676501c0422bc1ed82b22448ed80c002c2582"
+      }
+    }
+  ]
+}

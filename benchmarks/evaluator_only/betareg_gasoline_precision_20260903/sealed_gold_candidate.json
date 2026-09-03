@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityGoldBenchmarkCandidate",
+  "status": "sealed_pending_exact_haiku_semantic_qualification",
+  "activation_allowed": false,
+  "benchmark_id": "research-l1-betareg-jss-gasoline-precision-20260903-v1",
+  "runtime_visibility": "evaluator_only_after_runtime",
+  "model_visible_questions_path": "benchmarks/research_l1_betareg_gasoline_precision_replication_questions_20260903.json",
+  "model_visible_questions_sha256": "4ff859a8b1393f5d1c554d10486db82e62fc120c5c277e57f61afe11b8c9eef6",
+  "model_policy": {
+    "provider": "anthropic",
+    "model_tier": "haiku",
+    "model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false
+  },
+  "sealed_task": {
+    "task_id": "betareg_jss_gasoline_precision_public_replication",
+    "level": "L1",
+    "family": "beta_regression_precision_source_replication",
+    "status": "sealed_pending_exact_haiku_semantic_qualification",
+    "scoring_scope": "full_task",
+    "task_intent": {
+      "source_replication": "required",
+      "theory": "not_applicable",
+      "scientific_code": "not_applicable",
+      "empirical": "not_applicable",
+      "formal": "not_applicable",
+      "novelty": "not_applicable",
+      "unresolved_gaps": "required"
+    },
+    "source_execution_spec": {
+      "path": "benchmarks/research_sources/betareg_jss_2010_20260829/source_execution_gasoline_precision_manifest.json",
+      "sha256": "51849a14f42d7c660a2da75c4e2047858072b3b07530c6c95e4e082aa0c2d050"
+    },
+    "hidden_source_replication_evaluator": {
+      "harness_path": "benchmarks/evaluator_only/betareg_gasoline_precision_20260903/hidden_source_replication_harness.py",
+      "harness_sha256": "01e76b80f256ee633ad620a4d17d7eb5c87c86700c6833abd8ce157e06164357",
+      "language": "python",
+      "dependencies": [],
+      "seed": 20260903,
+      "replicates": 1,
+      "timeout_seconds": 30,
+      "acceptance_checks": [
+        {"check_id": "source-artifact-kind", "path": ["artifact_kind_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-task-identity", "path": ["task_identity_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-execution-identity", "path": ["execution_identity_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-snapshot-identity", "path": ["source_identity_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-clean-execution", "path": ["execution_clean"], "operator": "eq", "expected": true},
+        {"check_id": "source-runtime-identity", "path": ["runtime_identity_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-output-identity", "path": ["stdout_identity_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-focused-model-output", "path": ["gasoline_model_output_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-precision-values", "path": ["precision_values_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-declared-artifact", "path": ["artifact_contract_valid"], "operator": "eq", "expected": true},
+        {"check_id": "source-pdf-hash-not-authority", "path": ["raw_pdf_hash_identity_required"], "operator": "eq", "expected": false}
+      ]
+    },
+    "hidden_source_report_semantic_evaluator": {
+      "provider": "anthropic",
+      "model_tier": "haiku",
+      "model": "claude-haiku-4-5-20251001",
+      "automatic_tier_escalation_allowed": false,
+      "candidate_adjudication_strategy": "integrated_plus_adversarial",
+      "max_tokens": 6000,
+      "timeout_seconds": 120,
+      "reference_documents": [
+        {
+          "document_id": "betareg-gasoline-precision-source-report-reference",
+          "path": "benchmarks/evaluator_only/betareg_gasoline_precision_20260903/source_report_reference.md",
+          "sha256": "77ef8090be5609237bd6f731bb970d7beb1c3e470b4c8c20dd1e5ba49413efc8"
+        }
+      ],
+      "rubric_path": "benchmarks/evaluator_only/betareg_gasoline_precision_20260903/source_report_rubric.json",
+      "rubric_sha256": "f75efa8c5454ca125559e4f5f797810075c9196d5527488c82019dacc43e081d",
+      "calibration_cases_path": "benchmarks/evaluator_only/betareg_gasoline_precision_20260903/source_report_calibration_cases.json",
+      "calibration_cases_sha256": "adf2457627c0b8aa91e083da3f7523ea6c00299daae6913769fba8a02c07cc4b",
+      "candidate_mode_negative_cases_path": "benchmarks/evaluator_only/betareg_gasoline_precision_20260903/candidate_mode_negative_cases.json",
+      "candidate_mode_negative_cases_sha256": "a65e0d308dd148bf4e29e21e02d8d02b3b7ab2a37ed414f1424e2aeb8903a499",
+      "required_activation_record": true,
+      "activation_record_path": "",
+      "activation_record_sha256": ""
+    }
+  },
+  "gold_is_accessible_to_runtime_rag": false,
+  "gold_is_accessible_to_model_workspace": false,
+  "gold_execution_may_generate_runtime_feedback": false,
+  "product_runtime_started": false,
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 0,
+  "proof_evidence_status": "SEALED_EVALUATOR_CANDIDATE_NOT_CAPABILITY_OR_PROOF_EVIDENCE",
+  "boundary": "This is a sealed evaluator candidate, not an active benchmark or capability result. It cannot enter AgentRuntime, model RAG, source-owner feedback, revision, routing, scientific evidence, or proof evidence. Activation requires a separately hash-bound successful exact-Haiku integrated-plus-adversarial semantic qualification before the sole product draw."
+}

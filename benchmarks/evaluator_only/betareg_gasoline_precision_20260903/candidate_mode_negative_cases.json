@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "polished-causal-pdf-and-scope-near-miss",
+      "expected_status": "FAIL",
+      "documents": [
+        {
+          "document_id": "candidate_mode_near_miss.md",
+          "source_path": "benchmarks/evaluator_only/betareg_gasoline_precision_20260903/candidate_mode_near_miss.md",
+          "sha256": "5581a1d0771f530e8ac4a74a6dddf5e52e30698cec2c8fc89f4699897b941f5a"
+        }
+      ]
+    }
+  ]
+}

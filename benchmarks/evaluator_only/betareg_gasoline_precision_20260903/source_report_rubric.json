@@ -1,0 +1,33 @@
+{
+  "rubric_id": "betareg-gasoline-precision-source-report-20260903-v1",
+  "claims": [
+    {
+      "claim_id": "source-and-execution-identity",
+      "criterion": "The report identifies the JSS article and DOI, the unmodified official R entrypoint and hash-bound source snapshot, and the pinned current R/package execution rather than claiming an unspecified or reconstructed 2010 environment."
+    },
+    {
+      "claim_id": "execution-integrity",
+      "criterion": "The report says the official source ran successfully without model edits or arguments and reports source-integrity and environment observations without treating source execution as proof."
+    },
+    {
+      "claim_id": "focused-model-specification",
+      "criterion": "The report correctly identifies the first GasolineYield fit as yield ~ batch + temp with a logit mean link and a constant precision model using an identity link."
+    },
+    {
+      "claim_id": "precision-comparison",
+      "criterion": "The report gives precision 440.2783 before and 577.7907 after the source omits observation 4, with the direction of increase correct."
+    },
+    {
+      "claim_id": "precision-interpretation-and-claim-scope",
+      "criterion": "The report interprets larger phi as smaller fitted conditional dispersion at fixed mean under the beta mean-precision parameterization and makes no causal, robustness, universal-superiority, package-wide, or theorem claim from this comparison."
+    },
+    {
+      "claim_id": "artifact-boundary",
+      "criterion": "The report treats Rplots.pdf presence and size as execution metadata only, does not claim visual inspection, and does not require raw-PDF hash identity."
+    },
+    {
+      "claim_id": "replication-and-gap-scope",
+      "criterion": "The report keeps the other article analyses outside scoring scope and explicitly distinguishes this one current pinned rerun from full 2010-environment reconstruction, complete article replication, general beta-regression validation, novelty, or formal proof."
+    }
+  ]
+}
