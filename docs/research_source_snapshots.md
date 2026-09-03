@@ -135,5 +135,9 @@ Source stdout and stderr follow the same boundary: the manifest carries exact ha
 byte counts, truncation status, and bounded excerpts, while the existing result-read
 tool can inspect any exact line range from hash-rechecked runtime stream files. This
 keeps long published-program logs out of outer tasks and Critic payload copies.
+Declared UTF-8 result bodies and previews likewise remain only in their hash-bound
+copy-on-write files. Theory scratch code loads selected complete files through the
+same verified artifact identity; manifests retain only descriptors and compact CSV
+summaries.
 Successful execution is source-replication observation only; it is not semantic,
 statistical, confirmatory, novelty, or proof authority.

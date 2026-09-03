@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.research_source_library import (
-    MAX_SOURCE_RESULT_TEXT_BYTES,
     MAX_SOURCE_RESULT_READ_CHARS,
     RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
@@ -527,8 +526,6 @@ def test_staged_source_execution_captures_declared_result_without_mutating_sourc
                 },
                 "scientific_interpretation_performed": False,
             },
-            "raw_text": "method,error\nrecent,0.1\n",
-            "text_truncated": False,
         }
     ]
 
@@ -587,9 +584,11 @@ def test_staged_source_result_exposes_exact_pdf_as_model_content(tmp_path) -> No
 def test_staged_source_execution_bounds_large_text_observation(tmp_path) -> None:
     snapshot, execution, _ = _staged_source_execution_fixture(
         tmp_path,
-        max_output_bytes=MAX_SOURCE_RESULT_TEXT_BYTES * 2,
+        max_output_bytes=MAX_SOURCE_RESULT_READ_CHARS * 2,
     )
-    large_result = "x" * (MAX_SOURCE_RESULT_TEXT_BYTES + 1)
+    large_result = "".join(
+        f"result-{index:04d}," + ("x" * 80) + "\n" for index in range(700)
+    )
 
     def fake_executor(**kwargs):
         if str(kwargs["command"][1]).endswith("environment_probe.py"):
@@ -623,11 +622,16 @@ def test_staged_source_execution_bounds_large_text_observation(tmp_path) -> None
 
     artifact = manifest["result_artifacts"][0]
     assert manifest["execution_status"] == "EXECUTED"
-    assert artifact["text_truncated"] is True
     assert "raw_text" not in artifact
-    assert len(artifact["text_preview"].encode("utf-8")) == (
-        MAX_SOURCE_RESULT_TEXT_BYTES
+    assert "text_preview" not in artifact
+    assert large_result not in json.dumps(manifest)
+    exact_last_line = read_source_replication_result(
+        manifest,
+        relative_path="results.csv",
+        line_start=700,
+        line_end=700,
     )
+    assert exact_last_line["content"] == large_result.splitlines()[-1]
 
 
 def test_source_result_read_fails_closed_after_artifact_mutation(tmp_path) -> None:

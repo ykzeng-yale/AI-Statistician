@@ -762,7 +762,6 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
                 "size_bytes": len(result_text.encode()),
                 "content_encoding": "utf-8",
                 "text_line_count": 2,
-                "raw_text": result_text,
                 "text_truncated": False,
             },
             {

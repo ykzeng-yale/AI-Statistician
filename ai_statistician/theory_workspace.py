@@ -36,6 +36,7 @@ from .research_source_library import (
     execute_research_source_client_tool,
     execute_research_source,
     inspect_source_replication_result,
+    load_source_replication_text_result,
     read_source_replication_result,
     research_source_client_tools,
     source_replication_model_observation,
@@ -1502,16 +1503,19 @@ def run_theory_artifact_workspace(
                         raise ClientToolInputError(
                             "unknown source result artifact: " + relative_path
                         )
-                    content = row.get("raw_text")
-                    if not isinstance(content, str):
+                    try:
+                        loaded_result = load_source_replication_text_result(
+                            source_manifest,
+                            relative_path=relative_path,
+                        )
+                    except (OSError, UnicodeError, ValueError) as exc:
                         raise ClientToolInputError(
                             "source result artifact is not available as UTF-8 text: "
                             + relative_path
-                        )
+                        ) from exc
+                    content = str(loaded_result["content"])
                     expected_sha256 = str(row.get("sha256", "") or "")
-                    observed_sha256 = hashlib.sha256(
-                        content.encode("utf-8")
-                    ).hexdigest()
+                    observed_sha256 = str(loaded_result["artifact_sha256"])
                     if observed_sha256 != expected_sha256:
                         raise ClientToolInputError(
                             "source result artifact hash mismatch: " + relative_path

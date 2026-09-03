@@ -47,7 +47,6 @@ MAX_SOURCE_READ_CHARS = 50_000
 MAX_SOURCE_SEARCH_HITS = 10
 MAX_SOURCE_DIRECTORY_ENTRIES = 200
 MAX_SOURCE_EXECUTION_OUTPUT_BYTES = 16 * 1024 * 1024
-MAX_SOURCE_RESULT_TEXT_BYTES = 256 * 1024
 MAX_SOURCE_RESULT_ARTIFACTS = 32
 MAX_SOURCE_RESULT_READ_LINES = 240
 MAX_SOURCE_RESULT_READ_CHARS = 50_000
@@ -1451,15 +1450,11 @@ def read_source_replication_result(
         raise ValueError(
             f"source result reads are limited to {MAX_SOURCE_RESULT_READ_LINES} lines"
         )
-    result_path, artifact, raw_bytes = _source_replication_result_bytes(
-        manifest, relative_path
+    loaded = load_source_replication_text_result(
+        manifest, relative_path=relative_path
     )
-    if artifact.get("content_encoding") != "utf-8":
-        raise ValueError("source result artifact is not UTF-8 text")
-    try:
-        raw_text = raw_bytes.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ValueError("source result artifact is no longer UTF-8") from exc
+    result_path = PurePosixPath(loaded["relative_path"])
+    raw_text = loaded["content"]
     lines = raw_text.splitlines()
     if line_end > len(lines):
         raise ValueError(
@@ -1474,13 +1469,34 @@ def read_source_replication_result(
         "ok": True,
         "artifact_id": str(manifest.get("artifact_id", "") or ""),
         "relative_path": result_path.as_posix(),
-        "artifact_sha256": str(artifact.get("sha256", "") or ""),
+        "artifact_sha256": loaded["artifact_sha256"],
         "line_count": len(lines),
         "line_start": line_start,
         "line_end": line_end,
         "content": selected,
         "content_sha256": hashlib.sha256(selected.encode("utf-8")).hexdigest(),
         "proof_evidence_status": SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
+    }
+
+
+def load_source_replication_text_result(
+    manifest: Mapping[str, Any], *, relative_path: Any
+) -> dict[str, Any]:
+    """Load one complete exact UTF-8 result for a bound local consumer."""
+
+    result_path, artifact, raw_bytes = _source_replication_result_bytes(
+        manifest, relative_path
+    )
+    if artifact.get("content_encoding") != "utf-8":
+        raise ValueError("source result artifact is not UTF-8 text")
+    try:
+        content = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("source result artifact is no longer UTF-8") from exc
+    return {
+        "relative_path": result_path.as_posix(),
+        "artifact_sha256": str(artifact.get("sha256", "") or ""),
+        "content": content,
     }
 
 
@@ -1672,14 +1688,6 @@ def _capture_staged_result_artifacts(
             csv_summary = _csv_result_summary(raw_text)
             if csv_summary:
                 descriptor["csv_summary"] = csv_summary
-            if len(raw_content) <= MAX_SOURCE_RESULT_TEXT_BYTES:
-                descriptor["raw_text"] = raw_text
-                descriptor["text_truncated"] = False
-            else:
-                descriptor["text_preview"] = raw_content[
-                    :MAX_SOURCE_RESULT_TEXT_BYTES
-                ].decode("utf-8", errors="replace")
-                descriptor["text_truncated"] = True
         result_artifacts.append(descriptor)
 
     workspace_hash = stable_hash(
