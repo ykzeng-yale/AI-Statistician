@@ -935,6 +935,14 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     assert "source_run" not in fixed_result_inspect_tool.input_schema[
         "properties"
     ]
+    fixed_commit_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == THEORY_WORKSPACE_COMMIT_TOOL
+    )
+    assert "source_replication_selected_source_run" not in (
+        fixed_commit_tool.input_schema["properties"]
+    )
     fixed_execution_observation = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
@@ -1022,17 +1030,22 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
         selected = kwargs["execution"]
         calls.append(selected)
         run_index = len(calls)
+        execution_status = "EXECUTED" if run_index == 2 else "FAILED"
+        raw_stdout = "reproduction complete\n" if run_index == 2 else ""
+        raw_stderr = (
+            "missing argument\n"
+            if run_index == 1
+            else ("diagnostic mode unavailable\n" if run_index == 3 else "")
+        )
         body = {
             "schema_version": 4,
             "artifact_kind": "SourceReplicationManifest",
             "artifact_id": f"source_replication:model-selected-{run_index}",
             "question_id": "q1",
-            "execution_status": "FAILED" if run_index == 1 else "EXECUTED",
-            "raw_stdout": "" if run_index == 1 else "reproduction complete\n",
-            "raw_stderr": "missing argument\n" if run_index == 1 else "",
-            "stdout_sha256": hashlib.sha256(
-                ("" if run_index == 1 else "reproduction complete\n").encode()
-            ).hexdigest(),
+            "execution_status": execution_status,
+            "raw_stdout": raw_stdout,
+            "raw_stderr": raw_stderr,
+            "stdout_sha256": hashlib.sha256(raw_stdout.encode()).hexdigest(),
             "command_owned_by_model": True,
             "command_selection_mode": SOURCE_COMMAND_MODEL_SELECTED,
             "command_request_hash": stable_hash({
@@ -1114,14 +1127,26 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
                 },
             )),
             _response(ClientToolCall(
+                call_id="later-diagnostic-command",
+                name=RESEARCH_SOURCE_RUN_TOOL,
+                input={
+                    **command,
+                    "reason": (
+                        "Probe an optional diagnostic after the successful run."
+                    ),
+                    "arguments": ["--diagnostic"],
+                },
+            )),
+            _response(ClientToolCall(
                 call_id="write-reproduction-report",
                 name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                 input={
                     "path": "replication/report.md",
                     "content": (
                         "# Reproduction report\n\nThe first command failed; the "
-                        "second exact command completed. This execution does not "
-                        "validate the source's scientific claims.\n"
+                        "second exact command completed; a later optional diagnostic "
+                        "failed. The second run is the checkpoint candidate. This "
+                        "execution does not validate the source's scientific claims.\n"
                     ),
                 },
             )),
@@ -1135,6 +1160,7 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
                         "scientific validation."
                     ),
                     "unresolved_gaps": [],
+                    "selected_source_run": 2,
                 },
             )),
         ]
@@ -1158,15 +1184,20 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
         require_document_authority=True,
     )
 
-    assert [selected.arguments for selected in calls] == [(), ("--required",)]
+    assert [selected.arguments for selected in calls] == [
+        (),
+        ("--required",),
+        ("--diagnostic",),
+    ]
     assert [selected.selected_command_reason for selected in calls] == [
         "Try the documented entrypoint.",
         "Add the argument requested by stderr.",
+        "Probe an optional diagnostic after the successful run.",
     ]
     assert len({
         manifest["execution_attempt_id"]
         for manifest in result.evidence["source_replication_manifests"]
-    }) == 2
+    }) == 3
     assert inspected_runs == ["source_replication:model-selected-1"]
     first_run = json.loads(
         backend.requests[1].messages[-1]["content"][0]["content"]
@@ -1177,13 +1208,13 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
         "raw_stderr"
     ]
     assert "missing argument" in str(backend.requests[3].messages)
-    assert result.evidence["source_replication_runs"] == 2
-    assert len(result.evidence["source_replication_manifests"]) == 2
+    assert result.evidence["source_replication_runs"] == 3
+    assert len(result.evidence["source_replication_manifests"]) == 3
     assert result.core_packet["selected_source_run"] == 2
     assert [
         row["source_run"]
         for row in result.core_packet["source_execution_attempt_refs"]
-    ] == [1, 2]
+    ] == [1, 2, 3]
     assert result.core_packet["source_replication_manifest_ref"][
         "artifact_id"
     ].endswith("-2")
@@ -1199,6 +1230,12 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
         "result_artifact_paths",
     }
     assert "another command" in run_tool.description
+    commit_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL
+    )
+    assert "selected_source_run" in commit_tool.input_schema["required"]
 
 
 def test_source_only_intent_commits_markdown_report_without_theory_packet(
@@ -1354,9 +1391,11 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
     assert "locally false interpretation" in opening_request
 
 
+@pytest.mark.parametrize("model_selected", [False, True])
 def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
     tmp_path,
     monkeypatch,
+    model_selected,
 ) -> None:
     research_sources, _ = _research_source_snapshot(tmp_path)
     source_execution = ResearchSourceExecutionSpec(
@@ -1380,9 +1419,13 @@ def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
         package_distributions=(("Demo", "demo"),),
         timeout_seconds=30,
         max_output_bytes=8192,
+        schema_version=4 if model_selected else 1,
+        command_selection_mode=(
+            SOURCE_COMMAND_MODEL_SELECTED if model_selected else "operator_fixed"
+        ),
     )
     manifest_body = {
-        "schema_version": 1,
+        "schema_version": 4 if model_selected else 1,
         "artifact_kind": "SourceReplicationManifest",
         "artifact_id": "source_replication:q1-integrated",
         "question_id": "q1",
@@ -1400,6 +1443,15 @@ def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
             "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
         ),
     }
+    if model_selected:
+        manifest_body.update(
+            {
+                "command_owned_by_model": True,
+                "command_selection_mode": SOURCE_COMMAND_MODEL_SELECTED,
+                "command_request_hash": "integrated-command-hash",
+                "execution_attempt_id": "source_attempt:integrated-1",
+            }
+        )
     manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
     monkeypatch.setattr(
         "ai_statistician.theory_workspace.execute_research_source",
@@ -1424,13 +1476,26 @@ def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
             "Only one pinned execution was observed."
         ],
     }
+    if model_selected:
+        source_commit_fields["source_replication_selected_source_run"] = 1
+    source_run_input = (
+        {
+            "reason": "Run the documented integrated entrypoint.",
+            "entrypoint_document_id": "robust-location-paper",
+            "working_directory_relative": ".",
+            "arguments": [],
+            "result_artifact_paths": [],
+        }
+        if model_selected
+        else {}
+    )
     backend = ScriptedTheoryWorkspaceBackend(
         [
             _response(
                 ClientToolCall(
                     call_id="run-integrated-source",
                     name=RESEARCH_SOURCE_RUN_TOOL,
-                    input={},
+                    input=source_run_input,
                 )
             ),
             _response(
@@ -1546,14 +1611,18 @@ def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
     assert result.evidence["model_owned_source_report"] is True
     first_tools = {tool.name: tool for tool in backend.requests[0].tools}
     assert SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL not in first_tools
-    assert set(
-        first_tools[THEORY_WORKSPACE_COMMIT_TOOL].input_schema["required"]
-    ) == {
+    expected_commit_fields = {
         "readiness_rationale",
         "source_replication_report_document_path",
         "source_replication_readiness_rationale",
         "source_replication_unresolved_gaps",
     }
+    if model_selected:
+        expected_commit_fields.add("source_replication_selected_source_run")
+        assert checkpoint["selected_source_run"] == 1
+    assert set(
+        first_tools[THEORY_WORKSPACE_COMMIT_TOOL].input_schema["required"]
+    ) == expected_commit_fields
 
 
 def test_same_model_revises_workspace_after_raw_validator_observation() -> None:

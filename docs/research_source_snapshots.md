@@ -130,8 +130,10 @@ directory, arguments, and declared outputs, then revise that choice after raw
 stdout/stderr. Every attempt has a distinct runtime identity and fresh isolated
 workspace. The operator still owns the interpreter, lock, package probe, runtime
 executables, environment variables, network denial, secrets policy, and resource
-limits. Model-selected commands are exploratory reproduction evidence; strict exact
-replication gold continues to require an operator-fixed command.
+limits. At checkpoint the source owner explicitly selects one completed run while
+the runtime retains every attempt. Model-selected commands are exploratory
+reproduction evidence; strict exact replication gold continues to require an
+operator-fixed command.
 
 Schema-v3 and v4 Python may use the runtime-owned hash-bound version probe so the original
 repository need not contain an AI-Statistician helper; other languages require an

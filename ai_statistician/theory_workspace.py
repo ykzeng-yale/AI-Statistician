@@ -625,9 +625,17 @@ def run_theory_artifact_workspace(
         and research_source_execution.command_selection_mode
         == SOURCE_COMMAND_MODEL_SELECTED
     )
-    integrated_commit_fields = ({"source_replication_report_document_path",
-        "source_replication_readiness_rationale", "source_replication_unresolved_gaps"}
-        if integrated_source_replication_required else set())
+    integrated_commit_fields = (
+        {
+            "source_replication_report_document_path",
+            "source_replication_readiness_rationale",
+            "source_replication_unresolved_gaps",
+        }
+        if integrated_source_replication_required
+        else set()
+    )
+    if integrated_source_replication_required and model_selected_source_execution:
+        integrated_commit_fields.add("source_replication_selected_source_run")
     restored_tool_state = _theory_progress_workspace_state(
         prior_workspace_checkpoint,
         workspace_id=workspace_id,
@@ -1072,6 +1080,7 @@ def run_theory_artifact_workspace(
         report_field: str,
         rationale_field: str,
         gaps_field: str,
+        selected_run_field: str,
     ) -> dict[str, Any]:
         manifests = state["source_replication_manifests"]
         if not manifests or state["source_replication_runs"] != len(manifests):
@@ -1091,10 +1100,7 @@ def run_theory_artifact_workspace(
             isinstance(value, str) and value.strip() for value in unresolved_gaps
         ):
             raise ClientToolInputError("source replication unresolved_gaps must be an array of nonempty text")
-        source_manifest = manifests[-1]
-        model_selected_lineage = (
-            source_manifest.get("command_owned_by_model") is True
-        )
+        model_selected_lineage = model_selected_source_execution
         if model_selected_lineage and any(
             manifest.get("command_owned_by_model") is not True
             or manifest.get("command_selection_mode")
@@ -1110,6 +1116,21 @@ def run_theory_artifact_workspace(
             raise ClientToolInputError(
                 "operator-fixed source execution requires exactly one run"
             )
+        if model_selected_lineage:
+            selected_source_run = tool_input.get(selected_run_field)
+            if (
+                isinstance(selected_source_run, bool)
+                or not isinstance(selected_source_run, int)
+                or selected_source_run < 1
+                or selected_source_run > len(manifests)
+            ):
+                raise ClientToolInputError(
+                    "source replication selected_source_run must identify one "
+                    "completed model-selected run"
+                )
+        else:
+            selected_source_run = 1
+        source_manifest = manifests[selected_source_run - 1]
         if source_manifest.get("execution_status") != "EXECUTED" and not unresolved_gaps:
             raise ClientToolInputError("failed source execution requires an explicit unresolved gap")
         report_rows = [
@@ -1152,7 +1173,7 @@ def run_theory_artifact_workspace(
                     }
                     for index, manifest in enumerate(manifests, start=1)
                 ],
-                "selected_source_run": len(manifests),
+                "selected_source_run": selected_source_run,
             })
         return {
             **checkpoint_body,
@@ -1638,6 +1659,9 @@ def run_theory_artifact_workspace(
                     report_field="source_replication_report_document_path",
                     rationale_field="source_replication_readiness_rationale",
                     gaps_field="source_replication_unresolved_gaps",
+                    selected_run_field=(
+                        "source_replication_selected_source_run"
+                    ),
                 )
                 if integrated_source_replication_required
                 else {}
@@ -1724,20 +1748,24 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "source replication checkpoint is unavailable"
                 )
-            if set(tool_input) != {
+            expected_source_commit_fields = {
                 "report_document_path",
                 "readiness_rationale",
                 "unresolved_gaps",
-            }:
+            }
+            if model_selected_source_execution:
+                expected_source_commit_fields.add("selected_source_run")
+            if set(tool_input) != expected_source_commit_fields:
                 raise ClientToolInputError(
                     "commit_source_replication_checkpoint requires exactly "
-                    "report_document_path, readiness_rationale, and unresolved_gaps"
+                    + ", ".join(sorted(expected_source_commit_fields))
                 )
             checkpoint = source_replication_checkpoint(
                 tool_input,
                 report_field="report_document_path",
                 rationale_field="readiness_rationale",
                 gaps_field="unresolved_gaps",
+                selected_run_field="selected_source_run",
             )
             checkpoint_id = checkpoint["checkpoint_id"]
             checkpoint_hash = stable_hash(checkpoint)
@@ -2162,8 +2190,9 @@ def run_theory_artifact_workspace(
             "result paths. The runtime fixes and revalidates the interpreter, packages, "
             "snapshot, resource policy, network denial, and secret isolation. Each "
             "command runs in a fresh workspace and raw feedback returns here; revise "
-            "your command choice rather than asking a repair worker. The latest run is "
-            "the selected checkpoint candidate and all attempt hashes remain evidence. "
+            "your command choice rather than asking a repair worker. At checkpoint, "
+            "explicitly select the completed source_run that your report advances; "
+            "all attempt hashes remain evidence. "
             "Inspect and interpret each observation yourself. The visible execution "
             "descriptor and returned manifest state the exact working directory and "
             "argument vector. For larger UTF-8 outputs, either read exact lines or "
@@ -2573,6 +2602,19 @@ def run_theory_artifact_workspace(
         source_ref = packet.get("source_replication_manifest_ref", {})
         source_manifests = state["source_replication_manifests"]
         terminal_errors: list[str] = []
+        selected_source_run = packet.get("selected_source_run", 1)
+        selected_source_manifest = (
+            source_manifests[selected_source_run - 1]
+            if (
+                not isinstance(selected_source_run, bool)
+                and isinstance(selected_source_run, int)
+                and 1 <= selected_source_run <= len(source_manifests)
+            )
+            else {}
+        )
+        model_selected_terminal = bool(
+            packet.get("source_execution_attempt_refs")
+        )
         if not (
             packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND
             and packet.get("question_id") == question_id
@@ -2582,10 +2624,18 @@ def run_theory_artifact_workspace(
             and str(report.get("relative_path", "") or "")
             and isinstance(source_ref, Mapping)
             and bool(source_manifests)
+            and (
+                model_selected_terminal
+                or (
+                    len(source_manifests) == 1
+                    and "selected_source_run" not in packet
+                )
+            )
+            and bool(selected_source_manifest)
             and source_ref.get("artifact_id")
-            == source_manifests[-1].get("artifact_id")
+            == selected_source_manifest.get("artifact_id")
             and source_ref.get("manifest_hash")
-            == source_manifests[-1].get("manifest_hash")
+            == selected_source_manifest.get("manifest_hash")
         ):
             terminal_errors.append(
                 "terminal source replication checkpoint identity is invalid"
@@ -3119,12 +3169,42 @@ def _theory_workspace_tools(
     document_authority_enabled: bool = False,
     writable_artifact_names: Sequence[str],
 ) -> tuple[ClientToolDefinition, ...]:
-    integrated_commit_properties = ({
-        "source_replication_report_document_path": {"type": "string", "minLength": 1},
-        "source_replication_readiness_rationale": {"type": "string", "minLength": 1},
-        "source_replication_unresolved_gaps": {
-            "type": "array", "items": {"type": "string", "minLength": 1}},
-    } if integrated_source_replication_required else {})
+    source_commit_properties = {
+        "report_document_path": {
+            "type": "string",
+            "minLength": 1,
+        },
+        "readiness_rationale": {
+            "type": "string",
+            "minLength": 1,
+        },
+        "unresolved_gaps": {
+            "type": "array",
+            "description": (
+                "Use [] when no gap remains; otherwise use only nonempty plain "
+                "strings, never objects or empty placeholders."
+            ),
+            "items": {"type": "string", "minLength": 1},
+        },
+    }
+    if model_selected_source_execution:
+        source_commit_properties["selected_source_run"] = {
+            "type": "integer",
+            "minimum": 1,
+            "description": (
+                "Choose the completed source_run whose exact command and outputs "
+                "this report advances as its checkpoint candidate. Every attempt "
+                "remains in lineage."
+            ),
+        }
+    integrated_commit_properties = (
+        {
+            "source_replication_" + field: deepcopy(schema)
+            for field, schema in source_commit_properties.items()
+        }
+        if integrated_source_replication_required
+        else {}
+    )
     read_tool = ClientToolDefinition(
         name="read_theory_workspace",
         description=(
@@ -3456,34 +3536,18 @@ def _theory_workspace_tools(
                     "Commit a model-authored Markdown source-replication report after "
                     "the immutable source run without fabricating theory, code, simulation, "
                     "or proof artifacts; the frozen outer graph may continue other workspaces."
+                    + (
+                        " Explicitly select which completed source run the report "
+                        "advances; all attempts remain immutable evidence."
+                        if model_selected_source_execution
+                        else ""
+                    )
                 ),
                 input_schema={
                     "type": "object",
                     "additionalProperties": False,
-                    "required": [
-                        "report_document_path",
-                        "readiness_rationale",
-                        "unresolved_gaps",
-                    ],
-                    "properties": {
-                        "report_document_path": {
-                            "type": "string",
-                            "minLength": 1,
-                        },
-                        "readiness_rationale": {
-                            "type": "string",
-                            "minLength": 1,
-                        },
-                        "unresolved_gaps": {
-                            "type": "array",
-                            "description": (
-                                "Use [] when no gap remains; otherwise use only "
-                                "nonempty plain strings, never objects or empty "
-                                "placeholders."
-                            ),
-                            "items": {"type": "string", "minLength": 1},
-                        },
-                    },
+                    "required": list(source_commit_properties),
+                    "properties": source_commit_properties,
                 },
                 terminal=True,
             )

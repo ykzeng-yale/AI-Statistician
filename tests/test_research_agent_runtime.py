@@ -2512,7 +2512,7 @@ def test_runtime_binds_complete_model_selected_source_attempt_lineage() -> None:
     workspace = deepcopy(packet.pop("llm_client_tool_loop"))
     template = workspace["source_replication_manifests"][0]
     sources = []
-    for index, status in enumerate(("FAILED", "EXECUTED"), start=1):
+    for index, status in enumerate(("EXECUTED", "FAILED"), start=1):
         body = {
             **{key: value for key, value in template.items() if key != "manifest_hash"},
             "artifact_id": f"source_replication:{question.id}:{index}",
@@ -2530,7 +2530,7 @@ def test_runtime_binds_complete_model_selected_source_attempt_lineage() -> None:
             if key not in {"checkpoint_id", "source_replication_manifest_ref"}
         },
         "source_replication_manifest_ref": {
-            key: sources[-1][key]
+            key: sources[0][key]
             for key in (
                 "artifact_id", "manifest_hash", "execution_status", "stdout_sha256"
             )
@@ -2548,7 +2548,7 @@ def test_runtime_binds_complete_model_selected_source_attempt_lineage() -> None:
             }
             for index, source in enumerate(sources, start=1)
         ],
-        "selected_source_run": 2,
+        "selected_source_run": 1,
     }
     checkpoint = {
         **checkpoint_body,
@@ -2575,9 +2575,9 @@ def test_runtime_binds_complete_model_selected_source_attempt_lineage() -> None:
         question=question,
     )
 
-    assert bound["selected_source_run"] == 2
+    assert bound["selected_source_run"] == 1
     assert bound["source_replication_manifest_ref"]["artifact_id"] == (
-        sources[-1]["artifact_id"]
+        sources[0]["artifact_id"]
     )
     assert "exploratory reproduction" in bound["boundary"]
     result = runtime_module._source_replication_checkpoint_result(
@@ -2594,7 +2594,7 @@ def test_runtime_binds_complete_model_selected_source_attempt_lineage() -> None:
     assert result.status == "ACCEPTED"
     assert result.observations[0].payload["source_replication_ref"][
         "artifact_id"
-    ] == sources[-1]["artifact_id"]
+    ] == sources[0]["artifact_id"]
     assert "model-selected frozen-project command chain" in result.rationale
     tampered = deepcopy(checkpoint)
     tampered["source_execution_attempt_refs"][0]["command_request_hash"] = "changed"
@@ -2605,6 +2605,19 @@ def test_runtime_binds_complete_model_selected_source_attempt_lineage() -> None:
     )
     assert runtime_module._bind_source_replication_checkpoint(
         raw_checkpoint=tampered,
+        workspace=stored_workspace,
+        source_refs=refs,
+        question=question,
+    ) == {}
+    invalid_selection = deepcopy(checkpoint)
+    invalid_selection["selected_source_run"] = 3
+    invalid_selection_body = deepcopy(invalid_selection)
+    invalid_selection_body.pop("checkpoint_id")
+    invalid_selection["checkpoint_id"] = "source_replication_checkpoint:" + (
+        runtime_module.stable_hash(invalid_selection_body)[:20]
+    )
+    assert runtime_module._bind_source_replication_checkpoint(
+        raw_checkpoint=invalid_selection,
         workspace=stored_workspace,
         source_refs=refs,
         question=question,

@@ -5395,10 +5395,14 @@ def _bind_source_replication_checkpoint(
     attempt_refs = checkpoint.get("source_execution_attempt_refs", [])
     model_selected = bool(attempt_refs)
     if model_selected:
+        selected_source_run = checkpoint.get("selected_source_run")
         if (
             not isinstance(attempt_refs, list)
             or len(attempt_refs) != len(source_refs)
-            or checkpoint.get("selected_source_run") != len(source_refs)
+            or isinstance(selected_source_run, bool)
+            or not isinstance(selected_source_run, int)
+            or selected_source_run < 1
+            or selected_source_run > len(source_refs)
             or any(
                 not isinstance(attempt, Mapping)
                 or attempt.get("source_run") != index
@@ -5416,9 +5420,15 @@ def _bind_source_replication_checkpoint(
             )
         ):
             return {}
-    elif len(source_refs) != 1 or source_refs[0].get("command_owned_by_model") is True:
-        return {}
-    selected_source_ref = source_refs[-1]
+        selected_source_ref = source_refs[selected_source_run - 1]
+    else:
+        if (
+            len(source_refs) != 1
+            or source_refs[0].get("command_owned_by_model") is True
+            or "selected_source_run" in checkpoint
+        ):
+            return {}
+        selected_source_ref = source_refs[0]
     report = checkpoint.get("report_document", {})
     workspace_manifest = workspace.get("theory_workspace_manifest", {})
     documents = workspace_manifest.get("documents", []) if isinstance(workspace_manifest, Mapping) else []
@@ -5547,7 +5557,15 @@ def _source_replication_checkpoint_result(
         )
 
     checkpoint_id = str(bound["checkpoint_id"])
-    source_ref = source_refs[-1]
+    selected_source_run = bound.get("selected_source_run", 1)
+    if (
+        isinstance(selected_source_run, bool)
+        or not isinstance(selected_source_run, int)
+        or selected_source_run < 1
+        or selected_source_run > len(source_refs)
+    ):
+        raise ValueError("bound source checkpoint selected run is invalid")
+    source_ref = source_refs[selected_source_run - 1]
     source_completed = source_ref.get("execution_status") == "EXECUTED"
     evidence_status = (
         "SOURCE_EXECUTION_RECORDED_REQUIRES_HIDDEN_EVALUATION"
