@@ -126,9 +126,10 @@ working directory, declared result files, no network, and copy-on-write executio
 Schema-v3 Python may use the runtime-owned hash-bound version probe so the original
 repository need not contain an AI-Statistician helper; other languages require an
 explicit snapshot probe document. The manifest records which probe authority ran
-and returns its bounded stdout, stderr, return code, transport errors, and hashes to
-the same Theory source owner even when source execution never starts. A hash-checked
-virtualenv launcher is resolved for the macOS sandbox without losing its environment
-identity.
+and returns its return code, transport errors, exact stream hashes and bounded raw
+excerpts to the same Theory source owner even when source execution never starts.
+Full probe streams remain in the isolated output files instead of being recursively
+copied into model messages or manifests. A hash-checked virtualenv launcher is
+resolved for the macOS sandbox without losing its environment identity.
 Successful execution is source-replication observation only; it is not semantic,
 statistical, confirmatory, novelty, or proof authority.

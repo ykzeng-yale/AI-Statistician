@@ -1343,7 +1343,7 @@ def _csv_result_summary(raw_text: str) -> dict[str, Any]:
 def source_replication_model_observation(
     manifest: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Project a bounded result while retaining full bytes in the artifact manifest."""
+    """Project bounded text while retaining exact stream hashes and source bytes."""
 
     identity_fields = """schema_version artifact_kind artifact_id question_id
         benchmark_id execution_id execution_spec_sha256 source_snapshot_id
@@ -1353,7 +1353,8 @@ def source_replication_model_observation(
         environment_probe_document_id environment_probe_origin
         environment_probe_execution_attempted environment_probe_returncode
         environment_probe_errors environment_probe_stdout_sha256
-        environment_probe_stderr_sha256 runtime_language interpreter_executable_sha256
+        environment_probe_stderr_sha256 environment_probe_stdout_bytes
+        environment_probe_stderr_bytes runtime_language interpreter_executable_sha256
         runtime_version python_executable_sha256 runtime_executable_sha256
         environment_probe_sha256 python_version package_versions
         working_directory_relative interpreter_arguments arguments runtime_environment
@@ -1376,9 +1377,9 @@ def source_replication_model_observation(
     ):
         raw_value = str(manifest.get(field, "") or "")
         observation[field] = raw_value[:MAX_SOURCE_RESULT_READ_CHARS]
-        observation[f"{field}_truncated"] = (
-            len(raw_value) > MAX_SOURCE_RESULT_READ_CHARS
-        )
+        observation[f"{field}_truncated"] = bool(
+            manifest.get(f"{field}_truncated", False)
+        ) or len(raw_value) > MAX_SOURCE_RESULT_READ_CHARS
     compact_artifacts: list[dict[str, Any]] = []
     for raw_artifact in manifest.get("result_artifacts", []) or []:
         if not isinstance(raw_artifact, Mapping):
@@ -1850,18 +1851,20 @@ def execute_research_source(
     errors = list(dict.fromkeys(value for value in errors if value))
     raw_stdout = str(source_result.get("stdout", "") or "")
     raw_stderr = str(source_result.get("stderr", "") or "")
-    probe_raw_stdout = str(probe_result.get("stdout", "") or "")
-    probe_raw_stderr = str(probe_result.get("stderr", "") or "")
+    full_probe_stdout = str(probe_result.get("stdout", "") or "")
+    full_probe_stderr = str(probe_result.get("stderr", "") or "")
+    probe_raw_stdout = full_probe_stdout[:MAX_SOURCE_RESULT_READ_CHARS]
+    probe_raw_stderr = full_probe_stderr[:MAX_SOURCE_RESULT_READ_CHARS]
     probe_errors = [
         str(value) for value in probe_result.get("errors", []) or []
     ]
     stdout_sha256 = hashlib.sha256(raw_stdout.encode("utf-8")).hexdigest()
     stderr_sha256 = hashlib.sha256(raw_stderr.encode("utf-8")).hexdigest()
     probe_stdout_sha256 = hashlib.sha256(
-        probe_raw_stdout.encode("utf-8")
+        full_probe_stdout.encode("utf-8")
     ).hexdigest()
     probe_stderr_sha256 = hashlib.sha256(
-        probe_raw_stderr.encode("utf-8")
+        full_probe_stderr.encode("utf-8")
     ).hexdigest()
     artifact_id = "source_replication:" + stable_hash(
         [
@@ -1895,8 +1898,12 @@ def execute_research_source(
         "environment_probe_errors": probe_errors,
         "environment_probe_raw_stdout": probe_raw_stdout,
         "environment_probe_raw_stderr": probe_raw_stderr,
+        "environment_probe_raw_stdout_truncated": len(full_probe_stdout) > MAX_SOURCE_RESULT_READ_CHARS,
+        "environment_probe_raw_stderr_truncated": len(full_probe_stderr) > MAX_SOURCE_RESULT_READ_CHARS,
         "environment_probe_stdout_sha256": probe_stdout_sha256,
         "environment_probe_stderr_sha256": probe_stderr_sha256,
+        "environment_probe_stdout_bytes": len(full_probe_stdout.encode("utf-8")),
+        "environment_probe_stderr_bytes": len(full_probe_stderr.encode("utf-8")),
         "runtime_language": execution.runtime_language, "interpreter_executable_sha256": execution.interpreter_executable_sha256,
         "runtime_executable_sha256": [
             sha256 for _, sha256 in execution.runtime_executables

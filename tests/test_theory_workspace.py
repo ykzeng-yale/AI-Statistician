@@ -740,6 +740,17 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         "artifact_id": "source_replication:fixture",
         "question_id": "q1",
         "execution_status": "EXECUTED",
+        "environment_probe_execution_attempted": True,
+        "environment_probe_returncode": 0,
+        "environment_probe_errors": [],
+        "environment_probe_raw_stdout": '{"runtime_version":"3.test"}\n',
+        "environment_probe_raw_stderr": "probe startup warning\n",
+        "environment_probe_stdout_sha256": hashlib.sha256(
+            b'{"runtime_version":"3.test"}\n'
+        ).hexdigest(),
+        "environment_probe_stderr_sha256": hashlib.sha256(
+            b"probe startup warning\n"
+        ).hexdigest(),
         "raw_stdout": "coef=0.5\n",
         "raw_stderr": "",
         "stdout_sha256": hashlib.sha256(b"coef=0.5\n").hexdigest(),
@@ -908,6 +919,7 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     ]
     assert RESEARCH_SOURCE_RESULT_INSPECT_TOOL in first_tools
     assert "coef=0.5" in str(backend.requests[1].messages)
+    assert "probe startup warning" in str(backend.requests[1].messages)
     assert "raw_text" not in str(backend.requests[1].messages)
     assert "method,error" in str(backend.requests[3].messages)
     assert len(scratch_calls) == 1

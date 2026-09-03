@@ -13,6 +13,7 @@ import pytest
 
 from ai_statistician.research_source_library import (
     MAX_SOURCE_RESULT_TEXT_BYTES,
+    MAX_SOURCE_RESULT_READ_CHARS,
     RESEARCH_SOURCE_LIST_TOOL,
     RESEARCH_SOURCE_READ_TOOL,
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
@@ -997,6 +998,9 @@ def test_failed_environment_probe_returns_raw_observation_to_source_owner(
 ) -> None:
     snapshot, execution, _, _ = _source_execution_fixture(tmp_path)
     calls = []
+    probe_stderr = "interpreter startup failed\n" + (
+        "x" * MAX_SOURCE_RESULT_READ_CHARS
+    )
 
     def fail_probe(**kwargs):
         calls.append(kwargs)
@@ -1004,7 +1008,7 @@ def test_failed_environment_probe_returns_raw_observation_to_source_owner(
             "execution_attempted": True,
             "returncode": 71,
             "stdout": "probe diagnostic output\n",
-            "stderr": "interpreter startup failed\n",
+            "stderr": probe_stderr,
             "errors": ["probe transport note"],
         }
 
@@ -1022,12 +1026,18 @@ def test_failed_environment_probe_returns_raw_observation_to_source_owner(
     assert manifest["environment_probe_returncode"] == 71
     assert manifest["environment_probe_errors"] == ["probe transport note"]
     assert manifest["environment_probe_raw_stdout"] == "probe diagnostic output\n"
-    assert manifest["environment_probe_raw_stderr"] == "interpreter startup failed\n"
+    assert manifest["environment_probe_raw_stderr"] == probe_stderr[
+        :MAX_SOURCE_RESULT_READ_CHARS
+    ]
+    assert manifest["environment_probe_raw_stderr_truncated"] is True
+    assert manifest["environment_probe_stderr_bytes"] == len(
+        probe_stderr.encode("utf-8")
+    )
     assert manifest["environment_probe_stdout_sha256"] == hashlib.sha256(
         b"probe diagnostic output\n"
     ).hexdigest()
     assert manifest["environment_probe_stderr_sha256"] == hashlib.sha256(
-        b"interpreter startup failed\n"
+        probe_stderr.encode("utf-8")
     ).hexdigest()
     assert manifest["raw_stdout"] == ""
     assert manifest["raw_stderr"] == ""
@@ -1038,8 +1048,12 @@ def test_failed_environment_probe_returns_raw_observation_to_source_owner(
     assert observation["environment_probe_raw_stdout"] == (
         "probe diagnostic output\n"
     )
-    assert observation["environment_probe_raw_stderr"] == (
-        "interpreter startup failed\n"
+    assert observation["environment_probe_raw_stderr"] == probe_stderr[
+        :MAX_SOURCE_RESULT_READ_CHARS
+    ]
+    assert observation["environment_probe_raw_stderr_truncated"] is True
+    assert observation["environment_probe_stderr_bytes"] == len(
+        probe_stderr.encode("utf-8")
     )
 
 
