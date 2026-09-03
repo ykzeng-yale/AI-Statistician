@@ -18648,6 +18648,8 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
 
     def inspect_lean_state(
         source: str,
+        line: int,
+        column: int,
         last_check: Mapping[str, Any],
     ) -> Any:
         if proof_state_provider is None:
@@ -18703,7 +18705,11 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             artifact_path=check_artifact_path or None,
         )
         rows = bind_candidate_axiom_audit_to_proof_state_feedback(
-            proof_state_provider.inspect((subclaim,)),
+            proof_state_provider.inspect(
+                (subclaim,),
+                line=line,
+                column=column,
+            ),
             audit_checked=_bool_like(
                 last_check.get("candidate_axiom_audit_checked", False)
             ),
@@ -18727,6 +18733,11 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             "lean_project_hash": str(
                 last_check.get("lean_project_hash", "") or ""
             ),
+            "requested_position": {
+                "line": line,
+                "column": column,
+                "selection_owner": "Formalizer",
+            },
             "rows": [proof_state_feedback_row_to_json(row) for row in rows],
             "proof_evidence_status": (
                 "MODEL_REQUESTED_LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE"

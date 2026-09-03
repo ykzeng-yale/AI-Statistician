@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 import json
-import re
 import shutil
 import subprocess
 import sys
@@ -60,7 +59,13 @@ class ProofStateFeedbackRow:
 class ProofStateFeedbackProvider(Protocol):
     name: str
 
-    def inspect(self, subclaims: Sequence[FormalSubclaim]) -> list[ProofStateFeedbackRow]:
+    def inspect(
+        self,
+        subclaims: Sequence[FormalSubclaim],
+        *,
+        line: int,
+        column: int,
+    ) -> list[ProofStateFeedbackRow]:
         ...
 
 
@@ -345,7 +350,14 @@ class LocalLeanProofStateFeedbackProvider:
         self.timeout_s = int(timeout_s)
         self.lean_command = tuple(lean_command) if lean_command is not None else self._default_lean_command()
 
-    def inspect(self, subclaims: Sequence[FormalSubclaim]) -> list[ProofStateFeedbackRow]:
+    def inspect(
+        self,
+        subclaims: Sequence[FormalSubclaim],
+        *,
+        line: int,
+        column: int,
+    ) -> list[ProofStateFeedbackRow]:
+        del line, column
         return [self._inspect_subclaim(row) for row in subclaims]
 
     def _inspect_subclaim(self, subclaim: FormalSubclaim) -> ProofStateFeedbackRow:
@@ -672,7 +684,25 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 "proof_evidence_status": LEAN_DECLARATION_INSPECTION_STATUS,
             }
 
-    def _inspect_subclaim(self, subclaim: FormalSubclaim) -> ProofStateFeedbackRow:
+    def inspect(
+        self,
+        subclaims: Sequence[FormalSubclaim],
+        *,
+        line: int,
+        column: int,
+    ) -> list[ProofStateFeedbackRow]:
+        return [
+            self._inspect_subclaim(row, line=line, column=column)
+            for row in subclaims
+        ]
+
+    def _inspect_subclaim(
+        self,
+        subclaim: FormalSubclaim,
+        *,
+        line: int,
+        column: int,
+    ) -> ProofStateFeedbackRow:
         base = super()._inspect_subclaim(subclaim)
         artifact_path = str(subclaim.artifact_path or "").strip()
         if not artifact_path:
@@ -697,7 +727,8 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
             )
         traces = self._run_mcp_feedback_tools(
             artifact_path,
-            compiler_diagnostics=base.diagnostics,
+            line=line,
+            column=column,
         )
         residual_goals = tuple(
             dict.fromkeys(
@@ -768,7 +799,8 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         self,
         artifact_path: str,
         *,
-        compiler_diagnostics: Sequence[str] = (),
+        line: int,
+        column: int,
     ) -> tuple[dict[str, Any], ...]:
         requested_tool = "lean_lsp_mcp.lean_diagnostic_messages"
         if self.project_root is None:
@@ -790,7 +822,7 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
             },)
         try:
             collector = self._load_openprover_mcp_collector()
-            position = _lean_compiler_diagnostic_position(compiler_diagnostics)
+            position = {"line": line, "column": column}
             with tempfile.TemporaryDirectory(
                 prefix="ai_stat_openprover_mcp_"
             ) as tmp:
@@ -890,26 +922,6 @@ def _diagnostic_lines(text: str, *, limit: int = 40) -> list[str]:
     return [*lines[:head], "[Lean output truncated]", *lines[-tail:]]
 
 
-_LEAN_DIAGNOSTIC_POSITION_RE = re.compile(
-    r"(?:^|\s|/)[^\s:]*:(?P<line>[1-9][0-9]*):(?P<column>[1-9][0-9]*):"
-)
-
-
-def _lean_compiler_diagnostic_position(
-    diagnostics: Sequence[str],
-) -> dict[str, int]:
-    """Use Lean's own diagnostic location, never a Python Lean-source parser."""
-
-    for diagnostic in diagnostics:
-        match = _LEAN_DIAGNOSTIC_POSITION_RE.search(str(diagnostic))
-        if match:
-            return {
-                "line": int(match.group("line")),
-                "column": int(match.group("column")),
-            }
-    return {"line": 1, "column": 1}
-
-
 def _openprover_mcp_event_trace(
     event: Mapping[str, Any],
     *,
@@ -936,6 +948,7 @@ def _openprover_mcp_event_trace(
         "artifact_path": artifact_path,
         "project_root": str(project_root),
         "timeout_s": timeout_s,
+        "position_source": "model_selected",
         "arguments": dict(event.get("arguments", {}) or {})
         if isinstance(event.get("arguments", {}), Mapping)
         else {},

@@ -321,10 +321,19 @@ def test_formalizer_prompt_exposes_model_owned_scratch_without_proof_promotion()
         for tool in lean_candidate_tool_loop_module._lean_candidate_revision_tools()
         if tool.name == LEAN_SCRATCH_TOOL
     )
+    state_tool = next(
+        tool
+        for tool in lean_candidate_tool_loop_module._lean_candidate_revision_tools(
+            include_state_inspection=True
+        )
+        if tool.name == "inspect_lean_state"
+    )
     assert "#check" in scratch_tool.description
     assert "without changing the current candidate" in scratch_tool.description
     assert "never proof" in scratch_tool.description
     assert "complete axiom-clean declaration" in submit_tool.description
+    assert state_tool.input_schema["required"] == ["line", "column"]
+    assert "runtime does not select a goal" in state_tool.description
 
 
 def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() -> None:
@@ -1807,7 +1816,13 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
     passing = "theorem target : True := by\n  exact True.intro\n"
     backend = ScriptedLeanToolBackend(
         [
-            _response(ClientToolCall("state-1", "inspect_lean_state", {})),
+            _response(
+                ClientToolCall(
+                    "state-1",
+                    "inspect_lean_state",
+                    {"line": 2, "column": 3},
+                )
+            ),
             _response(
                 ClientToolCall(
                     "proof-search-1",
@@ -1865,7 +1880,8 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
             "local_lean_stderr": "unsolved goal" if source != passing else "",
         }
 
-    def inspect(source: str, last_check):
+    def inspect(source: str, line: int, column: int, last_check):
+        assert (line, column) == (2, 3)
         return {
             "status": "OBSERVED",
             "source_hash": stable_hash(source),
@@ -1913,15 +1929,18 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
         [
             _response(
                 ClientToolCall(
-                    "submit-initial",
-                    LEAN_SOURCE_SUBMISSION_TOOL,
-                    {
-                        "lean_source": initial,
-                        "candidate_declaration_name": "target",
-                    },
+                    "state-out-of-range",
+                    "inspect_lean_state",
+                    {"line": 99, "column": 1},
                 )
             ),
-            _response(ClientToolCall("state-1", "inspect_lean_state", {})),
+            _response(
+                ClientToolCall(
+                    "state-1",
+                    "inspect_lean_state",
+                    {"line": 2, "column": 9},
+                )
+            ),
             _response(
                 ClientToolCall(
                     "submit-revised",
@@ -1934,7 +1953,7 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
             ),
         ]
     )
-    inspections: list[tuple[str, dict]] = []
+    inspections: list[tuple[str, int, int, dict]] = []
 
     def check(source: str, _declaration: str):
         compiled = source == revised
@@ -1944,8 +1963,8 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
             "local_lean_stderr": "unknown identifier 'missing'" if not compiled else "",
         }
 
-    def inspect(source: str, last_check):
-        inspections.append((source, dict(last_check)))
+    def inspect(source: str, line: int, column: int, last_check):
+        inspections.append((source, line, column, dict(last_check)))
         return {
             "provider": "lean_lsp_mcp",
             "source_hash": stable_hash(source),
@@ -1983,7 +2002,13 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
     )
 
     assert inspections[0][0] == initial
-    assert inspections[0][1]["source_hash"] == stable_hash(initial)
+    assert inspections[0][1:3] == (2, 9)
+    assert inspections[0][3]["source_hash"] == stable_hash(initial)
+    rejected_position = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert rejected_position["error"] == "client_tool_input_rejected"
+    assert "source line count" in rejected_position["detail"]
     retained_observation = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )["observation"]
@@ -4279,7 +4304,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             state_tool = kwargs.get("inspect_lean_state")
             if callable(state_tool):
                 self.state_result = dict(
-                    state_tool(self.workspace_source, self.check_result)
+                    state_tool(self.workspace_source, 2, 3, self.check_result)
                 )
             proof_tool = kwargs.get("search_proof_candidates")
             if callable(proof_tool):
@@ -4331,7 +4356,8 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             self.calls: list[dict] = []
             self.state_calls: list[list] = []
 
-        def inspect(self, subclaims):
+        def inspect(self, subclaims, *, line=None, column=None):
+            assert (line, column) == (2, 3)
             self.state_calls.append(list(subclaims))
             return [
                 {
@@ -4459,6 +4485,11 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert agent.check_result["candidate_axiom_audit_clean"] is True
     assert evidence["parent_candidate_source_hash"] == stable_hash(source)
     assert evidence["resumed_from_model_checkpoint"] is False
+    assert agent.state_result["requested_position"] == {
+        "line": 2,
+        "column": 3,
+        "selection_owner": "Formalizer",
+    }
     proof_request = proof_search_provider.requests[0]
     assert proof_request["current_lean_source_hash"] == stable_hash(source)
     assert proof_request["proof_state_observation"] == agent.state_result

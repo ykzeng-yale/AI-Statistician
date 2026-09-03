@@ -37,7 +37,9 @@ def test_local_proof_state_provider_executes_exact_model_source(monkeypatch) -> 
                 claim="Inspect the current model source.",
                 lean_statement=source,
             )
-        ]
+        ],
+        line=1,
+        column=1,
     )
 
     assert observed_sources == [source]
@@ -69,7 +71,9 @@ def test_axiom_audit_keeps_elaborated_placeholder_feedback_untrusted(
                 claim="Inspect the current model source.",
                 lean_statement="theorem target : True := by\n  sorry\n",
             )
-        ]
+        ],
+        line=1,
+        column=1,
     )
 
     bound = bind_candidate_axiom_audit_to_proof_state_feedback(
@@ -109,7 +113,9 @@ def test_local_provider_does_not_invent_residual_lean_goals(monkeypatch) -> None
                 errors=["a prior error, not a Lean goal"],
                 proof_dependencies=["Example.helper"],
             )
-        ]
+        ],
+        line=2,
+        column=3,
     )[0]
 
     assert row.attempt_status == "local_lean_failed"
@@ -128,6 +134,7 @@ def test_lsp_provider_promotes_only_exact_lean_goal_observations(
     source = "theorem target (p : Prop) (hp : p) : p := by\n  exact missing\n"
     artifact.write_text(source, encoding="utf-8")
     exact_goal = "p : Prop\nhp : p\n⊢ p"
+    collector_calls = []
 
     monkeypatch.setattr(
         proof_state_module.subprocess,
@@ -140,6 +147,7 @@ def test_lsp_provider_promotes_only_exact_lean_goal_observations(
     )
 
     def collect_transcript(**kwargs):
+        collector_calls.append(dict(kwargs))
         transcript = {
             "events": [
                 {
@@ -190,9 +198,13 @@ def test_lsp_provider_promotes_only_exact_lean_goal_observations(
                 gap_reason="a host-side gap label, not a Lean goal",
                 errors=["a prior error, not a Lean goal"],
             )
-        ]
+        ],
+        line=2,
+        column=9,
     )[0]
 
+    assert collector_calls[0]["line"] == 2
+    assert collector_calls[0]["column"] == 9
     assert row.residual_goals == (exact_goal,)
     assert all("host-side" not in value for value in row.residual_goals)
     assert all("stale transport" not in value for value in row.residual_goals)
@@ -203,6 +215,7 @@ def test_lsp_provider_promotes_only_exact_lean_goal_observations(
     )
     assert goal_trace["goal_observations"] == [exact_goal]
     assert goal_trace["goal_observations_hash"] == stable_hash([exact_goal])
+    assert goal_trace["position_source"] == "model_selected"
 
 
 def test_indexed_dependency_source_is_inspectable_without_lsp(tmp_path) -> None:

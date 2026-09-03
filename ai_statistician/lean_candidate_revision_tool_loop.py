@@ -46,7 +46,7 @@ LeanSupportFileCheck = Callable[
 ]
 FormalEnvironmentSearch = Callable[[str, int], Any]
 ProofCandidateSearch = Callable[[str, str, int, Mapping[str, Any]], Any]
-LeanStateInspection = Callable[[str, Mapping[str, Any]], Any]
+LeanStateInspection = Callable[[str, int, int, Mapping[str, Any]], Any]
 LeanDeclarationInspection = Callable[
     [str, str, int, Mapping[str, Any]], Any
 ]
@@ -1620,8 +1620,28 @@ def run_lean_candidate_revision_tool_loop(
         if call.name == "inspect_lean_state":
             if inspect_lean_state is None:
                 raise ClientToolInputError("Lean state inspection is unavailable")
-            if tool_input:
-                raise ClientToolInputError("inspect_lean_state takes an empty object")
+            if set(tool_input) != {"line", "column"}:
+                raise ClientToolInputError(
+                    "inspect_lean_state requires exactly line and column"
+                )
+            line = tool_input.get("line")
+            column = tool_input.get("column")
+            if (
+                isinstance(line, bool)
+                or not isinstance(line, int)
+                or line < 1
+                or isinstance(column, bool)
+                or not isinstance(column, int)
+                or column < 1
+            ):
+                raise ClientToolInputError(
+                    "inspect_lean_state line and column must be positive integers"
+                )
+            source_line_count = max(1, len(str(state["source"]).splitlines()))
+            if line > source_line_count:
+                raise ClientToolInputError(
+                    "inspect_lean_state line exceeds the current source line count"
+                )
             if not state["last_check"]:
                 raise ClientToolInputError(
                     "the current source must be checked before inspect_lean_state so "
@@ -1630,6 +1650,8 @@ def run_lean_candidate_revision_tool_loop(
             state["state_inspections"] += 1
             result = inspect_lean_state(
                 str(state["source"]),
+                line,
+                column,
                 deepcopy(dict(state["last_check"])),
             )
             if not isinstance(result, Mapping):
@@ -2805,6 +2827,8 @@ def _lean_candidate_revision_tools(
                 description=(
                     "Inspect the exact current source through the configured Lean "
                     "LSP/MCP or local proof-state provider after a failed check. "
+                    "Choose the one-based line and column from the current source "
+                    "and raw compiler diagnostics; the runtime does not select a goal. "
                     "This is especially useful after Lean reports that the declaration "
                     "elaborated but its proof remains untrusted. "
                     "Returns raw diagnostic and goal observations; it never edits "
@@ -2813,7 +2837,11 @@ def _lean_candidate_revision_tools(
                 input_schema={
                     "type": "object",
                     "additionalProperties": False,
-                    "properties": {},
+                    "required": ["line", "column"],
+                    "properties": {
+                        "line": {"type": "integer", "minimum": 1},
+                        "column": {"type": "integer", "minimum": 1},
+                    },
                 },
             ),
         )
