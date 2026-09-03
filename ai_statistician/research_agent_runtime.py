@@ -8263,8 +8263,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 "review_input_fingerprint": stable_hash(review_material),
                 "validation_label": exc.validation_label,
                 "validation_errors": validation_errors,
-                "validation_attempts": exc.attempts,
-                "structured_output_retry_history": [
+                "reviewer_turns": exc.attempts,
+                "retained_reviewer_history": [
                     deepcopy(dict(row)) for row in exc.history
                 ],
                 "last_invalid_packet_available": bool(last_invalid_packet),
@@ -8293,8 +8293,8 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
             return AgentStepResult(
                 status="BLOCKED",
                 rationale=(
-                    "The independent semantic reviewer's single model response "
-                    "did not produce a contract-valid verdict envelope."
+                    "The retained independent semantic reviewer stopped without "
+                    "a contract-valid verdict submission."
                 ),
                 produced_artifacts={
                     materialization_id: materialization,
@@ -8308,7 +8308,7 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                             "work_order_id": work_order_id,
                             "failure_id": failure_id,
                             "validation_errors": validation_errors,
-                            "validation_attempts": exc.attempts,
+                            "reviewer_turns": exc.attempts,
                             "semantic_review_acceptance_authorized": False,
                             "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                         },

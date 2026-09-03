@@ -43,6 +43,9 @@ from ai_statistician.research_source_library import (
     ResearchSourceDocument,
     ResearchSourceSnapshot,
 )
+from ai_statistician.theory_workspace import (
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+)
 
 
 _LEGACY_REVIEW_DIMENSIONS = (
@@ -448,7 +451,6 @@ def _agent(response: dict[str, object]) -> LLMGeneratedCodeSemanticReviewerAgent
             provider_name="static",
             model="static-haiku",
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -637,6 +639,46 @@ def test_model_schema_has_no_owner_route_or_repair_recipe_fields() -> None:
         "properties"
     ]
     assert "evidence_refs" not in assessment_schema["properties"]
+    assert "maxItems" not in schema["properties"]["findings"]
+
+
+def test_reviewer_can_report_every_distinct_blocking_finding() -> None:
+    findings = [
+        {
+            "severity": "high",
+            "category": f"contract-clause-{index}",
+            "summary": f"Clause {index} is not implemented.",
+            "observed_behavior": f"Observed behavior {index} is incomplete.",
+            "expected_behavior": f"Expected behavior {index} is required.",
+        }
+        for index in range(12)
+    ]
+    packet = _agent(
+        {
+            "prior_finding_reviews": [],
+            "overall_verdict": "REVISE",
+            "review_document": (
+                "# Review\n\nAll twelve distinct public-contract defects are "
+                "documented as active blockers."
+            ),
+            "findings": findings,
+            "source_revision_assessment": {
+                "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+                "rationale": "The current source owns every reported defect.",
+            },
+        }
+    ).review(
+        question=_question(),
+        review_material=_review_material(),
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    assert len(packet["findings"]) == 12
+    assert len({row["finding_id"] for row in packet["findings"]}) == 12
+    assert validate_generated_code_semantic_review_packet(
+        packet,
+        review_material=_review_material(),
+    ) == []
 
 
 def test_review_schema_keeps_runtime_owned_contract_ids_out_of_model_envelope() -> None:
@@ -807,7 +849,6 @@ def test_anthropic_reviewer_uses_native_client_tool_submission() -> None:
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
 
@@ -823,6 +864,118 @@ def test_anthropic_reviewer_uses_native_client_tool_submission() -> None:
     assert backend.requests[0].model == "claude-haiku-4-5-20251001"
     assert backend.requests[0].metadata["client_tool_transport"] is True
     assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
+
+
+def test_reviewer_reads_externalized_exact_source_and_theory_in_same_session() -> None:
+    marker = "LOAD_BEARING_EVIDENCE"
+    exact_source = "\n".join(
+        [
+            "def run_sandbox(seed, replicates):",
+            f"    # {marker}",
+            "    values = []",
+            *[f"    values.append({index})" for index in range(180)],
+            "    return {'estimate': sum(values) / max(1, len(values))}",
+        ]
+    )
+    theory_document = "\n".join(
+        [
+            "# Derivation",
+            marker,
+            *[
+                f"Step {index}: the candidate must preserve assumption A{index}."
+                for index in range(90)
+            ],
+        ]
+    )
+    material = _review_material()
+    artifact = material["exact_executed_artifacts"][0]
+    artifact["exact_source_code"] = exact_source
+    artifact["exact_source_hash"] = stable_hash(exact_source)
+    material["theory_packet"]["derivation_document"] = theory_document
+    submission = {
+        "prior_finding_reviews": [],
+        "overall_verdict": "ACCEPT",
+        "review_document": (
+            "# Review\n\nThe exact source and derivation document were inspected."
+        ),
+        "findings": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No active semantic defect was found.",
+        },
+    }
+
+    class EvidenceReadingBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                call = ClientToolCall(
+                    call_id="search-exact-evidence",
+                    name=THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+                    input={"query": marker, "max_results": 20},
+                )
+            else:
+                call = ClientToolCall(
+                    call_id="submit-exact-evidence-review",
+                    name="submit_generated_code_semantic_review",
+                    input=submission,
+                )
+            return ClientToolTurnResponse(
+                content_blocks=(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": call.input,
+                    },
+                ),
+                tool_calls=(call,),
+                text="",
+                provider="anthropic",
+                model=request.model,
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    backend = EvidenceReadingBackend()
+    packet = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend,
+        config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="anthropic",
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).review(
+        question=_question(),
+        review_material=material,
+        trusted_lineage=_trusted_lineage(),
+    )
+
+    prompt = str(backend.requests[0].messages[0]["content"])
+    assert exact_source not in prompt
+    assert theory_document not in prompt
+    assert "$/current_target_artifacts/0/exact_source_code" in prompt
+    assert (
+        "$/supporting_review_context/theory_packet/derivation_document"
+        in prompt
+    )
+    assert [tool.name for tool in backend.requests[0].tools] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        "read_theory_document",
+        "submit_generated_code_semantic_review",
+    ]
+    search_observation = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert search_observation["total_matches"] == 2
+    assert len(search_observation["document_hashes"]) == 2
+    assert packet["client_tool_loop"]["evidence_document_count"] == 2
+    assert packet["client_tool_loop"]["evidence_document_access_count"] == 1
+    assert packet["client_tool_loop"]["turns"] == 2
 
 
 def test_reviewer_can_search_and_read_frozen_public_sources(tmp_path) -> None:
@@ -896,7 +1049,6 @@ def test_reviewer_can_search_and_read_frozen_public_sources(tmp_path) -> None:
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     ).review(
         question=_question(),
@@ -1013,7 +1165,6 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_validation_retries=1,
         ),
     ).review(
         question=_question(),
@@ -1198,7 +1349,7 @@ def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() 
     )
 
 
-def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
+def test_native_reviewer_fails_closed_after_repeated_no_progress() -> None:
     invalid_response = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
@@ -1256,7 +1407,7 @@ def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
             provider_name="anthropic",
             model="claude-haiku-4-5-20251001",
             model_tier="haiku",
-            max_validation_retries=0,
+            client_tool_max_no_progress_turns=1,
         ),
     )
 
@@ -1267,8 +1418,8 @@ def test_native_reviewer_fails_closed_after_same_session_rejection() -> None:
             trusted_lineage=_trusted_lineage(),
         )
 
-    assert exc_info.value.attempts == 1
-    assert len(backend.requests) == 1
+    assert exc_info.value.attempts == 2
+    assert len(backend.requests) == 2
     assert "model verdict must agree with active findings" in str(exc_info.value)
 
 
@@ -2348,7 +2499,6 @@ def test_revision_reviewer_reads_exact_support_file_from_current_project() -> No
             provider_name="static",
             model="static-haiku",
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     ).review(
         question=_question(),

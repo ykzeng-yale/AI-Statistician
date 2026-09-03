@@ -497,7 +497,6 @@ def test_theory_free_source_review_binds_frozen_abi_lineage(
             provider_name="static",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
     blackboard = BlackboardState(project_id=question.id)
@@ -1696,7 +1695,6 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
             provider_name="static",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
     blackboard = BlackboardState(project_id=question.id)
@@ -8430,7 +8428,6 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
             provider_name="static",
             model=LIVE_EVALUATION_CLAUDE_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
     blackboard = BlackboardState(project_id=question.id)
@@ -9163,7 +9160,6 @@ def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
             provider_name="static",
             model="static-reviewer",
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
     blackboard = BlackboardState(project_id="cross-artifact-runtime-review")

@@ -14,6 +14,7 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    externalize_client_tool_text_documents,
     run_bounded_client_tool_loop,
 )
 from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
@@ -59,6 +60,13 @@ from .scientific_project import (
     scientific_main_path,
     scientific_project_hash,
 )
+from .theory_workspace import (
+    THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+    read_theory_document_lines,
+    search_theory_document_lines,
+    theory_document_client_tools,
+)
 
 GENERATED_CODE_SEMANTIC_REVIEW_SCHEMA_VERSION = 39
 GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = "GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
@@ -67,7 +75,7 @@ GENERATED_CODE_SEMANTIC_REVIEW_TRANSPORT = "model_authored_markdown_review_with_
 GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_generated_code_semantic_review"
 GENERATED_CODE_SEMANTIC_REVIEW_PROBE_TOOL = "run_exact_estimator_review_probe"
 GENERATED_CODE_SEMANTIC_REVIEW_READ_SOURCE_TOOL = "read_current_generated_source"
-GENERATED_CODE_SEMANTIC_REVIEW_MAX_TOOL_CALLS = 24
+GENERATED_CODE_REVIEW_EXTERNALIZE_MIN_CHARACTERS = 1200
 GENERATED_CODE_SEMANTIC_REVIEWER_SCOPE_CONTRACT: dict[str, Any] = {
     "in_scope": (
         "implemented statistical object and metric meaning", "declared assumptions and theory alignment",
@@ -99,7 +107,6 @@ GENERATED_CODE_SEMANTIC_REVIEW_CLOSED_PRIOR_FINDING_STATUSES = frozenset({
     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_ARTIFACT, METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
 })
 GENERATED_CODE_SEMANTIC_REVIEW_FINDING_ID_PREFIX = "generated_code_semantic_finding:"
-GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS = 6
 SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE = "CURRENT_SOURCE_REWRITE_SUFFICIENT"
 SOURCE_REVISION_SCOPE_PARENT_CHANGE = "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
 SOURCE_REVISION_SCOPES = (SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE, SOURCE_REVISION_SCOPE_PARENT_CHANGE)
@@ -664,7 +671,6 @@ GENERATED_CODE_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
         "review_document": {"type": "string", "minLength": 1},
         "findings": {
             "type": "array",
-            "maxItems": GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS,
             "items": _finding_schema(),
         },
         "source_revision_assessment": _source_revision_assessment_schema(),
@@ -693,13 +699,22 @@ def build_generated_code_semantic_review_prompt(
     *,
     question: OpenResearchQuestion,
     review_material: Mapping[str, Any],
+    review_evidence_document: Mapping[str, Any] | None = None,
+    evidence_document_catalog: Sequence[Mapping[str, Any]] = (),
 ) -> str:
-    evidence_document = _review_evidence_document(
-        question_context=_question_context(question),
-        review_material=review_material,
+    evidence_document = (
+        deepcopy(dict(review_evidence_document))
+        if review_evidence_document is not None
+        else _review_evidence_document(
+            question_context=_question_context(question),
+            review_material=review_material,
+        )
     )
     payload = {
         **evidence_document,
+        "exact_evidence_document_catalog": [
+            dict(row) for row in evidence_document_catalog
+        ],
         "prior_finding_ids": [
             str(row.get("finding_id", "") or "")
             for row in _active_prior_findings(review_material)
@@ -724,6 +739,13 @@ def build_generated_code_semantic_review_prompt(
         "frozen meanings. question.estimator_execution_contract outranks Theory summaries. "
         "Choose load-bearing checks yourself rather than a fixed dimension checklist, and try "
         "to falsify public acceptance, rejection, and boundary behavior. "
+        + (
+            "Use the supplied exact-evidence read/search tools for every externalized "
+            "document before submission. Choose queries, ranges, and investigation order "
+            "yourself; a document hash or successful read is not semantic authority. "
+            if evidence_document_catalog
+            else ""
+        )
         + review_scope_instruction
         + "Return compact JSON and put analysis with source lines in review_document Markdown. "
         "ACCEPT only a semantically fit artifact. The public contract is closed in both directions; "
@@ -758,7 +780,9 @@ class GeneratedCodeSemanticReviewerConfig:
     max_tokens: int = 5000
     temperature: float = 0.0
     provider_name: str = "anthropic"
-    max_validation_retries: int = 1
+    client_tool_max_turns: int = 64
+    client_tool_max_tool_calls: int = 64
+    client_tool_max_no_progress_turns: int = 2
 
 
 class LLMGeneratedCodeSemanticReviewerAgent:
@@ -788,9 +812,22 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             requested_model=self.config.model,
             model_tier=self.config.model_tier,
         )
+        evidence_document = _review_evidence_document(
+            question_context=_question_context(question),
+            review_material=review_material,
+        )
+        compact_evidence_document, evidence_documents, evidence_catalog = (
+            externalize_client_tool_text_documents(
+                evidence_document,
+                min_characters=GENERATED_CODE_REVIEW_EXTERNALIZE_MIN_CHARACTERS,
+                path_prefix="generated_code_review_evidence",
+            )
+        )
         prompt = build_generated_code_semantic_review_prompt(
             question=question,
             review_material=review_material,
+            review_evidence_document=compact_evidence_document,
+            evidence_document_catalog=evidence_catalog,
         )
         provider_name = str(
             getattr(self.provider, "provider_name", self.config.provider_name)
@@ -812,6 +849,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             probe_sandbox_dir=probe_sandbox_dir,
             probe_timeout_s=probe_timeout_s,
             research_sources=research_sources,
+            evidence_documents=evidence_documents,
+            evidence_catalog=evidence_catalog,
         )
 
     def _review_with_client_tool_submission(
@@ -826,6 +865,8 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         probe_sandbox_dir: Path | None,
         probe_timeout_s: int,
         research_sources: ResearchSourceSnapshot | None,
+        evidence_documents: Mapping[str, str],
+        evidence_catalog: Sequence[Mapping[str, Any]],
     ) -> dict[str, Any]:
         """Keep executable falsification and verdict in one reviewer session."""
 
@@ -887,6 +928,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         project_files=project_files,
                     ),
                 }
+        document_tools = (
+            theory_document_client_tools() if evidence_documents else ()
+        )
+        required_evidence_document_paths = set(evidence_documents)
         source_tools = research_source_client_tools() if research_sources else ()
         source_descriptor = (
             research_sources.descriptor() if research_sources else {"configured": False}
@@ -952,7 +997,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             ),
             input_schema=probe_schema,
         )
-        tools = source_tools + ((refresh_tool,) if refresh_targets else ()) + (
+        tools = document_tools + source_tools + ((refresh_tool,) if refresh_targets else ()) + (
             (probe_tool,) if probe_targets else ()
         ) + (
             ClientToolDefinition(
@@ -1019,10 +1064,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             tool_choice=(
-                "any" if (source_tools or probe_targets or refresh_targets)
+                "any" if (
+                    document_tools or source_tools or probe_targets or refresh_targets
+                )
                 else GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL
             ),
-            disable_parallel_tool_use=True,
+            disable_parallel_tool_use=False,
             enable_prompt_caching=True,
             metadata={
                 "subsystem": "GeneratedCodeSemanticReviewer",
@@ -1035,12 +1082,16 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 "same_session_validation_feedback": True,
                 "exact_estimator_probe_available": bool(probe_targets),
                 "fresh_current_source_observation_required": bool(refresh_targets),
+                "evidence_document_count": len(evidence_documents),
+                "evidence_document_catalog_hash": stable_hash(evidence_catalog),
                 "full_packet_regeneration_disabled": True,
             },
         )
         validation_history: list[dict[str, Any]] = []
         probe_executions: list[dict[str, Any]] = []
         research_source_refs: list[dict[str, Any]] = []
+        evidence_document_accesses: list[dict[str, Any]] = []
+        accessed_evidence_document_paths: set[str] = set()
         refreshed_source_ids: set[str] = set()
         last_errors: list[str] = []
         last_invalid_packet: dict[str, Any] | None = None
@@ -1067,6 +1118,51 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             context: ClientToolExecutionContext,
         ) -> ClientToolExecutionResult:
             nonlocal last_errors, last_invalid_packet
+            if call.name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
+                if set(call.input) != {"path", "line_start", "line_end"}:
+                    raise ClientToolInputError(
+                        "generated-code evidence read requires path, line_start, and line_end"
+                    )
+                observation, inspection = read_theory_document_lines(
+                    evidence_documents,
+                    path=call.input["path"],
+                    line_start=call.input["line_start"],
+                    line_end=call.input["line_end"],
+                )
+                evidence_document_accesses.append(inspection)
+                accessed_evidence_document_paths.add(str(inspection["path"]))
+                return ClientToolExecutionResult(
+                    content=observation,
+                    observation_key=(
+                        "generated-code-evidence-read:" + stable_hash(inspection)
+                    ),
+                )
+            if call.name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:
+                if not set(call.input) <= {
+                    "query",
+                    "document_paths",
+                    "max_results",
+                }:
+                    raise ClientToolInputError(
+                        "generated-code evidence search accepts query, document_paths, and max_results"
+                    )
+                observation, inspection = search_theory_document_lines(
+                    evidence_documents,
+                    query=call.input.get("query"),
+                    document_paths=call.input.get("document_paths", ()),
+                    max_results=call.input.get("max_results", 20),
+                )
+                evidence_document_accesses.append(inspection)
+                accessed_evidence_document_paths.update(
+                    str(path)
+                    for path in inspection.get("document_hashes", {})
+                )
+                return ClientToolExecutionResult(
+                    content=observation,
+                    observation_key=(
+                        "generated-code-evidence-search:" + stable_hash(inspection)
+                    ),
+                )
             if call.name in {
                 RESEARCH_SOURCE_LIST_TOOL,
                 RESEARCH_SOURCE_SEARCH_TOOL,
@@ -1241,6 +1337,19 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 raise ClientToolInputError(
                     "unsupported generated-code semantic review tool"
                 )
+            if context.calls_in_turn != 1:
+                raise ClientToolInputError(
+                    "generated-code terminal submission must be the only call in its turn"
+                )
+            missing_document_paths = sorted(
+                required_evidence_document_paths
+                - accessed_evidence_document_paths
+            )
+            if missing_document_paths:
+                raise ClientToolInputError(
+                    "exact externalized evidence must be inspected before submission: "
+                    + ", ".join(missing_document_paths)
+                )
             missing_source_ids = sorted(set(refresh_targets) - refreshed_source_ids)
             if missing_source_ids:
                 raise ClientToolInputError(
@@ -1272,29 +1381,18 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             if errors:
                 last_errors = list(errors)
                 last_invalid_packet = deepcopy(packet)
-                validation_exhausted = len(validation_history) > max(
-                    0, int(self.config.max_validation_retries)
-                )
                 rejection = {
                     "ok": False,
                     "error": "generated_code_semantic_review_submission_rejected",
-                    "validation_errors": list(errors[:12]),
+                    "validation_errors": list(errors),
                     "instruction": (
-                        "The validation allowance is exhausted."
-                        if validation_exhausted
-                        else "Re-submit the complete judgment using every validation "
+                        "Re-submit the complete judgment using every validation "
                         "observation; immutable reviewed artifacts cannot change."
                     ),
                 }
                 return ClientToolExecutionResult(
                     content=rejection,
                     is_error=True,
-                    terminal=validation_exhausted,
-                    terminal_payload=(
-                        {"validation_exhausted": True}
-                        if validation_exhausted
-                        else None
-                    ),
                     observation_key=(
                         "generated-code-semantic-review-rejected:"
                         + stable_hash(rejection)
@@ -1316,39 +1414,28 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 ),
             )
 
-        tool_call_budget = max(
-            GENERATED_CODE_SEMANTIC_REVIEW_MAX_TOOL_CALLS,
-            len(refresh_targets)
-            + 1
-            + max(0, int(self.config.max_validation_retries)),
-        )
         try:
             loop = run_bounded_client_tool_loop(
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=tool_call_budget,
-                max_tool_calls=tool_call_budget,
-                max_no_progress_turns=1,
+                max_turns=max(1, int(self.config.client_tool_max_turns)),
+                max_tool_calls=max(
+                    1, int(self.config.client_tool_max_tool_calls)
+                ),
+                max_no_progress_turns=max(
+                    1, int(self.config.client_tool_max_no_progress_turns)
+                ),
             )
         except ClientToolLoopError as exc:
             errors = last_errors or [exc.reason]
             raise PacketValidationError(
                 validation_label="generated-code semantic review packet",
-                attempts=len(validation_history),
+                attempts=exc.turns,
                 errors=list(errors),
-                history=list(validation_history),
+                history=list(exc.history),
                 last_invalid_packet=last_invalid_packet,
             ) from exc
-
-        if loop.terminal_payload.get("validation_exhausted") is True:
-            raise PacketValidationError(
-                validation_label="generated-code semantic review packet",
-                attempts=len(validation_history),
-                errors=list(last_errors),
-                history=list(validation_history),
-                last_invalid_packet=last_invalid_packet,
-            )
         payload = loop.terminal_payload.get("review_payload", {})
         if not isinstance(payload, Mapping):
             raise PacketValidationError(
@@ -1378,6 +1465,12 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             "research_source_snapshot": source_descriptor,
             "research_source_refs": research_source_refs,
             "research_source_ref_fingerprint": stable_hash(research_source_refs),
+            "evidence_document_count": len(evidence_documents),
+            "evidence_document_catalog_hash": stable_hash(evidence_catalog),
+            "evidence_document_access_count": len(evidence_document_accesses),
+            "evidence_document_access_fingerprint": stable_hash(
+                evidence_document_accesses
+            ),
             "fresh_current_source_observation_required": bool(refresh_targets),
             "refreshed_current_source_artifact_ids": sorted(refreshed_source_ids),
             "full_packet_regeneration_used": False,
@@ -1630,8 +1723,6 @@ def validate_generated_code_semantic_review_packet(
     finding_rows = [row for row in findings if isinstance(row, Mapping)] if isinstance(findings, list) else []
     if not isinstance(findings, list) or len(finding_rows) != len(findings):
         errors.append("findings must be objects")
-    if len(finding_rows) > GENERATED_CODE_SEMANTIC_REVIEW_MAX_FINDINGS:
-        errors.append("generated-code semantic review has too many findings")
     for index, row in enumerate(finding_rows):
         label = f"findings[{index}]"
         if row.get("severity") not in GENERATED_CODE_SEMANTIC_REVIEW_FINDING_SEVERITIES:

@@ -241,9 +241,9 @@ Simulation owner writes and runs source on non-confirmatory diagnostics
   -> outcome is terminal evidence; it cannot trigger source revision
 ```
 
-The reviewer may use isolated Python/R/SymPy scratch tools but must judge source semantics,
-theory alignment, pre-outcome independence, and diagnostic sufficiency rather than trust
-the returned Boolean. A rejection returns exact findings to the same source owner. Frozen
+The reviewer may read/search hash-bound exact source and Theory documents and use isolated
+Python/R/SymPy probes, but must judge semantics, pre-outcome independence, and diagnostic
+sufficiency rather than trust a returned Boolean. A rejection returns exact findings to the same source owner. Frozen
 legacy metric packets remain reconstructable for old evidence only; they are not a fresh
 authoring path. There is no prose-to-source translator, packet repair worker, result-informed
 revision, or routine Architect hop.
