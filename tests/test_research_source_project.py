@@ -24,11 +24,17 @@ from ai_statistician.research_source_project import (
 
 
 def _git(repository: Path, *arguments: str) -> str:
+    environment = dict(os.environ)
+    environment.update({
+        "GIT_AUTHOR_DATE": "2025-01-02T03:04:05+00:00",
+        "GIT_COMMITTER_DATE": "2025-01-02T03:04:05+00:00",
+    })
     return subprocess.run(
         ["git", "-C", str(repository), *arguments],
         check=True,
         capture_output=True,
         text=True,
+        env=environment,
     ).stdout.strip()
 
 
