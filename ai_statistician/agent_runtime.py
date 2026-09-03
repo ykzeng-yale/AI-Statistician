@@ -1028,10 +1028,31 @@ class AgentRuntime:
                     and routed_result.next_task is not None
                     and routed_result.next_task.owner_subsystem != subsystem_name
                 ):
+                    boundary_evidence_ids = {
+                        row.evidence_id for row in boundary_result.evidence_entries
+                    }
                     result = replace(
                         routed_result,
                         produced_artifacts=routed_result.produced_artifacts
                         | boundary_result.produced_artifacts,
+                        observations=boundary_result.observations
+                        + tuple(
+                            row
+                            for row in routed_result.observations
+                            if row not in boundary_result.observations
+                        ),
+                        tool_calls=boundary_result.tool_calls
+                        + tuple(
+                            row
+                            for row in routed_result.tool_calls
+                            if row not in boundary_result.tool_calls
+                        ),
+                        evidence_entries=boundary_result.evidence_entries
+                        + tuple(
+                            row
+                            for row in routed_result.evidence_entries
+                            if row.evidence_id not in boundary_evidence_ids
+                        ),
                     )
             if result.next_task is not None:
                 next_inputs = result.next_task.inputs

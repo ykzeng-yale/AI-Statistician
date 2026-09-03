@@ -93,6 +93,7 @@ Hidden semantic evaluator qualification follows the same lifecycle separation: i
 runs in an evaluator-owned session and is written as a hash-bound activation record.
 The product CLI verifies and reuses that record before runtime; it cannot qualify a
 judge inline and then continue directly into the first product model turn.
+At a workspace budget boundary, a fresh cross-owner route may choose the next task, but the sole AgentRuntime retains the completed workspace observations, tool calls, evidence, artifacts, and exact pending continuation before that route is recorded.
 
 This mapping does not justify a new global tool framework. The current shared loop
 already separates advertised definitions from execution. A registry extraction is

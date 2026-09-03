@@ -956,6 +956,30 @@ def test_agent_runtime_offers_preserved_workspace_at_budget_boundary_to_handoff_
             return AgentStepResult(
                 status="REVISE",
                 rationale="preserve new model-owned Lean progress",
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="lean_workspace_observation",
+                        summary=f"raw observation for {task.task_id}",
+                    ),
+                ),
+                tool_calls=(
+                    ToolCallRecord(
+                        tool_name="check_current_lean_project",
+                        input_hash=stable_hash(task.task_id),
+                        exit_status="failed",
+                        stderr_summary="raw Lean diagnostic",
+                    ),
+                ),
+                evidence_entries=(
+                    EvidenceLedgerEntry(
+                        evidence_id=f"lean_workspace:{task.task_id}",
+                        task_id=task.task_id,
+                        artifact_id="",
+                        evidence_type="workspace_observation",
+                        status="NOT_PROOF_EVIDENCE",
+                        boundary="raw_environment_observation",
+                    ),
+                ),
                 next_task=mark_workspace_continuation(
                     parent_task=task,
                     next_task=next_task,
@@ -1002,6 +1026,12 @@ def test_agent_runtime_offers_preserved_workspace_at_budget_boundary_to_handoff_
             return AgentStepResult(
                 status="REROUTE",
                 rationale="continue the frozen graph after preserving optional formal work",
+                observations=(
+                    EnvironmentObservation(
+                        observation_type="formal_lane_deferred",
+                        summary="continue to the multidimensional report",
+                    ),
+                ),
                 next_task=AgentTask(
                     task_id="critic:q1",
                     owner_subsystem="CriticEvaluator",
@@ -1036,6 +1066,20 @@ def test_agent_runtime_offers_preserved_workspace_at_budget_boundary_to_handoff_
     assert result.workspace_continuations_consumed == 1
     assert result.outer_graph_iterations_consumed == 2
     assert len(boundary_refs) == 1
+    assert [row.observation_type for row in result.traces[1].observations] == [
+        "lean_workspace_observation",
+        "formal_lane_deferred",
+    ]
+    assert [row.tool_name for row in result.traces[1].tool_calls] == [
+        "check_current_lean_project"
+    ]
+    assert result.traces[1].evidence_ids == (
+        "lean_workspace:formalize:q1:next",
+    )
+    assert [row.evidence_id for row in result.blackboard.evidence_ledger] == [
+        "lean_workspace:formalize:q1",
+        "lean_workspace:formalize:q1:next",
+    ]
     continuation_ref = boundary_refs[0]
     continuation = result.blackboard.artifacts[
         str(continuation_ref["continuation_id"])
