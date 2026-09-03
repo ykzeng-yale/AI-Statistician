@@ -306,6 +306,7 @@ class LLMArchitectCoordinatorAgent:
         question: OpenResearchQuestion,
         architect_context: Mapping[str, Any],
         runtime_config: Mapping[str, Any],
+        author_scratch_execution_refs: tuple[Mapping[str, Any], ...] = (),
         theory_scratchpad: Any = None,
         recovery_checkpoint: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -333,6 +334,7 @@ class LLMArchitectCoordinatorAgent:
                 )
                 else {}
             ),
+            author_scratch_execution_refs=author_scratch_execution_refs,
             theory_scratchpad=theory_scratchpad,
             recovery_checkpoint=recovery_checkpoint,
         )

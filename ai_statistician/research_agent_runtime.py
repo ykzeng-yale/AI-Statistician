@@ -343,6 +343,7 @@ RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT = (
     "theory_execution_preflight_then_algorithm"
 )
+RUNTIME_THEORY_WORKSPACE_EVIDENCE_CONTEXT_KEY = "theory_workspace_evidence_ref"
 SIMULATION_NOT_PROOF_BOUNDARY = (
     "Executable simulation and deterministic scaffold runs are empirical "
     "environment observations. They can falsify or support a proposal, but "
@@ -1430,6 +1431,11 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 else {}
             )
             try:
+                author_scratch_execution_refs = _architect_theory_workspace_scratch_execution_refs(
+                    architect_context=context, blackboard=blackboard
+                )
+                if author_scratch_execution_refs:
+                    preflight_review_kwargs["author_scratch_execution_refs"] = author_scratch_execution_refs
                 preflight_packet = (
                     self.coordinator.review_theory_execution_preflight(
                         question=question,
@@ -2099,6 +2105,47 @@ def _architect_context_with_rehydrated_metric_protocol_theory_material(
     if prior_rejection:
         context["architect_metric_protocol_prior_rejection"] = prior_rejection
     return context
+
+
+def _architect_theory_workspace_scratch_execution_refs(
+    *, architect_context: Mapping[str, Any], blackboard: BlackboardState
+) -> tuple[dict[str, Any], ...]:
+    """Resolve exact author scratch refs without copying workspace evidence."""
+
+    raw_ref = architect_context.get(RUNTIME_THEORY_WORKSPACE_EVIDENCE_CONTEXT_KEY, {})
+    if not raw_ref:
+        return ()
+    try:
+        artifact = resolve_runtime_artifact_references(
+            raw_ref, blackboard.artifacts
+        )
+    except ValueError as exc:
+        raise ValueError("theory workspace evidence reference is unavailable or stale") from exc
+    if not isinstance(artifact, Mapping) or not artifact:
+        raise ValueError("theory workspace evidence reference is malformed")
+    raw_material = architect_context.get("architect_metric_protocol_theory_material", {})
+    material = raw_material if isinstance(raw_material, Mapping) else {}
+    expected = (
+        str(material.get("source_theory_packet_id", "") or "").strip(),
+        str(material.get("source_theory_packet_hash", "") or "").strip(),
+    )
+    stored = (
+        str(artifact.get("runtime_source_theory_packet_id", "") or "").strip(),
+        str(artifact.get("runtime_source_theory_packet_hash", "") or "").strip(),
+    )
+    if (
+        not all(expected)
+        or stored != expected
+        or artifact.get("runtime_storage_role")
+        != "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT"
+    ):
+        raise ValueError("theory workspace evidence is bound to stale theory")
+    raw_scratch_refs = artifact.get("scratch_execution_refs", [])
+    if not isinstance(raw_scratch_refs, list) or any(
+        not isinstance(row, Mapping) for row in raw_scratch_refs
+    ):
+        raise ValueError("theory workspace scratch references are malformed")
+    return tuple(deepcopy(dict(row)) for row in raw_scratch_refs)
 
 
 def _runtime_exact_algorithm_artifacts(
@@ -6022,6 +6069,9 @@ class TheoryDeveloperRuntimeSubsystem:
                 "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT"
             )
             theory_workspace_artifacts[workspace_artifact_id] = workspace_artifact
+            context[RUNTIME_THEORY_WORKSPACE_EVIDENCE_CONTEXT_KEY] = runtime_artifact_reference(
+                workspace_artifact_id, workspace_artifact
+            )
             integrated_source_checkpoint = _bind_source_replication_checkpoint(
                 raw_checkpoint=raw_source_checkpoint, workspace=workspace_artifact,
                 source_refs=source_replication_refs, question=question,

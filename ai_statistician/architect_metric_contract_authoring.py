@@ -1356,6 +1356,7 @@ def review_architect_theory_execution_preflight(
     runtime_contract: Mapping[str, Any],
     theory_protocol_material: Mapping[str, Any],
     prior_rejection_context: Mapping[str, Any] | None = None,
+    author_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
     theory_scratchpad: Any = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -1431,6 +1432,7 @@ def review_architect_theory_execution_preflight(
                 build_architect_upstream_research_contract(runtime_contract)
             ),
             prior_finding_ledger=prior_finding_ledger,
+            author_scratch_execution_refs=author_scratch_execution_refs,
             theory_scratchpad=theory_scratchpad,
             recovery_checkpoint=recovery_checkpoint,
         )

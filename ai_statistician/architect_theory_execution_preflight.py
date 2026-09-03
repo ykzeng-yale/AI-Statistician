@@ -99,6 +99,7 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_REPORT_TOOL = "read_theory_preflight_r
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL = (
     "compare_theory_document_revision"
 )
+ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_AUTHOR_SCRATCH_TOOL = "read_author_theory_scratch"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND = "TheoryExecutionPreflightReviewDraft"
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 24
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_CALLS = 48
@@ -308,6 +309,7 @@ def build_architect_theory_execution_preflight_material(
     theory_protocol_material: Mapping[str, Any],
     upstream_research_contract: Mapping[str, Any],
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
+    author_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     semantic_material = theory_protocol_material.get("theory_semantic_material", {})
     semantic = dict(semantic_material) if isinstance(semantic_material, Mapping) else {}
@@ -417,6 +419,7 @@ def build_architect_theory_execution_preflight_material(
                 "content_byte_size": len(document["content"].encode("utf-8")),
             }
         )
+    author_scratch_catalog = _author_scratch_execution_catalog(author_scratch_execution_refs)
     anchor_catalog_id = "architect_theory_execution_preflight_catalog:" + stable_hash(
         anchor_catalog
     )[:20]
@@ -476,6 +479,7 @@ def build_architect_theory_execution_preflight_material(
         "anchor_catalog": anchor_catalog,
         "anchor_catalog_fingerprint": stable_hash(anchor_catalog),
         "retrieval_context": retrieval_context,
+        "author_scratch_execution_fingerprint": stable_hash(author_scratch_catalog),
         "formal_sources_applicable": formal_sources_applicable,
         "review_workspace_root": _preflight_review_workspace_root(
             semantic,
@@ -490,6 +494,98 @@ def build_architect_theory_execution_preflight_material(
             dict(claim_revision_delta)
         )
     return material
+
+
+def _author_scratch_execution_catalog(refs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Validate author scratch identity and expose no filesystem paths."""
+
+    catalog: list[dict[str, Any]] = []
+    seen_runs: set[int] = set()
+    for raw_ref in refs:
+        if not isinstance(raw_ref, Mapping):
+            raise ValueError("author scratch ref must be an object")
+        scratch_run = raw_ref.get("scratch_run")
+        if isinstance(scratch_run, bool) or not isinstance(scratch_run, int):
+            raise ValueError("author scratch run identity is invalid or duplicated")
+        if scratch_run < 1 or scratch_run in seen_runs:
+            raise ValueError("author scratch run identity is invalid or duplicated")
+        seen_runs.add(scratch_run)
+        code_hash = str(raw_ref.get("code_hash", "") or "").strip()
+        result_hash = str(raw_ref.get("result_hash", "") or "").strip()
+        if not code_hash or not str(raw_ref.get("code_path", "") or "").strip():
+            raise ValueError("author scratch source identity is incomplete")
+        if result_hash and not str(raw_ref.get("result_path", "") or "").strip():
+            raise ValueError("author scratch result identity is incomplete")
+        if raw_ref.get("proof_evidence_status") != THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE:
+            raise ValueError("author scratch ref crosses the proof boundary")
+        catalog.append(
+            {
+                "scratch_run": scratch_run,
+                "code_hash": code_hash,
+                "result_hash": result_hash,
+                "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+            }
+        )
+    return sorted(catalog, key=lambda row: int(row["scratch_run"]))
+
+
+def _read_author_theory_scratch(*, ref: Mapping[str, Any], scratch_root: Path) -> dict[str, Any]:
+    """Read one exact author calculation without promoting its result."""
+
+    root = scratch_root.expanduser().resolve()
+
+    def bound_path(raw_path: Any, *, label: str) -> Path:
+        path = Path(str(raw_path or "")).expanduser()
+        try:
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(root)
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            raise ClientToolInputError(
+                f"author scratch {label} path is unavailable or outside its sandbox"
+            ) from exc
+        if path.is_symlink() or not resolved.is_file():
+            raise ClientToolInputError(f"author scratch {label} is not a regular file")
+        return resolved
+
+    source_path = bound_path(ref.get("code_path"), label="source")
+    try:
+        source = source_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ClientToolInputError("author scratch source is not readable UTF-8") from exc
+    if stable_hash(source) != str(ref.get("code_hash", "") or ""):
+        raise ClientToolInputError("author scratch source hash is stale")
+
+    result_payload: Any = None
+    result_hash = str(ref.get("result_hash", "") or "").strip()
+    if result_hash:
+        result_path = bound_path(ref.get("result_path"), label="result")
+        try:
+            result_payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ClientToolInputError("author scratch result is not readable JSON") from exc
+        if stable_hash(result_payload) != result_hash:
+            raise ClientToolInputError("author scratch result hash is stale")
+
+    inspection_ref = {
+        "scratch_run": int(ref["scratch_run"]),
+        "code_hash": str(ref["code_hash"]),
+        "result_hash": result_hash,
+        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    }
+    inspection_ref["inspection_id"] = "author-theory-scratch-inspection:" + stable_hash(
+        inspection_ref
+    )[:20]
+    return {
+        "ok": True,
+        "source": source,
+        "result": result_payload,
+        "inspection_ref": inspection_ref,
+        "boundary": (
+            "This is one exact TheoryDeveloper exploratory calculation. It may expose "
+            "a counterexample, but does not validate the encoded claim, establish "
+            "confirmatory evidence, or prove a theorem."
+        ),
+    }
 
 
 def _runtime_review_scope(material: Mapping[str, Any]) -> dict[str, Any]:
@@ -3502,6 +3598,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     research_sources: ResearchSourceSnapshot | None,
     research_source_discovery: ResearchSourceDiscovery | None,
     theory_scratchpad: TheoryScratchpadConfig | None,
+    author_scratch_execution_refs: Sequence[Mapping[str, Any]],
     request_model: str,
     model_tier: str,
     provider_name: str,
@@ -3519,6 +3616,14 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     allowed_source_scopes = _preflight_allowed_source_scopes(material)
     formal_sources_applicable = _preflight_formal_sources_applicable(material)
     public_source_descriptor: dict[str, Any] = {}
+    author_scratch_refs_by_run = {
+        int(ref["scratch_run"]): deepcopy(dict(ref))
+        for ref in author_scratch_execution_refs
+    }
+    if author_scratch_refs_by_run and theory_scratchpad is None:
+        raise ValueError(
+            "author scratch inspection requires its bound scratch sandbox"
+        )
     if research_source_discovery is not None:
         descriptor = research_source_discovery.descriptor()
         if not isinstance(descriptor, Mapping):
@@ -3607,6 +3712,27 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         for tool in research_source_client_tools()
         if tool.name in {RESEARCH_SOURCE_SEARCH_TOOL, RESEARCH_SOURCE_READ_TOOL}
     ) if research_sources is not None else ()
+    author_scratch_tools = (
+        ClientToolDefinition(
+            name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_AUTHOR_SCRATCH_TOOL,
+            description=(
+                "Read the exact hash-bound Python/R source and available JSON result "
+                "from one TheoryDeveloper exploratory calculation. Use this when an "
+                "active claim relies on a scratch run, and independently check that "
+                "the program encodes the same random variables, dependence, "
+                "conditioning, normalization, and regime. Reading or executing a "
+                "program is not semantic authority or proof."
+            ),
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["scratch_run"],
+                "properties": {"scratch_run": {
+                    "type": "integer", "enum": sorted(author_scratch_refs_by_run)
+                }},
+            },
+        ),
+    ) if author_scratch_refs_by_run else ()
     tools = (
         *theory_document_client_tools(),
         *revision_tools,
@@ -3617,6 +3743,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             else ()
         ),
         *compact_source_tools,
+        *author_scratch_tools,
         *((theory_scratchpad_client_tool(),) if theory_scratchpad else ()),
         ClientToolDefinition(
             name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL,
@@ -3714,6 +3841,12 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             + (", including formal declarations" if formal_sources_applicable else "")
             + "."
             if compact_source_search_available
+            else ""
+        )
+        + (
+            " Exact source and results for the TheoryDeveloper scratch runs in the "
+            "catalog are available through read_author_theory_scratch."
+            if author_scratch_refs_by_run
             else ""
         )
         + (
@@ -4051,6 +4184,32 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 is_error=execution_result.is_error,
             )
             return execution_result
+
+        if call.name == ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_AUTHOR_SCRATCH_TOOL:
+            if set(tool_input) != {"scratch_run"}:
+                raise ClientToolInputError("read_author_theory_scratch requires scratch_run")
+            scratch_run = tool_input.get("scratch_run")
+            if scratch_run not in author_scratch_refs_by_run:
+                raise ClientToolInputError("author scratch run is unavailable for this theory")
+            assert theory_scratchpad is not None
+            observation = _read_author_theory_scratch(
+                ref=author_scratch_refs_by_run[int(scratch_run)],
+                scratch_root=theory_scratchpad.sandbox_dir,
+            )
+            record_workspace_observation(
+                tool=call.name,
+                tool_input=tool_input,
+                content={
+                    "ok": True,
+                    "inspection_ref": observation["inspection_ref"],
+                    "source_and_result_omitted_from_checkpoint": True,
+                },
+            )
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="author-theory-scratch-read:"
+                + str(observation["inspection_ref"]["inspection_id"]),
+            )
 
         if call.name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL:
             if research_source_discovery is None:
@@ -4894,6 +5053,7 @@ def review_architect_theory_execution_preflight(
     max_tool_calls: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_CALLS,
     max_no_progress_turns: int = ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS,
     prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
+    author_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
     source_retriever: Any = None,
     research_sources: ResearchSourceSnapshot | None = None,
     research_source_discovery: ResearchSourceDiscovery | None = None,
@@ -4910,6 +5070,7 @@ def review_architect_theory_execution_preflight(
         theory_protocol_material=theory_protocol_material,
         upstream_research_contract=upstream_research_contract,
         prior_finding_ledger=prior_finding_ledger,
+        author_scratch_execution_refs=author_scratch_execution_refs,
     )
     request_model = resolve_generator_model(
         provider_name=provider_name,
@@ -4924,6 +5085,7 @@ def review_architect_theory_execution_preflight(
         research_sources=research_sources,
         research_source_discovery=research_source_discovery,
         theory_scratchpad=theory_scratchpad,
+        author_scratch_execution_refs=author_scratch_execution_refs,
         request_model=request_model,
         model_tier=model_tier,
         provider_name=provider_name,

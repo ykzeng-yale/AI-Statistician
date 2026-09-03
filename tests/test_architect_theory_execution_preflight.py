@@ -31,6 +31,7 @@ from ai_statistician.architect_metric_contract_authoring import (
 )
 from ai_statistician.architect_theory_execution_preflight import (
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL,
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_AUTHOR_SCRATCH_TOOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_PROTOCOL_VERSION,
     ARCHITECT_THEORY_EXECUTION_PREFLIGHT_EDIT_REPORT_TOOL,
@@ -45,6 +46,7 @@ from ai_statistician.architect_theory_execution_preflight import (
     _architect_theory_execution_preflight_submit_schema,
     _compare_preflight_theory_document_revision,
     _preflight_scratchpad_evidence_errors,
+    _read_author_theory_scratch,
     _search_preflight_sources,
     architect_theory_preflight_workspace_continuation_errors,
     build_architect_theory_execution_preflight_material,
@@ -435,6 +437,33 @@ class _ScratchPreflightBackend:
         return _tool_response(
             ClientToolCall(
                 "submit-after-referee-counterexample",
+                "submit_theory_preflight_review",
+                _compact_submission(_payload(accept=True)),
+            )
+        )
+
+
+class _AuthorScratchInspectionBackend:
+    provider_name = "anthropic"
+
+    def __init__(self) -> None:
+        self.requests = []
+        self.author_observation = {}
+
+    def generate_client_tool_turn(self, request):
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            return _tool_response(
+                ClientToolCall(
+                    "read-author-scratch",
+                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_AUTHOR_SCRATCH_TOOL,
+                    {"scratch_run": 1},
+                )
+            )
+        self.author_observation = _last_tool_result(request)
+        return _tool_response(
+            ClientToolCall(
+                "submit-after-author-scratch",
                 "submit_theory_preflight_review",
                 _compact_submission(_payload(accept=True)),
             )
@@ -986,6 +1015,7 @@ def _tool_review(
     theory_protocol_material=None,
     upstream_research_contract=None,
     theory_scratchpad=None,
+    author_scratch_execution_refs=(),
     recovery_checkpoint=None,
 ):
     selected_theory_material = (
@@ -1017,6 +1047,7 @@ def _tool_review(
         research_source_discovery=research_source_discovery,
         prior_finding_ledger=prior_finding_ledger,
         theory_scratchpad=theory_scratchpad,
+        author_scratch_execution_refs=author_scratch_execution_refs,
         recovery_checkpoint=recovery_checkpoint,
     )
 
@@ -1154,6 +1185,95 @@ def test_preflight_referee_can_run_model_owned_exploratory_scratch(
         "proof boundary mismatch" in error
         for error in _preflight_scratchpad_evidence_errors(tampered)
     )
+
+
+def test_preflight_can_inspect_exact_author_scratch_without_copying_it(
+    tmp_path,
+) -> None:
+    scratch_root = tmp_path / "shared-theory-scratch"
+    scratch_root.mkdir()
+    source = (
+        "AUTHOR_SCRATCH_UNIQUE_MARKER = 41\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'residual': AUTHOR_SCRATCH_UNIQUE_MARKER - 40}\n"
+    )
+    result = {"residual": 1, "seed": 29}
+    source_path = scratch_root / "author_run.py"
+    result_path = scratch_root / "author_result.json"
+    source_path.write_text(source, encoding="utf-8")
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+    author_ref = {
+        "scratch_run": 1,
+        "status": "EXECUTED",
+        "language": "python",
+        "execution_attempted": True,
+        "returncode": 0,
+        "dependencies": ["numpy"],
+        "errors": [],
+        "code_path": str(source_path),
+        "code_hash": stable_hash(source),
+        "request_hash": "author-scratch-request-hash",
+        "result_path": str(result_path),
+        "result_hash": stable_hash(result),
+        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    }
+    backend = _AuthorScratchInspectionBackend()
+
+    packet = _tool_review(
+        backend,
+        theory_scratchpad=TheoryScratchpadConfig(
+            sandbox_dir=scratch_root,
+            seed=29,
+            replicates=17,
+        ),
+        author_scratch_execution_refs=(author_ref,),
+    )
+
+    assert backend.author_observation["source"] == source
+    assert backend.author_observation["result"] == result
+    assert "does not validate" in backend.author_observation["boundary"]
+    assert ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_AUTHOR_SCRATCH_TOOL in [
+        tool.name for tool in backend.requests[0].tools
+    ]
+    inspection_ref = backend.author_observation["inspection_ref"]
+    assert inspection_ref["code_hash"] == stable_hash(source)
+    assert inspection_ref["result_hash"] == stable_hash(result)
+    assert inspection_ref["proof_evidence_status"] == (
+        THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
+    )
+    assert "AUTHOR_SCRATCH_UNIQUE_MARKER" not in json.dumps(packet)
+    initial_prompt = json.dumps(_preflight_prompt_payload(backend.requests[0]))
+    assert "code_path" not in initial_prompt
+    assert "result_path" not in initial_prompt
+
+
+def test_author_scratch_inspection_rejects_stale_or_unbound_files(tmp_path) -> None:
+    scratch_root = tmp_path / "scratch-root"
+    scratch_root.mkdir()
+    source = "def run_sandbox(seed, replicates):\n    return {'value': 1}\n"
+    source_path = scratch_root / "author.py"
+    source_path.write_text(source, encoding="utf-8")
+    base_ref = {
+        "scratch_run": 1,
+        "code_path": str(source_path),
+        "code_hash": stable_hash(source),
+        "request_hash": "request-hash",
+        "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
+    }
+
+    with pytest.raises(ClientToolInputError, match="source hash is stale"):
+        _read_author_theory_scratch(
+            ref={**base_ref, "code_hash": "stale"},
+            scratch_root=scratch_root,
+        )
+
+    outside_path = tmp_path / "outside.py"
+    outside_path.write_text(source, encoding="utf-8")
+    with pytest.raises(ClientToolInputError, match="outside its sandbox"):
+        _read_author_theory_scratch(
+            ref={**base_ref, "code_path": str(outside_path)},
+            scratch_root=scratch_root,
+        )
 
 
 def test_preflight_failed_scratch_keeps_model_request_identity(

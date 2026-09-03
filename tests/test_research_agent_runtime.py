@@ -119,6 +119,80 @@ def test_architect_runtime_binds_shared_metric_review_scratchpad() -> None:
     assert coordinator.metric_review_scratchpad is scratchpad
 
 
+def test_architect_runtime_forwards_bound_theory_scratch_refs(monkeypatch) -> None:
+    captured = {}
+    question = OpenResearchQuestion(
+        id="captured-scratch",
+        title="Captured scratch",
+        description="Review one exact author scratch calculation.",
+    )
+
+    class CapturingCoordinator:
+        metric_review_scratchpad = None
+
+        def review_theory_execution_preflight(self, **kwargs):
+            captured.update(kwargs)
+            return {"packet_id": "captured-preflight"}
+
+    packet_id = "theory:captured-scratch"
+    packet_hash = "captured-theory-hash"
+    scratch_refs = [{"scratch_run": 1, "code_hash": "captured-code-hash"}]
+    workspace_id = "theory-workspace:captured-scratch"
+    workspace = {
+        "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+        "artifact_id": workspace_id,
+        "scratch_execution_refs": scratch_refs,
+        "runtime_source_theory_packet_id": packet_id,
+        "runtime_source_theory_packet_hash": packet_hash,
+        "runtime_storage_role": "SEPARATE_WORKSPACE_EVIDENCE_NOT_THEORY_CONTENT",
+    }
+    context = {
+        "architect_metric_protocol_theory_material": {
+            "artifact_kind": "RuntimeTheoryInformedMetricProtocolMaterial",
+            "source_theory_packet_id": packet_id,
+            "source_theory_packet_hash": packet_hash,
+            "execution_results_available": False,
+            "theory_semantic_material": {"claim": "hash-bound"},
+        },
+        runtime_module.RUNTIME_THEORY_WORKSPACE_EVIDENCE_CONTEXT_KEY: (
+            runtime_artifact_reference(workspace_id, workspace)
+        ),
+    }
+    monkeypatch.setattr(
+        runtime_module,
+        "_architect_theory_preflight_accepted_result",
+        lambda **_kwargs: AgentStepResult(status="COMPLETED", rationale="captured"),
+    )
+    subsystem = runtime_module.ArchitectCoordinatorRuntimeSubsystem(
+        coordinator=CapturingCoordinator(),  # type: ignore[arg-type]
+        runtime_config=ResearchAgentRuntimeConfig(),
+        preflight_scratchpad=object(),  # type: ignore[arg-type]
+    )
+
+    result = subsystem.run(
+        AgentTask(
+            task_id="architect:captured-scratch",
+            owner_subsystem="ArchitectCoordinator",
+            objective="Review exact theory scratch when useful.",
+            inputs={
+                "question": runtime_module._question_to_payload(question),
+                "architect_context": context,
+                "runtime_architect_operation": (
+                    runtime_module.RUNTIME_ARCHITECT_OPERATION_THEORY_PREFLIGHT
+                ),
+            },
+        ),
+        BlackboardState(
+            project_id="captured-scratch",
+            artifacts={workspace_id: workspace},
+        ),
+    )
+
+    assert result.status == "COMPLETED"
+    assert captured["author_scratch_execution_refs"] == tuple(scratch_refs)
+    assert "theory_workspace_evidence_ref" in captured["architect_context"]
+
+
 def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
     normalized = _normalized_runtime_evaluation_model_config(
         ResearchAgentRuntimeConfig(evaluation_mode="capability_eval")
@@ -2820,6 +2894,17 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
             "accepted": True,
             "model_owned_theory": True,
             "runtime_edited_theory": False,
+            "scratch_execution_refs": [
+                {
+                    "scratch_run": 1,
+                    "code_path": "/bound/theory/scratch.py",
+                    "code_hash": "author-code-hash",
+                    "request_hash": "author-request-hash",
+                    "proof_evidence_status": (
+                        "THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ],
             "history": [{"large_transport_payload": "x" * 2000}],
         },
     }
@@ -2896,6 +2981,47 @@ def test_runtime_stores_theory_tool_history_as_separate_evidence() -> None:
     assert "architect_metric_protocol_gate" not in result.next_task.inputs[
         "architect_context"
     ]
+    next_context = result.next_task.inputs["architect_context"]
+    workspace_ref = next_context[
+        runtime_module.RUNTIME_THEORY_WORKSPACE_EVIDENCE_CONTEXT_KEY
+    ]
+    assert workspace_ref == runtime_artifact_reference(
+        workspace_id, stored_workspace
+    )
+    scratch_refs = runtime_module._architect_theory_workspace_scratch_execution_refs(
+        architect_context=next_context,
+        blackboard=BlackboardState(
+            project_id=question.id,
+            artifacts=deepcopy(result.produced_artifacts),
+        ),
+    )
+    assert scratch_refs == tuple(stored_workspace["scratch_execution_refs"])
+
+    tampered_artifacts = deepcopy(result.produced_artifacts)
+    tampered_artifacts[workspace_id]["scratch_execution_refs"][0][
+        "code_hash"
+    ] = "tampered"
+    with pytest.raises(ValueError, match="unavailable or stale"):
+        runtime_module._architect_theory_workspace_scratch_execution_refs(
+            architect_context=next_context,
+            blackboard=BlackboardState(
+                project_id=question.id,
+                artifacts=tampered_artifacts,
+            ),
+        )
+
+    stale_context = deepcopy(next_context)
+    stale_context["architect_metric_protocol_theory_material"][
+        "source_theory_packet_hash"
+    ] = "different-theory"
+    with pytest.raises(ValueError, match="bound to stale theory"):
+        runtime_module._architect_theory_workspace_scratch_execution_refs(
+            architect_context=stale_context,
+            blackboard=BlackboardState(
+                project_id=question.id,
+                artifacts=deepcopy(result.produced_artifacts),
+            ),
+        )
 
 
 def test_runtime_materializes_integrated_source_checkpoint_for_independent_critic() -> None:

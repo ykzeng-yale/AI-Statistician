@@ -1608,6 +1608,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         theory_protocol_material: Mapping[str, Any],
         upstream_research_contract: Mapping[str, Any],
         prior_finding_ledger: Sequence[Mapping[str, Any]] = (),
+        author_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
         theory_scratchpad: TheoryScratchpadConfig | None = None,
         recovery_checkpoint: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -1622,6 +1623,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
             temperature=self.config.temperature,
             provider_name=self.config.provider_name,
             prior_finding_ledger=prior_finding_ledger,
+            author_scratch_execution_refs=author_scratch_execution_refs,
             source_retriever=self.source_retriever,
             research_sources=self.research_sources,
             research_source_discovery=self.research_source_discovery,
