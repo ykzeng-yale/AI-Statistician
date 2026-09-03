@@ -151,20 +151,19 @@ def test_source_only_checkpoint_completes_without_unrelated_critic() -> None:
         },
     }
 
-    summary = build_research_evaluation_summary(
-        [
+    result = {
+        "status": "ACCEPTED",
+        "blackboard": {"artifacts": artifacts},
+        "traces": (
             {
+                "subsystem": "TheoryDeveloper",
                 "status": "ACCEPTED",
-                "blackboard": {"artifacts": artifacts},
-                "traces": (
-                    {
-                        "subsystem": "TheoryDeveloper",
-                        "status": "ACCEPTED",
-                        "produced_artifact_ids": (checkpoint_id,),
-                    },
-                ),
-            }
-        ],
+                "produced_artifact_ids": (checkpoint_id,),
+            },
+        ),
+    }
+    summary = build_research_evaluation_summary(
+        [result],
         evaluation_mode="research_eval",
         schema_version="test",
     )
@@ -178,8 +177,22 @@ def test_source_only_checkpoint_completes_without_unrelated_critic() -> None:
         "source_replication_checkpoint_recorded",
         "source_replication_unresolved_gap_disclosure_present",
     ]
+    assert row["runtime_terminal_status"] == "ACCEPTED"
+    assert row["runtime_terminal_accepted"] is True
     assert row["requirements"]["critic_research_acceptance"] is False
     assert row["dimension_requirements"]["source_replication"] == "required"
+
+    result["status"] = "BLOCKED"
+    summary = build_research_evaluation_summary(
+        [result],
+        evaluation_mode="research_eval",
+        schema_version="test",
+    )
+    row = summary["rows"][0]
+    assert row["requirements"]["source_replication_checkpoint_recorded"] is True
+    assert row["runtime_terminal_status"] == "BLOCKED"
+    assert row["runtime_terminal_accepted"] is False
+    assert row["research_eval_complete"] is False
 
 
 def test_accepted_metric_rows_replace_the_exploratory_replicate_fallback() -> None:
@@ -1591,6 +1604,16 @@ def test_research_summary_requires_kernel_closure_for_formal_only_task() -> None
     summary = build_research_evaluation_summary(
         [result], evaluation_mode="research_eval", schema_version="test"
     )
+    row = summary["rows"][0]
+    assert row["requirements"]["exact_formal_target_kernel_closed"] is True
+    assert row["runtime_terminal_accepted"] is False
+    assert row["research_loop_complete"] is False
+
+    result["status"] = "ACCEPTED"
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["rows"][0]["runtime_terminal_accepted"] is True
     assert summary["rows"][0]["research_loop_complete"] is True
 
 

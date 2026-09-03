@@ -993,8 +993,11 @@ def build_research_evaluation_summary(
             "strict_formal_lane_not_executed": not formal_executed,
             "formal_lane_task_intent_conformant": formal_intent_conformant,
         }
+        runtime_terminal_status = str(result.get("status", "") or "")
+        runtime_terminal_accepted = runtime_terminal_status == "ACCEPTED"
         research_loop_complete = bool(
             applies
+            and runtime_terminal_accepted
             and all(
                 capability_checks[name] for name in required_capability_checks
             )
@@ -1011,6 +1014,8 @@ def build_research_evaluation_summary(
         summary_row = {
             "question_id": question_id,
             "runtime_evidence_hash": research_evaluation_evidence_hash(result),
+            "runtime_terminal_status": runtime_terminal_status,
+            "runtime_terminal_accepted": runtime_terminal_accepted,
             "research_loop_complete": research_loop_complete,
             "mode_conformant": mode_conformant,
             "research_eval_complete": bool(research_loop_complete),
@@ -1072,7 +1077,8 @@ def build_research_evaluation_summary(
             "This is research-loop evidence only. Theory, generated code, simulation, "
             "and semantic review are not theorem proof; formalization and kernel "
             "closure remain separately reported and are required only when selected "
-            "task intent marks formal evidence required. "
+            "task intent marks formal evidence required. Research-loop completion "
+            "also requires the outer runtime to terminate with ACCEPTED. "
             "Mode conformance is diagnostic and cannot erase completed research evidence."
         ),
     }
