@@ -193,6 +193,7 @@ from .lean_candidate_revision_tool_loop import (
 )
 from .lean_kernel_promotion import evaluate_lean_kernel_promotion
 from .lean_project import (
+    LEAN_PROJECT_MAIN_PATH,
     LeanProjectExecutor,
     load_model_authored_lean_project,
     materialize_lean_project_workspace,
@@ -18657,6 +18658,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
         }
 
     def inspect_lean_state(
+        inspected_path: str,
         source: str,
         line: int,
         column: int,
@@ -18684,8 +18686,27 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             or last_check.get("artifact_path", "")
             or ""
         )
+        expected_artifact_path = (
+            project_execution_root / Path(inspected_path)
+        ).resolve()
+        if (
+            project_execution_root.resolve() not in expected_artifact_path.parents
+            or Path(check_artifact_path).expanduser().resolve()
+            != expected_artifact_path
+        ):
+            raise PacketValidationError(
+                validation_label="Formalizer Lean state inspection lineage",
+                attempts=1,
+                errors=["Lean state inspection artifact does not match selected path"],
+                history=[],
+            )
         subclaim = FormalSubclaim(
-            id="formalizer_lean_candidate:" + _safe_identifier(candidate_id),
+            id=(
+                "formalizer_lean_candidate:"
+                + _safe_identifier(candidate_id)
+                + ":"
+                + _safe_identifier(inspected_path)
+            ),
             title="Model-requested Lean state inspection",
             status="FAILED",
             claim=(
@@ -18719,6 +18740,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 (subclaim,),
                 line=line,
                 column=column,
+                search_root=project_execution_root,
             ),
             audit_checked=_bool_like(
                 last_check.get("candidate_axiom_audit_checked", False)
@@ -18740,10 +18762,20 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 )
             ),
             "source_hash": source_hash,
+            "inspected_path": inspected_path,
+            "target_source_hash": (
+                source_hash
+                if inspected_path == LEAN_PROJECT_MAIN_PATH
+                else str(last_check.get("target_source_hash", "") or "")
+            ),
             "lean_project_hash": str(
                 last_check.get("lean_project_hash", "") or ""
             ),
+            "workspace_project_hash": str(
+                last_check.get("workspace_project_hash", "") or ""
+            ),
             "requested_position": {
+                "path": inspected_path,
                 "line": line,
                 "column": column,
                 "selection_owner": "Formalizer",

@@ -219,7 +219,7 @@ def test_lsp_provider_promotes_only_exact_lean_goal_observations(
     assert goal_trace["position_source"] == "model_selected"
 
 
-def test_lsp_provider_binds_nested_candidate_project_to_active_environment(
+def test_lsp_provider_binds_nested_support_file_to_candidate_project_root(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -228,11 +228,13 @@ def test_lsp_provider_binds_nested_candidate_project_to_active_environment(
     (project / "lean-toolchain").write_text("leanprover/lean4:test\n")
     workspace = project / ".lake" / "candidate" / "lean_project"
     workspace.mkdir(parents=True)
-    artifact = workspace / "Main.lean"
+    artifact = workspace / "AIStatWorkspace" / "Support.lean"
+    artifact.parent.mkdir()
     source = (
-        "import AIStatWorkspace.Support\n\n"
-        "theorem target : True := by\n"
+        "namespace AIStatWorkspace\n\n"
+        "theorem helper : True := by\n"
         "  exact missing_name\n"
+        "end AIStatWorkspace\n"
     )
     artifact.write_text(source, encoding="utf-8")
     environment = {
@@ -297,8 +299,8 @@ def test_lsp_provider_binds_nested_candidate_project_to_active_environment(
     row = provider.inspect(
         [
             FormalSubclaim(
-                id="target",
-                title="Multi-file goal inspection",
+                id="support",
+                title="Multi-file support goal inspection",
                 status="FAILED",
                 claim="Inspect the exact multi-file target.",
                 lean_statement=source,
@@ -307,6 +309,7 @@ def test_lsp_provider_binds_nested_candidate_project_to_active_environment(
         ],
         line=4,
         column=3,
+        search_root=workspace,
     )[0]
 
     assert environment_requests == [

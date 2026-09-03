@@ -23,6 +23,7 @@ from .client_tool_loop import (
 )
 from .fingerprint import stable_hash
 from .lean_project import (
+    LEAN_PROJECT_MAIN_PATH,
     MAX_LEAN_PROJECT_FILE_BYTES,
     LeanProjectFile,
     lean_project_build_order_errors,
@@ -46,7 +47,7 @@ LeanSupportFileCheck = Callable[
 ]
 FormalEnvironmentSearch = Callable[[str, int], Any]
 ProofCandidateSearch = Callable[[str, str, int, Mapping[str, Any]], Any]
-LeanStateInspection = Callable[[str, int, int, Mapping[str, Any]], Any]
+LeanStateInspection = Callable[[str, str, int, int, Mapping[str, Any]], Any]
 LeanDeclarationInspection = Callable[
     [str, str, int, Mapping[str, Any]], Any
 ]
@@ -801,6 +802,7 @@ def run_lean_candidate_revision_tool_loop(
             "latest_check_observation",
             "latest_proof_search",
             "latest_state_inspection",
+            "latest_support_file_check",
         ):
             state[field] = {}
 
@@ -1291,6 +1293,10 @@ def run_lean_candidate_revision_tool_loop(
                     "Lean support checker returned a non-object result"
                 )
             observation = deepcopy(dict(raw_result))
+            if str(observation.get("relative_path", "") or "") != path:
+                raise ClientToolInputError(
+                    "Lean support check is not bound to the selected file path"
+                )
             expected_hash = stable_hash(str(state["support_files"][path]))
             if str(observation.get("source_hash", "") or "") != expected_hash:
                 raise ClientToolInputError(
@@ -1299,6 +1305,10 @@ def run_lean_candidate_revision_tool_loop(
             compiled = bool(observation.get("compiled", False))
             if compiled:
                 state["support_build_order"].append(path)
+            observation["workspace_project_hash"] = current_project_payload(
+                require_complete=False
+            )["workspace_project_hash"]
+            observation["target_source_hash"] = state["source_hash"]
             state["support_file_checks"] += 1
             state["latest_support_file_check"] = deepcopy(observation)
             content = {
@@ -1571,6 +1581,8 @@ def run_lean_candidate_revision_tool_loop(
             if (
                 isinstance(state_inspection, Mapping)
                 and state_inspection
+                and state_inspection.get("inspected_path")
+                == LEAN_PROJECT_MAIN_PATH
                 and state_inspection.get("source_hash") == state["source_hash"]
                 and state_inspection.get("lean_project_hash", "")
                 == search_context.get("lean_project_hash", "")
@@ -1620,12 +1632,50 @@ def run_lean_candidate_revision_tool_loop(
         if call.name == "inspect_lean_state":
             if inspect_lean_state is None:
                 raise ClientToolInputError("Lean state inspection is unavailable")
-            if set(tool_input) != {"line", "column"}:
+            if set(tool_input) != {"path", "line", "column"}:
                 raise ClientToolInputError(
-                    "inspect_lean_state requires exactly line and column"
+                    "inspect_lean_state requires exactly path, line, and column"
                 )
+            path = tool_input.get("path")
             line = tool_input.get("line")
             column = tool_input.get("column")
+            if not isinstance(path, str):
+                raise ClientToolInputError("inspect_lean_state path must be a string")
+            if path == LEAN_PROJECT_MAIN_PATH:
+                inspected_source = str(state["source"])
+                inspection_check = deepcopy(dict(state["last_check"]))
+                if not inspection_check:
+                    raise ClientToolInputError(
+                        "Main.lean must be checked before inspect_lean_state so the "
+                        "inspection is bound to exact source bytes and diagnostics"
+                    )
+                identity_field = "lean_project_hash"
+            elif path in state["support_files"]:
+                inspected_source = str(state["support_files"][path])
+                inspection_check = deepcopy(
+                    dict(state["latest_support_file_check"])
+                )
+                current_workspace_hash = current_project_payload(
+                    require_complete=False
+                )["workspace_project_hash"]
+                if not (
+                    inspection_check
+                    and inspection_check.get("relative_path") == path
+                    and inspection_check.get("source_hash")
+                    == stable_hash(inspected_source)
+                    and inspection_check.get("workspace_project_hash")
+                    == current_workspace_hash
+                ):
+                    raise ClientToolInputError(
+                        "the selected Lean support file must be the most recently "
+                        "checked file in the current project state before inspection"
+                    )
+                identity_field = "workspace_project_hash"
+            else:
+                raise ClientToolInputError(
+                    "inspect_lean_state path must be Main.lean or a current Lean "
+                    "support file"
+                )
             if (
                 isinstance(line, bool)
                 or not isinstance(line, int)
@@ -1637,37 +1687,37 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "inspect_lean_state line and column must be positive integers"
                 )
-            source_line_count = max(1, len(str(state["source"]).splitlines()))
+            source_line_count = max(1, len(inspected_source.splitlines()))
             if line > source_line_count:
                 raise ClientToolInputError(
-                    "inspect_lean_state line exceeds the current source line count"
-                )
-            if not state["last_check"]:
-                raise ClientToolInputError(
-                    "the current source must be checked before inspect_lean_state so "
-                    "the inspection is bound to exact source bytes and diagnostics"
+                    "inspect_lean_state line exceeds the selected file line count"
                 )
             state["state_inspections"] += 1
             result = inspect_lean_state(
-                str(state["source"]),
+                path,
+                inspected_source,
                 line,
                 column,
-                deepcopy(dict(state["last_check"])),
+                inspection_check,
             )
             if not isinstance(result, Mapping):
                 raise ClientToolInputError(
                     "Lean state inspector returned a non-object result"
                 )
             result = deepcopy(dict(result))
-            if result.get("source_hash") != state["source_hash"]:
+            if result.get("inspected_path") != path:
                 raise ClientToolInputError(
-                    "Lean state inspection is not bound to the current source hash"
+                    "Lean state inspection is not bound to the selected file path"
                 )
-            if result.get("lean_project_hash", "") != state["last_check"].get(
-                "lean_project_hash", ""
+            if result.get("source_hash") != stable_hash(inspected_source):
+                raise ClientToolInputError(
+                    "Lean state inspection is not bound to the selected file hash"
+                )
+            if result.get(identity_field, "") != inspection_check.get(
+                identity_field, ""
             ):
                 raise ClientToolInputError(
-                    "Lean state inspection is not bound to the current project hash"
+                    "Lean state inspection is not bound to the current project state"
                 )
             state["latest_state_inspection"] = deepcopy(result)
             content = {
@@ -1681,7 +1731,8 @@ def run_lean_candidate_revision_tool_loop(
             }
             observation_key = "lean-state:" + stable_hash(
                 {
-                    "source_hash": state["source_hash"],
+                    "inspected_path": path,
+                    "source_hash": stable_hash(inspected_source),
                     "observation": content["observation"],
                 }
             )
@@ -2825,10 +2876,12 @@ def _lean_candidate_revision_tools(
             ClientToolDefinition(
                 name="inspect_lean_state",
                 description=(
-                    "Inspect the exact current source through the configured Lean "
+                    "Inspect an exact current project file through the configured Lean "
                     "LSP/MCP or local proof-state provider after a failed check. "
-                    "Choose the one-based line and column from the current source "
-                    "and raw compiler diagnostics; the runtime does not select a goal. "
+                    "Choose Main.lean or a current support-file path plus the one-based "
+                    "line and column from raw compiler diagnostics; the runtime does "
+                    "not select a file or goal. A support file must be inspected "
+                    "immediately after its own check in the current project state. "
                     "This is especially useful after Lean reports that the declaration "
                     "elaborated but its proof remains untrusted. "
                     "Returns raw diagnostic and goal observations; it never edits "
@@ -2837,8 +2890,9 @@ def _lean_candidate_revision_tools(
                 input_schema={
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["line", "column"],
+                    "required": ["path", "line", "column"],
                     "properties": {
+                        "path": {"type": "string", "minLength": 1},
                         "line": {"type": "integer", "minimum": 1},
                         "column": {"type": "integer", "minimum": 1},
                     },

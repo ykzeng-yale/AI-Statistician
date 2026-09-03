@@ -332,8 +332,8 @@ def test_formalizer_prompt_exposes_model_owned_scratch_without_proof_promotion()
     assert "without changing the current candidate" in scratch_tool.description
     assert "never proof" in scratch_tool.description
     assert "complete axiom-clean declaration" in submit_tool.description
-    assert state_tool.input_schema["required"] == ["line", "column"]
-    assert "runtime does not select a goal" in state_tool.description
+    assert state_tool.input_schema["required"] == ["path", "line", "column"]
+    assert "runtime does not select a file or goal" in state_tool.description
 
 
 def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() -> None:
@@ -1820,7 +1820,7 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
                 ClientToolCall(
                     "state-1",
                     "inspect_lean_state",
-                    {"line": 2, "column": 3},
+                    {"path": "Main.lean", "line": 2, "column": 3},
                 )
             ),
             _response(
@@ -1880,10 +1880,12 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
             "local_lean_stderr": "unsolved goal" if source != passing else "",
         }
 
-    def inspect(source: str, line: int, column: int, last_check):
+    def inspect(path: str, source: str, line: int, column: int, last_check):
+        assert path == "Main.lean"
         assert (line, column) == (2, 3)
         return {
             "status": "OBSERVED",
+            "inspected_path": path,
             "source_hash": stable_hash(source),
             "lean_project_hash": last_check.get("lean_project_hash", ""),
             "rows": [{"residual_goals": ["|- True"]}],
@@ -1931,14 +1933,14 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
                 ClientToolCall(
                     "state-out-of-range",
                     "inspect_lean_state",
-                    {"line": 99, "column": 1},
+                    {"path": "Main.lean", "line": 99, "column": 1},
                 )
             ),
             _response(
                 ClientToolCall(
                     "state-1",
                     "inspect_lean_state",
-                    {"line": 2, "column": 9},
+                    {"path": "Main.lean", "line": 2, "column": 9},
                 )
             ),
             _response(
@@ -1963,10 +1965,12 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
             "local_lean_stderr": "unknown identifier 'missing'" if not compiled else "",
         }
 
-    def inspect(source: str, line: int, column: int, last_check):
+    def inspect(path: str, source: str, line: int, column: int, last_check):
+        assert path == "Main.lean"
         inspections.append((source, line, column, dict(last_check)))
         return {
             "provider": "lean_lsp_mcp",
+            "inspected_path": path,
             "source_hash": stable_hash(source),
             "lean_project_hash": last_check.get("lean_project_hash", ""),
             "rows": [
@@ -2008,7 +2012,7 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
         backend.requests[1].messages[-1]["content"][0]["content"]
     )
     assert rejected_position["error"] == "client_tool_input_rejected"
-    assert "source line count" in rejected_position["detail"]
+    assert "selected file line count" in rejected_position["detail"]
     retained_observation = json.loads(
         backend.requests[2].messages[-1]["content"][0]["content"]
     )["observation"]
@@ -2023,6 +2027,135 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
         "inspect_lean_state" in {tool.name for tool in request.tools}
         for request in backend.requests
     )
+
+
+def test_model_inspects_exact_failed_support_file_before_revising_project() -> None:
+    target = "import AIStat.Support\n\ntheorem target : True := by trivial\n"
+    support_path = "AIStat/Support.lean"
+    broken_support = "theorem helper : True := by\n  exact missing\n"
+    fixed_support = "theorem helper : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "write-broken-support",
+                    LEAN_SUPPORT_FILE_WRITE_TOOL,
+                    {"path": support_path, "content": broken_support},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "check-broken-support",
+                    LEAN_SUPPORT_FILE_CHECK_TOOL,
+                    {"path": support_path},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "inspect-broken-support",
+                    "inspect_lean_state",
+                    {"path": support_path, "line": 2, "column": 3},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "write-fixed-support",
+                    LEAN_SUPPORT_FILE_WRITE_TOOL,
+                    {"path": support_path, "content": fixed_support},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "inspect-stale-support",
+                    "inspect_lean_state",
+                    {"path": support_path, "line": 2, "column": 3},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "check-fixed-support",
+                    LEAN_SUPPORT_FILE_CHECK_TOOL,
+                    {"path": support_path},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "submit-target",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": target,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    inspected: list[tuple[str, str, dict]] = []
+
+    def check_project(source, _declaration, files, order):
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": bool(
+                files
+                and files[0]["content"] == fixed_support
+                and order == [support_path]
+            ),
+        }
+
+    def check_support(path, files, _prior_order):
+        content = next(row["content"] for row in files if row["path"] == path)
+        return {
+            "relative_path": path,
+            "source_hash": stable_hash(content),
+            "compiled": content == fixed_support,
+            "local_lean_stderr": (
+                "unknown identifier 'missing'" if content == broken_support else ""
+            ),
+            "artifact_path": f"/candidate/{path}",
+            "proof_state_artifact_path": f"/candidate/{path}",
+        }
+
+    def inspect(path, source, line, column, last_check):
+        assert (line, column) == (2, 3)
+        inspected.append((path, source, dict(last_check)))
+        return {
+            "status": "OBSERVED",
+            "inspected_path": path,
+            "source_hash": stable_hash(source),
+            "workspace_project_hash": last_check["workspace_project_hash"],
+            "rows": [{"residual_goals": ["|- True"]}],
+            "proof_evidence_status": "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE",
+        }
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Compile and inspect the exact project files.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=8,
+        max_no_progress_turns=4,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=target,
+        check_candidate=lambda *_args: pytest.fail("single-file checker used"),
+        check_candidate_project=check_project,
+        check_support_file=check_support,
+        search_formal_environment=lambda query, k: [],
+        inspect_lean_state=inspect,
+    )
+
+    assert inspected[0][0:2] == (support_path, broken_support)
+    assert inspected[0][2]["relative_path"] == support_path
+    stale_observation = json.loads(
+        backend.requests[5].messages[-1]["content"][0]["content"]
+    )
+    assert stale_observation["error"] == "client_tool_input_rejected"
+    assert "most recently checked file" in stale_observation["detail"]
+    assert result.lean_source == target
+    assert result.evidence["lean_state_inspections"] == 1
 
 
 def test_model_runs_lean_scratch_without_changing_candidate_source() -> None:
@@ -4299,12 +4432,23 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             if self.workspace_source != source:
                 assert checkpoint["current_source"] == self.workspace_source
             self.check_result = dict(
-                    kwargs["check_candidate"](self.workspace_source, "target")
+                kwargs["check_candidate_project"](
+                    self.workspace_source,
+                    "target",
+                    [],
+                    [],
+                )
             )
             state_tool = kwargs.get("inspect_lean_state")
             if callable(state_tool):
                 self.state_result = dict(
-                    state_tool(self.workspace_source, 2, 3, self.check_result)
+                    state_tool(
+                        "Main.lean",
+                        self.workspace_source,
+                        2,
+                        3,
+                        self.check_result,
+                    )
                 )
             proof_tool = kwargs.get("search_proof_candidates")
             if callable(proof_tool):
@@ -4356,8 +4500,16 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             self.calls: list[dict] = []
             self.state_calls: list[list] = []
 
-        def inspect(self, subclaims, *, line=None, column=None):
+        def inspect(
+            self,
+            subclaims,
+            *,
+            line=None,
+            column=None,
+            search_root=None,
+        ):
             assert (line, column) == (2, 3)
+            assert Path(search_root).name == "lean_project"
             self.state_calls.append(list(subclaims))
             return [
                 {
@@ -4399,6 +4551,49 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
 
     trace_requests: list[dict] = []
 
+    def check_exact_project(
+        executor,
+        *,
+        target_source,
+        candidate_lean_declaration,
+        project_files,
+        support_build_order,
+    ):
+        project = model_authored_lean_project(
+            target_source=target_source,
+            project_files=project_files,
+            support_build_order=support_build_order,
+        )
+        executor.workspace_root.mkdir(parents=True, exist_ok=True)
+        target_path = executor.workspace_root / "Main.lean"
+        target_path.write_text(target_source, encoding="utf-8")
+        return {
+            "source_hash": stable_hash(target_source),
+            "candidate_lean_declaration": candidate_lean_declaration,
+            "compiled": True,
+            "artifact_path": str(target_path),
+            "proof_state_artifact_path": str(target_path),
+            "proof_state_search_root": str(executor.workspace_root),
+            "local_lean_attempted": True,
+            "local_lean_compiled": True,
+            "local_lean_source_compiled": True,
+            "local_lean_exit_status": "0",
+            "local_lean_stdout": "target : True",
+            "local_lean_stderr": "",
+            "candidate_identity_lean_checked": True,
+            "candidate_identity_lean_verified": True,
+            "candidate_declaration_elaborated": True,
+            "candidate_development_status": (
+                "DECLARATION_ELABORATED_PROOF_VERIFIED"
+            ),
+            "candidate_axiom_names": ["Classical.choice"],
+            "candidate_untrusted_axiom_names": [],
+            "candidate_axiom_audit_checked": True,
+            "candidate_axiom_audit_clean": True,
+            "lean_project": project,
+            "lean_project_hash": project["project_hash"],
+        }
+
     def attach_trace_fixture(context, *, formal_source_retriever=None):
         trace_requests.append(dict(context))
         assert formal_source_retriever is None
@@ -4439,6 +4634,11 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             "candidate_axiom_audit_checked": True,
             "candidate_axiom_audit_clean": True,
         },
+    )
+    monkeypatch.setattr(
+        runtime_module.LeanProjectExecutor,
+        "check_target",
+        check_exact_project,
     )
     monkeypatch.setattr(
         runtime_module,
@@ -4486,6 +4686,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert evidence["parent_candidate_source_hash"] == stable_hash(source)
     assert evidence["resumed_from_model_checkpoint"] is False
     assert agent.state_result["requested_position"] == {
+        "path": "Main.lean",
         "line": 2,
         "column": 3,
         "selection_owner": "Formalizer",

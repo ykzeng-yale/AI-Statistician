@@ -154,6 +154,9 @@ def test_lean_project_environment_failure_returns_raw_observation(
     assert support["compiled"] is False
     assert support["local_lean_exit_status"] == "environment_error"
     assert "environment unavailable" in support["local_lean_stderr"]
+    assert Path(support["proof_state_artifact_path"]) == (
+        tmp_path / "lean-workspace" / "Support.lean"
+    )
 
 
 def test_pinned_statlib_foundation_compiles_model_authored_multifile_project(
@@ -226,6 +229,7 @@ def test_pinned_statlib_foundation_compiles_model_authored_multifile_project(
 
     assert base["compiled"] is True, base["local_lean_stderr"]
     assert support["compiled"] is True, support["local_lean_stderr"]
+    assert Path(support["proof_state_artifact_path"]) == workspace / support_path
     assert support["compiled_prefix_reused"] is True
     assert len(support["support_build_attempts"]) == 1
     assert target["local_lean_compiled"] is True, target["local_lean_stderr"]
@@ -234,6 +238,7 @@ def test_pinned_statlib_foundation_compiles_model_authored_multifile_project(
     assert target["candidate_identity_lean_verified"] is True
     assert target["candidate_axiom_audit_clean"] is True
     assert target["lean_project_hash"] == target["lean_project"]["project_hash"]
+    assert Path(target["proof_state_search_root"]) == workspace
     assert revised_target["local_lean_compiled"] is True
     assert revised_target["compiled_support_prefix_reused"] is True
     assert revised_target["support_build_attempts"] == []

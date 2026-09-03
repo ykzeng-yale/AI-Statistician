@@ -613,6 +613,7 @@ class LeanProjectExecutor:
         prior_build_order: Sequence[str],
     ) -> dict[str, Any]:
         rows = normalized_lean_project_files(project_files)
+        source_path = self.workspace_root / PurePosixPath(relative_path)
         errors = lean_project_build_order_errors(
             prior_build_order,
             project_files=rows,
@@ -642,6 +643,8 @@ class LeanProjectExecutor:
                     next(row.content for row in rows if row.path == relative_path)
                 ),
                 "compiled": False,
+                "artifact_path": str(source_path),
+                "proof_state_artifact_path": str(source_path),
                 "compiled_prefix_reused": False,
                 "compiled_prefix_rebuilt": False,
                 "support_build_attempts": [],
@@ -682,6 +685,8 @@ class LeanProjectExecutor:
                 next(row.content for row in rows if row.path == relative_path)
             ),
             "compiled": compiled,
+            "artifact_path": str(source_path),
+            "proof_state_artifact_path": str(source_path),
             "compiled_prefix_reused": reuse_prefix,
             "compiled_prefix_rebuilt": prefix_rebuilt,
             "support_build_attempts": attempts,
@@ -735,6 +740,7 @@ class LeanProjectExecutor:
                 "compiled": False,
                 "artifact_path": str(target_path),
                 "proof_state_artifact_path": str(target_path),
+                "proof_state_search_root": str(self.workspace_root),
                 "local_lean_attempted": True,
                 "local_lean_compiled": False,
                 "local_lean_source_compiled": False,
@@ -767,6 +773,7 @@ class LeanProjectExecutor:
                     "compiled": False,
                     "artifact_path": str(target_path),
                     "proof_state_artifact_path": str(target_path),
+                    "proof_state_search_root": str(self.workspace_root),
                     "local_lean_attempted": True,
                     "local_lean_compiled": False,
                     "local_lean_source_compiled": False,
@@ -808,6 +815,7 @@ class LeanProjectExecutor:
             "compiled": bool(local_result.get("local_lean_compiled", False)),
             "artifact_path": str(target_path),
             "proof_state_artifact_path": str(target_path),
+            "proof_state_search_root": str(self.workspace_root),
             **local_result,
             "support_build_attempts": support_attempts,
             "compiled_support_prefix_reused": reuse_support_prefix,

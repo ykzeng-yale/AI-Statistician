@@ -66,6 +66,7 @@ class ProofStateFeedbackProvider(Protocol):
         *,
         line: int,
         column: int,
+        search_root: str | Path | None = None,
     ) -> list[ProofStateFeedbackRow]:
         ...
 
@@ -360,11 +361,23 @@ class LocalLeanProofStateFeedbackProvider:
         *,
         line: int,
         column: int,
+        search_root: str | Path | None = None,
     ) -> list[ProofStateFeedbackRow]:
         del line, column
-        return [self._inspect_subclaim(row) for row in subclaims]
+        return [
+            self._inspect_subclaim(
+                row,
+                search_root_path=str(search_root or ""),
+            )
+            for row in subclaims
+        ]
 
-    def _inspect_subclaim(self, subclaim: FormalSubclaim) -> ProofStateFeedbackRow:
+    def _inspect_subclaim(
+        self,
+        subclaim: FormalSubclaim,
+        *,
+        search_root_path: str = "",
+    ) -> ProofStateFeedbackRow:
         statement = str(subclaim.lean_statement or "")
         diagnostics: list[str] = []
         attempt_status = ""
@@ -391,6 +404,7 @@ class LocalLeanProofStateFeedbackProvider:
             result = self._run_local_lean(
                 statement,
                 artifact_path=str(subclaim.artifact_path or ""),
+                search_root_path=search_root_path,
             )
             checked = True
             returncode = int(result["returncode"])
@@ -494,6 +508,7 @@ class LocalLeanProofStateFeedbackProvider:
         statement: str,
         *,
         artifact_path: str = "",
+        search_root_path: str = "",
     ) -> dict[str, Any]:
         if artifact_path:
             lean_file = Path(artifact_path).expanduser().resolve()
@@ -518,10 +533,34 @@ class LocalLeanProofStateFeedbackProvider:
                     ],
                     "first_error": "materialized Lean source identity mismatch",
                 }
+            explicit_search_root: Path | None = None
+            if search_root_path:
+                explicit_search_root = Path(search_root_path).expanduser().resolve()
+                project_root = self.project_root.resolve() if self.project_root else None
+                if (
+                    project_root is None
+                    or (
+                        explicit_search_root != project_root
+                        and project_root not in explicit_search_root.parents
+                    )
+                    or explicit_search_root not in lean_file.parents
+                ):
+                    return {
+                        "attempt_status": "local_lean_failed",
+                        "returncode": -1,
+                        "diagnostics": [
+                            (
+                                "Lean proof-state search root does not contain the exact "
+                                "artifact inside the active project"
+                            )
+                        ],
+                        "first_error": "Lean proof-state search-root identity mismatch",
+                    }
             return self._execute_local_lean_file(
                 lean_file,
                 search_root=(
-                    lean_file.parent
+                    explicit_search_root
+                    or lean_file.parent
                     if self.project_root is not None
                     and self.project_root in lean_file.parents
                     and lean_file.parent != self.project_root
@@ -787,9 +826,15 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         *,
         line: int,
         column: int,
+        search_root: str | Path | None = None,
     ) -> list[ProofStateFeedbackRow]:
         return [
-            self._inspect_subclaim(row, line=line, column=column)
+            self._inspect_subclaim(
+                row,
+                line=line,
+                column=column,
+                search_root_path=str(search_root or ""),
+            )
             for row in subclaims
         ]
 
@@ -799,8 +844,12 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         *,
         line: int,
         column: int,
+        search_root_path: str = "",
     ) -> ProofStateFeedbackRow:
-        base = super()._inspect_subclaim(subclaim)
+        base = super()._inspect_subclaim(
+            subclaim,
+            search_root_path=search_root_path,
+        )
         artifact_path = str(subclaim.artifact_path or "").strip()
         if not artifact_path:
             skipped_trace = {
@@ -826,6 +875,7 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
             artifact_path,
             line=line,
             column=column,
+            search_root_path=search_root_path,
         )
         residual_goals = tuple(
             dict.fromkeys(
@@ -898,6 +948,7 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
         *,
         line: int,
         column: int,
+        search_root_path: str = "",
     ) -> tuple[dict[str, Any], ...]:
         requested_tool = "lean_lsp_mcp.lean_diagnostic_messages"
         if self.project_root is None:
@@ -931,11 +982,31 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 ),
                 "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
             },)
+        search_root = (
+            Path(search_root_path).expanduser().resolve()
+            if search_root_path
+            else path.parent
+        )
+        if (
+            search_root != project_root
+            and project_root not in search_root.parents
+        ) or search_root not in path.parents:
+            return ({
+                "tool": requested_tool,
+                "status": "mcp_tool_call_skipped",
+                "artifact_path": str(path),
+                "project_root": str(project_root),
+                "error_excerpt": (
+                    "Lean LSP MCP skipped: search root must contain the exact "
+                    "artifact inside the active project"
+                ),
+                "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
+            },)
         try:
             collector = self._load_openprover_mcp_collector()
             environment = None
-            if path.parent != project_root:
-                _, environment = self._project_tool_environment(path.parent)
+            if search_root != project_root:
+                _, environment = self._project_tool_environment(search_root)
             position = {"line": line, "column": column}
             with tempfile.TemporaryDirectory(
                 prefix="ai_stat_openprover_mcp_"
@@ -962,7 +1033,7 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 if environment is not None:
                     summary.update(
                         {
-                            "lean_path_search_root": str(path.parent),
+                            "lean_path_search_root": str(search_root),
                             "lean_path_fingerprint": stable_hash(
                                 environment.get("LEAN_PATH", "")
                             ),
