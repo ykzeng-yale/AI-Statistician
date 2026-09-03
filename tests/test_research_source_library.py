@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -17,6 +18,7 @@ from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_NOT_PROOF_EVIDENCE,
     RESEARCH_SOURCE_SEARCH_TOOL,
     SOURCE_REPLICATION_NOT_PROOF_EVIDENCE,
+    _execute_pinned_process,
     _source_execution_sandbox_profile,
     execute_research_source_client_tool,
     execute_research_source,
@@ -916,10 +918,129 @@ def test_schema_v3_runs_hash_bound_interpreter_and_environment_probe(tmp_path) -
     assert observation["runtime_language"] == "r"
     assert observation["runtime_version"] == "R version test"
 
+    execution_payload.pop("environment_probe_document_id")
+    execution_path.write_text(json.dumps(execution_payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="non-Python.*environment probe"):
+        load_research_source_execution_spec(
+            execution_path,
+            research_sources=snapshot,
+        )
+
+    execution_payload["environment_probe_document_id"] = "environment-probe"
     execution_payload["runtime_environment"] = {"PATH": "/not-allowed"}
     execution_path.write_text(json.dumps(execution_payload), encoding="utf-8")
     with pytest.raises(ValueError, match="invalid or controlled"):
         load_research_source_execution_spec(execution_path, research_sources=snapshot)
+
+
+def test_schema_v3_python_can_use_runtime_owned_environment_probe(tmp_path) -> None:
+    snapshot, _, _, execution_path = _source_execution_fixture(tmp_path)
+    execution_payload = json.loads(execution_path.read_text(encoding="utf-8"))
+    execution_payload["schema_version"] = 3
+    execution_payload["runtime_language"] = "python"
+    execution_payload["interpreter_executable_relative_path"] = (
+        execution_payload.pop("python_executable_relative_path")
+    )
+    execution_payload["interpreter_executable_sha256"] = execution_payload.pop(
+        "python_executable_sha256"
+    )
+    execution_payload["package_distributions"] = {"pip": "pip"}
+    execution_path.write_text(json.dumps(execution_payload), encoding="utf-8")
+    execution = load_research_source_execution_spec(
+        execution_path,
+        research_sources=snapshot,
+    )
+    calls = []
+
+    def execute_process(**kwargs):
+        calls.append(kwargs)
+        completed = subprocess.run(
+            kwargs["command"],
+            cwd=kwargs["cwd"],
+            capture_output=True,
+            text=True,
+            timeout=kwargs["timeout_seconds"],
+        )
+        return {
+            "execution_attempted": True,
+            "returncode": completed.returncode,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "python-replication-output",
+        question_id="published-python-source-task",
+        process_executor=execute_process,
+    )
+
+    assert len(calls) == 2
+    assert Path(calls[0]["command"][-1]).name == "environment_probe.py"
+    assert manifest["execution_status"] == "EXECUTED"
+    assert manifest["environment_probe_document_id"] == ""
+    assert manifest["environment_probe_origin"] == "runtime_owned_python_probe"
+    assert manifest["runtime_language"] == "python"
+    assert manifest["runtime_version"]
+    assert manifest["package_versions"]["pip"]
+    assert manifest["raw_stdout"].startswith("coef std err")
+    descriptor = execution.descriptor(snapshot)
+    assert descriptor["environment_probe_document_id"] == ""
+    assert descriptor["environment_probe_origin"] == "runtime_owned_python_probe"
+    assert len(descriptor["environment_probe_sha256"]) == 64
+
+
+def test_failed_environment_probe_returns_raw_observation_to_source_owner(
+    tmp_path,
+) -> None:
+    snapshot, execution, _, _ = _source_execution_fixture(tmp_path)
+    calls = []
+
+    def fail_probe(**kwargs):
+        calls.append(kwargs)
+        return {
+            "execution_attempted": True,
+            "returncode": 71,
+            "stdout": "probe diagnostic output\n",
+            "stderr": "interpreter startup failed\n",
+            "errors": ["probe transport note"],
+        }
+
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "failed-probe-output",
+        question_id="published-source-task",
+        process_executor=fail_probe,
+    )
+
+    assert len(calls) == 1
+    assert manifest["execution_attempted"] is False
+    assert manifest["environment_probe_execution_attempted"] is True
+    assert manifest["environment_probe_returncode"] == 71
+    assert manifest["environment_probe_errors"] == ["probe transport note"]
+    assert manifest["environment_probe_raw_stdout"] == "probe diagnostic output\n"
+    assert manifest["environment_probe_raw_stderr"] == "interpreter startup failed\n"
+    assert manifest["environment_probe_stdout_sha256"] == hashlib.sha256(
+        b"probe diagnostic output\n"
+    ).hexdigest()
+    assert manifest["environment_probe_stderr_sha256"] == hashlib.sha256(
+        b"interpreter startup failed\n"
+    ).hexdigest()
+    assert manifest["raw_stdout"] == ""
+    assert manifest["raw_stderr"] == ""
+    assert manifest["execution_status"] == "FAILED"
+    observation = source_replication_model_observation(manifest)
+    assert observation["environment_probe_returncode"] == 71
+    assert observation["environment_probe_errors"] == ["probe transport note"]
+    assert observation["environment_probe_raw_stdout"] == (
+        "probe diagnostic output\n"
+    )
+    assert observation["environment_probe_raw_stderr"] == (
+        "interpreter startup failed\n"
+    )
 
 
 def test_source_execution_fails_closed_when_snapshot_changes(tmp_path) -> None:
@@ -994,3 +1115,60 @@ def test_source_sandbox_reads_only_inventory_and_executes_only_allowlist(
     assert f'(literal "{runtime_executable.resolve()}")' in read_clause
     assert "(subpath " not in process_clause
     assert "(deny process-fork)" not in profile
+
+
+def test_pinned_process_executes_resolved_virtualenv_launcher(
+    tmp_path, monkeypatch
+) -> None:
+    environment_root = tmp_path / "environment"
+    runtime_root = tmp_path / "runtime"
+    source_root = tmp_path / "sources"
+    output_dir = tmp_path / "output"
+    for path in (environment_root / "bin", runtime_root, source_root, output_dir):
+        path.mkdir(parents=True)
+    exact_executable = runtime_root / "python"
+    exact_executable.write_text("runtime", encoding="utf-8")
+    exact_executable.chmod(0o755)
+    requested_executable = environment_root / "bin" / "python"
+    requested_executable.symlink_to(exact_executable)
+    source_path = source_root / "entrypoint.py"
+    source_path.write_text("print('ok')\n", encoding="utf-8")
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured["environment"] = kwargs["env"]
+
+        class Completed:
+            returncode = 0
+
+        return Completed()
+
+    monkeypatch.setattr(
+        "ai_statistician.research_source_library.shutil.which",
+        lambda _: "/usr/bin/sandbox-exec",
+    )
+    monkeypatch.setattr(
+        "ai_statistician.research_source_library.subprocess.run", fake_run
+    )
+
+    result = _execute_pinned_process(
+        command=(str(requested_executable), str(source_path)),
+        cwd=source_root,
+        stdout_path=output_dir / "stdout",
+        stderr_path=output_dir / "stderr",
+        environment_root=environment_root,
+        runtime_read_roots=(runtime_root,),
+        runtime_executables=(),
+        runtime_environment=(),
+        source_paths=(source_path,),
+        output_dir=output_dir,
+        timeout_seconds=30,
+        max_output_bytes=8192,
+    )
+
+    assert result["returncode"] == 0
+    assert captured["command"][3] == str(exact_executable.resolve())
+    assert captured["environment"]["__PYVENV_LAUNCHER__"] == str(
+        requested_executable.absolute()
+    )

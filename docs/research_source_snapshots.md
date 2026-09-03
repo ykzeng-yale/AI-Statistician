@@ -121,7 +121,14 @@ including empty modules, remain unexecuted until the model runs the complete pro
 binary and data assets stay in the separately bound replication lane.
 
 A frozen project still does not define an executable environment. Bind it separately
-with `--research-source-execution-manifest`: exact interpreter, lock/probe, arguments,
+with `--research-source-execution-manifest`: exact interpreter, lock, arguments,
 working directory, declared result files, no network, and copy-on-write execution.
+Schema-v3 Python may use the runtime-owned hash-bound version probe so the original
+repository need not contain an AI-Statistician helper; other languages require an
+explicit snapshot probe document. The manifest records which probe authority ran
+and returns its bounded stdout, stderr, return code, transport errors, and hashes to
+the same Theory source owner even when source execution never starts. A hash-checked
+virtualenv launcher is resolved for the macOS sandbox without losing its environment
+identity.
 Successful execution is source-replication observation only; it is not semantic,
 statistical, confirmatory, novelty, or proof authority.

@@ -817,6 +817,7 @@ class ResearchSourceExecutionSpec:
             "environment_lock_sha256": environment_lock.sha256, "runtime_language": self.runtime_language,
             "interpreter_executable_sha256": self.interpreter_executable_sha256,
             "environment_probe_document_id": self.environment_probe_document_id, "environment_probe_sha256": probe_sha256,
+            "environment_probe_origin": "source_snapshot_document" if self.environment_probe_document_id else "runtime_owned_python_probe",
             "package_distributions": dict(self.package_distributions), "working_directory_relative": self.working_directory_relative,
             "interpreter_arguments": list(self.interpreter_arguments), "arguments": list(self.arguments),
             "runtime_environment": dict(self.runtime_environment), "timeout_seconds": self.timeout_seconds,
@@ -943,14 +944,25 @@ def load_research_source_execution_spec(
             for character in runtime_language
         ):
             raise ValueError("runtime_language must be a lowercase language identifier")
-        environment_probe_document_id = _required_text(
-            payload, "environment_probe_document_id"
-        )
-        environment_probe = research_sources.document(environment_probe_document_id)
-        if environment_probe.content_mode != "text":
-            raise ValueError("research source environment probe must be a text document")
-        if environment_probe.file_mode == "120000":
-            raise ValueError("research source environment probe must be a regular file")
+        environment_probe_document_id = str(
+            payload.get("environment_probe_document_id", "") or ""
+        ).strip()
+        if not environment_probe_document_id and runtime_language != "python":
+            raise ValueError(
+                "non-Python source execution requires an environment probe document"
+            )
+        if environment_probe_document_id:
+            environment_probe = research_sources.document(
+                environment_probe_document_id
+            )
+            if environment_probe.content_mode != "text":
+                raise ValueError(
+                    "research source environment probe must be a text document"
+                )
+            if environment_probe.file_mode == "120000":
+                raise ValueError(
+                    "research source environment probe must be a regular file"
+                )
         executable_path_field = "interpreter_executable_relative_path"
         executable_hash_field = "interpreter_executable_sha256"
     source_commit = _required_text(payload, "source_commit")
@@ -1338,7 +1350,10 @@ def source_replication_model_observation(
         source_snapshot_hash source_manifest_sha256 source_commit
         entrypoint_document_id executed_entrypoint_sha256
         environment_lock_document_id environment_lock_sha256
-        environment_probe_document_id runtime_language interpreter_executable_sha256
+        environment_probe_document_id environment_probe_origin
+        environment_probe_execution_attempted environment_probe_returncode
+        environment_probe_errors environment_probe_stdout_sha256
+        environment_probe_stderr_sha256 runtime_language interpreter_executable_sha256
         runtime_version python_executable_sha256 runtime_executable_sha256
         environment_probe_sha256 python_version package_versions
         working_directory_relative interpreter_arguments arguments runtime_environment
@@ -1353,7 +1368,12 @@ def source_replication_model_observation(
     observation = {
         field: manifest[field] for field in identity_fields if field in manifest
     }
-    for field in ("raw_stdout", "raw_stderr"):
+    for field in (
+        "environment_probe_raw_stdout",
+        "environment_probe_raw_stderr",
+        "raw_stdout",
+        "raw_stderr",
+    ):
         raw_value = str(manifest.get(field, "") or "")
         observation[field] = raw_value[:MAX_SOURCE_RESULT_READ_CHARS]
         observation[f"{field}_truncated"] = (
@@ -1830,8 +1850,19 @@ def execute_research_source(
     errors = list(dict.fromkeys(value for value in errors if value))
     raw_stdout = str(source_result.get("stdout", "") or "")
     raw_stderr = str(source_result.get("stderr", "") or "")
+    probe_raw_stdout = str(probe_result.get("stdout", "") or "")
+    probe_raw_stderr = str(probe_result.get("stderr", "") or "")
+    probe_errors = [
+        str(value) for value in probe_result.get("errors", []) or []
+    ]
     stdout_sha256 = hashlib.sha256(raw_stdout.encode("utf-8")).hexdigest()
     stderr_sha256 = hashlib.sha256(raw_stderr.encode("utf-8")).hexdigest()
+    probe_stdout_sha256 = hashlib.sha256(
+        probe_raw_stdout.encode("utf-8")
+    ).hexdigest()
+    probe_stderr_sha256 = hashlib.sha256(
+        probe_raw_stderr.encode("utf-8")
+    ).hexdigest()
     artifact_id = "source_replication:" + stable_hash(
         [
             question_id,
@@ -1839,7 +1870,10 @@ def execute_research_source(
             research_sources.snapshot_hash,
             entrypoint.sha256,
             stdout_sha256,
+            probe_stdout_sha256,
+            probe_stderr_sha256,
             [artifact.get("sha256", "") for artifact in result_artifacts],
+            probe_result.get("returncode"),
             source_result.get("returncode"),
         ]
     )[:20]
@@ -1855,6 +1889,14 @@ def execute_research_source(
         "source_commit": execution.source_commit, "entrypoint_document_id": entrypoint.document_id,
         "executed_entrypoint_sha256": entrypoint.sha256, "environment_lock_document_id": environment_lock.document_id,
         "environment_lock_sha256": environment_lock.sha256, "environment_probe_document_id": execution.environment_probe_document_id,
+        "environment_probe_origin": "source_snapshot_document" if execution.environment_probe_document_id else "runtime_owned_python_probe",
+        "environment_probe_execution_attempted": probe_result.get("execution_attempted") is True,
+        "environment_probe_returncode": probe_result.get("returncode"),
+        "environment_probe_errors": probe_errors,
+        "environment_probe_raw_stdout": probe_raw_stdout,
+        "environment_probe_raw_stderr": probe_raw_stderr,
+        "environment_probe_stdout_sha256": probe_stdout_sha256,
+        "environment_probe_stderr_sha256": probe_stderr_sha256,
         "runtime_language": execution.runtime_language, "interpreter_executable_sha256": execution.interpreter_executable_sha256,
         "runtime_executable_sha256": [
             sha256 for _, sha256 in execution.runtime_executables
@@ -1904,6 +1946,8 @@ def _python_environment_probe_code(package_distributions: Mapping[str, str]) -> 
         "import platform\n"
         f"distributions = {mapping_json}\n"
         "payload = {\n"
+        "    'runtime_language': 'python',\n"
+        "    'runtime_version': platform.python_version(),\n"
         "    'python_version': platform.python_version(),\n"
         "    'package_versions': {\n"
         "        label: metadata.version(distribution)\n"
@@ -1950,7 +1994,13 @@ def _execute_pinned_process(
         source_paths=source_paths, cwd=cwd,
         output_dir=output_dir,
     )
-    sandbox_command = [sandbox_executable, "-p", profile, *command]
+    sandbox_command = [
+        sandbox_executable,
+        "-p",
+        profile,
+        str(exact_executable),
+        *command[1:],
+    ]
     environment = {
         "HOME": str(output_dir),
         "LANG": "C",
@@ -1974,6 +2024,9 @@ def _execute_pinned_process(
     }
     if python_path_root is not None:
         environment["PYTHONPATH"] = str(python_path_root)
+    if requested_executable != exact_executable:
+        # macOS CPython uses this launcher identity to retain virtualenv semantics.
+        environment["__PYVENV_LAUNCHER__"] = str(requested_executable)
     environment.update(dict(runtime_environment))
     limits = {
         "cpu_seconds": max(2, int(math.ceil(timeout_seconds)) + 1),
