@@ -44,8 +44,8 @@ from .theory_workspace import (
 )
 
 
-ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 21
-ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 21
+ARCHITECT_METRIC_SEMANTIC_REVIEW_SCHEMA_VERSION = 22
+ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL_VERSION = 22
 ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE = (
     "ARCHITECT_METRIC_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE"
 )
@@ -98,9 +98,9 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_PROTOCOL: tuple[str, ...] = (
         "advisory observation."
     ),
     (
-        "Maintain one compact review draft in the supplied submission tool. Each call "
-        "updates that same draft, so after a validation observation submit only the "
-        "fields that need correction; omitted fields remain unchanged. Runtime derives "
+        "Submit one complete judgment through the supplied terminal tool. If runtime "
+        "returns validation observations, inspect them in this same reviewer context "
+        "and submit a complete corrected judgment. Runtime derives "
         "ACCEPT only when every requirement and the portfolio pass, no prior finding "
         "remains unresolved, and no blocking finding exists."
     ),
@@ -113,8 +113,6 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL = (
 _REVIEW_STATUSES = ("PASS", "FAIL", "UNCERTAIN")
 _FINDING_SEVERITIES = ("low", "medium", "high", "critical")
 _BLOCKING_FINDING_SEVERITIES = frozenset({"medium", "high", "critical"})
-_MAX_FINDINGS = 8
-_MAX_REVIEW_TEXT_CHARS = 800
 
 
 @dataclass(frozen=True)
@@ -122,9 +120,9 @@ class ArchitectMetricSemanticReviewerConfig:
     model: str = ""
     model_tier: str = "sonnet"
     max_tokens: int = 7000
-    max_tool_turns: int = 24
-    max_tool_calls: int = 48
-    max_no_progress_turns: int = 2
+    client_tool_max_turns: int = 64
+    client_tool_max_tool_calls: int = 64
+    client_tool_max_no_progress_turns: int = 2
     temperature: float = 0.0
     provider_name: str = "anthropic"
 
@@ -453,7 +451,7 @@ def build_architect_metric_semantic_review_prompt(
     }
     return (
         "Independently review this frozen empirical protocol before confirmatory "
-        "execution. Return only JSON matching the provider schema. The "
+        "execution. Submit one complete judgment through the terminal tool. The "
         "requirement_reviews object is keyed by the exact frozen requirement ID; "
         "do not repeat that ID inside its value. Use concise but substantive "
         "rationales; do not repeat the protocol or generate a repair recipe.\n\n"
@@ -477,14 +475,12 @@ def _review_row_schema(
         "rationale": {
             "type": "string",
             "minLength": 1,
-            "maxLength": _MAX_REVIEW_TEXT_CHARS,
         },
         "evidence_refs": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 8,
             "uniqueItems": True,
-            "items": {"type": "string", "minLength": 1, "maxLength": 300},
+            "items": {"type": "string", "minLength": 1},
         },
     }
     if include_requirement_id:
@@ -503,17 +499,14 @@ def _review_row_schema(
                 "rationale": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": _MAX_REVIEW_TEXT_CHARS,
                 },
                 "evidence_refs": {
                     "type": "array",
                     "minItems": 1,
-                    "maxItems": 8,
                     "uniqueItems": True,
                     "items": {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 300,
                     },
                 },
             },
@@ -545,7 +538,6 @@ _PRIOR_FINDING_REVIEW_SCHEMA: dict[str, Any] = {
         "rationale": {
             "type": "string",
             "minLength": 1,
-            "maxLength": _MAX_REVIEW_TEXT_CHARS,
         },
     },
 }
@@ -574,29 +566,24 @@ _FINDING_SCHEMA: dict[str, Any] = {
         "category": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 120,
         },
         "summary": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 400,
         },
         "observed_behavior": {
             "type": "string",
             "minLength": 1,
-            "maxLength": _MAX_REVIEW_TEXT_CHARS,
         },
         "expected_behavior": {
             "type": "string",
             "minLength": 1,
-            "maxLength": _MAX_REVIEW_TEXT_CHARS,
         },
         "evidence_refs": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 8,
             "uniqueItems": True,
-            "items": {"type": "string", "minLength": 1, "maxLength": 300},
+            "items": {"type": "string", "minLength": 1},
         },
     },
 }
@@ -634,7 +621,6 @@ ARCHITECT_METRIC_SEMANTIC_REVIEW_JSON_SCHEMA: dict[str, Any] = {
         },
         "findings": {
             "type": "array",
-            "maxItems": _MAX_FINDINGS,
             "items": _FINDING_SCHEMA,
         },
     },
@@ -676,38 +662,6 @@ def architect_metric_semantic_review_json_schema(
         "runtime_contract_evidence_id"
     ]["enum"] = ["", *allowed_retractions]
     return schema
-
-
-def architect_metric_semantic_review_update_json_schema(
-    review_material: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Expose the canonical review as stateful partial draft updates."""
-
-    schema = architect_metric_semantic_review_json_schema(review_material)
-    schema["required"] = []
-    requirement_schema = schema["properties"]["requirement_reviews"]
-    requirement_schema["required"] = []
-    review_row = schema["$defs"]["requirement_review"]
-    review_row["required"] = []
-    review_row["properties"]["semantic_positive_control"]["required"] = []
-    schema["properties"]["portfolio_review"]["required"] = []
-    return schema
-
-
-def _merge_review_draft_update(
-    current: Mapping[str, Any],
-    update: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Recursively merge model-authored object fields; arrays remain replacements."""
-
-    merged = deepcopy(dict(current))
-    for key, value in update.items():
-        existing = merged.get(key)
-        if isinstance(existing, Mapping) and isinstance(value, Mapping):
-            merged[key] = _merge_review_draft_update(existing, value)
-        else:
-            merged[key] = deepcopy(value)
-    return merged
 
 
 def _normalize_semantic_positive_control(
@@ -1658,14 +1612,11 @@ class LLMArchitectMetricSemanticReviewerAgent:
             question=question,
             review_material=review_material,
         )
-        schema = architect_metric_semantic_review_update_json_schema(
-            review_material
-        )
+        schema = architect_metric_semantic_review_json_schema(review_material)
         schema.pop("$schema", None)
         scratch_refs: list[dict[str, Any]] = []
         validation_history: list[dict[str, Any]] = []
         last_invalid_packet: dict[str, Any] | None = None
-        draft_payload: dict[str, Any] = {}
         system_prompt = (
             "You are the independent ArchitectMetricSemanticReviewer inside an "
             "AI Statistician AgentRuntime. Reconstruct and review the frozen "
@@ -1678,13 +1629,13 @@ class LLMArchitectMetricSemanticReviewerAgent:
             ClientToolDefinition(
                 name=ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL,
                 description=(
-                    "Update and attempt to submit the independent pre-execution metric "
-                    "judgment. Runtime preserves omitted draft fields and returns "
-                    "validation observations to this same reviewer session."
+                    "Submit the complete independent pre-execution metric judgment. "
+                    "Runtime returns any validation observations to this same reviewer "
+                    "session without editing or retaining a partial judgment."
                 ),
                 input_schema=schema,
                 terminal=True,
-                strict=False,
+                strict=True,
             ),
         )
         request = ClientToolTurnRequest(
@@ -1736,7 +1687,8 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 "same_session_validation_feedback": True,
                 "scientific_scratch_available": theory_scratchpad is not None,
                 "full_packet_regeneration_disabled": True,
-                "stateful_review_draft_updates": True,
+                "strict_terminal_tool_schema": True,
+                "reviewer_local_retry_budget": False,
             },
         )
 
@@ -1757,7 +1709,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         def execute_tool(
             call: ClientToolCall, context: ClientToolExecutionContext
         ) -> ClientToolExecutionResult:
-            nonlocal draft_payload, last_invalid_packet
+            nonlocal last_invalid_packet
             if call.name == THEORY_SCRATCHPAD_TOOL and theory_scratchpad:
                 result, execution_ref = execute_theory_scratchpad_tool(
                     tool_input=call.input,
@@ -1778,16 +1730,10 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 return result
             if call.name != ARCHITECT_METRIC_SEMANTIC_REVIEW_SUBMIT_TOOL:
                 raise ClientToolInputError("unsupported metric review tool")
-            update_payload = dict(call.input)
-            prior_draft_fingerprint = stable_hash(draft_payload)
-            draft_payload = _merge_review_draft_update(
-                draft_payload,
-                update_payload,
-            )
-            draft_fingerprint = stable_hash(draft_payload)
-            draft_changed = draft_fingerprint != prior_draft_fingerprint
+            submission = dict(call.input)
+            submission_fingerprint = stable_hash(submission)
             packet = normalize_submission(
-                draft_payload,
+                submission,
                 model=request_model,
                 provider_name=str(getattr(self.provider, "provider_name", "") or ""),
             )
@@ -1797,10 +1743,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
                     "attempt_index": len(validation_history),
                     "ok": not errors,
                     "errors": list(errors),
-                    "submission_fingerprint": stable_hash(update_payload),
-                    "draft_fingerprint": draft_fingerprint,
-                    "draft_changed": draft_changed,
-                    "updated_top_level_fields": sorted(update_payload),
+                    "submission_fingerprint": submission_fingerprint,
                 }
             )
             if errors:
@@ -1808,31 +1751,28 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 rejection = {
                     "ok": False,
                     "error": "architect_metric_semantic_review_submission_rejected",
-                    "draft_update_saved": True,
-                    "draft_changed": draft_changed,
-                    "updated_top_level_fields": sorted(update_payload),
-                    "draft_fingerprint": draft_fingerprint,
-                    "validation_errors": list(errors[:12]),
+                    "submission_saved": False,
+                    "submission_fingerprint": submission_fingerprint,
+                    "validation_errors": list(errors),
                     "instruction": (
-                        "The draft update was saved. Submit only fields needed to "
-                        "address these validation observations; omitted draft fields "
-                        "remain unchanged and reviewed artifacts remain immutable."
+                        "Inspect every validation observation and submit one complete "
+                        "corrected judgment. Reviewed artifacts remain immutable."
                     ),
                 }
                 return ClientToolExecutionResult(
                     content=rejection,
                     is_error=True,
-                    state_changed=draft_changed,
+                    state_changed=False,
                     observation_key=(
                         "metric-review-rejected:"
-                        + stable_hash([draft_fingerprint, errors])
+                        + stable_hash([submission_fingerprint, errors])
                     ),
                 )
             return ClientToolExecutionResult(
                 content={"ok": True, "submitted": True},
-                state_changed=draft_changed,
+                state_changed=False,
                 terminal=True,
-                terminal_payload={"review_payload": deepcopy(draft_payload)},
+                terminal_payload={"review_payload": deepcopy(submission)},
                 observation_key="metric-review-submitted:" + stable_hash(packet),
             )
 
@@ -1841,14 +1781,16 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=self.config.max_tool_turns,
-                max_tool_calls=self.config.max_tool_calls,
-                max_no_progress_turns=self.config.max_no_progress_turns,
+                max_turns=self.config.client_tool_max_turns,
+                max_tool_calls=self.config.client_tool_max_tool_calls,
+                max_no_progress_turns=(
+                    self.config.client_tool_max_no_progress_turns
+                ),
             )
         except ClientToolLoopError as exc:
             raise PacketValidationError(
                 validation_label="Architect metric semantic review packet",
-                attempts=len(validation_history),
+                attempts=exc.turns,
                 errors=(
                     list(validation_history[-1]["errors"])
                     if validation_history
@@ -1861,7 +1803,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         if not isinstance(payload, Mapping):
             raise PacketValidationError(
                 validation_label="Architect metric semantic review packet",
-                attempts=len(validation_history),
+                attempts=loop.turns,
                 errors=["accepted client-tool submission payload is malformed"],
                 history=list(validation_history),
             )
@@ -1871,7 +1813,7 @@ class LLMArchitectMetricSemanticReviewerAgent:
         packet["validation_errors"] = []
         packet["ok"] = True
         packet["client_tool_loop"] = {
-            "transport": "native_same_reviewer_session_v1",
+            "transport": "native_same_reviewer_session_v2",
             "turns": loop.turns,
             "tool_calls": loop.tool_calls,
             "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -1881,8 +1823,8 @@ class LLMArchitectMetricSemanticReviewerAgent:
             "validation_feedback_observed": any(
                 not row["ok"] for row in validation_history
             ),
-            "stateful_review_draft_updates": True,
-            "draft_update_history": list(validation_history),
+            "strict_terminal_tool_schema": True,
+            "validation_submission_history": list(validation_history),
             "scratch_execution_refs": scratch_refs,
             "full_packet_regeneration_used": False,
         }

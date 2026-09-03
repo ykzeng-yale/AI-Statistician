@@ -211,7 +211,7 @@ For future tasks, a probe failure before target invocation cannot support a sour
 with native request and response values in the same runtime; only final probe metrics cross the JSON boundary. A source-only finding returns to its immutable source owner
 under the sole AgentRuntime budget; only a genuine cross-artifact conflict reaches Architect, and outer exhaustion preserves the pending task. Confirmatory Simulation
 retains its separately bounded fresh-cohort adaptation and JSON-finite ABI. The model still chooses cases, findings, code, Lean actions, and verdicts; runtime enforces
-identity, execution, and provenance. No consumed task is reassessed.
+identity, execution, and provenance. Independent review uses one strict terminal tool schema without partial-draft merging or arbitrary finding quotas; invalid judgments return complete validator observations to the same reviewer. No consumed task is reassessed.
 
 Required pinned replication stays in the retained Theory source-owner loop. The model runs one immutable operator-curated snapshot, audits raw observations and exact reads,
 writes Markdown, and binds the report alone or into the same physical Theory workspace. The full evidence view retains that report, while a Theory packet excludes it from mathematical authority; non-theory tasks continue the frozen plan without another Architect call.

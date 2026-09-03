@@ -12,7 +12,6 @@ from ai_statistician.architect_metric_semantic_reviewer_llm import (
     LLMArchitectMetricSemanticReviewerAgent,
     architect_metric_review_material_with_runtime_evaluator_certificate,
     architect_metric_semantic_review_json_schema,
-    architect_metric_semantic_review_update_json_schema,
     bind_architect_metric_finding_evidence_identities,
     build_architect_metric_semantic_review_prompt,
     validate_architect_metric_semantic_review_packet,
@@ -302,6 +301,9 @@ def test_compact_reviewer_accepts_exact_frozen_requirements_in_one_call() -> Non
     )
     assert len(backend.requests) == 1
     assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
+    assert backend.requests[0].metadata["strict_terminal_tool_schema"] is True
+    assert backend.requests[0].metadata["reviewer_local_retry_budget"] is False
+    assert backend.requests[0].tools[-1].strict is True
     assert "claim_checks" not in packet
     assert "response_identity_checks" not in packet
     assert "dimension_reviews" not in packet
@@ -463,18 +465,50 @@ def test_metric_reviewer_receives_submission_validation_in_same_session() -> Non
     assert packet["client_tool_loop"]["validation_feedback_observed"] is True
 
 
-def test_metric_reviewer_preserves_partial_draft_across_validation_feedback() -> None:
+def test_metric_reviewer_returns_every_validator_observation_to_same_session() -> None:
+    requirements = [_requirement("generic_gate")]
+    material = _material(requirements=requirements)
+    invalid = _payload(
+        requirements,
+        findings=[
+            {
+                "prior_finding_id": "",
+                "new_finding_rationale": "",
+                "severity": "invalid",
+                "category": "",
+                "summary": "",
+                "observed_behavior": "",
+                "expected_behavior": "",
+                "evidence_refs": [],
+            }
+            for _ in range(14)
+        ],
+    )
+    responses = iter([invalid, _payload(requirements)])
+
+    packet, backend, _ = _review(
+        lambda request: next(responses),
+        material=material,
+    )
+
+    assert packet["overall_verdict"] == "ACCEPT"
+    observed = json.dumps(backend.requests[1].messages, default=str)
+    assert "findings[0] has invalid severity" in observed
+    assert "findings[13] missing evidence_refs" in observed
+    first_history = packet["client_tool_loop"][
+        "validation_submission_history"
+    ][0]
+    assert len(first_history["errors"]) > 12
+
+
+def test_metric_reviewer_requires_complete_resubmission_after_validation_feedback() -> None:
     requirements = [_requirement("gate_one"), _requirement("gate_two")]
     material = _material(requirements=requirements)
     complete = _payload(requirements)
     responses = iter(
         [
             {"requirement_reviews": complete["requirement_reviews"]},
-            {
-                "portfolio_review": complete["portfolio_review"],
-                "prior_finding_reviews": [],
-                "findings": [],
-            },
+            complete,
         ]
     )
 
@@ -487,21 +521,18 @@ def test_metric_reviewer_preserves_partial_draft_across_validation_feedback() ->
     assert packet["reviewed_requirement_ids"] == ["gate_one", "gate_two"]
     assert len(backend.requests) == 2
     second_request = json.dumps(backend.requests[1].messages, default=str)
-    assert "draft update was saved" in second_request.lower()
+    assert "complete corrected judgment" in second_request.lower()
     loop = packet["client_tool_loop"]
-    assert loop["stateful_review_draft_updates"] is True
+    assert loop["strict_terminal_tool_schema"] is True
     assert loop["validation_submissions"] == 2
-    assert loop["draft_update_history"][0]["updated_top_level_fields"] == [
-        "requirement_reviews"
-    ]
-    assert loop["draft_update_history"][1]["updated_top_level_fields"] == [
-        "findings",
-        "portfolio_review",
-        "prior_finding_reviews",
-    ]
+    assert loop["transport"] == "native_same_reviewer_session_v2"
+    history = loop["validation_submission_history"]
+    assert history[0]["ok"] is False
+    assert history[1]["ok"] is True
+    assert "draft_fingerprint" not in history[0]
 
 
-def test_metric_reviewer_merges_nested_draft_correction_without_rewriting_row() -> None:
+def test_metric_reviewer_does_not_retain_an_invalid_partial_judgment() -> None:
     material = _material()
     requirements = material["empirical_metric_requirements"]
     incomplete = _payload(requirements)
@@ -509,7 +540,7 @@ def test_metric_reviewer_merges_nested_draft_correction_without_rewriting_row() 
     responses = iter(
         [
             incomplete,
-            {"portfolio_review": {"status": "PASS"}},
+            _payload(requirements),
         ]
     )
 
@@ -521,11 +552,11 @@ def test_metric_reviewer_merges_nested_draft_correction_without_rewriting_row() 
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["portfolio_review"]["status"] == "PASS"
     assert packet["portfolio_review"]["rationale"] == (
-        incomplete["portfolio_review"]["rationale"]
+        _payload(requirements)["portfolio_review"]["rationale"]
     )
-    assert packet["portfolio_review"]["evidence_refs"] == (
-        incomplete["portfolio_review"]["evidence_refs"]
-    )
+    assert packet["client_tool_loop"]["validation_submission_history"][0][
+        "ok"
+    ] is False
 
 
 def test_compact_reviewer_derives_revise_from_model_judgments() -> None:
@@ -791,6 +822,9 @@ def test_dynamic_schema_is_small_and_provider_transformable() -> None:
         "raw_comparison_value"
     ] == {"anyOf": [{"type": "number"}, {"type": "boolean"}]}
     assert schema["properties"]["prior_finding_reviews"]["minItems"] == 1
+    assert "maxItems" not in schema["properties"]["findings"]
+    assert "maxItems" not in requirement_properties["evidence_refs"]
+    assert "maxLength" not in requirement_properties["rationale"]
     assert "claim_checks" not in schema["properties"]
     assert "response_identity_checks" not in schema["properties"]
     assert "dimension_reviews" not in schema["properties"]
@@ -813,22 +847,56 @@ def test_dynamic_schema_is_small_and_provider_transformable() -> None:
     }
 
 
-def test_stateful_update_schema_allows_partial_fields_but_not_unknown_rows() -> None:
+def test_terminal_schema_requires_complete_judgment_without_arbitrary_caps() -> None:
     material = _material(
         requirements=[_requirement("gate_one"), _requirement("gate_two")]
     )
-    schema = architect_metric_semantic_review_update_json_schema(material)
+    schema = architect_metric_semantic_review_json_schema(material)
 
-    assert schema["required"] == []
+    assert schema["required"] == [
+        "requirement_reviews",
+        "portfolio_review",
+        "prior_finding_reviews",
+        "findings",
+    ]
     requirement_schema = schema["properties"]["requirement_reviews"]
-    assert requirement_schema["required"] == []
+    assert requirement_schema["required"] == ["gate_one", "gate_two"]
     assert set(requirement_schema["properties"]) == {"gate_one", "gate_two"}
     assert requirement_schema["additionalProperties"] is False
-    assert schema["$defs"]["requirement_review"]["required"] == []
+    assert schema["$defs"]["requirement_review"]["required"] == [
+        "status",
+        "rationale",
+        "evidence_refs",
+        "semantic_positive_control",
+    ]
     assert schema["$defs"]["requirement_review"]["properties"][
         "semantic_positive_control"
-    ]["required"] == []
-    assert schema["properties"]["portfolio_review"]["required"] == []
+    ]["required"] == ["raw_comparison_value", "rationale", "evidence_refs"]
+    assert schema["properties"]["portfolio_review"]["required"] == [
+        "status",
+        "rationale",
+        "evidence_refs",
+    ]
+    assert "maxItems" not in schema["properties"]["findings"]
+
+
+def test_metric_reviewer_reports_more_than_eight_distinct_findings() -> None:
+    material = _material()
+    requirements = material["empirical_metric_requirements"]
+    findings = []
+    for index in range(12):
+        finding = _finding()
+        finding["summary"] = f"Distinct metric defect {index}."
+        finding["observed_behavior"] = f"Observed mismatch {index}."
+        findings.append(finding)
+
+    packet, _, _ = _review(
+        _payload(requirements, status="FAIL", findings=findings),
+        material=material,
+    )
+
+    assert packet["overall_verdict"] == "REVISE"
+    assert len(packet["findings"]) == 12
 
 
 def test_finding_evidence_binding_preserves_exact_current_value() -> None:
