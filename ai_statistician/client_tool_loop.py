@@ -959,7 +959,9 @@ def run_bounded_client_tool_loop(
                                 + stable_hash([call.name, type(exc).__name__])
                             ),
                         )
-                        result_text = _client_tool_result_text(execution.content)
+                        result_text, model_observation_complete = (
+                            _client_tool_result_for_model(execution.content)
+                        )
                         turn_row["tool_calls"].append(
                             {
                                 "call_index": call_index,
@@ -971,6 +973,9 @@ def run_bounded_client_tool_loop(
                                 ),
                                 "result_excerpt": result_text[:2000],
                                 "is_error": True,
+                                "model_observation_complete": (
+                                    model_observation_complete
+                                ),
                                 "executed_by_runtime": True,
                                 "state_changed": False,
                                 "terminal": False,
@@ -1021,18 +1026,24 @@ def run_bounded_client_tool_loop(
                 turn_new_observation = True
                 seen_observations.add(observation_key)
             turn_state_changed = turn_state_changed or execution.state_changed
-            result_text = _client_tool_result_text(execution.content)
+            result_text, model_observation_complete = (
+                _client_tool_result_for_model(execution.content)
+            )
+            model_result_is_error = bool(
+                execution.is_error or not model_observation_complete
+            )
             model_content = (
                 [{"type": "text", "text": result_text},
                  *deepcopy(list(execution.model_content_blocks))]
-                if execution.model_content_blocks else result_text
+                if model_observation_complete and execution.model_content_blocks
+                else result_text
             )
             tool_result_blocks.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": call.call_id,
                     "content": model_content,
-                    "is_error": bool(execution.is_error),
+                    "is_error": model_result_is_error,
                 }
             )
             turn_row["tool_calls"].append(
@@ -1046,7 +1057,8 @@ def run_bounded_client_tool_loop(
                          execution.model_content_blocks]
                     ),
                     "result_excerpt": result_text[:2000],
-                    "is_error": bool(execution.is_error),
+                    "is_error": model_result_is_error,
+                    "model_observation_complete": model_observation_complete,
                     "executed_by_runtime": executed_by_runtime,
                     "state_changed": bool(execution.state_changed),
                     "terminal": bool(execution.terminal),
@@ -1103,21 +1115,51 @@ def run_bounded_client_tool_loop(
 def _client_tool_result_text(
     value: Any, *, max_chars: int = CLIENT_TOOL_RESULT_MAX_CHARS
 ) -> str:
+    return _client_tool_result_for_model(value, max_chars=max_chars)[0]
+
+
+def _client_tool_result_for_model(
+    value: Any, *, max_chars: int = CLIENT_TOOL_RESULT_MAX_CHARS
+) -> tuple[str, bool]:
+    """Keep one model observation complete or omit its payload atomically."""
+
+    if isinstance(max_chars, bool) or max_chars < 256:
+        raise ValueError("client tool result boundary must be at least 256 characters")
     if isinstance(value, str):
-        text = value
+        serialized = value
     else:
-        text = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str,
-                          ensure_ascii=False)
-    if len(text) <= max_chars:
-        return text
-    marker = ("\n[tool result truncated in middle by runtime; "
-              f"original_chars={len(text)}; original_lines={len(text.splitlines())}]\n")
-    if max_chars <= len(marker):
-        return marker[:max_chars]
-    remaining = max_chars - len(marker)
-    head = (remaining + 1) // 2
-    tail = remaining - head
-    return text[:head] + marker + (text[-tail:] if tail else "")
+        serialized = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        )
+    if len(serialized) <= max_chars:
+        return serialized, True
+    envelope = json.dumps(
+        {
+            "content_omitted_atomically": True,
+            "detail": (
+                "The complete tool observation exceeded the model boundary. "
+                "No partial payload was delivered; use a narrower read or "
+                "inspection action and do not infer success or authorization."
+            ),
+            "error": "client_tool_observation_exceeds_boundary",
+            "observation_complete": False,
+            "ok": False,
+            "original_chars": len(serialized),
+            "original_lines": len(serialized.splitlines()),
+            "original_sha256": hashlib.sha256(
+                serialized.encode("utf-8")
+            ).hexdigest(),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    if len(envelope) > max_chars:
+        raise ValueError("client tool result boundary cannot hold its omission envelope")
+    return envelope, False
 
 
 def _compact_tool_response_metadata(

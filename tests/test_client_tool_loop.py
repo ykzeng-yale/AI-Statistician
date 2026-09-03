@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from contextlib import contextmanager
 from dataclasses import replace
@@ -183,17 +184,85 @@ def test_exact_text_edit_errors_name_missing_and_unexpected_fields() -> None:
     assert "optional=['expected_occurrences']" in detail
 
 
-def test_long_tool_observation_preserves_head_tail_and_size_metadata() -> None:
-    text = "diagnostic-start\n" + ("middle\n" * 80) + "diagnostic-end"
+def test_long_tool_observation_is_omitted_atomically() -> None:
+    text = "grant=true\n" + ("restriction=middle\n" * 80) + "restriction=end"
 
-    bounded = client_tool_loop._client_tool_result_text(text, max_chars=120)
+    bounded = client_tool_loop._client_tool_result_text(text, max_chars=512)
+    observation = json.loads(bounded)
 
-    assert len(bounded) == 120
-    assert bounded.startswith("diagnostic-start")
-    assert bounded.endswith("diagnostic-end")
-    assert "truncated in middle by runtime" in bounded
-    assert f"original_chars={len(text)}" in bounded
-    assert f"original_lines={len(text.splitlines())}" in bounded
+    assert len(bounded) <= 512
+    assert "grant=true" not in bounded
+    assert "restriction=end" not in bounded
+    assert observation == {
+        "content_omitted_atomically": True,
+        "detail": (
+            "The complete tool observation exceeded the model boundary. No partial "
+            "payload was delivered; use a narrower read or inspection action and do "
+            "not infer success or authorization."
+        ),
+        "error": "client_tool_observation_exceeds_boundary",
+        "observation_complete": False,
+        "ok": False,
+        "original_chars": len(text),
+        "original_lines": len(text.splitlines()),
+        "original_sha256": hashlib.sha256(text.encode()).hexdigest(),
+    }
+
+
+def test_oversized_tool_result_reaches_same_model_as_incomplete_error() -> None:
+    backend = ScriptedToolTurnBackend(
+        [
+            _response(ClientToolCall(call_id="read-1", name="check", input={})),
+            _response(ClientToolCall(call_id="submit-1", name="submit", input={})),
+        ]
+    )
+    large_observation = {
+        "grant": True,
+        "restrictions": ["must remain visible"] * 10_000,
+    }
+
+    def execute_tool(call, _context):
+        if call.name == "check":
+            return ClientToolExecutionResult(
+                content=large_observation,
+                state_changed=True,
+                model_content_blocks=(
+                    {"type": "image", "source": {"type": "base64", "data": "raw"}},
+                ),
+            )
+        return ClientToolExecutionResult(
+            content={"ok": True},
+            terminal=True,
+            terminal_payload={"accepted": True},
+        )
+
+    result = run_bounded_client_tool_loop(
+        backend=backend,
+        request=_request(),
+        execute_tool=execute_tool,
+        max_turns=2,
+        max_tool_calls=1,
+        max_no_progress_turns=2,
+    )
+
+    delivered = backend.requests[1].messages[-1]["content"][0]
+    observation = json.loads(delivered["content"])
+    assert delivered["is_error"] is True
+    assert observation["observation_complete"] is False
+    assert observation["content_omitted_atomically"] is True
+    assert observation["original_sha256"] == hashlib.sha256(
+        json.dumps(
+            large_observation,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    assert result.history[0]["tool_calls"][0][
+        "model_observation_complete"
+    ] is False
+    assert result.history[0]["tool_calls"][0]["is_error"] is True
 
 
 def test_client_tool_session_roundtrips_exact_transcript(tmp_path) -> None:

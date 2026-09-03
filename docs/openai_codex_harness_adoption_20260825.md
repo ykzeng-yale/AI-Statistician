@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `7a7c1886`](https://github.com/openai/codex/tree/7a7c188682c3f3aae6c7efabf3acd1a9c7dfd3e6), Apache-2.0. Codex still does not supply a reusable statistical or Lean control plane, so AI Statistician adopts no first-execution bypass or second runtime.
+Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `1d74c3ba`](https://github.com/openai/codex/tree/1d74c3ba1ee98be2025ab066dcc3fd654fe8a3b6), Apache-2.0. Codex still does not supply a reusable statistical or Lean control plane, so AI Statistician adopts no first-execution bypass or second runtime.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -36,8 +36,8 @@ without duplicating the control plane.
    source patches, statistical answers, Lean syntax, imports, tactics, or proof
    bodies.
 5. **Tool failures divide at the environment boundary.** Model-actionable failures become observations. Permission paths retain the selected executor's native semantics rather than
-   being projected through the orchestrator host. Internal failures stop without exposing secrets or starting a correction worker.
-   Authentication or authorization failure never silently replays a rejected action after recovery fails.
+   being projected through the orchestrator host. Internal failures stop without exposing secrets or starting a correction worker. An oversized observation is omitted atomically and
+   marked incomplete, never split into a misleading partial grant; authentication or authorization failure never silently replays a rejected action after recovery fails.
 6. **Natural termination and explicit continuation.** A response with no tool call
    ends the current workspace segment. Exact state and transcript lineage may be
    checkpointed for an explicit continuation; the harness does not append a private
@@ -240,7 +240,7 @@ introduce task-family rules.
 - [Detached review skill](https://github.com/openai/codex/blob/0650d6d1ca451b67009b3969a82b87e76979975f/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/0650d6d1ca451b67009b3969a82b87e76979975f/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
 - [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/0650d6d1ca451b67009b3969a82b87e76979975f/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
 - [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/0650d6d1ca451b67009b3969a82b87e76979975f/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
-- [Host-verified answers retained across compaction and rollback](https://github.com/openai/codex/commit/5971d428)
+- [Complete host-verified answers retained or atomically omitted across compaction, resume, and rollback](https://github.com/openai/codex/commit/1d74c3ba1ee98be2025ab066dcc3fd654fe8a3b6)
 - [Experimental token-budget context management, limited to eligible Codex-backend sessions](https://github.com/openai/codex/commit/cff76fa9)
 - [App Server protocol](https://github.com/openai/codex/blob/0650d6d1ca451b67009b3969a82b87e76979975f/codex-rs/app-server/README.md)
 - [Codex as a platform: build on the open agent harness](https://developers.openai.com/blog/codex-as-a-platform)
