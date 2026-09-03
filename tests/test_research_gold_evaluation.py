@@ -1753,7 +1753,6 @@ def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks
     runtime_result["status"] = "BLOCKED"
     summary = _research_summary(runtime_result)
     row = summary["rows"][0]
-    row["research_eval_complete"] = False
     row["requirements"].update(
         {
             "generated_simulation_executed_and_passed": False,
@@ -1777,6 +1776,11 @@ def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks
     )
 
     task = result["tasks"][0]
+    assert task["runtime_summary_evidence_hash_valid"] is True
+    assert task["runtime_summary_row_hash_valid"] is True
+    assert task["runtime_terminal_status"] == "BLOCKED"
+    assert task["runtime_terminal_accepted"] is False
+    assert task["runtime_research_eval_complete"] is False
     assert task["hidden_checks_passed"] is True
     assert task["dimension_status"]["theory"]["status"] == "passed"
     assert task["dimension_status"]["scientific_code"]["status"] == "passed"

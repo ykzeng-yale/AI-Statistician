@@ -257,6 +257,26 @@ def test_formal_full_task_scores_exact_kernel_promotion(
     assert task["formal_kernel_authority_errors"] == []
     assert task["dimension_status"]["formal"]["status"] == "passed"
 
+    runtime_result["status"] = "BLOCKED"
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=_formal_summary(runtime_result),
+        benchmark_manifest_path=manifest_path,
+        out_dir=tmp_path / "blocked-out",
+    )
+    task = result["tasks"][0]
+    assert task["runtime_summary_evidence_hash_valid"] is True
+    assert task["runtime_summary_row_hash_valid"] is True
+    assert task["runtime_terminal_status"] == "BLOCKED"
+    assert task["runtime_terminal_accepted"] is False
+    assert task["runtime_research_eval_complete"] is False
+    assert task["formal_kernel_authority_passed"] is True
+    assert task["dimension_status"]["formal"]["status"] == "passed"
+    assert task["dimension_status"]["overall_runtime_research_loop"][
+        "status"
+    ] == "failed"
+    assert task["task_passed"] is False
+
 
 def test_formal_gold_rejects_unbound_summary_boolean(tmp_path: Path) -> None:
     manifest_path = _formal_gold_manifest(tmp_path, include_contract=True)

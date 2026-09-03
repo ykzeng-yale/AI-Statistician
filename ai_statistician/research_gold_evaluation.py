@@ -374,6 +374,16 @@ def _evaluate_gold_task(
         if isinstance(source_report_semantic_evaluator, Mapping)
         else {}
     )
+    runtime_terminal_status = (
+        str(runtime_result.get("status", "") or "")
+        if runtime_result is not None
+        else ""
+    )
+    runtime_terminal_accepted = runtime_terminal_status == "ACCEPTED"
+    runtime_research_eval_complete = bool(
+        research_summary_row.get("research_eval_complete") is True
+        and runtime_terminal_accepted
+    )
     base = {
         "task_id": task_id,
         "level": str(task["level"]),
@@ -382,9 +392,9 @@ def _evaluate_gold_task(
         ),
         "full_task_gold_configured": _full_task_gold_configured(task),
         "runtime_result_observed": runtime_result is not None,
-        "runtime_research_eval_complete": (
-            research_summary_row.get("research_eval_complete") is True
-        ),
+        "runtime_terminal_status": runtime_terminal_status,
+        "runtime_terminal_accepted": runtime_terminal_accepted,
+        "runtime_research_eval_complete": runtime_research_eval_complete,
         "runtime_summary_evidence_hash": str(
             research_summary_row.get("runtime_evidence_hash", "") or ""
         ),
@@ -995,9 +1005,7 @@ def _evaluate_gold_task(
         dimensions = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=(
-                research_summary_row.get("research_eval_complete") is True
-            ),
+            runtime_research_eval_complete=base["runtime_research_eval_complete"],
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=True,
             hidden_empirical_passed=not empirical_evaluator,
@@ -1044,7 +1052,7 @@ def _evaluate_gold_task(
             and (not source_replication_evaluator or hidden_source_replication_passed)
             and (
                 not full_task
-                or research_summary_row.get("research_eval_complete") is True
+                or base["runtime_research_eval_complete"] is True
             )
         )
         return base
@@ -1058,9 +1066,7 @@ def _evaluate_gold_task(
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=(
-                research_summary_row.get("research_eval_complete") is True
-            ),
+            runtime_research_eval_complete=base["runtime_research_eval_complete"],
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
@@ -1090,9 +1096,7 @@ def _evaluate_gold_task(
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=(
-                research_summary_row.get("research_eval_complete") is True
-            ),
+            runtime_research_eval_complete=base["runtime_research_eval_complete"],
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
@@ -1113,9 +1117,7 @@ def _evaluate_gold_task(
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=(
-                research_summary_row.get("research_eval_complete") is True
-            ),
+            runtime_research_eval_complete=base["runtime_research_eval_complete"],
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
@@ -1143,9 +1145,7 @@ def _evaluate_gold_task(
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=(
-                research_summary_row.get("research_eval_complete") is True
-            ),
+            runtime_research_eval_complete=base["runtime_research_eval_complete"],
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
@@ -1164,9 +1164,7 @@ def _evaluate_gold_task(
         base["dimension_status"] = _dimension_status(
             task,
             runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=(
-                research_summary_row.get("research_eval_complete") is True
-            ),
+            runtime_research_eval_complete=base["runtime_research_eval_complete"],
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
@@ -1302,9 +1300,7 @@ def _evaluate_gold_task(
     dimensions = _dimension_status(
         task,
         runtime_requirements=runtime_requirements,
-        runtime_research_eval_complete=(
-            research_summary_row.get("research_eval_complete") is True
-        ),
+        runtime_research_eval_complete=base["runtime_research_eval_complete"],
         hidden_theory_passed=hidden_theory_passed,
         hidden_algorithm_passed=hidden_algorithm_passed,
         hidden_empirical_passed=hidden_empirical_passed,
@@ -1346,7 +1342,7 @@ def _evaluate_gold_task(
     base["task_passed"] = bool(
         required_dimensions_passed
         and hidden_algorithm_passed
-        and research_summary_row.get("research_eval_complete") is True
+        and base["runtime_research_eval_complete"] is True
     )
     return base
 
