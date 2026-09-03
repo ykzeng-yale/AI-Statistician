@@ -420,7 +420,7 @@ def test_theory_free_source_review_binds_frozen_abi_lineage(
         ],
     }
     proposal_packet = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": proposal_id,
         "source_agent": "LLMAlgorithmEngineerAgent",
         "model": LIVE_EVALUATION_CLAUDE_MODEL,
@@ -1611,7 +1611,7 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
         ],
     }
     proposal = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": proposal_id,
         "source_agent": "LLMAlgorithmEngineerAgent",
         "model": LIVE_EVALUATION_CLAUDE_MODEL,
@@ -5088,7 +5088,7 @@ def test_algorithm_workspace_executes_exact_theory_revision_seed_before_reauthor
         def propose(self, **_kwargs):
             self.proposal_calls += 1
             return {
-                "artifact_kind": "AlgorithmEngineerProposalPacket",
+                "artifact_kind": "AlgorithmSourceWorkspaceRecord",
                 "packet_id": "algorithm-proposal:source-seed-rebind",
                 "source_agent": "LLMAlgorithmEngineerAgent",
                 "source_provider": "anthropic",
@@ -5394,7 +5394,7 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
     }
     proposal_id = "algorithm-proposal:generic-parent"
     proposal = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": proposal_id,
         "source_agent": "LLMAlgorithmEngineerAgent",
         "source_provider": "anthropic",
@@ -5456,7 +5456,7 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             "source_llm_proposal_model": "claude-haiku-4-5-20251001",
             "source_llm_proposal_model_tier": "haiku",
             "source_llm_proposal_live_generator": True,
-            "llm_algorithm_engineer_target": {"estimator_id": estimator_id},
+            "algorithm_source_workspace_target": {"estimator_id": estimator_id},
         }
 
     failed_parent = executed_row(
@@ -5473,7 +5473,7 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         "artifact_kind": "RuntimeAlgorithmSandboxManifest",
         "manifest_id": source_manifest_id,
         "theory_packet_id": theory_packet_id,
-        "llm_algorithm_engineer_proposal_id": proposal_id,
+        "algorithm_source_workspace_record_id": proposal_id,
         "prototypes": [failed_parent, stable_parent],
         "boundary": "algorithm execution is not proof evidence",
     }
@@ -6857,7 +6857,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
     }
     proposal_id = "algorithm-proposal:generic-reviewed-source"
     proposal = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": proposal_id,
         "source_agent": "LLMAlgorithmEngineerAgent",
         "model": "claude-haiku-4-5-20251001",
@@ -6879,7 +6879,7 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
         "manifest_id": parent_manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_algorithm_engineer_proposal_id": proposal_id,
+        "algorithm_source_workspace_record_id": proposal_id,
         "prototypes": [
             {
                 "estimator_id": "generic-estimator",
@@ -9051,7 +9051,7 @@ def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
         "claim": "The frozen meaning conflicts with the implemented statistic.",
     }
     proposal_packet = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": "proposal:cross-artifact-runtime-review",
         "source_agent": "LLMAlgorithmEngineerAgent",
         "model": "static-author",
@@ -9288,7 +9288,7 @@ def test_generated_code_review_dispatch_uses_content_addressed_task_refs() -> No
         "packet_id": "theory:generic-code-review",
     }
     proposal_packet = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": "proposal:generic-code-review",
     }
 

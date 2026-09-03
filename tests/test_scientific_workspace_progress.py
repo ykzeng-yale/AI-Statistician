@@ -82,7 +82,7 @@ def test_scientific_progress_uses_same_owner_refs_and_stops_on_stagnation() -> N
     source_id = "estimator"
     checkpoint = _checkpoint(question_id=question.id, source_id=source_id)
     proposal = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": "algorithm-proposal:generic-progress",
         "scientific_source_transport": "native_client_tools",
     }
@@ -101,7 +101,7 @@ def test_scientific_progress_uses_same_owner_refs_and_stops_on_stagnation() -> N
         "manifest_id": "algorithm-manifest:generic-progress",
         "question": {"id": question.id},
         "theory_packet_id": theory_packet_id,
-        "llm_algorithm_engineer_proposal_id": proposal["packet_id"],
+        "algorithm_source_workspace_record_id": proposal["packet_id"],
         "prototypes": [row],
     }
     task = AgentTask(
@@ -186,7 +186,7 @@ def test_scientific_progress_uses_same_owner_refs_and_stops_on_stagnation() -> N
         question_id=question.id,
         theory_packet_id=theory_packet_id,
         expected_manifest_kind="RuntimeAlgorithmSandboxManifest",
-        proposal_id_field="llm_algorithm_engineer_proposal_id",
+        proposal_id_field="algorithm_source_workspace_record_id",
         row_id_field="estimator_id",
         expected_source_ids=[source_id],
         source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
@@ -246,7 +246,7 @@ def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
         "scientific_source_workspace_intent_id": (
             "algorithm_source_workspace_intent:direct"
         ),
-        "llm_algorithm_engineer_proposal_id": "",
+        "algorithm_source_workspace_record_id": "",
         "prototypes": [row],
     }
     plan, errors = scientific_workspace_resume_plan(
@@ -255,7 +255,7 @@ def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
         question_id=question.id,
         theory_packet_id=theory_packet_id,
         expected_manifest_kind="RuntimeAlgorithmSandboxManifest",
-        proposal_id_field="llm_algorithm_engineer_proposal_id",
+        proposal_id_field="algorithm_source_workspace_record_id",
         row_id_field="estimator_id",
         expected_source_ids=[source_id],
         source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
@@ -300,7 +300,7 @@ def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
         question_id=question.id,
         theory_packet_id=theory_packet_id,
         expected_manifest_kind="RuntimeAlgorithmSandboxManifest",
-        proposal_id_field="llm_algorithm_engineer_proposal_id",
+        proposal_id_field="algorithm_source_workspace_record_id",
         row_id_field="estimator_id",
         expected_source_ids=[source_id],
         source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
@@ -664,7 +664,7 @@ def test_algorithm_source_workspace_owns_planning_and_source(
     assert manifest["scientific_source_workspace_owns_planning"] is True
     assert manifest["planning_model_call_used"] is False
     assert manifest["n_passed"] == 1
-    proposal_id = manifest["llm_algorithm_engineer_proposal_id"]
+    proposal_id = manifest["algorithm_source_workspace_record_id"]
     review_packet = result.produced_artifacts[proposal_id]
     assert review_packet["source_workspace_planning_owned"] is True
     assert review_packet["planning_model_call_used"] is False
@@ -797,7 +797,7 @@ def test_uncommitted_smoke_pass_resumes_same_algorithm_workspace(
     assert manifest["n_executed"] == 1
     assert manifest["n_passed"] == 0
     assert manifest["n_generated_code_passed"] == 0
-    assert manifest["llm_algorithm_engineer_proposal_id"] == ""
+    assert manifest["algorithm_source_workspace_record_id"] == ""
     assert manifest["prototypes"][0]["smoke_passed"] is True
     assert manifest["prototypes"][0]["scientific_code_workspace_failure"]
 
@@ -953,7 +953,7 @@ def test_algorithm_subsystem_resumes_source_without_replanning(
     source_id = "estimator"
     checkpoint = _checkpoint(question_id=question.id, source_id=source_id)
     proposal = {
-        "artifact_kind": "AlgorithmEngineerProposalPacket",
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
         "packet_id": "algorithm-proposal:progress",
         "scientific_source_transport": "native_client_tools",
         "implementation_targets": [{"estimator_id": source_id}],
@@ -965,7 +965,7 @@ def test_algorithm_subsystem_resumes_source_without_replanning(
         "manifest_id": "algorithm-manifest:progress-parent",
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_algorithm_engineer_proposal_id": proposal["packet_id"],
+        "algorithm_source_workspace_record_id": proposal["packet_id"],
         "prototypes": [
             {
                 "estimator_id": source_id,

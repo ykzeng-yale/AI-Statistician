@@ -9,11 +9,10 @@ import pytest
 import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.agent_runtime import ToolCallRecord
 from ai_statistician.algorithm_engineer_llm import (
-    ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    ALGORITHM_SOURCE_WORKSPACE_RECORD_NOT_EXECUTION_EVIDENCE,
     AlgorithmEngineerConfig,
     LLMAlgorithmEngineerAgent,
-    _algorithm_engineer_response_schema,
-    validate_algorithm_engineer_packet,
+    validate_algorithm_source_workspace_record,
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.architect_metric_contract_authoring import (
@@ -46,7 +45,6 @@ from ai_statistician.scientific_project import (
 )
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
-    ScientificSourceWorkspaceUnavailableError,
     advance_scientific_consumer_revision_budget,
     scientific_consumer_dependency_context,
 )
@@ -427,7 +425,7 @@ def test_estimator_binding_rejects_tampered_source_hash_before_execution(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_algorithm_packet_accepts_r_while_simulation_rejects_embedded_source() -> None:
+def test_algorithm_record_and_simulation_intent_reject_embedded_source() -> None:
     r_draft = {
         "language": "r",
         "execution_profile": "scientific_wasm",
@@ -438,18 +436,26 @@ def test_algorithm_packet_accepts_r_while_simulation_rejects_embedded_source() -
             "list(mean=mean(seq_len(replicates)))"
         ),
     }
-    algorithm_packet = {
-        "implementation_targets": [
-            {"estimator_id": "r-estimator", "registered_template_hint": "none"}
+    algorithm_record = {
+        "artifact_kind": "AlgorithmSourceWorkspaceRecord",
+        "expected_estimator_ids": ["r-estimator"],
+        "implementation_targets": [{"estimator_id": "r-estimator"}],
+        "source_workspace_artifacts": [
+            {
+                "estimator_id": "r-estimator",
+                "source_hash": "source-hash",
+                "workspace_artifact_id": "workspace:r-estimator",
+                "workspace_transcript_fingerprint": "transcript:r-estimator",
+                "source_code": r_draft["code"],
+            }
         ],
-        "sandbox_code_drafts": [
-            {"estimator_id": "r-estimator", **r_draft}
-        ],
-        "next_actions": [{"owner_agent": "AlgorithmEngineer"}],
+        "source_workspace_planning_owned": True,
+        "planning_model_call_used": False,
+        "scientific_source_transport": "structured_packet",
+        "metric_contracts": [],
         "execution_evidence_status": (
-            ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
+            ALGORITHM_SOURCE_WORKSPACE_RECORD_NOT_EXECUTION_EVIDENCE
         ),
-        "sandbox_executed": False,
         "production_registered": False,
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
@@ -474,7 +480,16 @@ def test_algorithm_packet_accepts_r_while_simulation_rejects_embedded_source() -
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
 
-    assert validate_algorithm_engineer_packet(algorithm_packet) == []
+    algorithm_errors = validate_algorithm_source_workspace_record(
+        algorithm_record
+    )
+    assert "algorithm source must use native client-tool transport" in (
+        algorithm_errors
+    )
+    assert (
+        "source workspace record must carry references, not source bytes"
+        in algorithm_errors
+    )
     simulation_errors = validate_simulation_source_workspace_intent(simulation_packet)
     assert "simulation source must use native client-tool transport" in (
         simulation_errors
@@ -485,21 +500,7 @@ def test_algorithm_packet_accepts_r_while_simulation_rejects_embedded_source() -
     )
 
 
-def test_native_source_transport_accepts_identity_only_planning_envelopes() -> None:
-    algorithm_packet = {
-        "implementation_targets": [{"estimator_id": "candidate-a"}],
-        "sandbox_code_drafts": [{"estimator_id": "candidate-a"}],
-        "next_actions": [{"owner_agent": "AlgorithmEngineer"}],
-        "scientific_source_transport": (
-            SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
-        ),
-        "execution_evidence_status": (
-            ALGORITHM_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
-        ),
-        "sandbox_executed": False,
-        "production_registered": False,
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-    }
+def test_native_simulation_source_transport_accepts_identity_only_intent() -> None:
     simulation_packet = {
         "simulation_targets": [{"procedure_id": "confirmatory-dgp"}],
         "simulation_code_drafts": [
@@ -526,21 +527,7 @@ def test_native_source_transport_accepts_identity_only_planning_envelopes() -> N
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
 
-    assert validate_algorithm_engineer_packet(algorithm_packet) == []
     assert validate_simulation_source_workspace_intent(simulation_packet) == []
-
-
-def test_native_algorithm_source_transport_removes_source_from_provider_schema() -> None:
-    algorithm_schema = _algorithm_engineer_response_schema(
-        implementation_gaps=[{"estimator_id": "candidate-a"}],
-        requires_generated_code=True,
-        defer_source_authoring=True,
-    )
-    algorithm_draft = algorithm_schema["properties"]["sandbox_code_drafts"][
-        "items"
-    ]
-    assert algorithm_draft["required"] == ["estimator_id"]
-    assert set(algorithm_draft["properties"]) == {"estimator_id"}
 
 
 def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
@@ -751,7 +738,7 @@ def test_confirmatory_source_workspace_owns_planning_without_envelope_call() -> 
     )
 
 
-def test_algorithm_packet_cannot_replace_direct_source_workspace() -> None:
+def test_algorithm_agent_exposes_only_the_direct_source_workspace() -> None:
     class Provider:
         provider_name = "anthropic"
         planning_calls = 0
@@ -770,23 +757,8 @@ def test_algorithm_packet_cannot_replace_direct_source_workspace() -> None:
         ),
     )
 
-    with pytest.raises(ScientificSourceWorkspaceUnavailableError):
-        agent.propose(
-            question=OpenResearchQuestion(
-                id="algorithm-source-workspace-required",
-                title="Require direct algorithm source",
-                description="Keep fresh source inside one retained coding loop.",
-            ),
-            theory_packet={"packet_id": "theory:algorithm-source-required"},
-            simulation_manifest={},
-            implementation_gaps=[{"estimator_id": "estimator"}],
-            environment_feedback={
-                "runtime_requested_evidence_contract": {
-                    "research_evaluation_requires_generated_algorithm_code": True,
-                },
-            },
-        )
-
+    assert not hasattr(agent, "propose")
+    assert agent.source_workspace_owns_planning() is False
     assert Provider.planning_calls == 0
 
 

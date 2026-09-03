@@ -175,7 +175,7 @@ def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
         "script_hash": stable_hash(source),
         "result_hash": stable_hash(result),
         "project_hash": artifact["exact_project_hash"],
-        "llm_algorithm_engineer_target": {
+        "algorithm_source_workspace_target": {
             "estimator_interface_contract_id": "interface:candidate",
             "estimator_interface_contract": artifact[
                 "estimator_interface_contract"

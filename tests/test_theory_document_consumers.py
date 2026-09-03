@@ -4,9 +4,7 @@ import json
 from pathlib import Path
 
 from ai_statistician.algorithm_engineer_llm import (
-    _algorithm_engineer_response_schema,
-    _compact_theory_packet_for_algorithm,
-    materialize_algorithm_source_workspace_packet,
+    materialize_algorithm_source_workspace_record,
 )
 from ai_statistician.architect_theory_execution_preflight import (
     build_architect_theory_execution_preflight_material,
@@ -106,7 +104,11 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
 ) -> None:
     packet, content = _document_theory_packet(tmp_path)
 
-    algorithm = _compact_theory_packet_for_algorithm(packet)
+    algorithm = document_authoritative_theory_context(
+        packet,
+        max_rows=3,
+        text_limit=240,
+    )
     simulation = document_authoritative_theory_context(
         packet,
         max_rows=3,
@@ -277,7 +279,11 @@ def test_document_authority_replaces_duplicate_structured_math_for_coding_agents
     }
 
     context = document_authoritative_theory_context(packet)
-    algorithm = _compact_theory_packet_for_algorithm(packet)
+    algorithm = document_authoritative_theory_context(
+        packet,
+        max_rows=3,
+        text_limit=240,
+    )
     simulation = document_authoritative_theory_context(
         packet,
         max_rows=3,
@@ -298,16 +304,8 @@ def test_document_authority_replaces_duplicate_structured_math_for_coding_agents
     assert "problem_card" not in simulation
     assert "theorem_cards" not in simulation
     assert "simulation_ademp_spec" not in simulation
-    assert set(algorithm["estimator_specs"][0]) == {
-        "id",
-        "name",
-        "estimator_interface_contract",
-        "estimator_interface_contract_id",
-    }
+    assert "estimator_specs" not in algorithm
     assert "estimator_specs" not in simulation
-    assert algorithm["estimator_specs"][0]["estimator_interface_contract"][
-        "response_fields"
-    ][0]["derivation_ref"] == "C1"
     serialized = json.dumps(
         {"algorithm": algorithm, "simulation": simulation},
         sort_keys=True,
@@ -354,7 +352,7 @@ def test_source_workspace_review_packet_does_not_duplicate_theory_math(
     ]
     source = "def run_estimator(request): return {'estimate': 0.0}\n"
     source_hash = stable_hash(source)
-    review_packet = materialize_algorithm_source_workspace_packet(
+    review_packet = materialize_algorithm_source_workspace_record(
         question=OpenResearchQuestion(
             id="question:C1",
             title="Implement C1",
@@ -477,7 +475,11 @@ def test_document_claim_dag_is_complete_and_exact_across_subagents(
         },
     ]
 
-    algorithm = _compact_theory_packet_for_algorithm(packet)
+    algorithm = document_authoritative_theory_context(
+        packet,
+        max_rows=3,
+        text_limit=240,
+    )
     simulation = document_authoritative_theory_context(
         packet,
         max_rows=3,
@@ -524,20 +526,6 @@ def test_document_claim_dag_is_complete_and_exact_across_subagents(
     )
     assert fuzzy_alias["structured_alignment_observed"] is False
     assert fuzzy_alias["unsupported_claim_ids"] == ["c2"]
-
-    algorithm_schema = _algorithm_engineer_response_schema(
-        implementation_gaps=[{"estimator_id": "candidate-a"}],
-        requires_generated_code=True,
-        theory_packet=packet,
-    )
-    alignment_schema = algorithm_schema["properties"]["theory_trace_alignment"]
-    assert set(alignment_schema["properties"]) == {
-        "referenced_claim_ids",
-        "rationale",
-    }
-    assert alignment_schema["properties"]["referenced_claim_ids"]["items"][
-        "enum"
-    ] == ["C0", "C1", "C2", "C3", "C4", "C5"]
 
     review = generated_code_semantic_review_theory_projection(
         theory_packet=packet,

@@ -46,8 +46,8 @@ from .architect_theory_execution_preflight import (
 )
 from .algorithm_engineer_llm import (
     LLMAlgorithmEngineerAgent,
-    algorithm_source_workspace_plan,
-    materialize_algorithm_source_workspace_packet,
+    algorithm_source_workspace_intent,
+    materialize_algorithm_source_workspace_record,
 )
 from .critic_evaluator_llm import (
     CRITIC_EVALUATOR_BOUNDARY,
@@ -2226,7 +2226,7 @@ def _runtime_exact_algorithm_artifacts(
             "exact_smoke_result_hash": stable_hash(result),
         }
         proposal_target = source_row.get(
-            "llm_algorithm_engineer_target",
+            "algorithm_source_workspace_target",
             {},
         )
         proposal_target = (
@@ -12313,7 +12313,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 question_id=question.id,
                 theory_packet_id=packet_id,
                 expected_manifest_kind="RuntimeAlgorithmSandboxManifest",
-                proposal_id_field="llm_algorithm_engineer_proposal_id",
+                proposal_id_field="algorithm_source_workspace_record_id",
                 row_id_field="estimator_id",
                 expected_source_ids=expected_estimator_ids,
                 source_accepted=lambda row: _scientific_source_candidate_accepted(
@@ -12329,8 +12329,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                 environment_feedback,
             )
         )
-        source_plan = algorithm_source_workspace_plan(
-            proposal_agent=self.proposal_agent,
+        source_plan = algorithm_source_workspace_intent(
+            source_agent=self.proposal_agent,
             enabled=bool(
                 not scientific_progress_mode
                 and not consumer_revision_mode
@@ -12344,7 +12344,7 @@ class AlgorithmEngineerRuntimeSubsystem:
         )
         source_workspace_owns_planning = bool(
             scientific_progress.get("source_workspace_owns_planning") is True
-            or source_plan["owns_planning"]
+            or source_plan["authorized"]
         )
         source_workspace_intent_id = str(
             scientific_progress.get("source_workspace_intent_id", "")
@@ -12420,7 +12420,7 @@ class AlgorithmEngineerRuntimeSubsystem:
             )
             question_row = parent.get("question", {}) if isinstance(parent, Mapping) else {}
             proposal_id = str(parent.get(
-                "llm_algorithm_engineer_proposal_id", ""
+                "algorithm_source_workspace_record_id", ""
             ) if isinstance(parent, Mapping) else "").strip()
             prior_proposal = blackboard.artifacts.get(proposal_id, {})
             if reviewed_ids != sorted(expected_estimator_ids):
@@ -12551,7 +12551,7 @@ class AlgorithmEngineerRuntimeSubsystem:
             consumer_errors.extend(consumer_replay_errors)
             prior_proposal_id = str(
                 consumer_source_manifest.get(
-                    "llm_algorithm_engineer_proposal_id",
+                    "algorithm_source_workspace_record_id",
                     "",
                 )
                 or ""
@@ -12685,7 +12685,9 @@ class AlgorithmEngineerRuntimeSubsystem:
         for gap in execution_gaps:
             estimator_id = str(gap.get("estimator_id", ""))
             spec = _estimator_spec(packet, estimator_id)
-            proposal_target = _algorithm_proposal_for_estimator(proposal_packet, estimator_id)
+            proposal_target = _algorithm_source_record_target(
+                proposal_packet, estimator_id
+            )
             external_initial_observation: dict[str, Any] | None = None
             if scientific_progress_mode:
                 code_draft = deepcopy(
@@ -12752,10 +12754,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                     code_draft = (
                         {"estimator_id": estimator_id}
                         if source_workspace_owns_planning
-                        else _algorithm_code_draft_for_estimator(
-                            proposal_packet,
-                            estimator_id,
-                        )
+                        else {}
                     )
             if code_draft:
                 source_seed_replayed = bool(
@@ -12985,7 +12984,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                             prototype.get("smoke_passed") is True
                         ),
                     }
-                prototype["llm_algorithm_engineer_target"] = proposal_target
+                prototype["algorithm_source_workspace_target"] = proposal_target
                 prototype_rows.append(
                     _annotate_generated_sandbox_prototype_provenance(
                         prototype,
@@ -13002,12 +13001,12 @@ class AlgorithmEngineerRuntimeSubsystem:
                             "executor": "generated_python_sandbox",
                             "spec": dict(spec),
                             "reason": (
-                                "AlgorithmEngineer did not return a complete executable "
-                                "sandbox_code_drafts entry for this estimator. AgentRuntime "
+                                "The retained AlgorithmEngineer workspace did not commit "
+                                "complete executable source for this estimator. AgentRuntime "
                                 "does not substitute registered or handwritten source."
                             ),
                             "promotion_ready": False,
-                            "llm_algorithm_engineer_target": proposal_target,
+                            "algorithm_source_workspace_target": proposal_target,
                         },
                         proposal_packet=proposal_packet,
                         source_feedback=environment_feedback,
@@ -13024,7 +13023,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 and str(row.get("estimator_id", "") or "").strip()
             }
             if passed_ids == set(expected_estimator_ids):
-                proposal_packet = materialize_algorithm_source_workspace_packet(
+                proposal_packet = materialize_algorithm_source_workspace_record(
                     question=question,
                     theory_packet=packet,
                     implementation_gaps=implementation_gaps,
@@ -13044,8 +13043,8 @@ class AlgorithmEngineerRuntimeSubsystem:
                     _annotate_generated_sandbox_prototype_provenance(
                         {
                             **dict(row),
-                            "llm_algorithm_engineer_target": (
-                                _algorithm_proposal_for_estimator(
+                            "algorithm_source_workspace_target": (
+                                _algorithm_source_record_target(
                                     proposal_packet,
                                     str(row.get("estimator_id", "") or ""),
                                 )
@@ -13208,7 +13207,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 and not semantic_source_revision
                 and proposal_packet
             ),
-            "llm_algorithm_engineer_proposal_id": (
+            "algorithm_source_workspace_record_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
             ),
             "llm_algorithm_engineer_theory_trace_consumption_contract": (
@@ -13681,7 +13680,9 @@ class AlgorithmEngineerRuntimeSubsystem:
                 ),
                 payload={
                     "manifest_id": manifest_id,
-                    "llm_algorithm_engineer_proposal_id": manifest["llm_algorithm_engineer_proposal_id"],
+                    "algorithm_source_workspace_record_id": manifest[
+                        "algorithm_source_workspace_record_id"
+                    ],
                     "n_prototypes": manifest["n_prototypes"],
                     "n_executed": manifest["n_executed"],
                     "n_passed": manifest["n_passed"],
@@ -17046,7 +17047,7 @@ def _runtime_architect_control_subsystem_for_artifact(
         "RuntimeTheoryDerivationPacket": "TheoryDeveloper",
         "SimulationSourceWorkspaceIntent": "SimulationEvaluator",
         "RuntimeSimulationManifest": "SimulationEvaluator",
-        "AlgorithmEngineerProposalPacket": "AlgorithmEngineer",
+        "AlgorithmSourceWorkspaceRecord": "AlgorithmEngineer",
         "RuntimeAlgorithmSandboxManifest": "AlgorithmEngineer",
         "FormalizerProofEngineerProposalPacket": "FormalizationEvaluator",
         "RuntimeFormalizationManifest": "FormalizationEvaluator",
@@ -22302,27 +22303,13 @@ def _artifact_by_id_or_latest(
     return _latest_artifact(blackboard, prefix)
 
 
-def _algorithm_proposal_for_estimator(
-    proposal_packet: Mapping[str, Any] | None,
+def _algorithm_source_record_target(
+    source_record: Mapping[str, Any] | None,
     estimator_id: str,
 ) -> dict[str, Any]:
-    if not isinstance(proposal_packet, Mapping):
+    if not isinstance(source_record, Mapping):
         return {}
-    for row in proposal_packet.get("implementation_targets", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        if str(row.get("estimator_id", "")) == estimator_id:
-            return dict(row)
-    return {}
-
-
-def _algorithm_code_draft_for_estimator(
-    proposal_packet: Mapping[str, Any] | None,
-    estimator_id: str,
-) -> dict[str, Any]:
-    if not isinstance(proposal_packet, Mapping):
-        return {}
-    for row in proposal_packet.get("sandbox_code_drafts", []) or []:
+    for row in source_record.get("implementation_targets", []) or []:
         if not isinstance(row, Mapping):
             continue
         if str(row.get("estimator_id", "")) == estimator_id:

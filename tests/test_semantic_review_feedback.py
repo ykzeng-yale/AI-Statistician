@@ -5,52 +5,6 @@ from ai_statistician.semantic_review_feedback import (
     coding_agent_observations_only,
     model_observations_without_repair_recipes,
 )
-from ai_statistician.algorithm_engineer_llm import (
-    _algorithm_environment_observations,
-)
-
-
-def test_algorithm_planner_receives_complete_environment_observations() -> None:
-    long_observation = "raw-observation:" + ("x" * 5000)
-    findings = [
-        {
-            "finding_id": f"finding:{index}",
-            "summary": f"Observed behavior {index}",
-            "observed_behavior": long_observation + str(index),
-            "evidence_refs": [f"result#/{index}"],
-            "required_change": f"runtime-authored edit {index}",
-        }
-        for index in range(12)
-    ]
-    feedback = {
-        "feedback_type": "generated_code_semantic_review_feedback",
-        "rejected_candidate": {
-            "source": "def run_estimator(request):\n    return request\n",
-        },
-        "runtime_errors": [long_observation],
-        "findings": findings,
-        "reviewed_source_artifacts": [
-            {
-                "artifact_id": "candidate:exact",
-                "exact_source_code": "def run_estimator(request):\n    return request\n",
-                "exact_result": {"estimate": 1.0},
-            }
-        ],
-        "repair_owner_agent": "AlternateRepairAgent",
-        "repair_instructions": ["apply a runtime-selected patch"],
-    }
-
-    projected = _algorithm_environment_observations(feedback)
-    assert len(projected["findings"]) == 12
-    assert projected["findings"][-1]["observed_behavior"].endswith("11")
-    assert len(projected["runtime_errors"][0]) == len(long_observation)
-    assert projected["rejected_candidate"] == feedback["rejected_candidate"]
-    assert projected["reviewed_source_artifacts"] == feedback[
-        "reviewed_source_artifacts"
-    ]
-    assert "repair_owner_agent" not in projected
-    assert "repair_instructions" not in projected
-    assert all("required_change" not in row for row in projected["findings"])
 
 
 def test_recursive_projection_preserves_rejected_candidate_exactly() -> None:

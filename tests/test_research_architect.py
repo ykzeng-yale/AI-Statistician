@@ -3744,6 +3744,35 @@ def test_research_architect_cli_binds_explicit_haiku_to_serious_mode(
     assert config.serious_max_tokens == 8000
 
 
+@pytest.mark.parametrize(
+    ("provider_flag", "provider_name"),
+    (
+        ("--algorithm-engineer-provider", "static"),
+        ("--algorithm-engineer-provider", "openai"),
+        ("--simulation-engineer-provider", "static"),
+        ("--simulation-engineer-provider", "openai"),
+    ),
+)
+def test_retained_source_workspaces_reject_non_tool_providers(
+    provider_flag: str,
+    provider_name: str,
+) -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(
+            ["research-agent-runtime", provider_flag, provider_name]
+        )
+
+
+def test_same_source_workspace_provider_fails_closed_for_generator_only_main() -> None:
+    args = build_parser().parse_args(
+        ["research-agent-runtime", "--provider", "openai"]
+    )
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        _build_algorithm_engineer_agent_from_args(args, default_model="gpt-test")
+    with pytest.raises(ValueError, match="native client-tool turns"):
+        _build_simulation_engineer_agent_from_args(args, default_model="gpt-test")
+
+
 def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "AI_STATISTICIAN_LLM_PROVIDER",
@@ -3823,7 +3852,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         default_model=runtime_default_model,
     )
     assert algorithm_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert algorithm_engineer.config.max_validation_retries == 0
+    assert not hasattr(algorithm_engineer.config, "max_validation_retries")
     assert (
         _build_formalizer_agent_from_args(
             runtime_args,
@@ -3931,7 +3960,7 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert all(agent is not None for agent in agents)
     assert all(agent.config.model_tier == "haiku" for agent in agents)
     assert all(agent.config.model == expected_model for agent in agents)
-    assert agents[1].config.max_validation_retries == 0
+    assert not hasattr(agents[1].config, "max_validation_retries")
     assert not hasattr(agents[2].config, "max_validation_retries")
     assert agents[5].config.max_validation_retries == 1
     architect = agents[0]

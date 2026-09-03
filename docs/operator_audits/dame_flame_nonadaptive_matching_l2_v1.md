@@ -47,7 +47,7 @@ Neither is hidden-gold acceptance evidence.
 
 ## Decisive Failure
 
-After the terminal source commit, `materialize_algorithm_source_workspace_packet`
+After the terminal source commit, `materialize_algorithm_source_workspace_record`
 raised:
 
 `capability_eval estimator interface must be owned by TheoryDeveloper; capability_eval implementation target est_flame_nonadaptive_matching missing estimator_interface_contract`

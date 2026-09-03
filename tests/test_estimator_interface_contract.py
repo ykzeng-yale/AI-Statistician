@@ -13,8 +13,7 @@ from ai_statistician.estimator_interface_contract import (
 )
 from ai_statistician.algorithm_engineer_llm import (
     ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
-    build_algorithm_engineer_prompt,
-    materialize_algorithm_source_workspace_packet,
+    materialize_algorithm_source_workspace_record,
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_agent_runtime import (
@@ -272,12 +271,6 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
     )
     prompts = (
         json.dumps(theory_artifacts, default=str),
-        build_algorithm_engineer_prompt(
-            question=question,
-            theory_packet={},
-            simulation_manifest={},
-            implementation_gaps=[],
-        ),
         json.dumps(
             {"question": research_question_payload(question)},
             default=str,
@@ -303,7 +296,7 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
 def test_theory_free_source_materialization_binds_frozen_question_abi() -> None:
     contract = _frozen_contract()
     source = "def run_estimator(request): return {'estimate': 0.0}\n"
-    packet = materialize_algorithm_source_workspace_packet(
+    packet = materialize_algorithm_source_workspace_record(
         question=OpenResearchQuestion(
             id="theory-free",
             title="Theory-free code task",
@@ -349,7 +342,7 @@ def test_theory_free_source_materialization_binds_frozen_question_abi() -> None:
     }
 
 
-def test_absent_frozen_contract_does_not_change_legacy_question_payload() -> None:
+def test_absent_frozen_contract_does_not_change_question_payload() -> None:
     question = OpenResearchQuestion(
         id="legacy",
         title="Legacy",
@@ -357,13 +350,6 @@ def test_absent_frozen_contract_does_not_change_legacy_question_payload() -> Non
     )
 
     assert "estimator_execution_contract" not in _question_to_payload(question)
-    prompt = build_algorithm_engineer_prompt(
-        question=question,
-        theory_packet={},
-        simulation_manifest={},
-        implementation_gaps=[],
-    )
-    assert "estimator_execution_contract" not in prompt
 
 
 def test_executable_estimator_projection_removes_legacy_theory_prose() -> None:

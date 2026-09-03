@@ -389,7 +389,7 @@ The preferred response is deletion and consolidation, not moving code behind a n
 
 - `agent_runtime.py`: typed scheduling, task references, artifacts, and evidence.
 - `research_agent_runtime.py`: canonical outer graph and subsystem adapters.
-- `scientific_code_workspace.py`: direct Python/R source-feedback loop.
+- `scientific_code_workspace.py`: shared direct Algorithm/Simulation Python/R source-feedback loop; neither owner has a separate planner packet.
 - `scientific_sandbox.py`: isolated Pyodide/WebR execution.
 - Lean revision and kernel-promotion modules: direct checks and exact evidence gate.
 - `formal_source_index.py` and scoped retrievers: declaration-level formal RAG.

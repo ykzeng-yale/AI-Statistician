@@ -726,6 +726,11 @@ SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
     *GENERATOR_PROVIDER_CHOICES,
     "none",
 )
+SOURCE_WORKSPACE_PROVIDER_CHOICES = (
+    "same",
+    "anthropic",
+    "none",
+)
 
 _RUNTIME_EVALUATION_MODEL_TIER_FIELDS = (
     "theory_model_tier",
@@ -887,14 +892,15 @@ def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, defau
         return None
     if provider_choice == "same":
         provider_choice = getattr(args, "provider", _default_live_generator_provider())
-    static_file = getattr(args, "algorithm_static_response_file", "")
-    if provider_choice == "static" and not static_file:
-        return None
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
-        static_response_file=static_file,
+        static_response_file="",
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        raise ValueError(
+            "AlgorithmEngineer requires a backend with native client-tool turns"
+        )
     model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -911,7 +917,6 @@ def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, defau
             max_tokens=getattr(args, "algorithm_max_tokens", 5000),
             temperature=getattr(args, "algorithm_temperature", 0.1),
             provider_name=provider_name,
-            max_validation_retries=0,
         ),
     )
 
@@ -922,14 +927,15 @@ def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, defa
         return None
     if provider_choice == "same":
         provider_choice = getattr(args, "provider", _default_live_generator_provider())
-    static_file = getattr(args, "simulation_static_response_file", "")
-    if provider_choice == "static" and not static_file:
-        return None
     provider, provider_name = _build_theory_generator_backend(
         provider_name=provider_choice,
-        static_response_file=static_file,
+        static_response_file="",
         llm_timeout_seconds=getattr(args, "llm_timeout_seconds", None),
     )
+    if not callable(getattr(provider, "generate_client_tool_turn", None)):
+        raise ValueError(
+            "SimulationEngineer requires a backend with native client-tool turns"
+        )
     model_tier = _runtime_effective_model_tier(args, "sonnet")
     model = _model_for_subsystem_provider(
         provider_choice=provider_choice,
@@ -4367,18 +4373,6 @@ def _research_agent_runtime_static_subsystem_config_errors(
             "--architect-static-response-file",
         ),
         (
-            "simulation_engineer_provider",
-            "simulation_static_response_file",
-            "SimulationEngineer",
-            "--simulation-static-response-file",
-        ),
-        (
-            "algorithm_engineer_provider",
-            "algorithm_static_response_file",
-            "AlgorithmEngineer",
-            "--algorithm-static-response-file",
-        ),
-        (
             "formalizer_provider",
             "formalizer_static_response_file",
             "Formalizer/ProofEngineer",
@@ -6607,43 +6601,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     research_agent_runtime.add_argument(
         "--simulation-engineer-provider",
-        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        choices=SOURCE_WORKSPACE_PROVIDER_CHOICES,
         default="same",
         help=(
-            "generator backend for SimulatorEngineer proposals; same reuses the "
-            "main live provider, while static requires --simulation-static-response-file"
+            "live backend for the retained SimulationEngineer source workspace; "
+            "same reuses the main live provider"
         ),
-    )
-    research_agent_runtime.add_argument(
-        "--simulation-static-response-file",
-        default="",
-        help="JSON SimulatorEngineer response to replay when --simulation-engineer-provider static",
     )
     research_agent_runtime.add_argument(
         "--simulation-llm-model",
         default="",
-        help="model name for SimulatorEngineer proposals; Anthropic defaults to Claude Sonnet 4.6",
+        help="model name for the SimulationEngineer source workspace",
     )
     research_agent_runtime.add_argument("--simulation-max-tokens", type=int, default=8000)
     research_agent_runtime.add_argument("--simulation-temperature", type=float, default=0.1)
     research_agent_runtime.add_argument(
         "--algorithm-engineer-provider",
-        choices=SUBSYSTEM_GENERATOR_PROVIDER_CHOICES,
+        choices=SOURCE_WORKSPACE_PROVIDER_CHOICES,
         default="same",
         help=(
-            "generator backend for AlgorithmEngineer proposals; same reuses the "
-            "main live provider, while static requires --algorithm-static-response-file"
+            "live backend for the retained AlgorithmEngineer source workspace; "
+            "same reuses the main live provider"
         ),
-    )
-    research_agent_runtime.add_argument(
-        "--algorithm-static-response-file",
-        default="",
-        help="JSON AlgorithmEngineer response to replay when --algorithm-engineer-provider static",
     )
     research_agent_runtime.add_argument(
         "--algorithm-llm-model",
         default="",
-        help="model name for AlgorithmEngineer proposals; Anthropic defaults to Claude Sonnet 4.6",
+        help="model name for the AlgorithmEngineer source workspace",
     )
     research_agent_runtime.add_argument("--algorithm-max-tokens", type=int, default=5000)
     research_agent_runtime.add_argument("--algorithm-temperature", type=float, default=0.1)
