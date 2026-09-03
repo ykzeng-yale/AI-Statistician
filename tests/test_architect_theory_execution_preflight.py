@@ -518,7 +518,7 @@ class _PreflightToolBackend:
         payload: dict[str, object] | None = None,
         submit_before_search: bool = False,
         submit_unknown_ref_once: bool = False,
-        exhaust_search_budget: bool = False,
+        multiple_searches: bool = False,
         source_scope: str = "theory",
         cite_sources: bool = True,
     ) -> None:
@@ -526,7 +526,7 @@ class _PreflightToolBackend:
         self.payload = deepcopy(payload) if payload is not None else None
         self.submit_before_search = submit_before_search
         self.submit_unknown_ref_once = submit_unknown_ref_once
-        self.exhaust_search_budget = exhaust_search_budget
+        self.multiple_searches = multiple_searches
         self.source_scope = source_scope
         self.cite_sources = cite_sources
         self.requests = []
@@ -547,7 +547,7 @@ class _PreflightToolBackend:
     def generate_client_tool_turn(self, request):
         self.requests.append(request)
         turn = len(self.requests)
-        if turn == 1 and self.exhaust_search_budget:
+        if turn == 1 and self.multiple_searches:
             return _tool_response(
                 *[
                     ClientToolCall(
@@ -559,7 +559,7 @@ class _PreflightToolBackend:
                             "k": 4,
                         },
                     )
-                    for index in range(1, 4)
+                    for index in range(1, 5)
                 ]
             )
         if turn == 1 and self.submit_before_search:
@@ -1231,15 +1231,16 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
     assert "joint dependence" in scratch_tool.description
 
 
-def test_preflight_keeps_search_tool_visible_after_its_budget_is_spent() -> None:
+def test_preflight_allows_model_selected_searches_under_shared_tool_budget() -> None:
     backend = _PreflightToolBackend(
         accept=False,
-        exhaust_search_budget=True,
+        multiple_searches=True,
     )
 
     packet = _tool_review(backend)
 
-    assert packet["preflight_source_search_count"] == 3
+    assert packet["preflight_source_search_count"] == 4
+    assert "preflight_source_search_budget" not in packet
     assert len(backend.requests) == 2
     expected_tools = {
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,

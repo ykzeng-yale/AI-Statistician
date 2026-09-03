@@ -100,7 +100,6 @@ ARCHITECT_THEORY_EXECUTION_PREFLIGHT_COMPARE_REVISION_TOOL = (
     "compare_theory_document_revision"
 )
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_REPORT_DRAFT_KIND = "TheoryExecutionPreflightReviewDraft"
-ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES = 3
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_TURNS = 24
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_TOOL_CALLS = 48
 ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_NO_PROGRESS_TURNS = 2
@@ -3268,10 +3267,6 @@ def _architect_theory_preflight_workspace_checkpoint_errors(
             or start > value
         ):
             errors.append(f"checkpoint {field} counter lineage is invalid")
-    if int(checkpoint.get("searches", 0) or 0) > (
-        ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-    ):
-        errors.append("checkpoint source-search budget was exceeded")
     if int(checkpoint.get("source_operations", 0) or 0) < int(
         checkpoint.get("searches", 0) or 0
     ):
@@ -3797,10 +3792,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     if isinstance(state["review_report_draft"], Mapping)
                     and state["review_report_draft"].get(key) is not None
                 },
-                "remaining_source_searches": (
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-                    - int(state["searches"])
-                ),
                 "remaining_scratch_runs": (
                     max(0, theory_scratchpad.max_runs - int(state["scratch_runs"]))
                     if theory_scratchpad is not None
@@ -3879,9 +3870,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 observations
             ),
             "preflight_source_search_count": int(state["searches"]),
-            "preflight_source_search_budget": (
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-            ),
             "preflight_public_research_source_discovery": deepcopy(
                 public_source_descriptor
             ),
@@ -4078,12 +4066,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 raise ClientToolInputError(
                     "public research source discovery is unavailable"
                 )
-            if state["searches"] >= (
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-            ):
-                raise ClientToolInputError(
-                    "preflight source-search budget exhausted"
-                )
             if set(tool_input) - {"query", "source_kind", "top_k"}:
                 raise ClientToolInputError(
                     "discover_research_sources accepts query, source_kind, and top_k"
@@ -4125,10 +4107,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             state["source_operations"] += 1
             model_observation = {
                 **dict(result),
-                "remaining_searches": (
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-                    - state["searches"]
-                ),
                 "citation_instruction": (
                     "Search metadata has no source_ref. Read a selected source before "
                     "citing it in a finding."
@@ -4243,12 +4221,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     "research source snapshot is unavailable"
                 )
             if call.name == RESEARCH_SOURCE_SEARCH_TOOL:
-                if state["searches"] >= (
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-                ):
-                    raise ClientToolInputError(
-                        "preflight source-search budget exhausted"
-                    )
                 if set(tool_input) - {"query", "top_k"}:
                     raise ClientToolInputError(
                         "search_research_sources accepts query and optional top_k"
@@ -4288,10 +4260,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 "ok": True,
                 **visible_result,
                 "observation_id": observation_id,
-                "remaining_searches": (
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-                    - state["searches"]
-                ),
             }
             record_workspace_observation(
                 tool=call.name,
@@ -4305,12 +4273,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             )
 
         if call.name == "search_preflight_sources":
-            if state["searches"] >= (
-                ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-            ):
-                raise ClientToolInputError(
-                    "preflight source-search budget exhausted"
-                )
             query = str(tool_input.get("query", "") or "").strip()
             source_scope = str(
                 tool_input.get("source_scope", "") or ""
@@ -4353,10 +4315,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             model_observation = {
                 "ok": True,
                 **observation,
-                "remaining_searches": (
-                    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_MAX_SOURCE_SEARCHES
-                    - state["searches"]
-                ),
             }
             record_workspace_observation(
                 tool=call.name,
