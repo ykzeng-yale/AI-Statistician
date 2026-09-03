@@ -4592,7 +4592,6 @@ def test_rejected_preflight_skips_metric_author_and_execution_lineage() -> None:
             provider=provider,
             config=ArchitectMetricContractAuthoringConfig(
                 model_tier="haiku",
-                max_validation_retries=0,
                 metric_semantic_reviewer_max_revisions=0,
             ),
             request_model=TEST_HAIKU_MODEL,
@@ -4713,7 +4712,6 @@ def test_metric_author_prompt_requires_quantified_finite_run_uncertainty() -> No
             provider=provider,
             config=ArchitectMetricContractAuthoringConfig(
                 model_tier="haiku",
-                max_validation_retries=0,
                 metric_semantic_reviewer_max_revisions=0,
             ),
             request_model=TEST_HAIKU_MODEL,
@@ -4831,7 +4829,6 @@ def test_metric_protocol_edit_batch_is_hash_bound_and_atomic(
         provider=backend,  # type: ignore[arg-type]
         config=ArchitectMetricContractAuthoringConfig(
             model_tier="haiku",
-            max_validation_retries=0,
         ),
         request_model=TEST_HAIKU_MODEL,
         user_message="Apply an atomic revision and commit.",
@@ -4973,7 +4970,6 @@ def test_fresh_metric_protocol_keeps_science_in_markdown_and_commits_metadata(
         provider=backend,  # type: ignore[arg-type]
         config=ArchitectMetricContractAuthoringConfig(
             model_tier="haiku",
-            max_validation_retries=0,
         ),
         request_model=TEST_HAIKU_MODEL,
         user_message="Author one confirmatory protocol.",
@@ -5121,8 +5117,8 @@ def test_metric_protocol_reviewer_feedback_continues_same_editable_workspace(
     backend = MetricWorkspaceBackend()
     config = ArchitectMetricContractAuthoringConfig(
         model_tier="haiku",
-        max_validation_retries=0,
     )
+    assert not hasattr(config, "max_validation_retries")
     first = _run_metric_protocol_workspace(
         provider=backend,  # type: ignore[arg-type]
         config=config,
@@ -5282,7 +5278,6 @@ def test_metric_protocol_external_file_survives_truncated_edit_input(
         provider=backend,  # type: ignore[arg-type]
         config=ArchitectMetricContractAuthoringConfig(
             model_tier="haiku",
-            max_validation_retries=0,
         ),
         request_model=TEST_HAIKU_MODEL,
         user_message="Author one generic protocol.",

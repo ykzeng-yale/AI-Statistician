@@ -46,9 +46,9 @@ without duplicating the control plane.
    immutable candidate, reports every discrete material finding, and does not fix the
    source. Findings return to the original source owner.
 8. **Enforce boundaries, not implementations.** Identity, provenance, permissions,
-   budgets, blinding, frozen task intent, and verifier authority are mechanical.
-   Research content, tool choice, derivation order, experiments, and proof strategy
-   remain model-owned.
+   budgets, blinding, frozen task intent, and verifier authority are mechanical; model-authored
+   scientific stop conditions never lower host call or revision budgets. Research content,
+   tool choice, derivation order, experiments, and proof strategy remain model-owned.
 9. **One schema defines each tool ABI.** The model-visible contract, executable
    argument validation, and terminal disposition must agree. A prose example is not
    a second enum. This is the direct lesson from Task108's Critic transport failure

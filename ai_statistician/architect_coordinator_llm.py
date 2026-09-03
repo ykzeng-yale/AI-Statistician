@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .agent_runtime import agent_runtime_substage
 from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
@@ -32,7 +32,7 @@ from .generated_metric_contract import (
     generated_sandbox_runtime_replicates,
     validate_generated_metric_requirements,
 )
-from .structured_output_retry import extract_json_object, generate_validated_json_packet
+from .structured_output_retry import PacketValidationError, extract_json_object
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_NOT_REQUIRED,
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
@@ -42,7 +42,12 @@ from .metric_protocol_stage import (
     metric_protocol_authority_matches_theory,
     theory_informed_metric_protocol_material,
 )
-from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
+from .model_backend import (
+    GeneratorBackend,
+    GeneratorRequest,
+    GeneratorResponse,
+    resolve_generator_model,
+)
 from .research_schema import (
     OpenResearchQuestion,
     RESEARCH_EVIDENCE_DIMENSIONS,
@@ -62,7 +67,10 @@ from .theory_revision_lineage import (
 )
 
 
-ARCHITECT_COORDINATOR_SCHEMA_VERSION = 1
+ARCHITECT_COORDINATOR_SCHEMA_VERSION = 2
+ARCHITECT_CONTROL_ENVELOPE_TRANSPORT = (
+    "provider_structured_output_single_call_v1"
+)
 ARCHITECT_COORDINATOR_PROPOSAL_NOT_EVIDENCE = "LLM_ARCHITECT_COORDINATOR_PROPOSAL_NOT_PROOF_EVIDENCE"
 ARCHITECT_COORDINATOR_BOUNDARY = (
     "LLM ArchitectCoordinator packets are orchestration proposals only. They "
@@ -250,11 +258,65 @@ class ArchitectCoordinatorConfig:
     max_tokens: int = 3000
     temperature: float = 0.1
     provider_name: str = "anthropic"
-    max_validation_retries: int = 2
     metric_semantic_reviewer_model: str = ""
     metric_semantic_reviewer_model_tier: str = "sonnet"
     metric_semantic_reviewer_max_tokens: int = 7000
     metric_semantic_reviewer_max_revisions: int = 1
+
+
+def _generate_single_architect_control_envelope(
+    *,
+    provider: GeneratorBackend,
+    request: GeneratorRequest,
+    build_packet: Callable[
+        [Mapping[str, Any], GeneratorResponse, str], dict[str, Any]
+    ],
+    validate_packet: Callable[[Mapping[str, Any]], list[str]],
+    validation_label: str,
+) -> dict[str, Any]:
+    """Generate exactly one Architect control envelope and fail closed."""
+
+    response = provider.generate(request)
+    raw_text = response.text
+    payload: dict[str, Any] | None = None
+    packet: dict[str, Any] | None = None
+    try:
+        payload = _extract_json_object(raw_text)
+        packet = build_packet(payload, response, raw_text)
+        errors = [str(error) for error in validate_packet(packet)]
+    except Exception as exc:
+        errors = [f"{type(exc).__name__}: {exc}"]
+    if packet is None and not errors:
+        errors = ["Architect control envelope was not built"]
+    history = [
+        {
+            "attempt_index": 0,
+            "provider": response.provider,
+            "model": response.model,
+            "ok": not errors,
+            "errors": list(errors),
+            "transport": ARCHITECT_CONTROL_ENVELOPE_TRANSPORT,
+            "raw_response_fingerprint": stable_hash(raw_text),
+            "response_text_chars": len(raw_text),
+            "payload_extracted": payload is not None,
+            "packet_built": packet is not None,
+        }
+    ]
+    if packet is not None and not errors:
+        packet["validation_errors"] = []
+        packet["ok"] = True
+        packet["control_envelope_transport"] = (
+            ARCHITECT_CONTROL_ENVELOPE_TRANSPORT
+        )
+        packet["control_envelope_model_calls"] = 1
+        return packet
+    raise PacketValidationError(
+        validation_label=validation_label,
+        attempts=1,
+        errors=errors,
+        history=history,
+        last_invalid_packet=packet,
+    )
 
 
 class LLMArchitectCoordinatorAgent:
@@ -364,10 +426,6 @@ class LLMArchitectCoordinatorAgent:
                     ),
                     model_tier=self.config.model_tier,
                     provider_name=self.config.provider_name,
-                    max_validation_retries=min(
-                        self.config.max_validation_retries,
-                        ArchitectMetricContractAuthoringConfig().max_validation_retries,
-                    ),
                     metric_semantic_reviewer_max_revisions=(
                         self.config.metric_semantic_reviewer_max_revisions
                     ),
@@ -478,6 +536,10 @@ class LLMArchitectCoordinatorAgent:
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
                 "provider_structured_output": True,
+                "control_envelope_transport": (
+                    ARCHITECT_CONTROL_ENVELOPE_TRANSPORT
+                ),
+                "validation_regeneration_authorized": False,
                 "available_subsystems": list(available_subsystems),
             },
         )
@@ -505,18 +567,17 @@ class LLMArchitectCoordinatorAgent:
             "architect_plan_generation",
             metadata={
                 "model_tier": self.config.model_tier,
-                "max_packet_regeneration_attempts": self.config.max_validation_retries,
+                "model_call_budget": 1,
+                "packet_regeneration_authorized": False,
                 "metric_protocol_authored": bool(metric_authoring_packet),
             },
         ):
-            return generate_validated_json_packet(
+            return _generate_single_architect_control_envelope(
                 provider=self.provider,
                 request=request,
-                extract_payload=_extract_json_object,
                 build_packet=build_packet,
                 validate_packet=validate_architect_coordinator_packet,
                 validation_label="LLM ArchitectCoordinator packet",
-                max_validation_retries=self.config.max_validation_retries,
             )
 
     def route_environment_feedback(
@@ -567,6 +628,10 @@ class LLMArchitectCoordinatorAgent:
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
                 "provider_structured_output": True,
+                "control_envelope_transport": (
+                    ARCHITECT_CONTROL_ENVELOPE_TRANSPORT
+                ),
+                "validation_regeneration_authorized": False,
                 "environment_feedback_fingerprint": feedback_fingerprint,
                 "available_route_subsystems": list(available_route_subsystems),
             },
@@ -617,14 +682,14 @@ class LLMArchitectCoordinatorAgent:
             "architect_feedback_route",
             metadata={
                 "model_tier": self.config.model_tier,
-                "max_packet_regeneration_attempts": self.config.max_validation_retries,
+                "model_call_budget": 1,
+                "packet_regeneration_authorized": False,
                 "full_research_plan_regeneration": False,
             },
         ):
-            return generate_validated_json_packet(
+            return _generate_single_architect_control_envelope(
                 provider=self.provider,
                 request=request,
-                extract_payload=_extract_json_object,
                 build_packet=build_packet,
                 validate_packet=lambda packet: validate_architect_feedback_route_packet(
                     packet,
@@ -634,7 +699,6 @@ class LLMArchitectCoordinatorAgent:
                     ),
                 ),
                 validation_label="LLM Architect feedback-route packet",
-                max_validation_retries=self.config.max_validation_retries,
             )
 
 
@@ -2018,7 +2082,7 @@ def build_architect_coordinator_prompt(
         "boundary. Preserve accepted targets, artifact identities, hashes, frozen gates, "
         "and lineage. Empirical metric requirements are authored by their dedicated "
         "model after theory and implementation context exists, so do not duplicate them. "
-        "Keep analysis inside the JSON "
+        "Keep analysis inside the structured response "
         "fields, and do not include Markdown, code, claimed executions, simulation "
         "results, or proof claims. Do not route a theory artifact through the global "
         "Critic merely to "
@@ -2075,31 +2139,23 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 "statistical_objects": {
                     "type": "array",
                     "minItems": 1,
-                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
                 "assumption_dimensions": {
                     "type": "array",
-                    "minItems": 1,
-                    "maxItems": 6,
                     "items": {"type": "string"},
                 },
                 "likely_analogy_classes": {
                     "type": "array",
-                    "minItems": 1,
-                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
                 "key_obstacles": {
                     "type": "array",
                     "minItems": 1,
-                    "maxItems": 5,
                     "items": {"type": "string"},
                 },
                 "missing_information": {
                     "type": "array",
-                    "minItems": 1,
-                    "maxItems": 5,
                     "items": {"type": "string"},
                 },
             },
@@ -2116,10 +2172,14 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "properties": {
                 "dimension_requirements": {
                     "type": "object",
+                    "additionalProperties": False,
                     "required": list(RESEARCH_EVIDENCE_DIMENSIONS),
-                    "maxProperties": len(RESEARCH_EVIDENCE_DIMENSIONS),
-                    "additionalProperties": {
-                        "enum": sorted(TASK_INTENT_REQUIREMENTS),
+                    "properties": {
+                        dimension: {
+                            "type": "string",
+                            "enum": sorted(TASK_INTENT_REQUIREMENTS),
+                        }
+                        for dimension in RESEARCH_EVIDENCE_DIMENSIONS
                     },
                 },
                 "recommended_research_path": {
@@ -2128,8 +2188,6 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 },
                 "formal_targets": {
                     "type": "array",
-                    "minItems": 0,
-                    "maxItems": 4,
                     "items": {
                         "type": "string",
                         "minLength": 1,
@@ -2142,8 +2200,6 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
                 },
                 "simulation_targets": {
                     "type": "array",
-                    "minItems": 0,
-                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
             },
@@ -2159,20 +2215,14 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "properties": {
                 "paper_queries": {
                     "type": "array",
-                    "minItems": 1,
-                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
                 "formal_source_queries": {
                     "type": "array",
-                    "minItems": 1,
-                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
                 "lean_rag_priorities": {
                     "type": "array",
-                    "minItems": 1,
-                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
             },
@@ -2181,15 +2231,12 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
             "type": "object",
             "additionalProperties": False,
             "required": [
-                "max_revision_rounds",
                 "stop_conditions",
             ],
             "properties": {
-                "max_revision_rounds": {"type": "integer", "minimum": 0},
                 "stop_conditions": {
                     "type": "array",
                     "minItems": 1,
-                    "maxItems": 5,
                     "items": {"type": "string"},
                 },
             },
@@ -2244,6 +2291,9 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
             "key_obstacles",
             "missing_information",
         ):
+            if field not in problem_analysis:
+                errors.append(f"problem_analysis missing field: {field}")
+        for field in ("theorem_family", "statistical_objects", "key_obstacles"):
             if problem_analysis.get(field) in (None, "", [], {}):
                 errors.append(f"problem_analysis missing or empty field: {field}")
     evaluation_mode = ""

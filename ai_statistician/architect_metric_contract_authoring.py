@@ -464,7 +464,6 @@ class ArchitectMetricContractAuthoringConfig:
     max_tokens: int = 8000
     model_tier: str = "sonnet"
     provider_name: str = "anthropic"
-    max_validation_retries: int = 1
     metric_semantic_reviewer_max_revisions: int = 1
 
 
@@ -823,7 +822,7 @@ def _run_metric_protocol_workspace(
                     "ok": False,
                     "error": "metric_protocol_submission_rejected",
                     "current_sha256": current_sha256,
-                    "validation_errors": errors[:16],
+                    "validation_errors": list(errors),
                     "instruction": (
                         "Edit the exact current external protocol in this same "
                         "source-owner session, then commit its new SHA-256."
@@ -862,8 +861,7 @@ def _run_metric_protocol_workspace(
             backend=provider,
             request=request,
             execute_tool=execute_tool,
-            max_turns=METRIC_PROTOCOL_WORKSPACE_MAX_TURNS
-            + max(0, int(config.max_validation_retries)),
+            max_turns=METRIC_PROTOCOL_WORKSPACE_MAX_TURNS,
             max_tool_calls=METRIC_PROTOCOL_WORKSPACE_MAX_TOOL_CALLS,
             max_no_progress_turns=(
                 METRIC_PROTOCOL_WORKSPACE_MAX_NO_PROGRESS_TURNS

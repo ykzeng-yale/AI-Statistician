@@ -2806,7 +2806,6 @@ def test_full_runtime_gives_architect_exact_configured_workspace_inventory(
             "lean_rag_priorities": ["none requested"],
         },
         "iteration_policy": {
-            "max_revision_rounds": 1,
             "stop_conditions": ["independent review accepts"],
         },
         "next_actions": [

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import replace
+
+import pytest
 
 from ai_statistician.agent_runtime import (
     AgentRuntime,
@@ -97,7 +100,6 @@ def _capability_scoped_architect_decision(
             "lean_rag_priorities": ["Statlib declarations when formal work applies"],
         },
         "iteration_policy": {
-            "max_revision_rounds": 2,
             "stop_conditions": ["requested evidence is independently accepted"],
         },
         "next_actions": [
@@ -351,7 +353,6 @@ def test_compact_architect_decision_builds_runtime_workspace_topology() -> None:
             "lean_rag_priorities": ["Statlib inference"],
         },
         "iteration_policy": {
-            "max_revision_rounds": 2,
             "stop_conditions": ["requested evidence is accepted"],
         },
         "next_actions": [
@@ -639,7 +640,6 @@ def test_architect_provider_exposes_only_runtime_available_subsystems() -> None:
             provider_name="anthropic",
             model=EXACT_HAIKU_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
         ),
     )
     available = ["RetrievalMemory", "TheoryDeveloper", "CriticEvaluator"]
@@ -678,9 +678,138 @@ def test_architect_provider_exposes_only_runtime_available_subsystems() -> None:
     assert set(prompt_payload["workspace_capabilities"]) == set(available)
     assert owner_schema["enum"] == available
     assert request.metadata["available_subsystems"] == available
+    assert request.metadata["validation_regeneration_authorized"] is False
+    assert packet["control_envelope_model_calls"] == 1
+    assert packet["control_envelope_transport"] == (
+        "provider_structured_output_single_call_v1"
+    )
+    assert "max_revision_rounds" not in request.schema["properties"][
+        "iteration_policy"
+    ]["properties"]
+    assert "maxItems" not in request.schema["properties"]["problem_analysis"][
+        "properties"
+    ]["statistical_objects"]
+    assert request.schema["properties"]["evidence_contract"]["properties"][
+        "dimension_requirements"
+    ]["additionalProperties"] is False
     assert packet["available_subsystems"] == available
     assert feedback_payload["available_route_subsystems"] == available
     assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_architect_control_schemas_are_strict_transformable_and_uncapped() -> None:
+    anthropic = pytest.importorskip("anthropic")
+
+    plan_schema = anthropic.transform_schema(ARCHITECT_COORDINATOR_JSON_SCHEMA)
+    route_schema = anthropic.transform_schema(ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA)
+
+    assert plan_schema["additionalProperties"] is False
+    dimensions = plan_schema["properties"]["evidence_contract"]["properties"][
+        "dimension_requirements"
+    ]
+    assert dimensions["additionalProperties"] is False
+    assert set(dimensions["properties"]) == {
+        "theory",
+        "scientific_code",
+        "empirical",
+        "formal",
+    }
+    analysis = plan_schema["properties"]["problem_analysis"]["properties"]
+    assert "maxItems" not in analysis["statistical_objects"]
+    assert "maxItems" not in analysis["missing_information"]
+    iteration = plan_schema["properties"]["iteration_policy"]
+    assert iteration["required"] == ["stop_conditions"]
+    assert "max_revision_rounds" not in iteration["properties"]
+    assert route_schema["additionalProperties"] is False
+
+
+def test_architect_plan_allows_empty_irrelevant_discovery_lists() -> None:
+    question = _question()
+    decision = _capability_scoped_architect_decision(
+        {
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        }
+    )
+    decision["problem_analysis"]["assumption_dimensions"] = []
+    decision["problem_analysis"]["likely_analogy_classes"] = []
+    decision["problem_analysis"]["missing_information"] = []
+    decision["retrieval_strategy"] = {
+        "paper_queries": [],
+        "formal_source_queries": [],
+        "lean_rag_priorities": [],
+    }
+    packet = _normalize_architect_packet(
+        decision,
+        question=question,
+        model=EXACT_HAIKU_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(decision),
+        runtime_config={
+            "evaluation_mode": "debug",
+            "formal_verification_policy": "optional",
+        },
+        architect_context={
+            "runtime_requested_evidence_contract": (
+                _runtime_requested_evidence_contract(
+                    formal_verification_policy="optional",
+                    evaluation_mode="debug",
+                    task_intent=question.task_intent,
+                )
+            )
+        },
+    )
+
+    assert validate_architect_coordinator_packet(packet) == []
+
+
+def test_invalid_architect_plan_fails_closed_without_regeneration() -> None:
+    question = _question()
+    valid = _capability_scoped_architect_decision(
+        {
+            "theory": "required",
+            "scientific_code": "not_applicable",
+            "empirical": "not_applicable",
+            "formal": "not_applicable",
+        }
+    )
+    invalid = deepcopy(valid)
+    invalid["next_actions"] = []
+    backend = _RouteSequenceBackend([invalid, valid])
+    coordinator = LLMArchitectCoordinatorAgent(
+        provider=backend,
+        config=ArchitectCoordinatorConfig(
+            provider_name="anthropic",
+            model=EXACT_HAIKU_MODEL,
+            model_tier="haiku",
+        ),
+    )
+
+    with pytest.raises(PacketValidationError) as exc_info:
+        coordinator.propose(
+            question=question,
+            architect_context={
+                "runtime_packet_validation_replan": {"active": True},
+                "runtime_requested_evidence_contract": (
+                    _runtime_requested_evidence_contract(
+                        formal_verification_policy="optional",
+                        evaluation_mode="debug",
+                        task_intent=question.task_intent,
+                    )
+                ),
+            },
+            runtime_config={
+                "evaluation_mode": "debug",
+                "formal_verification_policy": "optional",
+            },
+        )
+
+    assert len(backend.requests) == 1
+    assert exc_info.value.attempts == 1
+    assert "missing or empty field: next_actions" in exc_info.value.errors
 
 
 def test_architect_rejects_required_unavailable_workspace() -> None:
@@ -772,7 +901,6 @@ def test_architect_discards_targets_outside_frozen_task_intent() -> None:
             "lean_rag_priorities": ["not requested"],
         },
         "iteration_policy": {
-            "max_revision_rounds": 1,
             "stop_conditions": ["independent critic accepts the theory"],
         },
         "next_actions": [
@@ -963,8 +1091,13 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
     assert len(backend.requests) == 1
     request = backend.requests[0]
     assert request.metadata["operation"] == ARCHITECT_FEEDBACK_ROUTE_OPERATION
+    assert request.metadata["validation_regeneration_authorized"] is False
     assert request.schema == ARCHITECT_FEEDBACK_ROUTE_JSON_SCHEMA
     assert request.max_tokens == 2000
+    assert packet["control_envelope_model_calls"] == 1
+    assert packet["control_envelope_transport"] == (
+        "provider_structured_output_single_call_v1"
+    )
     assert len(request.user_prompt) < 10_000
     assert "Do not regenerate the research plan" in request.user_prompt
     assert "runtime_progress_snapshot" in request.user_prompt
@@ -1008,21 +1141,13 @@ def test_architect_feedback_route_is_small_same_model_decision() -> None:
 
 
 def test_terminal_gap_report_cannot_be_skipped_by_model_block() -> None:
-    backend = _RouteSequenceBackend(
-        [
-            {
-                "decision": "BLOCK",
-                "selected_subsystem": "NONE",
-                "objective": "",
-                "rationale": "No further candidate edit is justified.",
-            },
-            {
-                "decision": "ROUTE",
-                "selected_subsystem": "CriticEvaluator",
-                "objective": "Record the unresolved empirical gap.",
-                "rationale": "All substantive lanes are terminal.",
-            },
-        ]
+    backend = _RouteBackend(
+        {
+            "decision": "BLOCK",
+            "selected_subsystem": "NONE",
+            "objective": "",
+            "rationale": "No further candidate edit is justified.",
+        }
     )
     context = {
         "runtime_progress_snapshot": {
@@ -1039,23 +1164,25 @@ def test_terminal_gap_report_cannot_be_skipped_by_model_block() -> None:
         "terminal_gap_reporting_required": True,
     }
 
-    packet = LLMArchitectCoordinatorAgent(
-        provider=backend,
-        config=ArchitectCoordinatorConfig(
-            provider_name="anthropic",
-            model=EXACT_HAIKU_MODEL,
-            model_tier="haiku",
-            max_validation_retries=1,
-        ),
-    ).route_environment_feedback(
-        question=_question(),
-        architect_context=context,
-        environment_feedback=feedback,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        LLMArchitectCoordinatorAgent(
+            provider=backend,
+            config=ArchitectCoordinatorConfig(
+                provider_name="anthropic",
+                model=EXACT_HAIKU_MODEL,
+                model_tier="haiku",
+            ),
+        ).route_environment_feedback(
+            question=_question(),
+            architect_context=context,
+            environment_feedback=feedback,
+        )
 
-    assert packet["decision"] == "ROUTE"
-    assert packet["selected_subsystem"] == "CriticEvaluator"
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 1
+    assert exc_info.value.attempts == 1
+    assert exc_info.value.errors == [
+        "terminal evidence reporting requires ROUTE to CriticEvaluator"
+    ]
     prompt_payload = json.loads(
         backend.requests[0].user_prompt.rsplit("\n\n", 1)[1]
     )
@@ -1065,10 +1192,12 @@ def test_terminal_gap_report_cannot_be_skipped_by_model_block() -> None:
     )
     assert validate_architect_feedback_route_packet(
         {
-            **packet,
+            "operation": ARCHITECT_FEEDBACK_ROUTE_OPERATION,
+            "environment_feedback_fingerprint": "feedback:exact",
             "decision": "BLOCK",
             "selected_subsystem": "NONE",
             "objective": "",
+            "rationale": "No routable owner remains.",
         },
         required_terminal_reporter="CriticEvaluator",
     ) == [
@@ -1188,22 +1317,25 @@ def test_exhausted_candidate_lineage_cannot_immediately_route_to_same_producer()
             },
         ]
     )
-    packet = LLMArchitectCoordinatorAgent(
-        provider=backend,
-        config=ArchitectCoordinatorConfig(
-            provider_name="anthropic",
-            model=EXACT_HAIKU_MODEL,
-            model_tier="haiku",
-            max_validation_retries=1,
-        ),
-    ).route_environment_feedback(
-        question=_question(),
-        architect_context=context,
-        environment_feedback=feedback,
-    )
+    with pytest.raises(PacketValidationError) as exc_info:
+        LLMArchitectCoordinatorAgent(
+            provider=backend,
+            config=ArchitectCoordinatorConfig(
+                provider_name="anthropic",
+                model=EXACT_HAIKU_MODEL,
+                model_tier="haiku",
+            ),
+        ).route_environment_feedback(
+            question=_question(),
+            architect_context=context,
+            environment_feedback=feedback,
+        )
 
-    assert packet["selected_subsystem"] == "FormalizationEvaluator"
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 1
+    assert exc_info.value.attempts == 1
+    assert exc_info.value.errors == [
+        "ROUTE requires one available selected_subsystem"
+    ]
     assert "SimulationEvaluator" not in backend.requests[0].metadata[
         "available_route_subsystems"
     ]
@@ -1293,7 +1425,6 @@ def test_cross_artifact_review_keeps_true_source_owner_available_to_architect() 
             provider_name="anthropic",
             model=EXACT_HAIKU_MODEL,
             model_tier="haiku",
-            max_validation_retries=1,
         ),
     ).route_environment_feedback(
         question=_question(),

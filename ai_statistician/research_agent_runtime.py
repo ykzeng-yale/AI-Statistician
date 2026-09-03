@@ -1580,8 +1580,8 @@ class ArchitectCoordinatorRuntimeSubsystem:
                 return AgentStepResult(
                     status="BLOCKED",
                     rationale=(
-                        "The Architect model did not produce a valid compact feedback "
-                        "route after complete-packet regeneration."
+                        "The Architect model did not produce a valid single compact "
+                        "feedback-route control envelope."
                     ),
                     observations=(
                         EnvironmentObservation(
@@ -19110,9 +19110,9 @@ class CriticEvaluatorRuntimeSubsystem:
             )
         )
         critic_round = _critic_revision_round(context)
-        max_critic_revision_rounds = _effective_critic_revision_rounds(
-            context,
-            self.runtime_config,
+        max_critic_revision_rounds = max(
+            0,
+            int(self.runtime_config.max_critic_revision_rounds),
         )
         critic_evidence_contract = (
             critic_control.get("evidence_contract", {})
@@ -21664,21 +21664,6 @@ def _unique_runtime_artifact_id(
     if artifact_id not in blackboard.artifacts:
         return artifact_id
     return f"{artifact_id}:runtime_revision:{stable_hash(task_id)[:8]}"
-
-
-def _effective_critic_revision_rounds(
-    context: Mapping[str, Any],
-    config: ResearchAgentRuntimeConfig,
-) -> int:
-    configured = max(0, int(config.max_critic_revision_rounds))
-    policy = _architect_runtime_plan(context).get("iteration_policy", {})
-    if not isinstance(policy, Mapping):
-        return configured
-    try:
-        architect_max = int(policy.get("max_revision_rounds", configured) or configured)
-    except (TypeError, ValueError):
-        return configured
-    return max(0, min(configured, architect_max))
 
 
 def _runtime_source_theorem_kernel_closure_verified(

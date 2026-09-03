@@ -36,7 +36,7 @@ Goal, source policy, and task-intent evidence contract
 
 Frozen source-only or theory-only intent starts TheoryDeveloper directly; exact
 formal-only intent starts its RAG/Formalizer path. Otherwise the Architect resolves
-all four evidence dimensions over the configured workspace inventory, may revise its own dimensions on genuine replans, handles cross-workspace conflicts, and decides when to stop; only operator-requested dimensions are frozen. A
+all four evidence dimensions over the configured workspace inventory, may revise its own dimensions on genuine replans, handles cross-workspace conflicts, and decides when to stop; only operator-requested dimensions are frozen. Each Architect plan or cross-workspace route is one provider-native structured control call: an invalid envelope fails closed without resampling, model-authored scientific stop conditions cannot lower host-owned call or revision budgets, and irrelevant discovery lists may remain empty. A
 workspace-continuation budget covers same-owner progress and detached author-review-author work; each contiguous collaboration segment is bounded independently, while total telemetry accumulates. Accepted evidence entering a new lane and genuine cross-artifact conflicts remain outer graph transitions. Its boundary preserves the exact pending task without asking Architect. Routine syntax, ABI,
 compiler, simulation, or Lean failures stay with the model that owns the source.
 

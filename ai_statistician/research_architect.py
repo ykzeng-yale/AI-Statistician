@@ -892,7 +892,7 @@ def _compact_architect_runtime_plan_for_prompt(plan: Mapping[str, Any]) -> dict[
         ),
         "iteration_policy": _compact_prompt_mapping(
             plan.get("iteration_policy", {}),
-            keys=("stop_conditions", "max_revision_rounds"),
+            keys=("stop_conditions",),
             list_limit=3,
             text_limit=220,
         ),

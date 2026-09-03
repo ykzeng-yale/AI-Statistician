@@ -3862,6 +3862,11 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         research_source_discovery=preflight_research_source_discovery,
     )
     assert architect.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert not hasattr(architect.config, "max_validation_retries")
+    assert not hasattr(
+        architect.metric_semantic_reviewer.config,
+        "max_validation_retries",
+    )
     assert architect.metric_semantic_reviewer.source_retriever is (
         preflight_source_retriever
     )

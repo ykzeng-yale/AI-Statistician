@@ -78,7 +78,6 @@ def run_architect_research_path_policy_eval(
             model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
             max_tokens=max_tokens,
             temperature=temperature,
-            max_validation_retries=1,
         ),
     )
     rows: list[dict[str, Any]] = []
