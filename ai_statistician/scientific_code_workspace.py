@@ -74,7 +74,7 @@ from .scientific_project import (
     scientific_project_files_json_schema,
     scientific_project_hash,
 )
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from . import theory_workspace as theory_documents
 
 

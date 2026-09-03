@@ -217,7 +217,7 @@ from .formalizer_candidate_identity import (
     evaluate_candidate_lineage,
     source_theorem_explicit_target_ids,
 )
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .semantic_review_feedback import (
     coding_agent_observations_only,
 )
@@ -6735,7 +6735,7 @@ def _theory_developer_packet_validation_failure_result(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "question": _question_to_payload(question),
         "task_id": task.task_id,
-        "structured_output_retry_history": exc.history,
+        "validation_history": exc.history,
     }
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],

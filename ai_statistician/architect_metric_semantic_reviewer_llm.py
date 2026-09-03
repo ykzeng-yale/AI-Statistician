@@ -35,7 +35,7 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .theory_workspace import (
     THEORY_SCRATCHPAD_TOOL,
     TheoryScratchpadConfig,

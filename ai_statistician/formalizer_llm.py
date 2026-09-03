@@ -12,7 +12,7 @@ from .fingerprint import stable_hash
 from .formal_source_prompt_context import (
     compact_formal_source_grounding_hits_for_prompt,
 )
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .lean_candidate_revision_tool_loop import (
     LeanCandidateCheck,
     LeanCandidateProjectCheck,
@@ -358,8 +358,6 @@ class LLMFormalizerProofEngineerAgent:
             )
         revised_payload["ok"] = True
         revised_payload["validation_errors"] = []
-        revised_payload["structured_output_retry_attempts"] = 0
-        revised_payload["structured_output_retry_history"] = []
         packet = _normalize_formalizer_packet(
             revised_payload,
             question=question,

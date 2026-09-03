@@ -32,7 +32,7 @@ from .lean_project import (
     normalized_lean_project_files,
     persist_model_authored_lean_project,
 )
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 from . import theory_workspace as theory_documents
 

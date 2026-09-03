@@ -37,7 +37,7 @@ from ai_statistician.research_source_discovery import (
     PublicResearchSourceDiscoveryConfig,
     ResearchSourceDiscoveryError,
 )
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.theory_derivation_trace import (
     document_authoritative_theory_context,
 )

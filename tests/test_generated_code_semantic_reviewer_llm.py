@@ -28,7 +28,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     generated_code_semantic_review_prompt_projection,
     validate_generated_code_semantic_review_packet,
 )
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.model_backend import (
     ClientToolCall,
     ClientToolTurnResponse,

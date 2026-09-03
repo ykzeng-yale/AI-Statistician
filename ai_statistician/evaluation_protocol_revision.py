@@ -18,7 +18,7 @@ from .architect_theory_execution_preflight import (
     architect_theory_preflight_workspace_continuation_errors,
 )
 from .fingerprint import stable_hash
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .generated_metric_contract import (
     GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
     is_generated_metric_numeric_authority_error,
@@ -373,7 +373,7 @@ def architect_metric_requirement_validation_failure_result(
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "validation_attempts": exc.attempts,
-        "structured_output_retry_history": [dict(row) for row in exc.history],
+        "validation_history": [dict(row) for row in exc.history],
         "metric_protocol_workspace_checkpoint_available": bool(
             workspace_checkpoint
         ),
@@ -616,7 +616,8 @@ def architect_metric_semantic_review_validation_failure_result(
         if theory_preflight
         else (
             "This artifact records an independently generated pre-execution metric "
-            "review packet that remained structurally invalid after bounded repair. "
+            "review packet that remained structurally invalid after its bounded "
+            "retained reviewer session. "
             "Its locally validated author candidate is preserved for deterministic "
             "review replay when exact lineage is available, but remains unauthorized. "
             "The invalid review is feedback for the reviewer interface and is not "
@@ -637,7 +638,7 @@ def architect_metric_semantic_review_validation_failure_result(
         "validation_label": exc.validation_label,
         "validation_errors": validation_errors,
         "validation_attempts": exc.attempts,
-        "structured_output_retry_history": [dict(row) for row in exc.history],
+        "validation_history": [dict(row) for row in exc.history],
         "authoring_packet_available": bool(authoring_packet),
         "authoring_packet_id": authoring_packet_id,
         "authoring_packet_hash": observed_authoring_packet_hash,

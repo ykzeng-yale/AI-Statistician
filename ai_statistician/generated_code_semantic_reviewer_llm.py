@@ -23,7 +23,7 @@ from .estimator_interface_contract import (
     frozen_estimator_execution_contract_empirical_claim_ids,
 )
 from .fingerprint import stable_hash
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .metric_protocol_finding_ledger import (
     METRIC_PROTOCOL_FINDING_RETRACTED_RUNTIME_CONTRACT_CONFLICT,
     METRIC_PROTOCOL_FINDING_RESOLVED_BY_CURRENT_ARTIFACT,

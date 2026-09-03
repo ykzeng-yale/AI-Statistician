@@ -40,7 +40,7 @@ from ai_statistician.lean_candidate_identity import (
     _lean_axioms_from_report,
     run_lean_candidate_identity_probe,
 )
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     ClientToolCall,

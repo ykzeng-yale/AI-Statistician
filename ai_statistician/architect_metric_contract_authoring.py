@@ -48,7 +48,7 @@ from .generated_metric_contract import (
 from .implementation_metric_handoff import (
     accepted_implementation_interface_handoff_errors,
 )
-from .structured_output_retry import (
+from .packet_validation import (
     PacketValidationError,
     extract_json_object,
 )
@@ -2341,12 +2341,6 @@ def author_reviewed_architect_metric_requirements(
                 "theory_execution_preflight_model_tier": str(
                     theory_execution_preflight_packet.get("model_tier", "")
                     or ""
-                ),
-                "theory_execution_preflight_retry_attempts": int(
-                    theory_execution_preflight_packet.get(
-                        "structured_output_retry_attempts", 0
-                    )
-                    or 0
                 ),
                 "theory_execution_preflight_proof_evidence_status": str(
                     theory_execution_preflight_packet.get(

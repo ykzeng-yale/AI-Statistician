@@ -20,7 +20,7 @@ from .fingerprint import stable_hash
 from .generated_code_semantic_review_scope import (
     executable_evaluator_review_binding,
 )
-from .structured_output_retry import (
+from .packet_validation import (
     PacketValidationError,
 )
 from .model_backend import (

@@ -25,7 +25,7 @@ from ai_statistician.model_backend import (
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.research_source_library import load_research_source_snapshot
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.theory_revision_lineage import (
     build_theory_claim_revision_delta,
 )

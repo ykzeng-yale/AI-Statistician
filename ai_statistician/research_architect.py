@@ -29,7 +29,7 @@ from .model_backend import (
     StaticJSONGeneratorBackend,
     resolve_generator_model,
 )
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PREEXECUTION_REVIEW_OBSERVATION_KIND,
 )
@@ -3710,9 +3710,6 @@ def _theory_core_generation_phase_record(
         "phase": _theory_core_generation_phase(core_packet),
         "model": str(core_packet.get("model", "")),
         "model_tier": str(core_packet.get("model_tier", "")),
-        "structured_output_retry_attempts": core_packet.get(
-            "structured_output_retry_attempts", 0
-        ),
     }
     client_tool_loop = core_packet.get("llm_client_tool_loop", {})
     if isinstance(client_tool_loop, Mapping) and client_tool_loop:

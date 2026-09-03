@@ -16,7 +16,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 from .fingerprint import stable_hash
 from .formal_source_index import resolve_active_project_formal_source_file
 from .research_schema import FormalSubclaim
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 
 
 PROOF_STATE_FEEDBACK_STATUS = "PROOF_STATE_FEEDBACK_NOT_PROOF_EVIDENCE"

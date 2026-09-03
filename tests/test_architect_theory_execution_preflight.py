@@ -55,7 +55,7 @@ from ai_statistician.architect_theory_execution_preflight import (
     validate_architect_theory_execution_preflight_packet,
 )
 from ai_statistician.fingerprint import stable_hash
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.evaluation_protocol_revision import (
     architect_metric_requirement_validation_failure_result,
     architect_preexecution_metric_protocol_rejection_result,

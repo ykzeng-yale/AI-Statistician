@@ -61,7 +61,7 @@ from ai_statistician.metric_protocol_stage import (
 from ai_statistician.theory_revision_lineage import (
     consume_architect_routed_theory_revision,
 )
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 
 
 EXACT_HAIKU_MODEL = "claude-haiku-4-5-20251001"

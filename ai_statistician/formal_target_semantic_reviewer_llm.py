@@ -23,7 +23,7 @@ from .model_backend import (
     resolve_generator_model,
 )
 from .research_schema import OpenResearchQuestion
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,

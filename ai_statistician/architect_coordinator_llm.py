@@ -32,7 +32,7 @@ from .generated_metric_contract import (
     generated_sandbox_runtime_replicates,
     validate_generated_metric_requirements,
 )
-from .structured_output_retry import PacketValidationError, extract_json_object
+from .packet_validation import PacketValidationError, extract_json_object
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_NOT_REQUIRED,
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
@@ -1727,13 +1727,6 @@ def _architect_theory_execution_preflight_summary(
                 "theory_execution_preflight_model_tier", ""
             )
             or ""
-        ),
-        "structured_output_retry_attempts": int(
-            preflight.get("structured_output_retry_attempts", 0)
-            or metric_authoring_packet.get(
-                "theory_execution_preflight_retry_attempts", 0
-            )
-            or 0
         ),
         "n_findings": len(preflight.get("findings", []) or []),
         "proof_evidence_status": str(

@@ -23,7 +23,7 @@ from ai_statistician.generated_metric_contract import (
 )
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnResponse
 from ai_statistician.research_schema import OpenResearchQuestion
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.theory_workspace import (
     THEORY_SCRATCHPAD_TOOL,
     TheoryScratchpadConfig,

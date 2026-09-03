@@ -26,7 +26,7 @@ from ai_statistician.cli import (
     build_parser,
     main,
 )
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.estimator_interface_contract import (
     ESTIMATOR_REQUEST_BINDINGS,
     estimator_interface_contract_id,

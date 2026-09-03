@@ -57,7 +57,7 @@ from ai_statistician.simulation_engineer_llm import (
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
     SimulationEngineerConfig,
 )
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.theory_revision_lineage import (
     THEORY_CLAIM_REVISION_DELTA_KIND,
 )

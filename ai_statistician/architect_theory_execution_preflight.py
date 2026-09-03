@@ -21,7 +21,7 @@ from .client_tool_loop import (
     run_bounded_client_tool_loop,
 )
 from .fingerprint import stable_hash
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .model_backend import (
     ClientToolCall,
     ClientToolDefinition,

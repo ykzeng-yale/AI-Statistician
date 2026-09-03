@@ -32,7 +32,7 @@ from .formal_target_semantic_reviewer_llm import (
     LLMFormalTargetSemanticReviewerAgent,
     validate_formal_target_semantic_review_packet,
 )
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .research_schema import (
     OpenResearchQuestion,

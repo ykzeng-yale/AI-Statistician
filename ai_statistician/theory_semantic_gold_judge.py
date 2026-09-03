@@ -12,7 +12,7 @@ from .model_backend import (
     GeneratorBackend,
     GeneratorRequest,
 )
-from .structured_output_retry import extract_json_object
+from .packet_validation import extract_json_object
 
 
 THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (

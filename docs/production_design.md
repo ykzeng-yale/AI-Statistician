@@ -112,8 +112,8 @@ The harness must not own:
 - hidden bridge, queue, materializer, promotion, or fallback workflows;
 - proof credit for retrieval hits, LLM judgments, pseudo-formal text, or compilation of a weaker theorem.
 
-`structured_output_retry.py` is transport for compact control and handoff envelopes,
-not semantic repair. Substantive theory, Python, R, and Lean belong in model-owned
+`packet_validation.py` carries typed failure observations and compatibility JSON
+extraction; it never calls a model or regenerates content. Substantive theory, Python, R, and Lean belong in model-owned
 workspaces where the same model receives raw observations and authors the next state.
 Runtime may apply an exact model-authored write or edit but never chooses its content.
 Theory uses direct document reads, searches, complete writes, hash-bound local edits,
@@ -393,6 +393,6 @@ The preferred response is deletion and consolidation, not moving code behind a n
 - `scientific_sandbox.py`: isolated Pyodide/WebR execution.
 - Lean revision and kernel-promotion modules: direct checks and exact evidence gate.
 - `formal_source_index.py` and scoped retrievers: declaration-level formal RAG.
-- `structured_output_retry.py`: same-model schema retry transport.
+- `packet_validation.py`: typed validation failures and no-generation JSON reading.
 - `research_agent_runtime_audit.py`: integrated evidence audit, not a scheduler.
 Priorities are model-owned counterchecks, execution timing, independent gap review, and fresh evidence; never add repair agents or theorem-specific rules.

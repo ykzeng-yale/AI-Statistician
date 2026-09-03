@@ -55,7 +55,7 @@ from .scientific_sandbox import (
     execute_scientific_sandbox,
     generated_code_draft_json_schema,
 )
-from .structured_output_retry import PacketValidationError
+from .packet_validation import PacketValidationError
 
 
 THEORY_WORKSPACE_CHECKPOINT_KIND = "TheoryDeveloperWorkspaceCheckpoint"

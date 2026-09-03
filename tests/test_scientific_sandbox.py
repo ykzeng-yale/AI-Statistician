@@ -58,7 +58,7 @@ from ai_statistician.simulation_engineer_llm import (
     _validate_simulation_estimator_selection,
     validate_simulation_source_workspace_intent,
 )
-from ai_statistician.structured_output_retry import PacketValidationError
+from ai_statistician.packet_validation import PacketValidationError
 
 
 def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> None:
