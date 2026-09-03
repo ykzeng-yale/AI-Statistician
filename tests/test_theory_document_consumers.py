@@ -14,8 +14,6 @@ from ai_statistician.architect_theory_execution_preflight import (
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.formalizer_llm import (
     _build_lean_candidate_workspace_tool_prompt,
-    _formalizer_json_schema,
-    build_formalizer_prompt,
 )
 from ai_statistician.generated_code_semantic_review_scope import (
     generated_code_semantic_review_theory_projection,
@@ -126,37 +124,6 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
     assert expected_rows[0]["content"] == content
     assert len(expected_rows[0]["sha256"]) == 64
 
-    formalizer_prompt = build_formalizer_prompt(
-        question=OpenResearchQuestion(
-            id="question:C1",
-            title="Check C1",
-            description="Formalize one file-backed theory claim.",
-        ),
-        theory_packet=packet,
-        simulation_manifest={},
-        algorithm_manifest={},
-        registered_problem={},
-        theorem_goals=[
-            {
-                "id": "C1",
-                "informal_statement": "For every admitted law, E[Z] = 0.",
-            }
-        ],
-    )
-    formalizer_payload = json.loads(
-        formalizer_prompt[formalizer_prompt.index("{") :]
-    )
-    assert formalizer_payload["theory_packet_summary"][
-        "authoritative_theory_documents"
-    ] == expected_rows
-    formalizer_claim = next(
-        row
-        for row in formalizer_payload["theory_packet_summary"][
-            "theory_derivation_trace"
-        ]["claim_index"]
-        if row["id"] == "C1"
-    )
-    assert formalizer_claim["depends_on"] == ["C0"]
     revision_payload = json.loads(
         _build_lean_candidate_workspace_tool_prompt(
             question=OpenResearchQuestion(
@@ -561,8 +528,7 @@ def test_document_claim_dag_is_complete_and_exact_across_subagents(
         requires_typed_metric_contracts=False,
         theory_packet=packet,
     )
-    formalizer_schema = _formalizer_json_schema(theory_packet=packet)
-    for schema in (algorithm_schema, simulation_schema, formalizer_schema):
+    for schema in (algorithm_schema, simulation_schema):
         alignment_schema = schema["properties"]["theory_trace_alignment"]
         assert set(alignment_schema["properties"]) == {
             "referenced_claim_ids",

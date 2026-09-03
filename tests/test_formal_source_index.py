@@ -44,11 +44,10 @@ from ai_statistician.formal_source_retrieval_benchmark import (
     run_formal_source_retrieval_benchmark,
 )
 from ai_statistician.formalizer_llm import (
-    build_formalizer_prompt,
+    FORMALIZER_SYSTEM_PROMPT,
     formalizer_proof_construction_strategy_contract,
 )
 from ai_statistician.research_agent_runtime import _formal_source_hit_to_json
-from ai_statistician.research_lab import load_open_research_questions
 from ai_statistician.research_schema import OpenResearchQuestion
 
 
@@ -1961,7 +1960,7 @@ def test_formal_source_prompt_payload_omits_full_candidate_proof_body() -> None:
     assert nested["candidate_proof_body_hash"]
 
 
-def test_formalizer_prompt_makes_revision_strategy_model_owned() -> None:
+def test_formalizer_workspace_makes_revision_strategy_model_owned() -> None:
     contract = formalizer_proof_construction_strategy_contract()
     assert contract["schema_version"] == 16
     assert "exact task-bound theorem" in contract["target_identity"]
@@ -1975,29 +1974,14 @@ def test_formalizer_prompt_makes_revision_strategy_model_owned() -> None:
     assert "local Lean/kernel gate" in contract["evidence_boundary"]
     assert "opus" not in str(contract).lower()
 
-    question = load_open_research_questions(
-        Path("examples/research_questions.json")
-    )[0]
-    prompt = build_formalizer_prompt(
-        question=question,
-        theory_packet={},
-        simulation_manifest={},
-        algorithm_manifest={},
-        registered_problem={},
-        theorem_goals=[],
+    assert "complete Lean source" in FORMALIZER_SYSTEM_PROMPT
+    assert "raw Lean observations" in FORMALIZER_SYSTEM_PROMPT
+    assert "AgentRuntime preserves" in FORMALIZER_SYSTEM_PROMPT
+    assert "Statlib/Mathlib/project" in contract["library_context"]
+    assert "source_to_bridge_premise_derivation_candidates" not in (
+        FORMALIZER_SYSTEM_PROMPT
     )
-
-    assert "model_owned_formalizer_contract" in prompt
-    assert "complete current Lean source" in prompt
-    assert "raw verifier output" in prompt
-    assert "AgentRuntime enforces budgets" in prompt
-    assert "Statlib/Mathlib/project" in prompt
-    assert "proof_construction_strategy_contract" not in prompt
-    assert "current-active-frontier" in prompt
-    assert "Keep unrelated obligations separate" in prompt
-    assert "source_to_bridge_premise_derivation_candidates" not in prompt
-    assert "pseudo_formal_proof_packets" not in prompt
-    assert len(prompt) < 9000
+    assert "pseudo_formal_proof_packets" not in FORMALIZER_SYSTEM_PROMPT
 
 
 def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() -> None:

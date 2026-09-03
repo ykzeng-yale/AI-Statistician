@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 
-from ai_statistician.formalizer_llm import build_formalizer_prompt
-from ai_statistician.research_agent_runtime import (_formalizer_lean_candidate_revision_feedback,)
-from ai_statistician.research_schema import (OpenResearchQuestion,)
+from ai_statistician.formalizer_llm import (
+    _build_lean_candidate_workspace_tool_prompt,
+)
+from ai_statistician.research_agent_runtime import (
+    _formalizer_lean_candidate_revision_feedback,
+)
+from ai_statistician.research_schema import OpenResearchQuestion
 
 
 QUESTION = OpenResearchQuestion(
@@ -86,19 +90,35 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     )
     assert "future_repair_diagnostics" in row
 
-    prompt = build_formalizer_prompt(
+    prompt = _build_lean_candidate_workspace_tool_prompt(
         question=QUESTION,
         theory_packet={"packet_id": "theory:complete-feedback"},
-        simulation_manifest={},
-        algorithm_manifest={},
-        registered_problem={},
-        theorem_goals=[],
+        parent_packet={
+            "artifact_kind": "FormalizerWorkspaceTarget",
+            "target_ref_id": "formalizer_workspace_target:exact-target",
+            "formal_target": {
+                "id": "exact-target",
+                "formal_target_role": "SOURCE_THEOREM_CANDIDATE",
+                "informal_source": "The exact target holds.",
+                "candidate_lean_declaration": "exact_target",
+                "semantic_alignment_constraints": ["Preserve the target."],
+                "source_theorem_target_provenance": {
+                    "source_theorem_goal_id": "exact-target",
+                    "source_theorem_target_known": True,
+                },
+                "expected_status": "NEEDS_KERNEL_CHECK",
+            },
+        },
+        candidate_id="exact-target",
+        candidate_source_field="formal_targets",
+        candidate_lean_declaration="exact_target",
+        initial_source=source,
         environment_feedback=feedback,
     )
-    payload = json.loads(prompt[prompt.index('{"question":') :])
-    carried = payload["runtime_environment_feedback"]
+    payload = json.loads(prompt)
+    carried = payload["runtime_observations"]
     carried_row = carried["candidate_diagnostics"][0]
-    assert carried_row["lean_source"] == source
+    assert "lean_source" not in carried_row
     assert carried_row["local_lean_stdout"].endswith("STDOUT_TAIL")
     assert carried_row["local_lean_stderr"].endswith("STDERR_TAIL")
     assert carried_row["future_compiler_observation"]["provider_specific"] == (
@@ -112,7 +132,7 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
         "lean_lsp_mcp.lean_diagnostic_messages"
     )
     assert "required_change" not in (
-        carried["prior_environment_feedback"]["findings"][0]
+        carried["semantic_review"]["findings"][0]
     )
-    assert "complete standalone model-authored Lean source" in prompt
-    assert "AgentRuntime does not inject" in prompt
+    assert payload["boundaries"]["model_owns_lean_source_and_search_queries"]
+    assert payload["boundaries"]["runtime_selected_lean_code"] is False

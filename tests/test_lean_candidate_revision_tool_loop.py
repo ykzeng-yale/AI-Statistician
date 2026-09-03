@@ -4786,7 +4786,6 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
             provider_name="anthropic",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
             model_tier="haiku",
-            max_validation_retries=0,
             client_tool_lean_candidate_max_turns=4,
             client_tool_lean_candidate_max_no_progress_turns=1,
         ),
