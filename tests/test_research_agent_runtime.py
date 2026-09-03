@@ -53,8 +53,9 @@ from ai_statistician.research_architect import ResearchArchitectConfig
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import ScientificCodeWorkspaceResult
 from ai_statistician.simulation_engineer_llm import (
+    LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
-    build_simulation_engineer_prompt,
+    SimulationEngineerConfig,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
 from ai_statistician.theory_revision_lineage import (
@@ -670,28 +671,37 @@ def test_theory_scratch_uses_the_shared_workspace_tool_budget() -> None:
     assert not hasattr(config, "theory_scratch_max_runs")
 
 
-def test_confirmatory_simulation_prompt_can_withhold_the_execution_seed() -> None:
+def test_confirmatory_simulation_intent_withholds_seed_from_source_owner() -> None:
     question = OpenResearchQuestion(
         id="generic-seed-blind",
         title="Seed-blind confirmatory candidate",
         description="Author source before the evaluator reveals its cohort seed.",
     )
 
-    prompt = build_simulation_engineer_prompt(
+    class Provider:
+        provider_name = "anthropic"
+
+        @staticmethod
+        def generate_client_tool_turn(_request):
+            raise AssertionError("intent construction must not start the workspace")
+
+    packet = LLMSimulationEngineerAgent(
+        provider=Provider(),
+        config=SimulationEngineerConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).create_source_workspace_intent(
         question=question,
         theory_packet={},
-        registered_problem={},
-        registered_procedures=[],
         n_runs=8,
-        seed=None,
+        seed=41,
+        withhold_seed_from_model=True,
         environment_feedback={},
     )
-    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
-
-    assert payload["runtime_execution_budget"]["seed"] == "EVALUATOR_WITHHELD"
-    assert payload["runtime_execution_budget"]["seed_binding"] == (
-        "runtime_injected_after_candidate_authoring"
-    )
+    assert packet["candidate_model_seed_disclosure"] == "WITHHELD"
+    assert packet["planning_model_call_used"] is False
+    assert packet["source_workspace_planning_owned"] is True
 
 
 def test_scientific_workspace_receives_the_complete_metric_output_abi() -> None:
@@ -1164,11 +1174,11 @@ def test_provisional_theory_handoff_routes_exploration_without_theory_credit(
 
     class NoEvaluatorCall:
         @staticmethod
-        def propose(**_kwargs):
+        def create_source_workspace_intent(**_kwargs):
             raise AssertionError("unaccepted theory reached evaluator authoring")
 
     blocked = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=NoEvaluatorCall()
+        source_agent=NoEvaluatorCall()
     ).run(
         AgentTask(
             task_id="forbidden-evaluator-source:provisional-handoff",
@@ -1288,11 +1298,11 @@ def test_provisional_theory_handoff_routes_direct_simulation_back_to_theory(
         propose_calls = 0
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def create_source_workspace_intent(cls, **_kwargs):
             cls.propose_calls += 1
             return {
-                "artifact_kind": "SimulationEngineerProposalPacket",
-                "packet_id": "simulation-proposal:provisional-direct",
+                "artifact_kind": "SimulationSourceWorkspaceIntent",
+                "packet_id": "simulation-source-intent:provisional-direct",
                 "source_agent": "LLMSimulationEngineerAgent",
                 "model": LIVE_EVALUATION_CLAUDE_MODEL,
                 "model_tier": "haiku",
@@ -1345,7 +1355,7 @@ def test_provisional_theory_handoff_routes_direct_simulation_back_to_theory(
     )
     blackboard.artifacts.update(route.produced_artifacts)
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
     ).run(route.next_task, blackboard)
@@ -1382,7 +1392,7 @@ def test_provisional_theory_handoff_routes_direct_simulation_back_to_theory(
         "theory_preflight_packet_id"
     ] = "theory_preflight:forged"
     forged = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "forged",
     ).run(replace(route.next_task, inputs=forged_inputs), blackboard)
     assert forged.status == "BLOCKED"
@@ -1853,7 +1863,7 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     fresh_handoff = fresh_review.next_task.inputs["upstream_algorithm_handoff"]
     assert fresh_handoff["theory_packet_id"] == revised_id
 
-    evaluator_proposal_id = "simulation_proposal:revised-theory-evaluator"
+    evaluator_proposal_id = "simulation_source_intent:revised-theory-evaluator"
     evaluator_source = (
         "def run_sandbox(seed, replicates):\n"
         "    return {'acceptance_passed': True, "
@@ -1876,10 +1886,10 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
             raise AssertionError("source workspace is stubbed below")
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def create_source_workspace_intent(cls, **_kwargs):
             cls.proposal_calls += 1
             return {
-                "artifact_kind": "SimulationEngineerProposalPacket",
+                "artifact_kind": "SimulationSourceWorkspaceIntent",
                 "packet_id": evaluator_proposal_id,
                 "source_agent": "LLMSimulationEngineerAgent",
                 "provider": "anthropic",
@@ -1951,7 +1961,7 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
 
     blackboard.artifacts.update(fresh_review.produced_artifacts)
     evaluator_authoring = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=True,
     ).run(fresh_review.next_task, blackboard)
@@ -2036,7 +2046,7 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     )
     blackboard.artifacts.update(evaluator_review.produced_artifacts)
     confirmation = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation-confirmation",
         semantic_reviewer_available=True,
     ).run(evaluator_review.next_task, blackboard)
@@ -5401,7 +5411,7 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             {"estimator_id": "stable-estimator"},
         ],
     }
-    simulation_proposal_id = "simulation-proposal:generic-consumer"
+    simulation_proposal_id = "simulation-source-intent:generic-consumer"
     simulation_source = (
         "def run_sandbox(seed, replicates):\n"
         "    return {'generic_metric': float(replicates)}\n"
@@ -5474,7 +5484,7 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
         "manifest_id": simulation_manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_simulation_engineer_proposal_id": simulation_proposal_id,
+        "simulation_source_workspace_intent_artifact_id": simulation_proposal_id,
         "generated_simulation_sandbox_prototypes": [
             {
                 "simulation_id": "generic-consumer",
@@ -5878,9 +5888,9 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         "estimator_specs": [],
         "theorem_cards": [],
     }
-    proposal_id = "simulation-proposal:generic-parent"
+    proposal_id = "simulation-source-intent:generic-parent"
     proposal = {
-        "artifact_kind": "SimulationEngineerProposalPacket",
+        "artifact_kind": "SimulationSourceWorkspaceIntent",
         "packet_id": proposal_id,
         "source_agent": "LLMSimulationEngineerAgent",
         "source_provider": "anthropic",
@@ -5902,7 +5912,7 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         "manifest_id": prior_manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_simulation_engineer_proposal_id": proposal_id,
+        "simulation_source_workspace_intent_artifact_id": proposal_id,
         "generated_simulation_sandbox_prototypes": [
             {
                 "simulation_id": "generic-consumer",
@@ -5934,7 +5944,7 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         propose_calls = 0
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def create_source_workspace_intent(cls, **_kwargs):
             cls.propose_calls += 1
             raise AssertionError("consumer replay must bypass planning")
 
@@ -5976,7 +5986,7 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
         run_generated_simulation_sandbox,
     )
     subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
         consumer_revision_max_revisions=2,
@@ -6166,12 +6176,12 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
             raise AssertionError("source workspace is stubbed below")
 
         @classmethod
-        def propose(cls, **kwargs):
+        def create_source_workspace_intent(cls, **kwargs):
             cls.propose_calls += 1
             proposal_feedback.append(dict(kwargs["environment_feedback"]))
             return {
-                "artifact_kind": "SimulationEngineerProposalPacket",
-                "packet_id": "simulation-proposal:generic-exploratory",
+                "artifact_kind": "SimulationSourceWorkspaceIntent",
+                "packet_id": "simulation-source-intent:generic-exploratory",
                 "source_agent": "LLMSimulationEngineerAgent",
                 "model": "claude-haiku-4-5-20251001",
                 "model_tier": "haiku",
@@ -6231,7 +6241,7 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
         ),
     )
     subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
     )
@@ -6400,7 +6410,7 @@ def test_evaluator_authoring_validates_required_algorithm_before_model_call(
         propose_calls = 0
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def create_source_workspace_intent(cls, **_kwargs):
             cls.propose_calls += 1
             raise AssertionError(
                 "evaluator authoring must wait for its required algorithm handoff"
@@ -6436,7 +6446,7 @@ def test_evaluator_authoring_validates_required_algorithm_before_model_call(
     )
 
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=True,
     ).run(
@@ -6471,9 +6481,9 @@ def test_confirmatory_evaluator_replays_only_independently_reviewed_source(
         "estimator_specs": [],
         "theorem_cards": [],
     }
-    proposal_id = "simulation-proposal:reviewed-evaluator"
+    proposal_id = "simulation-source-intent:reviewed-evaluator"
     proposal = {
-        "artifact_kind": "SimulationEngineerProposalPacket",
+        "artifact_kind": "SimulationSourceWorkspaceIntent",
         "packet_id": proposal_id,
         "source_agent": "LLMSimulationEngineerAgent",
         "model": "claude-haiku-4-5-20251001",
@@ -6493,7 +6503,7 @@ def test_confirmatory_evaluator_replays_only_independently_reviewed_source(
         "manifest_id": authoring_manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_simulation_engineer_proposal_id": proposal_id,
+        "simulation_source_workspace_intent_artifact_id": proposal_id,
         "evaluator_source_authoring": True,
         "confirmatory_empirical_evidence_eligible": False,
         "generated_simulation_sandbox_prototypes": [
@@ -6525,7 +6535,7 @@ def test_confirmatory_evaluator_replays_only_independently_reviewed_source(
         provider = Provider()
 
         @staticmethod
-        def propose(**_kwargs):
+        def create_source_workspace_intent(**_kwargs):
             raise AssertionError("confirmatory replay must bypass planning")
 
         @staticmethod
@@ -6569,7 +6579,7 @@ def test_confirmatory_evaluator_replays_only_independently_reviewed_source(
         execute,
     )
     subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
     )
@@ -6661,7 +6671,7 @@ def test_evaluator_authoring_dispatches_review_before_confirmation(
         "estimator_specs": [],
         "theorem_cards": [],
     }
-    proposal_id = "simulation-proposal:generic-evaluator-authoring"
+    proposal_id = "simulation-source-intent:generic-evaluator-authoring"
 
     class Provider:
         @staticmethod
@@ -6676,9 +6686,9 @@ def test_evaluator_authoring_dispatches_review_before_confirmation(
             raise AssertionError("source workspace is stubbed in this state test")
 
         @staticmethod
-        def propose(**_kwargs):
+        def create_source_workspace_intent(**_kwargs):
             return {
-                "artifact_kind": "SimulationEngineerProposalPacket",
+                "artifact_kind": "SimulationSourceWorkspaceIntent",
                 "packet_id": proposal_id,
                 "source_agent": "LLMSimulationEngineerAgent",
                 "model": "claude-haiku-4-5-20251001",
@@ -6776,7 +6786,7 @@ def test_evaluator_authoring_dispatches_review_before_confirmation(
         },
     )
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=True,
     ).run(
@@ -7115,9 +7125,9 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
         "estimator_specs": [],
         "theorem_cards": [],
     }
-    proposal_id = "simulation-proposal:generic-reviewed-source"
+    proposal_id = "simulation-source-intent:generic-reviewed-source"
     proposal = {
-        "artifact_kind": "SimulationEngineerProposalPacket",
+        "artifact_kind": "SimulationSourceWorkspaceIntent",
         "packet_id": proposal_id,
         "source_agent": "LLMSimulationEngineerAgent",
         "model": "claude-haiku-4-5-20251001",
@@ -7136,7 +7146,7 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
         "manifest_id": parent_manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_simulation_engineer_proposal_id": proposal_id,
+        "simulation_source_workspace_intent_artifact_id": proposal_id,
         "generated_simulation_sandbox_prototypes": [
             {
                 "simulation_id": "generic-reviewed-source",
@@ -7193,7 +7203,7 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
         propose_calls = 0
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def create_source_workspace_intent(cls, **_kwargs):
             cls.propose_calls += 1
             raise AssertionError("semantic source continuation must bypass planning")
 
@@ -7254,7 +7264,7 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
     research_sources = object()
     research_source_discovery = object()
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=False,
         research_sources=research_sources,
@@ -7359,12 +7369,12 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         source_calls = 0
 
         @classmethod
-        def propose(cls, **kwargs):
+        def create_source_workspace_intent(cls, **kwargs):
             cls.propose_calls += 1
             proposal_calls.append(dict(kwargs))
             return {
-                "artifact_kind": "SimulationEngineerProposalPacket",
-                "packet_id": "simulation-proposal:confirmatory-blinding",
+                "artifact_kind": "SimulationSourceWorkspaceIntent",
+                "packet_id": "simulation-source-intent:confirmatory-blinding",
                 "source_agent": "LLMSimulationEngineerAgent",
                 "provider": "anthropic",
                 "provider_name": "anthropic",
@@ -7512,7 +7522,7 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
         run_generated_simulation_sandbox,
     )
     subsystem = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SimulationAgent(),
+        source_agent=SimulationAgent(),
         sandbox_root=tmp_path / "simulation",
         semantic_reviewer_available=True,
         consumer_revision_max_revisions=1,
@@ -8309,8 +8319,8 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
         "packet_id": theory_packet_id,
     }
     proposal_packet = {
-        "artifact_kind": "SimulationEngineerProposalPacket",
-        "packet_id": "simulation-proposal:accepted",
+        "artifact_kind": "SimulationSourceWorkspaceIntent",
+        "packet_id": "simulation-source-intent:accepted",
         "source_agent": "LLMSimulationEngineerAgent",
         "model": "static-author",
         "model_tier": "haiku",
@@ -8320,7 +8330,7 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
         "manifest_id": simulation_manifest_id,
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_simulation_engineer_proposal_id": proposal_packet["packet_id"],
+        "simulation_source_workspace_intent_artifact_id": proposal_packet["packet_id"],
         "generated_simulation_sandbox_prototypes": [
             {
                 "simulation_id": "generic-simulation",

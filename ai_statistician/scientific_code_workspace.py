@@ -1570,11 +1570,11 @@ def scientific_consumer_replay_drafts(
         or str(question.get("id", "") or "") != question_id
     ):
         errors.append("consumer resume manifest lineage is invalid")
-    proposal_id = str(
-        manifest.get("llm_simulation_engineer_proposal_id", "") or ""
+    intent_artifact_id = str(
+        manifest.get("simulation_source_workspace_intent_artifact_id", "") or ""
     ).strip()
-    if not proposal_id:
-        errors.append("consumer resume proposal identity is missing")
+    if not intent_artifact_id:
+        errors.append("consumer resume source intent identity is missing")
     drafts: list[dict[str, Any]] = []
     for raw_row in manifest.get(
         "generated_simulation_sandbox_prototypes", []
@@ -1596,7 +1596,7 @@ def scientific_consumer_replay_drafts(
             drafts.append({"simulation_id": simulation_id, **draft})
     if not drafts:
         errors.append("consumer resume has no exact executable source")
-    return proposal_id, drafts, sorted(set(errors))
+    return intent_artifact_id, drafts, sorted(set(errors))
 
 
 def scientific_consumer_revision_sources(

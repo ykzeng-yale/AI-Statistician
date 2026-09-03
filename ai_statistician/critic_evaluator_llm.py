@@ -1645,16 +1645,10 @@ def build_critic_canonical_evidence_view(
         "scientific_code": algorithm_view,
         "empirical": simulation_view,
         "formal": formal_view,
-        "excluded_legacy_fields": [
-            "exploratory_simulation_passed",
-            "registered_simulation_passed",
-            "registered_procedures",
-        ],
         "boundary": (
             "This view projects exact current artifact identities, source-replication "
             "state, independent review bindings, generated execution outcomes, and "
-            "formal authority. Omitted legacy lane fields are not evidence of missing "
-            "work."
+            "formal authority. Fields outside this canonical view are not evidence."
         ),
     }
     body["required_dimension_evidence_gaps"] = (

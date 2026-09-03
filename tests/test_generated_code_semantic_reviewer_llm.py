@@ -89,7 +89,7 @@ def _question_with_estimator_contract() -> OpenResearchQuestion:
     )
 
 
-def test_simulation_proposal_review_uses_current_dependency_projection_only() -> None:
+def test_simulation_source_intent_review_uses_current_dependency_projection_only() -> None:
     source = (
         "from helper import transform\n\n"
         "def run_estimator(request): return transform(request)\n"

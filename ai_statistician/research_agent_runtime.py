@@ -327,7 +327,7 @@ from .simulation_engineer_llm import (
     EMPIRICAL_EVALUATION_PHASE_EXPLORATORY,
     LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_BOUNDARY,
-    SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    SIMULATION_SOURCE_WORKSPACE_INTENT_NOT_EXECUTION_EVIDENCE,
 )
 from .task_family import primary_task_family_from_question
 from .theory_derivation_trace import (
@@ -9135,7 +9135,7 @@ class SimulationEvaluatorRuntimeSubsystem:
     def __init__(
         self,
         *,
-        proposal_agent: LLMSimulationEngineerAgent | None = None,
+        source_agent: LLMSimulationEngineerAgent | None = None,
         sandbox_root: Path = Path("runs") / "generated_simulation_sandbox",
         semantic_reviewer_available: bool = False,
         consumer_revision_max_revisions: int = 1,
@@ -9143,7 +9143,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         research_sources: ResearchSourceSnapshot | None = None,
         research_source_discovery: ResearchSourceDiscovery | None = None,
     ) -> None:
-        self.proposal_agent = proposal_agent
+        self.source_agent = source_agent
         self.sandbox_root = sandbox_root
         self.semantic_reviewer_available = bool(semantic_reviewer_available)
         self.consumer_revision_max_revisions = max(
@@ -9554,7 +9554,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 question_id=question.id,
                 theory_packet_id=packet_id,
                 expected_manifest_kind="RuntimeSimulationManifest",
-                proposal_id_field="llm_simulation_engineer_proposal_id",
+                proposal_id_field="simulation_source_workspace_intent_artifact_id",
                 row_id_field="simulation_id",
                 expected_source_ids=(),
                 source_accepted=simulation_source_accepted,
@@ -9562,7 +9562,7 @@ class SimulationEvaluatorRuntimeSubsystem:
         )
         scientific_progress_mode = bool(scientific_progress)
         source_workspace_available = scientific_source_workspace_available(
-            self.proposal_agent
+            self.source_agent
         )
         progress_parent_rows_by_id: dict[str, dict[str, Any]] = {}
         progress_checkpoints: dict[str, dict[str, Any]] = {}
@@ -9595,7 +9595,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 return scientific_workspace_progress_rejected_result(
                     task=task,
                     validation_errors=[
-                        "simulation proposal targets do not match progress manifest"
+                        "simulation source intent targets do not match progress manifest"
                     ],
                     prior_observations=observations,
                 )
@@ -9821,7 +9821,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
             ):
                 revision_errors.append(
-                    "confirmatory simulation source proposal is missing or stale"
+                    "confirmatory simulation source intent is missing or stale"
                 )
             if revision_errors:
                 return AgentStepResult(
@@ -10001,13 +10001,11 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
             try:
                 with agent_runtime_substage("simulation_source_workspace_intent"):
-                    proposal_packet = self.proposal_agent.propose(
+                    proposal_packet = self.source_agent.create_source_workspace_intent(
                         question=question,
                         theory_packet=(
                             packet if isinstance(packet, Mapping) else {}
                         ),
-                        registered_problem=_problem_to_json(problem),
-                        registered_procedures=[],
                         n_runs=n_runs,
                         seed=seed,
                         withhold_seed_from_model=confirmatory_seed_blind,
@@ -10043,19 +10041,26 @@ class SimulationEvaluatorRuntimeSubsystem:
             produced_artifacts[proposal_id] = proposal_packet
             observations.append(
                 EnvironmentObservation(
-                    observation_type="llm_simulation_engineer_proposal",
+                    observation_type="simulation_source_workspace_intent",
                     summary=(
-                        "validated LLM SimulatorEngineer proposal recorded before "
-                        "registered simulator execution"
+                        "Runtime-bound Simulation source target recorded before "
+                        "the retained model authors or executes source"
                     ),
                     payload={
                         "packet_id": proposal_id,
-                        "n_dgp_plan_rows": len(proposal_packet.get("dgp_plan", []) or []),
-                        "n_stress_tests": len(proposal_packet.get("stress_tests", []) or []),
                         "n_simulation_code_drafts": len(
                             proposal_packet.get("simulation_code_drafts", []) or []
                         ),
-                        "simulation_evidence_status": SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+                        "source_workspace_intent_id": str(
+                            proposal_packet.get(
+                                "source_workspace_intent_id", ""
+                            )
+                            or ""
+                        ),
+                        "planning_model_call_used": False,
+                        "simulation_evidence_status": (
+                            SIMULATION_SOURCE_WORKSPACE_INTENT_NOT_EXECUTION_EVIDENCE
+                        ),
                         "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
                         "theory_trace_consumption_contract": simulation_theory_trace_contract,
                         "theory_trace_alignment_contract": simulation_theory_trace_alignment_contract,
@@ -10066,15 +10071,18 @@ class SimulationEvaluatorRuntimeSubsystem:
                 evidence_id="evidence:" + stable_hash([task.task_id, proposal_id])[:20],
                 task_id=task.task_id,
                 artifact_id=proposal_id,
-                evidence_type="llm_simulation_engineer_proposal",
-                status="PROPOSAL_RECORDED_REQUIRES_RUNTIME_EXECUTION",
+                evidence_type="simulation_source_workspace_intent",
+                status="INTENT_RECORDED_REQUIRES_MODEL_AUTHORED_SOURCE",
                 boundary=SIMULATION_ENGINEER_BOUNDARY,
                 payload={
-                    "n_dgp_plan_rows": len(proposal_packet.get("dgp_plan", []) or []),
-                    "n_stress_tests": len(proposal_packet.get("stress_tests", []) or []),
                     "n_simulation_code_drafts": len(
                         proposal_packet.get("simulation_code_drafts", []) or []
                     ),
+                    "source_workspace_intent_id": str(
+                        proposal_packet.get("source_workspace_intent_id", "")
+                        or ""
+                    ),
+                    "planning_model_call_used": False,
                     "simulations_executed": False,
                     "proof_evidence_status": "NOT_PROOF_EVIDENCE",
                     "runtime_theory_trace_consumption_contract": runtime_theory_trace_contract,
@@ -10088,11 +10096,6 @@ class SimulationEvaluatorRuntimeSubsystem:
             environment_feedback,
             subsystem="SimulationEvaluator",
         ) and not exploratory_diagnostic and not executable_evaluator_source
-        registered_simulator_tool_calls: tuple[ToolCallRecord, ...] = ()
-        registered_baseline_skip_reason = (
-            "Canonical AgentRuntime requires model-owned scientific source; "
-            "task-family simulator registries are not a product execution path."
-        )
         generated_simulation_rows: list[dict[str, Any]] = []
         if scientific_progress_mode:
             generated_simulation_rows.extend(
@@ -10141,7 +10144,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             )
         if (
             requires_generated_simulation_code
-            and self.proposal_agent is not None
+            and self.source_agent is not None
             and proposal_packet is not None
             and not simulation_code_drafts
         ):
@@ -10154,9 +10157,8 @@ class SimulationEvaluatorRuntimeSubsystem:
                         ),
                         "executor": "generated_simulation_sandbox",
                         "reason": (
-                            "Agentic simulation authority requires an LLM-generated "
-                            "simulation_code_drafts entry. Registered simulators are "
-                            "optional baselines and cannot satisfy this evidence gate."
+                            "Simulation execution requires a source-workspace target "
+                            "bound to the retained SimulationEngineer."
                         ),
                         "smoke_passed": False,
                         "execution_smoke_passed": False,
@@ -10362,7 +10364,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 }
             prototype, source_tool_calls = (
                 _run_source_owner_scientific_workspace(
-                    proposal_agent=self.proposal_agent,
+                    proposal_agent=self.source_agent,
                     question=question,
                     artifact_id=f"{question.id}:{simulation_id}",
                     code_draft=draft,
@@ -10585,7 +10587,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             for row in generated_simulation_rows
         )
         generated_simulation_revision_required = bool(
-            self.proposal_agent is not None
+            self.source_agent is not None
             and (
                 (
                     requires_generated_simulation_code
@@ -10677,7 +10679,7 @@ class SimulationEvaluatorRuntimeSubsystem:
             "research_problem_authority": problem_authority,
             **problem_authority,
             "theory_trace_consumption_contract": runtime_theory_trace_contract,
-            "llm_simulation_engineer_proposal_id": (
+            "simulation_source_workspace_intent_artifact_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
             ),
             "scientific_source_workspace_owns_planning": bool(
@@ -10695,18 +10697,13 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
                 and proposal_packet.get("planning_model_call_used") is not False
             ),
-            "llm_simulation_engineer_theory_trace_consumption_contract": (
+            "simulation_source_workspace_theory_trace_consumption_contract": (
                 simulation_theory_trace_contract
             ),
-            "llm_simulation_engineer_theory_trace_alignment_contract": (
+            "simulation_source_workspace_theory_trace_alignment_contract": (
                 simulation_theory_trace_alignment_contract
             ),
             "problem": _problem_to_json(problem),
-            "registered_procedures": [],
-            "registered_baseline_execution_skipped": True,
-            "registered_baseline_execution_skipped_reason": (
-                registered_baseline_skip_reason
-            ),
             "theorem_goals": [_theorem_goal_to_json(row) for row in theorem_goals],
             "simulations": [],
             "generated_simulation_sandbox_prototypes": generated_simulation_rows,
@@ -10837,9 +10834,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                         confirmatory_empirical_evidence_eligible
                     ),
                     "simulation_evidence_source": simulation_evidence_source,
-                    "registered_baseline_execution_skipped": bool(
-                        registered_baseline_skip_reason
-                    ),
                     "procedure_ids": [],
                     "failed_procedure_ids": [],
                     "n_generated_simulation_sandbox_executed": n_generated_simulation_executed,
@@ -10991,10 +10985,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                     source_owner="SimulationEngineer",
                     produced_artifacts=produced_artifacts,
                     observations=observations,
-                    tool_calls=[
-                        *registered_simulator_tool_calls,
-                        *generated_simulation_tool_calls,
-                    ],
+                    tool_calls=generated_simulation_tool_calls,
                     evidence_entries=(proposal_evidence, evidence, progress_evidence),
                     next_task=progress_next_task,
                     failure_classification="simulation_source_workspace_progress_checkpoint",
@@ -11128,7 +11119,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                         produced_artifacts=produced_artifacts,
                         observations=tuple(observations),
                         tool_calls=(
-                            *registered_simulator_tool_calls,
                             *generated_simulation_tool_calls,
                         ),
                         evidence_entries=tuple(
@@ -11279,7 +11269,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                     produced_artifacts=produced_artifacts,
                     observations=tuple(observations),
                     tool_calls=(
-                        *registered_simulator_tool_calls,
                         *generated_simulation_tool_calls,
                     ),
                     evidence_entries=tuple(
@@ -11400,7 +11389,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
                 tool_calls=(
-                    *registered_simulator_tool_calls,
                     *generated_simulation_tool_calls,
                 ),
                 evidence_entries=tuple(
@@ -11845,7 +11833,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                     produced_artifacts=produced_artifacts,
                     observations=tuple(observations),
                     tool_calls=(
-                        *registered_simulator_tool_calls,
                         *generated_simulation_tool_calls,
                     ),
                     evidence_entries=tuple(
@@ -11877,7 +11864,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                 produced_artifacts=produced_artifacts,
                 observations=tuple(observations),
                 tool_calls=(
-                    *registered_simulator_tool_calls,
                     *generated_simulation_tool_calls,
                 ),
                 evidence_entries=tuple(
@@ -11932,7 +11918,6 @@ class SimulationEvaluatorRuntimeSubsystem:
             produced_artifacts=produced_artifacts,
             observations=tuple(observations),
             tool_calls=(
-                *registered_simulator_tool_calls,
                 *generated_simulation_tool_calls,
             ),
             evidence_entries=tuple(row for row in (proposal_evidence, evidence) if row is not None),
@@ -17059,7 +17044,7 @@ def _runtime_architect_control_subsystem_for_artifact(
         "RuntimeRetrievalMemoryManifest": "RetrievalMemory",
         "TheoryDerivationPacket": "TheoryDeveloper",
         "RuntimeTheoryDerivationPacket": "TheoryDeveloper",
-        "SimulationEngineerProposalPacket": "SimulationEvaluator",
+        "SimulationSourceWorkspaceIntent": "SimulationEvaluator",
         "RuntimeSimulationManifest": "SimulationEvaluator",
         "AlgorithmEngineerProposalPacket": "AlgorithmEngineer",
         "RuntimeAlgorithmSandboxManifest": "AlgorithmEngineer",
@@ -20177,7 +20162,7 @@ def run_research_agent_runtime(
                 theory_scratchpad=theory_scratchpad,
             ),
             "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
-                proposal_agent=simulation_engineer,
+                source_agent=simulation_engineer,
                 sandbox_root=out_dir / "generated_simulation_sandbox",
                 timeout_s=config.generated_simulation_timeout_seconds,
                 semantic_reviewer_available=(
@@ -23180,7 +23165,7 @@ def _runtime_theory_trace_consumption_contracts(
 ) -> list[dict[str, Any]]:
     contract_keys = (
         "theory_trace_consumption_contract",
-        "llm_simulation_engineer_theory_trace_consumption_contract",
+        "simulation_source_workspace_theory_trace_consumption_contract",
         "llm_algorithm_engineer_theory_trace_consumption_contract",
         "llm_formalizer_proof_engineer_theory_trace_consumption_contract",
     )

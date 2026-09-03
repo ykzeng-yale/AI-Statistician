@@ -946,7 +946,6 @@ def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, defa
             max_tokens=getattr(args, "simulation_max_tokens", 8000),
             temperature=getattr(args, "simulation_temperature", 0.1),
             provider_name=provider_name,
-            max_validation_retries=0,
         ),
     )
 

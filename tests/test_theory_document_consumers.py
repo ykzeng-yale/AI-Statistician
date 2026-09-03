@@ -22,10 +22,6 @@ from ai_statistician.metric_protocol_stage import (
     build_theory_informed_metric_protocol_material,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
-from ai_statistician.simulation_engineer_llm import (
-    _compact_theory_packet_for_simulation,
-    _simulation_engineer_response_schema,
-)
 from ai_statistician.theory_derivation_trace import (
     document_authoritative_theory_context,
     theory_trace_alignment_contract,
@@ -111,7 +107,11 @@ def test_every_theory_consumer_reads_the_same_hash_bound_document(
     packet, content = _document_theory_packet(tmp_path)
 
     algorithm = _compact_theory_packet_for_algorithm(packet)
-    simulation = _compact_theory_packet_for_simulation(packet)
+    simulation = document_authoritative_theory_context(
+        packet,
+        max_rows=3,
+        text_limit=240,
+    )
     review = generated_code_semantic_review_theory_projection(
         theory_packet=packet,
         proposal_packet={},
@@ -278,7 +278,11 @@ def test_document_authority_replaces_duplicate_structured_math_for_coding_agents
 
     context = document_authoritative_theory_context(packet)
     algorithm = _compact_theory_packet_for_algorithm(packet)
-    simulation = _compact_theory_packet_for_simulation(packet)
+    simulation = document_authoritative_theory_context(
+        packet,
+        max_rows=3,
+        text_limit=240,
+    )
 
     assert context["document_authoritative"] is True
     assert context["authoritative_theory_documents"][0]["content"] == content
@@ -300,7 +304,7 @@ def test_document_authority_replaces_duplicate_structured_math_for_coding_agents
         "estimator_interface_contract",
         "estimator_interface_contract_id",
     }
-    assert set(simulation["estimator_specs"][0]) == {"id", "name"}
+    assert "estimator_specs" not in simulation
     assert algorithm["estimator_specs"][0]["estimator_interface_contract"][
         "response_fields"
     ][0]["derivation_ref"] == "C1"
@@ -474,7 +478,11 @@ def test_document_claim_dag_is_complete_and_exact_across_subagents(
     ]
 
     algorithm = _compact_theory_packet_for_algorithm(packet)
-    simulation = _compact_theory_packet_for_simulation(packet)
+    simulation = document_authoritative_theory_context(
+        packet,
+        max_rows=3,
+        text_limit=240,
+    )
     assert len(algorithm["theory_derivation_trace"]["derivation_steps"]) == 3
     assert [
         row["id"] for row in algorithm["theory_derivation_trace"]["claim_index"]
@@ -522,21 +530,14 @@ def test_document_claim_dag_is_complete_and_exact_across_subagents(
         requires_generated_code=True,
         theory_packet=packet,
     )
-    simulation_schema = _simulation_engineer_response_schema(
-        authoritative_metric_requirements=[],
-        requires_generated_code=True,
-        requires_typed_metric_contracts=False,
-        theory_packet=packet,
-    )
-    for schema in (algorithm_schema, simulation_schema):
-        alignment_schema = schema["properties"]["theory_trace_alignment"]
-        assert set(alignment_schema["properties"]) == {
-            "referenced_claim_ids",
-            "rationale",
-        }
-        assert alignment_schema["properties"]["referenced_claim_ids"]["items"][
-            "enum"
-        ] == ["C0", "C1", "C2", "C3", "C4", "C5"]
+    alignment_schema = algorithm_schema["properties"]["theory_trace_alignment"]
+    assert set(alignment_schema["properties"]) == {
+        "referenced_claim_ids",
+        "rationale",
+    }
+    assert alignment_schema["properties"]["referenced_claim_ids"]["items"][
+        "enum"
+    ] == ["C0", "C1", "C2", "C3", "C4", "C5"]
 
     review = generated_code_semantic_review_theory_projection(
         theory_packet=packet,

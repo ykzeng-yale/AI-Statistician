@@ -53,14 +53,12 @@ from ai_statistician.scientific_code_workspace import (
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
-    SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
+    SIMULATION_SOURCE_WORKSPACE_INTENT_NOT_EXECUTION_EVIDENCE,
     SimulationEngineerConfig,
-    _normalize_simulation_packet,
-    _simulation_engineer_response_schema,
-    _validate_capability_eval_generated_simulation_packet,
+    _build_simulation_source_workspace_intent,
+    _validate_simulation_source_workspace_intent_metrics,
     _validate_simulation_estimator_selection,
-    build_simulation_engineer_prompt,
-    validate_simulation_engineer_packet,
+    validate_simulation_source_workspace_intent,
 )
 from ai_statistician.structured_output_retry import PacketValidationError
 
@@ -429,7 +427,7 @@ def test_estimator_binding_rejects_tampered_source_hash_before_execution(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_algorithm_and_simulation_packets_accept_declared_r_drafts() -> None:
+def test_algorithm_packet_accepts_r_while_simulation_rejects_embedded_source() -> None:
     r_draft = {
         "language": "r",
         "execution_profile": "scientific_wasm",
@@ -470,14 +468,21 @@ def test_algorithm_and_simulation_packets_accept_declared_r_drafts() -> None:
         "critic_findings": [{"finding": "inspect tails"}],
         "next_actions": [{"owner_agent": "SimulationEngineer"}],
         "simulation_evidence_status": (
-            SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
+            SIMULATION_SOURCE_WORKSPACE_INTENT_NOT_EXECUTION_EVIDENCE
         ),
         "simulations_executed": False,
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
 
     assert validate_algorithm_engineer_packet(algorithm_packet) == []
-    assert validate_simulation_engineer_packet(simulation_packet) == []
+    simulation_errors = validate_simulation_source_workspace_intent(simulation_packet)
+    assert "simulation source must use native client-tool transport" in (
+        simulation_errors
+    )
+    assert any(
+        "client-tool source descriptors" in error
+        for error in simulation_errors
+    )
 
 
 def test_native_source_transport_accepts_identity_only_planning_envelopes() -> None:
@@ -511,79 +516,31 @@ def test_native_source_transport_accepts_identity_only_planning_envelopes() -> N
         "scientific_source_transport": (
             SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
         ),
+        "source_workspace_planning_owned": True,
+        "source_workspace_intent_id": "simulation_source_workspace_intent:test",
+        "planning_model_call_used": False,
         "simulation_evidence_status": (
-            SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
+            SIMULATION_SOURCE_WORKSPACE_INTENT_NOT_EXECUTION_EVIDENCE
         ),
         "simulations_executed": False,
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
     }
 
     assert validate_algorithm_engineer_packet(algorithm_packet) == []
-    assert validate_simulation_engineer_packet(simulation_packet) == []
+    assert validate_simulation_source_workspace_intent(simulation_packet) == []
 
 
-def test_simulation_execution_owner_is_explicit_not_inferred_from_drafts() -> None:
-    packet = {
-        "simulation_targets": [{"procedure_id": "legacy-diagnostic"}],
-        "simulation_code_drafts": [
-            {
-                "simulation_id": "optional-proposal",
-                "required_estimator_ids": [],
-                "language": "python",
-                "dependencies": [],
-                "entrypoint": "run_sandbox",
-                "code": "def run_sandbox(seed, replicates, estimators):\n    return {'ok': True}",
-            }
-        ],
-        "runtime_execution_plan": {
-            "execution_owner": "legacy_registered_simulator",
-            "registered_simulator": "ResearchSimulator.run",
-        },
-        "critic_findings": [{"finding": "legacy compatibility only"}],
-        "next_actions": [{"owner_agent": "SimulationEngineer"}],
-        "simulation_evidence_status": (
-            SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
-        ),
-        "simulations_executed": False,
-        "proof_evidence_status": "NOT_PROOF_EVIDENCE",
-    }
-
-    assert validate_simulation_engineer_packet(packet) == []
-
-
-def test_native_source_transport_removes_source_from_provider_schema() -> None:
+def test_native_algorithm_source_transport_removes_source_from_provider_schema() -> None:
     algorithm_schema = _algorithm_engineer_response_schema(
         implementation_gaps=[{"estimator_id": "candidate-a"}],
         requires_generated_code=True,
         defer_source_authoring=True,
     )
-    simulation_schema = _simulation_engineer_response_schema(
-        authoritative_metric_requirements=[],
-        requires_generated_code=True,
-        requires_typed_metric_contracts=False,
-        upstream_estimator_ids=("candidate-a",),
-        defer_source_authoring=True,
-    )
-
     algorithm_draft = algorithm_schema["properties"]["sandbox_code_drafts"][
         "items"
     ]
-    simulation_draft = simulation_schema["properties"][
-        "simulation_code_drafts"
-    ]["items"]
     assert algorithm_draft["required"] == ["estimator_id"]
     assert set(algorithm_draft["properties"]) == {"estimator_id"}
-    assert simulation_draft["required"] == [
-        "simulation_id",
-        "required_estimator_ids",
-    ]
-    assert set(simulation_draft["properties"]) == {
-        "simulation_id",
-        "required_estimator_ids",
-    }
-    assert "registered_simulator" not in simulation_schema["properties"][
-        "runtime_execution_plan"
-    ]["properties"]
 
 
 def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
@@ -600,41 +557,11 @@ def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
         theory_anchor_id="theory_artifact:generic",
     )
     assert requirement_errors == []
-    schema = _simulation_engineer_response_schema(
-        authoritative_metric_requirements=[requirement],
-        requires_generated_code=True,
-        requires_typed_metric_contracts=True,
-        defer_source_authoring=True,
-    )
-    assert schema["properties"]["metric_contracts"]["maxItems"] == 0
-
     question = OpenResearchQuestion(
         id="generic-source-acceptance",
         title="Evaluate one generic source acceptance program",
         description="Run one model-authored confirmatory evaluator.",
     )
-    prompt = build_simulation_engineer_prompt(
-        question=question,
-        theory_packet={},
-        registered_problem={},
-        registered_procedures=[],
-        n_runs=2_000,
-        seed=7,
-        environment_feedback={
-            "runtime_requested_evidence_contract": {
-                "research_evaluation_requires_generated_simulation_code": True,
-                "empirical_metric_requirements": [requirement],
-            }
-        },
-        defer_source_authoring=True,
-    )
-    prompt_payload = json.loads(prompt.rsplit("\n\n", 1)[1])
-    capability_default = prompt_payload["generated_simulation_code_contract"][
-        "capability_eval_default"
-    ]
-    assert "leave metric_contracts empty" in capability_default
-    assert "include metric_contracts rows" not in capability_default
-
     model_payload = {
         "theory_trace_alignment": {},
         "simulation_targets": [
@@ -672,7 +599,6 @@ def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
         "model_tier": "haiku",
         "provider_name": "anthropic",
         "backend_provider_name": "anthropic",
-        "raw_response": "source-acceptance-envelope",
         "theory_packet": {},
         "n_runs": 2_000,
         "seed": 7,
@@ -681,12 +607,8 @@ def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
             "architect_authored_coding_agent_bound_required"
         ),
         "empirical_evaluation_phase": "confirmatory",
-        "scientific_source_transport": (
-            SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
-        ),
-        "agentic_execution": True,
     }
-    packet = _normalize_simulation_packet(
+    packet = _build_simulation_source_workspace_intent(
         model_payload,
         **normalization_kwargs,
     )
@@ -703,14 +625,14 @@ def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
     )
     assert binding["requirement_id"] == requirement["requirement_id"]
     assert binding["evaluator_mode"] == "simulation_source_acceptance_v1"
-    assert _validate_capability_eval_generated_simulation_packet(
+    assert _validate_simulation_source_workspace_intent_metrics(
         packet,
         authoritative_metric_requirements=[requirement],
         require_authoritative_requirements=True,
         require_typed_metric_contracts=True,
     ) == []
 
-    injected_packet = _normalize_simulation_packet(
+    injected_packet = _build_simulation_source_workspace_intent(
         {
             **model_payload,
             "metric_contracts": [
@@ -724,7 +646,7 @@ def test_source_acceptance_program_uses_runtime_bound_metric_path() -> None:
         },
         **normalization_kwargs,
     )
-    injected_errors = _validate_capability_eval_generated_simulation_packet(
+    injected_errors = _validate_simulation_source_workspace_intent_metrics(
         injected_packet,
         authoritative_metric_requirements=[requirement],
         require_authoritative_requirements=True,
@@ -779,7 +701,7 @@ def test_confirmatory_source_workspace_owns_planning_without_envelope_call() -> 
             provider_name="anthropic",
         ),
     )
-    packet = agent.propose(
+    packet = agent.create_source_workspace_intent(
         question=OpenResearchQuestion(
             id="generic-confirmatory-source-owner",
             title="Confirm one accepted estimator",
@@ -788,8 +710,6 @@ def test_confirmatory_source_workspace_owns_planning_without_envelope_call() -> 
             ),
         ),
         theory_packet={"packet_id": "theory:source-owner"},
-        registered_problem={},
-        registered_procedures=[],
         n_runs=2_000,
         seed=19,
         withhold_seed_from_model=True,
@@ -870,7 +790,7 @@ def test_algorithm_packet_cannot_replace_direct_source_workspace() -> None:
     assert Provider.planning_calls == 0
 
 
-def test_legacy_metric_packet_cannot_replace_simulation_source_workspace() -> None:
+def test_simulation_intent_never_calls_structured_planning_backend() -> None:
     class Provider:
         provider_name = "anthropic"
         planning_calls = 0
@@ -893,28 +813,30 @@ def test_legacy_metric_packet_cannot_replace_simulation_source_workspace() -> No
         ),
     )
 
-    with pytest.raises(ScientificSourceWorkspaceUnavailableError):
-        agent.propose(
-            question=OpenResearchQuestion(
-                id="simulation-source-workspace-required",
-                title="Require direct simulation source",
-                description="Keep fresh source inside one retained coding loop.",
-            ),
-            theory_packet={"packet_id": "theory:source-workspace-required"},
-            registered_problem={},
-            registered_procedures=[],
-            n_runs=2_000,
-            seed=19,
-            withhold_seed_from_model=True,
-            environment_feedback={
-                "empirical_evaluation_phase": "confirmatory",
-                "runtime_requested_evidence_contract": {
-                    "research_evaluation_requires_generated_simulation_code": True,
-                },
+    packet = agent.create_source_workspace_intent(
+        question=OpenResearchQuestion(
+            id="simulation-source-workspace-required",
+            title="Require direct simulation source",
+            description="Keep fresh source inside one retained coding loop.",
+        ),
+        theory_packet={"packet_id": "theory:source-workspace-required"},
+        n_runs=2_000,
+        seed=19,
+        withhold_seed_from_model=True,
+        environment_feedback={
+            "empirical_evaluation_phase": "confirmatory",
+            "runtime_requested_evidence_contract": {
+                "research_evaluation_requires_generated_simulation_code": True,
             },
-        )
+        },
+    )
 
     assert Provider.planning_calls == 0
+    assert packet["source_workspace_planning_owned"] is True
+    assert packet["planning_model_call_used"] is False
+    assert packet["scientific_source_transport"] == (
+        SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS
+    )
 
 
 def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> None:
@@ -931,7 +853,7 @@ def test_native_simulation_source_is_deferred_past_capability_packet_gate() -> N
         ),
     }
 
-    assert _validate_capability_eval_generated_simulation_packet(
+    assert _validate_simulation_source_workspace_intent_metrics(
         packet,
         require_typed_metric_contracts=False,
     ) == []

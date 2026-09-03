@@ -10,8 +10,9 @@ from ai_statistician.scientific_project import (
     scientific_project_hash,
 )
 from ai_statistician.simulation_engineer_llm import (
+    LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
-    build_simulation_engineer_prompt,
+    SimulationEngineerConfig,
 )
 
 
@@ -94,7 +95,7 @@ def _large_algorithm_handoff() -> dict[str, object]:
     }
 
 
-def test_simulation_prompt_projects_large_dependency_artifacts_once() -> None:
+def test_simulation_intent_projects_large_dependency_artifacts_once() -> None:
     handoff = _large_algorithm_handoff()
     environment_feedback = {
         "upstream_algorithm_handoff": handoff,
@@ -105,28 +106,38 @@ def test_simulation_prompt_projects_large_dependency_artifacts_once() -> None:
     }
     assert len(json.dumps(environment_feedback)) > 1_000_000
 
-    prompt = build_simulation_engineer_prompt(
+    class Provider:
+        provider_name = "anthropic"
+
+        @staticmethod
+        def generate_client_tool_turn(_request):
+            raise AssertionError("intent construction must not start the workspace")
+
+    packet = LLMSimulationEngineerAgent(
+        provider=Provider(),
+        config=SimulationEngineerConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+        ),
+    ).create_source_workspace_intent(
         question=OpenResearchQuestion(
             id="generic-large-handoff",
             title="Generic large dependency handoff",
             description="Design a simulation around one accepted estimator.",
         ),
         theory_packet={},
-        registered_problem={},
-        registered_procedures=[],
         n_runs=100,
         seed=7,
         environment_feedback=environment_feedback,
-        defer_source_authoring=True,
     )
-    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
-    projected = payload["upstream_algorithm_handoff"]
+    serialized = json.dumps(packet)
+    projected = packet["upstream_algorithm_handoff"]
     artifact = projected["exact_algorithm_artifacts"][0]
 
-    assert len(prompt) < 80_000
-    assert "SOURCE_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in prompt
-    assert "RESULT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in prompt
-    assert "PROJECT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in prompt
+    assert len(serialized) < 80_000
+    assert "SOURCE_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in serialized
+    assert "RESULT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in serialized
+    assert "PROJECT_SENTINEL_MUST_NOT_REACH_SIMULATION_MODEL" not in serialized
     assert artifact["estimator_id"] == "candidate"
     assert artifact["estimator_interface_contract"]["response_fields"][0][
         "meaning"
@@ -147,9 +158,8 @@ def test_simulation_prompt_projects_large_dependency_artifacts_once() -> None:
     assert "exact_smoke_result" not in artifact
     assert projected["exact_source_included"] is False
     assert projected["execution_results_included"] is False
-    assert "upstream_algorithm_handoff" not in json.dumps(
-        payload["runtime_environment_feedback"]
-    )
+    assert packet["source_workspace_planning_owned"] is True
+    assert packet["planning_model_call_used"] is False
 
 
 def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
@@ -211,34 +221,7 @@ def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
     assert len(json.dumps(handoff)) < 25_000
 
 
-def test_executable_evaluator_prompt_makes_source_the_preregistration() -> None:
-    prompt = build_simulation_engineer_prompt(
-        question=OpenResearchQuestion(
-            id="generic-executable-evaluator",
-            title="Generic executable evaluator",
-            description="Evaluate one theory claim without a prose translation step.",
-        ),
-        theory_packet={},
-        registered_problem={},
-        registered_procedures=[],
-        n_runs=100_000,
-        seed=7,
-        environment_feedback={
-            "executable_evaluator_source_authority": True,
-            "empirical_evaluation_phase": "executable_evaluator_authoring",
-            "runtime_requested_evidence_contract": {
-                "research_evaluation_requires_generated_simulation_code": True,
-            },
-        },
-        defer_source_authoring=True,
-    )
-    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
-
-    assert payload["authoritative_empirical_metric_requirements"] == []
-    assert payload["required_output_contract"]["metric_contracts"] == []
-    assert "exact source the complete executable preregistration" in prompt
-    assert "requested_runtime_replicates" in prompt
-    assert "SimulationEngineer later implements" not in prompt
+def test_executable_evaluator_workspace_makes_source_the_preregistration() -> None:
     workspace_prompt = SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     assert "small non-confirmatory tool" in workspace_prompt
     assert "never reject or" in workspace_prompt

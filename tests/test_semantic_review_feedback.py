@@ -8,12 +8,9 @@ from ai_statistician.semantic_review_feedback import (
 from ai_statistician.algorithm_engineer_llm import (
     _algorithm_environment_observations,
 )
-from ai_statistician.simulation_engineer_llm import (
-    _simulation_environment_observations,
-)
 
 
-def test_coding_producers_receive_complete_environment_observations() -> None:
+def test_algorithm_planner_receives_complete_environment_observations() -> None:
     long_observation = "raw-observation:" + ("x" * 5000)
     findings = [
         {
@@ -43,20 +40,17 @@ def test_coding_producers_receive_complete_environment_observations() -> None:
         "repair_instructions": ["apply a runtime-selected patch"],
     }
 
-    for projected in (
-        _algorithm_environment_observations(feedback),
-        _simulation_environment_observations(feedback),
-    ):
-        assert len(projected["findings"]) == 12
-        assert projected["findings"][-1]["observed_behavior"].endswith("11")
-        assert len(projected["runtime_errors"][0]) == len(long_observation)
-        assert projected["rejected_candidate"] == feedback["rejected_candidate"]
-        assert projected["reviewed_source_artifacts"] == feedback[
-            "reviewed_source_artifacts"
-        ]
-        assert "repair_owner_agent" not in projected
-        assert "repair_instructions" not in projected
-        assert all("required_change" not in row for row in projected["findings"])
+    projected = _algorithm_environment_observations(feedback)
+    assert len(projected["findings"]) == 12
+    assert projected["findings"][-1]["observed_behavior"].endswith("11")
+    assert len(projected["runtime_errors"][0]) == len(long_observation)
+    assert projected["rejected_candidate"] == feedback["rejected_candidate"]
+    assert projected["reviewed_source_artifacts"] == feedback[
+        "reviewed_source_artifacts"
+    ]
+    assert "repair_owner_agent" not in projected
+    assert "repair_instructions" not in projected
+    assert all("required_change" not in row for row in projected["findings"])
 
 
 def test_recursive_projection_preserves_rejected_candidate_exactly() -> None:

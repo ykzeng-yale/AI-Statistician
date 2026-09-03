@@ -313,7 +313,7 @@ def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
     simulation_manifest = {
         **manifest,
         "artifact_kind": "RuntimeSimulationManifest",
-        "llm_simulation_engineer_proposal_id": proposal["packet_id"],
+        "simulation_source_workspace_intent_artifact_id": proposal["packet_id"],
         "generated_simulation_sandbox_prototypes": [
             {**row, "simulation_id": source_id}
         ],
@@ -324,7 +324,7 @@ def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
         question_id=question.id,
         theory_packet_id=theory_packet_id,
         expected_manifest_kind="RuntimeSimulationManifest",
-        proposal_id_field="llm_simulation_engineer_proposal_id",
+        proposal_id_field="simulation_source_workspace_intent_artifact_id",
         row_id_field="simulation_id",
         expected_source_ids=[source_id],
         source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
@@ -337,7 +337,7 @@ def test_direct_source_progress_resumes_without_a_planning_packet() -> None:
         question_id=question.id,
         theory_packet_id=theory_packet_id,
         expected_manifest_kind="RuntimeSimulationManifest",
-        proposal_id_field="llm_simulation_engineer_proposal_id",
+        proposal_id_field="simulation_source_workspace_intent_artifact_id",
         row_id_field="simulation_id",
         expected_source_ids=[source_id],
         source_accepted=lambda candidate: candidate.get("smoke_passed") is True,
@@ -472,12 +472,12 @@ def test_fresh_simulation_source_fails_closed_before_packet_fallback(
         calls = 0
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def create_source_workspace_intent(cls, **_kwargs):
             cls.calls += 1
             raise AssertionError("structured source fallback must not run")
 
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=ProposalOnlyAgent(),
+        source_agent=ProposalOnlyAgent(),
         sandbox_root=tmp_path,
     ).run(
         AgentTask(
@@ -886,7 +886,7 @@ def test_exploratory_simulation_source_workspace_owns_planning_and_source(
     )
     context = _research_context(question.id, theory_packet_id)
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=source_agent,
+        source_agent=source_agent,
         sandbox_root=tmp_path,
         semantic_reviewer_available=False,
     ).run(
@@ -924,7 +924,7 @@ def test_exploratory_simulation_source_workspace_owns_planning_and_source(
     assert manifest["scientific_source_workspace_owns_planning"] is True
     assert manifest["planning_model_call_used"] is False
     assert manifest["n_exploratory_generated_simulation_sandbox_passed"] == 1
-    proposal_id = manifest["llm_simulation_engineer_proposal_id"]
+    proposal_id = manifest["simulation_source_workspace_intent_artifact_id"]
     review_packet = result.produced_artifacts[proposal_id]
     assert review_packet["source_workspace_planning_owned"] is True
     assert review_packet["planning_model_call_used"] is False
@@ -1156,8 +1156,8 @@ def test_simulation_subsystem_resumes_source_without_replanning(
     source_id = "simulation"
     checkpoint = _checkpoint(question_id=question.id, source_id=source_id)
     proposal = {
-        "artifact_kind": "SimulationEngineerProposalPacket",
-        "packet_id": "simulation-proposal:progress",
+        "artifact_kind": "SimulationSourceWorkspaceIntent",
+        "packet_id": "simulation-source-intent:progress",
         "scientific_source_transport": "native_client_tools",
         "simulation_targets": [{"procedure_id": source_id}],
         "simulation_code_drafts": [
@@ -1171,7 +1171,7 @@ def test_simulation_subsystem_resumes_source_without_replanning(
         "manifest_id": "simulation-manifest:progress-parent",
         "question": runtime_module._question_to_payload(question),
         "theory_packet_id": theory_packet_id,
-        "llm_simulation_engineer_proposal_id": proposal["packet_id"],
+        "simulation_source_workspace_intent_artifact_id": proposal["packet_id"],
         "generated_simulation_sandbox_prototypes": [
             {
                 "simulation_id": source_id,
@@ -1208,7 +1208,7 @@ def test_simulation_subsystem_resumes_source_without_replanning(
         source_calls = 0
 
         @classmethod
-        def propose(cls, **_kwargs):
+        def create_source_workspace_intent(cls, **_kwargs):
             cls.proposal_calls += 1
             raise AssertionError("checkpoint continuation must bypass planning")
 
@@ -1286,7 +1286,7 @@ def test_simulation_subsystem_resumes_source_without_replanning(
         },
     )
     result = runtime_module.SimulationEvaluatorRuntimeSubsystem(
-        proposal_agent=SourceAgent(),
+        source_agent=SourceAgent(),
         sandbox_root=tmp_path,
         semantic_reviewer_available=False,
     ).run(

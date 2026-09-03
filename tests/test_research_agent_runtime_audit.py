@@ -94,7 +94,7 @@ def test_code_revision_ownership_uses_hash_bound_workspace_lineage() -> None:
     unrelated = _has_direct_revision(
         evidence,
         failure_type="simulation",
-        proposal_type="llm_simulation_engineer_proposal",
+        proposal_type="simulation_source_workspace_intent",
         failed=_failed_simulation,
     )
     assert unrelated == (False, 1, 0)
@@ -105,7 +105,7 @@ def test_code_revision_ownership_uses_hash_bound_workspace_lineage() -> None:
     bound = _has_direct_revision(
         evidence,
         failure_type="simulation",
-        proposal_type="llm_simulation_engineer_proposal",
+        proposal_type="simulation_source_workspace_intent",
         failed=_failed_simulation,
     )
     assert bound == (True, 1, 1)

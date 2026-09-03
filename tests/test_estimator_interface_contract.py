@@ -27,7 +27,7 @@ from ai_statistician.research_schema import (
     research_question_payload,
 )
 from ai_statistician.simulation_engineer_llm import (
-    build_simulation_engineer_prompt,
+    SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
 )
 
 
@@ -278,13 +278,9 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
             simulation_manifest={},
             implementation_gaps=[],
         ),
-        build_simulation_engineer_prompt(
-            question=question,
-            theory_packet={},
-            registered_problem={},
-            registered_procedures=[],
-            n_runs=10,
-            seed=1,
+        json.dumps(
+            {"question": research_question_payload(question)},
+            default=str,
         ),
     )
     assert all("response.estimate" in prompt for prompt in prompts)
@@ -294,6 +290,9 @@ def test_frozen_contract_reaches_runtime_and_scientific_agent_contexts() -> None
     )
     assert "outranks Theory summaries" in (
         ALGORITHM_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
+    )
+    assert "question.estimator_execution_contract" in (
+        SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT
     )
     assert "estimator_execution_contract" not in research_question_payload(
         question,

@@ -482,16 +482,6 @@ def _compact_simulation_manifest_for_algorithm(simulation_manifest: Mapping[str,
     return {
         "manifest_id": simulation_manifest.get("manifest_id", ""),
         "simulation_passed": simulation_manifest.get("simulation_passed"),
-        "registered_procedures": [
-            {
-                "procedure_id": _truncate_text(
-                    row.get("procedure_id", row.get("id", row.get("name", ""))),
-                    limit=160,
-                ),
-                "registered_simulator": _truncate_text(row.get("registered_simulator", ""), limit=160),
-            }
-            for row in _first_mapping_rows(simulation_manifest.get("registered_procedures", []), limit=3)
-        ],
         "simulations": [
             {
                 "procedure_id": _truncate_text(row.get("procedure_id", row.get("id", "")), limit=160),
