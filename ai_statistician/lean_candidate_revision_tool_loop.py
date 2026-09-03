@@ -1271,6 +1271,9 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "Lean support file is already checked in the current build order"
                 )
+            workspace_identity = current_project_payload(
+                require_complete=False
+            )["workspace_project_hash"]
             rows = current_project_files()
             raw_result = check_support_file(
                 path,
@@ -1302,7 +1305,13 @@ def run_lean_candidate_revision_tool_loop(
                 "support_file_checks": state["support_file_checks"],
                 "proof_evidence_status": "LEAN_SUPPORT_FILE_CHECK_NOT_TARGET_PROOF_EVIDENCE",
             }
-            observation_key = "lean-support-check:" + stable_hash(content)
+            observation_key = "lean-support-check:" + stable_hash(
+                {
+                    "path": path,
+                    "workspace_project_hash": workspace_identity,
+                    "observation": observation,
+                }
+            )
             state["workspace_observation_fingerprints"].add(observation_key)
             return ClientToolExecutionResult(
                 content=content,
@@ -1319,6 +1328,9 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("scratch Lean source must be nonempty")
             if len(source) > 20_000:
                 raise ClientToolInputError("scratch Lean source exceeds size boundary")
+            workspace_identity = current_project_payload(
+                require_complete=False
+            )["workspace_project_hash"]
             raw_result = check_candidate(source, "")
             if not isinstance(raw_result, Mapping):
                 raise ClientToolInputError("Lean scratch checker returned a non-object")
@@ -1340,7 +1352,13 @@ def run_lean_candidate_revision_tool_loop(
                 "candidate_source_unchanged": True,
                 "proof_evidence_status": "LEAN_SCRATCH_NOT_PROOF_EVIDENCE",
             }
-            observation_key = "lean-scratch:" + stable_hash(content)
+            observation_key = "lean-scratch:" + stable_hash(
+                {
+                    "scratch_source_hash": source_hash,
+                    "workspace_project_hash": workspace_identity,
+                    "observation": observation,
+                }
+            )
             state["workspace_observation_fingerprints"].add(observation_key)
             return ClientToolExecutionResult(
                 content=content,

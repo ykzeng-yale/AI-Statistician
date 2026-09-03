@@ -1869,6 +1869,125 @@ def test_model_runs_lean_scratch_without_changing_candidate_source() -> None:
     )
 
 
+def test_repeated_identical_lean_scratch_is_not_new_workspace_progress() -> None:
+    scratch = "import Mathlib\n#check Missing.symbol\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    f"scratch-{index}",
+                    LEAN_SCRATCH_TOOL,
+                    {"lean_source": scratch},
+                )
+            )
+            for index in range(2)
+        ]
+    )
+
+    with pytest.raises(PacketValidationError) as raised:
+        run_lean_candidate_revision_tool_loop(
+            provider=backend,
+            system_prompt="Use tools.",
+            user_prompt="Inspect the exact target environment.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=5,
+            max_no_progress_turns=1,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="",
+            initial_source="",
+            check_candidate=lambda source, _declaration: {
+                "source_hash": stable_hash(source),
+                "compiled": False,
+                "local_lean_source_compiled": False,
+                "local_lean_stderr": "unknown constant Missing.symbol",
+            },
+            search_formal_environment=lambda query, k: [],
+        )
+
+    checkpoint = raised.value.recovery_checkpoint
+    assert raised.value.errors == ["repeated client-tool turns made no new progress"]
+    assert raised.value.attempts == 2
+    assert checkpoint["scratch_checks"] == 2
+    assert len(
+        [
+            value
+            for value in checkpoint["workspace_observation_fingerprints"]
+            if value.startswith("lean-scratch:")
+        ]
+    ) == 1
+
+
+def test_repeated_identical_failed_support_check_is_not_new_progress() -> None:
+    target = "import AIStat.Support\n\ntheorem target : True := by trivial\n"
+    support_path = "AIStat/Support.lean"
+    support_source = "namespace AIStat\ntheorem helper : True := by missing\nend AIStat\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(
+                ClientToolCall(
+                    "write-support",
+                    LEAN_SUPPORT_FILE_WRITE_TOOL,
+                    {"path": support_path, "content": support_source},
+                )
+            ),
+            *[
+                _response(
+                    ClientToolCall(
+                        f"check-support-{index}",
+                        LEAN_SUPPORT_FILE_CHECK_TOOL,
+                        {"path": support_path},
+                    )
+                )
+                for index in range(2)
+            ],
+        ]
+    )
+
+    with pytest.raises(PacketValidationError) as raised:
+        run_lean_candidate_revision_tool_loop(
+            provider=backend,
+            system_prompt="Use tools.",
+            user_prompt="Build the model-owned Lean project.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+            temperature=0.0,
+            max_tokens=1200,
+            max_turns=6,
+            max_no_progress_turns=1,
+            candidate_id="target-candidate",
+            candidate_lean_declaration="target",
+            initial_source=target,
+            check_candidate=lambda *_args: pytest.fail("single-file checker used"),
+            check_candidate_project=lambda source, declaration, files, order: {
+                "source_hash": stable_hash(source),
+                "candidate_lean_declaration": declaration,
+                "compiled": False,
+            },
+            check_support_file=lambda path, files, prior_order: {
+                "relative_path": path,
+                "source_hash": stable_hash(support_source),
+                "compiled": False,
+                "local_lean_stderr": "unknown identifier 'missing'",
+            },
+            search_formal_environment=lambda query, k: [],
+        )
+
+    checkpoint = raised.value.recovery_checkpoint
+    assert raised.value.errors == ["repeated client-tool turns made no new progress"]
+    assert raised.value.attempts == 3
+    assert checkpoint["support_file_checks"] == 2
+    assert len(
+        [
+            value
+            for value in checkpoint["workspace_observation_fingerprints"]
+            if value.startswith("lean-support-check:")
+        ]
+    ) == 1
+
+
 def test_model_selects_exact_declaration_inspection_inside_same_source_loop() -> None:
     initial = (
         "import Project.Library\n"
