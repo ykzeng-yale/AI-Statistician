@@ -11,6 +11,7 @@ from .fingerprint import stable_hash
 from .generated_code_semantic_review_scope import (
     executable_evaluator_review_binding,
 )
+from .lean_kernel_promotion import lean_kernel_promotion_evidence_errors
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
 )
@@ -291,20 +292,25 @@ def _critic_research_disposition_accepted(
 def _question_task_intent(
     artifacts: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, str]:
+    question = _runtime_question(artifacts)
+    task_intent = question.get("task_intent", {})
+    if isinstance(task_intent, Mapping):
+        return {
+            str(dimension): str(requirement)
+            for dimension, requirement in task_intent.items()
+        }
+    return {}
+
+
+def _runtime_question(
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> Mapping[str, Any]:
     for artifact in artifacts.values():
         if artifact.get("artifact_kind") != "RuntimeQuestionMetadata":
             continue
         question = artifact.get("question", {})
-        task_intent = (
-            question.get("task_intent", {})
-            if isinstance(question, Mapping)
-            else {}
-        )
-        if isinstance(task_intent, Mapping):
-            return {
-                str(dimension): str(requirement)
-                for dimension, requirement in task_intent.items()
-            }
+        if isinstance(question, Mapping):
+            return question
     return {}
 
 
@@ -652,6 +658,7 @@ def build_research_evaluation_summary(
     rows: list[dict[str, Any]] = []
     for result in results:
         artifacts = _runtime_artifacts(result)
+        runtime_question = _runtime_question(artifacts)
         task_intent = _question_task_intent(artifacts)
         dimension_requirements = research_dimension_requirements(task_intent)
         explicit_task_intent = bool(dimension_requirements)
@@ -759,6 +766,20 @@ def build_research_evaluation_summary(
             for artifact in artifacts.values()
             if artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
         ]
+        formal_target_contract = runtime_question.get("formal_target_contract", {})
+        exact_formal_target_kernel_closed = bool(
+            isinstance(formal_target_contract, Mapping)
+            and formal_target_contract
+            and any(
+                not lean_kernel_promotion_evidence_errors(
+                    manifest,
+                    blackboard_artifacts=artifacts,
+                    expected_question_id=question_id,
+                    expected_formal_target_contract=formal_target_contract,
+                )
+                for manifest in formal_manifests
+            )
+        )
         capability_checks = {
             "source_replication_checkpoint_recorded": bool(
                 source_replication_checkpoint
@@ -851,14 +872,8 @@ def build_research_evaluation_summary(
                     require_confirmatory_empirical_evidence=True,
                 )
             ),
-            "exact_formal_target_kernel_closed": any(
-                manifest.get("source_theorem_kernel_verified") is True
-                and bool(
-                    manifest.get(
-                        "source_theorem_kernel_verified_target_ids", []
-                    )
-                )
-                for manifest in formal_manifests
+            "exact_formal_target_kernel_closed": (
+                exact_formal_target_kernel_closed
             ),
             "critic_research_acceptance": bool(
                 critic_manifest

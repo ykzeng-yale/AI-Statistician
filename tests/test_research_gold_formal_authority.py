@@ -40,6 +40,7 @@ def _formal_dimensions(*, kernel_closed: bool) -> dict[str, dict[str, object]]:
         hidden_theory_passed=False,
         hidden_algorithm_passed=False,
         hidden_empirical_passed=False,
+        formal_gold_passed=kernel_closed,
         runtime_result_observed=True,
     )
 
@@ -120,6 +121,7 @@ def _runtime_formal_authority() -> tuple[dict[str, object], dict[str, object]]:
         },
         "formalization_manifest:fixture": {
             "artifact_kind": "RuntimeFormalizationManifest",
+            "manifest_id": "formalization_manifest:fixture",
             "question": question,
             "lean_kernel_promotion_id": promotion_id,
             "source_theorem_kernel_verified": True,
@@ -243,4 +245,102 @@ def test_formal_full_task_scores_exact_kernel_promotion(
     assert result["all_active_tasks_passed"] is True
     task = result["tasks"][0]
     assert task["proof_evidence_status"] == "GOLD_EVALUATION_NOT_PROOF_EVIDENCE"
+    assert task["formal_kernel_authority_passed"] is True
+    assert task["formal_kernel_authority_errors"] == []
     assert task["dimension_status"]["formal"]["status"] == "passed"
+
+
+def test_formal_gold_rejects_unbound_summary_boolean(tmp_path: Path) -> None:
+    manifest_path = _formal_gold_manifest(tmp_path, include_contract=True)
+    question, _ = _runtime_formal_authority()
+    question.update(
+        {
+            "title": "Exact formal target",
+            "description": "Prove the frozen declaration.",
+            "tags": ["formal_L0"],
+            "task_intent": _formal_only_task()["task_intent"],
+        }
+    )
+    result = evaluate_research_gold_benchmark(
+        [
+            {
+                "status": "ACCEPTED",
+                "blackboard": {
+                    "artifacts": {
+                        "runtime_question_metadata:formal-test": {
+                            "artifact_kind": "RuntimeQuestionMetadata",
+                            "question": question,
+                        }
+                    }
+                },
+            }
+        ],
+        research_evaluation_summary={
+            "rows": [
+                {
+                    "question_id": "formal-test",
+                    "research_eval_complete": True,
+                    "requirements": {
+                        "exact_formal_target_kernel_closed": True,
+                    },
+                }
+            ]
+        },
+        benchmark_manifest_path=manifest_path,
+        out_dir=tmp_path / "out",
+    )
+
+    task = result["tasks"][0]
+    assert task["task_passed"] is False
+    assert task["formal_kernel_authority_passed"] is False
+    assert task["dimension_status"]["formal"]["status"] == "failed"
+    assert task["formal_kernel_authority_errors"] == [
+        "no formalization manifest exists for the frozen target"
+    ]
+
+
+def test_formal_gold_rejects_promotion_for_a_different_target(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _formal_gold_manifest(tmp_path, include_contract=True)
+    question, artifacts = _runtime_formal_authority()
+    question.update(
+        {
+            "title": "Exact formal target",
+            "description": "Prove the frozen declaration.",
+            "tags": ["formal_L0"],
+            "task_intent": _formal_only_task()["task_intent"],
+        }
+    )
+    artifacts["runtime_question_metadata:formal-test"] = {
+        "artifact_kind": "RuntimeQuestionMetadata",
+        "question": question,
+    }
+    artifacts["lean_kernel_promotion:fixture"] = {
+        **artifacts["lean_kernel_promotion:fixture"],
+        "target_ids": ["different-target"],
+    }
+
+    result = evaluate_research_gold_benchmark(
+        [{"status": "ACCEPTED", "blackboard": {"artifacts": artifacts}}],
+        research_evaluation_summary={
+            "rows": [
+                {
+                    "question_id": "formal-test",
+                    "research_eval_complete": True,
+                    "requirements": {
+                        "exact_formal_target_kernel_closed": True,
+                    },
+                }
+            ]
+        },
+        benchmark_manifest_path=manifest_path,
+        out_dir=tmp_path / "out",
+    )
+
+    task = result["tasks"][0]
+    assert task["task_passed"] is False
+    assert task["formal_kernel_authority_passed"] is False
+    assert "kernel promotion target ids do not match" in " ".join(
+        task["formal_kernel_authority_errors"]
+    )

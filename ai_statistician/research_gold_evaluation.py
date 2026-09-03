@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .fingerprint import stable_hash
+from .lean_kernel_promotion import lean_kernel_promotion_evidence_errors
 from .estimator_interface_contract import (
     frozen_estimator_execution_contract_clause_ids,
     frozen_estimator_execution_contract_empirical_claim_ids,
@@ -464,6 +465,8 @@ def _evaluate_gold_task(
         "source_replication_report_document_hash": "",
         "source_replication_checkpoint_valid": False,
         "unresolved_gap_disclosure_present": False,
+        "formal_kernel_authority_passed": False,
+        "formal_kernel_authority_errors": [],
         "dimension_status": {},
         "task_passed": False,
         "failure_reasons": [],
@@ -479,6 +482,7 @@ def _evaluate_gold_task(
             hidden_theory_passed=False,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
+            formal_gold_passed=False,
             runtime_result_observed=False,
         )
         return base
@@ -499,11 +503,34 @@ def _evaluate_gold_task(
             hidden_theory_passed=False,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
+            formal_gold_passed=False,
             runtime_result_observed=True,
         )
         return base
 
     artifacts = _runtime_artifacts(runtime_result)
+    formal_requirement = str(
+        (task.get("task_intent", {}) or {}).get("formal", "not_applicable")
+        if isinstance(task.get("task_intent", {}), Mapping)
+        else "not_applicable"
+    )
+    formal_gold_passed = False
+    formal_authority_errors: list[str] = []
+    if formal_requirement == "required" or runtime_requirements.get(
+        "exact_formal_target_kernel_closed"
+    ) is True:
+        formal_gold_passed, formal_authority_errors = (
+            _exact_formal_kernel_authority(
+                artifacts,
+                runtime_question=runtime_question,
+            )
+        )
+    base["formal_kernel_authority_passed"] = formal_gold_passed
+    base["formal_kernel_authority_errors"] = formal_authority_errors
+    if formal_requirement == "required" and formal_authority_errors:
+        base["failure_reasons"].append(
+            "required formal evidence is not backed by an exact kernel promotion"
+        )
     hidden_source_replication_identity_passed = False
     hidden_source_report_semantic_passed = not source_report_semantic_evaluator
     hidden_source_replication_passed = False
@@ -908,6 +935,7 @@ def _evaluate_gold_task(
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=True,
             hidden_empirical_passed=not empirical_evaluator,
+            formal_gold_passed=formal_gold_passed,
             runtime_result_observed=True,
             hidden_source_replication_passed=hidden_source_replication_passed,
             source_replication_gap_disclosure_present=(
@@ -970,6 +998,7 @@ def _evaluate_gold_task(
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
+            formal_gold_passed=formal_gold_passed,
             runtime_result_observed=True,
             source_replication_gap_disclosure_present=(
                 source_replication_gap_disclosure_present
@@ -1001,6 +1030,7 @@ def _evaluate_gold_task(
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
+            formal_gold_passed=formal_gold_passed,
             runtime_result_observed=True,
             source_replication_gap_disclosure_present=(
                 source_replication_gap_disclosure_present
@@ -1023,6 +1053,7 @@ def _evaluate_gold_task(
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
+            formal_gold_passed=formal_gold_passed,
             runtime_result_observed=True,
             source_replication_gap_disclosure_present=(
                 source_replication_gap_disclosure_present
@@ -1052,6 +1083,7 @@ def _evaluate_gold_task(
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
+            formal_gold_passed=formal_gold_passed,
             runtime_result_observed=True,
             source_replication_gap_disclosure_present=(
                 source_replication_gap_disclosure_present
@@ -1072,6 +1104,7 @@ def _evaluate_gold_task(
             hidden_theory_passed=hidden_theory_passed,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
+            formal_gold_passed=formal_gold_passed,
             runtime_result_observed=True,
             source_replication_gap_disclosure_present=(
                 source_replication_gap_disclosure_present
@@ -1209,6 +1242,7 @@ def _evaluate_gold_task(
         hidden_theory_passed=hidden_theory_passed,
         hidden_algorithm_passed=hidden_algorithm_passed,
         hidden_empirical_passed=hidden_empirical_passed,
+        formal_gold_passed=formal_gold_passed,
         runtime_result_observed=True,
         hidden_source_replication_passed=hidden_source_replication_passed,
         source_replication_gap_disclosure_present=(
@@ -1251,6 +1285,40 @@ def _evaluate_gold_task(
     return base
 
 
+def _exact_formal_kernel_authority(
+    artifacts: Mapping[str, Any],
+    *,
+    runtime_question: Mapping[str, Any],
+) -> tuple[bool, list[str]]:
+    contract = runtime_question.get("formal_target_contract", {})
+    if not isinstance(contract, Mapping) or not contract:
+        return False, ["runtime question has no frozen formal target contract"]
+    question_id = str(runtime_question.get("id", "") or "")
+    manifests = [
+        artifact
+        for artifact in artifacts.values()
+        if isinstance(artifact, Mapping)
+        and isinstance(artifact.get("question", {}), Mapping)
+        and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+        and str(artifact.get("question", {}).get("id", "") or "") == question_id
+    ]
+    if not manifests:
+        return False, ["no formalization manifest exists for the frozen target"]
+    candidate_errors: list[str] = []
+    for manifest in manifests:
+        errors = lean_kernel_promotion_evidence_errors(
+            manifest,
+            blackboard_artifacts=artifacts,
+            expected_question_id=question_id,
+            expected_formal_target_contract=contract,
+        )
+        if not errors:
+            return True, []
+        manifest_id = str(manifest.get("manifest_id", "") or "<missing>")
+        candidate_errors.extend(f"{manifest_id}: {error}" for error in errors)
+    return False, list(dict.fromkeys(candidate_errors))
+
+
 def _dimension_status(
     task: Mapping[str, Any],
     *,
@@ -1259,6 +1327,7 @@ def _dimension_status(
     hidden_theory_passed: bool,
     hidden_algorithm_passed: bool,
     hidden_empirical_passed: bool,
+    formal_gold_passed: bool,
     runtime_result_observed: bool,
     hidden_source_replication_passed: bool = False,
     source_replication_gap_disclosure_present: bool = False,
@@ -1291,7 +1360,7 @@ def _dimension_status(
             and runtime_requirements.get("simulation_semantic_review_accepted")
             is True
         ),
-        "formal": runtime_result_observed and runtime_requirements.get("exact_formal_target_kernel_closed") is True,
+        "formal": bool(runtime_result_observed and formal_gold_passed),
         "novelty": False,
         "unresolved_gaps": bool(
             source_replication_gap_disclosure_present

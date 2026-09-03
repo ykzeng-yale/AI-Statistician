@@ -1467,8 +1467,13 @@ def test_research_summary_honors_theory_only_task_intent() -> None:
 
 
 def test_research_summary_requires_kernel_closure_for_formal_only_task() -> None:
+    formal_target_contract = {
+        "target_id": "frozen_target",
+        "declaration_name": "Bench.frozen_target",
+    }
     question = {
         "id": "formal_only",
+        "formal_target_contract": formal_target_contract,
         "task_intent": {
             "source_replication": "not_applicable",
             "theory": "not_applicable",
@@ -1482,9 +1487,13 @@ def test_research_summary_requires_kernel_closure_for_formal_only_task() -> None
     formalization = {
         "artifact_kind": "RuntimeFormalizationManifest",
         "manifest_id": "formalization",
+        "question": question,
+        "lean_kernel_promotion_id": "",
         "source_theorem_kernel_verified": False,
         "source_theorem_kernel_verified_target_ids": [],
-        "counts": {"kernel_verified": 0},
+        "source_theorem_kernel_verified_target_names": [],
+        "counts": {"source_theorem_kernel_verified": 0},
+        "proof_evidence_status": "NO_EXACT_SOURCE_THEOREM_KERNEL_PROOF",
     }
     result = {
         "status": "BLOCKED",
@@ -1514,7 +1523,38 @@ def test_research_summary_requires_kernel_closure_for_formal_only_task() -> None
     formalization["source_theorem_kernel_verified_target_ids"] = [
         "frozen_target"
     ]
-    formalization["counts"]["kernel_verified"] = 1
+    formalization["source_theorem_kernel_verified_target_names"] = [
+        "Bench.frozen_target"
+    ]
+    formalization["counts"]["source_theorem_kernel_verified"] = 1
+    formalization["proof_evidence_status"] = (
+        "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+    )
+    summary = build_research_evaluation_summary(
+        [result], evaluation_mode="research_eval", schema_version="test"
+    )
+    assert summary["rows"][0]["research_loop_complete"] is False
+
+    formalization["lean_kernel_promotion_id"] = "promotion"
+    result["blackboard"]["artifacts"]["promotion"] = {
+        "artifact_kind": "LeanKernelPromotionResult",
+        "promotion_id": "promotion",
+        "question_id": "formal_only",
+        "candidate_source_hash": "model-source-hash",
+        "target_ids": ["frozen_target"],
+        "target_lean_declaration": "Bench.frozen_target",
+        "source_theorem_kernel_verified": True,
+        "local_lean_checked": True,
+        "local_lean_compiled": True,
+        "candidate_identity_lean_verified": True,
+        "candidate_axiom_audit_clean": True,
+        "exact_source_hash_preserved": True,
+        "independent_semantic_review_accepted": True,
+        "runtime_edited_source": False,
+        "runtime_selected_proof": False,
+        "blockers": [],
+        "proof_evidence_status": "EXACT_MODEL_SOURCE_KERNEL_VERIFIED",
+    }
     summary = build_research_evaluation_summary(
         [result], evaluation_mode="research_eval", schema_version="test"
     )
