@@ -54,7 +54,9 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
             "rows = [int(value) for value in "
             "Path('data/table.csv').read_text().splitlines()[1:]]\n"
             "payload = Path('assets/payload.bin').read_bytes()\n"
-            "result = {'total': total(rows), 'payload_bytes': len(payload)}\n"
+            "license_alias = Path('vendor/LICENSE').read_text().strip()\n"
+            "result = {'total': total(rows), 'payload_bytes': len(payload), "
+            "'license_alias': license_alias}\n"
             "Path('results.json').write_text(json.dumps(result, sort_keys=True))\n"
             "print(json.dumps(result, sort_keys=True))\n"
         ),
@@ -69,6 +71,7 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
             "'package_versions': {'Demo': '1.0'}}))\n"
         ),
         "tools/helper.sh": "#!/bin/sh\nexit 0\n",
+        "vendor/COPYING": "fixture-license\n",
     }
     for relative_path, content in files.items():
         path = repository / relative_path
@@ -78,6 +81,8 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
     binary_path = repository / "assets" / "payload.bin"
     binary_path.parent.mkdir(parents=True, exist_ok=True)
     binary_path.write_bytes(binary)
+    symlink_path = repository / "vendor" / "LICENSE"
+    symlink_path.symlink_to("COPYING")
     (repository / "tools" / "helper.sh").chmod(0o755)
     _git(repository, "add", ".")
     _git(repository, "commit", "-m", "published fixture")
@@ -106,7 +111,7 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
     assert snapshot.descriptor()["repository_identity"]["git_commit"] == commit
 
     tampered_snapshot_dir = tmp_path / "tampered-snapshot"
-    shutil.copytree(tmp_path / "snapshot", tampered_snapshot_dir)
+    shutil.copytree(tmp_path / "snapshot", tampered_snapshot_dir, symlinks=True)
     tampered_manifest_path = tampered_snapshot_dir / "sources.json"
     tampered_manifest = json.loads(tampered_manifest_path.read_text(encoding="utf-8"))
     tampered_manifest["repository_identity"]["tree_index_hash"] = "0" * 64
@@ -118,7 +123,7 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
         load_research_source_snapshot(tampered_manifest_path)
 
     documents = {document.title: document for document in snapshot.documents}
-    assert set(documents) == {*files, "assets/payload.bin"}
+    assert set(documents) == {*files, "assets/payload.bin", "vendor/LICENSE"}
     assert documents["main.py"].git_commit == commit
     assert "dirty" not in snapshot.document_path(
         documents["main.py"].document_id
@@ -134,6 +139,7 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
         ("directory", "data"),
         ("directory", "pkg"),
         ("directory", "tools"),
+        ("directory", "vendor"),
         ("file", "environment-lock.txt"),
         ("file", "environment_probe.py"),
         ("file", "main.py"),
@@ -177,6 +183,17 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
     assert all(hit["line_end"] >= hit["line_start"] for hit in empty_file_hits)
     assert documents["assets/payload.bin"].content_mode == "binary"
     assert documents["tools/helper.sh"].file_mode == "100755"
+    assert documents["vendor/LICENSE"].file_mode == "120000"
+    assert documents["vendor/LICENSE"].symlink_target == "COPYING"
+    frozen_symlink = snapshot.document_path(documents["vendor/LICENSE"].document_id)
+    assert frozen_symlink.is_symlink()
+    assert os.readlink(frozen_symlink) == "COPYING"
+    vendor_listing = snapshot.list_directory("vendor")
+    license_entry = next(
+        entry for entry in vendor_listing["entries"] if entry["name"] == "LICENSE"
+    )
+    assert license_entry["entry_kind"] == "symlink"
+    assert license_entry["symlink_target"] == "COPYING"
     assert snapshot.document_path(
         documents["assets/payload.bin"].document_id
     ).read_bytes() == binary
@@ -191,6 +208,12 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
     frozen_main.chmod(0o755)
     assert any("executable mode changed" in error for error in snapshot.identity_errors())
     frozen_main.chmod(0o644)
+    assert snapshot.identity_errors() == []
+    frozen_symlink.unlink()
+    frozen_symlink.symlink_to("../data/table.csv")
+    assert any("symlink" in error for error in snapshot.identity_errors())
+    frozen_symlink.unlink()
+    frozen_symlink.symlink_to("COPYING")
     assert snapshot.identity_errors() == []
     environment_root = tmp_path / "environment"
     (environment_root / "bin").mkdir(parents=True)
@@ -275,10 +298,76 @@ def test_exact_git_project_snapshot_runs_multifile_source_with_binary_asset(
     assert manifest["result_artifacts"][0]["relative_path"] == "results.json"
     result_path = tmp_path / "replication" / "source_workspace" / "results.json"
     assert json.loads(result_path.read_text(encoding="utf-8")) == {
+        "license_alias": "fixture-license",
         "payload_bytes": len(binary),
         "total": 10,
     }
+    staged_symlink = (
+        tmp_path / "replication" / "source_workspace" / "vendor" / "LICENSE"
+    )
+    assert staged_symlink.is_symlink()
+    assert os.readlink(staged_symlink) == "COPYING"
     assert snapshot.identity_errors() == []
+
+    def execute_with_changed_symlink(**kwargs):
+        source_root = kwargs.get("python_path_root")
+        if source_root is not None:
+            changed = Path(source_root) / "vendor" / "LICENSE"
+            changed.unlink()
+            changed.symlink_to("../data/table.csv")
+        return execute_process(**kwargs)
+
+    changed_manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "changed-link-replication",
+        question_id="changed-link-project-task",
+        process_executor=execute_with_changed_symlink,
+    )
+    assert changed_manifest["execution_status"] == "FAILED"
+    assert changed_manifest["staged_source_inputs_mutated"] is True
+    assert any(
+        "symlink changed" in error or "unsafe or changed symlink" in error
+        for error in changed_manifest["errors"]
+    )
+
+
+def test_git_project_snapshot_rejects_escaping_or_chained_symlinks(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "unsafe-upstream"
+    repository.mkdir()
+    _git(repository, "init")
+    _git(repository, "config", "user.email", "fixture@example.org")
+    _git(repository, "config", "user.name", "Fixture Author")
+    (repository / "target.txt").write_text("target\n", encoding="utf-8")
+    (repository / "escaping").symlink_to("../outside")
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-m", "escaping symlink")
+
+    with pytest.raises(ValueError, match="escapes source root"):
+        freeze_git_repository_snapshot(
+            repository_root=repository,
+            revision="HEAD",
+            output_dir=tmp_path / "escaping-snapshot",
+            snapshot_id="escaping-snapshot",
+            source_horizon="2026-08-31",
+        )
+
+    (repository / "escaping").unlink()
+    (repository / "first").symlink_to("target.txt")
+    (repository / "second").symlink_to("first")
+    _git(repository, "add", "-A")
+    _git(repository, "commit", "-m", "chained symlink")
+
+    with pytest.raises(ValueError, match="regular tracked file"):
+        freeze_git_repository_snapshot(
+            repository_root=repository,
+            revision="HEAD",
+            output_dir=tmp_path / "chained-snapshot",
+            snapshot_id="chained-snapshot",
+            source_horizon="2026-08-31",
+        )
 
 
 def test_freeze_research_source_project_cli_emits_loadable_snapshot(

@@ -63,14 +63,44 @@ SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS = frozenset("""HOME LANG LC_ALL PAT
 PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
 
 
+def normalized_internal_symlink_destination(*, link_path: str, target: str) -> str:
+    """Resolve one relative POSIX symlink target without allowing root escape."""
+
+    if (
+        not isinstance(target, str)
+        or not target
+        or "\x00" in target
+        or "\\" in target
+        or PurePosixPath(target).is_absolute()
+    ):
+        raise ValueError("research source symlink target must be relative POSIX text")
+    link = PurePosixPath(link_path)
+    if link.is_absolute() or not link.parts or ".." in link.parts:
+        raise ValueError("research source symlink path is not canonical")
+    destination_parts = list(link.parent.parts)
+    for part in PurePosixPath(target).parts:
+        if part in {"", "."}:
+            continue
+        if part == "..":
+            if not destination_parts:
+                raise ValueError("research source symlink target escapes source root")
+            destination_parts.pop()
+            continue
+        destination_parts.append(part)
+    if not destination_parts:
+        raise ValueError("research source symlink target resolves to source root")
+    return PurePosixPath(*destination_parts).as_posix()
+
+
 def research_source_client_tools() -> tuple[ClientToolDefinition, ...]:
     return (
         ClientToolDefinition(
             name=RESEARCH_SOURCE_LIST_TOOL,
             description=(
                 "List one directory in the configured hash-bound research-source "
-                "snapshot. Returns direct child directory and file identities, including "
-                "empty text and descriptor-only binary assets, without file content."
+                "snapshot. Returns direct child directory, file, and internal-link "
+                "identities, including empty text and descriptor-only binary assets, "
+                "without file content."
             ),
             input_schema={
                 "type": "object",
@@ -148,6 +178,7 @@ class ResearchSourceDocument:
     byte_size: int = 0
     file_mode: str = ""
     git_blob_oid: str = ""
+    symlink_target: str = ""
     lines: tuple[str, ...] = ()
 
     def public_descriptor(self) -> dict[str, Any]:
@@ -178,7 +209,18 @@ class ResearchSourceDocument:
             descriptor["file_mode"] = self.file_mode
         if self.git_blob_oid:
             descriptor["git_blob_oid"] = self.git_blob_oid
+        if self.symlink_target:
+            descriptor["symlink_target"] = self.symlink_target
         return descriptor
+
+
+def _research_source_document_bytes(
+    path: Path,
+    document: ResearchSourceDocument,
+) -> bytes:
+    if document.file_mode == "120000":
+        return os.readlink(path).encode("utf-8")
+    return path.read_bytes()
 
 
 @dataclass(frozen=True)
@@ -233,11 +275,37 @@ class ResearchSourceSnapshot:
         document = self.document(document_id)
         relative = PurePosixPath(document.relative_path)
         unresolved = self.source_root
-        for part in relative.parts:
+        for part in relative.parts[:-1]:
             unresolved = unresolved / part
             if unresolved.is_symlink():
                 raise ValueError("research source document path contains a symlink")
-        path = unresolved.resolve()
+        unresolved = unresolved / relative.parts[-1]
+        if document.file_mode == "120000":
+            if not unresolved.is_symlink():
+                raise ValueError("research source symlink is unavailable")
+            try:
+                observed_target = os.readlink(unresolved)
+                normalized_target = normalized_internal_symlink_destination(
+                    link_path=document.relative_path,
+                    target=observed_target,
+                )
+                path = unresolved.resolve(strict=True)
+                expected_path = (
+                    self.source_root / PurePosixPath(normalized_target)
+                ).resolve(strict=True)
+            except (OSError, ValueError) as exc:
+                raise ValueError("research source symlink target is invalid") from exc
+            if (
+                observed_target != document.symlink_target
+                or path != expected_path
+                or not path.is_file()
+                or path.is_symlink()
+            ):
+                raise ValueError("research source symlink identity mismatch")
+        else:
+            if unresolved.is_symlink():
+                raise ValueError("research source document path contains a symlink")
+            path = unresolved.resolve()
         try:
             path.relative_to(self.source_root)
         except ValueError as exc:
@@ -255,9 +323,19 @@ class ResearchSourceSnapshot:
         for document in self.documents:
             try:
                 path = self.document_path(document.document_id)
-                observed = hashlib.sha256(path.read_bytes()).hexdigest()
+                observed = hashlib.sha256(
+                    _research_source_document_bytes(path, document)
+                ).hexdigest()
             except (OSError, ValueError):
-                observed = ""
+                errors.append(
+                    (
+                        "research source symlink changed after snapshot load: "
+                        if document.file_mode == "120000"
+                        else "research source document changed after snapshot load: "
+                    )
+                    + document.document_id
+                )
+                continue
             if observed != document.sha256:
                 errors.append(
                     f"research source document changed after snapshot load: "
@@ -265,6 +343,20 @@ class ResearchSourceSnapshot:
                 )
                 continue
             if document.file_mode:
+                if document.file_mode == "120000":
+                    try:
+                        target_matches = (
+                            path.is_symlink()
+                            and os.readlink(path) == document.symlink_target
+                        )
+                    except OSError:
+                        target_matches = False
+                    if not target_matches:
+                        errors.append(
+                            "research source symlink changed after snapshot load: "
+                            + document.document_id
+                        )
+                    continue
                 observed_executable = bool(
                     stat.S_IMODE(path.stat().st_mode) & 0o111
                 )
@@ -323,7 +415,9 @@ class ResearchSourceSnapshot:
                 directories.setdefault(child_path, set()).add(document.document_id)
                 continue
             files.append({
-                "entry_kind": "file",
+                "entry_kind": (
+                    "symlink" if document.file_mode == "120000" else "file"
+                ),
                 "name": remaining[0],
                 "relative_path": document.relative_path,
                 "document_id": document.document_id,
@@ -340,6 +434,11 @@ class ResearchSourceSnapshot:
                     else {}
                 ),
                 **({"git_commit": document.git_commit} if document.git_commit else {}),
+                **(
+                    {"symlink_target": document.symlink_target}
+                    if document.symlink_target
+                    else {}
+                ),
             })
         entries = [
             {
@@ -813,6 +912,10 @@ def load_research_source_execution_spec(
         raise ValueError(
             "research source entrypoint and environment lock must be text documents"
         )
+    if entrypoint.file_mode == "120000" or environment_lock.file_mode == "120000":
+        raise ValueError(
+            "research source entrypoint and environment lock must be regular files"
+        )
     legacy_python = int(schema_version) < 3
     python_fields = {"python_executable_relative_path", "python_executable_sha256"}
     interpreter_fields = {
@@ -843,8 +946,11 @@ def load_research_source_execution_spec(
         environment_probe_document_id = _required_text(
             payload, "environment_probe_document_id"
         )
-        if research_sources.document(environment_probe_document_id).content_mode != "text":
+        environment_probe = research_sources.document(environment_probe_document_id)
+        if environment_probe.content_mode != "text":
             raise ValueError("research source environment probe must be a text document")
+        if environment_probe.file_mode == "120000":
+            raise ValueError("research source environment probe must be a regular file")
         executable_path_field = "interpreter_executable_relative_path"
         executable_hash_field = "interpreter_executable_sha256"
     source_commit = _required_text(payload, "source_commit")
@@ -1047,8 +1153,18 @@ def _stage_research_source_snapshot(
     *,
     workspace_root: Path,
 ) -> tuple[Path, ...]:
-    staged_paths: list[Path] = []
-    for document in research_sources.documents:
+    staged_paths: dict[str, Path] = {}
+    regular_documents = [
+        document
+        for document in research_sources.documents
+        if document.file_mode != "120000"
+    ]
+    symlink_documents = [
+        document
+        for document in research_sources.documents
+        if document.file_mode == "120000"
+    ]
+    for document in regular_documents:
         source_path = research_sources.document_path(document.document_id)
         staged_path = workspace_root / PurePosixPath(document.relative_path)
         staged_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1059,20 +1175,70 @@ def _stage_research_source_snapshot(
             raise ValueError(
                 f"staged research source hash mismatch: {document.document_id}"
             )
-        staged_paths.append(staged_path)
-    return tuple(staged_paths)
+        staged_paths[document.document_id] = staged_path
+    for document in symlink_documents:
+        source_path = research_sources.document_path(document.document_id)
+        observed_target = os.readlink(source_path)
+        if observed_target != document.symlink_target:
+            raise ValueError(
+                f"staged research source symlink mismatch: {document.document_id}"
+            )
+        staged_path = workspace_root / PurePosixPath(document.relative_path)
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        staged_path.symlink_to(observed_target)
+        try:
+            staged_path.resolve(strict=True).relative_to(workspace_root)
+        except (FileNotFoundError, ValueError) as exc:
+            raise ValueError(
+                f"staged research source symlink escaped: {document.document_id}"
+            ) from exc
+        staged_paths[document.document_id] = staged_path
+    return tuple(staged_paths[document.document_id] for document in research_sources.documents)
 
 
-def _workspace_file_hashes(workspace_root: Path) -> tuple[dict[str, str], list[str]]:
+def _workspace_file_hashes(
+    workspace_root: Path,
+    *,
+    expected_symlinks: Mapping[str, str] | None = None,
+) -> tuple[dict[str, str], list[str]]:
+    expected = dict(expected_symlinks or {})
     file_hashes: dict[str, str] = {}
     unsafe_paths: list[str] = []
     for path in sorted(workspace_root.rglob("*")):
         relative_path = path.relative_to(workspace_root).as_posix()
         if path.is_symlink():
-            unsafe_paths.append(relative_path)
+            try:
+                target = os.readlink(path)
+                normalized_internal_symlink_destination(
+                    link_path=relative_path,
+                    target=target,
+                )
+                resolved = path.resolve(strict=True)
+                resolved.relative_to(workspace_root)
+            except (OSError, ValueError):
+                unsafe_paths.append(relative_path)
+                continue
+            if expected.get(relative_path) != target or not resolved.is_file():
+                unsafe_paths.append(relative_path)
+                continue
+            file_hashes[relative_path] = hashlib.sha256(
+                target.encode("utf-8")
+            ).hexdigest()
         elif path.is_file():
+            if relative_path in expected:
+                unsafe_paths.append(relative_path)
             file_hashes[relative_path] = _file_sha256(path)
     return file_hashes, unsafe_paths
+
+
+def _research_source_symlink_targets(
+    research_sources: ResearchSourceSnapshot,
+) -> dict[str, str]:
+    return {
+        document.relative_path: document.symlink_target
+        for document in research_sources.documents
+        if document.file_mode == "120000"
+    }
 
 
 def _csv_result_summary(raw_text: str) -> dict[str, Any]:
@@ -1337,9 +1503,16 @@ def _capture_staged_result_artifacts(
         document.relative_path: document.sha256
         for document in research_sources.documents
     }
+    expected_symlinks = _research_source_symlink_targets(research_sources)
     result_paths = set(result_artifact_paths)
-    observed_hashes, unsafe_paths = _workspace_file_hashes(workspace_root)
-    errors = [f"staged source workspace contains symlink: {path}" for path in unsafe_paths]
+    observed_hashes, unsafe_paths = _workspace_file_hashes(
+        workspace_root,
+        expected_symlinks=expected_symlinks,
+    )
+    errors = [
+        f"staged source workspace contains an unsafe or changed symlink: {path}"
+        for path in unsafe_paths
+    ]
     staged_input_mutated = False
     for relative_path, expected_hash in declared_hashes.items():
         if relative_path in result_paths:
@@ -1351,6 +1524,21 @@ def _capture_staged_result_artifacts(
         if not document.file_mode:
             continue
         staged_path = workspace_root / PurePosixPath(document.relative_path)
+        if document.file_mode == "120000":
+            try:
+                target_matches = (
+                    staged_path.is_symlink()
+                    and os.readlink(staged_path) == document.symlink_target
+                )
+            except OSError:
+                target_matches = False
+            if not target_matches:
+                staged_input_mutated = True
+                errors.append(
+                    "staged source symlink changed during execution: "
+                    + document.relative_path
+                )
+            continue
         if staged_path.is_symlink() or not staged_path.is_file():
             continue
         observed_executable = bool(stat.S_IMODE(staged_path.stat().st_mode) & 0o111)
@@ -1484,10 +1672,13 @@ def execute_research_source(
             source_workspace_root / PurePosixPath(entrypoint.relative_path)
         )
         staged_hashes, unsafe_staged_paths = _workspace_file_hashes(
-            source_workspace_root
+            source_workspace_root,
+            expected_symlinks=_research_source_symlink_targets(
+                research_sources
+            ),
         )
         errors.extend(
-            f"staged source workspace contains symlink: {path}"
+            f"staged source workspace contains an unsafe or changed symlink: {path}"
             for path in unsafe_staged_paths
         )
         source_workspace_hash_before = stable_hash(
@@ -1997,23 +2188,62 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
         relative_path = PurePosixPath(relative_path_value)
         if relative_path.is_absolute() or ".." in relative_path.parts:
             raise ValueError(f"research source {document_id} relative_path must stay inside source_root")
+        file_mode = str(raw_document.get("file_mode", "") or "").strip()
+        if file_mode and file_mode not in {"100644", "100755", "120000"}:
+            raise ValueError(
+                f"research source {document_id} file_mode is unsupported"
+            )
         unresolved_document = source_root
-        for part in relative_path.parts:
+        for part in relative_path.parts[:-1]:
             unresolved_document = unresolved_document / part
             if unresolved_document.is_symlink():
                 raise ValueError(
                     f"research source {document_id} path must not contain a symlink"
                 )
-        resolved_document = unresolved_document.resolve()
+        unresolved_document = unresolved_document / relative_path.parts[-1]
+        symlink_target = str(raw_document.get("symlink_target", "") or "")
+        if file_mode == "120000":
+            if not unresolved_document.is_symlink():
+                raise ValueError(
+                    f"research source {document_id} symlink is unavailable"
+                )
+            try:
+                observed_symlink_target = os.readlink(unresolved_document)
+                normalized_internal_symlink_destination(
+                    link_path=relative_path.as_posix(),
+                    target=observed_symlink_target,
+                )
+                resolved_document = unresolved_document.resolve(strict=True)
+            except (OSError, ValueError) as exc:
+                raise ValueError(
+                    f"research source {document_id} symlink target is invalid"
+                ) from exc
+            if symlink_target != observed_symlink_target:
+                raise ValueError(
+                    f"research source {document_id} symlink target mismatch"
+                )
+            raw_bytes = observed_symlink_target.encode("utf-8")
+        else:
+            if symlink_target:
+                raise ValueError(
+                    f"research source {document_id} non-symlink declares a target"
+                )
+            if unresolved_document.is_symlink():
+                raise ValueError(
+                    f"research source {document_id} path must not contain a symlink"
+                )
+            resolved_document = unresolved_document.resolve()
+            if not resolved_document.is_file():
+                raise ValueError(f"research source {document_id} file does not exist")
+            raw_bytes = resolved_document.read_bytes()
         try:
             resolved_document.relative_to(source_root)
         except ValueError as exc:
             raise ValueError(f"research source {document_id} resolves outside source_root") from exc
         if not resolved_document.is_file():
             raise ValueError(f"research source {document_id} file does not exist")
-        if resolved_document.stat().st_size > MAX_SOURCE_FILE_BYTES:
+        if len(raw_bytes) > MAX_SOURCE_FILE_BYTES:
             raise ValueError(f"research source {document_id} exceeds {MAX_SOURCE_FILE_BYTES} bytes")
-        raw_bytes = resolved_document.read_bytes()
         observed_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         if observed_sha256 != expected_sha256:
             raise ValueError(f"research source {document_id} sha256 mismatch: expected {expected_sha256}, observed {observed_sha256}")
@@ -2053,12 +2283,7 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
             lines = tuple(text.splitlines())
         else:
             lines = ()
-        file_mode = str(raw_document.get("file_mode", "") or "").strip()
-        if file_mode:
-            if file_mode not in {"100644", "100755"}:
-                raise ValueError(
-                    f"research source {document_id} file_mode is unsupported"
-                )
+        if file_mode and file_mode != "120000":
             observed_executable = bool(
                 stat.S_IMODE(resolved_document.stat().st_mode) & 0o111
             )
@@ -2102,12 +2327,30 @@ def load_research_source_snapshot(manifest_path: Path) -> ResearchSourceSnapshot
             byte_size=len(raw_bytes),
             file_mode=file_mode,
             git_blob_oid=git_blob_oid,
+            symlink_target=symlink_target,
             lines=lines,
         )
         documents.append(document)
         normalized_index.append({**document.public_descriptor(),
             "relative_path": normalized_relative_path, "model_visible": True})
 
+    documents_by_path = {document.relative_path: document for document in documents}
+    for document in documents:
+        if document.file_mode != "120000":
+            continue
+        destination = normalized_internal_symlink_destination(
+            link_path=document.relative_path,
+            target=document.symlink_target,
+        )
+        target_document = documents_by_path.get(destination)
+        if target_document is None or target_document.file_mode not in {
+            "100644",
+            "100755",
+        }:
+            raise ValueError(
+                "research source symlink must target one regular tracked file: "
+                + document.relative_path
+            )
     documents.sort(key=lambda document: document.document_id)
     normalized_index.sort(key=lambda row: str(row["document_id"]))
     repository_identity = _validated_repository_identity(

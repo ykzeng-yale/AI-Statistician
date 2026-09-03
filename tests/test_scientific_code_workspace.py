@@ -584,6 +584,122 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
     assert method_source not in str(result.evidence)
 
 
+def test_scientific_import_keeps_repository_symlinks_in_replication_lane(
+    tmp_path,
+) -> None:
+    source_root = tmp_path / "symlink-project"
+    source_root.mkdir()
+    target_content = "VALUE = 7\n"
+    target = source_root / "target.py"
+    target.write_text(target_content, encoding="utf-8")
+    link = source_root / "alias.py"
+    link.symlink_to("target.py")
+    link_target = "target.py"
+    manifest = {
+        "schema_version": 1,
+        "snapshot_id": "frozen-symlink-project",
+        "source_horizon": "2025-12-31",
+        "source_root": source_root.name,
+        "documents": [
+            {
+                "document_id": "target",
+                "title": "target.py",
+                "source_kind": "repository_text",
+                "relative_path": "target.py",
+                "sha256": hashlib.sha256(target_content.encode()).hexdigest(),
+                "content_mode": "text",
+                "media_type": "text/x-python",
+                "byte_size": len(target_content.encode()),
+                "file_mode": "100644",
+                "model_visible": True,
+            },
+            {
+                "document_id": "alias",
+                "title": "alias.py",
+                "source_kind": "repository_symlink",
+                "relative_path": "alias.py",
+                "sha256": hashlib.sha256(link_target.encode()).hexdigest(),
+                "content_mode": "text",
+                "media_type": "inode/symlink",
+                "byte_size": len(link_target.encode()),
+                "file_mode": "120000",
+                "symlink_target": link_target,
+                "model_visible": True,
+            },
+        ],
+    }
+    manifest_path = tmp_path / "symlink-project.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    snapshot = load_research_source_snapshot(manifest_path)
+    main_source = "def run_sandbox(seed, replicates):\n    return {'seed': seed}\n"
+    backend = ScriptedScientificBackend([
+        _response(ClientToolCall(
+            call_id="list-root",
+            name=RESEARCH_SOURCE_LIST_TOOL,
+            input={"directory": ""},
+        )),
+        _response(ClientToolCall(
+            call_id="submit-main",
+            name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+            input={
+                "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": main_source,
+            },
+        )),
+        _response(ClientToolCall(
+            call_id="import-link",
+            name=SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
+            input={"imports": [{
+                "source_origin": "frozen_snapshot",
+                "source_id": "alias",
+                "revision": snapshot.snapshot_hash,
+                "source_path": "alias.py",
+                "expected_content_sha256": hashlib.sha256(
+                    link_target.encode()
+                ).hexdigest(),
+                "project_path": "alias.py",
+            }]},
+        )),
+        _run_response(),
+        _commit_response(),
+    ])
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Preserve exact repository structure and execute safe source.",
+        user_prompt="Use the retained scientific workspace.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=5,
+        max_no_progress_turns=3,
+        artifact_id="question:frozen-symlink-import",
+        initial_code_draft=None,
+        initial_check_result={"accepted": False},
+        check_candidate=lambda candidate: {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": not candidate.get("project_files"),
+        },
+        workspace_operation="initial_authoring",
+        research_sources=snapshot,
+    )
+
+    import_error = json.loads(
+        backend.requests[3].messages[-1]["content"][0]["content"]
+    )
+    assert "repository symlink" in import_error["detail"]
+    assert result.check_result["accepted"] is True
+    assert "project_files" not in result.code_draft
+    assert not any(
+        ref.get("tool") == SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL
+        for ref in result.evidence["research_source_refs"]
+    )
+
+
 def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:
     return ClientToolTurnResponse(
         content_blocks=tuple(

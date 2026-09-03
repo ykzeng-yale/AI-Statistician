@@ -2272,6 +2272,11 @@ def run_scientific_code_workspace(
                         document = research_sources.document(row["source_id"])
                     except ValueError as exc:
                         raise ClientToolInputError(str(exc)) from exc
+                    if document.file_mode == "120000":
+                        raise ClientToolInputError(
+                            f"import index {index} is a repository symlink; preserve "
+                            "it in the exact replication workspace"
+                        )
                     if (
                         row["revision"] != research_sources.snapshot_hash
                         or row["source_path"] != document.relative_path

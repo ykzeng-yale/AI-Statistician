@@ -19,12 +19,13 @@ from .research_source_library import (
     MAX_SOURCE_FILE_BYTES,
     ResearchSourceSnapshot,
     load_research_source_snapshot,
+    normalized_internal_symlink_destination,
 )
 
 
 MAX_REPOSITORY_SNAPSHOT_FILES = 20_000
 MAX_REPOSITORY_SNAPSHOT_BYTES = 2 * 1024 * 1024 * 1024
-_GIT_REGULAR_FILE_MODES = frozenset({"100644", "100755"})
+_GIT_BLOB_FILE_MODES = frozenset({"100644", "100755", "120000"})
 
 
 def freeze_git_repository_snapshot(
@@ -114,7 +115,7 @@ def freeze_git_repository_snapshot(
 
     tree_rows = _git_tree_rows(repository, commit)
     if not tree_rows:
-        raise ValueError("Git commit contains no regular files")
+        raise ValueError("Git commit contains no supported tracked files")
     if len(tree_rows) > max_files:
         raise ValueError("Git commit exceeds the configured file-count boundary")
     total_bytes = sum(int(row["byte_size"]) for row in tree_rows)
@@ -206,10 +207,10 @@ def _git_tree_rows(repository: Path, commit: str) -> list[dict[str, Any]]:
             or path.as_posix() != relative_path
         ):
             raise ValueError("Git tree contains a non-canonical path")
-        if object_type != "blob" or mode not in _GIT_REGULAR_FILE_MODES:
+        if object_type != "blob" or mode not in _GIT_BLOB_FILE_MODES:
             raise ValueError(
-                "Git snapshot requires regular tracked files; symlinks and submodules "
-                f"must be frozen separately: {relative_path}"
+                "Git snapshot supports regular files and internal file symlinks; "
+                f"submodules and other tree entries are unsupported: {relative_path}"
             )
         byte_size = int(raw_size)
         if byte_size > MAX_SOURCE_FILE_BYTES:
@@ -236,6 +237,11 @@ def _materialize_git_blobs(
     license_name: str,
 ) -> list[dict[str, Any]]:
     documents = []
+    tree_modes = {
+        str(row["relative_path"]): str(row["file_mode"])
+        for row in tree_rows
+    }
+    pending_symlinks: list[tuple[Path, str, str]] = []
     process = subprocess.Popen(
         ["git", "-C", str(repository), "cat-file", "--batch"],
         stdin=subprocess.PIPE,
@@ -274,17 +280,42 @@ def _materialize_git_blobs(
                 raise ValueError(f"Git blob identity mismatch: {relative_path}")
             target = source_root / PurePosixPath(relative_path)
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(raw_bytes)
-            target.chmod(0o755 if tree_row["file_mode"] == "100755" else 0o644)
-            try:
-                decoded = raw_bytes.decode("utf-8")
-                content_mode = "text" if "\x00" not in decoded else "binary"
-            except UnicodeDecodeError:
-                content_mode = "binary"
-            guessed_media = mimetypes.guess_type(relative_path)[0]
-            media_type = guessed_media or (
-                "text/plain" if content_mode == "text" else "application/octet-stream"
-            )
+            symlink_target = ""
+            if tree_row["file_mode"] == "120000":
+                try:
+                    symlink_target = raw_bytes.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise ValueError(
+                        f"Git symlink target is not UTF-8: {relative_path}"
+                    ) from exc
+                destination = normalized_internal_symlink_destination(
+                    link_path=relative_path,
+                    target=symlink_target,
+                )
+                if tree_modes.get(destination) not in {"100644", "100755"}:
+                    raise ValueError(
+                        "Git symlink must target one regular tracked file: "
+                        + relative_path
+                    )
+                pending_symlinks.append((target, symlink_target, destination))
+                content_mode = "text"
+                media_type = "inode/symlink"
+            else:
+                target.write_bytes(raw_bytes)
+                target.chmod(
+                    0o755 if tree_row["file_mode"] == "100755" else 0o644
+                )
+                try:
+                    decoded = raw_bytes.decode("utf-8")
+                    content_mode = "text" if "\x00" not in decoded else "binary"
+                except UnicodeDecodeError:
+                    content_mode = "binary"
+                guessed_media = mimetypes.guess_type(relative_path)[0]
+                media_type = guessed_media or (
+                    "text/plain"
+                    if content_mode == "text"
+                    else "application/octet-stream"
+                )
             quoted_path = "/".join(
                 urllib.parse.quote(part, safe="")
                 for part in PurePosixPath(relative_path).parts
@@ -294,7 +325,13 @@ def _materialize_git_blobs(
                 + stable_hash([commit, relative_path])[:24],
                 "title": relative_path,
                 "source_kind": (
-                    "repository_text" if content_mode == "text" else "repository_asset"
+                    "repository_symlink"
+                    if symlink_target
+                    else (
+                        "repository_text"
+                        if content_mode == "text"
+                        else "repository_asset"
+                    )
                 ),
                 "relative_path": relative_path,
                 "sha256": hashlib.sha256(raw_bytes).hexdigest(),
@@ -311,12 +348,30 @@ def _materialize_git_blobs(
                     else ""
                 ),
                 "license": license_name,
+                **(
+                    {"symlink_target": symlink_target}
+                    if symlink_target
+                    else {}
+                ),
             })
         process.stdin.close()
         returncode = process.wait(timeout=30)
         stderr = process.stderr.read().decode("utf-8", errors="replace").strip()
         if returncode != 0:
             raise ValueError("Git blob reader failed" + (": " + stderr if stderr else ""))
+        for target, symlink_target, destination in pending_symlinks:
+            resolved_destination = source_root / PurePosixPath(destination)
+            if not resolved_destination.is_file() or resolved_destination.is_symlink():
+                raise ValueError(
+                    "Git symlink target was not materialized as a regular file: "
+                    + target.relative_to(source_root).as_posix()
+                )
+            target.symlink_to(symlink_target)
+            if target.resolve(strict=True) != resolved_destination.resolve(strict=True):
+                raise ValueError(
+                    "Git symlink resolved to an unexpected destination: "
+                    + target.relative_to(source_root).as_posix()
+                )
     except Exception:
         if process.poll() is None:
             process.kill()
