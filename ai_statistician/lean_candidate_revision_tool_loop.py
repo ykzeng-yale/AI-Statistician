@@ -795,6 +795,15 @@ def run_lean_candidate_revision_tool_loop(
         )
         return check_result
 
+    def invalidate_project_bound_observations() -> None:
+        for field in (
+            "last_check",
+            "latest_check_observation",
+            "latest_proof_search",
+            "latest_state_inspection",
+        ):
+            state[field] = {}
+
     # A resumed source is rechecked in the active project before the first model
     # turn, so the initial message carries fresh diagnostics rather than a copied
     # observation from an earlier runtime packet.
@@ -873,11 +882,11 @@ def run_lean_candidate_revision_tool_loop(
             state["source"] = source
             state["source_hash"] = source_hash
             state["source_updates"] += 1
-            state["last_check"] = {}
         if declaration_changed:
             state["candidate_lean_declaration"] = declaration
             state["declaration_updates"] += 1
-            state["last_check"] = {}
+        if changed or declaration_changed:
+            invalidate_project_bound_observations()
         check_result = check_current_source()
         compiled = bool(check_result.get("compiled", False))
         rejected_source_reused = bool(
@@ -1092,8 +1101,7 @@ def run_lean_candidate_revision_tool_loop(
             }
             state["support_build_order"] = []
             state["support_file_writes"] += 1
-            state["last_check"] = {}
-            state["latest_check_observation"] = {}
+            invalidate_project_bound_observations()
             content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
             observation = {
                 "ok": True,
@@ -1149,8 +1157,7 @@ def run_lean_candidate_revision_tool_loop(
             state["support_files"][path] = updated
             state["support_build_order"] = []
             state["support_file_edits"] += 1
-            state["last_check"] = {}
-            state["latest_check_observation"] = {}
+            invalidate_project_bound_observations()
             updated_sha256 = hashlib.sha256(updated.encode("utf-8")).hexdigest()
             observation = {
                 "ok": True,
@@ -1239,8 +1246,7 @@ def run_lean_candidate_revision_tool_loop(
             del state["support_files"][path]
             state["support_build_order"] = []
             state["support_file_removals"] += 1
-            state["last_check"] = {}
-            state["latest_check_observation"] = {}
+            invalidate_project_bound_observations()
             observation = {
                 "ok": True,
                 "path": path,
@@ -1500,11 +1506,23 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError("max_results must be an integer")
             k = max(1, min(8, requested_k))
             state["proof_searches"] += 1
+            search_context = deepcopy(dict(state["last_check"]))
+            state_inspection = state["latest_state_inspection"]
+            if (
+                isinstance(state_inspection, Mapping)
+                and state_inspection
+                and state_inspection.get("source_hash") == state["source_hash"]
+                and state_inspection.get("lean_project_hash", "")
+                == search_context.get("lean_project_hash", "")
+            ):
+                search_context["latest_state_inspection"] = deepcopy(
+                    dict(state_inspection)
+                )
             results = search_proof_candidates(
                 str(state["source"]),
                 query.strip(),
                 k,
-                deepcopy(dict(state["last_check"])),
+                search_context,
             )
             content = {
                 "ok": True,
@@ -1549,6 +1567,21 @@ def run_lean_candidate_revision_tool_loop(
                 str(state["source"]),
                 deepcopy(dict(state["last_check"])),
             )
+            if not isinstance(result, Mapping):
+                raise ClientToolInputError(
+                    "Lean state inspector returned a non-object result"
+                )
+            result = deepcopy(dict(result))
+            if result.get("source_hash") != state["source_hash"]:
+                raise ClientToolInputError(
+                    "Lean state inspection is not bound to the current source hash"
+                )
+            if result.get("lean_project_hash", "") != state["last_check"].get(
+                "lean_project_hash", ""
+            ):
+                raise ClientToolInputError(
+                    "Lean state inspection is not bound to the current project hash"
+                )
             state["latest_state_inspection"] = deepcopy(result)
             content = {
                 "ok": True,

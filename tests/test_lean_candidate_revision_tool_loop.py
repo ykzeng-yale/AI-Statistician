@@ -1725,6 +1725,98 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
     assert "search_proof_candidates" in result.evidence["tool_names"]
 
 
+def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
+    initial = "theorem target : True := by\n  exact missing\n"
+    revised = "theorem target : True := by\n  exact still_missing\n"
+    passing = "theorem target : True := by\n  exact True.intro\n"
+    backend = ScriptedLeanToolBackend(
+        [
+            _response(ClientToolCall("state-1", "inspect_lean_state", {})),
+            _response(
+                ClientToolCall(
+                    "proof-search-1",
+                    "search_proof_candidates",
+                    {"query": "close the inspected goal"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "revise-1",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": revised,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "proof-search-2",
+                    "search_proof_candidates",
+                    {"query": "inspect the revised failure"},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    "pass-1",
+                    LEAN_SOURCE_SUBMISSION_TOOL,
+                    {
+                        "lean_source": passing,
+                        "candidate_declaration_name": "target",
+                    },
+                )
+            ),
+        ]
+    )
+    proof_search_contexts: list[dict] = []
+
+    def check(source: str, _declaration: str):
+        return {
+            "source_hash": stable_hash(source),
+            "compiled": source == passing,
+            "local_lean_stderr": "unsolved goal" if source != passing else "",
+        }
+
+    def inspect(source: str, last_check):
+        return {
+            "status": "OBSERVED",
+            "source_hash": stable_hash(source),
+            "lean_project_hash": last_check.get("lean_project_hash", ""),
+            "rows": [{"residual_goals": ["|- True"]}],
+            "proof_evidence_status": "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE",
+        }
+
+    def search(_source: str, _query: str, _k: int, context):
+        proof_search_contexts.append(dict(context))
+        return {"source_theorem_candidate_proof_bodies": []}
+
+    result = run_lean_candidate_revision_tool_loop(
+        provider=backend,
+        system_prompt="Use tools.",
+        user_prompt="Inspect, search, and revise the exact source.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=6,
+        max_no_progress_turns=3,
+        candidate_id="target-candidate",
+        candidate_lean_declaration="target",
+        initial_source=initial,
+        check_candidate=check,
+        search_formal_environment=lambda query, k: [],
+        search_proof_candidates=search,
+        inspect_lean_state=inspect,
+    )
+
+    first_state = proof_search_contexts[0]["latest_state_inspection"]
+    assert first_state["source_hash"] == stable_hash(initial)
+    assert first_state["rows"][0]["residual_goals"] == ["|- True"]
+    assert "latest_state_inspection" not in proof_search_contexts[1]
+    assert proof_search_contexts[1]["source_hash"] == stable_hash(revised)
+    assert result.lean_source == passing
+
+
 def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
     initial = "theorem target : True := by\n  exact missing\n"
     revised = "theorem target : True := by\n  exact True.intro\n"
@@ -1767,6 +1859,8 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
         inspections.append((source, dict(last_check)))
         return {
             "provider": "lean_lsp_mcp",
+            "source_hash": stable_hash(source),
+            "lean_project_hash": last_check.get("lean_project_hash", ""),
             "goals": ["|- True"],
             "executed_tools": ["lean_lsp_mcp.lean_goal"],
         }
@@ -4057,6 +4151,8 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             self.inspection_symbol = inspection_symbol
             self.check_result = {}
             self.declaration_result = {}
+            self.state_result = {}
+            self.proof_result = {}
             self.tool_environment_identity = {}
 
         def run_lean_candidate_workspace_with_client_tools(self, **kwargs):
@@ -4074,6 +4170,24 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             self.check_result = dict(
                     kwargs["check_candidate"](self.workspace_source, "target")
             )
+            state_tool = kwargs.get("inspect_lean_state")
+            if callable(state_tool):
+                self.state_result = dict(
+                    state_tool(self.workspace_source, self.check_result)
+                )
+            proof_tool = kwargs.get("search_proof_candidates")
+            if callable(proof_tool):
+                self.proof_result = dict(
+                    proof_tool(
+                        self.workspace_source,
+                        "close the current inspected goal",
+                        2,
+                        {
+                            **self.check_result,
+                            "latest_state_inspection": self.state_result,
+                        },
+                    )
+                )
             declaration_tool = kwargs.get("inspect_lean_declaration")
             assert callable(declaration_tool)
             self.declaration_result = dict(
@@ -4104,6 +4218,19 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
 
         def __init__(self) -> None:
             self.calls: list[dict] = []
+            self.state_calls: list[list] = []
+
+        def inspect(self, subclaims):
+            self.state_calls.append(list(subclaims))
+            return [
+                {
+                    "residual_goals": ["|- True"],
+                    "executed_tools": ["lean_lsp_mcp.lean_goal"],
+                    "proof_evidence_status": (
+                        "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            ]
 
         def inspect_declaration(self, **kwargs):
             self.calls.append(dict(kwargs))
@@ -4115,6 +4242,22 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
                 "proof_evidence_status": (
                     "LEAN_DECLARATION_INSPECTION_NOT_PROOF_EVIDENCE"
                 ),
+            }
+
+    class FakeProofSearchProvider:
+        name = "fake_openprover"
+
+        def __init__(self) -> None:
+            self.requests: list[dict] = []
+
+        def run(self, request):
+            self.requests.append(dict(request))
+            return {
+                "status": "CANDIDATES_AVAILABLE",
+                "provider": self.name,
+                "source_theorem_candidate_proof_bodies": [
+                    "by exact True.intro"
+                ],
             }
 
     monkeypatch.setattr(
@@ -4139,8 +4282,14 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             "candidate_axiom_audit_clean": True,
         },
     )
+    monkeypatch.setattr(
+        runtime_module,
+        "proof_state_feedback_row_to_json",
+        lambda row: dict(row),
+    )
     agent = FakeAgent()
     proof_state_provider = FakeProofStateProvider()
+    proof_search_provider = FakeProofSearchProvider()
     result = runtime_module._runtime_formalizer_lean_candidate_client_tool_workspace(
         proposal_agent=agent,
         question=question,
@@ -4151,7 +4300,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         registered_problem={},
         theorem_goals=[],
         formal_source_retriever=None,
-        proof_search_provider=None,
+        proof_search_provider=proof_search_provider,
         proof_state_provider=proof_state_provider,
         lean_candidate_root=tmp_path / "candidates",
         lean_candidate_local_lean=True,
@@ -4173,6 +4322,18 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     assert agent.check_result["candidate_axiom_audit_clean"] is True
     assert evidence["parent_candidate_source_hash"] == stable_hash(source)
     assert evidence["resumed_from_model_checkpoint"] is False
+    proof_request = proof_search_provider.requests[0]
+    assert proof_request["current_lean_source_hash"] == stable_hash(source)
+    assert proof_request["proof_state_observation"] == agent.state_result
+    assert proof_request["proof_state_observation_hash"] == stable_hash(
+        agent.state_result
+    )
+    assert proof_request["residual_goal_excerpt"] == ["|- True"]
+    assert agent.proof_result["source_theorem_candidate_proof_bodies"] == [
+        "by exact True.intro"
+    ]
+    assert agent.state_result["source_hash"] == stable_hash(source)
+    assert proof_state_provider.state_calls
     assert agent.declaration_result["status"] == "OBSERVED"
     assert proof_state_provider.calls[0]["symbol"] == "Example.Source"
     assert agent.tool_environment_identity["lean_project"] == str(

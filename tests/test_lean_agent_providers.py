@@ -854,6 +854,18 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
                     "PROOF_STATE_TRACE_RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE"
                 ),
             },
+            "proof_state_observation": {
+                "status": "OBSERVED",
+                "source_hash": "exact-source-hash",
+                "rows": [
+                    {
+                        "residual_goals": ["p : Prop\nhp : p\n|- p"],
+                        "proof_evidence_status": (
+                            "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
             "formal_source_grounding_hits": [
                 {
                     "query": "prior_goal Lean theorem",
@@ -892,6 +904,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
     assert result["initial_failure_feedback_items"] == 2
     assert result["policy_diagnostics"]["retrieval_context_keys"] == [
         "formal_source_grounding_hits",
+        "proof_state_observation",
         "proof_state_trace_rag",
     ]
     assert result["task_normalization"]["source"] == "llm_structured_json"

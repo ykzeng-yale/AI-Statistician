@@ -18739,6 +18739,23 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             )
             if str(value).strip()
         ]
+        source_hash = stable_hash(source)
+        state_observation = last_check.get("latest_state_inspection", {})
+        state_observation = (
+            deepcopy(dict(state_observation))
+            if isinstance(state_observation, Mapping)
+            and state_observation.get("source_hash") == source_hash
+            and state_observation.get("lean_project_hash", "")
+            == last_check.get("lean_project_hash", "")
+            else {}
+        )
+        residual_goals = [
+            str(goal)
+            for row in state_observation.get("rows", [])
+            if isinstance(row, Mapping)
+            for goal in row.get("residual_goals", []) or []
+            if str(goal).strip()
+        ][:16]
         request = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "FormalizerProofSearchToolRequest",
@@ -18750,11 +18767,19 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             ),
             "target_theorem_statement": source,
             "current_lean_source": source,
-            "current_lean_source_hash": stable_hash(source),
+            "current_lean_source_hash": source_hash,
             "model_query": query,
             "compiler_feedback": {"diagnostics": diagnostics},
             "proof_evidence_status": "PROOF_SEARCH_REQUEST_NOT_PROOF_EVIDENCE",
         }
+        if state_observation:
+            request.update(
+                {
+                    "proof_state_observation": state_observation,
+                    "proof_state_observation_hash": stable_hash(state_observation),
+                    "residual_goal_excerpt": residual_goals,
+                }
+            )
         request["request_fingerprint"] = stable_hash(request)
         try:
             raw = proof_search_provider.run(request)
@@ -18889,6 +18914,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                 )
             ),
             "source_hash": source_hash,
+            "lean_project_hash": str(
+                last_check.get("lean_project_hash", "") or ""
+            ),
             "rows": [proof_state_feedback_row_to_json(row) for row in rows],
             "proof_evidence_status": (
                 "MODEL_REQUESTED_LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE"

@@ -1159,6 +1159,7 @@ class OpenProverHLMProofSearchProvider:
             retrieval_context={
                 key: request_payload[key]
                 for key in (
+                    "proof_state_observation",
                     "proof_state_trace_rag",
                     "formal_source_grounding_hits",
                 )
