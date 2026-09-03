@@ -182,6 +182,7 @@ def _runtime_result(
     *, include_handoff: bool = True, direct_handoff: bool = False
 ) -> dict:
     source = _model_source()
+    project_hash = scientific_project_hash(language="python", code=source)
     accepted_id = "accepted_algorithm_handoff:test"
     implementation_id = "accepted_implementation_interface_handoff:test"
     accepted = {
@@ -196,6 +197,8 @@ def _runtime_result(
                 "dependencies": ["numpy"],
                 "exact_source_code": source,
                 "exact_source_hash": stable_hash(source),
+                "exact_project_files": [],
+                "exact_project_hash": project_hash,
             }
         ],
         "proof_evidence_status": "NOT_PROOF_EVIDENCE",
@@ -824,6 +827,38 @@ def test_gold_evaluator_rejects_unbound_or_stale_multifile_project(
         research_evaluation_summary=_research_summary(),
         benchmark_manifest_path=GOLD_MANIFEST,
         out_dir=tmp_path / identity_failure,
+        run_harness=forbidden_harness,
+    )
+
+    assert calls == []
+    assert "accepted estimator project hash is invalid" in result["tasks"][0][
+        "failure_reasons"
+    ]
+
+
+def test_gold_evaluator_rejects_unbound_single_file_project(tmp_path: Path) -> None:
+    runtime_result = _runtime_result()
+    accepted = runtime_result["blackboard"]["artifacts"][
+        "accepted_algorithm_handoff:test"
+    ]
+    accepted["exact_algorithm_artifacts"][0]["exact_project_hash"] = ""
+    implementation = runtime_result["blackboard"]["artifacts"][
+        "accepted_implementation_interface_handoff:test"
+    ]
+    implementation["source_accepted_algorithm_handoff_hash"] = stable_hash(
+        accepted
+    )
+    calls = []
+
+    def forbidden_harness(**kwargs) -> dict:
+        calls.append(kwargs)
+        return _passing_harness(**kwargs)
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=_research_summary(),
+        benchmark_manifest_path=GOLD_MANIFEST,
+        out_dir=tmp_path,
         run_harness=forbidden_harness,
     )
 

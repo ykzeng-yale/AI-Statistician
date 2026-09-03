@@ -150,10 +150,7 @@ def _exact_estimator_probe_targets(
             and language in SCIENTIFIC_SANDBOX_LANGUAGES
             and raw.get("exact_source_hash") == source_hash
             and row.get("script_hash") == source_hash
-            and (
-                persisted_project_hash == project_hash
-                or (not project_files and not persisted_project_hash)
-            )
+            and persisted_project_hash == project_hash
             and (
                 row.get("smoke_passed") is True
                 or row.get("execution_smoke_passed") is True

@@ -1870,7 +1870,61 @@ def test_unchanged_multifile_release_is_rejected_by_complete_project_identity() 
             "unchanged project must fail before sandbox execution"
         ),
         failure_identity={"simulation_id": "unchanged-project"},
-        disallowed_unchanged_source_hashes=(release_hash,),
+        disallowed_unchanged_release_hashes=(release_hash,),
+    )
+
+    assert tool_calls == []
+    assert prototype["prototype_status"] == "UNCHANGED_SOURCE_REJECTED"
+    assert prototype["project_hash"] == release_hash
+
+
+def test_unchanged_single_file_release_uses_complete_project_identity() -> None:
+    candidate = {
+        "language": "python",
+        "execution_profile": "stdlib",
+        "dependencies": [],
+        "entrypoint": "run_sandbox",
+        "code": "def run_sandbox(seed, replicates): return {'value': 1}\n",
+    }
+    release_hash = scientific_project_hash(
+        language="python",
+        code=candidate["code"],
+    )
+
+    class Provider:
+        @staticmethod
+        def generate_client_tool_turn(*_args, **_kwargs):
+            raise AssertionError("the fake source owner controls this workspace")
+
+    class SourceAgent:
+        provider = Provider()
+
+        @staticmethod
+        def iterate_code_with_tools(**kwargs):
+            check = kwargs["check_candidate"](candidate)
+            assert check["accepted"] is False
+            assert check["prototype"]["prototype_status"] == (
+                "UNCHANGED_SOURCE_REJECTED"
+            )
+            raise PacketValidationError(
+                validation_label="scientific source workspace",
+                attempts=1,
+                errors=["unchanged release rejected"],
+                history=[],
+            )
+
+    prototype, tool_calls = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(),
+        question=object(),
+        artifact_id="question:unchanged-single-file-project",
+        code_draft={},
+        source_deferred=True,
+        workspace_context={},
+        execute_candidate=lambda _candidate: pytest.fail(
+            "unchanged project must fail before sandbox execution"
+        ),
+        failure_identity={"simulation_id": "unchanged-single-file-project"},
+        disallowed_unchanged_release_hashes=(release_hash,),
     )
 
     assert tool_calls == []

@@ -52,6 +52,7 @@ from ai_statistician.research_agent_runtime_audit import (
 from ai_statistician.research_architect import ResearchArchitectConfig
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import ScientificCodeWorkspaceResult
+from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
@@ -411,6 +412,10 @@ def test_theory_free_source_review_binds_frozen_abi_lineage(
                 "execution_smoke_passed": True,
                 "script_path": str(source_path),
                 "script_hash": runtime_module.stable_hash(source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=source
+                ),
                 "result_path": str(result_path),
                 "result_hash": runtime_module.stable_hash(result_payload),
                 "metrics": result_payload,
@@ -1601,6 +1606,10 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
                 "execution_smoke_passed": True,
                 "script_path": str(source_path),
                 "script_hash": runtime_module.stable_hash(source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=source
+                ),
                 "result_path": str(result_path),
                 "result_hash": runtime_module.stable_hash(result_payload),
                 "metrics": result_payload,
@@ -1821,7 +1830,10 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
         theory_packet=stored_revision,
     )
     assert seeds["candidate"]["code"] == source
-    assert seed_lineage["reuse_basis"] == "exact_estimator_spec_and_source_hash"
+    assert seed_lineage["reuse_basis"] == "exact_estimator_spec_and_project_hash"
+    assert seed_lineage["project_hashes"] == {
+        "candidate": scientific_project_hash(language="python", code=source)
+    }
     evaluator_task = runtime_module._agent_task_from_runtime_payload(
         accepted_revision.next_task.inputs["deferred_metric_protocol_task"]
     )
@@ -1932,6 +1944,10 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
                 "source_code": evaluator_source,
                 "script_path": str(tmp_path / "evaluator.py"),
                 "script_hash": runtime_module.stable_hash(evaluator_source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=evaluator_source
+                ),
                 "result_path": str(tmp_path / "evaluator-diagnostic.json"),
                 "result_hash": runtime_module.stable_hash(metrics),
                 "runtime_seed": 17,
@@ -1993,6 +2009,9 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
         return source_workspace_runner(**kwargs)
 
     bound_source_hashes = {"candidate": runtime_module.stable_hash(source)}
+    bound_project_hashes = {
+        "candidate": scientific_project_hash(language="python", code=source)
+    }
 
     def confirmatory_execute(**kwargs):
         assert kwargs["code_draft"]["code"] == evaluator_source
@@ -2012,6 +2031,10 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
                 "required_estimator_ids": ["candidate"],
                 "source_code": evaluator_source,
                 "script_hash": runtime_module.stable_hash(evaluator_source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=evaluator_source
+                ),
                 "runtime_replicates": kwargs["n_runs"],
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
@@ -2020,8 +2043,9 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
                 "metric_contracts": [],
                 "metric_contract_evaluation": {},
                 "bound_estimator_code_hashes": bound_source_hashes,
+                "bound_estimator_project_hashes": bound_project_hashes,
                 "estimator_binding_hash": runtime_module.stable_hash(
-                    bound_source_hashes
+                    bound_project_hashes
                 ),
                 "estimator_invocation_counts": {"candidate": 1},
                 "mechanical_estimator_invocation_verified": True,
@@ -5150,6 +5174,10 @@ def test_theory_revision_replays_only_exact_accepted_algorithm_source_seed() -> 
                 "dependencies": [],
                 "source_code": source,
                 "script_hash": runtime_module.stable_hash(source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=source
+                ),
                 "spec": estimator_spec,
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
@@ -5184,7 +5212,13 @@ def test_theory_revision_replays_only_exact_accepted_algorithm_source_seed() -> 
 
     assert seeds["generic-estimator"]["code"] == source
     assert lineage["parent_manifest_id"] == manifest_id
-    assert lineage["reuse_basis"] == "exact_estimator_spec_and_source_hash"
+    assert lineage["reuse_basis"] == "exact_estimator_spec_and_project_hash"
+    assert lineage["project_hashes"] == {
+        "generic-estimator": scientific_project_hash(
+            language="python",
+            code=source,
+        )
+    }
     changed_spec = {**estimator_spec, "formula": "theta_hat = median(X)"}
     changed_seeds, changed_lineage = (
         runtime_module._runtime_theory_revision_algorithm_source_seeds(
@@ -5241,6 +5275,10 @@ def test_algorithm_workspace_executes_exact_theory_revision_seed_before_reauthor
                 "dependencies": [],
                 "source_code": source,
                 "script_hash": runtime_module.stable_hash(source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=source
+                ),
                 "spec": estimator_spec,
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
@@ -5621,6 +5659,10 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             "source_code": source,
             "script_path": str(script_path),
             "script_hash": runtime_module.stable_hash(source),
+            "project_files": [],
+            "project_hash": scientific_project_hash(
+                language="python", code=source
+            ),
             "result_path": str(result_path),
             "result_hash": runtime_module.stable_hash(result),
             "metrics": result,
@@ -5674,6 +5716,10 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
                 "required_estimator_ids": ["failed-estimator"],
                 "source_code": simulation_source,
                 "script_hash": runtime_module.stable_hash(simulation_source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=simulation_source
+                ),
             }
         ],
     }
@@ -5721,8 +5767,8 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
             "stable-estimator",
         ],
         "dependency_artifact_hashes": {
-            "failed-estimator": failed_parent["script_hash"],
-            "stable-estimator": stable_parent["script_hash"],
+            "failed-estimator": failed_parent["project_hash"],
+            "stable-estimator": stable_parent["project_hash"],
         },
         "consumer_observations_by_dependency": {
             "failed-estimator": [
@@ -5859,6 +5905,15 @@ def test_consumer_backedge_revises_only_failed_source_and_defers_consumer(
     integration_sources: list[str] = []
 
     def run_generated_simulation_sandbox(**kwargs):
+        for dependency in kwargs["upstream_algorithm_handoff"][
+            "exact_algorithm_artifacts"
+        ]:
+            assert dependency["exact_project_files_complete"] is True
+            assert dependency["exact_project_hash"] == scientific_project_hash(
+                language=dependency["language"],
+                code=dependency["exact_source_code"],
+                project_files=dependency["exact_project_files"],
+            )
         artifact = next(
             row
             for row in kwargs["upstream_algorithm_handoff"][
@@ -6102,6 +6157,10 @@ def test_simulation_consumer_resume_replays_exact_source_without_planning(
                 "required_estimator_ids": [],
                 "source_code": exact_source,
                 "script_hash": runtime_module.stable_hash(exact_source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=exact_source
+                ),
             }
         ],
     }
@@ -6246,6 +6305,15 @@ def test_scientific_workspace_handoff_keeps_nonmatching_interface_inline() -> No
         "exact_algorithm_artifacts": [
             {
                 "estimator_id": "frozen-estimator",
+                "exact_source_hash": "source-hash:different",
+                "exact_project_hash": "project-hash:different",
+                "exact_project_files": [
+                    {
+                        "path": "helper.py",
+                        "content": "SOURCE_MUST_REMAIN_HIDDEN",
+                        "content_sha256": "helper-hash",
+                    }
+                ],
                 "estimator_interface_contract_id": "interface:different",
                 "estimator_interface_contract": mismatched,
             },
@@ -6264,6 +6332,11 @@ def test_scientific_workspace_handoff_keeps_nonmatching_interface_inline() -> No
 
     artifact = projected["exact_algorithm_artifacts"][0]
     assert artifact["estimator_interface_contract"] == mismatched
+    assert artifact["exact_project_hash"] == "project-hash:different"
+    assert artifact["project_files"] == [
+        {"path": "helper.py", "content_sha256": "helper-hash"}
+    ]
+    assert "SOURCE_MUST_REMAIN_HIDDEN" not in str(artifact)
     assert "estimator_interface_contract_ref" not in artifact
     stale_identity_artifact = projected["exact_algorithm_artifacts"][1]
     assert stale_identity_artifact["estimator_interface_contract"] == exact
@@ -6695,6 +6768,10 @@ def test_confirmatory_evaluator_replays_only_independently_reviewed_source(
                 "required_estimator_ids": [],
                 "source_code": source,
                 "script_hash": runtime_module.stable_hash(source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=source
+                ),
                 "metrics": {
                     "acceptance_passed": False,
                     "requested_runtime_replicates": 2_000,
@@ -7069,6 +7146,10 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
                 "dependencies": [],
                 "source_code": exact_source,
                 "script_hash": runtime_module.stable_hash(exact_source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=exact_source
+                ),
                 "spec": estimator_spec,
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
@@ -7096,11 +7177,14 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
             "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
         },
         "reviewed_source_artifacts": [
-            {
-                "artifact_id": "generic-estimator",
-                "exact_source_hash": runtime_module.stable_hash(exact_source),
-                "exact_source_available_via": "current_source_owner_workspace",
-            }
+                {
+                    "artifact_id": "generic-estimator",
+                    "exact_source_hash": runtime_module.stable_hash(exact_source),
+                    "exact_project_hash": scientific_project_hash(
+                        language="python", code=exact_source
+                    ),
+                    "exact_source_available_via": "current_source_owner_workspace",
+                }
         ],
     }
     context = _full_evidence_context(question.id)
@@ -7189,9 +7273,13 @@ def test_semantic_review_resumes_exact_algorithm_source_without_planning(
                 "requested_execution_profile": "stdlib",
                 "executor_profile": "stdlib",
                 "dependencies": [],
-                "source_code": source,
-                "script_hash": runtime_module.stable_hash(source),
-                "spec": dict(kwargs["spec"]),
+                    "source_code": source,
+                    "script_hash": runtime_module.stable_hash(source),
+                    "project_files": [],
+                    "project_hash": scientific_project_hash(
+                        language="python", code=source
+                    ),
+                    "spec": dict(kwargs["spec"]),
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
                 "execution_attempted": True,
@@ -7336,6 +7424,10 @@ def test_semantic_review_resumes_exact_simulation_source_without_planning(
                 "required_estimator_ids": [],
                 "source_code": exact_source,
                 "script_hash": runtime_module.stable_hash(exact_source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=exact_source
+                ),
             }
         ],
     }
@@ -7899,7 +7991,7 @@ def test_architect_algorithm_route_restores_source_and_frozen_simulation() -> No
         "source_manifest_hash": runtime_module.stable_hash(algorithm_manifest),
         "dependency_artifact_ids": ["generic-estimator"],
         "dependency_artifact_hashes": {
-            "generic-estimator": "algorithm-source-hash"
+            "generic-estimator": "algorithm-project-hash"
         },
         "consumer_source_artifacts": [
             {
@@ -8515,9 +8607,14 @@ def test_accepted_simulation_review_completes_current_outer_graph_lane(
                 "prototype_status": "EXECUTED",
                 "executor": "generated_simulation_sandbox",
                 "language": "python",
+                "dependencies": [],
                 "source_code": source,
                 "script_path": str(source_path),
                 "script_hash": runtime_module.stable_hash(source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=source
+                ),
                 "result_path": str(result_path),
                 "result_hash": runtime_module.stable_hash(result_payload),
                 "metrics": result_payload,
@@ -9240,10 +9337,16 @@ def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
         "prototypes": [
             {
                 "estimator_id": "candidate",
+                "language": "python",
+                "dependencies": [],
                 "smoke_passed": True,
                 "execution_smoke_passed": True,
                 "script_path": str(source_path),
                 "script_hash": runtime_module.stable_hash(source),
+                "project_files": [],
+                "project_hash": scientific_project_hash(
+                    language="python", code=source
+                ),
                 "result_path": str(result_path),
                 "result_hash": runtime_module.stable_hash(result_payload),
                 "metrics": result_payload,

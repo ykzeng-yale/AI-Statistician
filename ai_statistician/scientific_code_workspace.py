@@ -785,8 +785,8 @@ def reusable_scientific_source_rows(
                 parent_manifest.get("manifest_id", "") or ""
             ),
             "parent_manifest_hash": stable_hash(parent_manifest),
-            "parent_script_hash": str(
-                source_row.get("script_hash", "") or ""
+            "parent_project_hash": str(
+                source_row.get("project_hash", "") or ""
             ),
             "runtime_edited_source": False,
             "proof_evidence_status": "SOURCE_REUSE_NOT_PROOF_EVIDENCE",
@@ -928,7 +928,7 @@ def run_source_owner_scientific_workspace(
     confirmatory_result_blind: bool = False,
     defer_confirmatory_execution: bool = False,
     allow_current_source_run: bool = False,
-    disallowed_unchanged_source_hashes: Sequence[str] = (),
+    disallowed_unchanged_release_hashes: Sequence[str] = (),
     recovery_checkpoint: Mapping[str, Any] | None = None,
     recovery_prototype: Mapping[str, Any] | None = None,
     session_dir: Path | None = None,
@@ -1004,14 +1004,10 @@ def run_source_owner_scientific_workspace(
             code=candidate_source,
             project_files=candidate_project_files,
         )
-        candidate_release_identity = (
-            candidate_project_hash
-            if candidate_project_files
-            else candidate_source_hash
-        )
+        candidate_release_identity = candidate_project_hash
         if (
             candidate_source
-            and candidate_release_identity in disallowed_unchanged_source_hashes
+            and candidate_release_identity in disallowed_unchanged_release_hashes
         ):
             prototype = failed_prototype(
                 "UNCHANGED_SOURCE_REJECTED",
@@ -1022,8 +1018,8 @@ def run_source_owner_scientific_workspace(
                 parent_script_hash=candidate_source_hash,
                 execution_attempted=False,
                 runtime_errors=[
-                    "The candidate source hash matches a released parent source; "
-                    "an unchanged candidate cannot consume a fresh evaluation cohort."
+                    "The candidate project hash matches a released parent project; "
+                    "an unchanged release cannot consume a fresh evaluation cohort."
                 ],
                 proof_evidence_status="NOT_PROOF_EVIDENCE",
             )
@@ -1524,9 +1520,9 @@ def complete_scientific_source_draft(
         project_files=project_files,
     )
     persisted_project_hash = str(row.get("project_hash", "") or "").strip()
-    if project_files and not persisted_project_hash:
+    if not persisted_project_hash:
         errors.append("executed scientific project hash is missing")
-    elif persisted_project_hash and persisted_project_hash != computed_project_hash:
+    elif persisted_project_hash != computed_project_hash:
         errors.append("executed scientific project hash mismatch")
     draft = {
         "language": str(row.get("language", "") or ""),
@@ -1646,7 +1642,7 @@ def scientific_consumer_revision_sources(
         if (
             artifact_id not in implementation_ids
             or row.get("smoke_passed") is not True
-            or str(row.get("script_hash", "") or "")
+            or str(row.get("project_hash", "") or "")
             != str(expected_hashes.get(artifact_id, "") or "")
             or source_errors
         ):

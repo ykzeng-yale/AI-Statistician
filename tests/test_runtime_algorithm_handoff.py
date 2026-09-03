@@ -183,3 +183,29 @@ def test_algorithm_handoff_materialization_rejects_tampered_support_file() -> No
     ] = "def estimate(value):\n    return value + 1\n"
 
     assert runtime_module._runtime_exact_algorithm_artifacts(tampered) == []
+
+
+def test_algorithm_handoff_rejects_unbound_single_file_project() -> None:
+    _, _, _, review_material = _canonical_handoff_fixture()
+    unbound = deepcopy(review_material)
+    artifact = unbound["exact_executed_artifacts"][0]
+    artifact["exact_project_files"] = []
+    artifact["exact_project_hash"] = ""
+    artifact["source_row"]["project_hash"] = ""
+
+    assert runtime_module._runtime_exact_algorithm_artifacts(unbound) == []
+
+
+def test_algorithm_handoff_materialization_requires_complete_project_inventory() -> None:
+    _, blackboard, _, _ = _canonical_handoff_fixture()
+    materialization = deepcopy(blackboard.artifacts[MATERIALIZATION_ID])
+    materialization["exact_algorithm_artifacts"][0].pop(
+        "exact_project_files_complete"
+    )
+
+    assert (
+        runtime_module._runtime_materialized_exact_algorithm_artifacts(
+            materialization
+        )
+        == []
+    )

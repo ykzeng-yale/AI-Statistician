@@ -1059,10 +1059,7 @@ def _evaluate_gold_task(
         )
         return base
     persisted_project_hash = str(source.get("exact_project_hash", "") or "")
-    if (
-        persisted_project_hash
-        and persisted_project_hash != source_project_hash
-    ) or (source_project_files and not persisted_project_hash):
+    if persisted_project_hash != source_project_hash:
         base["failure_reasons"].append(
             "accepted estimator project hash is invalid"
         )

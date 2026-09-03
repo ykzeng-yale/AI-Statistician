@@ -576,10 +576,7 @@ def generated_code_semantic_review_upstream_dependency_errors(
             project_files = ()
             project_hash = ""
         persisted_project_hash = str(row.get("exact_project_hash", "") or "")
-        if project_hash and (
-            persisted_project_hash != project_hash
-            and (project_files or persisted_project_hash)
-        ):
+        if project_hash and persisted_project_hash != project_hash:
             errors.append(
                 f"upstream generated dependency project hash mismatch: {artifact_id}"
             )

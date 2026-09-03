@@ -161,6 +161,13 @@ def test_simulation_source_intent_review_uses_current_dependency_projection_only
     assert "exact_result" not in exact_dependency
 
     assert generated_code_semantic_review_upstream_dependency_errors(dependency) == []
+    missing_project_hash = deepcopy(dependency)
+    missing_project_hash["exact_dependency_artifacts"][0][
+        "exact_project_hash"
+    ] = ""
+    assert generated_code_semantic_review_upstream_dependency_errors(
+        missing_project_hash
+    ) == ["upstream generated dependency project hash mismatch: candidate"]
     missing_hash = deepcopy(dependency)
     missing_hash["exact_dependency_artifacts"][0]["exact_result_hash"] = ""
     assert generated_code_semantic_review_upstream_dependency_errors(missing_hash) == [
@@ -262,6 +269,7 @@ def _algorithm_review_material(
     *, language: str, source: str, dependencies: list[str]
 ) -> dict[str, object]:
     material = _review_material()
+    project_hash = scientific_project_hash(language=language, code=source)
     material["source_subsystem"] = "AlgorithmEngineer"
     material["exact_executed_artifacts"] = [
         {
@@ -271,10 +279,14 @@ def _algorithm_review_material(
                 "language": language,
                 "dependencies": dependencies,
                 "script_hash": stable_hash(source),
+                "project_hash": project_hash,
                 "smoke_passed": True,
             },
             "exact_source_code": source,
             "exact_source_hash": stable_hash(source),
+            "exact_project_files": [],
+            "exact_project_hash": project_hash,
+            "exact_project_files_complete": True,
             "exact_result": {"estimate": 3.0},
             "exact_result_hash": stable_hash({"estimate": 3.0}),
         }

@@ -47,6 +47,7 @@ from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
     advance_scientific_consumer_revision_budget,
     scientific_consumer_dependency_context,
+    scientific_consumer_revision_sources,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.simulation_engineer_llm import (
@@ -1045,6 +1046,7 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
         result_hash=stable_hash(metrics),
         subprocess_environment_keys=("HOME", "PATH"),
         resource_limits={"cpu_seconds": 5},
+        project_hash=scientific_project_hash(language="r", code=code),
         execution_envelope_path=str(envelope_path),
         execution_envelope_hash=stable_hash(envelope),
         boundary=SCIENTIFIC_SANDBOX_BOUNDARY,
@@ -1124,10 +1126,14 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
                     "semantic_review_packet_id": "algorithm-review:1",
                     "exact_algorithm_artifacts": [
                         {
-                            "estimator_id": "accepted-estimator",
-                            "exact_source_code": code,
-                            "exact_source_hash": stable_hash(code),
-                            "exact_smoke_result_hash": stable_hash(
+                                "estimator_id": "accepted-estimator",
+                                "exact_source_code": code,
+                                "exact_source_hash": stable_hash(code),
+                                "exact_project_files": [],
+                                "exact_project_hash": scientific_project_hash(
+                                    language="r", code=code
+                                ),
+                                "exact_smoke_result_hash": stable_hash(
                                 {"smoke_passed": True}
                             ),
                             "language": "r",
@@ -1148,6 +1154,34 @@ def test_runtime_dispatch_preserves_existing_metric_and_evidence_path(
     ][0]
     assert dependency["exact_result_included"] is False
     assert "exact_result" not in dependency
+
+    unbound_simulation = {**simulation, "project_hash": ""}
+    unbound_source_row = runtime_module._runtime_generated_code_semantic_review_rows(
+        {"generated_simulation_sandbox_prototypes": [unbound_simulation]},
+        source_subsystem="SimulationEvaluator",
+    )[0]
+    _, unbound_errors = runtime_module._runtime_generated_code_semantic_review_material(
+        work_order={
+            "source_subsystem": "SimulationEvaluator",
+            "reviewed_artifacts": [
+                {
+                    "artifact_id": unbound_source_row[
+                        "semantic_review_artifact_id"
+                    ],
+                    "row_hash": stable_hash(unbound_source_row),
+                }
+            ],
+        },
+        source_task={},
+        source_manifest={
+            "generated_simulation_sandbox_prototypes": [unbound_simulation]
+        },
+        theory_packet={},
+        proposal_packet={},
+    )
+    assert any(
+        "reviewed project hash mismatch" in error for error in unbound_errors
+    )
 
     rejected, rejected_call = runtime_module._run_generated_code_sandbox(
         sandbox_dir=tmp_path,
@@ -1331,6 +1365,7 @@ def test_runtime_simulation_failure_preserves_source_refs_without_routing(
         "    return estimators['candidate']({'seed': seed})\n"
     )
     source_hash = stable_hash(algorithm)
+    project_hash = scientific_project_hash(language="python", code=algorithm)
     execution = ScientificSandboxExecution(
         status="FAILED",
         language="python",
@@ -1355,8 +1390,9 @@ def test_runtime_simulation_failure_preserves_source_refs_without_routing(
         resource_limits={"cpu_seconds": 5},
         execution_envelope_hash="execution-envelope-hash",
         estimator_code_hashes={"candidate": source_hash},
+        estimator_project_hashes={"candidate": project_hash},
         estimator_invocation_counts={"candidate": 1},
-        estimator_binding_hash=stable_hash({"candidate": source_hash}),
+        estimator_binding_hash=stable_hash({"candidate": project_hash}),
         estimator_runtime_failure_ids=("candidate",),
         estimator_runtime_errors=(
             "ACCEPTED_ESTIMATOR_RUNTIME_ERROR: non-finite response",
@@ -1377,6 +1413,8 @@ def test_runtime_simulation_failure_preserves_source_refs_without_routing(
                 "dependencies": [],
                 "exact_source_code": algorithm,
                 "exact_source_hash": source_hash,
+                "exact_project_files": [],
+                "exact_project_hash": project_hash,
             }
         ],
     }
@@ -1405,7 +1443,7 @@ def test_runtime_simulation_failure_preserves_source_refs_without_routing(
         "source_manifest_id": "algorithm:accepted",
         "source_manifest_hash": "sha256:accepted-manifest",
         "artifact_ids": ["candidate"],
-        "artifact_hashes": {"candidate": source_hash},
+        "artifact_hashes": {"candidate": project_hash},
     }
 
 
@@ -1509,6 +1547,72 @@ def test_external_consumer_observation_starts_targeted_source_workspace() -> Non
     assert prototype["scientific_code_workspace"]["model_owned_source"] is True
 
 
+def test_consumer_revision_binds_the_complete_dependency_project() -> None:
+    source = (
+        "def run_estimator(request): return {'estimate': 1.0}\n"
+        "def run_sandbox(seed, replicates): return {'estimate': 1.0}\n"
+    )
+    old_files = [{"path": "helper.py", "content": "VALUE = 1\n"}]
+    current_files = [{"path": "helper.py", "content": "VALUE = 2\n"}]
+    current_project_hash = scientific_project_hash(
+        language="python", code=source, project_files=current_files
+    )
+    manifest = {
+        "artifact_kind": "RuntimeAlgorithmSandboxManifest",
+        "manifest_id": "algorithm:project-bound-consumer",
+        "theory_packet_id": "theory:project-bound-consumer",
+        "prototypes": [
+            {
+                "estimator_id": "candidate",
+                "language": "python",
+                "requested_execution_profile": "stdlib",
+                "executor_profile": "stdlib",
+                "dependencies": [],
+                "source_code": source,
+                "script_hash": stable_hash(source),
+                "project_files": current_files,
+                "project_hash": current_project_hash,
+                "smoke_passed": True,
+            }
+        ],
+    }
+    dependency_context = {
+        "source_owner_subsystem": "AlgorithmEngineer",
+        "source_manifest_id": manifest["manifest_id"],
+        "source_manifest_hash": stable_hash(manifest),
+        "dependency_artifact_ids": ["candidate"],
+        "dependency_artifact_hashes": {"candidate": current_project_hash},
+    }
+
+    _, current_errors = scientific_consumer_revision_sources(
+        manifest,
+        dependency_context=dependency_context,
+        revision_artifact_ids=["candidate"],
+        implementation_artifact_ids=["candidate"],
+        theory_packet_id=manifest["theory_packet_id"],
+    )
+    stale_context = {
+        **dependency_context,
+        "dependency_artifact_hashes": {
+            "candidate": scientific_project_hash(
+                language="python", code=source, project_files=old_files
+            )
+        },
+    }
+    _, stale_errors = scientific_consumer_revision_sources(
+        manifest,
+        dependency_context=stale_context,
+        revision_artifact_ids=["candidate"],
+        implementation_artifact_ids=["candidate"],
+        theory_packet_id=manifest["theory_packet_id"],
+    )
+
+    assert current_errors == []
+    assert stale_errors == [
+        "consumer source artifact is unavailable or stale: candidate"
+    ]
+
+
 def test_consumer_revision_budget_survives_dependency_source_changes() -> None:
     consumer_source = "def run_sandbox(seed, replicates, estimators): return {}"
     base_row = {
@@ -1522,7 +1626,7 @@ def test_consumer_revision_budget_survives_dependency_source_changes() -> None:
             "source_manifest_id": "algorithm:one",
             "source_manifest_hash": "hash-one",
             "artifact_ids": ["candidate"],
-            "artifact_hashes": {"candidate": "source-one"},
+            "artifact_hashes": {"candidate": "project-one"},
         },
     }
     first_context, errors = scientific_consumer_dependency_context([base_row])
@@ -1545,7 +1649,7 @@ def test_consumer_revision_budget_survives_dependency_source_changes() -> None:
             **base_row["source_owner"],
             "source_manifest_id": "algorithm:two",
             "source_manifest_hash": "hash-two",
-            "artifact_hashes": {"candidate": "source-two"},
+            "artifact_hashes": {"candidate": "project-two"},
         },
     }
     changed_context, errors = scientific_consumer_dependency_context([changed_row])
