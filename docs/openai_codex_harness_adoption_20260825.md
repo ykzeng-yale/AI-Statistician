@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `728cb12f`](https://github.com/openai/codex/tree/728cb12fe5794b0c3a8e776fb4994b1650b973a8), Apache-2.0. Codex still does not supply a reusable statistical or Lean control plane, so AI Statistician adopts no first-execution bypass or second runtime.
+Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `6d7f6dcd`](https://github.com/openai/codex/tree/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350), Apache-2.0. Codex still does not supply a reusable statistical or Lean control plane, so AI Statistician adopts no first-execution bypass or second runtime.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -236,13 +236,13 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/728cb12fe5794b0c3a8e776fb4994b1650b973a8/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/728cb12fe5794b0c3a8e776fb4994b1650b973a8/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/728cb12fe5794b0c3a8e776fb4994b1650b973a8/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/728cb12fe5794b0c3a8e776fb4994b1650b973a8/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/728cb12fe5794b0c3a8e776fb4994b1650b973a8/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/728cb12fe5794b0c3a8e776fb4994b1650b973a8/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Host-verified answers retained across compaction and rollback](https://github.com/openai/codex/commit/5971d428)
 - [Experimental token-budget context management, limited to eligible Codex-backend sessions](https://github.com/openai/codex/commit/cff76fa9)
-- [App Server protocol](https://github.com/openai/codex/blob/728cb12fe5794b0c3a8e776fb4994b1650b973a8/codex-rs/app-server/README.md)
+- [App Server protocol](https://github.com/openai/codex/blob/6d7f6dcd2285de70a3892d4f05b2a8ff44aa3350/codex-rs/app-server/README.md)
 - [Codex as a platform: build on the open agent harness](https://developers.openai.com/blog/codex-as-a-platform)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)
