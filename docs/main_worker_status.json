@@ -1,5 +1,5 @@
 {
-  "schema_version": 427,
+  "schema_version": 428,
   "updated_at": "2026-09-03",
   "goal_status": "active",
   "role": "sole main responsible worker",
@@ -14,12 +14,12 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "5a752c381b6121c1fdb15f021e42544ca614c724",
+  "validated_code_head": "6571fcbeaff7224647a0518aa40039a56d4f4347",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "f88255db20554f433bc4c168a67994d6d3920f49",
+    "remote_before_current_change": "f024f3d278a6839639d042b3dce5884432f3f1ac",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -95,6 +95,7 @@
       "Theory uses persistent Markdown/LaTeX and model-selected source, scratch, edit, checkpoint, and gap actions.",
       "Scientific code and Lean use direct environment feedback in the same source-owner session.",
       "Independent reviewers inspect immutable artifacts and report findings without editing source; post-runtime gold accepts their aggregate status only when its row hash and runtime evidence graph hash match the exact current result.",
+      "A complete research loop requires both its task-intent-selected evidence and an outer AgentRuntime terminal status of ACCEPTED; component evidence remains visible when a blocked or budget-exhausted graph has not completed.",
       "Formalization is intent-driven and cannot erase accepted non-formal evidence when it is not required; formal completion is revalidated against the exact frozen-target kernel-promotion artifact rather than an aggregate boolean."
     ],
     "remaining_risks": [
@@ -117,15 +118,15 @@
     "lean_candidate_revision_tool_loop_lines": 2933,
     "cli_lines": 7062,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 148882,
+    "top_level_package_lines": 148888,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "5a752c381b6121c1fdb15f021e42544ca614c724",
-    "summary": "Each research-summary row now binds its complete status payload to the exact runtime status, artifact graph, and summary-relevant trace projection. Hidden-gold rejects stale or mutated rows, duplicate task identities, and runtime results containing multiple question authorities instead of silently stitching or overwriting evidence across runs.",
-    "verification": "1259/1259 repository tests passed in 299.85 seconds; the focused research-summary, persistence, gold, and formal-authority panel passed 89/89; compileall, 328 tracked JSON files, diff hygiene, architecture budgets, model policy, and changed-file credential scan passed.",
-    "capability_effect": "Shared evaluation-lineage correction only. No model or hidden-evaluator call, consumed-task action, proof promotion, score change, or capability credit occurred."
+    "code_commit": "6571fcbeaff7224647a0518aa40039a56d4f4347",
+    "summary": "Research-loop completion now requires the outer AgentRuntime result itself to terminate with ACCEPTED in addition to satisfying every task-intent-selected capability check. Source-replication and exact-formal component evidence remain independently visible, but a BLOCKED outer graph can no longer be promoted to a completed full research task.",
+    "verification": "1259/1259 repository tests passed in 304.17 seconds; the focused research-summary, gold, and formal-authority panel passed 89/89; compileall, 328 tracked JSON files, diff hygiene, architecture budgets, model policy, and changed-file credential scan passed.",
+    "capability_effect": "Shared terminal-authority correction only. No model or hidden-evaluator call, consumed-task action, proof promotion, score change, or capability credit occurred."
   },
   "next_gates": [
     "Use a newly frozen, disjoint known-result task with independent hidden authority to measure long-horizon Theory revision and referee falsification. Do not alter the harness after observing a model-only mathematical miss unless a shared mechanism defect is demonstrated.",
