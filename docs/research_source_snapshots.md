@@ -131,5 +131,9 @@ excerpts to the same Theory source owner even when source execution never starts
 Full probe streams remain in the isolated output files instead of being recursively
 copied into model messages or manifests. A hash-checked virtualenv launcher is
 resolved for the macOS sandbox without losing its environment identity.
+Source stdout and stderr follow the same boundary: the manifest carries exact hashes,
+byte counts, truncation status, and bounded excerpts, while the existing result-read
+tool can inspect any exact line range from hash-rechecked runtime stream files. This
+keeps long published-program logs out of outer tasks and Critic payload copies.
 Successful execution is source-replication observation only; it is not semantic,
 statistical, confirmatory, novelty, or proof authority.

@@ -2804,9 +2804,10 @@ def _theory_workspace_tools(
                 ClientToolDefinition(
                     name=RESEARCH_SOURCE_RESULT_READ_TOOL,
                     description=(
-                        "Read an exact inclusive line range from one declared UTF-8 "
-                        "result artifact produced by run_research_source. The runtime "
-                        "rechecks the artifact SHA-256 before returning bytes."
+                        "Read an exact inclusive line range from one UTF-8 execution "
+                        "stream or declared result artifact returned by "
+                        "run_research_source. The runtime rechecks its SHA-256 before "
+                        "returning bytes."
                     ),
                     input_schema={
                         "type": "object",

@@ -782,6 +782,125 @@ def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -
     observation = source_replication_model_observation(manifest)
     assert observation["working_directory_relative"] == "."
     assert observation["arguments"] == ["--operator-fixed"]
+    assert {row["stream_id"] for row in observation["execution_streams"]} == {
+        "environment_probe_stdout",
+        "environment_probe_stderr",
+        "source_stdout",
+        "source_stderr",
+    }
+
+
+def test_long_source_stream_is_hash_bound_and_readable_without_manifest_copy(
+    tmp_path,
+) -> None:
+    snapshot, execution, _, _ = _source_execution_fixture(tmp_path)
+    full_stdout = "".join(
+        f"line-{index:04d}-" + ("x" * 90) + "\n" for index in range(700)
+    )
+
+    def fake_executor(**kwargs):
+        if str(kwargs["command"][1]).endswith("environment_probe.py"):
+            stdout = json.dumps(
+                {
+                    "python_version": "3.test",
+                    "package_versions": {"Demo": "1.2.3"},
+                }
+            )
+        else:
+            stdout = full_stdout
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    manifest = execute_research_source(
+        execution=replace(
+            execution,
+            max_output_bytes=MAX_SOURCE_RESULT_READ_CHARS * 2,
+        ),
+        research_sources=snapshot,
+        output_dir=tmp_path / "long-stream-output",
+        question_id="published-source-long-stream-task",
+        process_executor=fake_executor,
+    )
+
+    assert manifest["execution_status"] == "EXECUTED"
+    assert manifest["raw_stdout"] == full_stdout[:MAX_SOURCE_RESULT_READ_CHARS]
+    assert manifest["raw_stdout_truncated"] is True
+    assert manifest["stdout_bytes"] == len(full_stdout.encode("utf-8"))
+    assert manifest["stdout_sha256"] == hashlib.sha256(
+        full_stdout.encode("utf-8")
+    ).hexdigest()
+    assert full_stdout not in json.dumps(manifest)
+    source_stream = next(
+        row
+        for row in manifest["execution_streams"]
+        if row["stream_id"] == "source_stdout"
+    )
+    last_line = read_source_replication_result(
+        manifest,
+        relative_path=source_stream["relative_path"],
+        line_start=700,
+        line_end=700,
+    )
+    assert last_line["content"] == full_stdout.splitlines()[-1]
+    stream_path = (
+        Path(manifest["manifest_path"]).parent / source_stream["relative_path"]
+    )
+    stream_path.write_text("changed\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="changed after execution"):
+        read_source_replication_result(
+            manifest,
+            relative_path=source_stream["relative_path"],
+            line_start=1,
+            line_end=1,
+        )
+
+
+def test_source_cannot_preempt_runtime_stream_artifacts(tmp_path) -> None:
+    snapshot, execution, _, _ = _source_execution_fixture(tmp_path)
+
+    def fake_executor(**kwargs):
+        if str(kwargs["command"][1]).endswith("environment_probe.py"):
+            stdout = json.dumps(
+                {
+                    "python_version": "3.test",
+                    "package_versions": {"Demo": "1.2.3"},
+                }
+            )
+        else:
+            reserved = kwargs["output_dir"] / "runtime_streams"
+            reserved.mkdir()
+            (reserved / "untrusted.txt").write_text(
+                "source-owned\n", encoding="utf-8"
+            )
+            stdout = "source output\n"
+        return {
+            "execution_attempted": True,
+            "returncode": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "errors": [],
+        }
+
+    output_dir = tmp_path / "reserved-stream-output"
+    manifest = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=output_dir,
+        question_id="published-source-reserved-stream-task",
+        process_executor=fake_executor,
+    )
+
+    assert manifest["execution_status"] == "FAILED"
+    assert manifest["execution_streams"] == []
+    assert "reserved runtime_streams" in " ".join(manifest["errors"])
+    assert (output_dir / "runtime_streams" / "untrusted.txt").read_text() == (
+        "source-owned\n"
+    )
 
 
 def test_schema_v3_runs_hash_bound_interpreter_and_environment_probe(tmp_path) -> None:

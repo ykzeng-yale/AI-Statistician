@@ -1269,7 +1269,9 @@ def source_replication_evidence_view(
         "environment_lock_sha256", "runtime_language", "runtime_version",
         "interpreter_executable_sha256", "interpreter_arguments",
         "runtime_environment", "python_version", "package_versions",
-        "raw_stdout", "raw_stderr", "stdout_sha256", "stderr_sha256", "errors",
+        "raw_stdout", "raw_stderr", "raw_stdout_truncated",
+        "raw_stderr_truncated", "stdout_sha256", "stderr_sha256",
+        "stdout_bytes", "stderr_bytes", "execution_streams", "errors",
         "source_mutated", "staged_source_inputs_mutated",
         "unexpected_workspace_artifacts", "proof_evidence_status",
     )

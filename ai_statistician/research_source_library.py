@@ -1359,7 +1359,8 @@ def source_replication_model_observation(
         environment_probe_sha256 python_version package_versions
         working_directory_relative interpreter_arguments arguments runtime_environment
         execution_attempted returncode errors
-        stdout_sha256 stderr_sha256 execution_workspace_mode
+        stdout_sha256 stderr_sha256 stdout_bytes stderr_bytes
+        execution_workspace_mode
         declared_result_artifact_paths source_workspace_hash_before
         source_workspace_hash_after staged_source_inputs_mutated
         unexpected_workspace_artifacts source_mutated runtime_edited_source
@@ -1408,6 +1409,23 @@ def source_replication_model_observation(
         )
         compact_artifacts.append(artifact)
     observation["result_artifacts"] = compact_artifacts
+    observation["execution_streams"] = [
+        {
+            key: row[key]
+            for key in (
+                "stream_id",
+                "relative_path",
+                "sha256",
+                "size_bytes",
+                "content_encoding",
+                "execution_attempted",
+            )
+            if key in row
+        }
+        | {"content_available_via": RESEARCH_SOURCE_RESULT_READ_TOOL}
+        for row in manifest.get("execution_streams", []) or []
+        if isinstance(row, Mapping)
+    ]
     observation["model_observation_compacted"] = True
     observation["full_result_bytes_embedded"] = False
     return observation
@@ -1420,7 +1438,7 @@ def read_source_replication_result(
     line_start: Any,
     line_end: Any,
 ) -> dict[str, Any]:
-    """Read exact declared result lines from the hash-bound staged workspace."""
+    """Read exact result or execution-stream lines from hash-bound storage."""
 
     if any(
         isinstance(value, bool) or not isinstance(value, int)
@@ -1497,13 +1515,24 @@ def _source_replication_result_bytes(
     result_path = PurePosixPath(relative_path.strip())
     if result_path.is_absolute() or ".." in result_path.parts:
         raise ValueError("source result path must stay inside its staged workspace")
-    matching = [row for row in manifest.get("result_artifacts", []) or [] if
-                isinstance(row, Mapping) and row.get("relative_path") == result_path.as_posix()]
+    result_rows = [
+        row for row in manifest.get("result_artifacts", []) or []
+        if isinstance(row, Mapping) and row.get("relative_path") == result_path.as_posix()
+    ]
+    stream_rows = [
+        row for row in manifest.get("execution_streams", []) or []
+        if isinstance(row, Mapping) and row.get("relative_path") == result_path.as_posix()
+    ]
+    matching = [*result_rows, *stream_rows]
     if len(matching) != 1:
         raise ValueError("source result artifact identity is unavailable or ambiguous")
     artifact = matching[0]
     manifest_path = Path(str(manifest.get("manifest_path", "") or "")).resolve()
-    workspace_root = (manifest_path.parent / "source_workspace").resolve()
+    workspace_root = (
+        manifest_path.parent
+        if stream_rows
+        else manifest_path.parent / "source_workspace"
+    ).resolve()
     artifact_path = (workspace_root / Path(result_path)).resolve()
     if workspace_root not in artifact_path.parents or artifact_path.is_symlink() or not artifact_path.is_file():
         raise ValueError("source result artifact file is unavailable or escaped its staged workspace")
@@ -1511,6 +1540,38 @@ def _source_replication_result_bytes(
     if hashlib.sha256(raw_bytes).hexdigest() != str(artifact.get("sha256", "") or ""):
         raise ValueError("source result artifact changed after execution")
     return result_path, artifact, raw_bytes
+
+
+def _persist_source_execution_streams(
+    *,
+    output_dir: Path,
+    probe_result: Mapping[str, Any],
+    source_result: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    stream_root = output_dir / "runtime_streams"
+    if stream_root.exists() or stream_root.is_symlink():
+        return [], ["source execution created the reserved runtime_streams path"]
+    stream_root.mkdir()
+    rows: list[dict[str, Any]] = []
+    for stream_id, result, field in (
+        ("environment_probe_stdout", probe_result, "stdout"),
+        ("environment_probe_stderr", probe_result, "stderr"),
+        ("source_stdout", source_result, "stdout"),
+        ("source_stderr", source_result, "stderr"),
+    ):
+        content = str(result.get(field, "") or "")
+        raw = content.encode("utf-8")
+        relative_path = PurePosixPath("runtime_streams", stream_id + ".txt")
+        (output_dir / Path(relative_path)).write_bytes(raw)
+        rows.append({
+            "stream_id": stream_id,
+            "relative_path": relative_path.as_posix(),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "size_bytes": len(raw),
+            "content_encoding": "utf-8",
+            "execution_attempted": result.get("execution_attempted") is True,
+        })
+    return rows, []
 
 
 def _capture_staged_result_artifacts(
@@ -1848,9 +1909,17 @@ def execute_research_source(
     for executable_path, expected_hash in execution.runtime_executables:
         if _file_sha256(executable_path) != expected_hash:
             errors.append("runtime executable changed during source execution")
+    execution_streams, stream_errors = _persist_source_execution_streams(
+        output_dir=resolved_output,
+        probe_result=probe_result,
+        source_result=source_result,
+    )
+    errors.extend(stream_errors)
     errors = list(dict.fromkeys(value for value in errors if value))
-    raw_stdout = str(source_result.get("stdout", "") or "")
-    raw_stderr = str(source_result.get("stderr", "") or "")
+    full_stdout = str(source_result.get("stdout", "") or "")
+    full_stderr = str(source_result.get("stderr", "") or "")
+    raw_stdout = full_stdout[:MAX_SOURCE_RESULT_READ_CHARS]
+    raw_stderr = full_stderr[:MAX_SOURCE_RESULT_READ_CHARS]
     full_probe_stdout = str(probe_result.get("stdout", "") or "")
     full_probe_stderr = str(probe_result.get("stderr", "") or "")
     probe_raw_stdout = full_probe_stdout[:MAX_SOURCE_RESULT_READ_CHARS]
@@ -1858,8 +1927,8 @@ def execute_research_source(
     probe_errors = [
         str(value) for value in probe_result.get("errors", []) or []
     ]
-    stdout_sha256 = hashlib.sha256(raw_stdout.encode("utf-8")).hexdigest()
-    stderr_sha256 = hashlib.sha256(raw_stderr.encode("utf-8")).hexdigest()
+    stdout_sha256 = hashlib.sha256(full_stdout.encode("utf-8")).hexdigest()
+    stderr_sha256 = hashlib.sha256(full_stderr.encode("utf-8")).hexdigest()
     probe_stdout_sha256 = hashlib.sha256(
         full_probe_stdout.encode("utf-8")
     ).hexdigest()
@@ -1915,7 +1984,12 @@ def execute_research_source(
         "runtime_environment": dict(execution.runtime_environment),
         "execution_attempted": source_result.get("execution_attempted") is True, "returncode": source_result.get("returncode"),
         "errors": errors, "raw_stdout": raw_stdout, "raw_stderr": raw_stderr,
+        "raw_stdout_truncated": len(full_stdout) > MAX_SOURCE_RESULT_READ_CHARS,
+        "raw_stderr_truncated": len(full_stderr) > MAX_SOURCE_RESULT_READ_CHARS,
         "stdout_sha256": stdout_sha256, "stderr_sha256": stderr_sha256,
+        "stdout_bytes": len(full_stdout.encode("utf-8")),
+        "stderr_bytes": len(full_stderr.encode("utf-8")),
+        "execution_streams": execution_streams,
         "execution_workspace_mode": execution.execution_workspace_mode, "declared_result_artifact_paths": list(execution.result_artifact_paths),
         "result_artifacts": result_artifacts,
         "source_workspace_hash_before": source_workspace_hash_before, "source_workspace_hash_after": source_workspace_hash_after,
