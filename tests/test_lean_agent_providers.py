@@ -706,6 +706,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
 
         def __init__(self) -> None:
             self.normalization_calls = 0
+            self.normalization_prompts: list[str] = []
             self.generation_prompts: list[str] = []
 
         def generate(self, request):
@@ -713,6 +714,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
                 assert request.metadata["provider_structured_output"] is True
                 assert request.schema is not None
                 self.normalization_calls += 1
+                self.normalization_prompts.append(request.user_prompt)
                 text = (
                     ""
                     if self.normalization_calls == 1
@@ -827,6 +829,7 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
                 "theorem exact_source (p : Prop) (hp : p) : p"
             ),
             "current_proof_body_excerpt": "exact missing",
+            "model_query": "use the inspected local hypothesis directly",
             "residual_goal_excerpt": ["p : Prop", "hp : p", "|- p"],
             "failed_proof_body_attempts": ["unknown identifier missing"],
             "compiler_feedback": {
@@ -904,12 +907,19 @@ def test_openprover_hlm_provider_returns_candidates_as_nonproof_feedback(
     assert result["initial_failure_feedback_items"] == 2
     assert result["policy_diagnostics"]["retrieval_context_keys"] == [
         "formal_source_grounding_hits",
+        "model_query",
         "proof_state_observation",
         "proof_state_trace_rag",
     ]
     assert result["task_normalization"]["source"] == "llm_structured_json"
     assert result["task_normalization"]["context_binding_count"] == 2
     assert backend.normalization_calls == 2
+    assert "use the inspected local hypothesis directly" in (
+        backend.normalization_prompts[0]
+    )
+    assert "use the inspected local hypothesis directly" in (
+        backend.generation_prompts[0]
+    )
     assert "Fixture.prior_goal" in backend.generation_prompts[0]
     assert "state_before" in backend.generation_prompts[0]
     assert result["task_normalization"]["response"][

@@ -1159,6 +1159,7 @@ class OpenProverHLMProofSearchProvider:
             retrieval_context={
                 key: request_payload[key]
                 for key in (
+                    "model_query",
                     "proof_state_observation",
                     "proof_state_trace_rag",
                     "formal_source_grounding_hits",
@@ -1305,6 +1306,9 @@ class OpenProverHLMProofSearchProvider:
             prompt_payload = {
                 "target_lean_declaration": target_declaration,
                 "exact_target_theorem_statement": target_statement,
+                "model_search_intent": str(
+                    request_payload.get("model_query", "") or ""
+                ),
                 "residual_goal_excerpt": [
                     str(value)
                     for value in request_payload.get("residual_goal_excerpt", []) or []

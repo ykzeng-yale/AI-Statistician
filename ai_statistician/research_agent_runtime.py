@@ -18772,6 +18772,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             "compiler_feedback": {"diagnostics": diagnostics},
             "proof_evidence_status": "PROOF_SEARCH_REQUEST_NOT_PROOF_EVIDENCE",
         }
+        model_lean_header = str(last_check.get("model_lean_header", "") or "")
+        if model_lean_header.strip():
+            request["lean_header"] = model_lean_header
         if state_observation:
             request.update(
                 {

@@ -1494,9 +1494,9 @@ def run_lean_candidate_revision_tool_loop(
         if call.name == "search_proof_candidates":
             if search_proof_candidates is None:
                 raise ClientToolInputError("proof-candidate search is unavailable")
-            if set(tool_input) - {"query", "max_results"}:
+            if set(tool_input) - {"query", "max_results", "lean_header"}:
                 raise ClientToolInputError(
-                    "search_proof_candidates accepts query and optional max_results"
+                    "search_proof_candidates accepts query, max_results, and lean_header"
                 )
             query = tool_input.get("query")
             if not isinstance(query, str) or not query.strip():
@@ -1504,6 +1504,11 @@ def run_lean_candidate_revision_tool_loop(
             requested_k = tool_input.get("max_results", 4)
             if isinstance(requested_k, bool) or not isinstance(requested_k, int):
                 raise ClientToolInputError("max_results must be an integer")
+            lean_header = tool_input.get("lean_header", "")
+            if not isinstance(lean_header, str) or len(lean_header) > 20_000:
+                raise ClientToolInputError(
+                    "lean_header must be text within the artifact-size boundary"
+                )
             k = max(1, min(8, requested_k))
             state["proof_searches"] += 1
             search_context = deepcopy(dict(state["last_check"]))
@@ -1518,6 +1523,8 @@ def run_lean_candidate_revision_tool_loop(
                 search_context["latest_state_inspection"] = deepcopy(
                     dict(state_inspection)
                 )
+            if lean_header.strip():
+                search_context["model_lean_header"] = lean_header
             results = search_proof_candidates(
                 str(state["source"]),
                 query.strip(),
@@ -2681,8 +2688,10 @@ def _lean_candidate_revision_tools(
                 description=(
                     "Ask the configured prover for candidate proof bodies and raw "
                     "diagnostics for the exact current target. Results are suggestions "
-                    "only: choose any useful idea yourself, then submit the complete "
-                    "source for an immediate Lean check."
+                    "only. Optionally provide exact model-authored imports and local "
+                    "declarations as lean_header for the prover's isolated compile; "
+                    "runtime neither derives nor applies it. Choose any useful idea "
+                    "yourself, then submit the complete source for an immediate Lean check."
                 ),
                 input_schema={
                     "type": "object",
@@ -2690,6 +2699,10 @@ def _lean_candidate_revision_tools(
                     "required": ["query"],
                     "properties": {
                         "query": {"type": "string"},
+                        "lean_header": {
+                            "type": "string",
+                            "maxLength": 20000,
+                        },
                         "max_results": {
                             "type": "integer",
                             "minimum": 1,

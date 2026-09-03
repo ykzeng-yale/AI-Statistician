@@ -1662,7 +1662,11 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
                 ClientToolCall(
                     "prove-1",
                     "search_proof_candidates",
-                    {"query": "close target from current goal", "max_results": 2},
+                    {
+                        "query": "close target from current goal",
+                        "max_results": 2,
+                        "lean_header": "import Mathlib\nopen scoped BigOperators\n",
+                    },
                 )
             ),
             _response(
@@ -1714,7 +1718,13 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
             initial,
             "close target from current goal",
             2,
-            {"source_hash": stable_hash(initial), "compiled": False},
+            {
+                "source_hash": stable_hash(initial),
+                "compiled": False,
+                "model_lean_header": (
+                    "import Mathlib\nopen scoped BigOperators\n"
+                ),
+            },
         )
     ]
     assert checked_sources == [initial, model_source]
@@ -4185,6 +4195,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
                         {
                             **self.check_result,
                             "latest_state_inspection": self.state_result,
+                            "model_lean_header": "import Mathlib\n",
                         },
                     )
                 )
@@ -4329,6 +4340,7 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
         agent.state_result
     )
     assert proof_request["residual_goal_excerpt"] == ["|- True"]
+    assert proof_request["lean_header"] == "import Mathlib\n"
     assert agent.proof_result["source_theorem_candidate_proof_bodies"] == [
         "by exact True.intro"
     ]
