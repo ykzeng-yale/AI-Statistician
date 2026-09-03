@@ -2029,6 +2029,7 @@ def run_theory_artifact_workspace(
                 checkpoint_identity=parent_hash,
                 request=request,
                 replay_recent_tool_rounds=CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
+                require_durable_state_binding=True,
             )
         )
         resumed_client_tool_session_ref = deepcopy(
@@ -2119,13 +2120,14 @@ def run_theory_artifact_workspace(
             max_no_progress_turns=max_no_progress_turns,
         )
     except ClientToolLoopError as exc:
+        checkpoint = recovery_checkpoint()
         client_tool_session_ref = persist_client_tool_session(
             session_dir=resolved_workspace_dir,
             session_id=workspace_id,
             request=request,
             messages=exc.messages,
+            durable_state_identity=checkpoint["current_workspace_hash"],
         )
-        checkpoint = recovery_checkpoint()
         if client_tool_session_ref:
             checkpoint["client_tool_session_ref"] = client_tool_session_ref
         raise PacketValidationError(
@@ -2150,6 +2152,7 @@ def run_theory_artifact_workspace(
         session_id=workspace_id,
         request=request,
         messages=loop.messages,
+        durable_state_identity=recovery_checkpoint()["current_workspace_hash"],
     )
     client_tool_session_evidence = {
         "client_tool_session_ref": deepcopy(client_tool_session_ref),

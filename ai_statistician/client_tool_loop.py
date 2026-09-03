@@ -269,7 +269,7 @@ CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY = (
     "current_context_with_recent_complete_tool_rounds_from_hash_bound_checkpoint_v2"
 )
 CLIENT_TOOL_RECENT_HISTORY_ROUNDS = 8
-CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_current_context_checkpoint_windows_v3"
+CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_state_bound_checkpoint_windows_v4"
 CLIENT_TOOL_RESULT_MAX_CHARS = 60_000
 CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY = "client_tool_authorization_fingerprint"
 
@@ -350,6 +350,7 @@ def persist_client_tool_session(
     session_id: str,
     request: ClientToolTurnRequest,
     messages: Sequence[Mapping[str, Any]],
+    durable_state_identity: str = "",
 ) -> dict[str, Any]:
     """Persist one immutable transcript and return a compact integrity reference."""
 
@@ -362,18 +363,20 @@ def persist_client_tool_session(
     if not normalized_messages:
         raise ValueError("client-tool session requires at least one message")
     root = session_dir.resolve()
+    normalized_state_identity = str(durable_state_identity or "").strip()
     transcript_fingerprint = stable_hash(normalized_messages)
     session_contract_fingerprint = client_tool_session_contract_fingerprint(
         request
     )
     authorization_fingerprint = client_tool_authorization_fingerprint(request.metadata)
     body = {
-        "schema_version": 2,
+        "schema_version": 3,
         "artifact_kind": CLIENT_TOOL_SESSION_KIND,
         "session_id": normalized_session_id,
         "root_path": str(root),
         "session_contract_fingerprint": session_contract_fingerprint,
         "authorization_fingerprint": authorization_fingerprint,
+        "durable_state_identity": normalized_state_identity,
         "transcript_fingerprint": transcript_fingerprint,
         "message_count": len(normalized_messages),
         "messages": normalized_messages,
@@ -399,7 +402,7 @@ def persist_client_tool_session(
     else:
         target.write_bytes(encoded)
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "artifact_kind": "ClientToolWorkspaceSessionRef",
         "session_id": normalized_session_id,
         "root_path": str(root),
@@ -409,6 +412,7 @@ def persist_client_tool_session(
         "transcript_fingerprint": transcript_fingerprint,
         "session_contract_fingerprint": session_contract_fingerprint,
         "authorization_fingerprint": authorization_fingerprint,
+        "durable_state_identity": normalized_state_identity,
     }
 
 
@@ -418,6 +422,7 @@ def load_client_tool_session(
     session_dir: Path,
     session_id: str,
     request: ClientToolTurnRequest,
+    durable_state_identity: str | None = None,
 ) -> tuple[Mapping[str, Any], ...]:
     """Load a transcript only when its workspace and tool contract still match."""
 
@@ -425,10 +430,15 @@ def load_client_tool_session(
     normalized_session_id = str(session_id or "").strip()
     expected_contract = client_tool_session_contract_fingerprint(request)
     expected_authorization = client_tool_authorization_fingerprint(request.metadata)
+    expected_state_identity = (
+        None
+        if durable_state_identity is None
+        else str(durable_state_identity or "").strip()
+    )
     root = session_dir.resolve()
     relative_path = PurePosixPath(str(ref.get("relative_path", "") or ""))
     if (
-        int(ref.get("schema_version", 0) or 0) != 2
+        int(ref.get("schema_version", 0) or 0) != 3
         or ref.get("artifact_kind") != "ClientToolWorkspaceSessionRef"
         or str(ref.get("session_id", "") or "") != normalized_session_id
         or str(ref.get("root_path", "") or "") != str(root)
@@ -436,6 +446,11 @@ def load_client_tool_session(
         != expected_contract
         or str(ref.get("authorization_fingerprint", "") or "")
         != expected_authorization
+        or (
+            expected_state_identity is not None
+            and str(ref.get("durable_state_identity", "") or "")
+            != expected_state_identity
+        )
         or relative_path.is_absolute()
         or not relative_path.parts
         or relative_path.parts[0] != CLIENT_TOOL_SESSION_DIRECTORY
@@ -452,12 +467,18 @@ def load_client_tool_session(
     messages = payload.get("messages", []) if isinstance(payload, Mapping) else []
     if not (
         isinstance(payload, Mapping)
-        and int(payload.get("schema_version", 0) or 0) == 2
+        and int(payload.get("schema_version", 0) or 0) == 3
         and payload.get("artifact_kind") == CLIENT_TOOL_SESSION_KIND
         and payload.get("session_id") == normalized_session_id
         and payload.get("root_path") == str(root)
         and payload.get("session_contract_fingerprint") == expected_contract
         and payload.get("authorization_fingerprint") == expected_authorization
+        and payload.get("durable_state_identity")
+        == ref.get("durable_state_identity")
+        and (
+            expected_state_identity is None
+            or payload.get("durable_state_identity") == expected_state_identity
+        )
         and isinstance(messages, list)
         and messages
         and all(isinstance(message, Mapping) for message in messages)
@@ -479,6 +500,7 @@ def resume_client_tool_session_from_checkpoint(
     checkpoint_identity: str,
     request: ClientToolTurnRequest,
     replay_recent_tool_rounds: int = 0,
+    require_durable_state_binding: bool = False,
 ) -> tuple[ClientToolTurnRequest, dict[str, Any]]:
     """Resume from an exact checkpoint and optional recent complete tool rounds."""
 
@@ -492,18 +514,26 @@ def resume_client_tool_session_from_checkpoint(
         raise ValueError(
             "checkpoint-window resume requires a root authorization fingerprint"
         )
+    ref = dict(reference)
+    bound_state_identity = str(ref.get("durable_state_identity", "") or "").strip()
+    if require_durable_state_binding and not bound_state_identity:
+        raise ValueError(
+            "checkpoint-window resume requires a durable state identity"
+        )
     prior_messages = load_client_tool_session(
         reference,
         session_dir=session_dir,
         session_id=session_id,
         request=request,
+        durable_state_identity=(
+            normalized_checkpoint_identity if bound_state_identity else None
+        ),
     )
     messages = [deepcopy(dict(message)) for message in request.messages]
     if not messages or str(messages[0].get("role", "") or "") != "user":
         raise ValueError(
             "checkpoint-window resume requires an initial user workspace message"
         )
-    ref = dict(reference)
     replayed_rounds = _recent_complete_client_tool_rounds(
         prior_messages,
         max_rounds=replay_recent_tool_rounds,
@@ -523,6 +553,9 @@ def resume_client_tool_session_from_checkpoint(
         ),
         "parent_message_count": len(prior_messages),
         "checkpoint_identity": normalized_checkpoint_identity,
+        "parent_durable_state_identity": str(
+            ref.get("durable_state_identity", "") or ""
+        ),
         "authorization_fingerprint": authorization_fingerprint,
         "prior_transcript_replayed": replay_enabled,
         "replayed_tool_rounds": len(replayed_rounds),

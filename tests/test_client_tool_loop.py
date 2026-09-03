@@ -275,6 +275,7 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
         session_id="theory:q1",
         request=request,
         messages=prior_messages,
+        durable_state_identity="theory-checkpoint:q1",
     )
 
     resumed_request, window = resume_client_tool_session_from_checkpoint(
@@ -283,6 +284,7 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
         session_id="theory:q1",
         checkpoint_identity="theory-checkpoint:q1",
         request=request,
+        require_durable_state_binding=True,
     )
 
     assert len(resumed_request.messages) == len(request.messages) == 1
@@ -294,13 +296,23 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
     assert window["policy"] == CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY
     assert window["parent_message_count"] == len(prior_messages)
     assert window["checkpoint_identity"] == "theory-checkpoint:q1"
+    assert window["parent_durable_state_identity"] == "theory-checkpoint:q1"
     assert window["authorization_fingerprint"] == "auth:q1:v1"
     assert window["parent_transcript_fingerprint"] == reference[
         "transcript_fingerprint"
     ]
     assert window["prior_transcript_replayed"] is False
     assert window["summary_used"] is False
-    assert CLIENT_TOOL_TRANSCRIPT_POLICY.endswith("checkpoint_windows_v3")
+    assert CLIENT_TOOL_TRANSCRIPT_POLICY.endswith("checkpoint_windows_v4")
+    with pytest.raises(ValueError, match="identity mismatch"):
+        resume_client_tool_session_from_checkpoint(
+            reference,
+            session_dir=tmp_path,
+            session_id="theory:q1",
+            checkpoint_identity="another-theory-checkpoint",
+            request=request,
+            require_durable_state_binding=True,
+        )
     with pytest.raises(ValueError, match="requires checkpoint identity"):
         resume_client_tool_session_from_checkpoint(
             reference,
@@ -308,6 +320,7 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
             session_id="theory:q1",
             checkpoint_identity="",
             request=request,
+            require_durable_state_binding=True,
         )
     missing_authorization = replace(
         request,
@@ -320,6 +333,22 @@ def test_checkpoint_window_validates_parent_without_replaying_it(tmp_path) -> No
             session_id="theory:q1",
             checkpoint_identity="theory-checkpoint:q1",
             request=missing_authorization,
+            require_durable_state_binding=True,
+        )
+    unbound_reference = persist_client_tool_session(
+        session_dir=tmp_path,
+        session_id="theory:q1-unbound",
+        request=request,
+        messages=prior_messages,
+    )
+    with pytest.raises(ValueError, match="requires a durable state identity"):
+        resume_client_tool_session_from_checkpoint(
+            unbound_reference,
+            session_dir=tmp_path,
+            session_id="theory:q1-unbound",
+            checkpoint_identity="theory-checkpoint:q1",
+            request=request,
+            require_durable_state_binding=True,
         )
 
 
@@ -355,6 +384,7 @@ def test_checkpoint_window_replays_recent_complete_tool_rounds(tmp_path) -> None
         session_id="theory:q1",
         request=parent_request,
         messages=prior_messages,
+        durable_state_identity="theory-checkpoint:q1",
     )
     current_request = replace(
         parent_request,
@@ -373,6 +403,7 @@ def test_checkpoint_window_replays_recent_complete_tool_rounds(tmp_path) -> None
         checkpoint_identity="theory-checkpoint:q1",
         request=current_request,
         replay_recent_tool_rounds=1,
+        require_durable_state_binding=True,
     )
 
     assert window["policy"] == CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY
