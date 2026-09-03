@@ -122,7 +122,9 @@ class ArchitectMetricSemanticReviewerConfig:
     model: str = ""
     model_tier: str = "sonnet"
     max_tokens: int = 7000
-    max_validation_retries: int = 1
+    max_tool_turns: int = 24
+    max_tool_calls: int = 48
+    max_no_progress_turns: int = 2
     temperature: float = 0.0
     provider_name: str = "anthropic"
 
@@ -1755,8 +1757,6 @@ class LLMArchitectMetricSemanticReviewerAgent:
         ) -> ClientToolExecutionResult:
             nonlocal draft_payload, last_invalid_packet
             if call.name == THEORY_SCRATCHPAD_TOOL and theory_scratchpad:
-                if len(scratch_refs) >= theory_scratchpad.max_runs:
-                    raise ClientToolInputError("metric review scratch budget exhausted")
                 result, execution_ref = execute_theory_scratchpad_tool(
                     tool_input=call.input,
                     scratchpad=theory_scratchpad,
@@ -1839,13 +1839,9 @@ class LLMArchitectMetricSemanticReviewerAgent:
                 backend=self.provider,
                 request=request,
                 execute_tool=execute_tool,
-                max_turns=(theory_scratchpad.max_runs if theory_scratchpad else 0)
-                + 1
-                + max(0, int(self.config.max_validation_retries)),
-                max_tool_calls=(
-                    (theory_scratchpad.max_runs if theory_scratchpad else 0) + 1
-                ),
-                max_no_progress_turns=1,
+                max_turns=self.config.max_tool_turns,
+                max_tool_calls=self.config.max_tool_calls,
+                max_no_progress_turns=self.config.max_no_progress_turns,
             )
         except ClientToolLoopError as exc:
             raise PacketValidationError(

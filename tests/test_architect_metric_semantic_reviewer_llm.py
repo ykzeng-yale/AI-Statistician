@@ -356,7 +356,7 @@ def test_metric_reviewer_recomputes_in_same_session_scratch(
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
-            if len(self.requests) == 1:
+            if len(self.requests) <= 4:
                 name = THEORY_SCRATCHPAD_TOOL
                 payload = {
                     "language": "python",
@@ -436,16 +436,15 @@ def test_metric_reviewer_recomputes_in_same_session_scratch(
             sandbox_dir=tmp_path,
             seed=17,
             replicates=20,
-            max_runs=2,
         ),
     )
 
     assert packet["overall_verdict"] == "REVISE"
     assert "9.166666666666666" in backend.observed_scratch
     refs = packet["client_tool_loop"]["scratch_execution_refs"]
-    assert len(refs) == 1
-    assert refs[0]["status"] == "EXECUTED"
-    assert packet["client_tool_loop"]["runtime_executed_tool_calls"] == 2
+    assert len(refs) == 4
+    assert all(ref["status"] == "EXECUTED" for ref in refs)
+    assert packet["client_tool_loop"]["runtime_executed_tool_calls"] == 5
 
 
 def test_metric_reviewer_receives_submission_validation_in_same_session() -> None:

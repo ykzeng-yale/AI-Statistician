@@ -3792,11 +3792,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                     if isinstance(state["review_report_draft"], Mapping)
                     and state["review_report_draft"].get(key) is not None
                 },
-                "remaining_scratch_runs": (
-                    max(0, theory_scratchpad.max_runs - int(state["scratch_runs"]))
-                    if theory_scratchpad is not None
-                    else 0
-                ),
                 "continuation_instruction": (
                     "Continue the same independent review from these exact prior "
                     "client-tool observations. They are observations, not accepted "
@@ -4024,10 +4019,6 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             if theory_scratchpad is None:
                 raise ClientToolInputError(
                     "independent theory referee scratchpad is unavailable"
-                )
-            if state["scratch_runs"] >= theory_scratchpad.max_runs:
-                raise ClientToolInputError(
-                    "independent theory referee scratchpad run budget is exhausted"
                 )
             run_index = int(state["scratch_runs"]) + 1
             execution_result, execution_ref = execute_theory_scratchpad_tool(

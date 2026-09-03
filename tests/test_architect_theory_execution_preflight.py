@@ -414,10 +414,10 @@ class _ScratchPreflightBackend:
 
     def generate_client_tool_turn(self, request):
         self.requests.append(request)
-        if len(self.requests) == 1:
+        if len(self.requests) <= 4:
             return _tool_response(
                 ClientToolCall(
-                    "run-referee-counterexample",
+                    f"run-referee-counterexample-{len(self.requests)}",
                     THEORY_SCRATCHPAD_TOOL,
                     {
                         "language": "python",
@@ -1115,14 +1115,13 @@ def test_preflight_referee_can_run_model_owned_exploratory_scratch(
             seed=29,
             replicates=17,
             timeout_s=11,
-            max_runs=1,
         ),
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
     assert packet["preflight_scratchpad_enabled"] is True
-    assert packet["preflight_scratch_runs"] == 1
-    assert len(packet["preflight_scratch_execution_refs"]) == 1
+    assert packet["preflight_scratch_runs"] == 4
+    assert len(packet["preflight_scratch_execution_refs"]) == 4
     scratch_ref = packet["preflight_scratch_execution_refs"][0]
     assert scratch_ref["proof_evidence_status"] == (
         THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
@@ -1130,7 +1129,7 @@ def test_preflight_referee_can_run_model_owned_exploratory_scratch(
     assert scratch_ref["runtime_edited_source"] is False
     assert scratch_ref["runtime_edited_theory"] is False
     assert packet["preflight_scratch_execution_fingerprint"] == stable_hash(
-        [scratch_ref]
+        packet["preflight_scratch_execution_refs"]
     )
     assert backend.scratch_observation["metrics"] == {
         "counterexample_gap": 0.25,
@@ -1142,8 +1141,8 @@ def test_preflight_referee_can_run_model_owned_exploratory_scratch(
     assert THEORY_SCRATCHPAD_TOOL in [
         tool.name for tool in backend.requests[0].tools
     ]
-    assert packet["client_tool_loop_turns"] == 2
-    assert packet["client_tool_loop_tool_calls"] == 3
+    assert packet["client_tool_loop_turns"] == 5
+    assert packet["client_tool_loop_tool_calls"] == 6
     assert "client_tool_session_ref" in packet["client_tool_loop_history"][0][
         "tool_calls"
     ][0]["result_excerpt"]
@@ -1199,15 +1198,16 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
             seed=29,
             replicates=17,
             timeout_s=11,
-            max_runs=1,
         ),
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
-    scratch_ref = packet["preflight_scratch_execution_refs"][0]
-    assert scratch_ref["status"] == "REJECTED_CONTRACT"
-    assert scratch_ref["execution_attempted"] is False
-    assert scratch_ref["request_hash"]
+    scratch_refs = packet["preflight_scratch_execution_refs"]
+    assert len(scratch_refs) == 4
+    assert all(ref["status"] == "REJECTED_CONTRACT" for ref in scratch_refs)
+    assert all(ref["execution_attempted"] is False for ref in scratch_refs)
+    assert all(ref["request_hash"] for ref in scratch_refs)
+    scratch_ref = scratch_refs[-1]
     assert scratch_ref["request_identity_source"] == "model_tool_request"
     assert backend.scratch_observation["request_hash"] == scratch_ref["request_hash"]
     assert backend.scratch_observation["request_identity_source"] == (

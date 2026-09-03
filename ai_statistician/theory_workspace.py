@@ -155,13 +155,12 @@ class TheoryWorkspaceProgressError(RuntimeError):
 
 @dataclass(frozen=True)
 class TheoryScratchpadConfig:
-    """Resource boundary for model-authored exploratory Python/R calculations."""
+    """Isolated environment for model-authored exploratory calculations."""
 
     sandbox_dir: Path
     seed: int
     replicates: int
     timeout_s: int = 20
-    max_runs: int = 2
 
 
 def theory_scratchpad_client_tool() -> ClientToolDefinition:
@@ -216,7 +215,6 @@ def execute_theory_scratchpad_tool(
     run_index: int,
     owner_label: str,
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
-    runs_used_in_scope: int | None = None,
 ) -> tuple[ClientToolExecutionResult, dict[str, Any]]:
     """Execute exact model-authored exploratory code and return compact lineage."""
 
@@ -298,21 +296,8 @@ def execute_theory_scratchpad_tool(
         "input_artifact_hashes": dict(execution.input_artifact_hashes),
         "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
     }
-    scoped_run_index = (
-        int(runs_used_in_scope)
-        if runs_used_in_scope is not None
-        else int(run_index)
-    )
     observation = {
         "scratch_run": int(run_index),
-        "remaining_scratch_runs": max(
-            0, scratchpad.max_runs - scoped_run_index
-        ),
-        "scratch_run_budget_scope": (
-            "workspace_segment"
-            if runs_used_in_scope is not None
-            else "owner_session"
-        ),
         **execution.to_json(),
         "request_hash": request_hash,
         "request_identity_source": request_identity_source,
@@ -502,7 +487,6 @@ def run_theory_artifact_workspace(
         for value, label in (
             (scratchpad.replicates, "scratch replicate"),
             (scratchpad.timeout_s, "scratch timeout"),
-            (scratchpad.max_runs, "scratch run"),
         ):
             if value < 1:
                 raise ValueError(f"theory workspace {label} budget must be positive")
@@ -662,7 +646,6 @@ def run_theory_artifact_workspace(
         "last_validation_errors": [],
         "last_candidate": {},
     }
-    scratch_runs_at_segment_start = int(state["scratch_runs"])
     tools = _theory_workspace_tools(
         scratchpad_enabled=scratchpad is not None,
         research_sources_enabled=research_sources is not None,
@@ -1539,13 +1522,6 @@ def run_theory_artifact_workspace(
         if call.name == THEORY_SCRATCHPAD_TOOL:
             if scratchpad is None:
                 raise ClientToolInputError("theory scratchpad is unavailable")
-            segment_scratch_runs = (
-                int(state["scratch_runs"]) - scratch_runs_at_segment_start
-            )
-            if segment_scratch_runs >= scratchpad.max_runs:
-                raise ClientToolInputError(
-                    "theory scratchpad workspace-segment run budget is exhausted"
-                )
             raw_result_paths = tool_input.get(
                 "source_result_artifact_paths", []
             )
@@ -1613,7 +1589,6 @@ def run_theory_artifact_workspace(
                 run_index=run_index,
                 owner_label="TheoryDeveloper",
                 input_artifacts=input_artifacts,
-                runs_used_in_scope=segment_scratch_runs + 1,
             )
             state["scratch_runs"] = run_index
             state["scratch_execution_refs"].append(execution_ref)
@@ -1841,8 +1816,8 @@ def run_theory_artifact_workspace(
         "a write remains. If no submission remains after substantive document work, "
         "checkpoint that progress so the same owner can continue; an unfinished "
         "structured handoff or exhausted write quota is not a mathematical gap. "
-        "Each document-backed continuation receives a fresh segment-local scratch "
-        "allowance while prior execution refs remain cumulative. "
+        "Prior scratch observations and their exact execution refs remain cumulative "
+        "across continuation. "
         if require_document_authority
         else ""
     )

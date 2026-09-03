@@ -901,7 +901,6 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
             sandbox_dir=tmp_path / "scratch",
             seed=17,
             replicates=1,
-            max_runs=1,
         ),
     )
 
@@ -2028,7 +2027,6 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
             seed=17,
             replicates=12,
             timeout_s=9,
-            max_runs=1,
         ),
     )
 
@@ -2081,7 +2079,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
     assert "not confirmatory simulation" in observation["boundary"]
 
 
-def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
+def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -2127,7 +2125,6 @@ def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
         seed=23,
         replicates=8,
         timeout_s=9,
-        max_runs=1,
     )
     markdown = "# Partial derivation\n\nThe smallest case remains decisive.\n"
     first = ScriptedTheoryWorkspaceBackend(
@@ -2147,7 +2144,33 @@ def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
             ),
             _response(
                 ClientToolCall(
-                    call_id="attempt-second-run-in-same-segment",
+                    call_id="run-second-check-in-same-segment",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": ["numpy"],
+                        "entrypoint": "run_sandbox",
+                        "code": source,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="run-third-check-in-same-segment",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": ["numpy"],
+                        "entrypoint": "run_sandbox",
+                        "code": source,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="run-fourth-check-in-same-segment",
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
@@ -2174,7 +2197,13 @@ def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
                     name=THEORY_WORKSPACE_PROGRESS_TOOL,
                     input={
                         "summary": "Computed the smallest case.",
-                        "evidence_refs": ["scratch-run:1", "derivations/progress.md"],
+                        "evidence_refs": [
+                            "scratch-run:1",
+                            "scratch-run:2",
+                            "scratch-run:3",
+                            "scratch-run:4",
+                            "derivations/progress.md",
+                        ],
                         "next_step": "Reconcile it with the general derivation.",
                     },
                 )
@@ -2184,6 +2213,7 @@ def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
     with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
         _run_workspace(
             first,
+            max_turns=6,
             workspace_dir=tmp_path / "theory",
             require_document_authority=True,
             scratchpad=scratchpad,
@@ -2193,13 +2223,10 @@ def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
         checkpoint,
         question_id="q1",
     )
-    assert checkpoint["scratch_runs"] == 1
-    assert len(checkpoint["scratch_execution_refs"]) == 1
-    assert "fresh segment-local scratch allowance" in str(
+    assert checkpoint["scratch_runs"] == 4
+    assert len(checkpoint["scratch_execution_refs"]) == 4
+    assert "segment-local scratch allowance" not in str(
         first.requests[0].messages[0]["content"]
-    )
-    assert "workspace-segment run budget is exhausted" in str(
-        first.requests[2].messages[-1]
     )
 
     continued = ScriptedTheoryWorkspaceBackend(
@@ -2245,20 +2272,18 @@ def test_theory_progress_retains_scratch_lineage_and_refreshes_segment_budget(
         prior_workspace_checkpoint=checkpoint,
     )
 
-    assert len(executions) == 2
+    assert len(executions) == 5
     continuation_observation = json.loads(
         continued.requests[1].messages[-1]["content"][0]["content"]
     )
-    assert continuation_observation["scratch_run"] == 2
-    assert continuation_observation["remaining_scratch_runs"] == 0
-    assert continuation_observation["scratch_run_budget_scope"] == (
-        "workspace_segment"
+    assert continuation_observation["scratch_run"] == 5
+    assert "remaining_scratch_runs" not in continuation_observation
+    assert "scratch_run_budget_scope" not in continuation_observation
+    assert result.evidence["scratch_runs"] == 5
+    assert result.evidence["scratch_execution_refs"][:4] == (
+        checkpoint["scratch_execution_refs"]
     )
-    assert result.evidence["scratch_runs"] == 2
-    assert result.evidence["scratch_execution_refs"][0] == (
-        checkpoint["scratch_execution_refs"][0]
-    )
-    assert result.evidence["scratch_execution_refs"][1]["scratch_run"] == 2
+    assert result.evidence["scratch_execution_refs"][4]["scratch_run"] == 5
     assert result.evidence["cumulative_tool_state_restored"] is True
 
 

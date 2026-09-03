@@ -590,8 +590,10 @@ def test_retrieval_memory_skips_lean_search_only_when_formal_is_not_applicable()
     assert optional_manifest["formal_source_retrieval_status"] == "executed"
 
 
-def test_theory_scratch_budget_allows_failure_correction_and_recheck() -> None:
-    assert ResearchAgentRuntimeConfig().theory_scratch_max_runs >= 3
+def test_theory_scratch_uses_the_shared_workspace_tool_budget() -> None:
+    config = ResearchAgentRuntimeConfig()
+    assert config.theory_scratch_enabled is True
+    assert not hasattr(config, "theory_scratch_max_runs")
 
 
 def test_confirmatory_simulation_prompt_can_withhold_the_execution_seed() -> None:
@@ -2589,7 +2591,7 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
             evaluation_mode="research_eval",
             formal_verification_policy="optional",
             max_iterations=4,
-            theory_scratch_max_runs=0,
+            theory_scratch_enabled=False,
         ),
     )
 
@@ -2724,7 +2726,7 @@ def test_full_runtime_gives_architect_exact_configured_workspace_inventory(
         config=ResearchAgentRuntimeConfig(
             evaluation_mode="research_eval",
             max_iterations=1,
-            theory_scratch_max_runs=0,
+            theory_scratch_enabled=False,
         ),
     )
 

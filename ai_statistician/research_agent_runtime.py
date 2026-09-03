@@ -365,7 +365,7 @@ class ResearchAgentRuntimeConfig:
     seed: int = 20260528
     generated_simulation_timeout_seconds: int = 60
     theory_scratch_timeout_seconds: int = 20
-    theory_scratch_max_runs: int = 3
+    theory_scratch_enabled: bool = True
     max_iterations: int = 12
     max_critic_revision_rounds: int = 1
     scientific_consumer_revision_max_revisions: int = 1
@@ -20406,9 +20406,8 @@ def run_research_agent_runtime(
                 seed=config.seed,
                 replicates=max(1, config.n_runs),
                 timeout_s=config.theory_scratch_timeout_seconds,
-                max_runs=config.theory_scratch_max_runs,
             )
-            if config.theory_scratch_max_runs > 0
+            if config.theory_scratch_enabled
             else None
         )
         formalizer_workspace = FormalizerWorkspaceRuntimeSubsystem(
