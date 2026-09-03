@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -87,6 +88,10 @@ def test_canonical_control_plane_has_a_regression_budget() -> None:
     harness_adoption_lines = (
         ROOT / "docs" / "openai_codex_harness_adoption_20260825.md"
     ).read_text(encoding="utf-8").count("\n")
+    status_text = (ROOT / "docs" / "main_worker_status.json").read_text(
+        encoding="utf-8"
+    )
+    status_payload = json.loads(status_text)
     agent_map_lines = (ROOT / "AGENTS.md").read_text(encoding="utf-8").count("\n")
 
     assert runtime_lines < 25_000
@@ -95,6 +100,8 @@ def test_canonical_control_plane_has_a_regression_budget() -> None:
     assert package_lines < 150_000
     assert production_design_lines < 400
     assert harness_adoption_lines < 250
+    assert len(status_text.encode("utf-8")) < 50_000
+    assert len(status_payload) < 40
     assert agent_map_lines < 100
 
 

@@ -65,32 +65,44 @@ def _live_capability_evidence(project_root: Path) -> dict[str, Any]:
     maturity = payload.get("maturity_estimate", {})
     if not isinstance(maturity, Mapping):
         maturity = {}
-    development_closure = "unavailable"
-    for key, value in payload.items():
-        if not str(key).startswith("latest_") or not isinstance(value, Mapping):
-            continue
-        candidate = str(
-            value.get("development_panel_exact_lean_closure", "") or ""
-        ).strip()
-        if candidate:
-            development_closure = candidate
-            break
+    capability_facts = payload.get("capability_facts", {})
+    if not isinstance(capability_facts, Mapping):
+        capability_facts = {}
+    development_closure = str(
+        capability_facts.get("development_panel_exact_lean_closure", "") or ""
+    ).strip()
+    if not development_closure:
+        # Historical ledgers stored this current fact in one of many latest_* rows.
+        for key, value in payload.items():
+            if not str(key).startswith("latest_") or not isinstance(value, Mapping):
+                continue
+            candidate = str(
+                value.get("development_panel_exact_lean_closure", "") or ""
+            ).strip()
+            if candidate:
+                development_closure = candidate
+                break
+    development_closure = development_closure or "unavailable"
     return {
         "status": "AVAILABLE",
         "status_path": str(status_path),
         "goal_status": str(payload.get("goal_status", "unknown") or "unknown"),
         "validated_code_head": str(payload.get("validated_code_head", "") or ""),
         "trusted_full_task_credit": str(
-            maturity.get("fully_gold_covered_research_tasks", "unavailable")
+            capability_facts.get("trusted_full_task_credit")
+            or maturity.get("fully_gold_covered_research_tasks", "unavailable")
             or "unavailable"
         ),
         "strict_formal_completion_rate": str(
-            maturity.get("frozen_strict_protocol_completion_rate", "unavailable")
+            capability_facts.get("strict_formal_completion_rate")
+            or maturity.get("frozen_strict_protocol_completion_rate", "unavailable")
             or "unavailable"
         ),
         "development_panel_exact_lean_closure": development_closure,
         "strict_formal_boundary": str(
-            maturity.get("boundary", "unavailable") or "unavailable"
+            capability_facts.get("strict_formal_boundary")
+            or maturity.get("boundary", "unavailable")
+            or "unavailable"
         ),
     }
 

@@ -15,15 +15,20 @@ def _write_status(root: Path) -> None:
             {
                 "validated_code_head": "abcdef12",
                 "goal_status": "active",
-                "latest_mechanism": {
-                    "development_panel_exact_lean_closure": "unchanged at 0/2"
-                },
-                "maturity_estimate": {
-                    "fully_gold_covered_research_tasks": (
+                "capability_facts": {
+                    "trusted_full_task_credit": (
                         "7/113 consumed tasks receive trustworthy capability credit"
                     ),
-                    "frozen_strict_protocol_completion_rate": "0%",
-                    "boundary": "The authoritative strict-formal fact is 0/2.",
+                    "strict_formal_completion_rate": "0%",
+                    "development_panel_exact_lean_closure": "unchanged at 0/2",
+                    "strict_formal_boundary": (
+                        "The authoritative strict-formal fact is 0/2."
+                    ),
+                },
+                "maturity_estimate": {
+                    "fully_gold_covered_research_tasks": "legacy value",
+                    "frozen_strict_protocol_completion_rate": "legacy value",
+                    "boundary": "legacy value",
                 },
             }
         ),
