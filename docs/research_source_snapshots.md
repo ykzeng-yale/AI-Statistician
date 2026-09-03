@@ -94,6 +94,13 @@ and Lean kernel evidence remains the only formal proof authority when requested.
 Hidden evaluator artifacts and future papers in a historical-rediscovery benchmark
 must live outside the snapshot and outside all model-accessible workspaces.
 
+Within a Python/R coding workspace, the same source owner may atomically import
+selected observed UTF-8 modules from the frozen snapshot. The import revalidates the
+complete snapshot and selected bytes, preserves source and resulting-project hashes,
+and changes no project state unless every selected file succeeds. Imported files,
+including empty modules, remain unexecuted until the model runs the complete project;
+binary and data assets stay in the separately bound replication lane.
+
 A frozen project still does not define an executable environment. Bind it separately
 with `--research-source-execution-manifest`: exact interpreter, lock/probe, arguments,
 working directory, declared result files, no network, and copy-on-write execution.

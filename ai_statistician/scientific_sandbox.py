@@ -325,7 +325,11 @@ def scientific_python_safety_errors(
     local_import_roots: Sequence[str] = (),
 ) -> list[str]:
     if not str(code or "").strip():
-        return ["empty generated scientific Python draft"]
+        return (
+            ["empty generated scientific Python draft"]
+            if tuple(required_functions)
+            else []
+        )
     try:
         tree = ast.parse(code)
     except SyntaxError as exc:

@@ -90,9 +90,7 @@ SCIENTIFIC_SOURCE_COMMIT_TOOL = "commit_scientific_source"
 SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL = "run_current_scientific_source"
 SCIENTIFIC_PROJECT_FILE_WRITE_TOOL = "write_scientific_project_file"
 SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL = "remove_scientific_project_file"
-SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL = (
-    "import_discovered_research_source_files"
-)
+SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL = "import_research_source_files"
 SCIENTIFIC_SOURCE_REPORT_DEPENDENCY_TOOL = "report_bound_dependency_failure"
 SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
 SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = "return_to_bound_dependency_owner"
@@ -2206,15 +2204,15 @@ def run_scientific_code_workspace(
                 is_error=is_error,
                 observation_key=call.name + ":" + stable_hash(source_ref or observation),
             )
-        if call.name == SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL:
+        if call.name == SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL:
             if set(tool_input) != {"imports"}:
                 raise ClientToolInputError(
-                    "import_discovered_research_source_files requires one imports array"
+                    "import_research_source_files requires one imports array"
                 )
             current = deepcopy(dict(state["code_draft"]))
             if not current:
                 raise ClientToolInputError(
-                    "import_discovered_research_source_files requires an existing "
+                    "import_research_source_files requires an existing "
                     "scientific source project"
                 )
             raw_imports = tool_input["imports"]
@@ -2227,7 +2225,7 @@ def run_scientific_code_workspace(
                     "imports must be a nonempty bounded array"
                 )
             required_fields = {
-                "source_handle", "revision", "source_path",
+                "source_origin", "source_id", "revision", "source_path",
                 "expected_content_sha256", "project_path",
             }
             imports = []
@@ -2235,8 +2233,8 @@ def run_scientific_code_workspace(
             for index, raw_import in enumerate(raw_imports):
                 if not isinstance(raw_import, Mapping) or set(raw_import) != required_fields:
                     raise ClientToolInputError(
-                        f"import index {index} requires source_handle, revision, "
-                        "source_path, expected_content_sha256, and project_path"
+                        f"import index {index} requires source_origin, source_id, "
+                        "revision, source_path, expected_content_sha256, and project_path"
                     )
                 row = {
                     key: str(raw_import[key] or "").strip()
@@ -2247,6 +2245,9 @@ def run_scientific_code_workspace(
                 ].lower()
                 if (
                     any(not row[key] for key in required_fields)
+                    or row["source_origin"] not in {
+                        "frozen_snapshot", "discovered_repository",
+                    }
                     or len(row["expected_content_sha256"]) != 64
                     or any(
                         character not in "0123456789abcdef"
@@ -2254,7 +2255,7 @@ def run_scientific_code_workspace(
                     )
                 ):
                     raise ClientToolInputError(
-                        f"import index {index} has an empty identity or invalid SHA-256"
+                        f"import index {index} has an invalid origin, identity, or SHA-256"
                     )
                 if row["project_path"] in project_paths:
                     raise ClientToolInputError(
@@ -2262,37 +2263,132 @@ def run_scientific_code_workspace(
                         + row["project_path"]
                     )
                 project_paths.add(row["project_path"])
-                inspected = next(
-                    (
-                        ref
-                        for ref in reversed(research_source_refs)
-                        if ref.get("tool") == RESEARCH_SOURCE_DISCOVERY_READ_TOOL
-                        and ref.get("source_kind") == "repository"
-                        and str(ref.get("source_handle", "") or "")
-                        == row["source_handle"]
-                        and str(ref.get("revision", "") or "") == row["revision"]
-                        and str(ref.get("path", "") or "") == row["source_path"]
-                        and str(ref.get("content_sha256", "") or "").lower()
-                        == row["expected_content_sha256"]
-                    ),
-                    None,
-                )
-                if inspected is None or inspected.get("content_truncated") is not False:
-                    raise ClientToolInputError(
-                        f"import index {index} requires a prior complete read of the "
-                        "exact repository handle, revision, path, and content SHA-256"
+                if row["source_origin"] == "frozen_snapshot":
+                    if research_sources is None:
+                        raise ClientToolInputError(
+                            f"import index {index} requires a frozen source snapshot"
+                        )
+                    try:
+                        document = research_sources.document(row["source_id"])
+                    except ValueError as exc:
+                        raise ClientToolInputError(str(exc)) from exc
+                    if (
+                        row["revision"] != research_sources.snapshot_hash
+                        or row["source_path"] != document.relative_path
+                        or row["expected_content_sha256"] != document.sha256
+                        or document.content_mode != "text"
+                    ):
+                        raise ClientToolInputError(
+                            f"import index {index} does not match one exact UTF-8 "
+                            "frozen source document identity"
+                        )
+                    inspected = next(
+                        (
+                            ref
+                            for ref in reversed(research_source_refs)
+                            if ref.get("snapshot_hash") == row["revision"]
+                            and (
+                                (
+                                    ref.get("document_id") == row["source_id"]
+                                    and ref.get("sha256")
+                                    == row["expected_content_sha256"]
+                                )
+                                or any(
+                                    item.get("document_id") == row["source_id"]
+                                    and item.get("sha256")
+                                    == row["expected_content_sha256"]
+                                    for item in (
+                                        list(ref.get("entries", []) or [])
+                                        + list(ref.get("hits", []) or [])
+                                    )
+                                    if isinstance(item, Mapping)
+                                )
+                            )
+                        ),
+                        None,
                     )
+                    if inspected is None:
+                        raise ClientToolInputError(
+                            f"import index {index} requires a prior exact frozen "
+                            "source identity observation"
+                        )
+                else:
+                    if research_source_discovery is None:
+                        raise ClientToolInputError(
+                            f"import index {index} requires public source discovery"
+                        )
+                    inspected = next(
+                        (
+                            ref
+                            for ref in reversed(research_source_refs)
+                            if ref.get("tool") == RESEARCH_SOURCE_DISCOVERY_READ_TOOL
+                            and ref.get("source_kind") == "repository"
+                            and str(ref.get("source_handle", "") or "")
+                            == row["source_id"]
+                            and str(ref.get("revision", "") or "") == row["revision"]
+                            and str(ref.get("path", "") or "") == row["source_path"]
+                            and str(ref.get("content_sha256", "") or "").lower()
+                            == row["expected_content_sha256"]
+                        ),
+                        None,
+                    )
+                    if (
+                        inspected is None
+                        or inspected.get("content_truncated") is not False
+                    ):
+                        raise ClientToolInputError(
+                            f"import index {index} requires a prior complete read of "
+                            "the exact repository identity and content SHA-256"
+                        )
+                row["source_observation_ref"] = stable_hash(inspected)
                 imports.append(row)
-            assert research_source_discovery is not None
+            frozen_errors = (
+                research_sources.identity_errors()
+                if research_sources is not None
+                and any(row["source_origin"] == "frozen_snapshot" for row in imports)
+                else []
+            )
+            if frozen_errors:
+                raise ClientToolInputError(
+                    "frozen research source snapshot changed before import: "
+                    + frozen_errors[0]
+                )
             imported_files = []
             for index, row in enumerate(imports):
+                if row["source_origin"] == "frozen_snapshot":
+                    assert research_sources is not None
+                    document = research_sources.document(row["source_id"])
+                    try:
+                        content = research_sources.document_path(
+                            document.document_id
+                        ).read_text(encoding="utf-8")
+                    except (OSError, UnicodeDecodeError, ValueError) as exc:
+                        raise ClientToolInputError(
+                            f"frozen source import index {index} is unreadable: {exc}"
+                        ) from exc
+                    actual_sha256 = hashlib.sha256(
+                        content.encode("utf-8")
+                    ).hexdigest()
+                    if actual_sha256 != row["expected_content_sha256"]:
+                        raise ClientToolInputError(
+                            f"frozen source import index {index} changed after "
+                            "identity validation"
+                        )
+                    imported_files.append({
+                        **row,
+                        "content": content,
+                        "provider": "frozen_snapshot",
+                        "citation_ref": "",
+                    })
+                    continue
+                assert research_source_discovery is not None
                 try:
                     observation, refreshed_ref, is_error = (
                         execute_research_source_discovery_client_tool(
                             research_source_discovery,
                             tool_name=RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
                             tool_input={
-                                "source_handle": row["source_handle"],
+                                "source_handle": row["source_id"],
                                 "revision": row["revision"],
                                 "path": row["source_path"],
                             },
@@ -2309,7 +2405,7 @@ def run_scientific_code_workspace(
                         },
                         is_error=True,
                         observation_key=(
-                            SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
+                            SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL
                             + ":"
                             + stable_hash([index, observation])
                         ),
@@ -2320,7 +2416,7 @@ def run_scientific_code_workspace(
                     observation.get("source_kind") != "repository"
                     or observation.get("content_truncated") is not False
                     or str(observation.get("source_handle", "") or "")
-                    != row["source_handle"]
+                    != row["source_id"]
                     or str(observation.get("revision", "") or "")
                     != row["revision"]
                     or str(observation.get("path", "") or "")
@@ -2355,19 +2451,20 @@ def run_scientific_code_workspace(
             current["project_files"] = rows
             update = store_model_source(
                 current,
-                source_action="pinned_public_source_files_import",
+                source_action="research_source_files_import",
                 edit_metadata={
                     "import_count": len(imported_files),
                     "project_paths": sorted(project_paths),
                 },
             )
             import_ref = {
-                "tool": SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
-                "source_kind": "repository_files",
+                "tool": SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
+                "source_kind": "research_source_files",
                 "imports": [
                     {
                         "provider": row["provider"],
-                        "source_handle": row["source_handle"],
+                        "source_origin": row["source_origin"],
+                        "source_id": row["source_id"],
                         "revision": row["revision"],
                         "source_path": row["source_path"],
                         "source_content_sha256": row[
@@ -2375,13 +2472,16 @@ def run_scientific_code_workspace(
                         ],
                         "project_path": row["project_path"],
                         "citation_ref": row["citation_ref"],
+                        "source_observation_ref": row[
+                            "source_observation_ref"
+                        ],
                     }
                     for row in imported_files
                 ],
                 "source_file_count": len(imported_files),
                 "resulting_project_hash": update.content["project_hash"],
                 "proof_evidence_status": (
-                    "PUBLIC_SOURCE_IMPORT_NOT_EXECUTION_OR_PROOF_EVIDENCE"
+                    "RESEARCH_SOURCE_IMPORT_NOT_EXECUTION_OR_PROOF_EVIDENCE"
                 ),
             }
             research_source_refs.append(import_ref)
@@ -2389,11 +2489,11 @@ def run_scientific_code_workspace(
                 update,
                 content={
                     **dict(update.content),
-                    "public_source_import": import_ref,
+                    "research_source_import": import_ref,
                     "source_content_omitted": True,
                 },
                 observation_key=(
-                    SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
+                    SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL
                     + ":"
                     + stable_hash(import_ref)
                 ),
@@ -2857,6 +2957,16 @@ def run_scientific_code_workspace(
                     if research_source_discovery is not None or prior_research_source_refs else ""
                 )
                 + (
+                    "\n\nWhen exact upstream Python/R modules should be reused, first "
+                    "observe their frozen identity or completely read the discovered "
+                    "repository bytes, then use import_research_source_files. The "
+                    "result becomes part of the current model-owned project and still "
+                    "requires your inspection, execution, and independent review."
+                    if research_sources is not None
+                    or research_source_discovery is not None
+                    else ""
+                )
+                + (
                     "\n\nThis is a hash-bound continuation of checkpoint "
                     + resumed_checkpoint_id
                     + ". Continue from the exact current source and observation; "
@@ -3243,7 +3353,7 @@ def _scientific_code_tools(
                 "required": ["path", "content"],
                 "properties": {
                     "path": {"type": "string", "minLength": 1},
-                    "content": {"type": "string", "minLength": 1},
+                    "content": {"type": "string"},
                 },
             },
             terminal=False,
@@ -3319,19 +3429,27 @@ def _scientific_code_tools(
             terminal=True,
         ),
     ]
-    if research_sources_available:
-        tools[0:0] = research_source_client_tools()
-    if research_source_discovery_available:
-        tools[0:0] = (
-            *research_source_discovery_client_tools(),
+    source_tools = [
+        *(
+            research_source_discovery_client_tools()
+            if research_source_discovery_available
+            else ()
+        ),
+        *(research_source_client_tools() if research_sources_available else ()),
+    ]
+    if research_sources_available or research_source_discovery_available:
+        source_tools.append(
             ClientToolDefinition(
-                name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+                name=SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
                 description=(
-                    "Atomically copy one or more exact, previously and completely read "
-                    "public repository files into the current Python/R project under "
-                    "model-selected support paths. Bind every opaque handle, pinned "
-                    "revision, source path, and observed SHA-256. This stores bytes "
-                    "without executing them; run and review the complete project afterward."
+                    "Atomically copy selected exact UTF-8 files from a configured "
+                    "frozen snapshot or completely read public repository into the "
+                    "current Python/R project under model-selected support paths. Use "
+                    "source_origin=frozen_snapshot with source_id=document_id and "
+                    "revision=snapshot_hash, or source_origin=discovered_repository "
+                    "with source_id=source_handle and revision=repository revision. "
+                    "This stores bytes without executing them; inspect, run, and review "
+                    "the complete project afterward."
                 ),
                 input_schema={
                     "type": "object",
@@ -3346,11 +3464,18 @@ def _scientific_code_tools(
                                 "type": "object",
                                 "additionalProperties": False,
                                 "required": [
-                                    "source_handle", "revision", "source_path",
+                                    "source_origin", "source_id", "revision", "source_path",
                                     "expected_content_sha256", "project_path",
                                 ],
                                 "properties": {
-                                    "source_handle": {
+                                    "source_origin": {
+                                        "type": "string",
+                                        "enum": [
+                                            "frozen_snapshot",
+                                            "discovered_repository",
+                                        ],
+                                    },
+                                    "source_id": {
                                         "type": "string", "minLength": 1,
                                     },
                                     "revision": {
@@ -3374,6 +3499,7 @@ def _scientific_code_tools(
                 terminal=False,
             ),
         )
+    tools[0:0] = source_tools
     if context_documents_available:
         tools[0:0] = theory_documents.theory_document_client_tools()
     reason_schema = {

@@ -77,3 +77,14 @@ def test_scientific_project_rejects_stale_supplied_content_hash() -> None:
         language="python",
     )
     assert errors == ["scientific project file hash mismatch: helper.py"]
+
+
+def test_scientific_project_accepts_empty_source_modules() -> None:
+    files = normalized_scientific_project_files(
+        [{"path": "package/__init__.py", "content": ""}],
+        language="python",
+    )
+
+    assert len(files) == 1
+    assert files[0].content == ""
+    assert files[0].content_sha256 == hashlib.sha256(b"").hexdigest()

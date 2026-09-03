@@ -20,7 +20,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_PROJECT_FILE_REMOVE_TOOL,
     SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
-    SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+    SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
     SCIENTIFIC_SOURCE_COMMIT_TOOL,
     SCIENTIFIC_SOURCE_EDIT_TOOL,
     SCIENTIFIC_SOURCE_READ_TOOL,
@@ -47,6 +47,7 @@ from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_SEARCH_TOOL,
     ResearchSourceDocument,
     ResearchSourceSnapshot,
+    load_research_source_snapshot,
 )
 from ai_statistician.research_source_discovery import (
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
@@ -162,9 +163,10 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
         )),
         _response(ClientToolCall(
             call_id="import-before-read",
-            name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+            name=SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
             input={"imports": [{
-                "source_handle": "source:published-implementation",
+                "source_origin": "discovered_repository",
+                "source_id": "source:published-implementation",
                 "revision": "abc123", "source_path": "method.py",
                 "expected_content_sha256": published_sha256,
                 "project_path": "method.py",
@@ -188,16 +190,18 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
         ),
         _response(ClientToolCall(
             call_id="import-source",
-            name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+            name=SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
             input={"imports": [
                 {
-                    "source_handle": "source:published-implementation",
+                    "source_origin": "discovered_repository",
+                    "source_id": "source:published-implementation",
                     "revision": "abc123", "source_path": "method.py",
                     "expected_content_sha256": published_sha256,
                     "project_path": "method.py",
                 },
                 {
-                    "source_handle": "source:published-implementation",
+                    "source_origin": "discovered_repository",
+                    "source_id": "source:published-implementation",
                     "revision": "abc123", "source_path": "adjust.py",
                     "expected_content_sha256": adjustment_sha256,
                     "project_path": "adjust.py",
@@ -245,7 +249,7 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
     assert tool_names[:3] == [
         RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
         RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
-        SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+        SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
     ]
     early_error = json.loads(
         backend.requests[3].messages[-1]["content"][0]["content"]
@@ -263,7 +267,7 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
         },
     ]
     import_ref = result.evidence["research_source_refs"][-1]
-    assert import_ref["tool"] == SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
+    assert import_ref["tool"] == SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL
     assert import_ref["source_file_count"] == 2
     assert {
         (row["source_path"], row["source_content_sha256"], row["project_path"])
@@ -302,13 +306,15 @@ def test_public_source_file_batch_is_atomic_when_one_exact_read_drifts() -> None
     main = "def run_sandbox(seed, replicates):\n    return {'seed': seed}\n"
     imports = [
         {
-            "source_handle": "source:published-implementation",
+            "source_origin": "discovered_repository",
+            "source_id": "source:published-implementation",
             "revision": "abc123", "source_path": "method.py",
             "expected_content_sha256": hashlib.sha256(method.encode()).hexdigest(),
             "project_path": "method.py",
         },
         {
-            "source_handle": "source:published-implementation",
+            "source_origin": "discovered_repository",
+            "source_id": "source:published-implementation",
             "revision": "abc123", "source_path": "adjust.py",
             "expected_content_sha256": hashlib.sha256(adjust.encode()).hexdigest(),
             "project_path": "adjust.py",
@@ -339,7 +345,7 @@ def test_public_source_file_batch_is_atomic_when_one_exact_read_drifts() -> None
             ),
         ),
         _response(ClientToolCall(
-            call_id="import", name=SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL,
+            call_id="import", name=SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
             input={"imports": imports},
         )),
         _run_response(),
@@ -375,9 +381,176 @@ def test_public_source_file_batch_is_atomic_when_one_exact_read_drifts() -> None
     assert result.check_result["accepted"] is True
     assert "project_files" not in result.code_draft
     assert not any(
-        ref.get("tool") == SCIENTIFIC_PROJECT_PUBLIC_SOURCE_IMPORT_TOOL
+        ref.get("tool") == SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL
         for ref in result.evidence["research_source_refs"]
     )
+
+
+def test_model_imports_observed_frozen_project_files_and_executes_them(
+    tmp_path,
+) -> None:
+    source_root = tmp_path / "frozen-project"
+    package_root = source_root / "package"
+    package_root.mkdir(parents=True)
+    init_source = ""
+    method_source = "def total(values):\n    return sum(values)\n"
+    (package_root / "__init__.py").write_text(init_source, encoding="utf-8")
+    (package_root / "method.py").write_text(method_source, encoding="utf-8")
+    init_sha256 = hashlib.sha256(init_source.encode()).hexdigest()
+    method_sha256 = hashlib.sha256(method_source.encode()).hexdigest()
+    manifest = {
+        "schema_version": 1,
+        "snapshot_id": "frozen-scientific-project",
+        "source_horizon": "2025-12-31",
+        "source_root": "frozen-project",
+        "documents": [
+            {
+                "document_id": "package-init",
+                "title": "package/__init__.py",
+                "source_kind": "code",
+                "relative_path": "package/__init__.py",
+                "sha256": init_sha256,
+                "content_mode": "text",
+                "media_type": "text/x-python",
+                "byte_size": 0,
+                "model_visible": True,
+            },
+            {
+                "document_id": "package-method",
+                "title": "package/method.py",
+                "source_kind": "code",
+                "relative_path": "package/method.py",
+                "sha256": method_sha256,
+                "content_mode": "text",
+                "media_type": "text/x-python",
+                "byte_size": len(method_source.encode()),
+                "model_visible": True,
+            },
+        ],
+    }
+    manifest_path = tmp_path / "frozen-project.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    snapshot = load_research_source_snapshot(manifest_path)
+    main_source = (
+        "from package.method import total\n\n"
+        "def run_sandbox(seed, replicates):\n"
+        "    return {'value': total([seed, replicates])}\n"
+    )
+    backend = ScriptedScientificBackend([
+        _response(ClientToolCall(
+            call_id="list-package",
+            name=RESEARCH_SOURCE_LIST_TOOL,
+            input={"directory": "package"},
+        )),
+        _response(ClientToolCall(
+            call_id="submit-main",
+            name=SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+            input={
+                "language": "python",
+                "execution_profile": "stdlib",
+                "dependencies": [],
+                "entrypoint": "run_sandbox",
+                "code": main_source,
+            },
+        )),
+        _response(ClientToolCall(
+            call_id="import-frozen-files",
+            name=SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
+            input={"imports": [
+                {
+                    "source_origin": "frozen_snapshot",
+                    "source_id": "package-init",
+                    "revision": snapshot.snapshot_hash,
+                    "source_path": "package/__init__.py",
+                    "expected_content_sha256": init_sha256,
+                    "project_path": "package/__init__.py",
+                },
+                {
+                    "source_origin": "frozen_snapshot",
+                    "source_id": "package-method",
+                    "revision": snapshot.snapshot_hash,
+                    "source_path": "package/method.py",
+                    "expected_content_sha256": method_sha256,
+                    "project_path": "package/method.py",
+                },
+            ]},
+        )),
+        _run_response(),
+        _commit_response(),
+    ])
+    executions = []
+
+    def check(candidate):
+        execution = execute_scientific_sandbox(
+            sandbox_dir=tmp_path / "sandbox",
+            artifact_id="frozen-project-import",
+            language=candidate["language"],
+            code=candidate["code"],
+            project_files=candidate.get("project_files", []),
+            dependencies=candidate["dependencies"],
+            seed=2,
+            replicates=3,
+            timeout_s=30,
+        )
+        executions.append(execution)
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": execution.status == "EXECUTED"
+            and execution.metrics == {"value": 5},
+            "execution_status": execution.status,
+            "metrics": execution.metrics,
+            "errors": list(execution.errors),
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend,
+        system_prompt="Inspect and reuse exact frozen source when useful.",
+        user_prompt="Build and run the selected source-grounded project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        temperature=0.0,
+        max_tokens=1200,
+        max_turns=5,
+        max_no_progress_turns=3,
+        artifact_id="question:frozen-project-import",
+        initial_code_draft=None,
+        initial_check_result={"accepted": False},
+        check_candidate=check,
+        workspace_operation="initial_authoring",
+        research_sources=snapshot,
+    )
+
+    assert len(executions) == 1
+    assert result.check_result["metrics"] == {"value": 5}
+    assert result.code_draft["project_files"] == [
+        {
+            "path": "package/__init__.py",
+            "content": "",
+            "content_sha256": init_sha256,
+        },
+        {
+            "path": "package/method.py",
+            "content": method_source,
+            "content_sha256": method_sha256,
+        },
+    ]
+    assert [tool.name for tool in backend.requests[0].tools[:4]] == [
+        RESEARCH_SOURCE_LIST_TOOL,
+        RESEARCH_SOURCE_SEARCH_TOOL,
+        RESEARCH_SOURCE_READ_TOOL,
+        SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
+    ]
+    import_ref = result.evidence["research_source_refs"][-1]
+    assert [row["source_origin"] for row in import_ref["imports"]] == [
+        "frozen_snapshot",
+        "frozen_snapshot",
+    ]
+    assert import_ref["resulting_project_hash"] == scientific_project_hash(
+        language="python",
+        code=main_source,
+        project_files=result.code_draft["project_files"],
+    )
+    assert method_source not in str(result.evidence)
 
 
 def _response(*calls: ClientToolCall) -> ClientToolTurnResponse:

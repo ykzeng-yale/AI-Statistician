@@ -97,8 +97,6 @@ def scientific_project_file_errors(
         paths.add(path)
         encoded = content.encode("utf-8")
         total_bytes += len(encoded)
-        if not content.strip():
-            errors.append(f"scientific project file is empty: {path}")
         if len(encoded) > MAX_SCIENTIFIC_PROJECT_FILE_BYTES:
             errors.append(f"scientific project file exceeds size boundary: {path}")
         observed_sha256 = hashlib.sha256(encoded).hexdigest()
@@ -177,7 +175,6 @@ def scientific_project_files_json_schema() -> dict[str, Any]:
                 "path": {"type": "string", "minLength": 1},
                 "content": {
                     "type": "string",
-                    "minLength": 1,
                     "maxLength": MAX_SCIENTIFIC_PROJECT_FILE_BYTES,
                 },
             },
