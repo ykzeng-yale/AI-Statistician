@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `280ae8b`](https://github.com/openai/codex/tree/280ae8b9fcd35a54704dc2c78027b89bd51369fd), Apache-2.0. The delta after the prior pin bounds exec-server Noise handshakes and centralizes image-detail constants; neither changes retained source ownership, tool routing, scientific collaboration, or review lifecycle. AI Statistician therefore imports no new runtime layer from this delta.
+Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `d979df15`](https://github.com/openai/codex/tree/d979df154cf60e13eafb5453e75b6d84f21c67bf), Apache-2.0. The sole delta after the prior pin initializes a packaged GStreamer runtime inside Codex's isolated voice host; it does not change retained source ownership, tool routing, scientific collaboration, or review lifecycle. AI Statistician therefore imports no media runtime or new harness layer from this delta.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
