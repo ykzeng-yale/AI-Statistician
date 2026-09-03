@@ -6584,9 +6584,9 @@ def _theory_developer_progress_result(
         stop_condition=task.stop_condition,
     )
     boundary = (
-        "This checkpoint preserves exact model-authored partial Markdown/LaTeX and "
-        "structured state for the same TheoryDeveloper. It is not accepted theory, "
-        "independent review, empirical evidence, formal proof, or kernel evidence."
+        "This checkpoint preserves exact model-authored partial workspace state and "
+        "hash-bound observations for the same TheoryDeveloper. It is not accepted "
+        "theory, independent review, empirical evidence, formal proof, or kernel evidence."
     )
     evidence = EvidenceLedgerEntry(
         evidence_id="evidence:" + stable_hash([task.task_id, checkpoint_id])[:20],
@@ -6617,8 +6617,8 @@ def _theory_developer_progress_result(
     return AgentStepResult(
         status="REVISE",
         rationale=(
-            "TheoryDeveloper checkpointed substantive document-backed progress and "
-            "requested a same-owner continuation; runtime preserved exact state "
+            "TheoryDeveloper checkpointed substantive workspace progress and requested "
+            "a same-owner continuation; runtime preserved exact state "
             "without Architect routing or content repair."
         ),
         produced_artifacts={

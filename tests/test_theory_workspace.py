@@ -2110,6 +2110,154 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
         )
 
 
+def test_observation_only_progress_requires_novel_exact_lineage(tmp_path) -> None:
+    initial = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="inspect-problem-before-derivation",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["problem_card"]},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="continue-after-inspection",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "Inspected the exact problem before deriving it.",
+                        "evidence_refs": ["workspace:problem_card"],
+                        "next_step": "Develop the first mathematical claim.",
+                    },
+                )
+            ),
+        ]
+    )
+    workspace = tmp_path / "theory"
+
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        _run_workspace(
+            initial,
+            workspace_dir=workspace,
+            require_document_authority=True,
+            max_turns=2,
+            max_tool_calls=2,
+        )
+
+    checkpoint = exc_info.value.progress_checkpoint
+    artifacts, documents = load_theory_progress_checkpoint_state(
+        checkpoint,
+        question_id="q1",
+    )
+    assert documents == {}
+    assert checkpoint["changed_artifact_names"] == []
+    assert checkpoint["changed_document_paths"] == []
+    assert checkpoint["workspace_read_refs"] == [
+        {
+            "tool": "read_theory_workspace",
+            "artifact_hashes": {
+                "problem_card": stable_hash(
+                    {"claim": "parent-private-claim"}
+                )
+            },
+            "document_sha256": {},
+            "proof_evidence_status": (
+                "THEORY_WORKSPACE_READ_NOT_PROOF_EVIDENCE"
+            ),
+        }
+    ]
+    assert checkpoint["progress"]["phase_observation_refs"] == [
+        {
+            "state_field": "workspace_read_refs",
+            "row_index": 1,
+            "row_hash": stable_hash(checkpoint["workspace_read_refs"][0]),
+        }
+    ]
+    tampered = json.loads(json.dumps(checkpoint))
+    tampered["progress"]["phase_observation_refs"][0]["row_hash"] = "0" * 64
+    tampered_body = dict(tampered)
+    tampered_body.pop("checkpoint_id")
+    tampered["checkpoint_id"] = (
+        "theory_progress_checkpoint:" + stable_hash(tampered_body)[:20]
+    )
+    with pytest.raises(ValueError, match="observation reference is invalid"):
+        load_theory_progress_checkpoint_state(tampered, question_id="q1")
+
+    continued = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="repeat-identical-problem-read",
+                    name="read_theory_workspace",
+                    input={"artifact_names": ["problem_card"]},
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="reject-empty-continuation",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "Repeated the same inspection.",
+                        "evidence_refs": ["workspace:problem_card"],
+                        "next_step": "Request another continuation.",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="write-first-derivation",
+                    name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/C1.md",
+                        "content": "# Claim C1\n\nThe first derivation is now explicit.\n",
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="continue-after-new-document",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "Wrote the first explicit derivation.",
+                        "evidence_refs": ["derivations/C1.md"],
+                        "next_step": "Stress-test Claim C1.",
+                    },
+                )
+            ),
+        ]
+    )
+
+    with pytest.raises(TheoryWorkspaceProgressError) as continued_exc:
+        _run_workspace(
+            continued,
+            workspace_dir=workspace,
+            require_document_authority=True,
+            initial_artifacts=artifacts,
+            initial_documents=documents,
+            prior_changed_artifact_names=checkpoint["changed_artifact_names"],
+            prior_changed_document_paths=checkpoint["changed_document_paths"],
+            prior_client_tool_session_ref=checkpoint["client_tool_session_ref"],
+            prior_workspace_checkpoint=checkpoint,
+            max_turns=4,
+            max_tool_calls=4,
+        )
+
+    rejection = json.loads(
+        continued.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert "new exact environment observation" in rejection["detail"]
+    continued_checkpoint = continued_exc.value.progress_checkpoint
+    assert continued_checkpoint["progress"]["phase_changed_document_paths"] == [
+        "derivations/C1.md"
+    ]
+    assert continued_checkpoint["progress"]["phase_observation_refs"] == []
+    _, continued_documents = load_theory_progress_checkpoint_state(
+        continued_checkpoint,
+        question_id="q1",
+    )
+    assert set(continued_documents) == {"derivations/C1.md"}
+
+
 def test_rejected_terminal_commit_can_checkpoint_same_owner_progress(tmp_path) -> None:
     markdown = (
         "# Partial theory\n\n"

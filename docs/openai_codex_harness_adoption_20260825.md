@@ -40,8 +40,8 @@ without duplicating the control plane.
    marked incomplete, never split into a misleading partial grant; authentication or authorization failure never silently replays a rejected action after recovery fails.
 6. **Natural termination and explicit continuation.** A response with no tool call
    ends the current workspace segment. Exact state and transcript lineage may be
-   checkpointed for an explicit continuation; the harness does not append a private
-   instruction and resample or promote free-form text as domain evidence.
+   checkpointed for an explicit continuation after a new hash-bound observation or
+   workspace change; unchanged rereads cannot manufacture progress. The harness does not append a private instruction and resample or promote free-form text as domain evidence.
 7. **Review is isolated and findings-first.** A reviewer sees the exact objective and
    immutable candidate, reports every discrete material finding, and does not fix the
    source. Findings return to the original source owner.

@@ -135,6 +135,7 @@ blocks the lineage without treating model judgment as proof.
 
 Structural validity does not stop the session. Within one shared ordinary-action budget,
 the model chooses its mix of reads, searches, writes, edits, and scratch work, then continues, reports a gap, or calls `commit_theory_checkpoint`. No tool kind has a separate attempt quota; document-backed continuation preserves cumulative execution lineage under the same workspace and outer continuation bounds. The harness still owns total action and turn bounds, no-progress termination, execution safety caps, and the reserved terminal disposition. A commit proposes independent review; it is not evidence.
+Continuation may preserve a new hash-bound source, scratch, or workspace observation before any authoritative edit; an unchanged reread cannot manufacture progress, and observation-only state remains unaccepted.
 
 Supporting Theory completion compiles the validated Architect plan into the next
 workspace; required review and genuine conflicts retain their authority paths.

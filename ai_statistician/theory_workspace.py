@@ -457,6 +457,7 @@ _THEORY_PROGRESS_COUNTER_FIELDS = (
 _THEORY_PROGRESS_ROW_FIELDS = (
     "model_artifact_writes",
     "model_document_writes",
+    "workspace_read_refs",
     "document_inspection_refs",
     "scratch_execution_refs",
     "scratch_inspection_refs",
@@ -466,6 +467,11 @@ _THEORY_PROGRESS_ROW_FIELDS = (
     "source_discovery_read_refs",
     "source_replication_manifests",
     "source_result_read_refs",
+)
+_THEORY_PROGRESS_OBSERVATION_ROW_FIELDS = tuple(
+    field
+    for field in _THEORY_PROGRESS_ROW_FIELDS
+    if field not in {"model_artifact_writes", "model_document_writes"}
 )
 
 
@@ -800,6 +806,10 @@ def run_theory_artifact_workspace(
         "last_validation_errors": [],
         "last_candidate": {},
     }
+    phase_prior_observation_hashes = {
+        field: {stable_hash(row) for row in state[field]}
+        for field in _THEORY_PROGRESS_OBSERVATION_ROW_FIELDS
+    }
     tools = _theory_workspace_tools(
         scratchpad_enabled=scratchpad is not None,
         research_sources_enabled=research_sources is not None,
@@ -870,6 +880,26 @@ def run_theory_artifact_workspace(
                 if path not in documents
             )
         )
+
+    def current_phase_observation_refs() -> tuple[dict[str, Any], ...]:
+        refs: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for field in _THEORY_PROGRESS_OBSERVATION_ROW_FIELDS:
+            prior_hashes = phase_prior_observation_hashes[field]
+            for row_index, row in enumerate(state[field], start=1):
+                row_hash = stable_hash(row)
+                identity = (field, row_hash)
+                if row_hash in prior_hashes or identity in seen:
+                    continue
+                seen.add(identity)
+                refs.append(
+                    {
+                        "state_field": field,
+                        "row_index": row_index,
+                        "row_hash": row_hash,
+                    }
+                )
+        return tuple(refs)
 
     def document_manifest(documents: Mapping[str, str]) -> dict[str, Any]:
         snapshot_dir = resolved_workspace_dir
@@ -1257,6 +1287,22 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "selected theory material exceeds one observation; read less material"
                 )
+            state["workspace_read_refs"].append(
+                {
+                    "tool": "read_theory_workspace",
+                    "artifact_hashes": {
+                        name: stable_hash(selected[name])
+                        for name in sorted(selected)
+                    },
+                    "document_sha256": {
+                        path: _text_sha256(selected_documents[path])
+                        for path in sorted(selected_documents)
+                    },
+                    "proof_evidence_status": (
+                        "THEORY_WORKSPACE_READ_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
             for path, content in selected_documents.items():
                 state["document_inspection_refs"].append(
                     {
@@ -1929,13 +1975,24 @@ def run_theory_artifact_workspace(
                 raise ClientToolInputError(
                     "theory progress next_step must be nonempty text"
                 )
-            phase_document_changes = current_changed_document_paths(
+            phase_artifact_changes = current_changed_artifact_names(
+                state["artifacts"]
+            )
+            phase_document_changes = current_changed_document_paths(state["documents"])
+            phase_removed_documents = current_removed_document_paths(
                 state["documents"]
             )
-            if not phase_document_changes:
+            phase_observation_refs = current_phase_observation_refs()
+            if not (
+                phase_artifact_changes
+                or phase_document_changes
+                or phase_removed_documents
+                or phase_observation_refs
+            ):
                 raise ClientToolInputError(
                     "checkpoint_theory_progress requires a new or revised "
-                    "authoritative document in the current continuation phase"
+                    "workspace artifact or a new exact environment observation "
+                    "in the current continuation phase"
                 )
             progress = {
                 "summary": summary.strip(),
@@ -1943,15 +2000,12 @@ def run_theory_artifact_workspace(
                     value.strip() for value in evidence_refs
                 ],
                 "next_step": next_step.strip(),
-                "phase_changed_artifact_names": list(
-                    current_changed_artifact_names(state["artifacts"])
-                ),
-                "phase_changed_document_paths": list(
-                    phase_document_changes
-                ),
-                "phase_removed_document_paths": list(
-                    current_removed_document_paths(state["documents"])
-                ),
+                "phase_changed_artifact_names": list(phase_artifact_changes),
+                "phase_changed_document_paths": list(phase_document_changes),
+                "phase_removed_document_paths": list(phase_removed_documents),
+                "phase_observation_refs": [
+                    deepcopy(ref) for ref in phase_observation_refs
+                ],
             }
             return ClientToolExecutionResult(
                 content={
@@ -2117,17 +2171,18 @@ def run_theory_artifact_workspace(
         else ""
     )
     progress_guidance = (
-        "When you have made substantive document-backed progress but additional "
-        "derivation or handoff work is genuinely needed beyond this session, call "
+        "When you have made substantive workspace progress but additional derivation "
+        "or handoff work is genuinely needed beyond this session, call "
         "checkpoint_theory_progress with the evidence you inspected and one concrete "
-        "next step. Each progress phase must create or revise an authoritative "
-        "document. This requests same-owner continuation and is not accepted theory, "
-        "empirical evidence, or proof. Address validator observations directly while "
-        "a write remains. If no submission remains after substantive document work, "
-        "checkpoint that progress so the same owner can continue; an unfinished "
-        "structured handoff or exhausted write quota is not a mathematical gap. "
-        "Prior scratch observations and their exact execution refs remain cumulative "
-        "across continuation. "
+        "next step. Progress may be a model-authored workspace revision or a new exact "
+        "source, scratch, or workspace observation that changes the next research "
+        "step. An unchanged reread cannot justify another continuation. This requests "
+        "same-owner continuation and is not accepted theory, empirical evidence, or "
+        "proof. Address validator observations directly while a write remains. If no "
+        "submission remains after substantive work, checkpoint that progress so the "
+        "same owner can continue; an unfinished structured handoff or exhausted write "
+        "quota is not a mathematical gap. Prior observations and their exact refs "
+        "remain cumulative across continuation. "
         if require_document_authority
         else ""
     )
@@ -2385,7 +2440,7 @@ def run_theory_artifact_workspace(
                     "blocked and never counts as theory or proof success. "
                     "Do not report a mathematical gap merely because a structured "
                     "index is unfinished or the current phase has no write left after "
-                    "substantive document progress; use checkpoint_theory_progress "
+                    "substantive workspace progress; use checkpoint_theory_progress "
                     "for same-owner continuation instead. "
                     + "Each structurally valid model write is retained even when the "
                     "combined workspace still fails validation, so a validator "
@@ -2493,6 +2548,7 @@ def run_theory_artifact_workspace(
             "model_document_writes": deepcopy(
                 state["model_document_writes"]
             ),
+            "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
             "document_inspection_refs": deepcopy(
                 state["document_inspection_refs"]
             ),
@@ -2687,6 +2743,7 @@ def run_theory_artifact_workspace(
             "submissions": state["submissions"],
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(source_manifests),
+            "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
             "document_inspection_refs": deepcopy(
                 state["document_inspection_refs"]
             ),
@@ -2796,6 +2853,7 @@ def run_theory_artifact_workspace(
             "progress": progress,
             "reads": state["reads"],
             "submissions": state["submissions"],
+            "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
             "turns": loop.turns,
             "tool_calls": loop.tool_calls,
             "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -2867,6 +2925,7 @@ def run_theory_artifact_workspace(
             "theory_workspace_manifest": document_manifest(
                 state["documents"]
             ),
+            "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
             "document_inspection_refs": deepcopy(
                 state["document_inspection_refs"]
             ),
@@ -3011,6 +3070,7 @@ def run_theory_artifact_workspace(
         "model_document_writes": deepcopy(
             state["model_document_writes"]
         ),
+        "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
         "document_inspection_refs": deepcopy(
             state["document_inspection_refs"]
         ),
@@ -3557,11 +3617,12 @@ def _theory_workspace_tools(
             ClientToolDefinition(
                 name=THEORY_WORKSPACE_PROGRESS_TOOL,
                 description=(
-                    "Checkpoint substantive model-authored mathematical progress and "
-                    "request another TheoryDeveloper continuation. Use this only "
-                    "after creating or revising an authoritative document when more "
-                    "derivation is genuinely needed. The checkpoint is not accepted "
-                    "theory, empirical evidence, or proof."
+                    "Checkpoint substantive model-authored workspace progress and "
+                    "request another TheoryDeveloper continuation. Use this after a "
+                    "workspace revision or a new exact source, scratch, or workspace "
+                    "observation when more derivation is genuinely needed; unchanged "
+                    "rereads do not qualify. The checkpoint is not accepted theory, "
+                    "empirical evidence, or proof."
                 ),
                 input_schema={
                     "type": "object",
@@ -4192,8 +4253,6 @@ def load_theory_progress_checkpoint_state(
     documents = load_theory_workspace_documents(
         {"theory_workspace_manifest": manifest}
     )
-    if not documents:
-        raise ValueError("theory progress checkpoint has no authoritative documents")
     if stable_hash(
         {
             "artifacts": dict(artifacts),
@@ -4207,11 +4266,10 @@ def load_theory_progress_checkpoint_state(
     if not isinstance(changed_artifacts, list) or not all(
         isinstance(value, str) and value.strip()
         for value in changed_artifacts
-    ):
+    ) or len(set(changed_artifacts)) != len(changed_artifacts):
         raise ValueError("theory progress changed artifacts are invalid")
     if (
         not isinstance(changed_documents, list)
-        or not changed_documents
         or not all(isinstance(value, str) and value.strip() for value in changed_documents)
         or not isinstance(removed_documents, list)
         or not all(isinstance(value, str) and value.strip() for value in removed_documents)
@@ -4243,26 +4301,51 @@ def load_theory_progress_checkpoint_state(
     ):
         raise ValueError("theory progress checkpoint summary is incomplete")
     evidence_refs = progress.get("evidence_refs", [])
+    phase_artifacts = progress.get("phase_changed_artifact_names", [])
     phase_documents = progress.get("phase_changed_document_paths", [])
     phase_removed_documents = progress.get("phase_removed_document_paths", [])
+    phase_observation_refs = progress.get("phase_observation_refs", [])
     if (
         not isinstance(evidence_refs, list)
         or not evidence_refs
         or not all(isinstance(value, str) and value.strip() for value in evidence_refs)
+        or not isinstance(phase_artifacts, list)
+        or not all(
+            isinstance(value, str) and value.strip() for value in phase_artifacts
+        )
+        or len(set(phase_artifacts)) != len(phase_artifacts)
+        or not set(phase_artifacts).issubset(changed_artifacts)
         or not isinstance(phase_documents, list)
-        or not phase_documents
         or not all(isinstance(value, str) and value.strip() for value in phase_documents)
+        or len(set(phase_documents)) != len(phase_documents)
         or not set(phase_documents).issubset(changed_documents)
         or not isinstance(phase_removed_documents, list)
         or not all(
             isinstance(value, str) and value.strip()
             for value in phase_removed_documents
         )
+        or len(set(phase_removed_documents)) != len(phase_removed_documents)
         or not set(phase_removed_documents).issubset(removed_document_set)
         or not set(phase_removed_documents).issubset(phase_documents)
+        or not isinstance(phase_observation_refs, list)
     ):
         raise ValueError("theory progress checkpoint evidence is incomplete")
-    _theory_progress_workspace_state(
+    try:
+        normalized_phase_documents = [
+            _normalized_theory_document_path(value) for value in phase_documents
+        ]
+        normalized_phase_removed = [
+            _normalized_theory_document_path(value)
+            for value in phase_removed_documents
+        ]
+    except ClientToolInputError as exc:
+        raise ValueError("theory progress checkpoint evidence is incomplete") from exc
+    if (
+        normalized_phase_documents != phase_documents
+        or normalized_phase_removed != phase_removed_documents
+    ):
+        raise ValueError("theory progress checkpoint evidence is incomplete")
+    restored_state = _theory_progress_workspace_state(
         checkpoint,
         workspace_id=str(checkpoint.get("workspace_id", "") or ""),
         question_id=str(checkpoint.get("question_id", "") or ""),
@@ -4273,6 +4356,38 @@ def load_theory_progress_checkpoint_state(
             checkpoint.get("workspace_operation", "") or ""
         ),
     )
+    seen_observation_refs: set[tuple[str, int]] = set()
+    for ref in phase_observation_refs:
+        if not isinstance(ref, Mapping) or set(ref) != {
+            "state_field",
+            "row_index",
+            "row_hash",
+        }:
+            raise ValueError("theory progress observation reference is invalid")
+        state_field = ref.get("state_field")
+        row_index = ref.get("row_index")
+        row_hash = ref.get("row_hash")
+        if (
+            state_field not in _THEORY_PROGRESS_OBSERVATION_ROW_FIELDS
+            or isinstance(row_index, bool)
+            or not isinstance(row_index, int)
+            or row_index < 1
+            or row_index > len(restored_state[str(state_field)])
+            or not isinstance(row_hash, str)
+            or row_hash != stable_hash(
+                restored_state[str(state_field)][row_index - 1]
+            )
+            or (str(state_field), row_index) in seen_observation_refs
+        ):
+            raise ValueError("theory progress observation reference is invalid")
+        seen_observation_refs.add((str(state_field), row_index))
+    if not (
+        phase_artifacts
+        or phase_documents
+        or phase_removed_documents
+        or phase_observation_refs
+    ):
+        raise ValueError("theory progress checkpoint records no phase progress")
     return deepcopy(dict(artifacts)), documents
 
 
