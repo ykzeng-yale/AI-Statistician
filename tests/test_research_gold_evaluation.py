@@ -24,6 +24,7 @@ from ai_statistician.research_agent_runtime import (
     ResearchAgentRuntimeConfig,
     run_research_agent_runtime,
 )
+from ai_statistician.research_evaluation import research_evaluation_evidence_hash
 from ai_statistician.scientific_sandbox import (
     ScientificEstimatorBinding,
     discover_scientific_sandbox_runtime,
@@ -147,6 +148,11 @@ def test_post_runtime_gold_loader_rehydrates_exact_artifact_hashes(
     )
 
     assert results[0]["blackboard"]["artifacts"] == {"question:1": artifact}
+    assert research_evaluation_evidence_hash(results[0]) == (
+        research_evaluation_evidence_hash(
+            {"blackboard": {"artifacts": {"question:1": artifact}}}
+        )
+    )
     assert load_persisted_runtime_result(result_path) == results[0]
 
     blob_path.write_text(json.dumps({**artifact, "tampered": True}), encoding="utf-8")
@@ -299,26 +305,26 @@ def _runtime_result_with_accepted_theory(
     return result
 
 
-def _research_summary() -> dict:
-    return {
-        "rows": [
-            {
-                "question_id": QUESTION_ID,
-                "research_eval_complete": True,
-                "requirements": {
-                    "serious_theory_completed": True,
-                    "theory_preexecution_review_accepted": True,
-                    "generated_algorithm_executed_and_passed": True,
-                    "algorithm_semantic_review_accepted": True,
-                    "generated_simulation_executed_and_passed": True,
-                    "simulation_metric_evidence_nonvacuous_and_bound": True,
-                    "simulation_semantic_review_accepted": True,
-                    "critic_research_acceptance": True,
-                    "critic_unresolved_gap_disclosure_present": True,
-                },
-            }
-        ]
+def _research_summary(runtime_result: dict | None = None) -> dict:
+    runtime_result = runtime_result or _runtime_result()
+    row = {
+        "question_id": QUESTION_ID,
+        "runtime_evidence_hash": research_evaluation_evidence_hash(runtime_result),
+        "research_eval_complete": True,
+        "requirements": {
+            "serious_theory_completed": True,
+            "theory_preexecution_review_accepted": True,
+            "generated_algorithm_executed_and_passed": True,
+            "algorithm_semantic_review_accepted": True,
+            "generated_simulation_executed_and_passed": True,
+            "simulation_metric_evidence_nonvacuous_and_bound": True,
+            "simulation_semantic_review_accepted": True,
+            "critic_research_acceptance": True,
+            "critic_unresolved_gap_disclosure_present": True,
+        },
     }
+    row["summary_row_hash"] = stable_hash(row)
+    return {"rows": [row]}
 
 
 def _passing_harness(**kwargs) -> dict:
@@ -692,9 +698,10 @@ def _runtime_result_with_source_replication(
 
 
 def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> None:
+    runtime_result = _runtime_result()
     result = evaluate_research_gold_benchmark(
-        [_runtime_result()],
-        research_evaluation_summary=_research_summary(),
+        [runtime_result],
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=GOLD_MANIFEST,
         out_dir=tmp_path,
         run_harness=_passing_harness,
@@ -704,6 +711,8 @@ def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> Non
     assert result["all_active_tasks_passed"] is False
     assert result["n_tasks_passed"] == 0
     task = result["tasks"][0]
+    assert task["runtime_summary_evidence_hash_valid"] is True
+    assert task["runtime_summary_row_hash_valid"] is True
     assert task["hidden_harness_estimator_invocation_count"] == 4
     assert task["hidden_checks_passed"] is True
     assert task["dimension_status"]["scientific_code"]["status"] == "passed"
@@ -743,6 +752,103 @@ def test_gold_evaluator_scores_only_accepted_exact_source(tmp_path: Path) -> Non
     assert '"observed"' not in serialized
 
 
+def test_gold_evaluator_rejects_summary_from_another_runtime_graph(
+    tmp_path: Path,
+) -> None:
+    runtime_result = _runtime_result()
+    summary = _research_summary(runtime_result)
+    runtime_result["status"] = "BLOCKED"
+    calls = []
+
+    def forbidden_harness(**kwargs) -> dict:
+        calls.append(kwargs)
+        return _passing_harness(**kwargs)
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=summary,
+        benchmark_manifest_path=GOLD_MANIFEST,
+        out_dir=tmp_path,
+        run_harness=forbidden_harness,
+    )
+
+    assert calls == []
+    task = result["tasks"][0]
+    assert task["runtime_summary_evidence_hash_valid"] is False
+    assert task["runtime_summary_row_hash_valid"] is True
+    assert task["runtime_research_eval_complete"] is False
+    assert task["task_passed"] is False
+    assert task["failure_reasons"] == [
+        "research summary is not bound to this runtime evidence graph"
+    ]
+
+
+def test_gold_evaluator_rejects_mutated_summary_row(tmp_path: Path) -> None:
+    runtime_result = _runtime_result()
+    summary = _research_summary(runtime_result)
+    summary["rows"][0]["requirements"]["serious_theory_completed"] = False
+    calls = []
+
+    def forbidden_harness(**kwargs) -> dict:
+        calls.append(kwargs)
+        return _passing_harness(**kwargs)
+
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=summary,
+        benchmark_manifest_path=GOLD_MANIFEST,
+        out_dir=tmp_path,
+        run_harness=forbidden_harness,
+    )
+
+    assert calls == []
+    task = result["tasks"][0]
+    assert task["runtime_summary_evidence_hash_valid"] is True
+    assert task["runtime_summary_row_hash_valid"] is False
+    assert task["task_passed"] is False
+
+
+def test_gold_evaluator_rejects_duplicate_runtime_or_summary_identity(
+    tmp_path: Path,
+) -> None:
+    runtime_result = _runtime_result()
+    summary = _research_summary(runtime_result)
+
+    with pytest.raises(ValueError, match="duplicate runtime results"):
+        evaluate_research_gold_benchmark(
+            [runtime_result, deepcopy(runtime_result)],
+            research_evaluation_summary=summary,
+            benchmark_manifest_path=GOLD_MANIFEST,
+            out_dir=tmp_path / "runtime",
+            run_harness=_passing_harness,
+        )
+
+    ambiguous_result = deepcopy(runtime_result)
+    ambiguous_result["blackboard"]["artifacts"]["another-question"] = {
+        "artifact_kind": "RuntimeQuestionMetadata",
+        "question": {"id": "another-question"},
+    }
+    with pytest.raises(ValueError, match="multiple question metadata"):
+        evaluate_research_gold_benchmark(
+            [ambiguous_result],
+            research_evaluation_summary=summary,
+            benchmark_manifest_path=GOLD_MANIFEST,
+            out_dir=tmp_path / "ambiguous",
+            run_harness=_passing_harness,
+        )
+
+    with pytest.raises(ValueError, match="duplicate research summary rows"):
+        evaluate_research_gold_benchmark(
+            [runtime_result],
+            research_evaluation_summary={
+                "rows": [*summary["rows"], deepcopy(summary["rows"][0])]
+            },
+            benchmark_manifest_path=GOLD_MANIFEST,
+            out_dir=tmp_path / "summary",
+            run_harness=_passing_harness,
+        )
+
+
 def test_gold_evaluator_binds_the_complete_accepted_project(tmp_path: Path) -> None:
     runtime_result = _runtime_result()
     accepted = runtime_result["blackboard"]["artifacts"][
@@ -775,7 +881,7 @@ def test_gold_evaluator_binds_the_complete_accepted_project(tmp_path: Path) -> N
 
     result = evaluate_research_gold_benchmark(
         [runtime_result],
-        research_evaluation_summary=_research_summary(),
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=GOLD_MANIFEST,
         out_dir=tmp_path,
         run_harness=project_harness,
@@ -824,7 +930,7 @@ def test_gold_evaluator_rejects_unbound_or_stale_multifile_project(
 
     result = evaluate_research_gold_benchmark(
         [runtime_result],
-        research_evaluation_summary=_research_summary(),
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=GOLD_MANIFEST,
         out_dir=tmp_path / identity_failure,
         run_harness=forbidden_harness,
@@ -856,7 +962,7 @@ def test_gold_evaluator_rejects_unbound_single_file_project(tmp_path: Path) -> N
 
     result = evaluate_research_gold_benchmark(
         [runtime_result],
-        research_evaluation_summary=_research_summary(),
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=GOLD_MANIFEST,
         out_dir=tmp_path,
         run_harness=forbidden_harness,
@@ -1301,9 +1407,10 @@ def test_full_task_pass_requires_hidden_theory_code_and_empirical_checks(
         sandbox_paths.append(Path(kwargs["sandbox_dir"]))
         return _passing_artifact_harness(**kwargs)
 
+    runtime_result = _runtime_result_with_accepted_theory()
     result = evaluate_research_gold_benchmark(
-        [_runtime_result_with_accepted_theory()],
-        research_evaluation_summary=_research_summary(),
+        [runtime_result],
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=manifest,
         out_dir=tmp_path / "out",
         run_harness=scientific_runner,
@@ -1406,13 +1513,12 @@ def test_theory_only_full_task_counts_hidden_theory_evaluation(
     }
     path.write_text(json.dumps(manifest), encoding="utf-8")
 
+    runtime_result = _runtime_result_with_accepted_theory(
+        document_workspace=tmp_path / "theory-workspace"
+    )
     result = evaluate_research_gold_benchmark(
-        [
-            _runtime_result_with_accepted_theory(
-                document_workspace=tmp_path / "theory-workspace"
-            )
-        ],
-        research_evaluation_summary=_research_summary(),
+        [runtime_result],
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=path,
         out_dir=tmp_path / "out",
         run_artifact_harness=_passing_artifact_harness,
@@ -1465,13 +1571,12 @@ def test_hidden_theory_evaluator_receives_hash_verified_documents(
         ] is False
         return _passing_artifact_harness(**kwargs)
 
+    runtime_result = _runtime_result_with_accepted_theory(
+        document_workspace=tmp_path / "theory-workspace"
+    )
     result = evaluate_research_gold_benchmark(
-        [
-            _runtime_result_with_accepted_theory(
-                document_workspace=tmp_path / "theory-workspace"
-            )
-        ],
-        research_evaluation_summary=_research_summary(),
+        [runtime_result],
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=manifest,
         out_dir=tmp_path / "out",
         run_harness=_passing_harness,
@@ -1539,44 +1644,43 @@ def test_full_task_theory_requires_calibrated_semantic_judgment(
             "passed": calibrated,
         }
 
-    result = evaluate_research_gold_benchmark(
-        [
-            _runtime_result_with_accepted_theory(
-                document_workspace=tmp_path / "theory-workspace",
-                estimator_specs=[
-                    {
-                        "id": "est_ols_hc0_covariance",
-                        "name": "OLS HC0 covariance",
-                        "inputs": ["design_matrix", "outcomes"],
-                        "outputs": [
-                            "coefficients",
-                            "covariance",
-                            "standard_errors",
-                        ],
-                        "estimator_interface_contract_id": "test-model-contract",
-                        "estimator_interface_contract": {
-                            "request_fields": [
-                                {
-                                    "name": "design_matrix",
-                                    "binding": "per_replicate_data",
-                                },
-                                {
-                                    "name": "outcomes",
-                                    "binding": "per_replicate_data",
-                                },
-                            ],
-                            "response_fields": [
-                                {"name": "coefficients"},
-                                {"name": "covariance"},
-                                {"name": "standard_errors"},
-                            ],
-                        },
-                        "termination_guarantee": "Finite linear algebra only.",
-                    }
+    runtime_result = _runtime_result_with_accepted_theory(
+        document_workspace=tmp_path / "theory-workspace",
+        estimator_specs=[
+            {
+                "id": "est_ols_hc0_covariance",
+                "name": "OLS HC0 covariance",
+                "inputs": ["design_matrix", "outcomes"],
+                "outputs": [
+                    "coefficients",
+                    "covariance",
+                    "standard_errors",
                 ],
-            )
+                "estimator_interface_contract_id": "test-model-contract",
+                "estimator_interface_contract": {
+                    "request_fields": [
+                        {
+                            "name": "design_matrix",
+                            "binding": "per_replicate_data",
+                        },
+                        {
+                            "name": "outcomes",
+                            "binding": "per_replicate_data",
+                        },
+                    ],
+                    "response_fields": [
+                        {"name": "coefficients"},
+                        {"name": "covariance"},
+                        {"name": "standard_errors"},
+                    ],
+                },
+                "termination_guarantee": "Finite linear algebra only.",
+            }
         ],
-        research_evaluation_summary=_research_summary(),
+    )
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=manifest,
         out_dir=tmp_path / "out",
         run_harness=_passing_harness,
@@ -1619,13 +1723,12 @@ def test_hidden_semantic_failure_records_safe_candidate_phase(
             "invalid hidden candidate semantic judgment: private validator detail"
         )
 
+    runtime_result = _runtime_result_with_accepted_theory(
+        document_workspace=tmp_path / "theory-workspace"
+    )
     result = evaluate_research_gold_benchmark(
-        [
-            _runtime_result_with_accepted_theory(
-                document_workspace=tmp_path / "theory-workspace"
-            )
-        ],
-        research_evaluation_summary=_research_summary(),
+        [runtime_result],
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=manifest,
         out_dir=tmp_path / "out",
         run_harness=_passing_harness,
@@ -1648,7 +1751,7 @@ def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks
     manifest = _full_task_gold_manifest(tmp_path)
     runtime_result = _runtime_result_with_accepted_theory()
     runtime_result["status"] = "BLOCKED"
-    summary = _research_summary()
+    summary = _research_summary(runtime_result)
     row = summary["rows"][0]
     row["research_eval_complete"] = False
     row["requirements"].update(
@@ -1659,6 +1762,9 @@ def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks
             "critic_research_acceptance": False,
             "critic_unresolved_gap_disclosure_present": False,
         }
+    )
+    row["summary_row_hash"] = stable_hash(
+        {key: value for key, value in row.items() if key != "summary_row_hash"}
     )
 
     result = evaluate_research_gold_benchmark(
@@ -1693,9 +1799,10 @@ def test_gold_evaluator_preserves_passed_upstream_dimensions_when_runtime_blocks
 def test_gold_evaluator_fails_closed_without_accepted_source(
     tmp_path: Path,
 ) -> None:
+    runtime_result = _runtime_result(include_handoff=False)
     result = evaluate_research_gold_benchmark(
-        [_runtime_result(include_handoff=False)],
-        research_evaluation_summary=_research_summary(),
+        [runtime_result],
+        research_evaluation_summary=_research_summary(runtime_result),
         benchmark_manifest_path=GOLD_MANIFEST,
         out_dir=tmp_path,
         run_harness=_passing_harness,

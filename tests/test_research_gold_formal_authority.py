@@ -13,6 +13,7 @@ from ai_statistician.research_gold_evaluation import (
     evaluate_research_gold_benchmark,
     validate_research_gold_benchmark_manifest,
 )
+from ai_statistician.research_evaluation import research_evaluation_evidence_hash
 
 
 def _formal_only_task() -> dict[str, object]:
@@ -136,6 +137,19 @@ def _runtime_formal_authority() -> tuple[dict[str, object], dict[str, object]]:
     return question, artifacts
 
 
+def _formal_summary(runtime_result: dict[str, object]) -> dict[str, object]:
+    row = {
+        "question_id": "formal-test",
+        "runtime_evidence_hash": research_evaluation_evidence_hash(runtime_result),
+        "research_eval_complete": True,
+        "requirements": {
+            "exact_formal_target_kernel_closed": True,
+        },
+    }
+    row["summary_row_hash"] = stable_hash(row)
+    return {"rows": [row]}
+
+
 def _formal_gold_manifest(tmp_path: Path, *, include_contract: bool) -> Path:
     question, _ = _runtime_formal_authority()
     question.update(
@@ -223,19 +237,13 @@ def test_formal_full_task_scores_exact_kernel_promotion(
         "artifact_kind": "RuntimeQuestionMetadata",
         "question": question,
     }
+    runtime_result = {
+        "status": "ACCEPTED",
+        "blackboard": {"artifacts": artifacts},
+    }
     result = evaluate_research_gold_benchmark(
-        [{"status": "ACCEPTED", "blackboard": {"artifacts": artifacts}}],
-        research_evaluation_summary={
-            "rows": [
-                {
-                    "question_id": "formal-test",
-                    "research_eval_complete": True,
-                    "requirements": {
-                        "exact_formal_target_kernel_closed": True,
-                    },
-                }
-            ]
-        },
+        [runtime_result],
+        research_evaluation_summary=_formal_summary(runtime_result),
         benchmark_manifest_path=manifest_path,
         out_dir=tmp_path / "out",
     )
@@ -261,31 +269,20 @@ def test_formal_gold_rejects_unbound_summary_boolean(tmp_path: Path) -> None:
             "task_intent": _formal_only_task()["task_intent"],
         }
     )
-    result = evaluate_research_gold_benchmark(
-        [
-            {
-                "status": "ACCEPTED",
-                "blackboard": {
-                    "artifacts": {
-                        "runtime_question_metadata:formal-test": {
-                            "artifact_kind": "RuntimeQuestionMetadata",
-                            "question": question,
-                        }
-                    }
-                },
-            }
-        ],
-        research_evaluation_summary={
-            "rows": [
-                {
-                    "question_id": "formal-test",
-                    "research_eval_complete": True,
-                    "requirements": {
-                        "exact_formal_target_kernel_closed": True,
-                    },
+    runtime_result = {
+        "status": "ACCEPTED",
+        "blackboard": {
+            "artifacts": {
+                "runtime_question_metadata:formal-test": {
+                    "artifact_kind": "RuntimeQuestionMetadata",
+                    "question": question,
                 }
-            ]
+            }
         },
+    }
+    result = evaluate_research_gold_benchmark(
+        [runtime_result],
+        research_evaluation_summary=_formal_summary(runtime_result),
         benchmark_manifest_path=manifest_path,
         out_dir=tmp_path / "out",
     )
@@ -321,19 +318,13 @@ def test_formal_gold_rejects_promotion_for_a_different_target(
         "target_ids": ["different-target"],
     }
 
+    runtime_result = {
+        "status": "ACCEPTED",
+        "blackboard": {"artifacts": artifacts},
+    }
     result = evaluate_research_gold_benchmark(
-        [{"status": "ACCEPTED", "blackboard": {"artifacts": artifacts}}],
-        research_evaluation_summary={
-            "rows": [
-                {
-                    "question_id": "formal-test",
-                    "research_eval_complete": True,
-                    "requirements": {
-                        "exact_formal_target_kernel_closed": True,
-                    },
-                }
-            ]
-        },
+        [runtime_result],
+        research_evaluation_summary=_formal_summary(runtime_result),
         benchmark_manifest_path=manifest_path,
         out_dir=tmp_path / "out",
     )

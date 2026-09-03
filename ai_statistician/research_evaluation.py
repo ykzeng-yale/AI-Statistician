@@ -186,6 +186,42 @@ def _runtime_artifacts(result: Mapping[str, Any]) -> dict[str, Mapping[str, Any]
     }
 
 
+def research_evaluation_evidence_hash(result: Mapping[str, Any]) -> str:
+    """Bind a summary to exactly the runtime evidence its checks inspect."""
+
+    traces = result.get("traces", [])
+    trace_projection: list[dict[str, Any]] = []
+    if isinstance(traces, Sequence) and not isinstance(
+        traces, (str, bytes, bytearray)
+    ):
+        for trace in traces:
+            if not isinstance(trace, Mapping):
+                continue
+            produced = trace.get("produced_artifact_ids", [])
+            produced_ids = (
+                [str(value) for value in produced]
+                if isinstance(produced, Sequence)
+                and not isinstance(produced, (str, bytes, bytearray))
+                else []
+            )
+            trace_projection.append(
+                {
+                    "subsystem": str(trace.get("subsystem", "") or ""),
+                    "status": str(trace.get("status", "") or ""),
+                    "produced_artifact_ids": produced_ids,
+                }
+            )
+    artifacts = _runtime_artifacts(result)
+    return stable_hash(
+        {
+            "schema_version": 1,
+            "runtime_status": str(result.get("status", "") or ""),
+            "artifact_graph_hash": stable_hash(artifacts),
+            "trace_projection": trace_projection,
+        }
+    )
+
+
 def _final_accepted_critic_manifest(
     result: Mapping[str, Any],
     artifacts: Mapping[str, Mapping[str, Any]],
@@ -972,44 +1008,41 @@ def build_research_evaluation_summary(
                 else True
             )
         )
-        rows.append(
-            {
-                "question_id": question_id,
-                "research_loop_complete": research_loop_complete,
-                "mode_conformant": mode_conformant,
-                "research_eval_complete": bool(
-                    research_loop_complete
+        summary_row = {
+            "question_id": question_id,
+            "runtime_evidence_hash": research_evaluation_evidence_hash(result),
+            "research_loop_complete": research_loop_complete,
+            "mode_conformant": mode_conformant,
+            "research_eval_complete": bool(research_loop_complete),
+            "requirements": capability_checks,
+            "dimension_requirements": {
+                **(
+                    {"source_replication": source_replication_requirement}
+                    if "source_replication" in task_intent
+                    else {}
                 ),
-                "requirements": capability_checks,
-                "dimension_requirements": {
-                    **(
-                        {"source_replication": source_replication_requirement}
-                        if "source_replication" in task_intent
-                        else {}
-                    ),
-                    **dimension_requirements,
-                },
-                "required_capability_checks": required_capability_checks,
-                "mode_conformance": conformance_checks,
-                "formalization_status": {
-                    "required_for_research_eval": (
-                        formal_requirement == "required"
-                    ),
-                    "strict_formal_lane_executed": bool(
-                        executed & STRICT_FORMAL_SUBSYSTEMS
-                    ),
-                    "n_formalization_manifests": len(formal_manifests),
-                    "n_kernel_verified_subclaims": sum(
-                        int(
-                            (row.get("counts", {}) or {}).get("kernel_verified", 0)
-                            or 0
-                        )
-                        for row in formal_manifests
-                        if isinstance(row.get("counts", {}), Mapping)
-                    ),
-                },
-            }
-        )
+                **dimension_requirements,
+            },
+            "required_capability_checks": required_capability_checks,
+            "mode_conformance": conformance_checks,
+            "formalization_status": {
+                "required_for_research_eval": formal_requirement == "required",
+                "strict_formal_lane_executed": bool(
+                    executed & STRICT_FORMAL_SUBSYSTEMS
+                ),
+                "n_formalization_manifests": len(formal_manifests),
+                "n_kernel_verified_subclaims": sum(
+                    int(
+                        (row.get("counts", {}) or {}).get("kernel_verified", 0)
+                        or 0
+                    )
+                    for row in formal_manifests
+                    if isinstance(row.get("counts", {}), Mapping)
+                ),
+            },
+        }
+        summary_row["summary_row_hash"] = stable_hash(summary_row)
+        rows.append(summary_row)
     return {
         "schema_version": schema_version,
         "artifact_kind": "RuntimeResearchEvaluationSummary",

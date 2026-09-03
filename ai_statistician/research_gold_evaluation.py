@@ -19,6 +19,7 @@ from .estimator_interface_contract import (
 )
 from .model_backend import AnthropicGeneratorBackend, GeneratorBackend
 from .research_schema import frozen_formal_target_contract_errors
+from .research_evaluation import research_evaluation_evidence_hash
 from .scientific_sandbox import (
     SCIENTIFIC_SANDBOX_LANGUAGES,
     ScientificEstimatorBinding,
@@ -212,17 +213,41 @@ def evaluate_research_gold_benchmark(
         manifest_path=benchmark_manifest_path,
         project_root=project_root,
     )
-    result_by_question = {
-        question_id: result
+    result_pairs = [
+        (question_id, result)
         for result in results
         if (question_id := _runtime_result_question_id(result))
-    }
-    summary_rows = {
-        str(row.get("question_id", "") or ""): row
+    ]
+    result_ids = [question_id for question_id, _ in result_pairs]
+    duplicate_result_ids = sorted(
+        question_id
+        for question_id in set(result_ids)
+        if result_ids.count(question_id) > 1
+    )
+    if duplicate_result_ids:
+        raise ValueError(
+            "duplicate runtime results for gold task ids: "
+            + ", ".join(duplicate_result_ids)
+        )
+    result_by_question = dict(result_pairs)
+    summary_pairs = [
+        (str(row.get("question_id", "") or ""), row)
         for row in research_evaluation_summary.get("rows", []) or []
         if isinstance(row, Mapping)
         and str(row.get("question_id", "") or "").strip()
-    }
+    ]
+    summary_ids = [question_id for question_id, _ in summary_pairs]
+    duplicate_summary_ids = sorted(
+        question_id
+        for question_id in set(summary_ids)
+        if summary_ids.count(question_id) > 1
+    )
+    if duplicate_summary_ids:
+        raise ValueError(
+            "duplicate research summary rows for gold task ids: "
+            + ", ".join(duplicate_summary_ids)
+        )
+    summary_rows = dict(summary_pairs)
     harness_runner = run_harness or _run_hidden_scientific_harness
     artifact_harness_runner = (
         run_artifact_harness or _run_hidden_artifact_harness
@@ -360,6 +385,11 @@ def _evaluate_gold_task(
         "runtime_research_eval_complete": (
             research_summary_row.get("research_eval_complete") is True
         ),
+        "runtime_summary_evidence_hash": str(
+            research_summary_row.get("runtime_evidence_hash", "") or ""
+        ),
+        "runtime_summary_evidence_hash_valid": False,
+        "runtime_summary_row_hash_valid": False,
         "runtime_visible_question_hash": "",
         "accepted_algorithm_handoff_id": "",
         "accepted_algorithm_handoff_hash": "",
@@ -507,6 +537,42 @@ def _evaluate_gold_task(
             runtime_result_observed=True,
         )
         return base
+
+    if research_summary_row:
+        observed_evidence_hash = research_evaluation_evidence_hash(runtime_result)
+        base["runtime_summary_evidence_hash_valid"] = bool(
+            base["runtime_summary_evidence_hash"] == observed_evidence_hash
+        )
+        reported_row_hash = str(
+            research_summary_row.get("summary_row_hash", "") or ""
+        )
+        summary_row_payload = {
+            key: value
+            for key, value in research_summary_row.items()
+            if key != "summary_row_hash"
+        }
+        base["runtime_summary_row_hash_valid"] = bool(
+            reported_row_hash and reported_row_hash == stable_hash(summary_row_payload)
+        )
+        if not (
+            base["runtime_summary_evidence_hash_valid"]
+            and base["runtime_summary_row_hash_valid"]
+        ):
+            base["runtime_research_eval_complete"] = False
+            base["failure_reasons"] = [
+                "research summary is not bound to this runtime evidence graph"
+            ]
+            base["dimension_status"] = _dimension_status(
+                task,
+                runtime_requirements={},
+                runtime_research_eval_complete=False,
+                hidden_theory_passed=False,
+                hidden_algorithm_passed=False,
+                hidden_empirical_passed=False,
+                formal_gold_passed=False,
+                runtime_result_observed=True,
+            )
+            return base
 
     artifacts = _runtime_artifacts(runtime_result)
     formal_requirement = str(
@@ -2337,6 +2403,7 @@ def _runtime_artifacts(result: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _runtime_result_question(result: Mapping[str, Any]) -> Mapping[str, Any]:
+    questions: list[Mapping[str, Any]] = []
     for artifact in _runtime_artifacts(result).values():
         if not isinstance(artifact, Mapping):
             continue
@@ -2344,8 +2411,12 @@ def _runtime_result_question(result: Mapping[str, Any]) -> Mapping[str, Any]:
             continue
         question = artifact.get("question", {})
         if isinstance(question, Mapping):
-            return question
-    return {}
+            questions.append(question)
+    if len(questions) > 1:
+        raise ValueError(
+            "runtime result contains multiple question metadata artifacts"
+        )
+    return questions[0] if questions else {}
 
 
 def _runtime_result_question_id(result: Mapping[str, Any]) -> str:

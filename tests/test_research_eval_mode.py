@@ -47,8 +47,38 @@ from ai_statistician.research_architect import (
 )
 from ai_statistician.research_evaluation import (
     build_research_evaluation_summary,
+    research_evaluation_evidence_hash,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+
+
+def test_research_evidence_hash_ignores_trace_payload_compaction_only() -> None:
+    result = {
+        "status": "ACCEPTED",
+        "blackboard": {
+            "artifacts": {
+                "artifact": {"artifact_kind": "Fixture", "value": 1}
+            }
+        },
+        "traces": [
+            {
+                "subsystem": "TheoryDeveloper",
+                "status": "REROUTE",
+                "produced_artifact_ids": ["artifact"],
+                "task": {"inputs": {"large": "payload"}},
+            }
+        ],
+    }
+    compacted = json.loads(json.dumps(result))
+    compacted["traces"][0]["task"] = {"artifact_ref": "task:1"}
+
+    assert research_evaluation_evidence_hash(result) == (
+        research_evaluation_evidence_hash(compacted)
+    )
+    compacted["blackboard"]["artifacts"]["artifact"]["value"] = 2
+    assert research_evaluation_evidence_hash(result) != (
+        research_evaluation_evidence_hash(compacted)
+    )
 
 
 def test_research_eval_contract_waits_for_a_request_scoped_lane_plan() -> None:
@@ -140,6 +170,9 @@ def test_source_only_checkpoint_completes_without_unrelated_critic() -> None:
     )
 
     row = summary["rows"][0]
+    assert row["summary_row_hash"] == stable_hash(
+        {key: value for key, value in row.items() if key != "summary_row_hash"}
+    )
     assert row["research_eval_complete"] is True
     assert row["required_capability_checks"] == [
         "source_replication_checkpoint_recorded",
