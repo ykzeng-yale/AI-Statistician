@@ -200,9 +200,9 @@ Three immutable evaluations refined these boundaries without changing scores:
 - Task111 separated theory quality from finite exploratory readiness and made source
   hash changes provenance rather than evidence of finding progress.
 - Task112 showed that successful scratch execution validates only the submitted program.
-  The referee may now read the exact hash-bound author source and result inside its
-  retained session, but must still check the encoded stochastic object and assumptions;
-  execution remains untrusted observation and unresolved conflict remains uncertainty.
+  The referee and same source-owning TheoryDeveloper may now reopen the exact hash-bound
+  source and result after a checkpoint or review, but must still check the encoded stochastic
+  object and assumptions; execution remains untrusted observation and conflict remains uncertainty.
 - Task113 showed the positive Codex pattern: exact-Haiku TheoryDeveloper passed hidden theory authority using Markdown/LaTeX, scratch, and checkpoint tools, while
   AlgorithmEngineer wrote, ran, edited, reran, and committed source in one retained owner loop. It remains immutable 0/1, leaving 7/113 overall, because reviewer-owned
   probe failures, pre-candidate JSON normalization, and a reviewer-local regeneration budget were misattributed to or prematurely terminal for source work.
