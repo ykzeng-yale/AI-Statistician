@@ -241,12 +241,11 @@ from .formal_source_index import FormalSourceHit
 from .formal_source_prompt_context import (
     compact_formal_source_grounding_hits_for_prompt,
     formal_source_context_for_hit,
-    formalizer_feedback_with_task_bound_formal_source_queries,
     prompt_safe_formal_source_provenance,
+    task_bound_formal_source_scope_ids,
     unique_formal_source_hit_payloads,
 )
 from .formal_source_topology import (
-    active_project_formal_source_scope_ids,
     configured_nonimportable_source_activation,
 )
 from .lean_proof_state_trace_rag import (
@@ -14225,44 +14224,13 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         feedback=environment_feedback,
                     )
                 )
-                environment_feedback = (
-                    formalizer_feedback_with_task_bound_formal_source_queries(
-                        environment_feedback,
-                        question=question,
-                        theory_packet=(
-                            packet if isinstance(packet, Mapping) else {}
-                        ),
-                        theorem_goals=[
-                            _theorem_goal_to_json(row) for row in theorem_goals
-                        ],
-                    )
-                )
-                environment_feedback = (
-                    _formalizer_environment_feedback_with_formal_source_grounding(
-                        environment_feedback,
-                        formal_source_retriever=self.formal_source_retriever,
-                    )
-                )
-                formal_source_grounding_summary = (
-                    _formalizer_environment_feedback_formal_source_grounding_summary(
-                        environment_feedback
-                    )
-                )
-                if formal_source_grounding_summary:
-                    observations.append(
-                        EnvironmentObservation(
-                            observation_type=(
-                                "formalizer_environment_feedback_formal_source_grounding"
-                            ),
-                            summary=(
-                                "Formalizer tool observations enriched "
-                                "with bounded formal-source grounding hits before "
-                                "LLM proposal; grounding is not proof evidence"
-                            ),
-                            payload=formal_source_grounding_summary,
-                        )
-                    )
                 theory_context = packet if isinstance(packet, Mapping) else {}
+                formal_source_scope_ids = task_bound_formal_source_scope_ids(
+                    theory_packet=theory_context,
+                    theorem_goals=[
+                        _theorem_goal_to_json(row) for row in theorem_goals
+                    ],
+                )
 
                 def run_client_tool_workspace() -> (
                     tuple[dict[str, Any], dict[str, Any]] | None
@@ -14275,6 +14243,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         theory_packet=theory_context,
                         environment_feedback=environment_feedback,
                         formal_source_retriever=self.formal_source_retriever,
+                        formal_source_scope_ids=formal_source_scope_ids,
                         proof_search_provider=self.proof_search_provider,
                         proof_state_provider=self.proof_state_provider,
                         lean_candidate_root=self.lean_candidate_root,
@@ -17766,269 +17735,6 @@ def _formalizer_compiled_exact_candidate_semantic_review_feedback(
     }
 
 
-def _formalizer_environment_feedback_with_formal_source_grounding(
-    feedback: Mapping[str, Any] | None,
-    *,
-    formal_source_retriever: Any | None = None,
-) -> dict[str, Any]:
-    """Attach bounded formal-source grounding to carried observations."""
-
-    payload = dict(feedback) if isinstance(feedback, Mapping) else {}
-    payload = (
-        _formalizer_environment_feedback_with_refreshed_validation_feedback(
-            payload
-        )
-    )
-    workspace_context = (
-        payload.get("formalizer_workspace_context", {})
-        if isinstance(payload.get("formalizer_workspace_context", {}), Mapping)
-        else {}
-    )
-    if not workspace_context:
-        return payload
-    payload["formalizer_workspace_context"] = (
-        _formalizer_workspace_context_with_formal_source_grounding(
-            workspace_context,
-            formal_source_retriever=formal_source_retriever,
-        )
-    )
-    return payload
-
-def _formalizer_environment_feedback_with_refreshed_validation_feedback(
-    feedback: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    """Keep exact validator observations available on carried pending tasks."""
-
-    payload = dict(feedback) if isinstance(feedback, Mapping) else {}
-    validation_errors = _feedback_text_values(payload.get("validation_errors", []))
-    if not validation_errors:
-        return payload
-    existing = payload.get("formalizer_validation_feedback", {})
-    if (
-        isinstance(existing, Mapping)
-        and list(existing.get("validation_error_messages", []) or [])
-        == validation_errors
-    ):
-        return payload
-    payload["formalizer_validation_feedback"] = (
-        formalizer_validation_feedback_envelope(
-            validation_errors,
-            validation_label=str(payload.get("validation_label", "") or ""),
-            retry_depth=0,
-        )
-    )
-    return payload
-
-
-def _feedback_text_values(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return [value] if value.strip() else []
-    if isinstance(value, Mapping):
-        return [json.dumps(value, sort_keys=True, default=str)]
-    if isinstance(value, Iterable):
-        return [str(item) for item in value if str(item).strip()]
-    text = str(value)
-    return [text] if text.strip() else []
-
-
-def _formalizer_environment_feedback_formal_source_grounding_summary(
-    feedback: Mapping[str, Any] | None,
-) -> dict[str, Any]:
-    """Summarize prompt-time formal-source grounding without serializing prompts."""
-
-    if not isinstance(feedback, Mapping):
-        return {}
-    workspace_context = feedback.get("formalizer_workspace_context", {})
-    if not isinstance(workspace_context, Mapping):
-        return {}
-    groups = [
-        group
-        for group in workspace_context.get("formal_source_grounding_hits", []) or []
-        if isinstance(group, Mapping)
-    ]
-    if not groups:
-        return {}
-    top_hit_names: list[str] = []
-    n_hits = 0
-    for group in groups:
-        hits = [hit for hit in group.get("hits", []) or [] if isinstance(hit, Mapping)]
-        n_hits += len(hits)
-        for hit in hits:
-            name = str(hit.get("name", "") or "").strip()
-            if name and name not in top_hit_names:
-                top_hit_names.append(name)
-            if len(top_hit_names) >= 8:
-                break
-        if len(top_hit_names) >= 8:
-            break
-    return {
-        "n_formal_source_grounding_query_groups": len(groups),
-        "n_formal_source_grounding_hits": n_hits,
-        "n_duplicate_formal_source_grounding_hits_omitted": sum(
-            int(group.get("duplicate_hits_omitted", 0) or 0)
-            for group in groups
-        ),
-        "query_roles": [
-            str(group.get("query_role", "") or "")
-            for group in groups[:5]
-            if str(group.get("query_role", "") or "")
-        ],
-        "query_fingerprints": [
-            str(group.get("query_fingerprint", "") or "")
-            for group in groups[:5]
-            if str(group.get("query_fingerprint", "") or "")
-        ],
-        "unknown_identifiers": [
-            str(group.get("unknown_identifier", "") or "")
-            for group in groups[:5]
-            if str(group.get("unknown_identifier", "") or "")
-        ],
-        "top_hit_names": top_hit_names,
-        "proof_evidence_status": (
-            "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
-        ),
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-
-
-def _formalizer_workspace_context_with_formal_source_grounding(
-    context: Mapping[str, Any],
-    *,
-    formal_source_retriever: Any | None = None,
-) -> dict[str, Any]:
-    """Run model/task-selected formal-source queries without treating hits as proof."""
-
-    payload = dict(context) if isinstance(context, Mapping) else {}
-    query_seeds = [
-        str(seed).strip()
-        for seed in payload.get("retrieval_query_seeds", []) or []
-        if str(seed).strip()
-    ]
-    source_scope_ids = _formalizer_formal_source_scope_ids(payload)
-    if (
-        not source_scope_ids
-        and str(payload.get("context_kind", "") or "")
-        == "task_bound_formal_source_grounding"
-    ):
-        source_scope_ids = (
-            active_project_formal_source_scope_ids(
-                getattr(
-                    formal_source_retriever,
-                    "lean_rag_source_topology",
-                    (),
-                )
-            )
-        )
-        if source_scope_ids:
-            payload["formal_source_scope_ids"] = list(source_scope_ids)
-            payload["formal_source_scope_origin"] = (
-                "retriever_active_project_topology_default"
-            )
-            payload["formal_source_scope_policy"] = (
-                "active_project_plus_declared_dependencies_first"
-            )
-    semantic_query_role = (
-        "initial_formalization_context"
-        if str(payload.get("context_kind", "") or "")
-        == "task_bound_formal_source_grounding"
-        else "model_or_task_selected_query"
-    )
-    query_rows = _formalizer_formal_source_query_rows(
-        query_seeds=query_seeds,
-        semantic_query_role=semantic_query_role,
-    )
-    existing_groups = [
-        dict(group)
-        for group in payload.get("formal_source_grounding_hits", []) or []
-        if isinstance(group, Mapping)
-    ]
-    existing_groups_are_current = (
-        existing_groups
-        and _formalizer_formal_source_grounding_matches_query_rows(
-            existing_groups,
-            query_rows=query_rows,
-            source_scope_ids=source_scope_ids,
-        )
-    )
-    if existing_groups and existing_groups_are_current:
-        grounded = _formalizer_workspace_context_ordered_with_formal_source_grounding(
-            payload,
-            immediate_fields={"formal_source_grounding_hits": existing_groups},
-        )
-        return attach_ai4slt_proof_state_trace_rag(
-            grounded,
-            formal_source_retriever=formal_source_retriever,
-        )
-    if formal_source_retriever is None:
-        if existing_groups and query_rows:
-            payload.pop("formal_source_grounding_hits", None)
-            payload["formal_source_grounding_status"] = (
-                "stale_hits_removed_retriever_unavailable"
-            )
-        return attach_ai4slt_proof_state_trace_rag(payload)
-    groups = _formalizer_formal_source_grounding_hit_groups(
-        formal_source_retriever,
-        query_seeds=query_seeds,
-        source_scope_ids=source_scope_ids,
-        semantic_query_role=semantic_query_role,
-    )
-    if not groups:
-        return attach_ai4slt_proof_state_trace_rag(
-            payload,
-            formal_source_retriever=formal_source_retriever,
-        )
-    trailing_fields: dict[str, Any] = {}
-    trailing_fields["formal_source_grounding_policy"] = (
-        "Formal-source retrieval hits are API/premise suggestions for the "
-        "ProofEngineer loop, not proof evidence. Every selected declaration or "
-        "replacement must still be checked by the configured local Lean/AXLE gate; "
-        "if no verified replacement exists, emit a FORMAL_GAP naming the missing "
-        "API/dependency."
-    )
-    trailing_fields["formal_source_grounding_status"] = (
-        "retrieved_hits"
-        if any(group.get("hits") for group in groups)
-        else "retrieval_attempted_no_hits"
-    )
-    grounded = _formalizer_workspace_context_ordered_with_formal_source_grounding(
-        payload,
-        immediate_fields={"formal_source_grounding_hits": groups},
-        trailing_fields=trailing_fields,
-    )
-    return attach_ai4slt_proof_state_trace_rag(
-        grounded,
-        formal_source_retriever=formal_source_retriever,
-    )
-
-
-def _formalizer_workspace_context_ordered_with_formal_source_grounding(
-    context: Mapping[str, Any],
-    *,
-    immediate_fields: Mapping[str, Any],
-    trailing_fields: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Keep compact prompt-visible grounding next to retrieval query seeds."""
-
-    trailing_fields = trailing_fields or {}
-    insert_after_key = "retrieval_query_seeds"
-    ordered: dict[str, Any] = {}
-    inserted = False
-    grounding_keys = set(immediate_fields) | set(trailing_fields)
-    for key, value in context.items():
-        if key in grounding_keys:
-            continue
-        ordered[key] = value
-        if key == insert_after_key:
-            ordered.update(dict(immediate_fields))
-            inserted = True
-    if not inserted:
-        ordered.update(dict(immediate_fields))
-    ordered.update(dict(trailing_fields))
-    return ordered
-
-
 def _formalizer_formal_source_grounding_hit_groups(
     formal_source_retriever: Any,
     *,
@@ -18163,46 +17869,6 @@ def _formalizer_formal_source_query_rows(
         seen_queries.add(query)
         unique_rows.append(row)
     return unique_rows
-
-
-def _formalizer_formal_source_grounding_matches_query_rows(
-    groups: Sequence[Mapping[str, Any]],
-    *,
-    query_rows: Sequence[Mapping[str, Any]],
-    source_scope_ids: Sequence[str],
-    max_groups: int = 3,
-) -> bool:
-    """Reject carried declaration hits when the live Lean query has changed."""
-
-    expected_rows = list(query_rows[: max(0, int(max_groups))])
-    if not expected_rows:
-        return True
-    observed_rows = list(groups[: len(expected_rows)])
-    if len(observed_rows) != len(expected_rows):
-        return False
-    expected_scopes = tuple(
-        dict.fromkeys(
-            str(value).strip()
-            for value in source_scope_ids
-            if str(value).strip()
-        )
-    )
-    for observed, expected in zip(observed_rows, expected_rows, strict=True):
-        query = str(expected.get("query", "") or "").strip()
-        if str(observed.get("query_fingerprint", "") or "") != stable_hash(query):
-            return False
-        if str(observed.get("query_role", "") or "") != str(
-            expected.get("query_role", "") or ""
-        ):
-            return False
-        observed_scopes = tuple(
-            str(value).strip()
-            for value in observed.get("source_scope_ids", []) or []
-            if str(value).strip()
-        )
-        if observed_scopes != expected_scopes:
-            return False
-    return True
 
 
 def _formalizer_formal_source_scope_ids(
@@ -18386,6 +18052,7 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
     lean_candidate_local_lean: bool,
     lean_candidate_lean_project: Path | None,
     lean_candidate_lean_timeout: int,
+    formal_source_scope_ids: Sequence[str] = (),
     candidate_materialization: Mapping[str, Any] | None = None,
     parent_formalizer_packet: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
@@ -18738,7 +18405,18 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             prior_build_order=prior_build_order,
         )
 
-    source_scope_ids = _formalizer_formal_source_scope_ids(revision_context)
+    source_scope_ids = tuple(
+        dict.fromkeys(
+            (
+                *(
+                    str(value).strip()
+                    for value in formal_source_scope_ids
+                    if str(value).strip()
+                ),
+                *_formalizer_formal_source_scope_ids(revision_context),
+            )
+        )
+    )
 
     def search_formal_environment(query: str, k: int) -> Any:
         if formal_source_retriever is None:
@@ -18833,6 +18511,12 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
                     "residual_goal_excerpt": residual_goals,
                 }
             )
+        if source_scope_ids:
+            request["formal_source_scope_ids"] = list(source_scope_ids)
+        request = attach_ai4slt_proof_state_trace_rag(
+            request,
+            formal_source_retriever=formal_source_retriever,
+        )
         request["request_fingerprint"] = stable_hash(request)
         try:
             raw = proof_search_provider.run(request)

@@ -4271,6 +4271,27 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
                 ],
             }
 
+    trace_requests: list[dict] = []
+
+    def attach_trace_fixture(context, *, formal_source_retriever=None):
+        trace_requests.append(dict(context))
+        assert formal_source_retriever is None
+        return {
+            **dict(context),
+            "proof_state_trace_rag": {
+                "provider": "fixture_ai4slt_trace",
+                "hits": [
+                    {
+                        "state_before": "|- True",
+                        "tactic": "exact True.intro",
+                    }
+                ],
+                "proof_evidence_status": (
+                    "PROOF_STATE_TRACE_RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE"
+                ),
+            },
+        }
+
     monkeypatch.setattr(
         runtime_module,
         "_run_formalizer_lean_candidate_local_check",
@@ -4292,6 +4313,11 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
             "candidate_axiom_audit_checked": True,
             "candidate_axiom_audit_clean": True,
         },
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "attach_ai4slt_proof_state_trace_rag",
+        attach_trace_fixture,
     )
     monkeypatch.setattr(
         runtime_module,
@@ -4341,6 +4367,21 @@ def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     )
     assert proof_request["residual_goal_excerpt"] == ["|- True"]
     assert proof_request["lean_header"] == "import Mathlib\n"
+    assert len(trace_requests) == 1
+    assert trace_requests[0]["model_query"] == (
+        "close the current inspected goal"
+    )
+    assert trace_requests[0]["proof_state_observation"] == agent.state_result
+    assert proof_request["proof_state_trace_rag"]["provider"] == (
+        "fixture_ai4slt_trace"
+    )
+    assert proof_request["request_fingerprint"] == stable_hash(
+        {
+            key: value
+            for key, value in proof_request.items()
+            if key != "request_fingerprint"
+        }
+    )
     assert agent.proof_result["source_theorem_candidate_proof_bodies"] == [
         "by exact True.intro"
     ]
@@ -4684,11 +4725,15 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         "theorem Project.Source : True := by exact True.intro\n",
         encoding="utf-8",
     )
+    harness_events = []
 
     class FormalSourceRetriever:
+        def __init__(self) -> None:
+            self.calls = []
+
         def search(self, query, *, k):
-            assert query == "Project.Source"
-            assert k == 8
+            self.calls.append({"query": query, "k": k})
+            harness_events.append({"event": "retrieval", "query": query})
 
             class Declaration:
                 name = "Project.Source"
@@ -4758,6 +4803,10 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
                 ]
             )
 
+        def generate_client_tool_turn(self, request):
+            harness_events.append({"event": "model_turn"})
+            return super().generate_client_tool_turn(request)
+
     def fake_local_check(**kwargs):
         submitted = Path(kwargs["artifact_path"]).read_text(encoding="utf-8")
         compiled = submitted == authored
@@ -4791,10 +4840,11 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         ),
     )
     proof_state_provider = ProofStateProvider()
+    formal_source_retriever = FormalSourceRetriever()
     subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
         proposal_agent=agent,
         proof_state_provider=proof_state_provider,
-        formal_source_retriever=FormalSourceRetriever(),
+        formal_source_retriever=formal_source_retriever,
         lean_candidate_root=tmp_path / "candidates",
         lean_candidate_local_lean=True,
         lean_candidate_lean_project=tmp_path,
@@ -4821,6 +4871,14 @@ def test_formalizer_subsystem_replaces_initial_source_packet_with_direct_workspa
         for row in result.produced_artifacts.values()
     )
     assert len(backend.requests) == 4
+    assert harness_events[0] == {"event": "model_turn"}
+    assert formal_source_retriever.calls == [
+        {"query": "Project.Source", "k": 8},
+        {"query": "Project.Source", "k": 8},
+    ]
+    initial_messages = json.dumps(backend.requests[0].messages, sort_keys=True)
+    assert "indexed_lean_environment_candidates" not in initial_messages
+    assert "retrieval_query_seeds" not in initial_messages
     assert "at most 4 model-tool turns" not in backend.requests[0].system_prompt
     assert "The same tools remain available" in backend.requests[0].system_prompt
     assert proof_state_provider.calls == [
@@ -4886,6 +4944,7 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
     theory_packet = {
         "packet_id": theory_packet_id,
         "artifact_kind": "TheoryDerivationPacket",
+        "formal_source_scope_ids": ["statlib"],
         "problem_card": {"estimand": "an exact generic target"},
         "theorem_cards": [],
         "formalization_requests": [],
@@ -4974,10 +5033,16 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
         "_runtime_formalizer_client_tool_workspace_available",
         lambda **_kwargs: True,
     )
+    workspace_call = {}
+
+    def fake_workspace(**kwargs):
+        workspace_call.update(kwargs)
+        return proposal, workspace
+
     monkeypatch.setattr(
         runtime_module,
         "_runtime_formalizer_lean_candidate_client_tool_workspace",
-        lambda **_kwargs: (proposal, workspace),
+        fake_workspace,
     )
     subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
         proposal_agent=object(),
@@ -5010,6 +5075,7 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
     )
 
     assert result.status == "REROUTE"
+    assert workspace_call["formal_source_scope_ids"] == ("statlib",)
     assert result.failure_classification == ""
     assert result.next_task is not None
     assert result.next_task.owner_subsystem == "CriticEvaluator"

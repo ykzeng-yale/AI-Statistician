@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import ai_statistician.formalizer_llm as formalizer_module
-import ai_statistician.research_agent_runtime as runtime_module
 from ai_statistician.formal_source_index import (
     FormalDeclaration,
     FormalSourceRetriever,
@@ -496,55 +495,6 @@ def test_nested_runtime_feedback_drives_live_proof_state_retrieval(
     assert attached["proof_state_trace_rag"]["hits"][0][
         "source_theorem_name"
     ] == "leastSquares_excessRisk"
-
-
-def test_formalizer_workspace_carries_trace_context_without_external_router(
-    monkeypatch,
-) -> None:
-    calls: list[dict[str, object]] = []
-
-    def attach_fixture(context, *, formal_source_retriever=None):
-        calls.append(
-            {
-                "context": dict(context),
-                "formal_source_retriever": formal_source_retriever,
-            }
-        )
-        return {
-            **dict(context),
-            "proof_state_trace_rag": {
-                "provider": "fixture_trace_provider",
-                "proof_evidence_status": (
-                    "PROOF_STATE_TRACE_RETRIEVAL_CONTEXT_NOT_PROOF_EVIDENCE"
-                ),
-                "hits": [{"state_before": "⊢ p", "tactic": "exact hp"}],
-            },
-        }
-
-    monkeypatch.setattr(
-        runtime_module,
-        "attach_ai4slt_proof_state_trace_rag",
-        attach_fixture,
-    )
-    grounded = (
-        runtime_module._formalizer_workspace_context_with_formal_source_grounding(
-            {
-                "target_lean_declaration": "exact_source",
-                "target_theorem_statement": (
-                    "theorem exact_source (p : Prop) (hp : p) : p"
-                ),
-                "compiler_feedback": {
-                    "diagnostics": ["unsolved goals\n⊢ p"]
-                },
-            }
-        )
-    )
-
-    assert calls
-    assert grounded["proof_state_trace_rag"]["provider"] == (
-        "fixture_trace_provider"
-    )
-    assert not hasattr(runtime_module, "_runtime_external_proof_search_request")
 
 
 def test_formalizer_compaction_preserves_bounded_trace_states() -> None:

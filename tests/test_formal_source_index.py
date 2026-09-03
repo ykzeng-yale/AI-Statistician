@@ -34,8 +34,6 @@ from ai_statistician.lean_agent_providers import provider_descriptor
 from ai_statistician.formal_source_prompt_context import (
     FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS,
     compact_formal_source_grounding_hits_for_prompt,
-    formalizer_feedback_with_task_bound_formal_source_queries,
-    task_bound_formal_source_query_seeds,
     task_bound_formal_source_scope_ids,
 )
 from ai_statistician.formal_source_retrieval_benchmark import (
@@ -48,7 +46,6 @@ from ai_statistician.formalizer_llm import (
     formalizer_proof_construction_strategy_contract,
 )
 from ai_statistician.research_agent_runtime import _formal_source_hit_to_json
-from ai_statistician.research_schema import OpenResearchQuestion
 
 
 def test_default_formal_source_roots_exclude_historical_snapshots() -> None:
@@ -350,84 +347,7 @@ def test_lightweight_retrievers_hide_oversized_names_except_exact_lookup(
         assert "oversized_name_exact_lookup" in exact.matched_terms
 
 
-def test_task_bound_formal_source_queries_keep_semantics_after_exact_name() -> None:
-    queries = task_bound_formal_source_query_seeds(
-        question=OpenResearchQuestion(
-            id="generic_formal_source_query",
-            title="Generic theorem",
-            description="Find reusable formal support.",
-        ),
-        theory_packet={
-            "theory_derivation_packet": {
-                "formalization_handoff": {
-                    "candidate_lean_targets": [
-                        "Candidate.one",
-                        "Candidate.two",
-                        "Candidate.three",
-                    ],
-                    "required_definitions": ["Support.definition"],
-                }
-            }
-        },
-        theorem_goals=[
-            {
-                "target_lean_declaration": "Exact.target",
-                "title": "Semantic title",
-                "claim": "semantic mathematical statement",
-            }
-        ],
-        max_queries=3,
-    )
-
-    assert queries == [
-        "Exact.target",
-        "Semantic title semantic mathematical statement",
-        "Support.definition",
-    ]
-
-
-def test_task_bound_formal_source_queries_read_theorem_goal_dataclass_field() -> None:
-    queries = task_bound_formal_source_query_seeds(
-        question=OpenResearchQuestion(
-            id="typed_theorem_goal_query",
-            title="Typed theorem goal",
-            description="Keep the target statement attached to its goal.",
-        ),
-        theory_packet={
-            "formalization_requests": [
-                {
-                    "target": "A lower-priority support lemma",
-                    "claim": "support-only semantics",
-                }
-            ]
-        },
-        theorem_goals=[
-            {
-                "id": "model_generated_target_id",
-                "title": "Anytime-valid target",
-                "informal_statement": (
-                    "A nonnegative martingale stopped at an adapted stopping "
-                    "time retains the required expectation bound."
-                ),
-                "proof_strategy": (
-                    "Use the martingale stopped-value expectation theorem."
-                ),
-            }
-        ],
-        max_queries=3,
-    )
-
-    assert queries == [
-        (
-            "Anytime-valid target A nonnegative martingale stopped at an "
-            "adapted stopping time retains the required expectation bound."
-        ),
-        "Use the martingale stopped-value expectation theorem.",
-        "A lower-priority support lemma support-only semantics",
-    ]
-
-
-def test_task_bound_formal_source_queries_and_scope_use_explicit_provenance() -> None:
+def test_task_bound_formal_source_scope_uses_explicit_provenance() -> None:
     theory_packet = {
         "theory_derivation_packet": {
             "formalization_handoff": {
@@ -452,41 +372,12 @@ def test_task_bound_formal_source_queries_and_scope_use_explicit_provenance() ->
         }
     ]
 
-    queries = task_bound_formal_source_query_seeds(
-        question=OpenResearchQuestion(
-            id="source_grounded_query",
-            title="Source-grounded theorem",
-            description="Reuse a source theorem.",
-        ),
-        theory_packet=theory_packet,
-        theorem_goals=theorem_goals,
-        max_queries=3,
-    )
     source_scope_ids = task_bound_formal_source_scope_ids(
         theory_packet=theory_packet,
         theorem_goals=theorem_goals,
     )
 
-    assert queries == [
-        "LeastSquares.master_error_bound",
-        "Source Book (2026), Theorem 13.5 Localized least-squares error bound",
-        "Master error theorem the estimator satisfies a localized error bound",
-    ]
     assert source_scope_ids == ("source_library",)
-
-    feedback = formalizer_feedback_with_task_bound_formal_source_queries(
-        {},
-        question=OpenResearchQuestion(
-            id="source_grounded_query",
-            title="Source-grounded theorem",
-            description="Reuse a source theorem.",
-        ),
-        theory_packet=theory_packet,
-        theorem_goals=theorem_goals,
-    )
-    repair_context = feedback["formalizer_workspace_context"]
-    assert repair_context["retrieval_query_seeds"][:3] == queries
-    assert repair_context["formal_source_scope_ids"] == ["source_library"]
 
 
 def test_camel_tokenization_keeps_semantics_without_short_fragments() -> None:
