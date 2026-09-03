@@ -44,7 +44,9 @@ function rValueToJson(node) {
 }
 
 function projectImportRoots(projectFiles) {
-  return [...new Set(Object.keys(projectFiles).map((filePath) => {
+  return [...new Set(Object.keys(projectFiles).filter(
+    (filePath) => String(filePath).endsWith(".py"),
+  ).map((filePath) => {
     const first = String(filePath).split("/", 1)[0];
     return first.endsWith(".py") ? first.slice(0, -3) : first;
   }))].sort();

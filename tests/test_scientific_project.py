@@ -7,6 +7,7 @@ import pytest
 from ai_statistician.scientific_project import (
     normalized_scientific_project_files,
     scientific_project_file_errors,
+    scientific_python_local_import_roots,
     scientific_project_hash,
 )
 
@@ -41,7 +42,7 @@ def test_scientific_project_hash_binds_every_file_independent_of_input_order() -
     ("language", "project_files", "message"),
     [
         ("python", [{"path": "../helper.py", "content": "X = 1\n"}], "canonical"),
-        ("python", [{"path": "helper.R", "content": "x <- 1\n"}], "must end in .py"),
+        ("python", [{"path": "main.py", "content": "X = 1\n"}], "collides"),
         ("r", [{"path": "main.R", "content": "x <- 1\n"}], "collides"),
         (
             "python",
@@ -88,3 +89,21 @@ def test_scientific_project_accepts_empty_source_modules() -> None:
     assert len(files) == 1
     assert files[0].content == ""
     assert files[0].content_sha256 == hashlib.sha256(b"").hexdigest()
+
+
+def test_scientific_project_accepts_text_assets_without_treating_them_as_imports() -> None:
+    files = normalized_scientific_project_files(
+        [
+            {"path": "package/helper.py", "content": "VALUE = 3\n"},
+            {"path": "package/config.json", "content": '{"offset": 4}\n'},
+            {"path": "fixtures/values.csv", "content": "x\n1\n"},
+        ],
+        language="python",
+    )
+
+    assert [row.path for row in files] == [
+        "fixtures/values.csv",
+        "package/config.json",
+        "package/helper.py",
+    ]
+    assert scientific_python_local_import_roots(files) == {"package"}

@@ -2088,6 +2088,66 @@ def test_live_scientific_project_executes_model_authored_support_files(
 
 
 @pytest.mark.parametrize(
+    ("language", "dependencies", "main_source", "asset_path", "asset_content"),
+    [
+        (
+            "python",
+            [],
+            "import json\n\n"
+            "def run_sandbox(seed, replicates):\n"
+            "    with open('config/value.json', encoding='utf-8') as stream:\n"
+            "        value = json.load(stream)['value']\n"
+            "    return {'value': value + seed, 'n': replicates}\n",
+            "config/value.json",
+            '{"value": 3}\n',
+        ),
+        (
+            "r",
+            ["base"],
+            "run_sandbox <- function(seed, replicates) {\n"
+            "  value <- as.integer(readLines('data/value.txt', warn=FALSE)[[1]])\n"
+            "  list(value=value + seed, n=replicates)\n"
+            "}\n",
+            "data/value.txt",
+            "3\n",
+        ),
+    ],
+)
+def test_live_scientific_project_reads_model_owned_text_assets(
+    tmp_path: Path,
+    language: str,
+    dependencies: list[str],
+    main_source: str,
+    asset_path: str,
+    asset_content: str,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    available = runtime.python_available if language == "python" else runtime.r_available
+    if not available:
+        pytest.skip("pinned scientific WASM runtime is not installed on this host")
+
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path,
+        artifact_id=f"project-text-asset-{language}",
+        language=language,
+        code=main_source,
+        project_files=[{"path": asset_path, "content": asset_content}],
+        dependencies=dependencies,
+        seed=4,
+        replicates=9,
+        timeout_s=60,
+    )
+
+    assert result.status == "EXECUTED"
+    assert result.metrics == {"value": 7, "n": 9}
+    assert result.project_hash == scientific_project_hash(
+        language=language,
+        code=main_source,
+        project_files=[{"path": asset_path, "content": asset_content}],
+    )
+
+
+@pytest.mark.parametrize(
     ("language", "dependencies", "simulation", "algorithm", "support_path", "support_source"),
     [
         (

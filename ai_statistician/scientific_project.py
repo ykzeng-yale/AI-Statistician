@@ -44,11 +44,6 @@ def _project_path_error(path: str, *, language: str) -> str:
         return f"scientific project path is not canonical and relative: {path!r}"
     if path == scientific_main_path(language):
         return f"scientific project support file collides with {path}"
-    suffix = pure.suffix
-    if language == "python" and suffix != ".py":
-        return f"scientific Python project support file must end in .py: {path}"
-    if language == "r" and suffix.lower() != ".r":
-        return f"scientific R project support file must end in .R or .r: {path}"
     return ""
 
 
@@ -187,6 +182,8 @@ def scientific_python_local_import_roots(
 ) -> set[str]:
     roots = set()
     for row in project_files:
+        if PurePosixPath(row.path).suffix != ".py":
+            continue
         first = PurePosixPath(row.path).parts[0]
         roots.add(first[:-3] if first.endswith(".py") else first)
     return roots

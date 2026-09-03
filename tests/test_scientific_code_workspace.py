@@ -394,10 +394,13 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
     package_root.mkdir(parents=True)
     init_source = ""
     method_source = "def total(values):\n    return sum(values)\n"
+    config_source = '{"offset": 7}\n'
     (package_root / "__init__.py").write_text(init_source, encoding="utf-8")
     (package_root / "method.py").write_text(method_source, encoding="utf-8")
+    (package_root / "config.json").write_text(config_source, encoding="utf-8")
     init_sha256 = hashlib.sha256(init_source.encode()).hexdigest()
     method_sha256 = hashlib.sha256(method_source.encode()).hexdigest()
+    config_sha256 = hashlib.sha256(config_source.encode()).hexdigest()
     manifest = {
         "schema_version": 1,
         "snapshot_id": "frozen-scientific-project",
@@ -413,6 +416,17 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
                 "content_mode": "text",
                 "media_type": "text/x-python",
                 "byte_size": 0,
+                "model_visible": True,
+            },
+            {
+                "document_id": "package-config",
+                "title": "package/config.json",
+                "source_kind": "data",
+                "relative_path": "package/config.json",
+                "sha256": config_sha256,
+                "content_mode": "text",
+                "media_type": "application/json",
+                "byte_size": len(config_source.encode()),
                 "model_visible": True,
             },
             {
@@ -432,9 +446,12 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     snapshot = load_research_source_snapshot(manifest_path)
     main_source = (
+        "import json\n"
         "from package.method import total\n\n"
         "def run_sandbox(seed, replicates):\n"
-        "    return {'value': total([seed, replicates])}\n"
+        "    with open('package/config.json', encoding='utf-8') as stream:\n"
+        "        offset = json.load(stream)['offset']\n"
+        "    return {'value': total([seed, replicates]) + offset}\n"
     )
     backend = ScriptedScientificBackend([
         _response(ClientToolCall(
@@ -457,6 +474,14 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
             call_id="import-frozen-files",
             name=SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
             input={"imports": [
+                {
+                    "source_origin": "frozen_snapshot",
+                    "source_id": "package-config",
+                    "revision": snapshot.snapshot_hash,
+                    "source_path": "package/config.json",
+                    "expected_content_sha256": config_sha256,
+                    "project_path": "package/config.json",
+                },
                 {
                     "source_origin": "frozen_snapshot",
                     "source_id": "package-init",
@@ -496,7 +521,7 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
         return {
             "code_draft_hash": stable_hash(dict(candidate)),
             "accepted": execution.status == "EXECUTED"
-            and execution.metrics == {"value": 5},
+            and execution.metrics == {"value": 12},
             "execution_status": execution.status,
             "metrics": execution.metrics,
             "errors": list(execution.errors),
@@ -521,12 +546,17 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
     )
 
     assert len(executions) == 1
-    assert result.check_result["metrics"] == {"value": 5}
+    assert result.check_result["metrics"] == {"value": 12}
     assert result.code_draft["project_files"] == [
         {
             "path": "package/__init__.py",
             "content": "",
             "content_sha256": init_sha256,
+        },
+        {
+            "path": "package/config.json",
+            "content": config_source,
+            "content_sha256": config_sha256,
         },
         {
             "path": "package/method.py",
@@ -542,6 +572,7 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
     ]
     import_ref = result.evidence["research_source_refs"][-1]
     assert [row["source_origin"] for row in import_ref["imports"]] == [
+        "frozen_snapshot",
         "frozen_snapshot",
         "frozen_snapshot",
     ]

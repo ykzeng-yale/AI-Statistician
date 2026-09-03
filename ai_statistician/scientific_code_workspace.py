@@ -2957,7 +2957,8 @@ def run_scientific_code_workspace(
                     if research_source_discovery is not None or prior_research_source_refs else ""
                 )
                 + (
-                    "\n\nWhen exact upstream Python/R modules should be reused, first "
+                    "\n\nWhen exact upstream Python/R files or UTF-8 project assets "
+                    "should be reused, first "
                     "observe their frozen identity or completely read the discovered "
                     "repository bytes, then use import_research_source_files. The "
                     "result becomes part of the current model-owned project and still "
@@ -3343,9 +3344,10 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
             description=(
-                "Create or replace one complete model-authored Python/R support file. "
-                "The path is project-relative and must use the current language's source "
-                "extension. This stores bytes without executing them."
+                "Create or replace one complete model-authored UTF-8 project file. "
+                "The canonical project-relative path may hold Python/R source, text data, "
+                "configuration, or a fixture. This stores bytes without executing them; "
+                "only source loaded by the current program is executable."
             ),
             input_schema={
                 "type": "object",
@@ -3375,8 +3377,8 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_READ_TOOL,
             description=(
-                "Read an exact line range from a current model-owned Python/R project "
-                "file. Omit path for the main source. "
+                "Read an exact line range from a current model-owned UTF-8 project file. "
+                "Omit path for the main Python/R source. "
                 "The result includes the current source and draft hashes; this tool "
                 "never edits or executes source."
             ),
@@ -3444,7 +3446,8 @@ def _scientific_code_tools(
                 description=(
                     "Atomically copy selected exact UTF-8 files from a configured "
                     "frozen snapshot or completely read public repository into the "
-                    "current Python/R project under model-selected support paths. Use "
+                    "current Python/R project under model-selected paths. Source modules, "
+                    "text fixtures, data, and configuration remain exact project files. Use "
                     "source_origin=frozen_snapshot with source_id=document_id and "
                     "revision=snapshot_hash, or source_origin=discovered_repository "
                     "with source_id=source_handle and revision=repository revision. "

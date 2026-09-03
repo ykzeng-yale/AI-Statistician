@@ -354,7 +354,6 @@ def scientific_python_safety_errors(
         "help",
         "input",
         "locals",
-        "open",
         "setattr",
         "vars",
     }
@@ -516,8 +515,9 @@ def scientific_sandbox_contract(
                     "run_sandbox(seed, replicates) returns a named JSON-finite metric object"
                 ),
                 "project_contract": (
-                    "The main source may import or source model-authored support files "
-                    "from one isolated hash-bound Python/R project."
+                    "The main source may import/source code and read model-authored UTF-8 "
+                    "data, configuration, or fixtures by relative path from one isolated "
+                    "hash-bound Python/R project."
                 ),
                 "estimator_binding_contract": (
                     "A confirmatory DGP harness defines run_sandbox(seed, replicates, "
@@ -1036,6 +1036,8 @@ def execute_scientific_sandbox(
             )
         )
         for project_file in normalized_project_files:
+            if Path(project_file.path).suffix != ".py":
+                continue
             contract_errors.extend(
                 scientific_python_safety_errors(
                     project_file.content,
