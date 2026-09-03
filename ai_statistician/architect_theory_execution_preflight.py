@@ -3628,8 +3628,8 @@ def _review_architect_theory_execution_preflight_with_source_tools(
         ClientToolDefinition(
             name=ARCHITECT_THEORY_EXECUTION_PREFLIGHT_READ_AUTHOR_SCRATCH_TOOL,
             description=(
-                "Read the exact hash-bound Python/R source and available JSON result "
-                "from one TheoryDeveloper exploratory calculation. Use this when an "
+                "Read the exact hash-bound Python/R request, source, status, and available "
+                "JSON result from one TheoryDeveloper exploratory calculation. Use this when an "
                 "active claim relies on a scratch run, and independently check that "
                 "the program encodes the same random variables, dependence, "
                 "conditioning, normalization, and regime. Reading or executing a "
@@ -3756,7 +3756,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             else ""
         )
         + (
-            " Exact source and results for the TheoryDeveloper scratch runs in the "
+            " Exact requests, sources, status, and results for TheoryDeveloper scratch runs in the "
             "catalog are available through read_author_theory_scratch."
             if author_scratch_refs_by_run
             else ""

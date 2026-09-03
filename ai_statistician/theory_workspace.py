@@ -250,6 +250,17 @@ def execute_theory_scratchpad_tool(
         max_output_bytes=64 * 1024,
         input_artifacts=input_artifacts,
     )
+    source_hash = stable_hash(code)
+    if execution.code_hash and execution.code_hash != source_hash:
+        raise RuntimeError("theory scratch sandbox returned a different source hash")
+    code_path = execution.code_path
+    if not code_path:
+        source_dir = scratchpad.sandbox_dir / "model_scratch_sources"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        extension = "R" if language == "r" else "py"
+        source_path = source_dir / f"theory_scratch_{source_hash[:24]}.{extension}"
+        source_path.write_text(code, encoding="utf-8")
+        code_path = str(source_path.resolve())
     request_hash = execution.request_hash or stable_hash(
         {
             "schema_version": 1,
@@ -259,7 +270,7 @@ def execute_theory_scratchpad_tool(
             "execution_profile": execution_profile,
             "dependencies": [str(value) for value in dependencies],
             "entrypoint": entrypoint,
-            "code_hash": execution.code_hash or stable_hash(code),
+            "code_hash": source_hash,
             "seed": int(scratchpad.seed),
             "replicates": int(scratchpad.replicates),
             "timeout_s": int(scratchpad.timeout_s),
@@ -280,16 +291,20 @@ def execute_theory_scratchpad_tool(
         "scratch_run": int(run_index),
         "status": execution.status,
         "language": execution.language,
+        "execution_profile": execution_profile,
         "execution_attempted": execution.execution_attempted,
         "returncode": execution.returncode,
         "dependencies": list(execution.dependencies),
+        "seed": int(scratchpad.seed),
+        "replicates": int(scratchpad.replicates),
+        "timeout_s": int(scratchpad.timeout_s),
         "errors": list(execution.errors),
-        "code_hash": execution.code_hash,
+        "code_hash": source_hash,
         "request_hash": request_hash,
         "request_identity_source": request_identity_source,
         "result_hash": execution.result_hash,
         "metrics_hash": stable_hash(execution.metrics),
-        "code_path": execution.code_path,
+        "code_path": code_path,
         "request_path": execution.request_path,
         "result_path": execution.result_path,
         "runtime_edited_source": False,
@@ -358,7 +373,11 @@ def theory_scratch_execution_catalog(refs: Sequence[Mapping[str, Any]]) -> list[
             raise ValueError("theory scratch ref crosses the proof boundary")
         catalog.append({
             "scratch_run": scratch_run,
+            "status": str(raw_ref.get("status", "") or ""),
+            "language": str(raw_ref.get("language", "") or ""),
+            "execution_attempted": raw_ref.get("execution_attempted"),
             "code_hash": code_hash,
+            "request_hash": str(raw_ref.get("request_hash", "") or ""),
             "result_hash": result_hash,
             "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
         })
@@ -400,6 +419,7 @@ def read_theory_scratch_execution(*, ref: Mapping[str, Any], scratch_root: Path)
     inspection_ref = {
         "scratch_run": int(ref["scratch_run"]),
         "code_hash": str(ref["code_hash"]),
+        "request_hash": str(ref.get("request_hash", "") or ""),
         "result_hash": result_hash,
         "proof_evidence_status": THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE,
     }
@@ -409,6 +429,15 @@ def read_theory_scratch_execution(*, ref: Mapping[str, Any], scratch_root: Path)
         "ok": True,
         "source": source,
         "result": result_payload,
+        "request": {
+            key: deepcopy(ref.get(key))
+            for key in (
+                "status", "language", "execution_profile", "dependencies",
+                "seed", "replicates", "timeout_s", "execution_attempted",
+                "returncode", "errors", "request_hash", "request_identity_source",
+                "input_artifact_hashes",
+            )
+        },
         "inspection_ref": inspection_ref,
         "boundary": ("This is one exact TheoryDeveloper exploratory calculation. It may expose "
                      "a counterexample, but does not validate the encoded claim, establish "
@@ -1954,8 +1983,8 @@ def run_theory_artifact_workspace(
         "sides, residuals, predicates, or witnesses computed from definitions rather "
         "than a prewritten conclusion; a weaker consequence cannot validate a stronger "
         "claim merely by taking its label. "
-        "Use read_theory_scratch(scratch_run) to reopen any exact prior source and "
-        "result after a checkpoint instead of rerunning it from memory. Interpret the "
+        "Use read_theory_scratch(scratch_run) to reopen any exact prior request, source, "
+        "status, and available result instead of rerunning it from memory. Interpret the "
         "raw observation yourself. If it conflicts with an active "
         "document or earlier calculation, rederive and revise, retract, or mark the claim uncertain before checkpointing. Scratch output is exploratory, not "
         "confirmatory simulation or proof; a universal claim still needs an argument. "
@@ -3044,8 +3073,8 @@ def _theory_workspace_tools(
                 theory_scratchpad_client_tool(),
                 ClientToolDefinition(
                     name=THEORY_SCRATCHPAD_READ_TOOL,
-                    description=("Read one exact prior model-authored Theory scratch source and "
-                                 "JSON result by scratch_run after a checkpoint or context window. "
+                    description=("Read one exact prior model-authored Theory scratch request, "
+                                 "source, status, and available JSON result by scratch_run. "
                                  "The runtime rechecks sandbox location and hashes; this is an "
                                  "exploratory observation, not theory, confirmation, or proof."),
                     input_schema={

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import copy
 import os
 import re
 import shutil
@@ -404,90 +403,6 @@ class LocalLeanProofVerifier:
             errors=[] if ok else errors,
             retrieval_hits=retrieval_hits,
         )
-
-
-class CachingProofVerifier:
-    """Memoize verifier calls within one audit/run.
-
-    AXLE verification is the expensive trusted boundary. A research-system audit
-    reuses the same registered obligations across the proof-bank audit, frontier
-    smoke benchmark, and research benchmark. This wrapper avoids repeated remote
-    checks while preserving the original verifier's `kernel_verified` result.
-    """
-
-    def __init__(self, verifier: ProofVerifier) -> None:
-        self.verifier = verifier
-        self.name = getattr(verifier, "name", type(verifier).__name__)
-        self.cache_hits = 0
-        self.cache_misses = 0
-        self._cache: dict[tuple[str, str], ProofCheck] = {}
-
-    async def verify_many(
-        self,
-        items: list[tuple[FormalObligation, str, list[RetrievalHit]]],
-    ) -> list[ProofCheck]:
-        results: list[ProofCheck | None] = [None] * len(items)
-        misses: list[tuple[int, FormalObligation, str, list[RetrievalHit]]] = []
-        for index, (obligation, proof_body, retrieval_hits) in enumerate(items):
-            key = (obligation.id, proof_body)
-            if key in self._cache:
-                self.cache_hits += 1
-                cached = copy.deepcopy(self._cache[key])
-                cached.retrieval_hits = retrieval_hits
-                results[index] = cached
-            else:
-                self.cache_misses += 1
-                misses.append((index, obligation, proof_body, retrieval_hits))
-
-        if misses:
-            verify_many = getattr(self.verifier, "verify_many", None)
-            if callable(verify_many):
-                checks = await verify_many(
-                    [
-                        (obligation, proof_body, retrieval_hits)
-                        for _, obligation, proof_body, retrieval_hits in misses
-                    ]
-                )
-            else:
-                checks = [
-                    await self.verifier.verify(obligation, proof_body, retrieval_hits)
-                    for _, obligation, proof_body, retrieval_hits in misses
-                ]
-            if len(checks) != len(misses):
-                raise RuntimeError(
-                    f"cached verifier received {len(checks)} checks for {len(misses)} misses"
-                )
-            for (index, obligation, proof_body, _), check in zip(misses, checks):
-                self._cache[(obligation.id, proof_body)] = copy.deepcopy(check)
-                results[index] = check
-
-        if any(check is None for check in results):
-            raise RuntimeError("cached verifier failed to fill all batch verification results")
-        return [check for check in results if check is not None]
-
-    async def verify(
-        self,
-        obligation: FormalObligation,
-        proof_body: str,
-        retrieval_hits: list[RetrievalHit],
-    ) -> ProofCheck:
-        key = (obligation.id, proof_body)
-        if key in self._cache:
-            self.cache_hits += 1
-            cached = copy.deepcopy(self._cache[key])
-            cached.retrieval_hits = retrieval_hits
-            return cached
-        self.cache_misses += 1
-        check = await self.verifier.verify(obligation, proof_body, retrieval_hits)
-        self._cache[key] = copy.deepcopy(check)
-        return check
-
-    def cache_info(self) -> dict[str, int]:
-        return {
-            "hits": self.cache_hits,
-            "misses": self.cache_misses,
-            "size": len(self._cache),
-        }
 
 
 def _resolve_local_lean_project(project_root: str | Path | None) -> Path | None:

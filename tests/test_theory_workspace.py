@@ -66,8 +66,10 @@ from ai_statistician.theory_workspace import (
     TheoryWorkspaceProgressError,
     _replace_theory_workspace_artifacts,
     _theory_workspace_tools,
+    execute_theory_scratchpad_tool,
     load_theory_workspace_documents,
     load_theory_progress_checkpoint_state,
+    read_theory_scratch_execution,
     run_theory_artifact_workspace,
     theory_workspace_manifest_errors,
 )
@@ -2079,6 +2081,82 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
         THEORY_SCRATCHPAD_NOT_PROOF_EVIDENCE
     )
     assert "not confirmatory simulation" in observation["boundary"]
+
+
+def test_rejected_theory_scratch_preserves_exact_request_for_continuation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = "def run_sandbox(seed, replicates):\n    return {'seed': seed}\n"
+
+    def rejected_execution(**kwargs):
+        return ScientificSandboxExecution(
+            status="REJECTED_CONTRACT",
+            language="python",
+            execution_profile="scientific_wasm",
+            backend="pyodide",
+            isolation_provider="test-isolation",
+            dependencies=("numpy",),
+            execution_attempted=False,
+            returncode=-1,
+            metrics={},
+            errors=("model source violates the sandbox ABI",),
+            stdout_summary="",
+            stderr_summary="model source violates the sandbox ABI",
+            result_parse_error="",
+            code_path="",
+            request_path="",
+            result_path="",
+            code_hash=stable_hash(kwargs["code"]),
+            request_hash="",
+            result_hash="",
+            subprocess_environment_keys=("HOME", "PATH"),
+            resource_limits={"cpu_seconds": 9},
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_scientific_sandbox",
+        rejected_execution,
+    )
+    scratchpad = TheoryScratchpadConfig(
+        sandbox_dir=tmp_path / "scratch", seed=31, replicates=17, timeout_s=9
+    )
+    _, execution_ref = execute_theory_scratchpad_tool(
+        tool_input={
+            "language": "python",
+            "execution_profile": "scientific_wasm",
+            "dependencies": ["numpy"],
+            "entrypoint": "run_sandbox",
+            "code": source,
+        },
+        scratchpad=scratchpad,
+        sandbox_binding=("question", "workspace"),
+        artifact_id="theory_scratch:rejected",
+        run_index=1,
+        owner_label="TheoryDeveloper",
+    )
+
+    observation = read_theory_scratch_execution(
+        ref=execution_ref, scratch_root=scratchpad.sandbox_dir
+    )
+    assert Path(execution_ref["code_path"]).read_text(encoding="utf-8") == source
+    assert observation["source"] == source
+    assert observation["result"] is None
+    assert observation["request"] == {
+        "status": "REJECTED_CONTRACT",
+        "language": "python",
+        "execution_profile": "scientific_wasm",
+        "dependencies": ["numpy"],
+        "seed": 31,
+        "replicates": 17,
+        "timeout_s": 9,
+        "execution_attempted": False,
+        "returncode": -1,
+        "errors": ["model source violates the sandbox ABI"],
+        "request_hash": execution_ref["request_hash"],
+        "request_identity_source": "model_tool_request",
+        "input_artifact_hashes": {},
+    }
 
 
 def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
