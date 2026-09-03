@@ -66,6 +66,7 @@ THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT = "model_owned_documents_and_handoff_v3"
 THEORY_WORKSPACE_WRITE_TOOL = "write_theory_workspace"
 THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL = "write_theory_document"
 THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL = "edit_theory_document"
+THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL = "remove_theory_document"
 THEORY_WORKSPACE_READ_DOCUMENT_TOOL = "read_theory_document"
 THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL = "search_theory_documents"
 THEORY_WORKSPACE_COMMIT_TOOL = "commit_theory_checkpoint"
@@ -471,6 +472,7 @@ def run_theory_artifact_workspace(
     writable_artifact_names: Sequence[str] | None = None,
     prior_changed_artifact_names: Sequence[str] = (),
     prior_changed_document_paths: Sequence[str] = (),
+    prior_removed_document_paths: Sequence[str] = (),
     prior_client_tool_session_ref: Mapping[str, Any] | None = None,
     prior_workspace_checkpoint: Mapping[str, Any] | None = None,
 ) -> TheoryWorkspaceResult:
@@ -629,8 +631,24 @@ def run_theory_artifact_workspace(
             for path in prior_changed_document_paths
         )
     )
+    prior_removed_documents = tuple(
+        dict.fromkeys(
+            _normalized_theory_document_path(path)
+            for path in prior_removed_document_paths
+        )
+    )
+    if set(prior_removed_documents) - set(prior_document_changes):
+        raise ValueError(
+            "theory progress removed documents must be changed documents"
+        )
+    if set(prior_removed_documents).intersection(parent_documents):
+        raise ValueError(
+            "theory progress removed documents remain in the current workspace"
+        )
     unknown_prior_documents = sorted(
-        set(prior_document_changes) - set(parent_documents)
+        set(prior_document_changes)
+        - set(parent_documents)
+        - set(prior_removed_documents)
     )
     if unknown_prior_documents:
         raise ValueError(
@@ -698,6 +716,23 @@ def run_theory_artifact_workspace(
             )
         )
 
+    def current_removed_document_paths(
+        documents: Mapping[str, str],
+    ) -> tuple[str, ...]:
+        return tuple(path for path in parent_documents if path not in documents)
+
+    def removed_document_paths(documents: Mapping[str, str]) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                path
+                for path in (
+                    *prior_removed_documents,
+                    *current_removed_document_paths(documents),
+                )
+                if path not in documents
+            )
+        )
+
     def document_manifest(documents: Mapping[str, str]) -> dict[str, Any]:
         snapshot_dir = resolved_workspace_dir
         if snapshot_dir is not None:
@@ -751,13 +786,14 @@ def run_theory_artifact_workspace(
                 "documents": state["documents"],
             }
         )
-        state["artifacts"] = deepcopy(dict(candidate_artifacts))
-        state["documents"] = deepcopy(dict(candidate_documents))
         if resolved_workspace_dir is not None:
             _persist_theory_documents(
                 candidate_documents,
                 workspace_dir=resolved_workspace_dir,
+                previous_documents=state["documents"],
             )
+        state["artifacts"] = deepcopy(dict(candidate_artifacts))
+        state["documents"] = deepcopy(dict(candidate_documents))
         if state_changed and artifact_writes:
             state["model_artifact_writes"].extend(
                 [
@@ -780,6 +816,7 @@ def run_theory_artifact_workspace(
             )
         changed = changed_artifact_names(candidate_artifacts)
         changed_documents = changed_document_paths(candidate_documents)
+        removed_documents = removed_document_paths(candidate_documents)
         if (
             allow_source_replication_checkpoint
             and document_writes
@@ -795,6 +832,7 @@ def run_theory_artifact_workspace(
                     "source_report_write_ready": bool(changed_documents),
                     "changed_artifact_names": list(changed),
                     "changed_document_paths": list(changed_documents),
+                    "removed_document_paths": list(removed_documents),
                     "submissions": state["submissions"],
                     "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
                     "runtime_edited_theory": False,
@@ -809,7 +847,12 @@ def run_theory_artifact_workspace(
                     [
                         workspace_id,
                         [
-                            (path, _text_sha256(candidate_documents[path]))
+                            (
+                                path,
+                                _text_sha256(candidate_documents[path])
+                                if path in candidate_documents
+                                else None,
+                            )
                             for path in changed_documents
                         ],
                     ]
@@ -846,6 +889,7 @@ def run_theory_artifact_workspace(
             "candidate_hash": candidate_hash,
             "changed_artifact_names": list(changed),
             "changed_document_paths": list(changed_documents),
+            "removed_document_paths": list(removed_documents),
             "current_document_sha256": {path: _text_sha256(candidate_documents[path]) for path in changed_documents if path in candidate_documents},
             "submissions": state["submissions"],
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
@@ -1296,6 +1340,30 @@ def run_theory_artifact_workspace(
                 document_writes=[edit_record],
             )
 
+        if call.name == THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL:
+            if not require_document_authority:
+                raise ClientToolInputError(
+                    "theory document removal is unavailable"
+                )
+            requested_path = _normalized_theory_document_path(
+                tool_input.get("path", "")
+            )
+            if requested_path in context_documents:
+                raise ClientToolInputError(
+                    f"theory workspace document {requested_path!r} is read-only"
+                )
+            candidate_documents, remove_record = (
+                _remove_theory_workspace_document(
+                    state["documents"],
+                    tool_input,
+                )
+            )
+            return evaluate_model_write(
+                state["artifacts"],
+                candidate_documents,
+                document_writes=[remove_record],
+            )
+
         if call.name == THEORY_WORKSPACE_COMMIT_TOOL:
             expected_commit_fields = {"readiness_rationale", *integrated_commit_fields}
             if set(tool_input) != expected_commit_fields:
@@ -1313,6 +1381,7 @@ def run_theory_artifact_workspace(
                 )
             changed = changed_artifact_names(state["artifacts"])
             changed_documents = changed_document_paths(state["documents"])
+            removed_documents = removed_document_paths(state["documents"])
             if (not changed and not changed_documents) or not state["submissions"]:
                 raise ClientToolInputError(
                     "commit_theory_checkpoint requires a prior model-authored "
@@ -1374,6 +1443,7 @@ def run_theory_artifact_workspace(
                     "candidate_hash": candidate_hash,
                     "changed_artifact_names": list(changed),
                     "changed_document_paths": list(changed_documents),
+                    "removed_document_paths": list(removed_documents),
                     "runtime_edited_theory": False,
                     "proof_evidence_status": (
                         "THEORY_WORKSPACE_CHECKPOINT_NOT_PROOF_EVIDENCE"
@@ -1393,6 +1463,7 @@ def run_theory_artifact_workspace(
                     ),
                     "changed_artifact_names": list(changed),
                     "changed_document_paths": list(changed_documents),
+                    "removed_document_paths": list(removed_documents),
                     "theory_workspace_manifest": document_manifest(
                         state["documents"]
                     ),
@@ -1453,6 +1524,9 @@ def run_theory_artifact_workspace(
                     ),
                     "changed_document_paths": list(
                         changed_document_paths(state["documents"])
+                    ),
+                    "removed_document_paths": list(
+                        removed_document_paths(state["documents"])
                     ),
                     "theory_workspace_manifest": document_manifest(
                         state["documents"]
@@ -1592,6 +1666,9 @@ def run_theory_artifact_workspace(
                 ),
                 "phase_changed_document_paths": list(
                     phase_document_changes
+                ),
+                "phase_removed_document_paths": list(
+                    current_removed_document_paths(state["documents"])
                 ),
             }
             return ClientToolExecutionResult(
@@ -2086,6 +2163,9 @@ def run_theory_artifact_workspace(
             "changed_document_paths": list(
                 changed_document_paths(current_documents)
             ),
+            "removed_document_paths": list(
+                removed_document_paths(current_documents)
+            ),
             "reads": state["reads"],
             "submissions": state["submissions"],
             "model_artifact_writes": deepcopy(
@@ -2254,6 +2334,9 @@ def run_theory_artifact_workspace(
             "changed_document_paths": list(
                 terminal.get("changed_document_paths", []) or []
             ),
+            "removed_document_paths": list(
+                terminal.get("removed_document_paths", []) or []
+            ),
             "theory_workspace_manifest": deepcopy(
                 dict(terminal.get("theory_workspace_manifest", {}) or {})
             ),
@@ -2361,6 +2444,9 @@ def run_theory_artifact_workspace(
             "changed_document_paths": list(
                 checkpoint.get("changed_document_paths", []) or []
             ),
+            "removed_document_paths": list(
+                checkpoint.get("removed_document_paths", []) or []
+            ),
             "theory_workspace_manifest": deepcopy(
                 dict(checkpoint["theory_workspace_manifest"])
             ),
@@ -2431,6 +2517,9 @@ def run_theory_artifact_workspace(
             ),
             "changed_document_paths": list(
                 changed_document_paths(state["documents"])
+            ),
+            "removed_document_paths": list(
+                removed_document_paths(state["documents"])
             ),
             "theory_workspace_manifest": document_manifest(
                 state["documents"]
@@ -2559,6 +2648,9 @@ def run_theory_artifact_workspace(
         ),
         "changed_document_paths": list(
             terminal.get("changed_document_paths", []) or []
+        ),
+        "removed_document_paths": list(
+            terminal.get("removed_document_paths", []) or []
         ),
         "theory_workspace_manifest": deepcopy(
             dict(terminal.get("theory_workspace_manifest", {}) or {})
@@ -2962,6 +3054,30 @@ def _theory_workspace_tools(
                 strict=True,
             )
         )
+        tools.append(
+            ClientToolDefinition(
+                name=THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL,
+                description=(
+                    "Remove one current model-owned Markdown, LaTeX, or BibTeX "
+                    "document by exact path and SHA-256. Runtime verifies identity "
+                    "and records deletion lineage but never chooses or interprets "
+                    "the removed mathematics."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["path", "expected_sha256"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "expected_sha256": {
+                            "type": "string", "minLength": 64, "maxLength": 64
+                        },
+                    },
+                },
+                terminal=False,
+                strict=True,
+            )
+        )
     if source_replication_checkpoint_enabled:
         tools.append(
             ClientToolDefinition(
@@ -3236,6 +3352,36 @@ def _edit_theory_workspace_document(
     }
 
 
+def _remove_theory_workspace_document(
+    current_documents: Mapping[str, str],
+    raw_remove: Any,
+) -> tuple[dict[str, str], dict[str, Any]]:
+    if not isinstance(raw_remove, Mapping):
+        raise ClientToolInputError("remove_theory_document requires an object")
+    remove = dict(raw_remove)
+    if set(remove) != {"path", "expected_sha256"}:
+        raise ClientToolInputError(
+            "remove_theory_document requires exactly path and expected_sha256"
+        )
+    path = _normalized_theory_document_path(remove["path"])
+    if path not in current_documents:
+        raise ClientToolInputError(f"cannot remove unknown theory document {path!r}")
+    current_sha256 = _text_sha256(current_documents[path])
+    if remove["expected_sha256"] != current_sha256:
+        raise ClientToolInputError(
+            f"theory document {path!r} changed since it was read; expected "
+            f"{remove['expected_sha256']!r}, current {current_sha256!r}"
+        )
+    candidate = dict(current_documents)
+    del candidate[path]
+    return candidate, {
+        "operation": "remove_document",
+        "relative_path": path,
+        "parent_sha256": current_sha256,
+        "removed": True,
+    }
+
+
 def _normalized_theory_document_path(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ClientToolInputError("theory document path must be nonempty text")
@@ -3461,8 +3607,18 @@ def _persist_theory_documents(
     documents: Mapping[str, str],
     *,
     workspace_dir: Path,
+    previous_documents: Mapping[str, str] | None = None,
 ) -> None:
     workspace_dir.mkdir(parents=True, exist_ok=True)
+    for relative_path, prior_content in (previous_documents or {}).items():
+        if relative_path in documents:
+            continue
+        target = workspace_dir / relative_path
+        if not target.is_file() or target.read_text(encoding="utf-8") != prior_content:
+            raise ValueError(
+                f"theory document changed before removal: {relative_path}"
+            )
+        target.unlink()
     for relative_path, content in documents.items():
         target = workspace_dir / relative_path
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -3613,6 +3769,7 @@ def load_theory_progress_checkpoint_state(
         raise ValueError("theory progress checkpoint workspace hash mismatch")
     changed_artifacts = checkpoint.get("changed_artifact_names", [])
     changed_documents = checkpoint.get("changed_document_paths", [])
+    removed_documents = checkpoint.get("removed_document_paths", [])
     if not isinstance(changed_artifacts, list) or not all(
         isinstance(value, str) and value.strip()
         for value in changed_artifacts
@@ -3621,11 +3778,26 @@ def load_theory_progress_checkpoint_state(
     if (
         not isinstance(changed_documents, list)
         or not changed_documents
-        or not all(
-            isinstance(value, str) and value.strip()
-            for value in changed_documents
-        )
-        or not set(changed_documents).issubset(documents)
+        or not all(isinstance(value, str) and value.strip() for value in changed_documents)
+        or not isinstance(removed_documents, list)
+        or not all(isinstance(value, str) and value.strip() for value in removed_documents)
+    ):
+        raise ValueError("theory progress changed documents are invalid")
+    try:
+        normalized_changed = [_normalized_theory_document_path(value) for value in changed_documents]
+        normalized_removed = [_normalized_theory_document_path(value) for value in removed_documents]
+    except ClientToolInputError as exc:
+        raise ValueError("theory progress changed documents are invalid") from exc
+    changed_document_set = set(changed_documents)
+    removed_document_set = set(removed_documents)
+    if (
+        normalized_changed != changed_documents
+        or normalized_removed != removed_documents
+        or len(changed_document_set) != len(changed_documents)
+        or len(removed_document_set) != len(removed_documents)
+        or not changed_document_set.issubset(set(documents) | removed_document_set)
+        or not removed_document_set.issubset(changed_document_set)
+        or removed_document_set.intersection(documents)
     ):
         raise ValueError("theory progress changed documents are invalid")
     progress = checkpoint.get("progress", {})
@@ -3638,13 +3810,22 @@ def load_theory_progress_checkpoint_state(
         raise ValueError("theory progress checkpoint summary is incomplete")
     evidence_refs = progress.get("evidence_refs", [])
     phase_documents = progress.get("phase_changed_document_paths", [])
+    phase_removed_documents = progress.get("phase_removed_document_paths", [])
     if (
         not isinstance(evidence_refs, list)
         or not evidence_refs
         or not all(isinstance(value, str) and value.strip() for value in evidence_refs)
         or not isinstance(phase_documents, list)
         or not phase_documents
+        or not all(isinstance(value, str) and value.strip() for value in phase_documents)
         or not set(phase_documents).issubset(changed_documents)
+        or not isinstance(phase_removed_documents, list)
+        or not all(
+            isinstance(value, str) and value.strip()
+            for value in phase_removed_documents
+        )
+        or not set(phase_removed_documents).issubset(removed_document_set)
+        or not set(phase_removed_documents).issubset(phase_documents)
     ):
         raise ValueError("theory progress checkpoint evidence is incomplete")
     _theory_progress_workspace_state(

@@ -56,6 +56,7 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
     THEORY_WORKSPACE_PROGRESS_TOOL,
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
     THEORY_WORKSPACE_WRITE_TOOL,
@@ -2780,6 +2781,206 @@ def test_document_authority_supports_local_edit_without_forced_reread(
     prompt = str(backend.requests[0].messages[0]["content"])
     assert "current document SHA-256" in prompt
     assert "ordered atomic batch" in prompt
+
+
+def test_document_authority_removes_obsolete_document_by_exact_hash(
+    tmp_path,
+) -> None:
+    active = "# Claim C1\n\nThe retained derivation is active.\n"
+    obsolete = "# Scratch claim\n\nThis abandoned route is not authoritative.\n"
+    obsolete_sha256 = hashlib.sha256(obsolete.encode("utf-8")).hexdigest()
+    backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="remove-with-stale-hash",
+                    name=THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/obsolete.md",
+                        "expected_sha256": "0" * 64,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="remove-obsolete-document",
+                    name=THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/obsolete.md",
+                        "expected_sha256": obsolete_sha256,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="update-index-after-removal",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "C1"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint("commit-after-document-removal")),
+        ]
+    )
+
+    workspace = tmp_path / "theory"
+    result = _run_workspace(
+        backend,
+        workspace_dir=workspace,
+        require_document_authority=True,
+        initial_documents={
+            "derivations/C1.md": active,
+            "derivations/obsolete.md": obsolete,
+        },
+        max_turns=4,
+        max_tool_calls=4,
+    )
+
+    stale_diagnostic = json.loads(
+        backend.requests[1].messages[-1]["content"][0]["content"]
+    )
+    assert stale_diagnostic["error"] == "client_tool_input_rejected"
+    assert "changed since it was read" in stale_diagnostic["detail"]
+    remove_feedback = json.loads(
+        backend.requests[2].messages[-1]["content"][0]["content"]
+    )
+    assert remove_feedback["removed_document_paths"] == [
+        "derivations/obsolete.md"
+    ]
+    assert remove_feedback["current_document_sha256"] == {}
+    assert not (workspace / "derivations" / "obsolete.md").exists()
+    assert load_theory_workspace_documents(result.evidence) == {
+        "derivations/C1.md": active
+    }
+    assert result.evidence["changed_document_paths"] == [
+        "derivations/obsolete.md"
+    ]
+    assert result.evidence["removed_document_paths"] == [
+        "derivations/obsolete.md"
+    ]
+    assert result.evidence["model_document_writes"] == [
+        {
+            "submission_index": 0,
+            "operation": "remove_document",
+            "relative_path": "derivations/obsolete.md",
+            "parent_sha256": obsolete_sha256,
+            "removed": True,
+        }
+    ]
+    remove_tool = next(
+        tool
+        for tool in backend.requests[0].tools
+        if tool.name == THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL
+    )
+    assert remove_tool.strict is True
+    assert remove_tool.input_schema["required"] == [
+        "path",
+        "expected_sha256",
+    ]
+
+
+def test_removed_document_lineage_survives_theory_progress_continuation(
+    tmp_path,
+) -> None:
+    active = "# Active derivation\n\nOne coherent claim remains.\n"
+    obsolete = "# Obsolete derivation\n\nThis route was refuted.\n"
+    obsolete_sha256 = hashlib.sha256(obsolete.encode("utf-8")).hexdigest()
+    initial_backend = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="remove-refuted-route",
+                    name=THEORY_WORKSPACE_REMOVE_DOCUMENT_TOOL,
+                    input={
+                        "path": "derivations/refuted.md",
+                        "expected_sha256": obsolete_sha256,
+                    },
+                )
+            ),
+            _response(
+                ClientToolCall(
+                    call_id="checkpoint-after-removal",
+                    name=THEORY_WORKSPACE_PROGRESS_TOOL,
+                    input={
+                        "summary": "Removed a refuted derivation from active theory.",
+                        "evidence_refs": ["derivations/refuted.md"],
+                        "next_step": "Align the claim index with the retained proof.",
+                    },
+                )
+            ),
+        ]
+    )
+    workspace = tmp_path / "theory"
+    with pytest.raises(TheoryWorkspaceProgressError) as exc_info:
+        _run_workspace(
+            initial_backend,
+            workspace_dir=workspace,
+            require_document_authority=True,
+            initial_documents={
+                "derivations/active.md": active,
+                "derivations/refuted.md": obsolete,
+            },
+            max_turns=2,
+            max_tool_calls=2,
+        )
+
+    checkpoint = exc_info.value.progress_checkpoint
+    assert checkpoint["changed_document_paths"] == ["derivations/refuted.md"]
+    assert checkpoint["removed_document_paths"] == ["derivations/refuted.md"]
+    assert checkpoint["progress"]["phase_removed_document_paths"] == [
+        "derivations/refuted.md"
+    ]
+    artifacts, documents = load_theory_progress_checkpoint_state(
+        checkpoint,
+        question_id="q1",
+    )
+    assert documents == {"derivations/active.md": active}
+
+    continuation = ScriptedTheoryWorkspaceBackend(
+        [
+            _response(
+                ClientToolCall(
+                    call_id="align-index-after-removal",
+                    name=THEORY_WORKSPACE_WRITE_TOOL,
+                    input=_artifact_writes(
+                        {
+                            "problem_card": {"claim": "revised claim"},
+                            "lemma_cards": [{"id": "active"}],
+                        }
+                    ),
+                )
+            ),
+            _response(_commit_checkpoint("commit-removal-continuation")),
+        ]
+    )
+    result = _run_workspace(
+        continuation,
+        workspace_dir=workspace,
+        require_document_authority=True,
+        initial_artifacts=artifacts,
+        initial_documents=documents,
+        prior_changed_artifact_names=checkpoint["changed_artifact_names"],
+        prior_changed_document_paths=checkpoint["changed_document_paths"],
+        prior_removed_document_paths=checkpoint["removed_document_paths"],
+        prior_client_tool_session_ref=checkpoint["client_tool_session_ref"],
+        prior_workspace_checkpoint=checkpoint,
+        max_turns=2,
+        max_tool_calls=2,
+    )
+
+    assert result.evidence["changed_document_paths"] == [
+        "derivations/refuted.md"
+    ]
+    assert result.evidence["removed_document_paths"] == [
+        "derivations/refuted.md"
+    ]
+    assert load_theory_workspace_documents(result.evidence) == {
+        "derivations/active.md": active
+    }
 
 
 def test_document_edit_field_error_returns_exact_diagnostic_to_same_owner(

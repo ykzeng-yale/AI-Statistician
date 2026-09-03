@@ -717,6 +717,9 @@ def _theory_progress_prompt_artifact(
         "changed_document_paths": list(
             checkpoint.get("changed_document_paths", []) or []
         ),
+        "removed_document_paths": list(
+            checkpoint.get("removed_document_paths", []) or []
+        ),
         "cumulative_tool_state": {
             "scratch_runs": int(checkpoint.get("scratch_runs", 0) or 0),
             "scratch_executions": [
@@ -3277,6 +3280,11 @@ def _generate_initial_theory_artifact_workspace(
             if progress_checkpoint
             else ()
         ),
+        prior_removed_document_paths=(
+            progress_checkpoint.get("removed_document_paths", [])
+            if progress_checkpoint
+            else ()
+        ),
         prior_client_tool_session_ref=(
             progress_checkpoint.get("client_tool_session_ref", {})
             if progress_checkpoint
@@ -3586,6 +3594,11 @@ def _generate_theory_workspace_revision(
         ),
         prior_changed_document_paths=(
             progress_checkpoint.get("changed_document_paths", [])
+            if progress_checkpoint
+            else ()
+        ),
+        prior_removed_document_paths=(
+            progress_checkpoint.get("removed_document_paths", [])
             if progress_checkpoint
             else ()
         ),

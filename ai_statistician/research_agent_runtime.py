@@ -6471,6 +6471,9 @@ def _theory_developer_progress_result(
             "changed_document_paths": list(
                 checkpoint.get("changed_document_paths", []) or []
             ),
+            "removed_document_paths": list(
+                checkpoint.get("removed_document_paths", []) or []
+            ),
             "kernel_verified": False,
             "proof_evidence_status": checkpoint.get(
                 "proof_evidence_status", ""
