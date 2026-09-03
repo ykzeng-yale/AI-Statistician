@@ -2071,6 +2071,7 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
 
         def propose(self, **kwargs):
             self.calls.append(kwargs)
+            assert kwargs["source_replication_artifacts"] is blackboard.artifacts
             assert kwargs["canonical_evidence_view"][
                 "required_dimension_evidence_gaps"
             ] == []

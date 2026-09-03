@@ -19337,6 +19337,7 @@ class CriticEvaluatorRuntimeSubsystem:
                         algorithm_manifest=algorithm_manifest,
                         formalization_manifest=formalization_manifest,
                         canonical_evidence_view=canonical_evidence_view,
+                        source_replication_artifacts=blackboard.artifacts,
                         environment_feedback=critic_environment_feedback,
                     )
             except PacketValidationError as exc:

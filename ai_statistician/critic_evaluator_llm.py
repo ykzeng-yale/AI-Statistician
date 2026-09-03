@@ -33,7 +33,10 @@ from .model_backend import (
 from .research_schema import OpenResearchQuestion, research_question_payload
 from .research_source_library import (
     SOURCE_COMMAND_MODEL_SELECTED,
+    SOURCE_RESULT_MODEL_MEDIA_TYPES,
     ResearchSourceSnapshot,
+    inspect_source_replication_result,
+    read_source_replication_result,
 )
 from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
 from .theory_workspace import (
@@ -63,6 +66,8 @@ CRITIC_DIMENSION_REQUIREMENTS = frozenset({"required", "optional", "not_applicab
 CRITIC_GAP_DISCLOSURE_COMPLETE = "COMPLETE"
 CRITIC_EVIDENCE_READ_TOOL = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
 CRITIC_EVIDENCE_SEARCH_TOOL = THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL
+CRITIC_SOURCE_RESULT_READ_TOOL = "read_critic_source_result"
+CRITIC_SOURCE_RESULT_INSPECT_TOOL = "inspect_critic_source_result"
 CRITIC_EVALUATION_SUBMIT_TOOL = "submit_critic_evaluation"
 CRITIC_EVIDENCE_EXTERNALIZE_MIN_CHARS = 1200
 
@@ -101,6 +106,7 @@ class LLMCriticEvaluatorAgent:
         algorithm_manifest: Mapping[str, Any],
         formalization_manifest: Mapping[str, Any],
         canonical_evidence_view: Mapping[str, Any],
+        source_replication_artifacts: Mapping[str, Any] | None = None,
         environment_feedback: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         request_model = resolve_generator_model(
@@ -123,9 +129,194 @@ class LLMCriticEvaluatorAgent:
             algorithm_manifest=algorithm_manifest,
             formalization_manifest=formalization_manifest,
             canonical_evidence_view=canonical_evidence_view,
+            source_replication_artifacts=source_replication_artifacts or {},
             environment_feedback=environment_feedback or {},
             request_model=request_model,
         )
+
+
+def _critic_source_result_tool_context(
+    *,
+    canonical_evidence_view: Mapping[str, Any],
+    artifacts: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    """Resolve only persisted results in the verified source checkpoint lineage."""
+
+    raw_source = canonical_evidence_view.get("source_replication", {})
+    source = raw_source if isinstance(raw_source, Mapping) else {}
+    if source.get("lineage_verified") is not True:
+        return {}, []
+    raw_attempts = source.get("source_execution_attempts")
+    if isinstance(raw_attempts, list) and raw_attempts:
+        rows = raw_attempts
+    else:
+        rows = [source.get("source_execution", {})]
+    question_id = str(canonical_evidence_view.get("question_id", "") or "")
+    selected = source.get("source_execution", {})
+    selected_artifact_id = (
+        str(selected.get("artifact_id", "") or "")
+        if isinstance(selected, Mapping)
+        else ""
+    )
+    manifests: dict[str, dict[str, Any]] = {}
+    catalog: list[dict[str, Any]] = []
+    for source_run, raw_row in enumerate(rows, start=1):
+        if (
+            not isinstance(raw_row, Mapping)
+            or raw_row.get("lineage_verified") is not True
+        ):
+            return {}, []
+        artifact_id = str(raw_row.get("artifact_id", "") or "")
+        raw_manifest = artifacts.get(artifact_id, {})
+        if not artifact_id or not isinstance(raw_manifest, Mapping):
+            return {}, []
+        manifest = deepcopy(dict(raw_manifest))
+        declared_hash = str(manifest.get("manifest_hash", "") or "")
+        unsigned = deepcopy(manifest)
+        unsigned.pop("manifest_hash", None)
+        if not (
+            manifest.get("artifact_kind") == "SourceReplicationManifest"
+            and manifest.get("artifact_id") == artifact_id
+            and manifest.get("question_id") == question_id
+            and manifest.get("runtime_generated") is True
+            and manifest.get("model_authored") is False
+            and manifest.get("runtime_edited_source") is False
+            and raw_row.get("manifest_hash") == declared_hash
+            and raw_row.get("execution_status") == manifest.get("execution_status")
+            and declared_hash
+            and stable_hash(unsigned) == declared_hash
+        ):
+            return {}, []
+        manifest_path = Path(str(manifest.get("manifest_path", "") or ""))
+        try:
+            persisted_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError, TypeError):
+            return {}, []
+        if persisted_manifest != manifest:
+            return {}, []
+        declared_source_run = raw_row.get("source_run", source_run)
+        if (
+            isinstance(declared_source_run, bool)
+            or not isinstance(declared_source_run, int)
+            or declared_source_run < 1
+            or artifact_id in manifests
+        ):
+            return {}, []
+
+        result_rows: list[dict[str, Any]] = []
+        for raw_result in manifest.get("result_artifacts", []) or []:
+            if not isinstance(raw_result, Mapping):
+                continue
+            relative_path = str(raw_result.get("relative_path", "") or "")
+            suffix = Path(relative_path).suffix.lower()
+            available_via = (
+                CRITIC_SOURCE_RESULT_INSPECT_TOOL
+                if suffix in SOURCE_RESULT_MODEL_MEDIA_TYPES
+                else (
+                    CRITIC_SOURCE_RESULT_READ_TOOL
+                    if raw_result.get("content_encoding") == "utf-8"
+                    else "binary_hash_only"
+                )
+            )
+            result_rows.append(
+                {
+                    key: deepcopy(raw_result.get(key))
+                    for key in (
+                        "relative_path", "sha256", "size_bytes",
+                        "content_encoding", "text_line_count", "csv_summary",
+                    )
+                    if key in raw_result
+                }
+                | {"content_available_via": available_via}
+            )
+        stream_rows = [
+            {
+                key: deepcopy(raw_stream.get(key))
+                for key in (
+                    "stream_id", "relative_path", "sha256", "size_bytes",
+                    "content_encoding", "execution_attempted",
+                )
+                if key in raw_stream
+            }
+            | {"content_available_via": CRITIC_SOURCE_RESULT_READ_TOOL}
+            for raw_stream in manifest.get("execution_streams", []) or []
+            if isinstance(raw_stream, Mapping)
+        ]
+        if result_rows or stream_rows:
+            manifests[artifact_id] = manifest
+            catalog.append(
+                {
+                    "artifact_id": artifact_id,
+                    "manifest_hash": declared_hash,
+                    "source_run": declared_source_run,
+                    "selected_for_checkpoint": artifact_id == selected_artifact_id,
+                    "execution_status": str(
+                        manifest.get("execution_status", "") or ""
+                    ),
+                    "result_artifacts": result_rows,
+                    "execution_streams": stream_rows,
+                    "proof_evidence_status": str(
+                        manifest.get("proof_evidence_status", "") or ""
+                    ),
+                }
+            )
+    return manifests, catalog
+
+
+def _critic_source_result_client_tools(
+    catalog: Sequence[Mapping[str, Any]],
+) -> tuple[ClientToolDefinition, ...]:
+    available = {
+        str(row.get("content_available_via", "") or "")
+        for attempt in catalog
+        for field in ("result_artifacts", "execution_streams")
+        for row in (attempt.get(field, []) or [])
+        if isinstance(row, Mapping)
+    }
+    tools: list[ClientToolDefinition] = []
+    if CRITIC_SOURCE_RESULT_READ_TOOL in available:
+        tools.append(
+            ClientToolDefinition(
+                name=CRITIC_SOURCE_RESULT_READ_TOOL,
+                description=(
+                    "Read exact inclusive lines from one UTF-8 source-result or "
+                    "execution-stream artifact in the verified Critic catalog."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "artifact_id", "relative_path", "line_start", "line_end"
+                    ],
+                    "properties": {
+                        "artifact_id": {"type": "string", "minLength": 1},
+                        "relative_path": {"type": "string", "minLength": 1},
+                        "line_start": {"type": "integer", "minimum": 1},
+                        "line_end": {"type": "integer", "minimum": 1},
+                    },
+                },
+            )
+        )
+    if CRITIC_SOURCE_RESULT_INSPECT_TOOL in available:
+        tools.append(
+            ClientToolDefinition(
+                name=CRITIC_SOURCE_RESULT_INSPECT_TOOL,
+                description=(
+                    "Inspect one exact PDF or image source-result artifact in the "
+                    "verified Critic catalog as provider-native model content."
+                ),
+                input_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["artifact_id", "relative_path"],
+                    "properties": {
+                        "artifact_id": {"type": "string", "minLength": 1},
+                        "relative_path": {"type": "string", "minLength": 1},
+                    },
+                },
+            )
+        )
+    return tuple(tools)
 
 
 def _run_critic_client_tool_review(
@@ -139,9 +330,16 @@ def _run_critic_client_tool_review(
     algorithm_manifest: Mapping[str, Any],
     formalization_manifest: Mapping[str, Any],
     canonical_evidence_view: Mapping[str, Any],
+    source_replication_artifacts: Mapping[str, Any],
     environment_feedback: Mapping[str, Any],
     request_model: str,
 ) -> dict[str, Any]:
+    source_result_manifests, source_result_catalog = (
+        _critic_source_result_tool_context(
+            canonical_evidence_view=canonical_evidence_view,
+            artifacts=source_replication_artifacts,
+        )
+    )
     compact_material, documents, catalog = externalize_client_tool_text_documents(
         {
             "canonical_evidence_view": deepcopy(dict(canonical_evidence_view)),
@@ -152,6 +350,9 @@ def _run_critic_client_tool_review(
     )
     compact_view = dict(compact_material["canonical_evidence_view"])
     compact_feedback = dict(compact_material["environment_feedback"])
+    source_result_tools = _critic_source_result_client_tools(
+        source_result_catalog
+    )
     prompt = build_critic_evaluator_prompt(
         question=question,
         retrieval_manifest=retrieval_manifest,
@@ -163,15 +364,27 @@ def _run_critic_client_tool_review(
         environment_feedback=compact_feedback,
         client_tool_submission=True,
         client_tool_evidence_documents_available=bool(documents),
+        client_tool_source_results_available=bool(source_result_tools),
     )
     prompt += (
         "\n\nExact evidence document catalog (content remains available without "
         "truncation):\n"
         + json.dumps(catalog, separators=(",", ":"), ensure_ascii=False)
     )
+    if source_result_catalog:
+        prompt += (
+            "\n\nExact source-result catalog (content is available only through "
+            "the scoped tools):\n"
+            + json.dumps(
+                source_result_catalog,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+    )
     document_tools = theory_document_client_tools() if documents else ()
+    inspection_tools = (*document_tools, *source_result_tools)
     tools = (
-        *document_tools,
+        *inspection_tools,
         ClientToolDefinition(
             name=CRITIC_EVALUATION_SUBMIT_TOOL,
             description=(
@@ -191,7 +404,7 @@ def _run_critic_client_tool_review(
         model=request_model,
         max_tokens=config.max_tokens,
         temperature=config.temperature,
-        tool_choice=("any" if document_tools else CRITIC_EVALUATION_SUBMIT_TOOL),
+        tool_choice=("any" if inspection_tools else CRITIC_EVALUATION_SUBMIT_TOOL),
         disable_parallel_tool_use=False,
         enable_prompt_caching=True,
         metadata={
@@ -203,12 +416,15 @@ def _run_critic_client_tool_review(
             "client_tool_transport": True,
             "evidence_document_count": len(documents),
             "evidence_document_catalog_hash": stable_hash(catalog),
+            "source_result_catalog_count": len(source_result_catalog),
+            "source_result_catalog_hash": stable_hash(source_result_catalog),
             "strict_terminal_tool_schema": True,
             "reviewer_local_retry_budget": False,
             "full_packet_regeneration_disabled": True,
         },
     )
     document_accesses: list[dict[str, Any]] = []
+    source_result_accesses: list[dict[str, Any]] = []
     canonical_view_hash = str(canonical_evidence_view.get("view_hash", "") or "") or stable_hash(dict(canonical_evidence_view))
     dimension_requirements = canonical_evidence_view.get("dimension_requirements", {})
     required_dimension_evidence_gaps = tuple(
@@ -263,6 +479,73 @@ def _run_critic_client_tool_review(
             return ClientToolExecutionResult(
                 content=observation,
                 observation_key="critic-evidence-search:" + stable_hash(inspection),
+            )
+        if call.name == CRITIC_SOURCE_RESULT_READ_TOOL:
+            if set(call.input) != {
+                "artifact_id", "relative_path", "line_start", "line_end"
+            }:
+                raise ClientToolInputError(
+                    "critic source-result read requires artifact_id, relative_path, "
+                    "line_start, and line_end"
+                )
+            artifact_id = str(call.input.get("artifact_id", "") or "")
+            manifest = source_result_manifests.get(artifact_id)
+            if manifest is None:
+                raise ClientToolInputError(
+                    "source-result artifact is outside the verified Critic lineage"
+                )
+            try:
+                observation = read_source_replication_result(
+                    manifest,
+                    relative_path=call.input["relative_path"],
+                    line_start=call.input["line_start"],
+                    line_end=call.input["line_end"],
+                )
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            inspection = {
+                "tool": call.name,
+                **{
+                    key: observation[key]
+                    for key in (
+                        "artifact_id", "relative_path", "artifact_sha256",
+                        "line_count", "line_start", "line_end", "content_sha256",
+                        "proof_evidence_status",
+                    )
+                },
+            }
+            source_result_accesses.append(inspection)
+            return ClientToolExecutionResult(
+                content=observation,
+                observation_key="critic-source-result-read:"
+                + stable_hash(inspection),
+            )
+        if call.name == CRITIC_SOURCE_RESULT_INSPECT_TOOL:
+            if set(call.input) != {"artifact_id", "relative_path"}:
+                raise ClientToolInputError(
+                    "critic source-result inspection requires artifact_id and "
+                    "relative_path"
+                )
+            artifact_id = str(call.input.get("artifact_id", "") or "")
+            manifest = source_result_manifests.get(artifact_id)
+            if manifest is None:
+                raise ClientToolInputError(
+                    "source-result artifact is outside the verified Critic lineage"
+                )
+            try:
+                observation, media_block = inspect_source_replication_result(
+                    manifest,
+                    relative_path=call.input["relative_path"],
+                )
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise ClientToolInputError(str(exc)) from exc
+            inspection = {"tool": call.name, **observation}
+            source_result_accesses.append(inspection)
+            return ClientToolExecutionResult(
+                content=observation,
+                model_content_blocks=(media_block,),
+                observation_key="critic-source-result-inspection:"
+                + stable_hash(inspection),
             )
         if call.name != CRITIC_EVALUATION_SUBMIT_TOOL:
             raise ClientToolInputError("unsupported CriticEvaluator tool")
@@ -330,7 +613,7 @@ def _run_critic_client_tool_review(
             history=list(loop.history),
         )
     transport = {
-        "transport": "native_same_reviewer_evidence_workspace_v3",
+        "transport": "native_same_reviewer_evidence_workspace_v4",
         "turns": loop.turns,
         "tool_calls": loop.tool_calls,
         "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -352,6 +635,13 @@ def _run_critic_client_tool_review(
             }
         ),
         "document_access_fingerprint": stable_hash(document_accesses),
+        "source_result_catalog_count": len(source_result_catalog),
+        "source_result_catalog_hash": stable_hash(source_result_catalog),
+        "source_result_access_count": len(source_result_accesses),
+        "source_result_accesses": deepcopy(source_result_accesses),
+        "source_result_access_fingerprint": stable_hash(
+            source_result_accesses
+        ),
         "full_packet_regeneration_used": False,
     }
     final_payload = {**dict(payload), "client_tool_loop": transport}
@@ -387,6 +677,7 @@ def build_critic_evaluator_prompt(
     environment_feedback: Mapping[str, Any] | None = None,
     client_tool_submission: bool = False,
     client_tool_evidence_documents_available: bool = False,
+    client_tool_source_results_available: bool = False,
 ) -> str:
     evidence_view = deepcopy(dict(canonical_evidence_view or {}))
     payload = {
@@ -415,6 +706,20 @@ def build_critic_evaluator_prompt(
             "Use the supplied read/search tools to inspect exact externalized evidence, then "
             f"call {CRITIC_EVALUATION_SUBMIT_TOOL} with the complete independent judgment. "
             "Only catalog path values are valid document tool paths; source filenames and json_path values are evidence references. Batch independent read/search calls when useful, do not reread unchanged ranges, and submit the terminal judgment alone in a later turn after inspecting the retained observations. The model owns the review sequence; prose alone cannot submit a judgment."
+            + (
+                " Exact declared source-result artifacts also have scoped read/inspect "
+                "tools; inspect outputs that are material to the report's claims."
+                if client_tool_source_results_available
+                else ""
+            )
+        )
+    elif client_tool_submission and client_tool_source_results_available:
+        submission_instruction = (
+            "Exact declared source-result artifacts are available through the supplied "
+            "read/inspect tools. Inspect outputs that are material to the report's claims, "
+            f"then call {CRITIC_EVALUATION_SUBMIT_TOOL} alone in a later turn with the "
+            "complete independent judgment. The model owns which outputs are relevant; "
+            "prose alone cannot submit a judgment."
         )
     elif client_tool_submission:
         submission_instruction = (
@@ -443,7 +748,10 @@ def build_critic_evaluator_prompt(
         "Critic session. "
         "For source_replication, audit the hash-loaded model-authored Markdown report "
         "against the immutable execution observation and every exact author-read source "
-        "range exposed in that dimension. A zero return code establishes execution only; "
+        "range exposed in that dimension. Result descriptors and CSV summaries identify "
+        "outputs but are not their content; when an available result is material to a report "
+        "claim, inspect its exact bytes through the scoped source-result tools. A zero return "
+        "code establishes execution only; "
         "it does not establish report fidelity, algorithm validity, expected output, or "
         "performance. Challenge internal contradictions, unsupported success claims, "
         "source/version/configuration discrepancies, and incomplete unresolved-gap "

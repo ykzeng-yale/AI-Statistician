@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `1d6727c0`](https://github.com/openai/codex/tree/1d6727c0b52316515bfbf5dea578374bafb4d898), Apache-2.0. The only delta after the prior pin restores Vim escape input in legacy terminals; it changes no reusable research-agent boundary. Codex still supplies no statistical or Lean control plane, so AI Statistician adopts no first-execution bypass or second runtime.
+Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `8f31b64c`](https://github.com/openai/codex/tree/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d), Apache-2.0. The five-commit delta after the prior pin adds incompatible-checkpoint review, macOS and Windows sandbox hardening, post-install configuration reload, and explicit MCP tool-discovery errors; it adds no statistical or Lean control plane. AI Statistician therefore adopts the checkpoint-integrity and capability-truth invariants without importing a first-execution bypass or second runtime.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -79,7 +79,7 @@ without duplicating the control plane.
 | external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; Python/R and Lean target/support manifests open first, exact files are read on demand, and accepted Lean projects persist as content-addressed references |
 | thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` with durable-state-bound checkpoint windows |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
-| detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic workspaces |
+| detached exact-input review | Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic with reviewer-selected reads of hash-bound replication results |
 | request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over configured workspaces, plus the sole typed `AgentRuntime`, exact artifact references, and preserved pending work before a frozen cross-owner continuation |
 | trusted continuation lineage | exact parent `ClientToolWorkspaceSessionRef`, checkpoint identity, and typed `AgentTask`/artifact references |
 | reviewer tool output as untrusted evidence | reviewer-owned same-language probes and falsification of scratch assumptions, source observations, and candidate semantics before a finding is submitted |
@@ -235,13 +235,14 @@ introduce task-family rules.
 ## Primary Sources
 
 - [OpenAI Codex repository](https://github.com/openai/codex)
-- [`run_turn`](https://github.com/openai/codex/blob/1d6727c0b52316515bfbf5dea578374bafb4d898/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/1d6727c0b52316515bfbf5dea578374bafb4d898/codex-rs/core/src/tools/router.rs) at the audited pin
-- [Detached review skill](https://github.com/openai/codex/blob/1d6727c0b52316515bfbf5dea578374bafb4d898/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/1d6727c0b52316515bfbf5dea578374bafb4d898/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
-- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/1d6727c0b52316515bfbf5dea578374bafb4d898/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
-- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/1d6727c0b52316515bfbf5dea578374bafb4d898/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
+- [`run_turn`](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/core/src/tools/router.rs) at the audited pin
+- [Detached review skill](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/skills/src/assets/samples/review-agent/SKILL.md) and [Guardian evidence treatment](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs)
+- [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
+- [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
 - [Complete host-verified answers retained or atomically omitted across compaction, resume, and rollback](https://github.com/openai/codex/commit/1d74c3ba1ee98be2025ab066dcc3fd654fe8a3b6)
+- [Incompatible checkpoint review](https://github.com/openai/codex/commit/ad8ee16a) and [explicit MCP tool-discovery failures](https://github.com/openai/codex/commit/8f31b64c)
 - [Experimental token-budget context management, limited to eligible Codex-backend sessions](https://github.com/openai/codex/commit/cff76fa9)
-- [App Server protocol](https://github.com/openai/codex/blob/1d6727c0b52316515bfbf5dea578374bafb4d898/codex-rs/app-server/README.md)
+- [App Server protocol](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/app-server/README.md)
 - [Codex as a platform: build on the open agent harness](https://developers.openai.com/blog/codex-as-a-platform)
 - [Unlocking the Codex harness](https://openai.com/index/unlocking-the-codex-harness/)
 - [Harness engineering](https://openai.com/index/harness-engineering/)

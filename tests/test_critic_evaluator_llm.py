@@ -12,6 +12,8 @@ from ai_statistician.critic_evaluator_llm import (
     CRITIC_EVALUATOR_JSON_SCHEMA,
     CRITIC_EVALUATOR_PROPOSAL_NOT_EVIDENCE,
     CRITIC_GAP_DISCLOSURE_COMPLETE,
+    CRITIC_SOURCE_RESULT_INSPECT_TOOL,
+    CRITIC_SOURCE_RESULT_READ_TOOL,
     CriticEvaluatorConfig,
     LLMCriticEvaluatorAgent,
     build_critic_canonical_evidence_view,
@@ -132,6 +134,92 @@ def _critic_submission() -> dict[str, object]:
     ):
         packet.pop(field)
     return packet
+
+
+def _source_result_critic_fixture(tmp_path):
+    question_id = "critic-source-result-inspection"
+    output_dir = tmp_path / "source-output"
+    workspace = output_dir / "source_workspace"
+    workspace.mkdir(parents=True)
+    csv_content = "method,error\nreference,0.125\n"
+    pdf_content = b"%PDF-1.4\n% exact critic figure\n%%EOF\n"
+    (workspace / "results.csv").write_text(csv_content, encoding="utf-8")
+    (workspace / "figure.pdf").write_bytes(pdf_content)
+    manifest_path = output_dir / "source_replication_manifest.json"
+    manifest_body = {
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:critic-results",
+        "question_id": question_id,
+        "runtime_generated": True,
+        "model_authored": False,
+        "runtime_edited_source": False,
+        "command_owned_by_model": False,
+        "execution_status": "EXECUTED",
+        "manifest_path": str(manifest_path),
+        "result_artifacts": [
+            {
+                "relative_path": "results.csv",
+                "sha256": hashlib.sha256(csv_content.encode()).hexdigest(),
+                "size_bytes": len(csv_content.encode()),
+                "content_encoding": "utf-8",
+                "text_line_count": 2,
+            },
+            {
+                "relative_path": "figure.pdf",
+                "sha256": hashlib.sha256(pdf_content).hexdigest(),
+                "size_bytes": len(pdf_content),
+                "content_encoding": "binary_not_embedded",
+            },
+        ],
+        "execution_streams": [],
+        "proof_evidence_status": (
+            "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    canonical_view = {
+        "artifact_kind": "CriticCanonicalEvidenceView",
+        "question_id": question_id,
+        "view_hash": "critic-source-result-view",
+        "dimension_requirements": {
+            "source_replication": "required",
+            "theory": "required",
+            "scientific_code": "required",
+            "empirical": "required",
+            "formal": "not_applicable",
+        },
+        "required_dimension_evidence_gaps": [],
+        "source_replication": {
+            "present": True,
+            "lineage_verified": True,
+            "source_execution": {
+                "present": True,
+                "lineage_verified": True,
+                "artifact_id": manifest["artifact_id"],
+                "manifest_hash": manifest["manifest_hash"],
+                "execution_status": manifest["execution_status"],
+            },
+        },
+    }
+    submission = _critic_submission()
+    source_assessment = next(
+        row
+        for row in submission["dimension_assessments"]
+        if row["dimension"] == "source_replication"
+    )
+    source_assessment.update(
+        {
+            "status": "SUPPORTED",
+            "evidence_refs": [manifest["artifact_id"]],
+            "rationale": "The exact selected result was inspected.",
+            "gaps": [],
+        }
+    )
+    return question_id, manifest, canonical_view, submission, csv_content
 
 
 def test_cross_workspace_scope_requires_two_exact_artifact_ids() -> None:
@@ -1568,6 +1656,229 @@ def test_critic_prompt_references_large_workspace_artifacts_without_copying_them
     assert '"raw_stderr":"exact current diagnostic"' in prompt
 
 
+def test_critic_inspects_exact_source_results_in_same_session(tmp_path) -> None:
+    question_id, manifest, canonical_view, submission, csv_content = (
+        _source_result_critic_fixture(tmp_path)
+    )
+
+    class SourceResultCriticBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                assert [tool.name for tool in request.tools] == [
+                    CRITIC_SOURCE_RESULT_READ_TOOL,
+                    CRITIC_SOURCE_RESULT_INSPECT_TOOL,
+                    CRITIC_EVALUATION_SUBMIT_TOOL,
+                ]
+                assert str(manifest["manifest_path"]) not in (
+                    request.messages[0]["content"]
+                )
+                calls = (
+                    ClientToolCall(
+                        call_id="read-exact-result",
+                        name=CRITIC_SOURCE_RESULT_READ_TOOL,
+                        input={
+                            "artifact_id": manifest["artifact_id"],
+                            "relative_path": "results.csv",
+                            "line_start": 1,
+                            "line_end": 2,
+                        },
+                    ),
+                    ClientToolCall(
+                        call_id="inspect-exact-figure",
+                        name=CRITIC_SOURCE_RESULT_INSPECT_TOOL,
+                        input={
+                            "artifact_id": manifest["artifact_id"],
+                            "relative_path": "figure.pdf",
+                        },
+                    ),
+                )
+            else:
+                assert csv_content.splitlines()[1] in str(request.messages)
+                assert "application/pdf" in str(request.messages)
+                calls = (
+                    ClientToolCall(
+                        call_id="submit-source-result-critic",
+                        name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                        input=deepcopy(submission),
+                    ),
+                )
+            return ClientToolTurnResponse(
+                content_blocks=tuple(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": dict(call.input),
+                    }
+                    for call in calls
+                ),
+                tool_calls=calls,
+                text="",
+                provider=self.provider_name,
+                model="claude-haiku-4-5-20251001",
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    provider = SourceResultCriticBackend()
+    packet = LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    ).propose(
+        question=OpenResearchQuestion(
+            id=question_id,
+            title="Inspect exact reproduction results",
+            description="Audit the report against its declared outputs.",
+        ),
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view=canonical_view,
+        source_replication_artifacts={manifest["artifact_id"]: manifest},
+    )
+
+    assert len(provider.requests) == 2
+    loop = packet["client_tool_loop"]
+    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v4"
+    assert loop["source_result_catalog_count"] == 1
+    assert loop["source_result_access_count"] == 2
+    assert [row["relative_path"] for row in loop["source_result_accesses"]] == [
+        "results.csv",
+        "figure.pdf",
+    ]
+    assert validate_critic_evaluator_packet(packet) == []
+
+
+def test_critic_receives_changed_source_result_error_without_access_credit(
+    tmp_path,
+) -> None:
+    question_id, manifest, canonical_view, submission, _ = (
+        _source_result_critic_fixture(tmp_path)
+    )
+    result_path = (
+        tmp_path / "source-output" / "source_workspace" / "results.csv"
+    )
+    result_path.write_text("method,error\ntampered,9.0\n", encoding="utf-8")
+    source_assessment = next(
+        row
+        for row in submission["dimension_assessments"]
+        if row["dimension"] == "source_replication"
+    )
+    source_assessment.update(
+        {
+            "status": "INCONCLUSIVE",
+            "rationale": "The declared output no longer matches its execution hash.",
+            "gaps": ["The exact source result is unavailable."],
+        }
+    )
+    submission["gap_disclosure"]["disclosed_gaps"].append(
+        "The exact source result is unavailable."
+    )
+    submission["research_disposition"]["blocking_dimensions"].insert(
+        0, "source_replication"
+    )
+
+    class ChangedSourceResultCriticBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            if len(self.requests) == 1:
+                calls = (
+                    ClientToolCall(
+                        call_id="read-changed-result",
+                        name=CRITIC_SOURCE_RESULT_READ_TOOL,
+                        input={
+                            "artifact_id": manifest["artifact_id"],
+                            "relative_path": "results.csv",
+                            "line_start": 1,
+                            "line_end": 2,
+                        },
+                    ),
+                    ClientToolCall(
+                        call_id="read-unbound-result",
+                        name=CRITIC_SOURCE_RESULT_READ_TOOL,
+                        input={
+                            "artifact_id": "source_replication:not-in-checkpoint",
+                            "relative_path": "results.csv",
+                            "line_start": 1,
+                            "line_end": 2,
+                        },
+                    ),
+                )
+            else:
+                assert "source result artifact changed after execution" in str(
+                    request.messages
+                )
+                assert "outside the verified Critic lineage" in str(
+                    request.messages
+                )
+                calls = (
+                    ClientToolCall(
+                        call_id="submit-after-result-error",
+                        name=CRITIC_EVALUATION_SUBMIT_TOOL,
+                        input=deepcopy(submission),
+                    ),
+                )
+            return ClientToolTurnResponse(
+                content_blocks=tuple(
+                    {
+                        "type": "tool_use",
+                        "id": call.call_id,
+                        "name": call.name,
+                        "input": dict(call.input),
+                    }
+                    for call in calls
+                ),
+                tool_calls=calls,
+                text="",
+                provider=self.provider_name,
+                model="claude-haiku-4-5-20251001",
+                metadata={"provider_stop_reason": "tool_use"},
+            )
+
+    provider = ChangedSourceResultCriticBackend()
+    packet = LLMCriticEvaluatorAgent(
+        provider=provider,
+        config=CriticEvaluatorConfig(
+            model="claude-haiku-4-5-20251001",
+            model_tier="haiku",
+            provider_name="anthropic",
+        ),
+    ).propose(
+        question=OpenResearchQuestion(
+            id=question_id,
+            title="Reject a changed reproduction result",
+            description="Keep the reviewer on the immutable output bytes.",
+        ),
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={},
+        formalization_manifest={},
+        canonical_evidence_view=canonical_view,
+        source_replication_artifacts={manifest["artifact_id"]: manifest},
+    )
+
+    assert len(provider.requests) == 2
+    assert packet["client_tool_loop"]["source_result_access_count"] == 0
+    assert validate_critic_evaluator_packet(packet) == []
+
+
 def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> None:
     report = (
         "The first section makes one unsupported global claim.\n"
@@ -1690,7 +2001,7 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
     assert provider.requests[0].metadata["reviewer_local_retry_budget"] is False
     assert packet["canonical_evidence_view_hash"] == "canonical-view-hash"
     loop = packet["client_tool_loop"]
-    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v3"
+    assert loop["transport"] == "native_same_reviewer_evidence_workspace_v4"
     assert loop["turns"] == 2
     assert loop["tool_calls"] == 3
     assert loop["document_access_count"] == 2
