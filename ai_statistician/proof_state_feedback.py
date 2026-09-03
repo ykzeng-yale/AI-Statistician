@@ -14,6 +14,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
 from .formal_source_index import resolve_active_project_formal_source_file
+from .lean_project import lean_project_tool_environment
 from .research_schema import FormalSubclaim
 from .packet_validation import PacketValidationError
 
@@ -349,6 +350,9 @@ class LocalLeanProofStateFeedbackProvider:
         self.project_root = Path(project_root).resolve() if project_root else None
         self.timeout_s = int(timeout_s)
         self.lean_command = tuple(lean_command) if lean_command is not None else self._default_lean_command()
+        self._project_tool_environments: dict[
+            Path, tuple[str, dict[str, str]]
+        ] = {}
 
     def inspect(
         self,
@@ -384,7 +388,10 @@ class LocalLeanProofStateFeedbackProvider:
             diagnostics.append("local Lean command unavailable; configure lake/lean before live proof-state diagnostics")
             requested_tools = ("lean_diagnostic_messages", "lean_goal")
         else:
-            result = self._run_local_lean(statement)
+            result = self._run_local_lean(
+                statement,
+                artifact_path=str(subclaim.artifact_path or ""),
+            )
             checked = True
             returncode = int(result["returncode"])
             executed_tools = ("local.lake_env_lean", "lean_diagnostic_messages")
@@ -462,35 +469,125 @@ class LocalLeanProofStateFeedbackProvider:
         lean = shutil.which("lean")
         return (lean,) if lean else ()
 
-    def _run_local_lean(self, statement: str) -> dict[str, Any]:
+    def _project_tool_environment(
+        self,
+        search_root: Path,
+    ) -> tuple[str, dict[str, str]]:
+        if self.project_root is None:
+            raise RuntimeError("Lean project environment has no project_root")
+        root = Path(search_root).expanduser().resolve()
+        cached = self._project_tool_environments.get(root)
+        if cached is None:
+            cached = lean_project_tool_environment(
+                active_project=self.project_root,
+                search_roots=(root,),
+                timeout_s=self.timeout_s,
+            )
+            self._project_tool_environments[root] = (
+                cached[0],
+                dict(cached[1]),
+            )
+        return cached[0], dict(cached[1])
+
+    def _run_local_lean(
+        self,
+        statement: str,
+        *,
+        artifact_path: str = "",
+    ) -> dict[str, Any]:
+        if artifact_path:
+            lean_file = Path(artifact_path).expanduser().resolve()
+            try:
+                materialized_source = lean_file.read_text(encoding="utf-8")
+            except OSError as exc:
+                return {
+                    "attempt_status": "local_lean_failed",
+                    "returncode": -1,
+                    "diagnostics": [
+                        "materialized Lean source unavailable: "
+                        f"{type(exc).__name__}: {exc}"
+                    ],
+                    "first_error": str(exc),
+                }
+            if materialized_source != statement:
+                return {
+                    "attempt_status": "local_lean_failed",
+                    "returncode": -1,
+                    "diagnostics": [
+                        "materialized Lean source does not match the inspected source"
+                    ],
+                    "first_error": "materialized Lean source identity mismatch",
+                }
+            return self._execute_local_lean_file(
+                lean_file,
+                search_root=(
+                    lean_file.parent
+                    if self.project_root is not None
+                    and self.project_root in lean_file.parents
+                    and lean_file.parent != self.project_root
+                    else None
+                ),
+            )
+
         with tempfile.TemporaryDirectory(prefix="ai_stat_proof_state_") as tmp:
             lean_file = Path(tmp) / "ProofStateFeedback.lean"
             lean_file.write_text(statement, encoding="utf-8")
-            command = (*self.lean_command, str(lean_file))
+            return self._execute_local_lean_file(lean_file)
+
+    def _execute_local_lean_file(
+        self,
+        lean_file: Path,
+        *,
+        search_root: Path | None = None,
+    ) -> dict[str, Any]:
+        command = (*self.lean_command, str(lean_file))
+        environment = None
+        if (
+            search_root is not None
+            and self.lean_command == ("lake", "env", "lean")
+        ):
             try:
-                proc = subprocess.run(
-                    command,
-                    cwd=str(self.project_root) if self.project_root is not None else None,
-                    text=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=self.timeout_s,
-                    check=False,
+                lean_binary, environment = self._project_tool_environment(
+                    search_root
                 )
-            except subprocess.TimeoutExpired as exc:
+            except RuntimeError as exc:
                 return {
                     "attempt_status": "local_lean_failed",
                     "returncode": -1,
-                    "diagnostics": [f"local Lean proof-state check timed out after {self.timeout_s}s: {exc}"],
-                    "first_error": "local Lean timeout",
-                }
-            except Exception as exc:
-                return {
-                    "attempt_status": "local_lean_failed",
-                    "returncode": -1,
-                    "diagnostics": [f"local Lean proof-state invocation failed: {type(exc).__name__}: {exc}"],
+                    "diagnostics": [str(exc)],
                     "first_error": str(exc),
                 }
+            command = (
+                lean_binary,
+                "-R",
+                str(search_root),
+                str(lean_file),
+            )
+        try:
+            proc = subprocess.run(
+                command,
+                cwd=str(self.project_root) if self.project_root is not None else None,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=self.timeout_s,
+                check=False,
+                env=environment,
+            )
+        except subprocess.TimeoutExpired as exc:
+            return {
+                "attempt_status": "local_lean_failed",
+                "returncode": -1,
+                "diagnostics": [f"local Lean proof-state check timed out after {self.timeout_s}s: {exc}"],
+                "first_error": "local Lean timeout",
+            }
+        except Exception as exc:
+            return {
+                "attempt_status": "local_lean_failed",
+                "returncode": -1,
+                "diagnostics": [f"local Lean proof-state invocation failed: {type(exc).__name__}: {exc}"],
+                "first_error": str(exc),
+            }
         combined = "\n".join(item for item in (proc.stdout, proc.stderr) if item).strip()
         diagnostics = _diagnostic_lines(combined)
         return {
@@ -820,34 +917,63 @@ class LeanLspMcpProofStateFeedbackProvider(LocalLeanProofStateFeedbackProvider):
                 ),
                 "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
             },)
+        path = Path(artifact_path).expanduser().resolve()
+        project_root = self.project_root.resolve()
+        if not path.is_file() or project_root not in path.parents:
+            return ({
+                "tool": requested_tool,
+                "status": "mcp_tool_call_skipped",
+                "artifact_path": str(path),
+                "project_root": str(project_root),
+                "error_excerpt": (
+                    "Lean LSP MCP skipped: artifact must be an existing file "
+                    "inside the active Lean project"
+                ),
+                "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,
+            },)
         try:
             collector = self._load_openprover_mcp_collector()
+            environment = None
+            if path.parent != project_root:
+                _, environment = self._project_tool_environment(path.parent)
             position = {"line": line, "column": column}
             with tempfile.TemporaryDirectory(
                 prefix="ai_stat_openprover_mcp_"
             ) as tmp:
                 transcript_path = Path(tmp) / "lean_lsp_mcp_transcript.json"
-                summary = collector(
-                    file_path=artifact_path,
-                    line=position["line"],
-                    column=position["column"],
-                    out=transcript_path,
-                    project=self.project_root,
-                    command=self.mcp_command,
-                    timeout_s=self.mcp_timeout_s,
-                    include_goal=True,
-                    include_diagnostics=True,
-                    state_search_num_results=5,
-                    restart_on_tool_error=True,
-                    benchmark="ai-statistician-proof-state-feedback",
-                    split="runtime",
-                )
+                collector_arguments = {
+                    "file_path": str(path),
+                    "line": position["line"],
+                    "column": position["column"],
+                    "out": transcript_path,
+                    "project": self.project_root,
+                    "command": self.mcp_command,
+                    "timeout_s": self.mcp_timeout_s,
+                    "include_goal": True,
+                    "include_diagnostics": True,
+                    "state_search_num_results": 5,
+                    "restart_on_tool_error": True,
+                    "benchmark": "ai-statistician-proof-state-feedback",
+                    "split": "runtime",
+                }
+                if environment is not None:
+                    collector_arguments["environment"] = environment
+                summary = dict(collector(**collector_arguments))
+                if environment is not None:
+                    summary.update(
+                        {
+                            "lean_path_search_root": str(path.parent),
+                            "lean_path_fingerprint": stable_hash(
+                                environment.get("LEAN_PATH", "")
+                            ),
+                        }
+                    )
                 transcript = json.loads(transcript_path.read_text(encoding="utf-8"))
             return tuple(
                 _openprover_mcp_event_trace(
                     event,
-                    artifact_path=artifact_path,
-                    project_root=self.project_root,
+                    artifact_path=str(path),
+                    project_root=project_root,
                     timeout_s=self.mcp_timeout_s,
                     collector_summary=summary,
                 )
@@ -964,6 +1090,12 @@ def _openprover_mcp_event_trace(
             ),
             "honesty_boundary": str(
                 collector_summary.get("honesty_boundary", "") or ""
+            ),
+            "lean_path_search_root": str(
+                collector_summary.get("lean_path_search_root", "") or ""
+            ),
+            "lean_path_fingerprint": str(
+                collector_summary.get("lean_path_fingerprint", "") or ""
             ),
         },
         "proof_evidence_status": PROOF_STATE_FEEDBACK_STATUS,

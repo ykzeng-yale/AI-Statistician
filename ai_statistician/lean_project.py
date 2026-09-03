@@ -405,6 +405,55 @@ def materialize_lean_project_workspace(
     return target_path, rows
 
 
+def lean_project_tool_environment(
+    *,
+    active_project: Path,
+    search_roots: Sequence[Path],
+    timeout_s: int,
+) -> tuple[str, dict[str, str]]:
+    """Resolve one active Lake toolchain with explicit additional module roots."""
+
+    project = Path(active_project).expanduser().resolve()
+    try:
+        lean = subprocess.run(
+            ["lake", "env", "which", "lean"],
+            cwd=str(project),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+        lean_path = subprocess.run(
+            ["lake", "env", "printenv", "LEAN_PATH"],
+            cwd=str(project),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"Lean project environment unavailable: {exc}") from exc
+    if lean.returncode != 0 or lean_path.returncode != 0:
+        detail = "\n".join(
+            value.strip()
+            for value in (lean.stdout, lean.stderr, lean_path.stdout, lean_path.stderr)
+            if value.strip()
+        )
+        raise RuntimeError("Lean project environment probe failed: " + detail)
+    lean_binary = lean.stdout.strip()
+    if not lean_binary:
+        raise RuntimeError("Lean project environment omitted the Lean executable")
+    roots = tuple(
+        dict.fromkeys(str(Path(root).expanduser().resolve()) for root in search_roots)
+    )
+    base_path = lean_path.stdout.strip()
+    environment = dict(os.environ)
+    environment["LEAN_PATH"] = os.pathsep.join(
+        [*roots, *([base_path] if base_path else [])]
+    )
+    return lean_binary, environment
+
+
 class LeanProjectExecutor:
     """Compile exact model-authored Lean project files in one pinned Lake environment."""
 
@@ -426,40 +475,10 @@ class LeanProjectExecutor:
         if self._tool_cache is not None:
             lean_binary, environment = self._tool_cache
             return lean_binary, dict(environment)
-        try:
-            lean = subprocess.run(
-                ["lake", "env", "which", "lean"],
-                cwd=str(self.active_project),
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_s,
-            )
-            lean_path = subprocess.run(
-                ["lake", "env", "printenv", "LEAN_PATH"],
-                cwd=str(self.active_project),
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_s,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise RuntimeError(f"Lean project environment unavailable: {exc}") from exc
-        if lean.returncode != 0 or lean_path.returncode != 0:
-            detail = "\n".join(
-                value.strip()
-                for value in (lean.stdout, lean.stderr, lean_path.stdout, lean_path.stderr)
-                if value.strip()
-            )
-            raise RuntimeError("Lean project environment probe failed: " + detail)
-        lean_binary = lean.stdout.strip()
-        if not lean_binary:
-            raise RuntimeError("Lean project environment omitted the Lean executable")
-        environment = dict(os.environ)
-        base_path = lean_path.stdout.strip()
-        environment["LEAN_PATH"] = (
-            str(self.workspace_root)
-            + (os.pathsep + base_path if base_path else "")
+        lean_binary, environment = lean_project_tool_environment(
+            active_project=self.active_project,
+            search_roots=(self.workspace_root,),
+            timeout_s=self.timeout_s,
         )
         self._tool_cache = (lean_binary, dict(environment))
         return lean_binary, environment

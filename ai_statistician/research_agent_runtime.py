@@ -18332,17 +18332,27 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             "parent_source_hash": stable_hash(parent_source),
         }
 
+    workspace_identity = stable_hash(
+        [task.task_id, materialization_id, candidate_id, expected_source_hash]
+    )[:12]
     workspace_root = (
         Path(lean_candidate_root)
         / _safe_identifier(question.id)
         / "client_tool_workspace"
-        / stable_hash(
-            [task.task_id, materialization_id, candidate_id, expected_source_hash]
-        )[:12]
+        / workspace_identity
     )
-    project_execution_root = workspace_root / "lean_project"
+    active_lean_project = Path(lean_candidate_lean_project).resolve()
+    project_execution_root = (
+        active_lean_project
+        / ".lake"
+        / "ai_statistician_formalizer_candidates"
+        / _safe_identifier(question.id)
+        / "client_tool_workspace"
+        / workspace_identity
+        / "lean_project"
+    )
     project_executor = LeanProjectExecutor(
-        active_project=Path(lean_candidate_lean_project),
+        active_project=active_lean_project,
         workspace_root=project_execution_root,
         timeout_s=lean_candidate_lean_timeout,
     )

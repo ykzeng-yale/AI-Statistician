@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -216,6 +217,127 @@ def test_lsp_provider_promotes_only_exact_lean_goal_observations(
     assert goal_trace["goal_observations"] == [exact_goal]
     assert goal_trace["goal_observations_hash"] == stable_hash([exact_goal])
     assert goal_trace["position_source"] == "model_selected"
+
+
+def test_lsp_provider_binds_nested_candidate_project_to_active_environment(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "LeanProject"
+    project.mkdir()
+    (project / "lean-toolchain").write_text("leanprover/lean4:test\n")
+    workspace = project / ".lake" / "candidate" / "lean_project"
+    workspace.mkdir(parents=True)
+    artifact = workspace / "Main.lean"
+    source = (
+        "import AIStatWorkspace.Support\n\n"
+        "theorem target : True := by\n"
+        "  exact missing_name\n"
+    )
+    artifact.write_text(source, encoding="utf-8")
+    environment = {
+        "PATH": "/test/bin",
+        "LEAN_PATH": str(workspace) + os.pathsep + "/active/lean/path",
+    }
+    environment_requests = []
+    local_runs = []
+    collector_calls = []
+    exact_goal = "⊢ True"
+
+    def project_environment(**kwargs):
+        environment_requests.append(dict(kwargs))
+        return "/test/bin/lean", dict(environment)
+
+    def local_run(command, **kwargs):
+        local_runs.append((list(command), dict(kwargs)))
+        return SimpleNamespace(
+            returncode=1,
+            stdout="",
+            stderr="Main.lean:4:9: error: Unknown identifier `missing_name`",
+        )
+
+    def collect_transcript(**kwargs):
+        collector_calls.append(dict(kwargs))
+        Path(kwargs["out"]).write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "tool_name": "lean_goal",
+                            "arguments": {"line": 4, "column": 3},
+                            "ok": True,
+                            "result": {
+                                "text": exact_goal,
+                                "structuredContent": {"goals": [exact_goal]},
+                            },
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "trace_collection_mode": "live",
+            "mcp_client_restarts": 0,
+            "honesty_boundary": "route_evidence_only_not_kernel_verified",
+        }
+
+    monkeypatch.setattr(
+        proof_state_module,
+        "lean_project_tool_environment",
+        project_environment,
+    )
+    monkeypatch.setattr(proof_state_module.subprocess, "run", local_run)
+    provider = LeanLspMcpProofStateFeedbackProvider(
+        project_root=project,
+        lean_command=("lake", "env", "lean"),
+        mcp_transcript_collector=collect_transcript,
+    )
+
+    row = provider.inspect(
+        [
+            FormalSubclaim(
+                id="target",
+                title="Multi-file goal inspection",
+                status="FAILED",
+                claim="Inspect the exact multi-file target.",
+                lean_statement=source,
+                artifact_path=str(artifact),
+            )
+        ],
+        line=4,
+        column=3,
+    )[0]
+
+    assert environment_requests == [
+        {
+            "active_project": project.resolve(),
+            "search_roots": (workspace.resolve(),),
+            "timeout_s": provider.timeout_s,
+        }
+    ]
+    assert local_runs[0][0] == [
+        "/test/bin/lean",
+        "-R",
+        str(workspace.resolve()),
+        str(artifact.resolve()),
+    ]
+    assert local_runs[0][1]["env"] == environment
+    assert collector_calls[0]["environment"] == environment
+    assert collector_calls[0]["file_path"] == str(artifact.resolve())
+    assert row.residual_goals == (exact_goal,)
+    goal_trace = next(
+        trace
+        for trace in row.tool_call_trace
+        if trace.get("tool") == "lean_lsp_mcp.lean_goal"
+    )
+    assert goal_trace["openprover_adapter"]["lean_path_search_root"] == str(
+        workspace.resolve()
+    )
+    assert goal_trace["openprover_adapter"]["lean_path_fingerprint"] == stable_hash(
+        environment["LEAN_PATH"]
+    )
+    assert row.proof_evidence_status.endswith("NOT_PROOF_EVIDENCE")
 
 
 def test_indexed_dependency_source_is_inspectable_without_lsp(tmp_path) -> None:
