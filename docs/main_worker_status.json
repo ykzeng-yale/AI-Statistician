@@ -1,5 +1,5 @@
 {
-  "schema_version": 432,
+  "schema_version": 433,
   "updated_at": "2026-09-04",
   "goal_status": "active",
   "role": "sole main responsible worker",
@@ -15,12 +15,12 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "3f625ce1ac1633e9c59810be091772195f6c8e13",
+  "validated_code_head": "15bb9db06d2b61da492c9edb290aeea837900cfa",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "762fea6d5cedcde5630d33b3bbf4dc150e89acbb",
+    "remote_before_current_change": "e5772bfa6b812cd96f52d976ab18a7d15e0fbaa5",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -117,23 +117,23 @@
     "agent_runtime_lines": 1365,
     "formalizer_llm_lines": 1875,
     "lean_candidate_revision_tool_loop_lines": 2933,
-    "cli_lines": 7062,
+    "cli_lines": 7053,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149231,
+    "top_level_package_lines": 149300,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "3f625ce1ac1633e9c59810be091772195f6c8e13",
-    "summary": "Source-replication artifact identity now binds stderr, declared result path/hash pairs, the post-run workspace hash, mutation state, errors, and undeclared workspace or output-root artifacts. HOME and TMPDIR use isolated runtime subdirectories, while Critic and post-runtime gold independently require a clean execution before successful-evidence promotion.",
-    "verification": "1265/1265 repository tests passed in 303.21 seconds; focused source/Critic/gold tests passed 114/114 and Theory/AgentRuntime integration passed 148/148. A real macOS sandbox probe correctly failed a zero-return source that wrote an undeclared output-root artifact while retaining its declared result for diagnosis. Compileall, 328 tracked JSON files, diff hygiene, architecture budgets, exact-Haiku/Opus policy, and changed-file credential scan passed.",
-    "capability_effect": "Shared execution identity and evidence-promotion correction only. No model or hidden-evaluator call, consumed-task action, proof promotion, score change, or capability credit occurred."
+    "code_commit": "15bb9db06d2b61da492c9edb290aeea837900cfa",
+    "summary": "Credential loading no longer searches Downloads for chat-shared key files; provider secrets must come from the process, an explicit path, AI_STATISTICIAN_ENV_FILE, or the local .env. Stat-Lean is now an exact-identity, retrieval-only corpus in the existing generic formal-source index and topology, with no new adapter, scheduler, import fallback, or proof authority.",
+    "verification": "1267/1267 repository tests passed in 329.28 seconds and the focused source, topology, inventory, and credential tests passed 66/66. Compileall, 328 tracked JSON files, diff hygiene, architecture budgets, and changed-file credential scan passed. The clean v2 external retrieval trial reached 29/29 recall@10 and 27/29 source-scoped context; all four new Stat-Lean obligations passed both views. Overall all_ok remains false because the pre-existing LML UCB and SciLean Gaussian scoped-context cases still miss. The source snapshot is commit 855b6afb69fead1bef066111732ed44df181040e, tree b1107070b80e451b0b57526765dda9cbe05755c9, clean, with 8,636 indexed declarations.",
+    "capability_effect": "Shared credential safety and source-discovery improvement only. Task114 made zero product or evaluator calls, and no consumed task, Lean elaboration, kernel proof, score, or end-to-end capability credit changed. Stat-Lean remains non-importable until a selected declaration is ported and re-elaborated in the active project."
   },
   "next_gates": [
     "Preserve Task114 as the next numbered draw. After secure exact-Haiku provider availability, independently qualify and hash-bind its semantic activation record before the sole product call; require its frozen Theory, Python, and confirmatory Simulation dimensions without adding a formal lane.",
     "After Task114, complete the separate unnumbered beta-regression gasoline-precision candidate as a pinned R paper/code/data reproduction evaluation. Do not relabel it Task115 or let source execution validate prose automatically.",
     "Then freeze an unrelated formal task and measure the current support-aware, proof-state-driven Lean workspace. Exact identity-bound, axiom-clean active-project kernel closure, not RAG volume or support compilation, is the success criterion.",
-    "Admit Stat-Lean only as a source-identified discovery candidate after representative retrieval evaluation; its Lean 4.29.1 declarations are not importable proof authority in the active Lean 4.30.0 project without re-elaboration.",
+    "Use the admitted Stat-Lean discovery corpus only through model-selected semantic or proof-state search. Port any selected declaration into the active Lean 4.30.0 import closure and re-elaborate it before treating it as a premise; retrieval alone is never proof evidence.",
     "Reduce or move non-authoritative legacy baseline and audit code only when doing so shrinks the installed product surface without deleting reproducibility evidence or creating a compatibility layer."
   ],
   "history_boundary": {
