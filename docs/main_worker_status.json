@@ -1,5 +1,5 @@
 {
-  "schema_version": 429,
+  "schema_version": 430,
   "updated_at": "2026-09-03",
   "goal_status": "active",
   "role": "sole main responsible worker",
@@ -14,12 +14,12 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "5b50bf1bad750e75091bd87210ff0ad83b84cfb7",
+  "validated_code_head": "0c40aec7171b6d949b56ddccdbdaba439b1a2930",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "329be290605751a6da69998974f31a7b8f72db45",
+    "remote_before_current_change": "6bf4a3419e5ac19fe2c14f1dde00fa773a8808ea",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -92,7 +92,7 @@
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
-      "Theory uses persistent Markdown/LaTeX and model-selected source, scratch, edit, checkpoint, and gap actions.",
+      "Theory uses persistent Markdown/LaTeX and model-selected source, scratch, edit, checkpoint, and gap actions; fresh JSON handoffs carry only claim/path references and executable ABI, never duplicated mathematics.",
       "Scientific code and Lean use direct environment feedback in the same source-owner session.",
       "Independent reviewers inspect immutable artifacts and report findings without editing source; post-runtime gold accepts their aggregate status only when its row hash and runtime evidence graph hash match the exact current result.",
       "A complete research loop requires both its task-intent-selected evidence and an outer AgentRuntime terminal status of ACCEPTED; hidden-gold derives that conjunction independently instead of trusting the summary boolean, while component evidence remains visible for incomplete graphs.",
@@ -114,19 +114,19 @@
     "scientific_code_workspace_lines": 3537,
     "client_tool_loop_lines": 1221,
     "agent_runtime_lines": 1365,
-    "formalizer_llm_lines": 1846,
+    "formalizer_llm_lines": 1875,
     "lean_candidate_revision_tool_loop_lines": 2933,
     "cli_lines": 7062,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 148884,
+    "top_level_package_lines": 149143,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "5b50bf1bad750e75091bd87210ff0ad83b84cfb7",
-    "summary": "Post-runtime hidden-gold now derives completed research status from the conjunction of the hash-bound summary claim and the exact outer AgentRuntime terminal status. Rehashing a contradictory completion row cannot make a BLOCKED full task pass; hidden scientific checks and exact Lean kernel evidence remain independently credited at their component dimensions.",
-    "verification": "1259/1259 repository tests passed in 300.48 seconds; the focused research-summary, gold, and formal-authority panel passed 89/89; compileall, 328 tracked JSON files, diff hygiene, architecture budgets, model policy, and changed-file credential scan passed. OpenAI Codex was re-audited through d979df15; its only new change is isolated voice-host GStreamer initialization and requires no AI-Statistician harness import.",
-    "capability_effect": "Shared hidden-evaluation authority correction only. No model or hidden-evaluator call, consumed-task action, proof promotion, score change, or capability credit occurred."
+    "code_commit": "0c40aec7171b6d949b56ddccdbdaba439b1a2930",
+    "summary": "Fresh document-authoritative Theory workspaces now keep formulas, assumptions, theorem statements, proof arguments, simulation designs, and semantic constraints only in hash-bound Markdown/LaTeX. Their structured handoff contains claim/path references plus executable estimator ABI, rejects duplicated semantic fields, and binds the Formalizer target fingerprint and authority order to the exact Theory document-set hash.",
+    "verification": "1262/1262 repository tests passed in 301.98 seconds; the focused Theory, runtime-adapter, and Formalizer identity panel passed 86/86; compileall, tracked JSON files, diff hygiene, architecture budgets, model policy, and changed-file credential scan passed. OpenAI Codex was re-audited through 03467026; its injected storage-neutral attachment store reinforces content-by-reference but requires no AI-Statistician runtime import.",
+    "capability_effect": "Shared state-authority and cross-workspace identity correction only. No model or hidden-evaluator call, consumed-task action, proof promotion, score change, or capability credit occurred."
   },
   "next_gates": [
     "Use a newly frozen, disjoint known-result task with independent hidden authority to measure long-horizon Theory revision and referee falsification. Do not alter the harness after observing a model-only mathematical miss unless a shared mechanism defect is demonstrated.",

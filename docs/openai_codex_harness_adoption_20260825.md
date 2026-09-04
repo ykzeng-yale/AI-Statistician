@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `d979df15`](https://github.com/openai/codex/tree/d979df154cf60e13eafb5453e75b6d84f21c67bf), Apache-2.0. The sole delta after the prior pin initializes a packaged GStreamer runtime inside Codex's isolated voice host; it does not change retained source ownership, tool routing, scientific collaboration, or review lifecycle. AI Statistician therefore imports no media runtime or new harness layer from this delta.
+Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `03467026`](https://github.com/openai/codex/tree/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0), Apache-2.0. The sole delta after the prior pin injects a storage-neutral attachment store into `ThreadManager`, preserves inline storage as the default, and redacts attachment URLs in debug output. This reinforces storing content once and passing durable references, but changes no retained source ownership, tool routing, scientific collaboration, or review lifecycle; AI Statistician therefore imports no Codex runtime or new harness layer.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -234,8 +234,8 @@ introduce task-family rules.
 
 ## Primary Sources
 
-- [OpenAI Codex repository at the audited pin](https://github.com/openai/codex/tree/280ae8b9fcd35a54704dc2c78027b89bd51369fd)
-- [`run_turn`](https://github.com/openai/codex/blob/280ae8b9fcd35a54704dc2c78027b89bd51369fd/codex-rs/core/src/session/turn.rs) and [`ToolRouter`](https://github.com/openai/codex/blob/280ae8b9fcd35a54704dc2c78027b89bd51369fd/codex-rs/core/src/tools/router.rs) at the audited pin
+- [OpenAI Codex repository at the audited pin](https://github.com/openai/codex/tree/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0)
+- [`run_turn`](https://github.com/openai/codex/blob/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0/codex-rs/core/src/session/turn.rs), [`ToolRouter`](https://github.com/openai/codex/blob/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0/codex-rs/core/src/tools/router.rs), and the [injectable attachment store](https://github.com/openai/codex/commit/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0) at the audited pin
 - [Review skill](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/skills/src/assets/samples/review-agent/SKILL.md), [Guardian evidence treatment](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs), and [detached-review deprecation](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/app-server/README.md#reviewstart)
 - [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)
 - [Multi-Agent V2 queued-message versus follow-up semantics](https://github.com/openai/codex/blob/8f31b64c7f9ef67d8f966bff5ddf9e08eafe0b4d/codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs)
