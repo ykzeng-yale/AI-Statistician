@@ -61,6 +61,19 @@ SOURCE_EXECUTION_CONTROLLED_ENVIRONMENT_KEYS = frozenset("""HOME LANG LC_ALL PAT
     PYTHONHASHSEED PYTHONDONTWRITEBYTECODE PYTHONNOUSERSITE R_ENVIRON_USER
     R_HISTFILE R_PROFILE_USER TMPDIR TZ OMP_NUM_THREADS OPENBLAS_NUM_THREADS
     MKL_NUM_THREADS NUMEXPR_NUM_THREADS PYTHONPATH""".split())
+SOURCE_ARTIFACT_IDENTITY_SCHEMA_VERSION = 2
+SOURCE_EXECUTION_RUNTIME_HOME_DIRECTORY = ".runtime_home"
+SOURCE_EXECUTION_RUNTIME_TMP_DIRECTORY = ".runtime_tmp"
+SOURCE_EXECUTION_RUNTIME_OWNED_ROOT_ENTRIES = frozenset({
+    SOURCE_EXECUTION_RUNTIME_HOME_DIRECTORY,
+    SOURCE_EXECUTION_RUNTIME_TMP_DIRECTORY,
+    "environment_probe.py",
+    "environment_probe.stdout",
+    "environment_probe.stderr",
+    "source.stdout",
+    "source.stderr",
+    "source_workspace",
+})
 PinnedProcessExecutor = Callable[..., Mapping[str, Any]]
 
 
@@ -1481,7 +1494,8 @@ def source_replication_model_observation(
 ) -> dict[str, Any]:
     """Project bounded text while retaining exact stream hashes and source bytes."""
 
-    identity_fields = """schema_version artifact_kind artifact_id question_id
+    identity_fields = """schema_version artifact_kind artifact_id
+        artifact_identity_schema_version question_id
         benchmark_id execution_id execution_spec_sha256 source_snapshot_id
         source_snapshot_hash source_manifest_sha256 source_commit
         entrypoint_document_id executed_entrypoint_sha256
@@ -1501,7 +1515,8 @@ def source_replication_model_observation(
         execution_workspace_mode
         declared_result_artifact_paths source_workspace_hash_before
         source_workspace_hash_after staged_source_inputs_mutated
-        unexpected_workspace_artifacts source_mutated runtime_edited_source
+        unexpected_workspace_artifacts unexpected_execution_artifacts
+        source_mutated runtime_edited_source
         command_owned_by_model network_access secret_environment_inherited
         execution_status runtime_generated model_authored proof_evidence_status
         kernel_verified boundary manifest_hash""".split()
@@ -1567,6 +1582,32 @@ def source_replication_model_observation(
     observation["model_observation_compacted"] = True
     observation["full_result_bytes_embedded"] = False
     return observation
+
+
+def source_replication_execution_integrity_ok(
+    manifest: Mapping[str, Any],
+) -> bool:
+    """Return whether one runtime execution can count as successful evidence."""
+
+    empty_list_fields = (
+        "errors",
+        "unexpected_workspace_artifacts",
+        "unexpected_execution_artifacts",
+    )
+    return bool(
+        manifest.get("execution_status") == "EXECUTED"
+        and manifest.get("execution_attempted") is True
+        and type(manifest.get("returncode")) is int
+        and manifest.get("returncode") == 0
+        and manifest.get("source_mutated") is False
+        and manifest.get("runtime_edited_source") is False
+        and manifest.get("staged_source_inputs_mutated", False) is False
+        and all(
+            isinstance(manifest.get(field, []), list)
+            and not manifest.get(field, [])
+            for field in empty_list_fields
+        )
+    )
 
 
 def read_source_replication_result(
@@ -1844,6 +1885,16 @@ def _capture_staged_result_artifacts(
     )
 
 
+def _unexpected_source_execution_artifacts(output_dir: Path) -> list[str]:
+    """List child-created output-root entries outside runtime-owned locations."""
+
+    return sorted(
+        path.name
+        for path in output_dir.iterdir()
+        if path.name not in SOURCE_EXECUTION_RUNTIME_OWNED_ROOT_ENTRIES
+    )
+
+
 def execute_research_source(
     *,
     execution: ResearchSourceExecutionSpec,
@@ -2055,6 +2106,7 @@ def execute_research_source(
 
     result_artifacts: list[dict[str, Any]] = []
     unexpected_workspace_artifacts: list[str] = []
+    unexpected_execution_artifacts: list[str] = []
     staged_source_inputs_mutated = False
     source_workspace_hash_after = ""
     if staged_workspace_created:
@@ -2071,6 +2123,13 @@ def execute_research_source(
             max_output_bytes=execution.max_output_bytes,
         )
         errors.extend(result_errors)
+    unexpected_execution_artifacts = _unexpected_source_execution_artifacts(
+        resolved_output
+    )
+    errors.extend(
+        "source execution created undeclared output-root artifact: " + path
+        for path in unexpected_execution_artifacts
+    )
 
     post_identity_errors = research_sources.identity_errors()
     source_mutated = bool(pre_identity_errors or post_identity_errors)
@@ -2109,26 +2168,43 @@ def execute_research_source(
     probe_stderr_sha256 = hashlib.sha256(
         full_probe_stderr.encode("utf-8")
     ).hexdigest()
-    artifact_identity = [
-        question_id,
-        execution.execution_id,
-        research_sources.snapshot_hash,
-        entrypoint.sha256,
-        stdout_sha256,
-        probe_stdout_sha256,
-        probe_stderr_sha256,
-        [artifact.get("sha256", "") for artifact in result_artifacts],
-        probe_result.get("returncode"),
-        source_result.get("returncode"),
-    ]
+    artifact_identity = {
+        "schema_version": SOURCE_ARTIFACT_IDENTITY_SCHEMA_VERSION,
+        "question_id": question_id,
+        "execution_id": execution.execution_id,
+        "execution_spec_sha256": execution.manifest_sha256,
+        "command_request_hash": command_request_hash,
+        "source_snapshot_hash": research_sources.snapshot_hash,
+        "entrypoint_sha256": entrypoint.sha256,
+        "stdout_sha256": stdout_sha256,
+        "stderr_sha256": stderr_sha256,
+        "probe_stdout_sha256": probe_stdout_sha256,
+        "probe_stderr_sha256": probe_stderr_sha256,
+        "result_artifacts": [
+            {
+                "relative_path": artifact.get("relative_path", ""),
+                "sha256": artifact.get("sha256", ""),
+            }
+            for artifact in result_artifacts
+        ],
+        "source_workspace_hash_after": source_workspace_hash_after,
+        "staged_source_inputs_mutated": staged_source_inputs_mutated,
+        "unexpected_workspace_artifacts": unexpected_workspace_artifacts,
+        "unexpected_execution_artifacts": unexpected_execution_artifacts,
+        "source_mutated": source_mutated,
+        "errors": errors,
+        "probe_returncode": probe_result.get("returncode"),
+        "source_returncode": source_result.get("returncode"),
+    }
     if command_owned_by_model:
-        artifact_identity.extend([command_request_hash, normalized_attempt_id])
+        artifact_identity["execution_attempt_id"] = normalized_attempt_id
     artifact_id = "source_replication:" + stable_hash(artifact_identity)[:20]
     manifest_path = resolved_output / "source_replication_manifest.json"
     runtime_version_key = "python_version" if execution.schema_version < 3 else "runtime_version"
     runtime_version = str(probe_payload.get(runtime_version_key, "") or "")
     manifest: dict[str, Any] = {
         "schema_version": execution.schema_version, "artifact_kind": "SourceReplicationManifest",
+        "artifact_identity_schema_version": SOURCE_ARTIFACT_IDENTITY_SCHEMA_VERSION,
         "artifact_id": artifact_id, "question_id": str(question_id),
         "benchmark_id": execution.benchmark_id, "execution_id": execution.execution_id,
         "execution_spec_sha256": execution.manifest_sha256, "source_snapshot_id": research_sources.snapshot_id,
@@ -2169,6 +2245,7 @@ def execute_research_source(
         "result_artifacts": result_artifacts,
         "source_workspace_hash_before": source_workspace_hash_before, "source_workspace_hash_after": source_workspace_hash_after,
         "staged_source_inputs_mutated": staged_source_inputs_mutated, "unexpected_workspace_artifacts": unexpected_workspace_artifacts,
+        "unexpected_execution_artifacts": unexpected_execution_artifacts,
         "source_mutated": source_mutated, "runtime_edited_source": False,
         "command_owned_by_model": command_owned_by_model, "network_access": False,
         "secret_environment_inherited": False, "execution_status": "EXECUTED" if not errors else "FAILED",
@@ -2269,8 +2346,12 @@ def _execute_pinned_process(
         str(exact_executable),
         *command[1:],
     ]
+    runtime_home = output_dir / SOURCE_EXECUTION_RUNTIME_HOME_DIRECTORY
+    runtime_tmp = output_dir / SOURCE_EXECUTION_RUNTIME_TMP_DIRECTORY
+    runtime_home.mkdir(exist_ok=True)
+    runtime_tmp.mkdir(exist_ok=True)
     environment = {
-        "HOME": str(output_dir),
+        "HOME": str(runtime_home),
         "LANG": "C",
         "LC_ALL": "C",
         "PATH": os.pathsep.join(dict.fromkeys([
@@ -2283,7 +2364,7 @@ def _execute_pinned_process(
         "R_ENVIRON_USER": "/dev/null",
         "R_HISTFILE": "/dev/null",
         "R_PROFILE_USER": "/dev/null",
-        "TMPDIR": str(output_dir),
+        "TMPDIR": str(runtime_tmp),
         "TZ": "UTC",
         "OMP_NUM_THREADS": "1",
         "OPENBLAS_NUM_THREADS": "1",

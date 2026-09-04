@@ -18,6 +18,7 @@ from ai_statistician.critic_evaluator_llm import (
     LLMCriticEvaluatorAgent,
     build_critic_canonical_evidence_view,
     build_critic_evaluator_prompt,
+    critic_required_dimension_evidence_gaps,
     source_replication_evidence_view,
     validate_critic_evaluator_packet,
 )
@@ -1124,7 +1125,9 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
         "model_authored": False,
         "command_owned_by_model": False,
         "runtime_edited_source": False,
+        "artifact_identity_schema_version": 2,
         "execution_status": "EXECUTED",
+        "execution_attempted": True,
         "returncode": 0,
         "source_snapshot_id": research_sources.snapshot_id,
         "source_snapshot_hash": research_sources.snapshot_hash,
@@ -1141,6 +1144,7 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
         "source_mutated": False,
         "staged_source_inputs_mutated": False,
         "unexpected_workspace_artifacts": [],
+        "unexpected_execution_artifacts": [],
         "proof_evidence_status": (
             "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
         ),
@@ -1262,6 +1266,8 @@ def test_source_replication_critic_loads_report_execution_and_author_reads(
         "formal": "not_applicable",
     }
     assert source_view["lineage_verified"] is True
+    assert source_view["source_execution"]["artifact_identity_schema_version"] == 2
+    assert source_view["source_execution"]["unexpected_execution_artifacts"] == []
     assert source_view["report_document"]["content"] == report_content
     assert source_view["source_execution"]["raw_stdout"] == "metric=0.75\n"
     assert "source_run" not in source_view["source_execution"]
@@ -1598,6 +1604,35 @@ def test_required_source_replication_blocks_unsupported_critic_acceptance() -> N
 
     packet["dimension_assessments"][0]["status"] = "SUPPORTED"
     assert validate_critic_evaluator_packet(packet) == []
+
+
+def test_required_source_replication_reports_unclean_execution() -> None:
+    gaps = critic_required_dimension_evidence_gaps(
+        {
+            "dimension_requirements": {"source_replication": "required"},
+            "source_replication": {
+                "present": True,
+                "lineage_verified": True,
+                "report_document": {"content_loaded": True},
+                "source_execution": {
+                    "present": True,
+                    "execution_status": "FAILED",
+                    "execution_attempted": True,
+                    "returncode": 0,
+                    "errors": [
+                        "source execution created undeclared output-root artifact"
+                    ],
+                    "source_mutated": False,
+                    "runtime_edited_source": False,
+                    "staged_source_inputs_mutated": False,
+                    "unexpected_workspace_artifacts": [],
+                    "unexpected_execution_artifacts": ["escaped-output.txt"],
+                },
+            },
+        }
+    )
+
+    assert gaps == ["source_replication.execution_not_clean"]
 
 
 def test_critic_prompt_references_large_workspace_artifacts_without_copying_them() -> None:

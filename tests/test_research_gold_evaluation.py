@@ -594,6 +594,7 @@ def _runtime_result_with_source_replication(
     body = {
         "schema_version": 1,
         "artifact_kind": "SourceReplicationManifest",
+        "artifact_identity_schema_version": 2,
         "artifact_id": "source_replication:test",
         "question_id": QUESTION_ID,
         "benchmark_id": "published-source-test",
@@ -605,6 +606,9 @@ def _runtime_result_with_source_replication(
         "raw_stderr": "",
         "stdout_sha256": hashlib.sha256(b"published output\n").hexdigest(),
         "source_mutated": False,
+        "staged_source_inputs_mutated": False,
+        "unexpected_workspace_artifacts": [],
+        "unexpected_execution_artifacts": [],
         "runtime_edited_source": False,
         "command_owned_by_model": False,
         "runtime_generated": True,
@@ -984,6 +988,8 @@ def test_source_replication_component_is_scored_post_runtime_without_algorithm(
         assert candidate["artifact_kind"] == "SourceReplicationManifest"
         assert candidate["raw_stdout"] == "published output\n"
         assert candidate["command_owned_by_model"] is False
+        assert candidate["artifact_identity_schema_version"] == 2
+        assert candidate["unexpected_execution_artifacts"] == []
         return {
             "execution_attempted": True,
             "returncode": 0,
@@ -1031,6 +1037,40 @@ def test_source_replication_component_is_scored_post_runtime_without_algorithm(
     }
     assert task["task_passed"] is True
     assert task["failure_reasons"] == []
+
+
+def test_gold_evaluator_rejects_unclean_source_execution_before_hidden_harness() -> None:
+    body = {
+        "artifact_kind": "SourceReplicationManifest",
+        "artifact_id": "source_replication:unclean",
+        "question_id": QUESTION_ID,
+        "execution_status": "FAILED",
+        "execution_attempted": True,
+        "returncode": 0,
+        "errors": [
+            "source execution created undeclared output-root artifact: escaped.txt"
+        ],
+        "source_mutated": False,
+        "runtime_edited_source": False,
+        "staged_source_inputs_mutated": False,
+        "unexpected_workspace_artifacts": [],
+        "unexpected_execution_artifacts": ["escaped.txt"],
+        "command_owned_by_model": False,
+        "runtime_generated": True,
+        "model_authored": False,
+    }
+    manifest = {**body, "manifest_hash": stable_hash(body)}
+
+    artifact_id, artifact, errors = (
+        gold_evaluation_module._latest_source_replication_manifest(
+            {manifest["artifact_id"]: manifest},
+            question_id=QUESTION_ID,
+        )
+    )
+
+    assert artifact_id == ""
+    assert artifact == {}
+    assert errors == ["source replication execution is not clean"]
 
 
 def test_strict_source_replication_gold_rejects_model_selected_command(

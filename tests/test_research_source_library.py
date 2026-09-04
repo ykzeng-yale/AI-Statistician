@@ -492,6 +492,8 @@ def test_staged_source_execution_captures_declared_result_without_mutating_sourc
     assert manifest["source_mutated"] is False
     assert manifest["staged_source_inputs_mutated"] is False
     assert manifest["unexpected_workspace_artifacts"] == []
+    assert manifest["unexpected_execution_artifacts"] == []
+    assert manifest["artifact_identity_schema_version"] == 2
     assert manifest["result_artifacts"] == [
         {
             "relative_path": "results.csv",
@@ -534,6 +536,8 @@ def test_staged_source_execution_captures_declared_result_without_mutating_sourc
     observation = source_replication_model_observation(manifest)
     assert observation["model_observation_compacted"] is True
     assert observation["full_result_bytes_embedded"] is False
+    assert observation["artifact_identity_schema_version"] == 2
+    assert observation["unexpected_execution_artifacts"] == []
     assert "raw_text" not in observation["result_artifacts"][0]
     assert observation["result_artifacts"][0]["csv_summary"]["data_rows"] == 1
 
@@ -717,6 +721,67 @@ def test_staged_source_execution_rejects_undeclared_workspace_output(tmp_path) -
     assert manifest["execution_status"] == "FAILED"
     assert manifest["unexpected_workspace_artifacts"] == ["undeclared.txt"]
     assert any("undeclared workspace artifact" in error for error in manifest["errors"])
+
+
+def test_source_execution_rejects_undeclared_output_root_and_binds_identity(
+    tmp_path,
+) -> None:
+    snapshot, execution, _ = _staged_source_execution_fixture(tmp_path)
+
+    def executor(*, escape_output_root: bool):
+        def run(**kwargs):
+            if str(kwargs["command"][1]).endswith("environment_probe.py"):
+                stdout = json.dumps(
+                    {
+                        "python_version": "3.test",
+                        "package_versions": {"Demo": "1.2.3"},
+                    }
+                )
+            else:
+                (kwargs["cwd"] / "results.csv").write_text(
+                    "method,error\nrecent,0.1\n", encoding="utf-8"
+                )
+                if escape_output_root:
+                    (kwargs["cwd"].parent / "escaped-output.txt").write_text(
+                        "not declared\n", encoding="utf-8"
+                    )
+                stdout = "replication complete\n"
+            return {
+                "execution_attempted": True,
+                "returncode": 0,
+                "stdout": stdout,
+                "stderr": "",
+                "errors": [],
+            }
+
+        return run
+
+    clean = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "clean-output",
+        question_id="published-source-task",
+        process_executor=executor(escape_output_root=False),
+    )
+    escaped = execute_research_source(
+        execution=execution,
+        research_sources=snapshot,
+        output_dir=tmp_path / "escaped-output",
+        question_id="published-source-task",
+        process_executor=executor(escape_output_root=True),
+    )
+
+    assert clean["execution_status"] == "EXECUTED"
+    assert clean["unexpected_execution_artifacts"] == []
+    assert escaped["execution_status"] == "FAILED"
+    assert escaped["unexpected_execution_artifacts"] == [
+        "escaped-output.txt"
+    ]
+    assert any(
+        "undeclared output-root artifact: escaped-output.txt" in error
+        for error in escaped["errors"]
+    )
+    assert escaped["artifact_id"] != clean["artifact_id"]
 
 
 def test_immutable_source_execution_uses_only_operator_bound_command(tmp_path) -> None:
@@ -1428,3 +1493,11 @@ def test_pinned_process_executes_resolved_virtualenv_launcher(
     assert captured["environment"]["__PYVENV_LAUNCHER__"] == str(
         requested_executable.absolute()
     )
+    assert captured["environment"]["HOME"] == str(
+        output_dir / ".runtime_home"
+    )
+    assert captured["environment"]["TMPDIR"] == str(
+        output_dir / ".runtime_tmp"
+    )
+    assert (output_dir / ".runtime_home").is_dir()
+    assert (output_dir / ".runtime_tmp").is_dir()

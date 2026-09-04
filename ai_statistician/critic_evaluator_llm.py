@@ -37,6 +37,7 @@ from .research_source_library import (
     ResearchSourceSnapshot,
     inspect_source_replication_result,
     read_source_replication_result,
+    source_replication_execution_integrity_ok,
 )
 from .theory_revision_lineage import THEORY_CLAIM_REVISION_DELTA_KIND
 from .theory_workspace import (
@@ -1809,7 +1810,8 @@ def source_replication_evidence_view(
 
     lineage_verified = not errors
     execution_keys = (
-        "execution_status", "returncode", "source_snapshot_id",
+        "artifact_identity_schema_version", "execution_status",
+        "execution_attempted", "returncode", "source_snapshot_id",
         "source_snapshot_hash", "source_commit", "executed_entrypoint_sha256",
         "environment_lock_sha256", "runtime_language", "runtime_version",
         "interpreter_executable_sha256", "interpreter_arguments",
@@ -1817,8 +1819,9 @@ def source_replication_evidence_view(
         "raw_stdout", "raw_stderr", "raw_stdout_truncated",
         "raw_stderr_truncated", "stdout_sha256", "stderr_sha256",
         "stdout_bytes", "stderr_bytes", "execution_streams", "errors",
-        "source_mutated", "staged_source_inputs_mutated",
-        "unexpected_workspace_artifacts", "proof_evidence_status",
+        "source_mutated", "runtime_edited_source", "staged_source_inputs_mutated",
+        "unexpected_workspace_artifacts", "unexpected_execution_artifacts",
+        "proof_evidence_status",
     )
     model_selected_execution_keys = (
         *execution_keys,
@@ -2310,6 +2313,7 @@ def critic_required_dimension_evidence_gaps(
             (source.get("lineage_verified") is not True, "source_replication.lineage_unverified"),
             (not isinstance(report, Mapping) or report.get("content_loaded") is not True, "source_replication.report_unavailable"),
             (not isinstance(execution, Mapping) or execution.get("present") is not True, "source_replication.execution_unavailable"),
+            (not source_replication_execution_integrity_ok(execution), "source_replication.execution_not_clean"),
         ),
         "theory": (
             (theory.get("serious_theory_mode") is not True, "theory.serious_workspace_missing"),

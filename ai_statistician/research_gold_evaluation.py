@@ -20,6 +20,7 @@ from .estimator_interface_contract import (
 from .model_backend import AnthropicGeneratorBackend, GeneratorBackend
 from .research_schema import frozen_formal_target_contract_errors
 from .research_evaluation import research_evaluation_evidence_hash
+from .research_source_library import source_replication_execution_integrity_ok
 from .scientific_sandbox import (
     SCIENTIFIC_SANDBOX_LANGUAGES,
     ScientificEstimatorBinding,
@@ -2188,6 +2189,8 @@ def _latest_source_replication_manifest(
             and stable_hash(manifest) == declared_hash
         ):
             return "", {}, ["source replication manifest lineage is invalid"]
+        if not source_replication_execution_integrity_ok(artifact):
+            return "", {}, ["source replication execution is not clean"]
         return str(artifact_id), artifact, []
     return "", {}, ["no runtime-generated source replication manifest was observed"]
 
