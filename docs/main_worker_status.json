@@ -1,7 +1,8 @@
 {
-  "schema_version": 434,
+  "schema_version": 435,
   "updated_at": "2026-09-04",
-  "goal_status": "active",
+  "goal_status": "blocked",
+  "goal_blocker": "Task114 semantic activation requires a securely injected ANTHROPIC_API_KEY for exact claude-haiku-4-5-20251001. The current process has no key, Claude Code is unauthenticated, chat- or Downloads-sourced credentials are forbidden, and the frozen evaluation order prevents advancing later candidates first.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Establish the next trustworthy AI-Statistician capability milestone with the existing single AgentRuntime and retained exact-Haiku workspaces: preserve and properly activate Task114, then evaluate the separate pinned beta-regression reproduction candidate, then close one disjoint formal task in the active Statlib/StatInference Lean project. Completion requires fresh immutable evidence for accepted theory plus scientific code plus confirmatory results, exact published-source reproduction, and exact identity-bound axiom-clean Lean kernel closure. Improve only shared model context, prompts, generic tools, source identity, feedback, and evidence mechanisms demonstrated by fresh failures; do not add benchmark answers, repair agents, task-family rules, fixed reasoning recipes, universal Lean gates, model escalation, or inventory-based capability claims.",
   "current_goal_document": "docs/current_execution_goal.md",
