@@ -2,6 +2,9 @@
 
 Date: 2026-07-13 (repository tips refreshed 2026-07-14)
 
+This is the historical collection audit. Current operational adoption decisions and
+the measurable delivery goal live in [`current_execution_goal.md`](current_execution_goal.md).
+
 ## Purpose
 
 This audit separates three claims that must not be conflated:

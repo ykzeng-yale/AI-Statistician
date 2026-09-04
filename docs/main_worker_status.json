@@ -1,9 +1,10 @@
 {
-  "schema_version": 431,
-  "updated_at": "2026-09-03",
+  "schema_version": 432,
+  "updated_at": "2026-09-04",
   "goal_status": "active",
   "role": "sole main responsible worker",
-  "registered_chat_goal": "Act as the main responsible worker for AI-Statistician: take the hard central AgentRuntime and evaluation work, proactively coordinate other Codex/GitHub branches, preserve strict evidence boundaries, and keep driving the repo toward a live autonomous AI Statistical Theory Lab rather than side audits or easy patches.",
+  "registered_chat_goal": "Establish the next trustworthy AI-Statistician capability milestone with the existing single AgentRuntime and retained exact-Haiku workspaces: preserve and properly activate Task114, then evaluate the separate pinned beta-regression reproduction candidate, then close one disjoint formal task in the active Statlib/StatInference Lean project. Completion requires fresh immutable evidence for accepted theory plus scientific code plus confirmatory results, exact published-source reproduction, and exact identity-bound axiom-clean Lean kernel closure. Improve only shared model context, prompts, generic tools, source identity, feedback, and evidence mechanisms demonstrated by fresh failures; do not add benchmark answers, repair agents, task-family rules, fixed reasoning recipes, universal Lean gates, model escalation, or inventory-based capability claims.",
+  "current_goal_document": "docs/current_execution_goal.md",
   "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, Lean, and confirmatory-precision content. The harness owns isolation, immutable identity, source visibility, safety capacity, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes or scientific precision.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
@@ -19,7 +20,7 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "f460ce98eaca2a81d891884f5a1587416165eeaa",
+    "remote_before_current_change": "762fea6d5cedcde5630d33b3bbf4dc150e89acbb",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -129,10 +130,10 @@
     "capability_effect": "Shared execution identity and evidence-promotion correction only. No model or hidden-evaluator call, consumed-task action, proof promotion, score change, or capability credit occurred."
   },
   "next_gates": [
-    "Use a newly frozen, disjoint known-result task with independent hidden authority to measure long-horizon Theory revision and referee falsification. Do not alter the harness after observing a model-only mathematical miss unless a shared mechanism defect is demonstrated.",
-    "Exercise a genuine paper-to-code or frozen-project reproduction task with pinned source, dependencies, data, and result identity; keep replication execution separate from mathematical and prose authority.",
-    "Measure confirmatory Simulation ownership and precision on a disjoint task after Theory and source review acceptance; do not hardcode 100 repetitions or a task-family metric.",
-    "Measure the current support-aware, proof-state-driven Lean workspace on a new formal task; exact theorem kernel closure, not RAG volume or support compilation, is the success criterion.",
+    "Preserve Task114 as the next numbered draw. After secure exact-Haiku provider availability, independently qualify and hash-bind its semantic activation record before the sole product call; require its frozen Theory, Python, and confirmatory Simulation dimensions without adding a formal lane.",
+    "After Task114, complete the separate unnumbered beta-regression gasoline-precision candidate as a pinned R paper/code/data reproduction evaluation. Do not relabel it Task115 or let source execution validate prose automatically.",
+    "Then freeze an unrelated formal task and measure the current support-aware, proof-state-driven Lean workspace. Exact identity-bound, axiom-clean active-project kernel closure, not RAG volume or support compilation, is the success criterion.",
+    "Admit Stat-Lean only as a source-identified discovery candidate after representative retrieval evaluation; its Lean 4.29.1 declarations are not importable proof authority in the active Lean 4.30.0 project without re-elaboration.",
     "Reduce or move non-authoritative legacy baseline and audit code only when doing so shrinks the installed product surface without deleting reproducibility evidence or creating a compatibility layer."
   ],
   "history_boundary": {

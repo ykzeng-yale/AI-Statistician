@@ -1,5 +1,5 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-03. Current audited upstream: [`openai/codex` at `03467026`](https://github.com/openai/codex/tree/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0), Apache-2.0. The sole delta after the prior pin injects a storage-neutral attachment store into `ThreadManager`, preserves inline storage as the default, and redacts attachment URLs in debug output. This reinforces storing content once and passing durable references, but changes no retained source ownership, tool routing, scientific collaboration, or review lifecycle; AI Statistician therefore imports no Codex runtime or new harness layer.
+Updated: 2026-09-04. Current audited upstream: [`openai/codex` at `8e6a44b4`](https://github.com/openai/codex/tree/8e6a44b4), Apache-2.0. Since the prior `03467026` pin, the only architecturally relevant changes add managed worktrees to `codex exec` and narrow asynchronous user-message guidance; the remaining commits concern product UI, voice, model catalogs, protocol hardening, and tests. Worktree lifecycle and user messaging belong to Codex's product control plane, not AI Statistician's scientific inner loop, so the selective-adoption decision remains unchanged and no Codex runtime layer is imported.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
@@ -234,7 +234,7 @@ introduce task-family rules.
 
 ## Primary Sources
 
-- [OpenAI Codex repository at the audited pin](https://github.com/openai/codex/tree/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0)
+- [OpenAI Codex repository at the audited pin](https://github.com/openai/codex/tree/8e6a44b4)
 - [`run_turn`](https://github.com/openai/codex/blob/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0/codex-rs/core/src/session/turn.rs), [`ToolRouter`](https://github.com/openai/codex/blob/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0/codex-rs/core/src/tools/router.rs), and the [injectable attachment store](https://github.com/openai/codex/commit/03467026f2426fafd3d33bbdfc78ec5f9d79f6f0) at the audited pin
 - [Review skill](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/skills/src/assets/samples/review-agent/SKILL.md), [Guardian evidence treatment](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/ext/guardian-v2/src/sync_reviewer/prompt.rs), and [detached-review deprecation](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/app-server/README.md#reviewstart)
 - [Multi-Agent V2 spawn and fork semantics](https://github.com/openai/codex/blob/32c303c197e437cb13d444389d651fbaae02a6ed/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)

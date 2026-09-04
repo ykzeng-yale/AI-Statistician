@@ -6,6 +6,7 @@ the entire `docs/` directory as one prompt.
 ## Start Here
 
 - Product and current limits: `README.md`
+- Current measurable objective and resource decisions: `docs/current_execution_goal.md`
 - Canonical graph and evidence boundaries: `docs/production_design.md`
 - Current measured status: `docs/main_worker_status.json`
 - Delivery and Git ownership: `docs/main_worker_ownership.md`
