@@ -1,5 +1,5 @@
 {
-  "schema_version": 433,
+  "schema_version": 434,
   "updated_at": "2026-09-04",
   "goal_status": "active",
   "role": "sole main responsible worker",
@@ -64,7 +64,19 @@
       "Task114",
       "standalone betareg candidate"
     ],
-    "evaluation_rule": "Never rerun, resume, repair, reevaluate, rescore, or resample a consumed task. Freeze an unrelated task and its independent authority before any future product call."
+    "evaluation_rule": "Never rerun, resume, repair, reevaluate, rescore, or resample a consumed task. Freeze an unrelated task and its independent authority before any future product call.",
+    "task114_readiness": {
+      "visible_question_sha256": "048e55f0077bebafbce92021befb36ba1006e2676f3d5f68067676bd10000ae2",
+      "visible_question_unchanged_from_commit": "6206a56ec1c8f71633dea9521126dd30452165a2",
+      "hidden_preactivation_sha256": "63390b52691005f4e93af366d1f202d0970a69b78161ade10defa4c4e21b1ae6",
+      "mechanical_activation_sha256": "e853b3ebbc03cabbeac5d12c8d513c331c04b44da04029f57a7a7aac5b08f793",
+      "mechanical_status": "PASSED_BEFORE_FIRST_PRODUCT_MODEL_CALL",
+      "semantic_status": "pending; no semantic activation attempt exists",
+      "provider_status": "ANTHROPIC_API_KEY absent and local Claude Code unauthenticated on 2026-09-04",
+      "product_model_calls": 0,
+      "semantic_evaluator_model_calls": 0,
+      "boundary": "The hidden authority remains outside Git, AgentRuntime, model tools, RAG, and product feedback. Its existence and hashes are readiness evidence only."
+    }
   },
   "maturity_estimate": {
     "evidence_and_control_plane": "about 89-92%",
