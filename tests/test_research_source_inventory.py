@@ -6,6 +6,7 @@ from ai_statistician.research_source_inventory import (
     EXTERNAL_EMPIRICAL_PROCESS_LEAN_ROOT,
     MATHLIB_ROOT,
     SOURCE_INVENTORY_TARGETS,
+    STAT_LEAN_ROOT,
     STATLIB_ROOT,
     STATLIB_UPSTREAM_ROOT,
     _inventory_target,
@@ -55,6 +56,21 @@ def test_upstream_statlib_is_separate_optional_retrieval_inventory() -> None:
     )
 
     assert Path(target.location) == STATLIB_UPSTREAM_ROOT / "Statlib"
+    assert target.source_type == "lean_library"
+    assert target.local_required is False
+    assert target.usage_policy == "retrieval_only_no_training_export"
+    if Path(target.location).exists():
+        row = _inventory_target(target)
+        assert row.availability_status == "local_ready"
+        assert row.git_commit
+
+
+def test_stat_lean_is_separate_optional_retrieval_inventory() -> None:
+    target = next(
+        target for target in SOURCE_INVENTORY_TARGETS if target.id == "stat_lean"
+    )
+
+    assert Path(target.location) == STAT_LEAN_ROOT / "StatLean"
     assert target.source_type == "lean_library"
     assert target.local_required is False
     assert target.usage_policy == "retrieval_only_no_training_export"

@@ -64,6 +64,22 @@
         "SLT"
       ],
       "reuse_policy": "port_into_target_toolchain_and_import_closure_then_reelaborate_locally"
+    },
+    {
+      "source_id": "stat_lean",
+      "aliases": [
+        "statlean"
+      ],
+      "role": "broad_statistics_companion_library",
+      "relation_to_active_project": "external_unported_snapshot",
+      "entry_modules": [],
+      "git_remotes": [
+        "github.com/statlean/stat-lean"
+      ],
+      "source_root_names": [
+        "StatLean"
+      ],
+      "reuse_policy": "discovery_only_port_into_active_toolchain_and_import_closure_then_reelaborate_locally"
     }
   ]
 }

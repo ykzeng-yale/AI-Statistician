@@ -38,6 +38,7 @@ KOLMOGOROV_EXTENSION_URL = "https://github.com/RemyDegenne/kolmogorov_extension4
 SCILEAN_URL = "https://github.com/lecopivo/SciLean"
 LEAN_BLUEPRINT_URL = "https://github.com/PatrickMassot/leanblueprint"
 LEAN_STAT_LEARNING_THEORY_URL = "https://github.com/YuanheZ/lean-stat-learning-theory"
+STAT_LEAN_URL = "https://github.com/StatLean/Stat-Lean"
 STATLIB_URL = "https://github.com/stat-lib/statlib"
 CODEXPROVER_URL = "https://github.com/ykzeng-yale/CodexProver"
 EMPIRICAL_PROCESS_LEAN_URL = "https://github.com/ykzeng-yale/EmpericalProcessLEAN"
@@ -163,6 +164,13 @@ LEAN_STAT_LEARNING_THEORY_ROOT = _resolve_source_root(
     (
         PROJECT_EXTERNAL_ROOT / "lean-stat-learning-theory",
         EXTERNAL_ROOT / "lean-stat-learning-theory",
+    ),
+)
+STAT_LEAN_ROOT = _resolve_source_root(
+    "AI_STATISTICIAN_STAT_LEAN_ROOT",
+    (
+        PROJECT_EXTERNAL_ROOT / "Stat-Lean",
+        EXTERNAL_ROOT / "Stat-Lean",
     ),
 )
 STATLIB_ROOT = _resolve_source_root(
@@ -376,6 +384,24 @@ SOURCE_INVENTORY_TARGETS: tuple[SourceInventoryTarget, ...] = (
         license_policy="Apache-2.0",
         usage_policy="retrieval_only_no_training_export",
         remote_url=LEAN_STAT_LEARNING_THEORY_URL,
+        local_required=False,
+    ),
+    SourceInventoryTarget(
+        id="stat_lean",
+        source_type="lean_library",
+        location=str(STAT_LEAN_ROOT / "StatLean"),
+        required_extensions=(".lean",),
+        keywords=(
+            "AsymptoticStatistics",
+            "CausalInference",
+            "ComputationalStatistics",
+            "MultipleTesting",
+            "StatisticalModels",
+            "StatisticalLearning",
+        ),
+        license_policy="Apache-2.0",
+        usage_policy="retrieval_only_no_training_export",
+        remote_url=STAT_LEAN_URL,
         local_required=False,
     ),
     SourceInventoryTarget(

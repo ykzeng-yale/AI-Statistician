@@ -381,6 +381,58 @@ EXTERNAL_USER_INTENT_FORMAL_SOURCE_RETRIEVAL_BENCHMARK: tuple[
             "StatInference estimator objects into Statlib's inference semantics"
         ),
     ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="stat_lean_benjamini_hochberg_fdr",
+        query=(
+            "Benjamini Hochberg false discovery rate control under independent "
+            "super-uniform p-values"
+        ),
+        expected_name_fragments=("benjamini_hochberg_fdr_le",),
+        expected_source_ids=("stat_lean",),
+        rationale=(
+            "multiple-testing formalization should discover Stat-Lean's checked "
+            "BH statement before creating another local encoding"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="stat_lean_kaplan_meier_eventual_constancy",
+        query=(
+            "Kaplan Meier estimator eventually constant to the right after the "
+            "last observed time"
+        ),
+        expected_name_fragments=("kaplanMeier_eventually_constant_right",),
+        expected_source_ids=("stat_lean",),
+        rationale=(
+            "survival formalization should recover the existing estimator API and "
+            "right-tail constancy theorem from mathematical meaning"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="stat_lean_aipw_double_robustness",
+        query=(
+            "augmented inverse propensity weighted average treatment effect is "
+            "correct when either the outcome or propensity model is correct"
+        ),
+        expected_name_fragments=("aipwATE_eq_ate_of_correct_outcome",),
+        expected_source_ids=("stat_lean",),
+        rationale=(
+            "causal-inference retrieval should find a concrete double-robustness "
+            "theorem without relying on its Lean name"
+        ),
+    ),
+    FormalSourceRetrievalBenchmarkCase(
+        query_id="stat_lean_bootstrap_mean_coverage",
+        query=(
+            "nonparametric bootstrap confidence interval coverage for the sample "
+            "mean under finite variance"
+        ),
+        expected_name_fragments=("bootstrap_mean_coverage",),
+        expected_source_ids=("stat_lean",),
+        rationale=(
+            "bootstrap formalization should reuse Stat-Lean's coverage result as "
+            "discovery context before attempting a port"
+        ),
+    ),
 )
 
 

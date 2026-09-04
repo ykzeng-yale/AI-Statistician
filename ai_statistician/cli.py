@@ -184,10 +184,6 @@ from .verifier import AxleProofVerifier, LocalLeanProofVerifier, MockProofVerifi
 
 _DEFAULT_DOTENV = Path(".env")
 _OPERATOR_DOTENV_ENV_VAR = "AI_STATISTICIAN_ENV_FILE"
-_OPERATOR_DOTENV_FILENAMES = (
-    "api_key_AI_statistician.md",
-    "api_keys_AI_statistician.md",
-)
 # Global safety ceiling; source-workspace and lineage budgets remain the loop guards.
 FULL_LIVE_MIN_AGENT_RUNTIME_ITERATIONS = 40
 RESEARCH_EVAL_MIN_AGENT_RUNTIME_ITERATIONS = 24
@@ -212,11 +208,6 @@ def _resolve_dotenv_path(path: Path | str | None) -> Path:
     operator_env_file = os.environ.get(_OPERATOR_DOTENV_ENV_VAR, "").strip()
     if operator_env_file:
         return Path(os.path.expandvars(operator_env_file)).expanduser()
-
-    for filename in _OPERATOR_DOTENV_FILENAMES:
-        candidate = Path.home() / "Downloads" / filename
-        if candidate.exists():
-            return candidate
     return requested
 
 

@@ -56,6 +56,7 @@ def test_configured_entry_modules_resolve_canonical_ids_and_aliases() -> None:
     assert configured_formal_source_entry_modules(
         "empirical_process_lean"
     ) == ("StatInference",)
+    assert configured_formal_source_entry_modules("stat_lean") == ()
     assert configured_formal_source_entry_modules(
         "local_statinference_repo"
     ) == ("StatInference",)
@@ -176,6 +177,10 @@ def test_active_project_scope_includes_only_declared_foundation_dependencies() -
     assert expand_formal_source_scope_ids(("lean_stat_learning_theory",)) == (
         "lean_stat_learning_theory",
     )
+    assert canonicalize_formal_source_scope_ids(("statlean",)) == (
+        "stat_lean",
+    )
+    assert expand_formal_source_scope_ids(("stat_lean",)) == ("stat_lean",)
     assert expand_formal_source_scope_ids(("unregistered_source",)) == (
         "unregistered_source",
     )
@@ -209,6 +214,21 @@ def test_upstream_statlib_activation_is_discovery_only_and_nonimportable() -> No
         ),
     }
     assert "kernel" not in " ".join(activation.values()).lower()
+
+
+def test_stat_lean_activation_is_discovery_only_and_nonimportable() -> None:
+    activation = configured_nonimportable_source_activation("statlean")
+
+    assert activation == {
+        "role": "broad_statistics_companion_library",
+        "relation_to_active_project": "external_unported_snapshot",
+        "compatibility_status": "not_in_active_project_requires_port",
+        "classification": "non_importable_discovery_port_candidate",
+        "activation_gate": (
+            "discovery only port into active toolchain and import closure then "
+            "reelaborate locally"
+        ),
+    }
 
 
 def test_external_companion_prompt_requires_port_and_local_reelaboration() -> None:

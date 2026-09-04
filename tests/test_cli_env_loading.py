@@ -91,7 +91,7 @@ def test_load_dotenv_keeps_missing_explicit_env_file_explicit(
     assert "ANTHROPIC_API_KEY" not in os.environ
 
 
-def test_load_dotenv_default_path_discovers_operator_download_key_file(
+def test_load_dotenv_default_path_does_not_discover_download_key_file(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -109,4 +109,4 @@ def test_load_dotenv_default_path_discovers_operator_download_key_file(
 
     _load_dotenv(Path(".env"))
 
-    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-downloads-key"
+    assert "ANTHROPIC_API_KEY" not in os.environ

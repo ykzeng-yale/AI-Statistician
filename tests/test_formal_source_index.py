@@ -53,6 +53,7 @@ def test_default_formal_source_roots_exclude_historical_snapshots() -> None:
 
     assert "empirical_process_lean" in source_ids
     assert "statlib_upstream_discovery" in source_ids
+    assert "stat_lean" in source_ids
     assert "local_statinference_repo" not in source_ids
     assert "legacy_ai_statistician_statinference" not in source_ids
 
