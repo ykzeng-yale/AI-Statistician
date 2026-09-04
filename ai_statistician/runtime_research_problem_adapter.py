@@ -15,6 +15,7 @@ from .research_schema import (
     research_question_payload,
     research_task_intent_requirement,
 )
+from .theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
 
 
 LLM_RESEARCH_AUTHORITY_BOUNDARY = (
@@ -176,7 +177,12 @@ def derive_runtime_research_problem(
     theory_packet: Mapping[str, Any] | None = None,
 ) -> RuntimeResearchProblemBundle:
     packet = _mapping(theory_packet or {})
-    if packet.get("problem_card") or packet.get("theorem_cards"):
+    if (
+        packet.get("theory_content_authority")
+        == THEORY_WORKSPACE_CONTENT_AUTHORITY
+        or packet.get("problem_card")
+        or packet.get("theorem_cards")
+    ):
         return _bundle_from_theory_packet(question, packet)
     plan = _architect_plan(architect_context)
     if plan:
@@ -188,17 +194,18 @@ def _bundle_from_theory_packet(
     question: OpenResearchQuestion,
     packet: Mapping[str, Any],
 ) -> RuntimeResearchProblemBundle:
+    document_authority = (
+        packet.get("theory_content_authority") == THEORY_WORKSPACE_CONTENT_AUTHORITY
+    )
     problem_card = _mapping(packet.get("problem_card", {}))
     derivation = _mapping(packet.get("theory_derivation_packet", {}))
     simulation_spec = _mapping(packet.get("simulation_ademp_spec", {}))
     proof_plan = _mapping(packet.get("proof_plan", {}))
-    assumptions = _strings(problem_card.get("assumptions", []))
-    if not assumptions:
-        assumptions = tuple(
-            str(row.get("assumption", "") or "").strip()
-            for row in _mapping_rows(derivation.get("assumption_ledger", []))
-            if str(row.get("assumption", "") or "").strip()
-        )
+    assumptions = _strings(problem_card.get("assumptions", [])) or tuple(
+        str(row.get("assumption", "") or "").strip()
+        for row in _mapping_rows(derivation.get("assumption_ledger", []))
+        if str(row.get("assumption", "") or "").strip()
+    )
     dgp_parts = [
         str(problem_card.get("observed_data", "") or "").strip(),
         str(problem_card.get("dgp", "") or "").strip(),
@@ -210,9 +217,32 @@ def _bundle_from_theory_packet(
         if str(row.get("finding", "") or "").strip()
     )
     packet_id = str(packet.get("packet_id", "") or "")
+    extraction_evidence = {
+        "authority": (
+            "TheoryDeveloperDocumentWorkspace"
+            if document_authority
+            else "TheoryDeveloper",
+        ),
+        "packet_id": (packet_id,) if packet_id else (),
+        "packet_hash": (stable_hash(packet),),
+    }
+    if document_authority:
+        document_set_hash = str(
+            _mapping(packet.get("theory_workspace_manifest", {})).get(
+                "document_set_hash", ""
+            )
+            or ""
+        )
+        extraction_evidence["document_set_hash"] = (
+            (document_set_hash,) if document_set_hash else ()
+        )
     problem = ResearchProblemSpec(
         question_id=question.id,
-        problem_class="llm_structured_frontier_problem",
+        problem_class=(
+            "document_authoritative_frontier_problem"
+            if document_authority
+            else "llm_structured_frontier_problem"
+        ),
         dgp="; ".join(part for part in dgp_parts if part) or question.description,
         estimand=(
             str(problem_card.get("estimand", "") or "").strip()
@@ -225,26 +255,43 @@ def _bundle_from_theory_packet(
         ),
         diagnostics=tuple(dict.fromkeys(diagnostics)),
         stress_tests=_strings(simulation_spec.get("stress_tests", [])),
-        extraction_evidence={
-            "authority": ("TheoryDeveloper",),
-            "packet_id": (packet_id,) if packet_id else (),
-            "packet_hash": (stable_hash(packet),),
-        },
+        extraction_evidence=extraction_evidence,
     )
     required_primitives = _strings(proof_plan.get("required_primitives", []))
     theorem_goals = _theorem_goals_from_theory_packet(
         packet,
         required_primitives=required_primitives,
+        document_authority=document_authority,
     )
     if not theorem_goals:
-        theorem_goals = (_question_goal(question, source="TheoryDeveloper"),)
+        theorem_goals = (
+            _question_goal(
+                question,
+                source=(
+                    "TheoryDeveloperDocuments"
+                    if document_authority
+                    else "TheoryDeveloper"
+                ),
+            ),
+        )
     return RuntimeResearchProblemBundle(
         problem=problem,
         theorem_goals=theorem_goals,
-        problem_formalization_source="theory_developer_structured_packet",
-        theorem_goal_source="theory_developer_theorem_cards",
+        problem_formalization_source=(
+            "theory_developer_document_workspace"
+            if document_authority
+            else "theory_developer_structured_packet"
+        ),
+        theorem_goal_source=(
+            "theory_developer_claim_index"
+            if document_authority
+            else "theory_developer_theorem_cards"
+        ),
         legacy_baseline_skipped_reason=(
-            "Agentic research authority is supplied by the validated "
+            "Agentic research authority is supplied by hash-bound TheoryDeveloper "
+            "documents and their compact claim index."
+            if document_authority
+            else "Agentic research authority is supplied by the validated "
             "TheoryDerivationPacket."
         ),
     )
@@ -254,26 +301,37 @@ def _theorem_goals_from_theory_packet(
     packet: Mapping[str, Any],
     *,
     required_primitives: tuple[str, ...],
+    document_authority: bool = False,
 ) -> tuple[TheoremGoal, ...]:
     goals: list[TheoremGoal] = []
     for index, row in enumerate(
         _mapping_rows(packet.get("theorem_cards", [])), start=1
     ):
         goal_id = str(row.get("id", "") or f"theory_target_{index}").strip()
-        statement = str(
-            row.get("informal_statement", "")
-            or row.get("conclusion", "")
-            or ""
-        ).strip()
-        conclusion = str(row.get("conclusion", "") or "").strip()
-        if conclusion and conclusion not in statement:
-            statement = f"{statement} Conclusion: {conclusion}".strip()
+        if document_authority:
+            document_path = str(row.get("document_path", "") or "").strip()
+            location = f" in {document_path!r}" if document_path else ""
+            statement = f"Read exact hash-bound Theory claim {goal_id!r}{location}."
+            proof_strategy = (
+                "Inspect the authoritative Theory document, then author and compile "
+                "that unchanged claim in the active Lean project."
+            )
+        else:
+            statement = str(
+                row.get("informal_statement", "")
+                or row.get("conclusion", "")
+                or ""
+            ).strip()
+            conclusion = str(row.get("conclusion", "") or "").strip()
+            if conclusion and conclusion not in statement:
+                statement = f"{statement} Conclusion: {conclusion}".strip()
+            proof_strategy = str(row.get("proof_strategy", "") or "")
         goals.append(
             TheoremGoal(
                 id=goal_id,
                 title=str(row.get("title", "") or goal_id),
                 informal_statement=statement,
-                proof_strategy=str(row.get("proof_strategy", "") or ""),
+                proof_strategy=proof_strategy,
                 status="FORMAL_GAP",
                 required_primitives=required_primitives,
                 proof_obligations=(),

@@ -322,7 +322,6 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
         "theory_derivation_packet": True,
         "estimator_specs": False,
         "theorem_cards": False,
-        "proof_plan": False,
         "simulation_ademp_spec": False,
         "formalization_requests": False,
     }
@@ -345,7 +344,6 @@ def test_theory_handoff_requirements_follow_task_intent() -> None:
     )
 
     assert formal_requirements["theorem_cards"] is True
-    assert formal_requirements["proof_plan"] is True
     assert formal_requirements["formalization_requests"] is True
 
 
@@ -636,13 +634,63 @@ def _file_authority_theory_fixture(
             [f"## {check_id}", "", json.dumps(row, ensure_ascii=False), ""]
         )
 
-    packet["theory_derivation_packet"] = {
-        "derivation_summary": derivation.get("derivation_summary", ""),
-        "claim_index": claim_rows,
-        "formalization_handoff": derivation.get("formalization_handoff", {}),
-        "self_critique": derivation.get("self_critique", []),
-        "rejected_alternatives": derivation.get("rejected_alternatives", []),
+    source_theorem_target = str(
+        derivation.get("formalization_handoff", {}).get(
+            "source_theorem_target", ""
+        )
+        or ""
+    )
+    packet["problem_card"] = {
+        "claim_ids": [str(row["id"]) for row in claim_rows],
     }
+    packet["theory_derivation_packet"] = {
+        "claim_index": claim_rows,
+        **(
+            {
+                "formalization_handoff": {
+                    "source_theorem_target": source_theorem_target,
+                }
+            }
+            if source_theorem_target
+            else {}
+        ),
+    }
+    packet["estimator_specs"] = [
+        {
+            "id": row.get("id", ""),
+            "name": row.get("name", ""),
+            "estimator_interface_contract": row.get(
+                "estimator_interface_contract", {}
+            ),
+        }
+        for row in packet.get("estimator_specs", []) or []
+    ]
+    packet["theorem_cards"] = [
+        {
+            "id": row.get("id", ""),
+            "document_path": document_path,
+        }
+        for row in packet.get("theorem_cards", []) or []
+    ]
+    packet["formalization_requests"] = [
+        {
+            "id": row.get("id", ""),
+            "target_theorem_card": row.get("target_theorem_card", ""),
+        }
+        for row in packet.get("formalization_requests", []) or []
+    ]
+    packet["simulation_ademp_spec"] = (
+        {"claim_ids": [str(row["id"]) for row in claim_rows]}
+        if packet.get("simulation_ademp_spec")
+        else {}
+    )
+    for obsolete_field in (
+        "lemma_cards",
+        "proof_plan",
+        "critic_findings",
+        "next_actions",
+    ):
+        packet.pop(obsolete_field, None)
     documents = {document_path: "\n".join(markdown)}
     if workspace_dir is not None:
         for relative_path, content in documents.items():
@@ -1756,21 +1804,17 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
             "formal": "required",
         },
     )
-    core_response, theory_documents = _file_authority_theory_fixture(
-        _sample_response()
-    )
+    legacy_sample = _sample_response()
+    duplicated_dgp = str(legacy_sample["problem_card"]["dgp"])
+    core_response, theory_documents = _file_authority_theory_fixture(legacy_sample)
     core_estimators = [dict(row) for row in core_response["estimator_specs"]]
     expected_contract = deepcopy(
         core_estimators[0]["estimator_interface_contract"]
     )
     core_response["estimator_specs"] = core_estimators
-    optional_artifacts = {"lemma_cards", "critic_findings", "next_actions"}
-    for field in optional_artifacts:
-        core_response[field] = []
     core_artifacts = {
         field: core_response[field]
         for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
-        if field not in optional_artifacts
     }
     invalid_core_artifacts = json.loads(json.dumps(core_artifacts))
     invalid_core_artifacts["theory_derivation_packet"][
@@ -1891,13 +1935,13 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
         "properties"
     ]["artifact_name"] == {
         "type": "string",
-        "enum": sorted({*core_artifacts, "lemma_cards"}),
+        "enum": sorted(core_artifacts),
     }
     assert ", ".join(THEORY_FILE_CLAIM_KINDS) in write_tool.description
     assert ", ".join(THEORY_FILE_CLAIM_STATUSES) in write_tool.description
     assert "sanity statuses" not in write_tool.description
     initial_prompt = str(first_request.messages[0]["content"])
-    assert core_response["problem_card"]["dgp"] not in initial_prompt
+    assert duplicated_dgp not in initial_prompt
     assert "Authoritative theory workspace catalog" in initial_prompt
     assert "initial_authoring_context" in initial_prompt
     assert "Scratch calculations are exploratory observations only" in initial_prompt
@@ -1917,9 +1961,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert "with no separate read or write quota" in initial_prompt
     assert question.description in str(provider.tool_requests[1].messages)
-    assert "desired_theorem_type" in str(
-        provider.tool_requests[1].messages
-    )
+    assert "claim_ids" in str(provider.tool_requests[1].messages)
+    assert "desired_theorem_type" not in str(provider.tool_requests[1].messages)
     assert (
         "source_theorem_target must exactly match a theorem_cards id"
         in str(provider.tool_requests[-1].messages)
@@ -1930,9 +1973,8 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert "response field 0 missing normalization" in str(
         provider.tool_requests[-1].messages
     )
-    assert packet["problem_card"]["dgp"] == core_response["problem_card"][
-        "dgp"
-    ]
+    assert packet["problem_card"] == core_response["problem_card"]
+    assert "dgp" not in packet["problem_card"]
     evidence = packet["llm_client_tool_loop"]
     assert evidence["workspace_operation"] == "initial_discovery"
     assert evidence["write_transport"] == (
@@ -1945,12 +1987,12 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     assert evidence["runtime_edited_theory"] is False
     assert evidence["reads"] == 3
     assert evidence["submissions"] == 3
-    assert set(evidence["changed_artifact_names"]) == (
-        set(THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT) - optional_artifacts
+    assert set(evidence["changed_artifact_names"]) == set(
+        THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
     )
-    assert packet["lemma_cards"] == []
-    assert packet["critic_findings"] == []
-    assert packet["next_actions"] == []
+    assert "lemma_cards" not in packet
+    assert "critic_findings" not in packet
+    assert "next_actions" not in packet
     derivation = packet["theory_derivation_packet"]
     assert set(derivation) == {
         "claim_index",
@@ -2065,7 +2107,7 @@ def test_nonformal_initial_workspace_checkpoints_without_theorem_abi() -> None:
 
     assert validate_theory_packet(packet) == []
     assert packet["theorem_cards"] == []
-    assert packet["proof_plan"] == {}
+    assert "proof_plan" not in packet
     assert packet["formalization_requests"] == []
     assert provider.generator_requests == []
     assert len(provider.tool_requests) == 5
@@ -2442,6 +2484,51 @@ def test_document_theory_handoff_keeps_math_out_of_estimator_json(
     }
 
 
+def test_document_theory_handoff_rejects_duplicated_mathematical_content(
+    tmp_path: Path,
+) -> None:
+    question = OpenResearchQuestion(
+        id="document_handoff_reference_only",
+        title="Reference-only theory handoff",
+        description="Keep mathematical authority in the theory documents.",
+    )
+    packet, _ = _file_authority_theory_fixture(
+        _sample_response(),
+        workspace_dir=tmp_path / "reference-only-handoff",
+    )
+    normalized = research_architect_module._normalize_theory_packet(
+        packet,
+        question=question,
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response=json.dumps(packet),
+        theory_prompt_mode=THEORY_PROMPT_MODE_SERIOUS_CAPABILITY,
+        formalization_authoring_required=True,
+    )
+    normalized["problem_card"]["dgp"] = "duplicated mathematical prose"
+    normalized["theorem_cards"][0]["informal_statement"] = "duplicated theorem"
+    normalized["simulation_ademp_spec"]["dgps"] = ["duplicated simulation design"]
+    normalized["theory_derivation_packet"]["equation_chain"] = []
+
+    errors = validate_theory_packet(normalized)
+
+    assert any("problem_card contains non-reference fields: dgp" in row for row in errors)
+    assert any(
+        "theorem_cards[0] contains non-reference fields: informal_statement" in row
+        for row in errors
+    )
+    assert any(
+        "simulation_ademp_spec contains non-reference fields: dgps" in row
+        for row in errors
+    )
+    assert any(
+        "theory_derivation_packet contains non-reference fields: equation_chain"
+        in row
+        for row in errors
+    )
+
+
 def test_interface_authoring_cannot_replace_frozen_outputs_with_status_rows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2615,15 +2702,6 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     )
     assert revision_inputs["parent_scratch_execution_refs"] == scratch_refs
     revised_core = json.loads(json.dumps(revision_inputs["base_core_payload"]))
-    revised_core["lemma_cards"].append(
-        {
-            "id": "bounded_outcome_moment_control",
-            "statement": "Bounded outcomes imply the required finite moment.",
-            "depends_on": ["identify_ate"],
-            "used_by": ["aipw_asymptotic_normality"],
-            "formalization_difficulty": "medium",
-        }
-    )
     revised_derivation = dict(revised_core["theory_derivation_packet"])
     revised_derivation["claim_index"] = [
         *revised_derivation["claim_index"],
@@ -2677,9 +2755,9 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             ),
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="read-parent-lemmas",
+                    call_id="read-parent-claim-index",
                     name="read_theory_workspace",
-                    input={"artifact_names": ["lemma_cards"]},
+                    input={"artifact_names": ["theory_derivation_packet"]},
                 )
             ),
             _theory_tool_response(
@@ -2765,13 +2843,10 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             ),
             _theory_tool_response(
                 ClientToolCall(
-                    call_id="edit-lemmas",
+                    call_id="index-revised-claim",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
-                        {
-                            "lemma_cards": revised_core["lemma_cards"],
-                            "theory_derivation_packet": revised_derivation,
-                        }
+                        {"theory_derivation_packet": revised_derivation}
                     ),
                 )
             ),
@@ -2808,7 +2883,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     )
 
     assert packet["ok"] is True
-    assert packet["lemma_cards"][-1]["id"] == (
+    assert packet["theory_derivation_packet"]["claim_index"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
     assert len(first_provider.tool_requests) == 6
@@ -2847,9 +2922,9 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert "REPORT_ONLY" in str(first_provider.tool_requests[3].messages)
     assert "Propagate a chosen correction" in first_prompt
     assert "Scratch observations are exploratory" in first_prompt
-    assert revised_core["lemma_cards"][0]["id"] in str(
-        first_provider.tool_requests[4].messages
-    )
+    assert revised_core["theory_derivation_packet"]["claim_index"][0][
+        "id"
+    ] in str(first_provider.tool_requests[4].messages)
     assert "The bounded-outcome premise is not explicit." in str(
         first_provider.tool_requests[3].messages
     )
@@ -2874,10 +2949,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
         "TheoryDeveloperWorkspaceRevisionTransport"
     )
     assert transport["revision_mode"] == "model_owned_document_workspace"
-    assert transport["changed_artifact_names"] == [
-        "lemma_cards",
-        "theory_derivation_packet",
-    ]
+    assert transport["changed_artifact_names"] == ["theory_derivation_packet"]
     assert transport["changed_document_paths"] == ["theory/workspace.md"]
     assert transport["model_owned_artifact_edits"] is True
     assert transport["write_transport"] == (
@@ -3008,7 +3080,7 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     }
 
     feedback["findings"][0]["summary"] = "mutated after binding"
-    parent["problem_card"]["estimand"] = "mutated after binding"
+    parent_artifact["problem_card"]["claim_ids"].append("mutated_after_binding")
     revision_inputs = build_theory_developer_revision_inputs(
         context,
         question=question,
@@ -3022,9 +3094,9 @@ def test_postexecution_theory_revision_uses_current_parent_bound_feedback(
     assert revision_inputs["feedback"]["findings"][0]["summary"] == (
         "The parent omits one independently identified premise."
     )
-    assert revision_inputs["base_core_payload"]["problem_card"]["estimand"] == (
-        "psi = E[m_1(X)-m_0(X)]"
-    )
+    assert "mutated_after_binding" not in revision_inputs["base_core_payload"][
+        "problem_card"
+    ]["claim_ids"]
     parent_spec = revision_inputs["base_core_payload"]["estimator_specs"][0]
     assert parent_spec["estimator_interface_contract"] == (
         parent["estimator_specs"][0]["estimator_interface_contract"]
@@ -3079,8 +3151,6 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
         description="Keep an unchanged model-authored estimator ABI stable.",
     )
     context = _metric_theory_revision_context(question=question, parent=parent)
-    revised_problem_card = json.loads(json.dumps(parent["problem_card"]))
-    revised_problem_card["assumptions"].append("bounded outcomes")
     revised_document = (
         parent_documents["theory/workspace.md"]
         + "\n## bounded_outcomes\n\n"
@@ -3096,15 +3166,6 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
                         "path": "theory/workspace.md",
                         "content": revised_document,
                     },
-                )
-            ),
-            _theory_tool_response(
-                ClientToolCall(
-                    call_id="edit-revised-problem-card-for-abi-reuse",
-                    name=THEORY_WORKSPACE_WRITE_TOOL,
-                    input=_theory_artifact_writes(
-                        {"problem_card": revised_problem_card}
-                    ),
                 )
             ),
             _theory_tool_response(
@@ -3132,7 +3193,7 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
     packet = developer.derive(question, architect_context=context)
 
     assert validate_theory_packet(packet) == []
-    assert len(provider.tool_requests) == 4
+    assert len(provider.tool_requests) == 3
     assert provider.generator_requests == []
     assert packet["estimator_specs"][0][
         "estimator_interface_contract"
@@ -3220,15 +3281,10 @@ def test_theory_revision_repairs_interface_in_same_document_workspace(
         question=question,
     )
     revised_core = json.loads(json.dumps(revision_inputs["base_core_payload"]))
-    revised_core["problem_card"]["assumptions"] = [
-        *revised_core["problem_card"]["assumptions"],
-        "bounded outcomes",
-    ]
-    revised_core["estimator_specs"][0]["required_assumptions"] = [
-        *revised_core["estimator_specs"][0]["required_assumptions"],
-        "bounded outcomes",
-    ]
     valid_specs = deepcopy(revised_core["estimator_specs"])
+    valid_specs[0]["estimator_interface_contract"]["response_fields"][0][
+        "normalization"
+    ] = "sample-mean scale"
     invalid_specs = deepcopy(valid_specs)
     invalid_specs[0]["estimator_interface_contract"]["response_fields"][0][
         "normalization"
@@ -3257,10 +3313,7 @@ def test_theory_revision_repairs_interface_in_same_document_workspace(
                     call_id="write-invalid-revised-interface",
                     name=THEORY_WORKSPACE_WRITE_TOOL,
                     input=_theory_artifact_writes(
-                        {
-                            "problem_card": revised_core["problem_card"],
-                            "estimator_specs": invalid_specs,
-                        }
+                        {"estimator_specs": invalid_specs}
                     ),
                 )
             ),
@@ -3307,9 +3360,6 @@ def test_theory_revision_repairs_interface_in_same_document_workspace(
     assert len(first_provider.tool_requests) == 5
     assert "response field 0 missing normalization" in str(
         first_provider.tool_requests[2].messages
-    )
-    assert packet["estimator_specs"][0]["required_assumptions"] == (
-        valid_specs[0]["required_assumptions"]
     )
     assert packet["estimator_specs"][0][
         "estimator_interface_contract"

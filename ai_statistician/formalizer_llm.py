@@ -527,10 +527,16 @@ def build_formalizer_workspace_target(
         char_limit=2400,
     )
     if not constraints:
-        constraints = [
-            "Preserve the registered theorem goal's assumptions, quantifiers, and "
-            "conclusion exactly."
-        ]
+        if target_contract.get("theory_document_set_hash"):
+            constraints = [
+                f"Preserve exact hash-bound Theory claim {goal_id!r}; the registered "
+                "goal text is navigation, not a substitute theorem statement."
+            ]
+        else:
+            constraints = [
+                "Preserve the registered theorem goal's assumptions, quantifiers, and "
+                "conclusion exactly."
+            ]
     target = {
         "id": goal_id,
         "formal_target_role": FORMAL_TARGET_ROLE_SOURCE_THEOREM_CANDIDATE,
@@ -831,6 +837,7 @@ def _build_lean_candidate_workspace_tool_prompt(
                 theory_packet.get("theorem_cards", []),
                 keys=(
                     "id",
+                    "document_path",
                     "title",
                     "claim",
                     "statement",
@@ -910,11 +917,21 @@ def _task_bound_formal_target_contract(
         formalization_handoff = theory_packet.get("formalization_handoff", {})
     if not isinstance(formalization_handoff, Mapping):
         formalization_handoff = {}
+    theory_workspace_manifest = theory_packet.get("theory_workspace_manifest", {})
+    theory_workspace_manifest = (
+        dict(theory_workspace_manifest)
+        if isinstance(theory_workspace_manifest, Mapping)
+        else {}
+    )
+    theory_document_set_hash = str(
+        theory_workspace_manifest.get("document_set_hash", "") or ""
+    ).strip()
 
     theorem_card_rows = _task_contract_rows(
         theory_packet.get("theorem_cards", []),
         keys=(
             "id",
+            "document_path",
             "title",
             "informal_statement",
             "claim",
@@ -983,6 +1000,7 @@ def _task_bound_formal_target_contract(
     )
     semantic_snapshot = {
         "question_id": question.id,
+        "theory_document_set_hash": theory_document_set_hash,
         "source_theorem_target_id": source_target,
         "registered_theorem_goals": theorem_goal_rows,
         "theory_theorem_cards": theorem_card_rows,
@@ -1034,6 +1052,7 @@ def _task_bound_formal_target_contract(
         "schema_version": 1,
         "contract_kind": "task_bound_formal_target",
         "question_id": question.id,
+        "theory_document_set_hash": theory_document_set_hash,
         "source_theorem_target_id": source_target,
         "registered_theorem_goal_ids": [
             str(row.get("id", "") or "").strip()
@@ -1054,14 +1073,24 @@ def _task_bound_formal_target_contract(
             "registered_problem": "registered_problem",
             "registered_theorem_goals": "registered_theorem_goals",
             "theory": "theory_packet_summary",
+            "theory_documents": "hash_bound_authoritative_theory_documents",
             "derivation": "theory_packet_summary.theory_derivation_trace",
             "runtime_feedback": "runtime_environment_feedback",
         },
-        "semantic_authority_order": [
-            "registered problem and theorem goal",
-            "theory derivation and formalization handoff",
-            "review feedback",
-        ],
+        "semantic_authority_order": (
+            [
+                "hash-bound authoritative theory documents",
+                "theory claim index and formalization handoff",
+                "registered problem and theorem goal navigation",
+                "review feedback",
+            ]
+            if theory_document_set_hash
+            else [
+                "registered problem and theorem goal",
+                "theory derivation and formalization handoff",
+                "review feedback",
+            ]
+        ),
         "candidate_declaration_boundary": (
             "Retrieved declarations are support candidates until task alignment and "
             "local kernel checking both succeed."

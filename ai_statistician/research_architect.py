@@ -130,7 +130,6 @@ def theory_handoff_requirements(
         "theory_derivation_packet": True,
         "estimator_specs": implementation_required,
         "theorem_cards": formal_handoff_required,
-        "proof_plan": formal_handoff_required,
         "simulation_ademp_spec": bool(
             dimensions.get("empirical") == "required"
         ),
@@ -153,8 +152,6 @@ def _selected_theory_handoff_fields(
     selected = {
         field for field, required in requirements.items() if required
     }
-    if requirements["theorem_cards"]:
-        selected.add("lemma_cards")
     return tuple(field for field in available_fields if field in selected)
 
 
@@ -1558,35 +1555,54 @@ del THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["estimator_specs"][0][
     "estimator_interface_contract"
 ]
 
-THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT = deepcopy(
-    THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
-)
-THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["estimator_specs"] = [
-    {
-        "id": "stable executable estimator id",
-        "name": "short human-readable name",
-        "estimator_interface_contract": deepcopy(
-            THEORY_DEVELOPER_OUTPUT_CONTRACT["estimator_specs"][0][
-                "estimator_interface_contract"
-            ]
-        ),
-    }
-]
-THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT["theory_derivation_packet"] = {
-    "claim_index": [
+THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT: dict[str, Any] = {
+    "problem_card": {
+        "claim_ids": [
+            "claim_index ids that locate the load-bearing setup and research target"
+        ],
+    },
+    "theory_derivation_packet": {
+        "claim_index": [
+            {
+                "id": "stable claim or equation id",
+                "kind": "|".join(THEORY_FILE_CLAIM_KINDS),
+                "document_path": "workspace-relative .md or .tex path",
+                "depends_on": ["direct predecessor claim_index ids"],
+                "status": "|".join(THEORY_FILE_CLAIM_STATUSES),
+            }
+        ],
+        "formalization_handoff": {
+            "source_theorem_target": "exact theorem_cards id",
+        },
+    },
+    "estimator_specs": [
         {
-            "id": "stable claim or equation id",
-            "kind": "|".join(THEORY_FILE_CLAIM_KINDS),
-            "document_path": "workspace-relative .md or .tex path",
-            "depends_on": ["direct predecessor claim_index ids"],
-            "status": "|".join(THEORY_FILE_CLAIM_STATUSES),
+            "id": "stable executable estimator id",
+            "name": "short human-readable name",
+            "estimator_interface_contract": deepcopy(
+                THEORY_DEVELOPER_OUTPUT_CONTRACT["estimator_specs"][0][
+                    "estimator_interface_contract"
+                ]
+            ),
         }
     ],
-    "formalization_handoff": deepcopy(
-        THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT["theory_derivation_packet"][
-            "formalization_handoff"
-        ]
-    ),
+    "theorem_cards": [
+        {
+            "id": "exact theorem claim_index id",
+            "document_path": "workspace-relative .md or .tex path",
+        }
+    ],
+    "formalization_requests": [
+        {
+            "id": "stable formalization request id",
+            "target_theorem_card": "exact theorem_cards id",
+        }
+    ],
+    "simulation_ademp_spec": {
+        "claim_ids": [
+            "claim_index ids whose predictions the Simulation owner should investigate"
+        ],
+    },
 }
 
 
@@ -1880,6 +1896,132 @@ def _file_theory_index_errors(
     return errors
 
 
+def _file_theory_handoff_reference_errors(
+    packet: Mapping[str, Any],
+    *,
+    handoff_requirements: Mapping[str, bool],
+) -> list[str]:
+    """Validate navigation references without interpreting document mathematics."""
+
+    derivation = packet.get("theory_derivation_packet", {})
+    claim_rows = (
+        derivation.get("claim_index", [])
+        if isinstance(derivation, Mapping)
+        else []
+    )
+    claims_by_id = {
+        str(row.get("id", "") or "").strip(): dict(row)
+        for row in claim_rows
+        if isinstance(row, Mapping) and str(row.get("id", "") or "").strip()
+    }
+    errors: list[str] = []
+
+    def reject_extra(value: Any, label: str, allowed: set[str]) -> None:
+        if not isinstance(value, Mapping):
+            return
+        unexpected = sorted(set(value) - allowed)
+        if unexpected:
+            errors.append(
+                f"{label} contains non-reference fields: {', '.join(unexpected)}; "
+                "put substantive theory in Markdown/LaTeX documents"
+            )
+
+    problem_card = packet.get("problem_card", {})
+    simulation_spec = packet.get("simulation_ademp_spec", {})
+    for label, value, allowed in (
+        (
+            "theory_derivation_packet",
+            derivation,
+            {"claim_index", "formalization_handoff", "sanity_check_index"},
+        ),
+        ("problem_card", problem_card, {"claim_ids"}),
+        ("simulation_ademp_spec", simulation_spec, {"claim_ids"}),
+        (
+            "theory_derivation_packet.formalization_handoff",
+            (
+                derivation.get("formalization_handoff", {})
+                if isinstance(derivation, Mapping)
+                else {}
+            ),
+            {"source_theorem_target"},
+        ),
+    ):
+        reject_extra(value, label, allowed)
+
+    indexed_row_shapes = (
+        (
+            "theory_derivation_packet.claim_index",
+            claim_rows,
+            {"id", "kind", "document_path", "anchor", "depends_on", "status"},
+        ),
+        (
+            "theorem_cards",
+            packet.get("theorem_cards", []),
+            {"id", "document_path"},
+        ),
+        (
+            "estimator_specs",
+            packet.get("estimator_specs", []),
+            {
+                "id",
+                "name",
+                "estimator_interface_contract",
+                "estimator_interface_contract_id",
+            },
+        ),
+        (
+            "formalization_requests",
+            packet.get("formalization_requests", []),
+            {"id", "target_theorem_card"},
+        ),
+    )
+    for label, rows, allowed in indexed_row_shapes:
+        for index, row in enumerate(rows or []):
+            reject_extra(row, f"{label}[{index}]", allowed)
+
+    for field, value, required in (
+        ("problem_card", problem_card, handoff_requirements.get("problem_card", True)),
+        (
+            "simulation_ademp_spec",
+            simulation_spec,
+            handoff_requirements.get("simulation_ademp_spec", False),
+        ),
+    ):
+        claim_ids = value.get("claim_ids", []) if isinstance(value, Mapping) else []
+        label = f"{field}.claim_ids"
+        if not isinstance(claim_ids, list):
+            errors.append(f"{label} must be a list")
+            continue
+        normalized = [str(item or "").strip() for item in claim_ids]
+        if required and not normalized:
+            errors.append(f"{label} must be a non-empty list")
+        if any(not item for item in normalized):
+            errors.append(f"{label} entries must be non-empty claim_index ids")
+        if len(normalized) != len(set(normalized)):
+            errors.append(f"{label} entries must be unique")
+        unknown = sorted({item for item in normalized if item} - set(claims_by_id))
+        if unknown:
+            errors.append(f"{label} has unknown claim_index ids: " + ", ".join(unknown))
+
+    for index, row in enumerate(packet.get("theorem_cards", []) or []):
+        if not isinstance(row, Mapping):
+            continue
+        theorem_id = str(row.get("id", "") or "").strip()
+        claim = claims_by_id.get(theorem_id, {})
+        if theorem_id and claim and claim.get("kind") != "theorem":
+            errors.append(
+                f"theorem_cards[{index}].id must reference a theorem claim_index row"
+            )
+        document_path = str(row.get("document_path", "") or "").strip()
+        if not document_path:
+            errors.append(f"theorem_cards[{index}].document_path must be non-empty")
+        elif claim and document_path != str(claim.get("document_path", "") or ""):
+            errors.append(
+                f"theorem_cards[{index}].document_path must match its claim_index row"
+            )
+    return errors
+
+
 def _claim_dependency_cycle(
     dependencies: Mapping[str, Sequence[str]],
 ) -> tuple[str, ...]:
@@ -1943,6 +2085,10 @@ def _validate_theory_packet(
     *,
     require_estimator_interfaces: bool,
 ) -> list[str]:
+    document_authority = (
+        packet.get("theory_content_authority")
+        == THEORY_WORKSPACE_CONTENT_AUTHORITY
+    )
     formalization_authoring_required = (
         packet.get("runtime_formalization_authoring_required") is not False
     )
@@ -1956,23 +2102,34 @@ def _validate_theory_packet(
         }
         if isinstance(raw_handoff_requirements, Mapping)
         and raw_handoff_requirements
-        else {
-            "problem_card": True,
-            "theory_derivation_packet": True,
-            "estimator_specs": True,
-            "theorem_cards": True,
-            "proof_plan": True,
-            "simulation_ademp_spec": True,
-            "formalization_requests": formalization_authoring_required,
-        }
-    )
-    document_authority = (
-        packet.get("theory_content_authority")
-        == THEORY_WORKSPACE_CONTENT_AUTHORITY
+        else (
+            {
+                "problem_card": True,
+                "theory_derivation_packet": True,
+                "estimator_specs": False,
+                "theorem_cards": formalization_authoring_required,
+                "simulation_ademp_spec": False,
+                "formalization_requests": formalization_authoring_required,
+            }
+            if document_authority
+            else {
+                "problem_card": True,
+                "theory_derivation_packet": True,
+                "estimator_specs": True,
+                "theorem_cards": True,
+                "proof_plan": True,
+                "simulation_ademp_spec": True,
+                "formalization_requests": formalization_authoring_required,
+            }
+        )
     )
     errors: list[str] = _output_contract_shape_errors(
         packet,
-        THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT,
+        (
+            THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+            if document_authority
+            else THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        ),
         path="",
     )
     errors.extend(
@@ -1992,21 +2149,22 @@ def _validate_theory_packet(
         if packet.get(field) in (None, "", [], {}):
             errors.append(f"missing or empty field: {field}")
     problem_card = packet.get("problem_card", {})
-    if isinstance(problem_card, Mapping):
-        for field in (
-            "observed_data",
-            "dgp",
-            "estimand",
-            "asymptotic_regime",
-            "desired_theorem_type",
-        ):
-            if not str(problem_card.get(field, "") or "").strip():
-                errors.append(f"problem_card.{field} must be non-empty")
-        assumptions = problem_card.get("assumptions", [])
-        if not isinstance(assumptions, list) or not assumptions:
-            errors.append("problem_card.assumptions must be a non-empty list")
-    elif problem_card not in (None, "", [], {}):
-        errors.append("problem_card must be an object")
+    if not document_authority:
+        if isinstance(problem_card, Mapping):
+            for field in (
+                "observed_data",
+                "dgp",
+                "estimand",
+                "asymptotic_regime",
+                "desired_theorem_type",
+            ):
+                if not str(problem_card.get(field, "") or "").strip():
+                    errors.append(f"problem_card.{field} must be non-empty")
+            assumptions = problem_card.get("assumptions", [])
+            if not isinstance(assumptions, list) or not assumptions:
+                errors.append("problem_card.assumptions must be a non-empty list")
+        elif problem_card not in (None, "", [], {}):
+            errors.append("problem_card must be an object")
     derivation = packet.get("theory_derivation_packet", {})
     if not isinstance(derivation, Mapping):
         errors.append("theory_derivation_packet must be an object")
@@ -2028,7 +2186,7 @@ def _validate_theory_packet(
             errors.append(
                 "theory_derivation_packet.formalization_handoff must be non-empty"
             )
-        elif (
+        elif not document_authority and (
             isinstance(formalization_handoff, Mapping)
             and formalization_handoff
             and not formalization_handoff.get("semantic_alignment_constraints")
@@ -2045,11 +2203,22 @@ def _validate_theory_packet(
     formalization_requests = packet.get("formalization_requests", [])
     if not isinstance(formalization_requests, list):
         errors.append("formalization_requests must be a list")
-    elif handoff_requirements.get("formalization_requests", False) and not formalization_requests:
+    elif (
+        handoff_requirements.get("formalization_requests", False)
+        and not formalization_requests
+    ):
         errors.append("formalization_requests must be a non-empty list")
-    for list_field in ("lemma_cards", "critic_findings", "next_actions"):
-        if not isinstance(packet.get(list_field), list):
-            errors.append(f"{list_field} must be a list")
+    if document_authority:
+        errors.extend(
+            _file_theory_handoff_reference_errors(
+                packet,
+                handoff_requirements=handoff_requirements,
+            )
+        )
+    else:
+        for list_field in ("lemma_cards", "critic_findings", "next_actions"):
+            if not isinstance(packet.get(list_field), list):
+                errors.append(f"{list_field} must be a list")
     allowed_derivation_refs = theory_semantic_reference_ids(packet)
     estimator_ids: list[str] = []
     for idx, row in enumerate(packet.get("estimator_specs", []) or []):
@@ -2095,25 +2264,26 @@ def _validate_theory_packet(
     if len(estimator_ids) != len(set(estimator_ids)):
         errors.append("estimator_specs ids must be unique")
     simulation_ademp_spec = packet.get("simulation_ademp_spec", {})
-    if isinstance(simulation_ademp_spec, Mapping) and (
-        simulation_ademp_spec
-        or handoff_requirements.get("simulation_ademp_spec", True)
-    ):
-        if not str(simulation_ademp_spec.get("aim", "") or "").strip():
-            errors.append("simulation_ademp_spec.aim must be non-empty")
-        for field in (
-            "dgps",
-            "methods",
-            "performance_measures",
-            "expected_theoretical_behavior",
+    if not document_authority:
+        if isinstance(simulation_ademp_spec, Mapping) and (
+            simulation_ademp_spec
+            or handoff_requirements.get("simulation_ademp_spec", True)
         ):
-            value = simulation_ademp_spec.get(field, [])
-            if not isinstance(value, list) or not value:
-                errors.append(
-                    f"simulation_ademp_spec.{field} must be a non-empty list"
-                )
-    elif simulation_ademp_spec not in (None, "", [], {}):
-        errors.append("simulation_ademp_spec must be an object")
+            if not str(simulation_ademp_spec.get("aim", "") or "").strip():
+                errors.append("simulation_ademp_spec.aim must be non-empty")
+            for field in (
+                "dgps",
+                "methods",
+                "performance_measures",
+                "expected_theoretical_behavior",
+            ):
+                value = simulation_ademp_spec.get(field, [])
+                if not isinstance(value, list) or not value:
+                    errors.append(
+                        f"simulation_ademp_spec.{field} must be a non-empty list"
+                    )
+        elif simulation_ademp_spec not in (None, "", [], {}):
+            errors.append("simulation_ademp_spec must be an object")
     theorem_card_ids: list[str] = []
     for idx, row in enumerate(packet.get("theorem_cards", []) or []):
         if not isinstance(row, Mapping):
@@ -2124,10 +2294,11 @@ def _validate_theory_packet(
             errors.append(f"theorem_cards[{idx}].id must be non-empty")
         else:
             theorem_card_ids.append(theorem_card_id)
-        if not str(row.get("informal_statement", "")).strip():
-            errors.append("theorem card missing informal_statement")
-        if not str(row.get("proof_strategy", "")).strip():
-            errors.append("theorem card missing proof_strategy")
+        if not document_authority:
+            if not str(row.get("informal_statement", "")).strip():
+                errors.append("theorem card missing informal_statement")
+            if not str(row.get("proof_strategy", "")).strip():
+                errors.append("theorem card missing proof_strategy")
     if len(theorem_card_ids) != len(set(theorem_card_ids)):
         errors.append("theorem_cards ids must be unique")
 
@@ -2227,13 +2398,7 @@ def _normalize_theory_packet(
     )
     if isinstance(derivation_packet, Mapping):
         body["theory_derivation_packet"] = (
-            {
-                field: deepcopy(derivation_packet[field])
-                for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT[
-                    "theory_derivation_packet"
-                ]
-                if field in derivation_packet
-            }
+            deepcopy(dict(derivation_packet))
             if document_index_handoff
             else _canonicalize_theory_derivation_packet(
                 derivation_packet,
@@ -2274,8 +2439,12 @@ def _normalize_theory_packet(
         "theory_prompt_mode": theory_prompt_mode,
         **derivation_counts,
         "has_formalization_handoff": bool(
-            isinstance(derivation.get("formalization_handoff", {}), Mapping)
-            and derivation.get("formalization_handoff")
+            body.get("formalization_requests")
+            if document_index_handoff
+            else (
+                isinstance(derivation.get("formalization_handoff", {}), Mapping)
+                and derivation.get("formalization_handoff")
+            )
         ),
         "formalization_authoring_required": bool(
             formalization_authoring_required
@@ -2406,7 +2575,7 @@ def build_theory_developer_revision_inputs(
 
     missing_core_fields = [
         field
-        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
         if field not in semantic_material
     ]
     if missing_core_fields:
@@ -2726,7 +2895,10 @@ def _initial_theory_workspace_prompt(
         opening
         + "Use your own statistical judgment in durable Markdown/LaTeX. Documents are "
         "the authority for mathematics; JSON is only a compact claim index, ABI, and "
-        "cross-agent handoff. Keep the current endorsed argument coherent, remove or "
+        "cross-agent handoff. Put every formula, assumption, theorem statement, proof "
+        "argument, simulation design, and semantic constraint in those documents; the "
+        "structured handoff may only point to claim IDs or define an executable estimator "
+        "ABI. Keep the current endorsed argument coherent, remove or "
         "clearly reject false exploration, and make each requested conclusion's scope, "
         "assumptions, dependencies, implementation meaning, and uncertainty reviewable. "
         "A case split must exhaust the asserted domain; otherwise narrow the claim or "
@@ -2895,7 +3067,7 @@ def _attach_theory_workspace_revision_transport(
     result = deepcopy(dict(packet))
     revised_core = {
         field: deepcopy(result[field])
-        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
         if field in result
     }
     feedback = revision_inputs.get("feedback", {})
@@ -3075,7 +3247,7 @@ def _validate_theory_workspace_revision_packet(
         errors.append("runtime cannot edit theory workspace semantics")
     revised_core = {
         field: deepcopy(packet[field])
-        for field in THEORY_DEVELOPER_CORE_OUTPUT_CONTRACT
+        for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
         if field in packet
     }
     if transport.get("revised_core_payload_fingerprint") != stable_hash(

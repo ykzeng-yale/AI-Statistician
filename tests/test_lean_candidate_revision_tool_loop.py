@@ -3743,6 +3743,70 @@ def test_formalizer_workspace_target_reuses_upstream_goal_without_model_call() -
     )
 
 
+def test_formalizer_contract_binds_authoritative_theory_document_hash() -> None:
+    question = OpenResearchQuestion(
+        id="document-bound-target",
+        title="Document-bound theorem",
+        description="Formalize the exact theorem in the Theory workspace.",
+    )
+    base_packet = {
+        "theory_workspace_manifest": {"document_set_hash": "first-document-set"},
+        "theory_derivation_packet": {
+            "formalization_handoff": {"source_theorem_target": "goal-1"}
+        },
+        "theorem_cards": [
+            {"id": "goal-1", "document_path": "theory/goal-1.tex"}
+        ],
+        "formalization_requests": [
+            {"id": "formalize-goal-1", "target_theorem_card": "goal-1"}
+        ],
+    }
+    theorem_goals = [
+        {
+            "id": "goal-1",
+            "title": "goal-1",
+            "informal_statement": (
+                "Read exact hash-bound Theory claim 'goal-1' in "
+                "'theory/goal-1.tex'."
+            ),
+        }
+    ]
+
+    first = formalizer_module._task_bound_formal_target_contract(
+        question=question,
+        theory_packet=base_packet,
+        theorem_goals=theorem_goals,
+        registered_problem={},
+    )
+    second = formalizer_module._task_bound_formal_target_contract(
+        question=question,
+        theory_packet={
+            **base_packet,
+            "theory_workspace_manifest": {
+                "document_set_hash": "second-document-set"
+            },
+        },
+        theorem_goals=theorem_goals,
+        registered_problem={},
+    )
+
+    assert first["theory_document_set_hash"] == "first-document-set"
+    assert first["semantic_authority_order"][0] == (
+        "hash-bound authoritative theory documents"
+    )
+    assert first["contract_fingerprint"] != second["contract_fingerprint"]
+
+    target = formalizer_module.build_formalizer_workspace_target(
+        question=question,
+        theory_packet=base_packet,
+        theorem_goals=theorem_goals,
+        registered_problem={},
+    )
+    assert "navigation, not a substitute theorem statement" in target[
+        "formal_target"
+    ]["semantic_alignment_constraints"][0]
+
+
 def test_exhausted_formalizer_source_loop_continues_same_workspace_by_ref() -> None:
     latest = "theorem target : True := by\n  exact True.intro\n"
     checkpoint = _lean_workspace_checkpoint(

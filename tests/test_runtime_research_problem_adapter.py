@@ -5,6 +5,7 @@ from ai_statistician.runtime_research_problem_adapter import (
     derive_runtime_research_problem,
 )
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.theory_workspace import THEORY_WORKSPACE_CONTENT_AUTHORITY
 
 
 def _question() -> OpenResearchQuestion:
@@ -76,6 +77,51 @@ def test_theory_packet_is_domain_general_research_authority() -> None:
     assert bundle.problem_formalization_source == (
         "theory_developer_structured_packet"
     )
+
+
+def test_document_theory_packet_projects_only_hash_bound_navigation() -> None:
+    question = _question()
+    packet = {
+        "packet_id": "theory:document-authority",
+        "theory_content_authority": THEORY_WORKSPACE_CONTENT_AUTHORITY,
+        "theory_workspace_manifest": {"document_set_hash": "document-set-hash"},
+        "problem_card": {"claim_ids": ["spectral_limit"]},
+        "theory_derivation_packet": {
+            "claim_index": [
+                {
+                    "id": "spectral_limit",
+                    "kind": "theorem",
+                    "document_path": "theory/spectral_limit.tex",
+                    "depends_on": [],
+                    "status": "SUPPORTED",
+                }
+            ],
+            "formalization_handoff": {
+                "source_theorem_target": "spectral_limit"
+            },
+        },
+        "theorem_cards": [
+            {"id": "spectral_limit", "document_path": "theory/spectral_limit.tex"}
+        ],
+    }
+
+    bundle = derive_runtime_research_problem(
+        question=question,
+        architect_context={},
+        theory_packet=packet,
+    )
+
+    assert bundle.problem.problem_class == "document_authoritative_frontier_problem"
+    assert bundle.problem.assumptions == ()
+    assert bundle.problem.extraction_evidence["document_set_hash"] == (
+        "document-set-hash",
+    )
+    assert bundle.theorem_goals[0].id == "spectral_limit"
+    assert "theory/spectral_limit.tex" in bundle.theorem_goals[0].informal_statement
+    assert bundle.problem_formalization_source == (
+        "theory_developer_document_workspace"
+    )
+    assert bundle.theorem_goal_source == "theory_developer_claim_index"
 
 
 def test_architect_plan_seeds_retrieval_without_task_family_classifier() -> None:
