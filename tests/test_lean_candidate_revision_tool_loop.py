@@ -254,6 +254,28 @@ def test_lean_axiom_audit_uses_lean_report_instead_of_source_grammar() -> None:
     assert _lean_axioms_from_report("unrelated compiler output") == (False, ())
 
 
+def test_axiom_report_is_bound_to_final_requested_declaration() -> None:
+    report = (
+        "'helper' does not depend on any axioms\n"
+        "'target' depends on axioms: [propext,\n sorryAx]\n"
+    )
+    assert _lean_axioms_from_report(report, declaration="target") == (
+        True, ("propext", "sorryAx"),
+    )
+    assert _lean_axioms_from_report(report, declaration="helper") == (False, ())
+    assert _lean_axioms_from_report(
+        "'helper' does not depend on any axioms", declaration="target",
+    ) == (False, ())
+    assert _lean_axioms_from_report(
+        "'target' depends on axioms: [sorryAx]\n"
+        "'target' does not depend on any axioms\n", declaration="target",
+    ) == (True, ())
+    assert _lean_axioms_from_report(
+        "'Namespace.target\u0027' depends on axioms: [Classical.choice]",
+        declaration="Namespace.target\u0027",
+    ) == (True, ("Classical.choice",))
+
+
 def test_identity_probe_separates_elaboration_from_untrusted_proof(
     tmp_path,
     monkeypatch,

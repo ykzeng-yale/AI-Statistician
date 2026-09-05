@@ -247,3 +247,71 @@ def test_pinned_statlib_foundation_compiles_model_authored_multifile_project(
     assert rebuilt_target["compiled_support_prefix_reused"] is False
     assert len(rebuilt_target["support_build_attempts"]) == 2
     assert (workspace / base_path).read_text(encoding="utf-8") == base_source
+
+
+@pytest.mark.parametrize("open_child,untrusted_axiom", [
+    ("theorem child : True := by sorry", "sorryAx"),
+    ("axiom child : True", "Sketch.child"),
+])
+def test_compiled_sketch_closes_only_after_transitive_child_is_proved(
+    tmp_path: Path, open_child: str, untrusted_axiom: str,
+) -> None:
+    project = CANONICAL_EMPIRICAL_PROCESS_LEAN_ROOT.resolve()
+    if shutil.which("lake") is None or not (project / "lakefile.lean").is_file():
+        pytest.skip("pinned Lean foundation is unavailable")
+    if not (project / ".lake" / "packages" / "mathlib").exists():
+        pytest.skip("pinned Lean foundation is not built")
+    files = [
+        {"path": "Sketch/Child.lean", "content": "namespace Sketch\n" + open_child + "\nend Sketch\n"},
+        {"path": "Sketch/Parent.lean", "content": (
+            "import Sketch.Child\nnamespace Sketch\n"
+            "theorem parent : True := by exact child\nend Sketch\n"
+        )},
+    ]
+    order = tuple(row["path"] for row in files)
+    target = (
+        "import Sketch.Parent\n"
+        "#print axioms True.intro\n"
+        "theorem target : True := by exact Sketch.parent\n"
+    )
+    executor = LeanProjectExecutor(
+        active_project=project, workspace_root=tmp_path / "sketch", timeout_s=60,
+    )
+
+    child = executor.check_support_file(
+        relative_path=order[0], project_files=files, prior_build_order=(),
+    )
+    sketch = executor.check_target(
+        target_source=target, candidate_lean_declaration="target",
+        project_files=files, support_build_order=order,
+    )
+    closed_files = [
+        {"path": order[0], "content": (
+            "namespace Sketch\ntheorem child : True := by trivial\nend Sketch\n"
+        )}, files[1],
+    ]
+    closed = executor.check_target(
+        target_source=target, candidate_lean_declaration="target",
+        project_files=closed_files, support_build_order=order,
+    )
+    reopened = executor.check_target(
+        target_source=target, candidate_lean_declaration="target",
+        project_files=files, support_build_order=order,
+    )
+
+    assert child["compiled"] is True, child["local_lean_stderr"]
+    assert child["proof_evidence_status"] == "LEAN_SUPPORT_FILE_CHECK_NOT_TARGET_PROOF_EVIDENCE"
+    for incomplete in (sketch, reopened):
+        assert incomplete["local_lean_source_compiled"] is True, incomplete["local_lean_stderr"]
+        assert incomplete["candidate_axiom_audit_checked"] is True
+        assert untrusted_axiom in incomplete["candidate_axiom_names"]
+        assert incomplete["candidate_axiom_audit_clean"] is False
+        assert incomplete["candidate_identity_lean_verified"] is False
+        assert incomplete["compiled"] is False
+    assert closed["compiled"] is True, closed["local_lean_stderr"]
+    assert closed["candidate_axiom_audit_clean"] is True
+    assert closed["candidate_identity_lean_verified"] is True
+    assert closed["compiled_support_prefix_reused"] is False
+    assert reopened["compiled_support_prefix_reused"] is False
+    assert closed["lean_project_hash"] != sketch["lean_project_hash"]
+    assert reopened["lean_project_hash"] == sketch["lean_project_hash"]

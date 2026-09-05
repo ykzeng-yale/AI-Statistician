@@ -26,16 +26,22 @@ def lean_source_lineage_id(payload: Mapping[str, Any]) -> str:
     return "lean_source_lineage:" + stable_hash(dict(payload))[:20]
 
 
-def _lean_axioms_from_report(report: str) -> tuple[bool, tuple[str, ...]]:
+def _lean_axioms_from_report(
+    report: str, *, declaration: str = "",
+) -> tuple[bool, tuple[str, ...]]:
     text = str(report or "")
-    if "does not depend on any axioms" in text:
-        return True, ()
-    match = re.search(r"depends on axioms:\s*\[([^\]]*)\]", text)
-    if match is None:
+    reports = list(re.finditer(
+        r"^'([^\r\n]+)' (?:does not depend on any axioms|"
+        r"depends on axioms:\s*\[([^\]]*)\])$",
+        text, flags=re.MULTILINE,
+    ))
+    # The probe appends its own query after all model-authored diagnostics.
+    # Never use an earlier helper report to certify the requested declaration.
+    if not reports or (declaration and reports[-1].group(1) != declaration):
         return False, ()
     names = tuple(
         name.strip()
-        for name in match.group(1).split(",")
+        for name in (reports[-1].group(2) or "").split(",")
         if name.strip()
     )
     return True, names
@@ -129,7 +135,7 @@ def run_lean_candidate_identity_probe(
                 identity_command,
             ) = run_lean(probe_path)
             axiom_audit_checked, candidate_axiom_names = (
-                _lean_axioms_from_report(identity_stdout)
+                _lean_axioms_from_report(identity_stdout, declaration=declaration)
             )
             untrusted_axiom_names = tuple(
                 name
@@ -157,7 +163,7 @@ def run_lean_candidate_identity_probe(
             identity_stderr = str(exc)
 
     axiom_audit_checked, candidate_axiom_names = _lean_axioms_from_report(
-        identity_stdout
+        identity_stdout, declaration=declaration,
     )
     untrusted_axiom_names = tuple(
         name for name in candidate_axiom_names if name not in TRUSTED_LEAN_AXIOMS

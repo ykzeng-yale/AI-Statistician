@@ -1903,7 +1903,15 @@ def run_lean_candidate_revision_tool_loop(
                         "Create, read, edit, remove, and compile them with the Lean "
                         "support-file tools. Compile dependencies before dependents; "
                         "the resulting successful order is replayed exactly before "
-                        "every target check and final kernel promotion."
+                        "every target check and final kernel promotion. Keep shared "
+                        "definitions and lemma statements stable while developing "
+                        "their proofs. When useful, decompose a difficult proof into "
+                        "reusable lemmas and check the parent reduction early, with "
+                        "explicitly unfinished helper proofs. Such compiled sketches "
+                        "are diagnostic only: all dependencies used by the exact "
+                        "target must become axiom-clean before kernel closure. Choose "
+                        "the decomposition yourself; no fixed number of lemmas or "
+                        "required proof strategy applies."
                         if project_tools_enabled
                         else ""
                     )

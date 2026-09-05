@@ -280,11 +280,11 @@ fallback. All such observations remain explicitly non-proof evidence.
 The stable initial/revision tool surface offers target/support read-write-edit operations,
 support compilation, declaration/proof-state inspection, formal RAG, model-intent-bound proof search, and a typed
 formal gap. The same Formalizer supplies OpenProver's current context and target from its Lean observation; no hidden normalizer model or packet regeneration may reinterpret that task. A revision gap preserves exact target provenance, clears proof-candidate
-source fields, and remains non-proof. Independent review must distinguish a true
-missing foundation from a fixable API or modeling error. Temporary admitted bodies or Lean `#check`/`#print` commands are diagnostic only: Lean reports elaboration and axioms, and only a complete axiom-clean source may enter review or promotion.
+source fields, and remains non-proof. Model-authored helper stubs may compile so the model can test a parent reduction before solving its children; no compiled sketch is proof evidence.
+Independent review distinguishes semantic defects from incomplete proofs. The final active-project target must pass the transitive axiom audit, including imported helpers; changing a dependency invalidates its earlier project identity.
 
-Every changed statement receives independent target-semantic review in one retained
-read/search/submit session over exact Lean evidence and hash-verified Theory documents. When a candidate is rejected, it cannot be handed back unchanged after temporary edits:
+Every changed statement receives independent review in one retained session: first read exact Lean and support code with question/theory/author judgments inaccessible, record a hash-bound Markdown read-back, then reveal intent for comparison.
+Read-back remains immutable within that review; code comments are still untrusted visible source, and this model-assisted comparison is not human certification. When a candidate is rejected, it cannot be handed back unchanged after temporary edits:
 the same Formalizer receives a hash-bound observation and must submit a changed
 target/support project or report a grounded formal gap. It can count as theorem evidence
 only when all of the following bind to the same artifact:

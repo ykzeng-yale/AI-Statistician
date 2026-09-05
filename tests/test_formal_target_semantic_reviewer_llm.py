@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -9,6 +10,7 @@ import pytest
 
 from ai_statistician import lean_kernel_promotion as lean_kernel_promotion_module
 from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.client_tool_loop import externalize_client_tool_text_documents
 from ai_statistician.lean_candidate_identity import (
     LEAN_TARGET_STATEMENT_HASH_ALGORITHM,
     lean_target_statement_hash,
@@ -21,6 +23,7 @@ from ai_statistician.formal_target_semantic_review_runtime import (
     _runtime_formal_target_semantic_review_dispatch,
 )
 from ai_statistician.formal_target_semantic_reviewer_llm import (
+    FORMAL_TARGET_READBACK_TOOL,
     FORMAL_TARGET_SEMANTIC_REVIEW_DIMENSIONS,
     FORMAL_TARGET_SEMANTIC_REVIEW_JSON_SCHEMA,
     FORMAL_TARGET_SEMANTIC_REVIEW_SUBMIT_TOOL,
@@ -41,6 +44,7 @@ from ai_statistician.model_backend import (
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
     theory_workspace_document_manifest,
 )
 
@@ -115,15 +119,26 @@ class _ClientToolReviewBackend:
         actions: list[
             dict[str, Any] | tuple[str, Mapping[str, Any]] | str
         ],
+        *,
+        automatic_readback: bool = True,
     ) -> None:
         self.actions = list(actions)
         self.requests: list[ClientToolTurnRequest] = []
+        self.automatic_readback = automatic_readback
 
     def generate_client_tool_turn(
         self,
         request: ClientToolTurnRequest,
     ) -> ClientToolTurnResponse:
         self.requests.append(request)
+        if self.automatic_readback:
+            self.automatic_readback = False
+            prefix = [
+                (FORMAL_TARGET_READBACK_TOOL, {"markdown": "For any proposition $p$ and proof of $p$, $p$ holds."})
+            ]
+            if _visible_review_payload(request)["exact_evidence_document_catalog"]:
+                prefix.insert(0, "read_first_externalized_document")
+            self.actions[:0] = prefix
         if not self.actions:
             return ClientToolTurnResponse(
                 content_blocks=(),
@@ -139,8 +154,7 @@ class _ClientToolReviewBackend:
             )
         action = self.actions.pop(0)
         if action == "read_first_externalized_document":
-            prompt = str(request.messages[0]["content"])
-            payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+            payload = _visible_review_payload(request)
             document = payload["exact_evidence_document_catalog"][0]
             tool_name = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
             tool_input = {
@@ -148,28 +162,39 @@ class _ClientToolReviewBackend:
                 "line_start": 1,
                 "line_end": min(20, int(document["line_count"])),
             }
+        elif action == "read_comparison_document":
+            observation = json.loads(request.messages[-3]["content"][0]["content"])
+            document = observation["comparison_evidence"]
+            tool_name = THEORY_WORKSPACE_READ_DOCUMENT_TOOL
+            tool_input = {"path": document["path"], "line_start": 1, "line_end": 20}
         elif isinstance(action, tuple):
             tool_name, tool_input = action
+        elif isinstance(action, list):
+            tool_name, tool_input = action[0]
         else:
             tool_name, tool_input = (
                 FORMAL_TARGET_SEMANTIC_REVIEW_SUBMIT_TOOL,
                 action,
             )
-        call = ClientToolCall(
-            call_id=f"formal-review-call-{len(self.requests)}",
-            name=tool_name,
-            input=dict(tool_input),
+        calls = tuple(
+            ClientToolCall(
+                call_id=f"formal-review-call-{len(self.requests)}-{index}",
+                name=name, input=dict(payload),
+            )
+            for index, (name, payload) in enumerate(
+                action if isinstance(action, list) else [(tool_name, tool_input)]
+            )
         )
         return ClientToolTurnResponse(
-            content_blocks=(
+            content_blocks=tuple(
                 {
                     "type": "tool_use",
                     "id": call.call_id,
                     "name": call.name,
                     "input": dict(call.input),
-                },
+                } for call in calls
             ),
-            tool_calls=(call,),
+            tool_calls=calls,
             text="",
             provider=self.provider_name,
             model=request.model,
@@ -179,6 +204,17 @@ class _ClientToolReviewBackend:
                 "provider_stop_reason": "tool_use",
             },
         )
+
+
+def _visible_review_payload(request: ClientToolTurnRequest) -> dict[str, Any]:
+    prompt = str(request.messages[0]["content"])
+    for message in request.messages[1:]:
+        for block in message.get("content", []):
+            if isinstance(block, Mapping) and block.get("type") == "tool_result":
+                observation = json.loads(block["content"])
+                if "comparison_evidence" in observation:
+                    prompt = observation["comparison_evidence"]
+    return json.loads(prompt.rsplit("\n\n", 1)[1])
 
 
 def _runtime_fixture(
@@ -506,7 +542,8 @@ def test_semantic_review_binds_exact_model_authored_lean_project(
     assert result.status == "REROUTE"
     initial_prompt = str(backend.requests[0].messages[0]["content"])
     payload = json.loads(initial_prompt.rsplit("\n\n", 1)[1])
-    exact = payload["review_material"]["exact_formal_target"]
+    assert "question" not in payload
+    exact = payload["lean_code"]
     assert exact["exact_lean_project"] == project
     assert exact["exact_lean_project_hash"] == project["project_hash"]
     feedback = result.next_task.inputs["environment_feedback"]
@@ -788,8 +825,8 @@ def test_revision_review_receives_prior_findings_and_formalizer_grounding(
     subsystem.run(task, blackboard)
 
     initial_prompt = str(backend.requests[0].messages[0]["content"])
-    payload = json.loads(initial_prompt.rsplit("\n\n", 1)[1])
-    material = payload["review_material"]
+    assert "source-shaped certificate" not in initial_prompt
+    material = _visible_review_payload(backend.requests[-1])["review_material"]
     assert material["prior_semantic_review_observation"]["findings"] == (
         prior_feedback["findings"]
     )
@@ -847,7 +884,7 @@ def test_formal_target_review_reports_every_material_finding_without_cap() -> No
     )
     packet = agent.review(
         question=_question(),
-        review_material={"exact_formal_target": {"source": "theorem t : True"}},
+        review_material={"exact_formal_target": {"exact_lean_source": "theorem t : True"}},
         trusted_lineage={
             "work_order_id": "work-order",
             "work_order_hash": "work-order-hash",
@@ -884,9 +921,7 @@ def test_long_exact_evidence_is_read_inside_retained_reviewer_session() -> None:
         ["theorem exact_source : True := by trivial"]
         + [f"-- exact semantic line {index}: " + ("x" * 80) for index in range(30)]
     )
-    backend = _ClientToolReviewBackend(
-        ["read_first_externalized_document", _review_response(accepted=True)]
-    )
+    backend = _ClientToolReviewBackend([_review_response(accepted=True)])
     agent = LLMFormalTargetSemanticReviewerAgent(
         provider=backend,
         config=FormalTargetSemanticReviewerConfig(
@@ -927,7 +962,7 @@ def test_long_exact_evidence_is_read_inside_retained_reviewer_session() -> None:
     transport = packet["client_tool_loop"]
     assert transport["evidence_document_count"] == 1
     assert transport["document_access_count"] == 1
-    assert transport["turns"] == 2
+    assert transport["turns"] == 3
     second_request = backend.requests[1]
     assert "exact semantic line 0" in json.dumps(second_request.messages[-1])
 
@@ -960,7 +995,8 @@ def test_runtime_supplies_hash_bound_theory_markdown_to_retained_reviewer(
 
     review = _artifact_of_kind(result, "FormalTargetSemanticReviewPacket")
     prompt = str(backend.requests[0].messages[0]["content"])
-    payload = json.loads(prompt.rsplit("\n\n", 1)[1])
+    assert "Derivation line" not in prompt
+    payload = _visible_review_payload(backend.requests[-1])
     catalog = payload["exact_evidence_document_catalog"]
     assert any(
         row["json_path"]
@@ -969,7 +1005,7 @@ def test_runtime_supplies_hash_bound_theory_markdown_to_retained_reviewer(
     )
     assert review["client_tool_loop"]["document_access_count"] == 1
     assert theory_content.splitlines()[0] in json.dumps(
-        backend.requests[1].messages[-1]
+        backend.requests[2].messages[-1]
     )
 
 
@@ -989,7 +1025,7 @@ def test_required_slots_survive_anthropic_strict_transform() -> None:
 def test_prompt_binds_provider_slots_to_semantic_dimensions() -> None:
     prompt = build_formal_target_semantic_review_prompt(
         question=_question(),
-        review_material={"exact_formal_target": {"source": "theorem t : True"}},
+        review_material={"exact_formal_target": {"exact_lean_source": "theorem t : True"}},
     )
     payload = json.loads(prompt.split("\n\n", 1)[1])
 
@@ -1062,20 +1098,126 @@ def test_invalid_submission_returns_to_same_retained_reviewer_session() -> None:
 
     packet = agent.review(
         question=_question(),
-        review_material={"exact_formal_target": {"source": "theorem t : True"}},
+        review_material={"exact_formal_target": {"exact_lean_source": "theorem t : True"}},
         trusted_lineage=lineage,
     )
 
     assert packet["overall_verdict"] == "ACCEPT"
-    assert len(backend.requests) == 2
+    assert len(backend.requests) == 3
     assert backend.requests[0].tools == backend.requests[1].tools
     assert backend.requests[0].metadata["full_packet_regeneration_disabled"] is True
-    assert len(backend.requests[1].messages) == 3
+    assert len(backend.requests[2].messages) == 5
     returned_observation = json.dumps(
-        backend.requests[1].messages[-1],
+        backend.requests[2].messages[-1],
         sort_keys=True,
     )
     assert "client_tool_input_rejected" in returned_observation
     assert "all-PASS semantic reviews must leave findings empty" in returned_observation
-    assert packet["client_tool_loop"]["turns"] == 2
+    assert packet["client_tool_loop"]["turns"] == 3
     assert packet["client_tool_loop"]["full_packet_regeneration_used"] is False
+
+
+@pytest.mark.parametrize("premature_action", ["submit", "read_hidden", "search_hidden", "batch"])
+def test_readback_withholds_intent_and_tool_access_until_recorded(
+    tmp_path: Path, premature_action: str,
+) -> None:
+    secret = "UNREVEALED_THEORY_INTENT"
+    theory = "# Intended theorem\n" + (secret + "\n") * 80
+    subsystem, task, blackboard, _ = _runtime_fixture(
+        tmp_path, accepted=True, theory_documents={"claims/intent.md": theory},
+    )
+    _, _, catalog = externalize_client_tool_text_documents(
+        {"authoritative_theory_documents": [{"content": theory}]},
+        min_characters=1200, path_prefix="formal_target_evidence",
+    )
+    action = {
+        "submit": _review_response(accepted=True),
+        "read_hidden": (THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {
+            "path": catalog[0]["path"], "line_start": 1, "line_end": 2,
+        }),
+        "search_hidden": (THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL, {
+            "query": secret, "document_paths": [], "max_results": 5,
+        }),
+        "batch": [
+            (FORMAL_TARGET_READBACK_TOOL, {"markdown": "Batch reading"}),
+            (FORMAL_TARGET_SEMANTIC_REVIEW_SUBMIT_TOOL, _review_response(accepted=True)),
+        ],
+    }[premature_action]
+    reading = "For any proposition $p$, a supplied proof $hp:p$ already establishes $p$."
+    backend = _ClientToolReviewBackend([
+        action,
+        (FORMAL_TARGET_READBACK_TOOL, {"markdown": reading}),
+        (FORMAL_TARGET_READBACK_TOOL, {"markdown": "Changed after seeing intent"}),
+        "read_first_externalized_document",
+        _review_response(accepted=True),
+    ], automatic_readback=False)
+    subsystem.reviewer.provider = backend
+
+    result = subsystem.run(task, blackboard)
+
+    packet = _artifact_of_kind(result, "FormalTargetSemanticReviewPacket")
+    initial = _visible_review_payload(backend.requests[0])
+    assert set(initial) == {"lean_code", "exact_evidence_document_catalog"}
+    assert "authoritative_theory_documents" not in json.dumps(initial)
+    before_reveal = backend.requests[1]
+    observation = json.loads(before_reveal.messages[-1]["content"][0]["content"])
+    if premature_action == "search_hidden":
+        assert observation["hits"] == []
+        assert observation["document_hashes"] == {}
+    else:
+        assert "client_tool_input_rejected" in json.dumps(observation)
+    assert "comparison_evidence" not in observation
+    assert _visible_review_payload(before_reveal) == initial
+    revealed_catalog = _visible_review_payload(backend.requests[2])["exact_evidence_document_catalog"]
+    assert catalog[0] in revealed_catalog
+    assert secret in json.dumps(backend.requests[4].messages[-1])
+    assert "read-back is recorded once" in json.dumps(backend.requests[3].messages[-1])
+    assert packet["lean_readback"]["markdown"] == reading
+    assert packet["lean_readback"]["content_hash"] == stable_hash(reading)
+    assert all(request.tools == backend.requests[0].tools for request in backend.requests)
+    assert all(request.model == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL for request in backend.requests)
+    assert all(request.tool_choice == "any" for request in backend.requests)
+
+
+@pytest.mark.parametrize("changed_field", [
+    "markdown", "candidate_source_hash", "candidate_lean_project_hash",
+    "target_lean_declaration", "recorded_before_intent_reveal",
+])
+def test_readback_cannot_be_reused_for_changed_identity(
+    tmp_path: Path, changed_field: str,
+) -> None:
+    subsystem, task, blackboard, _ = _runtime_fixture(tmp_path, accepted=True)
+    packet = _artifact_of_kind(subsystem.run(task, blackboard), "FormalTargetSemanticReviewPacket")
+    changed = deepcopy(packet)
+    changed["lean_readback"][changed_field] = "tampered"
+
+    assert validate_formal_target_semantic_review_packet(packet) == []
+    assert "formal-target Lean read-back identity is invalid" in (
+        validate_formal_target_semantic_review_packet(changed)
+    )
+
+
+def test_large_comparison_is_readable_not_an_omitted_tool_result(tmp_path: Path) -> None:
+    subsystem, task, blackboard, source_path = _runtime_fixture(tmp_path, accepted=True)
+    lineage = _artifact_of_kind(subsystem.run(task, blackboard), "FormalTargetSemanticReviewPacket")
+    backend = _ClientToolReviewBackend([
+        _review_response(accepted=True),
+        "read_comparison_document",
+        _review_response(accepted=True),
+    ])
+    subsystem.reviewer.provider = backend
+
+    packet = subsystem.reviewer.review(
+        question=_question(), trusted_lineage=lineage,
+        review_material={
+            "exact_formal_target": {"exact_lean_source": source_path.read_text(encoding="utf-8")},
+            "source_evidence": [{"note": "context " * 100} for _ in range(100)],
+        },
+    )
+
+    revealed = json.loads(backend.requests[1].messages[-1]["content"][0]["content"])
+    assert revealed["comparison_evidence"]["content_externalized_without_loss"] is True
+    assert "inspect the externalized comparison evidence" in json.dumps(backend.requests[2].messages[-1])
+    assert "content_omitted_atomically" not in json.dumps(backend.requests[-1].messages)
+    assert packet["overall_verdict"] == "ACCEPT"
+    assert packet["client_tool_loop"]["document_access_count"] == 1

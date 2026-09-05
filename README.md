@@ -52,7 +52,8 @@ Lean identity and axiom check can become source-theorem proof evidence.
 
 ## Model Policy
 
-Anthropic is the current live provider. Production may use Haiku or Sonnet;
+The live backend calls the Anthropic SDK directly; Claude Code is not required.
+Production may use Haiku or Sonnet;
 Opus is forbidden. Every test and evaluation call is pinned to exactly
 `claude-haiku-4-5-20251001`, including retries.
 

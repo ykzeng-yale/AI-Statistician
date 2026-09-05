@@ -558,10 +558,10 @@ class LeanProjectExecutor:
     ) -> dict[str, Any]:
         source_path = self.workspace_root / PurePosixPath(relative_path)
         output_path = source_path.with_suffix(".olean")
+        # Support compilation admits sketches; the target's transitive axiom audit
+        # remains the authority for closure, including imported sorryAx.
         command = [
             lean_binary,
-            "-E",
-            "hasSorry",
             "-R",
             str(self.workspace_root),
             "-o",
