@@ -1,10 +1,10 @@
 {
-  "schema_version": 438,
+  "schema_version": 439,
   "updated_at": "2026-09-06",
   "goal_status": "active",
-  "goal_blocker": "",
+  "goal_blocker": "The current process has no ANTHROPIC_API_KEY. Direct Anthropic SDK preflight rejects it before network activity; Task114 semantic qualification needs an operator-configured process credential. Current repository instructions prohibit recovering credentials from chat, files, logs, or Git history. The native goal remains active; this is the first credential-blocked continuation after registration.",
   "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
-  "execution_status": "The new goal is active. Next is Task114 independent semantic activation through direct exact-Haiku API calls; registration made no product or semantic-evaluator generation calls. Earlier model lookup confirmed authentication and model visibility, not generation quota or live tool-turn delivery.",
+  "execution_status": "Task114 readiness was revalidated at 0e506601 without model or network calls: visible question, hidden preactivation manifest, and mechanical activation hashes are unchanged; manifest validation passes; the product gate rejects missing frozen semantic activation; no semantic attempt or final activated gold manifest exists. Provider, semantic-judge, and gold-evaluation regressions passed 107/107 in 13.53 seconds. No runtime mechanism defect was demonstrated, no consumed evaluation was rerun, and no product capability credit changed. Next remains independent semantic activation once a process credential is configured.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -23,7 +23,7 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "216baf3219e8205086f777095270dbbae498a05a",
+    "remote_before_current_change": "0e50660160f6b8c82ee365cccb20fc130f3e39d7",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -75,7 +75,7 @@
       "mechanical_activation_sha256": "e853b3ebbc03cabbeac5d12c8d513c331c04b44da04029f57a7a7aac5b08f793",
       "mechanical_status": "PASSED_BEFORE_FIRST_PRODUCT_MODEL_CALL",
       "semantic_status": "pending; no semantic activation attempt exists",
-      "provider_status": "On 2026-09-06, the user explicitly authorized a one-off use of the designated supplied credential: direct GET of claude-haiku-4-5-20251001 returned HTTP 200 and the exact model ID. No credential was printed, installed, committed, or added to product discovery code; no model generation ran. Authentication and model visibility are confirmed, not generation quota or scientific capability. Normal execution still uses process-injected credentials and does not require Claude Code.",
+      "provider_status": "The earlier one-off model lookup on 2026-09-06 returned HTTP 200 for the exact Haiku model but did not install a credential or test generation. The fresh direct SDK preflight at 0e506601 fails with ANTHROPIC_API_KEY is not set; both ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN are absent from the process. No secret recovery or network call was attempted. Execution requires a securely configured process credential, not Claude Code.",
       "product_model_calls": 0,
       "semantic_evaluator_model_calls": 0,
       "boundary": "The hidden authority remains outside Git, AgentRuntime, model tools, RAG, and product feedback. Its existence and hashes are readiness evidence only."
