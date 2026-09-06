@@ -29,10 +29,10 @@ intent requires it. Passing unit tests, finding a declaration, or compiling a
 support lemma does not satisfy any of these gates.
 
 This narrows the previous three-deliverable goal; it does not weaken any frozen
-task's rubric. On 2026-09-06, the native goal tool refused replacement because the
-previous goal is unfinished. That registered goal remains unchanged and must not
-be marked complete merely to overwrite it. This document records the revised
-execution objective, not a claim that the native goal was replaced successfully.
+task's rubric. On 2026-09-06, a fresh check found no registered native goal, and this
+research-first objective was successfully registered with status `active`. No old
+goal was falsely marked complete to enable registration. This document and the
+native goal now describe the same immediate milestone.
 
 ## Evaluation Order
 
