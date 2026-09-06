@@ -21,13 +21,14 @@ is machine-readable in [main_worker_status.json](docs/main_worker_status.json).
 There is one outer typed graph:
 
 ```text
-Goal, source policy, and plan
-  -> source search, exact replication, or frozen-project reproduction
-  -> persistent Markdown/LaTeX Theory workspace
-  -> Scientific coding and simulation workspace
-  -> Independent semantic review
-  -> Lean formalization workspace
-  -> Final critic and kernel gate
+Goal, source horizon, and task-intent evidence requirements
+  -> source search / baseline reproduction when applicable
+  -> persistent Markdown/LaTeX Theory <-> exploratory Python/R diagnostics
+  -> independent review of stable claims and exact scientific source
+  -> frozen confirmatory Simulation
+  -> final critic and task-intent-bound evidence report
+
+Stable claims -> intent-selected Lean workspace -> separately reported kernel evidence
 ```
 
 Theory, Python, R, and Lean use the same source-agent pattern:

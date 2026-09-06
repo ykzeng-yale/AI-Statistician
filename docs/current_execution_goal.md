@@ -1,26 +1,38 @@
 # Current Execution Goal and Resource Adoption
 
-Updated: 2026-09-04
+Updated: 2026-09-06
 
 ## Objective
 
-Establish the next trustworthy AI-Statistician capability milestone with the
-existing single `AgentRuntime` and retained exact-Haiku workspaces. The milestone
-is complete only when fresh immutable evaluations establish all three results:
+Deliver one new, independently accepted **research-first end-to-end result** with
+the existing single `AgentRuntime` and retained exact-Haiku workspaces. Begin with
+the already frozen Task114 path; do not substitute another easy task or expand the
+framework while that evaluation is ready for its next authorized step.
 
-1. One disjoint known-result task has accepted theory, model-authored scientific
-   code, and frozen confirmatory evidence.
-2. One pinned published-paper task has exact reproducible source evidence.
-3. One disjoint formal task has exact identity-bound, axiom-clean kernel closure
-   in the active Statlib/StatInference project.
+This immediate milestone requires all of the following in one fresh lineage:
 
-All product and evaluator model calls use exactly
-`claude-haiku-4-5-20251001`. Formalization remains optional unless frozen task
+1. Reviewable Markdown/LaTeX definitions, assumptions, claims, and derivations, with
+   unresolved mathematical findings visible rather than hidden by schema validity.
+2. Model-authored scientific code and exploratory diagnostics that can inform
+   theory, followed by independent acceptance of the exact current artifacts.
+3. Frozen confirmatory Simulation evidence and final acceptance against the
+   task's independently qualified gold rubric and non-formal completion contract.
+
+Paper reproduction and formal-only kernel closure remain required capabilities of
+the overall product, but they are subsequent, separately scoped milestones. They
+are not additional acceptance gates for this ordinary research-E2E goal.
+
+Call Anthropic directly, without Claude Code or another agent CLI. All product and
+evaluator model calls for this goal use exactly `claude-haiku-4-5-20251001`.
+Formalization remains optional unless frozen task
 intent requires it. Passing unit tests, finding a declaration, or compiling a
 support lemma does not satisfy any of these gates.
 
-This replaces the previous role-only goal. Being the main worker is an ownership
-fact, not a measurable research objective.
+This narrows the previous three-deliverable goal; it does not weaken any frozen
+task's rubric. On 2026-09-06, the native goal tool refused replacement because the
+previous goal is unfinished. That registered goal remains unchanged and must not
+be marked complete merely to overwrite it. This document records the revised
+execution objective, not a claim that the native goal was replaced successfully.
 
 ## Evaluation Order
 
@@ -36,9 +48,32 @@ fact, not a measurable research objective.
    Success requires the exact requested theorem in the active project, not a nearby
    theorem, retrieved declaration, pseudo-formal review, or compiled helper.
 
-This ordering protects sealed evaluation authority. It is not a universal product
-waterfall. Within a research task, Theory, exploratory Python/R, Simulation, source
-search, and a light Lean scout may overlap whenever their inputs are stable.
+This preserves the existing evaluation sequence, not a universal product waterfall
+or a requirement that all three deliveries complete in this goal. A failed consumed
+draw stays failed. Any subsequent disjoint question needs its own frozen authority;
+do not silently reset Task114 or change its acceptance threshold. Within a research
+task, Theory, exploratory Python/R, Simulation, source search, and a light Lean scout
+may overlap whenever their inputs are stable.
+
+## Efficient Execution
+
+- Advance the next qualified evaluation step before starting another corpus
+  inventory, framework survey, audit-only task, or architecture rewrite.
+- Work on one demonstrated bottleneck at a time. Change shared model context,
+  prompts, tools, feedback, or verification only when evidence identifies a defect;
+  a wrong mathematical answer alone is not a reason to add a new control layer.
+- Keep raw execution and reviewer feedback with the same source owner. Preserve
+  useful file-backed work and checkpoints; do not reset research into a large JSON
+  answer or make ordinary compiler failures consume Architect routing rounds.
+- Use existing stage traces to report model calls, elapsed time, findings, and
+  scientific progress. Do not introduce additional counters, fixed reasoning steps,
+  universal repetition counts, or success claims based on estimated percentages.
+- Test shared changes first with focused synthetic mechanism cases, never by
+  replaying a consumed evaluation. Run the full suite before pushing a shared
+  mechanism change, not after every documentation update.
+- Keep exact task intent, hidden gold isolation, immutable consumption, and local
+  verifier authority. Efficiency cannot come from weakening acceptance or hiding
+  failed evidence.
 
 ## Scientific Operating Model
 
@@ -129,8 +164,9 @@ the newer `main` implementation wins unless an isolated commit fixes a measured 
 
 ## After This Goal
 
-Only after the three current gates close should evaluation advance to hidden
-known-theory rederivation, historical frontier rediscovery, near-frontier extension,
-and finally genuinely open problems. Open research without a gold answer must be
-reported as a reproducible, falsifiable candidate, not as established correctness
-because several models agreed.
+After this research-E2E milestone, measure the pinned R paper reproduction and a
+disjoint formal-only task under their separate completion contracts and the existing
+evaluation order. Then progress through hidden known-theory rederivation, historical
+frontier rediscovery, near-frontier extension, and genuinely open problems as their
+prerequisites are independently established. A single successful task is not
+cross-family generalization, and model agreement does not establish an open result.

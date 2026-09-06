@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-08-10
+Updated: 2026-09-06
 
 This task is the sole active implementation stream for AI Statistician. The
 worker owns the central runtime, direct scientific and Lean workspaces,
@@ -28,8 +28,11 @@ cross-family evaluation, verification, commits, and pushes.
 
 No audit percentage, test count, retrieved theorem, compiled helper lemma, or LLM
 judgment is an end-to-end success claim. Completion requires a fresh task lineage
-from plan and theory through model-authored scientific execution and exact
-source-theorem kernel closure.
+and independently accepted evidence for its frozen task intent. A research-E2E
+task needs the required theory, scientific code, and confirmatory results; exact
+source-theorem kernel closure is mandatory only when the task requires formal
+proof. Optional formal gaps remain visible without invalidating accepted non-formal
+evidence. Frozen strict-formal benchmark requirements are unchanged.
 
 Current status is recorded in [main_worker_status.json](main_worker_status.json),
 and the canonical design is [production_design.md](production_design.md).
