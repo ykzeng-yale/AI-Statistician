@@ -1,8 +1,8 @@
 {
-  "schema_version": 439,
+  "schema_version": 440,
   "updated_at": "2026-09-06",
-  "goal_status": "active",
-  "goal_blocker": "The current process has no ANTHROPIC_API_KEY. Direct Anthropic SDK preflight rejects it before network activity; Task114 semantic qualification needs an operator-configured process credential. Current repository instructions prohibit recovering credentials from chat, files, logs, or Git history. The native goal remains active; this is the first credential-blocked continuation after registration.",
+  "goal_status": "blocked",
+  "goal_blocker": "Three consecutive goal continuations confirmed that the process has no ANTHROPIC_API_KEY or configured AI_STATISTICIAN_ENV_FILE. Direct Anthropic SDK preflight rejects the missing key before network activity; Task114 semantic qualification needs an operator-configured process credential. Current repository instructions prohibit recovering credentials from chat, files, logs, or Git history. The native goal was marked blocked on 2026-09-06 without changing its objective or declaring completion. No semantic attempt or final activated gold manifest exists; no further meaningful evaluation progress is possible until credential availability changes.",
   "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
   "execution_status": "Task114 readiness was revalidated at 0e506601 without model or network calls: visible question, hidden preactivation manifest, and mechanical activation hashes are unchanged; manifest validation passes; the product gate rejects missing frozen semantic activation; no semantic attempt or final activated gold manifest exists. Provider, semantic-judge, and gold-evaluation regressions passed 107/107 in 13.53 seconds. No runtime mechanism defect was demonstrated, no consumed evaluation was rerun, and no product capability credit changed. Next remains independent semantic activation once a process credential is configured.",
   "role": "sole main responsible worker",
@@ -23,7 +23,7 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "0e50660160f6b8c82ee365cccb20fc130f3e39d7",
+    "remote_before_current_change": "9952491694a323f0a4b2204efa9bd0317cd0f150",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {

@@ -34,6 +34,10 @@ research-first objective was successfully registered with status `active`. No ol
 goal was falsely marked complete to enable registration. This document and the
 native goal now describe the same immediate milestone.
 
+The native goal is now `blocked`: three consecutive continuations confirmed no
+process-injected Anthropic credential. Resume after secure credential configuration;
+the objective, Task114 order, and frozen acceptance requirements remain unchanged.
+
 ## Evaluation Order
 
 1. Preserve Task114 as the next numbered evaluation. Qualify its independent
