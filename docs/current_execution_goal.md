@@ -96,6 +96,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    same referee, not missing mathematics or truncated feedback. Native Haiku tool
    thinking is now opt-in transport support; assess it on preregistered disjoint
    controls before claiming efficacy, without adding a scientific repair recipe.
+   The [six-document configuration pilot](../benchmarks/reviewer_thinking_controls_20260909/README.md)
+   is prepared but unrun. It uses the existing referee, compares the operational
+   configuration bundle rather than isolated reasoning tokens, and cannot change
+   production defaults or confer E2E credit by itself.
 3. Improve existing source-project/environment support where real reproduction
    needs it. Preserve model-selected actions and pinned dependencies; avoid a
    package-specific installer or another reproduction agent.

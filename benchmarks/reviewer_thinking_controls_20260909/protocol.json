@@ -1,0 +1,72 @@
+{
+  "study_id": "referee_configuration_pilot_20260909",
+  "status": "prepared_unrun",
+  "scope": "component_diagnostic_not_research_e2e",
+  "product_code_commit": "6d8513ad0eb35caa63ec1e144632803338971762",
+  "entrypoint": "ai_statistician.architect_theory_execution_preflight.review_architect_theory_execution_preflight",
+  "model": "claude-haiku-4-5-20251001",
+  "max_tokens": 8000,
+  "max_tool_turns": 24,
+  "max_tool_calls": 48,
+  "max_no_progress_turns": 2,
+  "scratch": {"seed": 20260909, "replicates": 100, "timeout_s": 20},
+  "question": "Assess the candidate derivation in theory.md for mathematical correctness under its stated assumptions. Review the intermediate reasoning as well as the final conclusion. Report unresolved errors without silently changing the candidate.",
+  "task_intent": {
+    "source_replication": "not_applicable",
+    "theory": "required",
+    "scientific_code": "not_applicable",
+    "empirical": "not_applicable",
+    "formal": "not_applicable",
+    "novelty": "not_applicable",
+    "unresolved_gaps": "required"
+  },
+  "arms": {
+    "A": {"thinking_budget_tokens": 0, "temperature": 0, "tool_choice": "any"},
+    "B": {"thinking_budget_tokens": 2048, "temperature": null, "tool_choice": "auto"}
+  },
+  "invocation_order": [
+    ["C17", "A"], ["C06", "B"], ["C28", "B"],
+    ["C42", "A"], ["C53", "A"], ["C65", "B"],
+    ["C42", "B"], ["C28", "A"], ["C65", "A"],
+    ["C17", "B"], ["C06", "A"], ["C53", "B"]
+  ],
+  "evaluator_only_cases": {
+    "C17": {
+      "path": "candidates/C17.md",
+      "sha256": "0a9986d4d3df65ad115b033eb9ef542c1178a4558c221d251fce7f2bb680bbe2",
+      "expected_verdict": "ACCEPT",
+      "rubric": "The inverse exists near zero. Differentiating the product identity gives BA^-1 + AF'(0)=0 and the unique solution -A^-1 B A^-1 with both off-diagonal entries -1/6. No substantive mathematical blocker is present."
+    },
+    "C42": {
+      "path": "candidates/C42.md",
+      "sha256": "d2682b869f0b16efbf89de9a8b1aaa66aace6d4b99149e701f6f4dca3275c662",
+      "expected_verdict": "REVISE",
+      "rubric": "Identify the unjustified scalar reciprocal chain rule or changed noncommuting product order. The proposed derivative does not satisfy BA^-1 + AF'(0)=0. Multiplying the proposed formula by A^2 only checks the proposed algebra, not the derivative. An equivalent direct inverse calculation is acceptable."
+    },
+    "C06": {
+      "path": "candidates/C06.md",
+      "sha256": "da776e09e27875ab7b191af9017419d978f441468e158d9821a33b6389a72027",
+      "expected_verdict": "REVISE",
+      "rubric": "Identify the omitted moving-upper-bound contribution, or independently show J(t)=log(2)/2 is constant for every t>0, contradicting the claimed derivative. The partial derivative integral equals -1/(2t), but the boundary term +1/(2t) cancels it."
+    },
+    "C53": {
+      "path": "candidates/C53.md",
+      "sha256": "d6fa82de12c91716a4d5338beb1631d1ba94d7d63f3f4778f4d17ba44f5cb9d4",
+      "expected_verdict": "ACCEPT",
+      "rubric": "For t>0 the substitution and local differentiation are valid, J is constant, and the boundary and partial-derivative terms cancel. No substantive mathematical blocker is present."
+    },
+    "C28": {
+      "path": "candidates/C28.md",
+      "sha256": "48d776f4da7f6d65f5f57e9e26162c6acfe3207be02d64673fbad79ff7d24942",
+      "expected_verdict": "ACCEPT",
+      "rubric": "The pointwise argument, maximizer and maximum are correct; the maximum tends to exp(-1)>0, establishing nonuniform convergence. No substantive mathematical blocker is present."
+    },
+    "C65": {
+      "path": "candidates/C65.md",
+      "sha256": "55a95e3ebedfc1601086daeaef22e9e97011401d6713023cb8385376352a6431",
+      "expected_verdict": "REVISE",
+      "rubric": "Identify the missing monotonicity premise of Dini's theorem or refute the uniform conclusion via the moving point x_n=1/(n+1), where the values tend to exp(-1). A fixed finite grid does not establish uniform convergence. A single numerical point alone is not a proof of asymptotic failure."
+    }
+  },
+  "completion_policy": "One invocation per case-arm pair. Record incomplete separately; no restart, continuation, resampling, prompt tuning, automatic default change or E2E credit. Reports on incorrect cases must identify the specified mathematical defect to count as correct diagnoses."
+}
