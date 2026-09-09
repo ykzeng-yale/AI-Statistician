@@ -21,8 +21,10 @@ FORMAL_SOURCE_OUTLINE_PROMPT_POLICY = (
 FORMAL_SOURCE_GROUNDING_PROMPT_MAX_CHARS = 5600
 
 
-def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str, Any]]:
-    """Project retrieval groups into a bounded, query-diverse signature bundle."""
+def compact_formal_source_grounding_hits_for_prompt(
+    value: Any, *, max_hits_per_group: int | None = None,
+) -> list[dict[str, Any]]:
+    """Compact proactive context, or preserve an explicit tool's result count."""
 
     if not isinstance(value, list | tuple):
         return []
@@ -34,7 +36,10 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
     for group in groups:
         source_scoped = bool(group.get("source_scope_ids"))
         exact_target_query = _formal_source_group_has_exact_target_query(group)
-        hit_limit = 2 if source_scoped and not exact_target_query else 1
+        hit_limit = (
+            max_hits_per_group if max_hits_per_group is not None
+            else (2 if source_scoped and not exact_target_query else 1)
+        )
         group_hits: list[Mapping[str, Any]] = []
         for hit in group.get("hits", []) or []:
             if not isinstance(hit, Mapping):
@@ -76,7 +81,9 @@ def compact_formal_source_grounding_hits_for_prompt(value: Any) -> list[dict[str
                 if child not in (None, "", [], {})
             }
         )
-    _fit_formal_source_prompt_projection(projected_groups)
+    # Explicit tool observations use the shared loop's atomic size boundary.
+    if max_hits_per_group is None:
+        _fit_formal_source_prompt_projection(projected_groups)
     return projected_groups
 
 

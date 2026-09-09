@@ -18519,7 +18519,9 @@ def _runtime_formalizer_lean_candidate_client_tool_workspace(
             k=k,
             max_groups=1,
         )
-        compact_groups = compact_formal_source_grounding_hits_for_prompt(groups)
+        compact_groups = compact_formal_source_grounding_hits_for_prompt(
+            groups, max_hits_per_group=k,
+        )
         if not compact_groups:
             return {
                 "query": query,

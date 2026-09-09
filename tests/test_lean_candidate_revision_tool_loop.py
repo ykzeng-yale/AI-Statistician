@@ -4420,6 +4420,59 @@ def test_formalizer_workspace_rejects_mismatched_observation_ref() -> None:
     assert result.observations[0].payload["runtime_edits_candidate"] is False
 
 
+def test_runtime_model_search_keeps_requested_results(tmp_path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    captured = {}
+    hits = [
+        {"source_id": "fixture", "name": f"Library.rule_{i}",
+         "signature": f"theorem rule_{i} : True"}
+        for i in range(8)
+    ]
+
+    def retrieve(retriever, *, query_seeds, k, **kwargs):
+        captured["query"] = query_seeds
+        captured["k"] = k
+        return [{"query": query_seeds[0], "hits": hits[:k]}]
+
+    class Agent:
+        config = SimpleNamespace(use_client_tool_lean_candidate_workspace=True)
+        provider = SimpleNamespace(generate_client_tool_turn=lambda request: None)
+
+        def run_lean_candidate_workspace_with_client_tools(self, **kwargs):
+            captured["result"] = kwargs["search_formal_environment"](
+                "model-selected fixture query", 8,
+            )
+            return {"packet_id": "fixture-proposal"}, {}
+
+    monkeypatch.setattr(
+        runtime_module, "_formalizer_formal_source_grounding_hit_groups", retrieve,
+    )
+    monkeypatch.setattr(
+        runtime_module, "build_formalizer_workspace_target",
+        lambda **kwargs: {"target_ref_id": "fixture-target-ref",
+                          "formal_target": {"id": "fixture-target"}},
+    )
+    result = runtime_module._runtime_formalizer_lean_candidate_client_tool_workspace(
+        proposal_agent=Agent(),
+        question=OpenResearchQuestion(id="fixture", title="Fixture", description="Fixture"),
+        task=AgentTask(task_id="fixture", owner_subsystem="FormalizationEvaluator",
+                       objective="Inspect a library"),
+        blackboard=BlackboardState(project_id="fixture"),
+        theory_packet={}, environment_feedback={}, registered_problem={},
+        theorem_goals=[], formal_source_retriever=SimpleNamespace(),
+        proof_search_provider=None, lean_candidate_root=tmp_path / "candidates",
+        lean_candidate_local_lean=True, lean_candidate_lean_project=tmp_path,
+        lean_candidate_lean_timeout=5,
+    )
+    assert result is not None
+    assert captured["query"] == ("model-selected fixture query",)
+    assert captured["k"] == 8
+    assert [hit["name"] for hit in captured["result"]["hits"]] == [
+        hit["name"] for hit in hits
+    ]
+
+
 def test_runtime_client_tool_revision_uses_current_hash_bound_workspace(
     tmp_path,
     monkeypatch,

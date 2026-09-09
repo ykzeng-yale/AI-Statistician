@@ -6,6 +6,8 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from ai_statistician.formal_source_index import (
     DEFAULT_FORMAL_SOURCE_ROOTS,
     FormalDeclaration,
@@ -2122,6 +2124,39 @@ def test_formal_source_prompt_projection_keeps_target_and_dependency_scopes() ->
     assert "namespace" not in compact[1]["hits"][0]
     assert all("query_fingerprint" not in group for group in compact)
     assert all("proof_evidence_status" not in group for group in compact)
+
+
+@pytest.mark.parametrize("requested_hits", [1, 4, 8])
+def test_explicit_search_preserves_requested_signature_results(requested_hits) -> None:
+    hits = [
+        {
+            "source_id": "fixture",
+            "name": f"Library.rule_{i}",
+            "signature": (
+                f"theorem rule_{i} ("
+                + " ".join(f"x{j}" for j in range(200))
+                + " : Nat) : True"
+            ),
+            "proof": "by exact hiddenProof",
+            "source_activation": {
+                "classification": "non_importable_discovery_port_candidate",
+            },
+        }
+        for i in range(8)
+    ]
+    groups = [{"query": "model query", "hits": hits}]
+    result = compact_formal_source_grounding_hits_for_prompt(
+        groups, max_hits_per_group=requested_hits,
+    )
+    assert [hit["name"] for hit in result[0]["hits"]] == [
+        hit["name"] for hit in hits[:requested_hits]
+    ]
+    assert [hit["signature"] for hit in result[0]["hits"]] == [
+        hit["signature"] for hit in hits[:requested_hits]
+    ]
+    assert all(hit["source_activation"] for hit in result[0]["hits"])
+    assert "hiddenProof" not in json.dumps(result)
+    assert len(compact_formal_source_grounding_hits_for_prompt(groups)[0]["hits"]) == 1
 
 
 def test_source_scoped_prompt_keeps_two_ranked_signatures_without_library_prose() -> None:
