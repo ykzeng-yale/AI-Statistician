@@ -1,0 +1,60 @@
+{
+  "questions": [
+    {
+      "id": "rademacher_weighted_sum_tail_formal_known_result",
+      "title": "Weighted Rademacher sums: sub-Gaussian parameter and right-tail bound",
+      "description": "Formal-only known-result evaluation of a concrete probability theorem used in empirical-process analysis. For any finite set of indices and arbitrary deterministic real weights, prove that the weighted canonical iid Rademacher sum is sub-Gaussian with parameter equal to the sum of squared weights, and prove the displayed right-tail bound for every nonnegative threshold. The precise imports, law, variables, weights, quantifiers, both conclusions, namespace and declaration name in formal_target_contract are frozen. The statement includes empty index sets and zero weights; do not strengthen its assumptions or replace its law. Use the existing indexed library, source inspection, proof-state search, file workspace and raw local Lean feedback as useful; no tool sequence is mandatory. Library reuse is allowed. Submit the exact target with a model-authored proof, or report an honest remaining gap. Retrieval, pseudo-formal review, diagnostic sketches and compilation of another declaration are not proof evidence. Success requires independent whole-target semantic review and an exact identity-bound, axiom-clean active-project kernel check. The reference proof and calibration controls are evaluator-only. This measures formalization/proving of a known result, not novel research, Theory development, Python/R or simulation.",
+      "tags": [
+        "formal_L0",
+        "Rademacher",
+        "concentration",
+        "empirical_process",
+        "StatInference",
+        "Lean"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "not_applicable",
+        "scientific_code": "not_applicable",
+        "empirical": "not_applicable",
+        "formal": "required",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "not_applicable"
+      },
+      "source": {
+        "library": "ykzeng-yale/EmpericalProcessLEAN",
+        "module": "StatInference.ProbabilityMeasure.Rademacher",
+        "project_commit": "4cec7860c926feebd4cbcdaccedb63b2156972dd",
+        "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+        "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a",
+        "lean_toolchain": "leanprover/lean4:v4.30.0"
+      },
+      "formal_target_contract": {
+        "schema_version": 1,
+        "contract_kind": "operator_frozen_exact_lean_target",
+        "target_id": "rademacher_weighted_sum_subgaussian_tail",
+        "declaration_name": "AIStatisticianBench.rademacher_weighted_sum_subgaussian_tail",
+        "lean_source_prefix": "import StatInference.ProbabilityMeasure.Rademacher\n\nopen MeasureTheory ProbabilityTheory\nopen scoped BigOperators NNReal\n\nnamespace AIStatisticianBench\n\ntheorem rademacher_weighted_sum_subgaussian_tail\n    (s : Finset ℕ) (a : ℕ → ℝ) :\n    HasSubgaussianMGF\n      (fun omega => ∑ i ∈ s,\n        a i * StatInference.ProbabilityMeasure.rademacherSequenceCoordinate i omega)\n      (∑ i ∈ s, (⟨a i ^ 2, sq_nonneg (a i)⟩ : ℝ≥0))\n      StatInference.ProbabilityMeasure.rademacherBoolSequenceLaw ∧\n    ∀ t : ℝ, 0 ≤ t →\n      StatInference.ProbabilityMeasure.rademacherBoolSequenceLaw.real\n        {omega | t ≤ ∑ i ∈ s,\n          a i * StatInference.ProbabilityMeasure.rademacherSequenceCoordinate i omega}\n        ≤ Real.exp (-t ^ 2 / (2 * ∑ i ∈ s, a i ^ 2)) := by\n",
+        "lean_source_prefix_sha256": "6f545fc9a0cda05072e7f8852b55cef67300cb1aa47b11dbf4f431aa0d60d68c",
+        "proof_visibility": "hidden",
+        "lean_environment": {
+          "project_id": "EmpericalProcessLEAN-Statlib-active-20260909",
+          "project_commit": "4cec7860c926feebd4cbcdaccedb63b2156972dd",
+          "lean_toolchain": "leanprover/lean4:v4.30.0",
+          "lean_toolchain_file_sha256": "54727eec5cba149c18842e6deb5c41b369d66455c93ce135d7d5347c782b2325",
+          "lake_manifest_sha256": "1a4a57144b4f871f233c42d125517b0598002e895e2e708779d646ee3ff2f65f",
+          "lakefile_sha256": "2066011983ec7ed716f5c4e6224c5e779c3237bf96f4b7f4ae63083ded34fb66",
+          "statlib_commit": "6575d611b5d32ef6013e9560d30b1a82a1972fb6",
+          "mathlib_commit": "81343555dae873c8de2de2b27bbabf7bc4d8d97a"
+        },
+        "required_primitives": [
+          "ProbabilityTheory.HasSubgaussianMGF",
+          "StatInference.ProbabilityMeasure.rademacherSequenceCoordinate",
+          "StatInference.ProbabilityMeasure.rademacherBoolSequenceLaw",
+          "MeasureTheory.Measure.real",
+          "Real.exp"
+        ]
+      }
+    }
+  ]
+}
