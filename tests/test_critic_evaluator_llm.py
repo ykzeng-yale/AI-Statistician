@@ -5,6 +5,8 @@ import hashlib
 import json
 import re
 
+import pytest
+
 from ai_statistician.critic_evaluator_llm import (
     CRITIC_EVALUATION_SUBMIT_TOOL,
     CRITIC_EVIDENCE_READ_TOOL,
@@ -2032,7 +2034,7 @@ def test_critic_uses_same_reviewer_document_tools_for_long_exact_evidence() -> N
     assert "Only catalog path values are valid document tool paths" in first_prompt
     assert "Batch independent read/search calls" in first_prompt
     assert provider.requests[0].disable_parallel_tool_use is False
-    assert provider.requests[0].metadata["strict_terminal_tool_schema"] is True
+    assert provider.requests[0].metadata["strict_terminal_tool_schema"] is False
     assert provider.requests[0].metadata["reviewer_local_retry_budget"] is False
     assert packet["canonical_evidence_view_hash"] == "canonical-view-hash"
     loop = packet["client_tool_loop"]
@@ -2230,7 +2232,13 @@ def test_critic_terminal_submission_waits_for_same_turn_read_observation() -> No
     assert validate_critic_evaluator_packet(packet) == []
 
 
-def test_critic_corrects_invalid_judgment_in_same_retained_session() -> None:
+@pytest.mark.parametrize(
+    "schema_defect",
+    [None, "missing_nested_field", "wrong_nested_type", "extra_field", "missing_dimension"],
+)
+def test_critic_corrects_invalid_judgment_in_same_retained_session(
+    schema_defect: str | None,
+) -> None:
     invalid = _critic_submission()
     for row in invalid["dimension_assessments"]:
         if row["dimension"] == "theory":
@@ -2250,6 +2258,16 @@ def test_critic_corrects_invalid_judgment_in_same_retained_session() -> None:
         "blocking_dimensions": ["theory"],
         "rationale": "Required theory evidence remains incomplete.",
     }
+    if schema_defect:
+        invalid = deepcopy(corrected)
+        if schema_defect == "missing_nested_field":
+            del invalid["gap_disclosure"]["rationale"]
+        elif schema_defect == "wrong_nested_type":
+            invalid["evidence_boundary_audit"][0]["boundary_ok"] = "true"
+        elif schema_defect == "extra_field":
+            invalid["research_disposition"]["runtime_override"] = "ACCEPT"
+        elif schema_defect == "missing_dimension":
+            invalid["dimension_assessments"].pop()
 
     class CorrectingCriticBackend:
         provider_name = "anthropic"
@@ -2314,8 +2332,14 @@ def test_critic_corrects_invalid_judgment_in_same_retained_session() -> None:
     )
 
     assert len(provider.requests) == 2
-    assert provider.requests[0].tools[-1].strict is True
-    assert "ACCEPT evidence mismatch:" in str(provider.requests[1].messages)
+    assert provider.requests[0].tools[-1].strict is False
+    assert provider.requests[0].tools[-1].input_schema == CRITIC_EVALUATOR_JSON_SCHEMA
+    expected_feedback = (
+        "critic submission schema rejected:"
+        if schema_defect
+        else "ACCEPT evidence mismatch:"
+    )
+    assert expected_feedback in str(provider.requests[1].messages)
     assert packet["research_disposition"]["status"] == "INCONCLUSIVE"
     assert packet["client_tool_loop"]["turns"] == 2
     assert validate_critic_evaluator_packet(packet) == []

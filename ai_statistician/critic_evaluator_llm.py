@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from jsonschema import Draft202012Validator
+
 from .client_tool_loop import (
     ClientToolExecutionContext,
     ClientToolExecutionResult,
@@ -395,7 +397,6 @@ def _run_critic_client_tool_review(
             ),
             input_schema=CRITIC_EVALUATOR_JSON_SCHEMA,
             terminal=True,
-            strict=True,
         ),
     )
     request = ClientToolTurnRequest(
@@ -419,13 +420,16 @@ def _run_critic_client_tool_review(
             "evidence_document_catalog_hash": stable_hash(catalog),
             "source_result_catalog_count": len(source_result_catalog),
             "source_result_catalog_hash": stable_hash(source_result_catalog),
-            "strict_terminal_tool_schema": True,
+            "strict_terminal_tool_schema": False,
             "reviewer_local_retry_budget": False,
             "full_packet_regeneration_disabled": True,
         },
     )
     document_accesses: list[dict[str, Any]] = []
     source_result_accesses: list[dict[str, Any]] = []
+    # This report exceeds the provider's strict grammar limit. Validate the same
+    # complete contract locally before normalization or evidence assessment.
+    submission_validator = Draft202012Validator(CRITIC_EVALUATOR_JSON_SCHEMA)
     canonical_view_hash = str(canonical_evidence_view.get("view_hash", "") or "") or stable_hash(dict(canonical_evidence_view))
     dimension_requirements = canonical_evidence_view.get("dimension_requirements", {})
     required_dimension_evidence_gaps = tuple(
@@ -553,6 +557,15 @@ def _run_critic_client_tool_review(
         if context.calls_in_turn != 1:
             raise ClientToolInputError("critic terminal submission must be the only call in its turn; first inspect the returned read/search observations, then submit the judgment in a later turn")
         payload = dict(call.input)
+        schema_errors = [
+            f"{error.json_path}: {error.message}"
+            for error in submission_validator.iter_errors(payload)
+        ]
+        if schema_errors:
+            raise ClientToolInputError(
+                "critic submission schema rejected: "
+                + "; ".join(sorted(schema_errors))
+            )
         packet = normalize_submission(
             payload,
             model=request_model,
