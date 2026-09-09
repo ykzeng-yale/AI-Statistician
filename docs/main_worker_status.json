@@ -1,10 +1,10 @@
 {
-  "schema_version": 441,
+  "schema_version": 442,
   "updated_at": "2026-09-09",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
-  "execution_status": "The user's explicit 2026-09-09 authorization cleared the credential blocker without persisting the secret or adding credential discovery. Direct exact-Haiku semantic qualification completed in 16 model calls: 6/6 calibration cases, 1/1 candidate-mode negative, and 8/8 reference claims passed. The final gold manifest is frozen; its exact production activation gate passed with one executable reference and seven negative evaluator controls, reusing the semantic record with zero additional model calls. Only semantic activation fields differ from preactivation. Task114 remains unconsumed with zero product calls; next is its sole fresh product draw. No runtime code, benchmark answer, task requirements, threshold, or consumed evaluation was changed.",
+  "execution_status": "Task114 consumed its single qualified draw at cc563208: 35 exact-Haiku product calls, 496.754 seconds, FAILED and 0/1 accepted. One Markdown theory checkpoint received independent REVISE; returning to the source owner failed before another model call because publication added an interface ID after session-state hashing. No accepted theory, generated scientific code, confirmatory Simulation, or final Critic followed. Shared fix 146643bc normalizes the existing derived identity before workspace hashing; the full 1282-test suite and focused 241-test panel passed. Task114 is not rerun, resumed, repaired, reassessed, rescored, or resampled. The research-E2E goal remains active and unmet.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -18,18 +18,18 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "4002dd77ad3f1f67b44613ff9d08ad0dec07ce93",
+  "validated_code_head": "146643bcad58192636c98dfcf8a3c9ccfe9a1fdc",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "e0cdda5394e9a7535ddc51274ccd41805f5897ce",
+    "remote_before_current_change": "cc563208f33b0217cb20ffc9394f5d2bfe464099",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
-    "consumed_task_count": 113,
+    "consumed_task_count": 114,
     "all_consumed_tasks_immutable": true,
-    "trusted_full_task_credit": "7/113 recorded mixed-scope credits, not seven complete research-E2E results; see trusted_scoped_results without changing their original outcomes.",
+    "trusted_full_task_credit": "7/114 recorded mixed-scope credits, not seven complete research-E2E results; see trusted_scoped_results without changing their original outcomes. Task114 adds no credit.",
     "trusted_scoped_results": [
       {
         "name": "Beta-Binomial",
@@ -64,11 +64,10 @@
     "development_panel_exact_lean_closure": "0/2",
     "strict_formal_boundary": "No development task has exact source-theorem kernel closure; support lemmas, retrieval, compilation, model review, and unit tests do not change this fact.",
     "sealed_unconsumed_candidates": [
-      "Task114",
       "standalone betareg candidate"
     ],
     "evaluation_rule": "Never rerun, resume, repair, reevaluate, rescore, or resample a consumed task. Freeze an unrelated task and its independent authority before any future product call.",
-    "task114_readiness": {
+    "task114_result": {
       "visible_question_sha256": "048e55f0077bebafbce92021befb36ba1006e2676f3d5f68067676bd10000ae2",
       "visible_question_unchanged_from_commit": "6206a56ec1c8f71633dea9521126dd30452165a2",
       "hidden_preactivation_sha256": "63390b52691005f4e93af366d1f202d0970a69b78161ade10defa4c4e21b1ae6",
@@ -79,9 +78,17 @@
       "activation_ledger": "docs/evaluation_activations/task114_pareto_tail_index_preactivation.json",
       "qualified_gold_manifest_sha256": "22a753e9c013521ff479cada1fc1c89b8645d861c598ca53443c4da645b36fba",
       "semantic_activation_record_sha256": "5adc5334ee2edd552db5c3591c4b4550fb7e128d701af7bdab672cad6776b81e",
-      "product_model_calls": 0,
+      "product_model_calls": 35,
       "semantic_evaluator_model_calls": 16,
-      "boundary": "The hidden authority remains outside Git, AgentRuntime, model tools, RAG, and product feedback. Its existence and hashes are readiness evidence only."
+      "post_runtime_candidate_evaluator_model_calls": 0,
+      "runtime_status": "FAILED",
+      "accepted_tasks": "0/1",
+      "elapsed_seconds": 496.754,
+      "runtime_steps": 5,
+      "outer_graph_iterations": 2,
+      "workspace_continuations": 3,
+      "operator_audit": "docs/operator_audits/pareto_tail_index_l0_v1.md",
+      "boundary": "The draw and sole post-runtime assessment are consumed. With no independently accepted parent, hidden candidate theory/code/empirical checks did not execute; this is not a hidden mathematical rejection or pass. Hidden authority stays outside Git, AgentRuntime, model tools, RAG, and feedback. Pending state must never be resumed for Task114."
     }
   },
   "maturity_estimate": {
@@ -107,7 +114,7 @@
     "codex_adoption": "Reuse OpenAI Codex invariants such as retained source ownership, capability-accurate stable tools, raw observations, file-backed state, isolated review, and sparse handoffs. Do not embed Codex Core, App Server, provider transport, SDK threads, worktrees, Guardian, or a second scheduler."
   },
   "current_design_assessment": {
-    "direction": "The canonical product design is now substantially aligned with a coding-agent-first scientific system. The inner harness is not the principal blocker.",
+    "direction": "The canonical design is broadly coding-agent-first, but Task114 exposed a real inner-harness identity defect on the author-review-author path. That shared defect is fixed in synthetic regression coverage; fresh research-E2E capability remains unproved.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -129,7 +136,7 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24808,
-    "theory_workspace_lines": 4501,
+    "theory_workspace_lines": 4508,
     "scientific_code_workspace_lines": 3537,
     "client_tool_loop_lines": 1221,
     "agent_runtime_lines": 1365,
@@ -137,18 +144,18 @@
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149439,
+    "top_level_package_lines": 149446,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "4002dd77ad3f1f67b44613ff9d08ad0dec07ce93",
-    "summary": "Adopted Prove2Me mechanisms inside four existing modules: the independent reviewer records a source/project-bound blind Markdown Lean read-back before intended mathematics is revealed; model-authored helper sketches can compile diagnostically while exact-target transitive axiom checking remains mandatory. A real-Lean regression exposed and fixed an existing bug where an unrelated clean axiom diagnostic could mask the target report. No new agent, scheduler, remote dependency, source patcher, model escalation, or foundation change was added. The pinned adoption record is docs/prove2me_adoption_20260904.md.",
-    "verification": "The final 1280/1280 repository tests passed in 397.15 seconds, including real active-project Lean tests with admitted and axiomatic children, closed children, reopened dependencies, and unrelated clean axiom output. Focused Lean workspace/identity/promotion tests passed 77/77; retained-reviewer and architecture tests passed 37/37. Compileall, diff hygiene, architecture budgets, and staged credential-pattern scan passed. The earlier 1279-test suite preceded discovery of the audit bug and is not the final validation result.",
-    "capability_effect": "Mechanism evidence only. No fresh Haiku efficacy evaluation ran, Task114 made zero product or evaluator calls, and no consumed task was rerun or rescored. Prove2Me's remote API returned HTTP 401 without platform authentication; Formalpedia is not connected and no remote theorem became an importable premise or proof. Existing RAG and Lean foundation pins remain unchanged. No research-task success or end-to-end capability credit is added."
+    "code_commit": "146643bcad58192636c98dfcf8a3c9ccfe9a1fdc",
+    "summary": "Use the existing estimator interface identity normalizer before theory workspace state hashing, not only at publication. A valid retained author session can now receive independent-review feedback without an artificial identity mismatch. Actual interface-content changes still fail before another model call. No mathematical content, review finding, code output, budget, session-verifier check, framework, or scheduler was changed.",
+    "verification": "1282/1282 full repository tests passed in 408.99 seconds. The focused retained-session, theory, ladder, and core architecture panel passed 241/241 in 1.75 seconds. The new synthetic roundtrip reproduced the original failure and verifies both unchanged-parent continuation and content-tamper rejection; it contains no Task114 artifact. Compileall and diff hygiene passed.",
+    "capability_effect": "Future-task mechanism evidence only. The preceding fresh Task114 draw failed and remains immutable; no output was hand-edited or passed back for another draw. Existing Codex/Prove2Me adoption, RAG, Lean foundation pins, optional formal intent, exact Haiku policy, and verifier authority remain unchanged. No research-E2E credit is added."
   },
   "next_gates": [
-    "Run Task114 as the next numbered draw using its frozen 2026-09-09 qualified authority; do not repeat semantic qualification. Direct exact-Haiku generation is confirmed through the user's explicitly authorized process-only credential use. Require its frozen Theory, Python, and confirmatory Simulation dimensions without adding a formal lane. A consumed failure stays immutable and cannot be retried for a better score.",
+    "Keep Task114's consumed 0/1 failure immutable and deliver the shared theory-session identity fix with verified tests. Direct exact-Haiku access already works through the explicitly authorized process-only credential; do not return to a false credential blocker or repeat qualification. No Task114 resume or candidate reassessment is permitted.",
     "After Task114, complete the separate unnumbered beta-regression gasoline-precision candidate as a pinned R paper/code/data reproduction evaluation. Do not relabel it Task115 or let source execution validate prose automatically.",
     "Then freeze an unrelated formal task and measure the current support-aware, proof-state-driven Lean workspace. Exact identity-bound, axiom-clean active-project kernel closure, not RAG volume or support compilation, is the success criterion.",
     "Use the admitted Stat-Lean discovery corpus only through model-selected semantic or proof-state search. Port any selected declaration into the active Lean 4.30.0 import closure and re-elaborate it before treating it as a premise; retrieval alone is never proof evidence.",

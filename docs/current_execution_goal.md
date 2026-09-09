@@ -5,9 +5,10 @@ Updated: 2026-09-09
 ## Objective
 
 Deliver one new, independently accepted **research-first end-to-end result** with
-the existing single `AgentRuntime` and retained exact-Haiku workspaces. Begin with
-the already frozen Task114 path; do not substitute another easy task or expand the
-framework while that evaluation is ready for its next authorized step.
+the existing single `AgentRuntime` and retained exact-Haiku workspaces. Task114 was
+the first frozen draw under this objective and is now consumed as a failure. Do not
+retry it, substitute a scoped subsystem credit for research-E2E, or expand the
+framework to avoid the demonstrated bottleneck.
 
 This immediate milestone requires all of the following in one fresh lineage:
 
@@ -38,17 +39,21 @@ The native goal resumed as `active` on 2026-09-09. The user explicitly authorize
 direct process-only use of the designated supplied credential; authentication and
 16 exact-Haiku semantic qualification calls succeeded. No secret was written to
 the repository or added to product credential discovery. Task114's authority is
-now qualified and frozen; its sole product draw has not started. The objective,
-evaluation order, and acceptance requirements remain unchanged.
+qualified and frozen. Its sole product draw then failed after 35 product model calls
+and 496.754 seconds: a derived interface ID changed the persisted theory state
+identity when independent review returned to the original author. No revised-theory
+model call, accepted theory, scientific-code execution, or confirmatory simulation
+followed. The [immutable closeout](operator_audits/pareto_tail_index_l0_v1.md)
+records the failure. A shared identity fix is verified with synthetic tests, never
+by resuming Task114. The goal remains active and unmet; evaluation order and
+acceptance requirements are unchanged.
 
 ## Evaluation Order
 
-1. Preserve Task114 as the next numbered evaluation. Its independent semantic
-   authority is qualified and frozen in the [activation ledger](evaluation_activations/task114_pareto_tail_index_preactivation.json).
-   Next execute its one product draw without repeating semantic qualification.
-   Task114 measures a known-result Theory, Python, and confirmatory
-   Simulation path; Lean and source replication are not applicable to its frozen
-   intent.
+1. Preserve Task114's consumed failure and frozen [activation ledger](evaluation_activations/task114_pareto_tail_index_preactivation.json).
+   Validate and deliver the shared theory-session identity fix without replaying the
+   task. Its required Theory, Python, and confirmatory Simulation path remains
+   incomplete; Lean and source replication were not applicable to its frozen intent.
 2. Keep the beta-regression gasoline-precision reproduction as a separate,
    unnumbered candidate. After Task114, freeze its remaining authority and measure
    the pinned R paper/code/data reproduction path without turning it into Task115.
