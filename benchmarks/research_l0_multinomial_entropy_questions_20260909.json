@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "fixed_alphabet_multinomial_entropy_known_result",
+      "title": "Finite-alphabet entropy estimation and uncertainty",
+      "description": "Develop and validate entropy estimation from iid categorical observations on a known fixed alphabet of K>=2 categories. The unknown probabilities p_i are strictly positive and sum to one. In an authoritative Markdown/LaTeX workspace, define Shannon entropy in natural-log units, derive the empirical plug-in estimator, its leading finite-sample bias and the corresponding first-order bias correction using the known alphabet size K. Derive consistency, the root-n limit law and a consistent variance estimator from the multinomial covariance, with an equation-level justification of the expansion remainder. Identify when the first-order variance degenerates and explain why the usual studentized normal interval is then not justified. This is a fixed-K, fixed-interior-p result, not a claim uniform over growing alphabets or rare-probability sequences. Implement est_fixed_alphabet_entropy in Python under the frozen count-vector interface below. The point estimate entropy_corrected uses the known K, even when some observed counts are zero; do not silently replace K by the observed number of categories. The reported normal interval is centered on that corrected estimate, is not clipped to the entropy parameter space, and is unavailable when the empirical first-order variance is zero. Useful exploratory Python or R work may test the derivation, relabeling, finite-sample bias and uncertainty, and may inform revisions. After independent theory/code review, run a frozen confirmatory experiment on fresh multinomial samples. It must assess the implementation, first-order bias correction, root-n variance calibration and approximate 95 percent interval coverage, reporting Monte Carlo uncertainty and finite-sample limitations. The separate hidden evaluator freezes its nonuniform interior distributions, sample sizes, seeds and tolerances before the product run, with enough independent repetitions to make worst-case binomial Monte Carlo standard error at most 0.0071 per design. Do not claim exact unbiasedness, exact finite-sample interval coverage, uniform validity near the uniform distribution, source replication, novelty or formal proof. Literature discovery is allowed and must be attributed; this is an assisted known-result task, not blind rediscovery. Source replication and Lean formalization are not applicable and must not block the research result. Keep every unresolved derivation, implementation or empirical limitation visible in the final report.",
+      "tags": ["multinomial", "entropy", "delta_method", "bias_correction", "python_language", "L0"],
+      "source": {
+        "benchmark_mode": "known_result",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Paninski (2003), Estimation of Entropy and Mutual Information, Neural Computation 15, 1191-1253, fixed-alphabet specialization of sections 4-5 and Appendix B",
+        "primary_url": "https://sites.stat.columbia.edu/liam/research/pubs/info_est-nc.pdf",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_fixed_alphabet_entropy",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.counts",
+            "name": "counts",
+            "meaning": "The observed counts of every category in the known alphabet, including zero-count categories.",
+            "json_type": "array",
+            "shape": "A JSON array of 2 through 32 nonnegative non-Boolean integers, with total sample size between 2 and 1000000 inclusive.",
+            "units": "observation counts",
+            "indexing": "One entry per category; the array length is the known alphabet size K.",
+            "edge_cases": "Reject floats, Booleans, strings, nulls, nested values, negative counts, invalid lengths and invalid totals rather than coercing, dropping or replacing values. Zero-count categories are valid.",
+            "binding": "per_replicate_data"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sample_size",
+            "name": "sample_size",
+            "meaning": "The total validated count n.",
+            "json_type": "integer",
+            "shape": "One non-Boolean integer in [2,1000000].",
+            "units": "observations",
+            "indexing": "One sample-wide scalar.",
+            "edge_cases": "Do not return the alphabet size.",
+            "normalization": "Sum of all counts."
+          },
+          {
+            "clause_id": "response.entropy_plugin",
+            "name": "entropy_plugin",
+            "meaning": "The Shannon entropy functional evaluated at empirical category frequencies.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "nats",
+            "indexing": "One sample-wide estimate.",
+            "edge_cases": "Use the continuous convention at zero probability, without pseudocounts.",
+            "normalization": "The empirical plug-in functional derived in the theory workspace, using natural logarithms."
+          },
+          {
+            "clause_id": "response.entropy_corrected",
+            "name": "entropy_corrected",
+            "meaning": "The first-order bias-corrected plug-in entropy based on the known alphabet size.",
+            "json_type": "number",
+            "shape": "One finite non-Boolean scalar.",
+            "units": "nats",
+            "indexing": "One sample-wide estimate.",
+            "edge_cases": "Use all K categories even if unobserved; do not clip or call this exactly unbiased.",
+            "normalization": "Subtract the derived leading plug-in bias with fixed known K, not the observed support size."
+          },
+          {
+            "clause_id": "response.variance_root_n",
+            "name": "variance_root_n",
+            "meaning": "The plug-in estimate of the variance of the root-n entropy limit.",
+            "json_type": "number",
+            "shape": "One finite nonnegative non-Boolean scalar.",
+            "units": "squared nats",
+            "indexing": "One sample-wide scalar.",
+            "edge_cases": "Zero contributions use continuous extensions; the variance is zero when all positive empirical frequencies are equal.",
+            "normalization": "The multinomial delta-method variance functional evaluated at empirical frequencies, without a 1/n factor."
+          },
+          {
+            "clause_id": "response.standard_error",
+            "name": "standard_error",
+            "meaning": "The first-order standard error of the entropy estimate on its unscaled sampling scale.",
+            "json_type": "number",
+            "shape": "One finite nonnegative non-Boolean scalar.",
+            "units": "nats",
+            "indexing": "One sample-wide scalar.",
+            "edge_cases": "Return zero, not a positive floor, when the empirical first-order variance is zero.",
+            "normalization": "sqrt(variance_root_n/sample_size)."
+          },
+          {
+            "clause_id": "response.ci_lower",
+            "name": "ci_lower",
+            "meaning": "Lower endpoint of the nominal two-sided 95 percent normal interval centered on entropy_corrected.",
+            "json_type": "number or null",
+            "shape": "A finite non-Boolean number if wald_available is true, otherwise null.",
+            "units": "nats",
+            "indexing": "Lower endpoint.",
+            "edge_cases": "No clipping to zero or the entropy parameter space.",
+            "normalization": "entropy_corrected minus the standard-normal 0.975 quantile times standard_error, when available."
+          },
+          {
+            "clause_id": "response.ci_upper",
+            "name": "ci_upper",
+            "meaning": "Upper endpoint of the nominal two-sided 95 percent normal interval centered on entropy_corrected.",
+            "json_type": "number or null",
+            "shape": "A finite non-Boolean number if wald_available is true, otherwise null.",
+            "units": "nats",
+            "indexing": "Upper endpoint.",
+            "edge_cases": "No clipping to log(K) or another parameter bound.",
+            "normalization": "entropy_corrected plus the standard-normal 0.975 quantile times standard_error, when available."
+          },
+          {
+            "clause_id": "response.wald_available",
+            "name": "wald_available",
+            "meaning": "Whether the empirical first-order variance is positive so the requested interval can be computed.",
+            "json_type": "boolean",
+            "shape": "One exact JSON Boolean.",
+            "units": "availability flag, not evidence of theoretical validity",
+            "indexing": "One sample-wide flag.",
+            "edge_cases": "False when all positive counts are identical, including an empirically concentrated single category; otherwise true. This flag does not establish the unknown true p is nonuniform.",
+            "normalization": "Positivity of the empirical first-order variance."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.closed_contract",
+            "meaning": "The request has exactly the counts key, and the response exactly the eight declared keys. All rejected domains are public; valid requests must produce the derived estimator without pseudocounts, clipping or observed-support substitution."
+          },
+          {
+            "clause_id": "invariant.relabeling",
+            "meaning": "Reordering the count vector leaves every response value unchanged."
+          },
+          {
+            "clause_id": "invariant.replication",
+            "meaning": "Multiplying all counts by an integer c while remaining in domain preserves empirical frequencies, plug-in entropy and root-n variance; the bias correction shrinks by c and the standard error by sqrt(c)."
+          },
+          {
+            "clause_id": "invariant.deterministic_nonmutating",
+            "meaning": "The estimator is deterministic and does not mutate input, use random state, read files, invoke subprocesses or access the network."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.implementation",
+            "meaning": "Each frozen sample's returned objects agree with an independently implemented entropy estimator under the public contract."
+          },
+          {
+            "clause_id": "claim.empirical.bias",
+            "meaning": "Under fixed nonuniform interior multinomial designs, compare the observed plug-in bias with its leading theoretical term and assess the corrected estimator with Monte Carlo uncertainty; no exact unbiasedness is asserted."
+          },
+          {
+            "clause_id": "claim.empirical.variance",
+            "meaning": "Compare n times the empirical entropy variance and the mean reported root-n variance with the population delta-method variance under each frozen design."
+          },
+          {
+            "clause_id": "claim.empirical.coverage",
+            "meaning": "Assess approximate nominal 95 percent coverage by the corrected-entropy normal interval under the frozen nonuniform interior designs, with predeclared allowance for Monte Carlo and finite-sample error."
+          },
+          {
+            "clause_id": "claim.empirical.protocol",
+            "meaning": "Distributions, sample sizes, seeds, independent replicate counts, summaries and acceptance tolerances are frozen before outcomes. Per-design worst-case binomial Monte Carlo standard error is at most 0.0071. No outcome-dependent stopping or selection of favorable designs."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "Finite experiments validate one implementation on these configurations, not mathematical proof, exact coverage, growing-alphabet or rare-cell asymptotics, uniform-distribution Wald validity, novelty, source replication or Lean closure."
+          }
+        ],
+        "termination_guarantee": "A valid bounded count vector requires only finite count validation, logarithms and reductions, followed by a fixed normal quantile calculation and one response. No optimization or external side effects are needed."
+      }
+    }
+  ]
+}

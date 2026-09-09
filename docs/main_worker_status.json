@@ -1,10 +1,10 @@
 {
-  "schema_version": 444,
+  "schema_version": 445,
   "updated_at": "2026-09-09",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
-  "execution_status": "The standalone weighted-Rademacher formal draw is consumed: 44 successful exact-Haiku authoring turns, one failed Critic provider request, 52 Formalizer tools, 237.745 seconds, BLOCKED and gold 0/1. No proof or research-E2E credit is added. The operator mixed a machine-level Lean project with the canonical repository source index, confounding exact-source inspection. Shared correction 38a18b0b removes the silent one-hit cap on explicit model search requests; full verification passed 1286/1286. Malformed module metadata, incomplete OpenProver target inputs and the unclassified Critic API error remain unresolved. Task114 and both standalone outcomes remain immutable; the research-first goal is active and unmet.",
+  "execution_status": "Shared Critic transport correction bb4a74e6 is verified and directly pushed. Independent synthetic inputs reproduced Anthropic's oversized strict grammar rejection; native tool transport plus full local JSON Schema validation now reaches the existing evidence gate. Five diagnostic requests included two provider rejections and three successful exact-Haiku responses; the real Critic workspace rejected missing research evidence. Full suite: 1290 passed in 390.37 seconds. No consumed evaluation was replayed or rescored, and no research-E2E credit is added. A new fixed-alphabet multinomial entropy research task is selected; independent authority qualification is pending and no product draw has started.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -18,12 +18,12 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "38a18b0bd8b3d774c8370e83f537c9d31911439a",
+  "validated_code_head": "bb4a74e6a790b7efefbf7194e1b6a35e4f8ca079",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "0b2785ff31119168e9006c7f32738c1de91c2139",
+    "remote_before_current_change": "76e5d02e20132e17a5f7538755f81ab3d46467b6",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -185,21 +185,21 @@
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149457,
+    "top_level_package_lines": 149472,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "38a18b0bd8b3d774c8370e83f537c9d31911439a",
-    "summary": "Explicit Formalizer source search now passes the model-requested result count through the existing signature projection. Initial proactive context remains compact; explicit observations preserve requested complete signatures and use the existing atomic tool-loop size boundary. No ranking rule, theorem content, corpus, wrapper, repair action, scheduler or tier change.",
-    "verification": "Full suite: 1286 passed in 393.35 seconds. Source-index/topology/scoped panel: 65 passed in 6.54 seconds; actual runtime callback: 1 passed. Pre-draw formal/semantic/workspace panel: 100/100 in 221.14 seconds. Compileall, diff hygiene, immutable hashes and credential-pattern scanning passed.",
-    "capability_effect": "The formal-only draw remains a consumed failure. Claimed missing APIs exist in pinned Mathlib, but setup and result-projection defects confounded access. No saved task, candidate, grader or source output was resumed, rewritten or rescored. Task114 and betareg outcomes remain unchanged. Research-E2E acceptance is still absent."
+    "code_commit": "bb4a74e6a790b7efefbf7194e1b6a35e4f8ca079",
+    "summary": "Critic uses native client-tool input without oversized provider strict compilation. The unchanged complete schema is checked locally using the standard Draft202012Validator before normalization; existing semantic and evidence gates remain authoritative. No automatic fallback, provider restart, model escalation, new agent or task-family rule.",
+    "verification": "Full suite: 1290 passed in 390.37 seconds. Focused Critic/backend/tool-loop panel: 98 passed in 3.57 seconds. Compileall and diff checks passed. Synthetic real Critic workspace completed two Haiku turns in 33.123 seconds and rejected absent research evidence; this is transport and validation evidence, not calibrated mathematical capability.",
+    "capability_effect": "No research-E2E acceptance or new complete-task credit. Task114 and both standalone draws remain immutable. The historical Critic error discarded its message; synthetic reproduction establishes the shared schema defect but does not recover that lost error text or re-evaluate the old result."
   },
   "next_gates": [
-    "Preserve Task114 and both standalone draws, including the betareg contract contradiction and formal setup confound. None adds new trusted complete-task credit. Never resume, rerun, repair or rescore them.",
-    "After delivering 38a18b0b, qualify and freeze a new disjoint research-first task requiring reviewable theory, model-authored scientific code, independent acceptance, frozen confirmatory Simulation and final acceptance. This remains the active goal; optional Lean does not block ordinary research.",
-    "For future formal work, align execution and retrieval with the canonical repository checkout. Isolate malformed module names, missing OpenProver target inputs and the unclassified Critic BadRequestError through generic synthetic mechanisms, not consumed-task replay, aliases or source-boundary bypass.",
-    "Reuse existing pinned resources and the single source-owner loop. Admit shared changes only for demonstrated prompt, context, tool, identity, feedback or authority defects; do not add framework layers, corpus surveys or task-family repair logic."
+    "Preserve all 114 numbered tasks and both standalone draws. Never resume, rerun, repair or rescore their candidates or judgments.",
+    "Qualify and freeze the new fixed_alphabet_multinomial_entropy_known_result research-first task. Require Markdown/LaTeX theory, model-authored scientific code and exploration, independent acceptance, frozen confirmatory Simulation and accepted final report in one fresh lineage. Product calls remain zero until activation is frozen.",
+    "Use the delivered shared Critic correction in the next fresh draw. Transport success and unit tests do not satisfy the native research-E2E goal; no smaller formal or reproduction credit substitutes for it.",
+    "For later formal work, align execution and retrieval with the canonical repository checkout, and isolate malformed module metadata and incomplete OpenProver target inputs using unrelated synthetic tests. Optional Lean does not block ordinary research."
   ],
   "history_boundary": {
     "policy": "This file contains current facts only, not a chronological transcript.",

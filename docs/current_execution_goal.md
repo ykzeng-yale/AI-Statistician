@@ -68,14 +68,19 @@ acceptance requirements are unchanged.
    results at one; correct that mechanism using synthetic tests, never a rerun.
    The model's missing-library claim is contradicted by the pinned source and
    prequalified reference. No formal or research-E2E credit is added.
-4. After delivering the demonstrated shared correction, qualify and freeze a new
-   disjoint research-first task with Theory, scientific code, independent review,
-   frozen confirmatory Simulation and final acceptance required. This remains the
+4. Shared corrections `38a18b0b` and `bb4a74e6` are delivered. The latter uses native
+   Critic tool input with the unchanged full schema validated locally, avoiding a
+   reproduced provider grammar-size rejection. Its synthetic checks do not rescore
+   any old candidate. Qualify and freeze the new
+   [fixed-alphabet multinomial entropy task](../benchmarks/research_l0_multinomial_entropy_questions_20260909.json)
+   with Theory, scientific code, independent review, frozen confirmatory Simulation
+   and final acceptance required. No product draw has started. This remains the
    actual goal. Align future Lean execution and retrieval to the canonical repository
    checkout: the formal draw mixed that index with the old machine-level project.
-   Malformed module metadata, incomplete OpenProver requests and the unclassified
-   Critic provider failure remain unresolved, not grounds for task-specific fixes
-   or another framework survey.
+   Malformed module metadata and incomplete OpenProver requests remain unresolved,
+   not grounds for task-specific fixes or another framework survey. The earlier
+   Critic failure did not retain its provider message; independent schema probes
+   diagnose the shared transport defect without reconstructing that missing record.
 
 This preserves the existing evaluation sequence, not a universal product waterfall
 or a requirement that all three deliveries complete in this goal. A failed consumed
