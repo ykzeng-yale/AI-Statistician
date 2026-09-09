@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "fixed_alphabet_multinomial_entropy_known_result",
+  "benchmark_id": "research-l0-multinomial-entropy-20260909-v1",
+  "status": "frozen_qualified_pre_first_product_call",
+  "qualified_at": "2026-09-09",
+  "qualification_code_head": "bb4a74e6a790b7efefbf7194e1b6a35e4f8ca079",
+  "visible_question_commit": "ab8b70733f676ffe383132201d84cf330d67634b",
+  "visible_questions_path": "benchmarks/research_l0_multinomial_entropy_questions_20260909.json",
+  "visible_questions_sha256": "58ef4eecd09e20fc73995e4f03ba6833183cb1c1db3f8ad23eaa7bfee022b4f6",
+  "estimator_execution_contract_id": "frozen_estimator_execution_contract:8d5c11aaa1498e0896e3",
+  "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+  "gold_manifest_sha256": "57bd71a24dc1e95fce13923fe6fe1610a24e3d2096783415a5a2a8008b24294e",
+  "gold_manifest_stable_hash": "0ffac355dc2982ce7e1c83aedd4ce9a2e265c370fdc6f3733916823a1d8ee0e8",
+  "hidden_artifact_sha256": {
+    "semantic_reference.md": "8475586dae7bd91547fb83a29cb3fbed4466d15b6a5312126487b91c81a4403d",
+    "semantic_rubric.json": "83e0ac4f38629bfa0634ab071e8c08566a0f384032d1002e69c9388691c551d0",
+    "semantic_calibration_cases.json": "e3c6e6ea22f18ac9666893403fda7ad10ff6b0ea64ffaa837966cdf752180a3c",
+    "semantic_calibration_cases_v2.json": "bda5aed2499771320ee2fe2bd244601f6744f3288c23ade37ced3e4127db89b8",
+    "candidate_mode_negative_cases.json": "d62945ed322e6316e7c492ad8d3541e5a89b739d6dd4098dc379103ea26a5bb7",
+    "candidate_mode_near_miss.md": "965a4164de12a462e458c4e11676a341b5cc406dfb54899cc15849e8b2240700",
+    "semantic_activation_attempt_1.json": "7acec659069960a498b73727240a1d36853527170c55b69f3ae4d270e1c9552c",
+    "semantic_activation_attempt_2.json": "1bffd7406fe7137c4d9a6a5264c28dd41e4ed385e4b71697dbc58158b0ebcdc1",
+    "mechanical_activation_record.json": "77dc0e27a6babbf09fafca4578f8051ffd0fc11982ff38958350c17c6230aaaa",
+    "hidden_scientific_harness.py": "05e29ea030fe4391600e72a5076a807db1b99e4910fa81b4b698d230f0c59aaa",
+    "hidden_theory_harness.py": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+    "reference_estimator.py": "60d1b13c2a5d7582f0bda6dd840dee634df95546e51037e3fb20b4085b8123c9",
+    "qualification_control_correction.md": "332e72881ec028e90ef9842e2478d9c727c4ddb10aa6f55975213539aa186704"
+  },
+  "semantic_qualification": {
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "attempts": 2,
+    "model": "claude-haiku-4-5-20251001",
+    "model_tier": "haiku",
+    "total_model_calls": 32,
+    "successful_attempt_model_calls": 16,
+    "elapsed_seconds_by_attempt": [
+      84.572,
+      76.875
+    ],
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "6/6",
+    "judgment_hash": "c5b208908b45b05899ee51ba87e67a8e2e020aaa1077dd3feb2f96afe8c08c7d",
+    "prior_attempt": "Attempt 1 is preserved: 5/6 calibration cases, 1/1 integrated negative, complete reference PASS. Its intended incomplete-control label was unreliable because the draft made an extraneous likelihood maximizer claim under an open parameter domain. Version 2 removes only that claim, retaining an honest consistency-only derivation and the same expected INCONCLUSIVE status. No rubric, public request, reference mathematics, product prompt or acceptance threshold changed."
+  },
+  "production_activation_gate": {
+    "schema_version": 4,
+    "candidate_validator_path": "same_hidden_evaluator_path",
+    "reference_tasks_passed": 1,
+    "negative_evaluator_controls_rejected": 5,
+    "semantic_reference_documents_passed": 1,
+    "semantic_candidate_mode_negatives_rejected": 1,
+    "semantic_qualification_reused": true,
+    "additional_model_calls": 0
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 32,
+  "formalization_requirement": "not_applicable",
+  "resource_decisions": {
+    "exploratory_fallback_capacity_cli_runs": 10000,
+    "generated_simulation_timeout_seconds": 180,
+    "confirmatory_count_authority": "model authored and independently reviewed before outcomes; hidden evaluator precision remains frozen separately"
+  },
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "resume_or_rerun_allowed": false
+  },
+  "boundary": "Only identities, qualification history and hashes are public. Hidden reference mathematics, code, designs, seeds, tolerances, rubric, controls, model responses and judgments remain evaluator-only and never enter product prompts, tools, RAG or feedback. This is a new full research task, not a rerun of Task114 or a formal-only substitute. No product draw has begun and no capability credit is added."
+}
