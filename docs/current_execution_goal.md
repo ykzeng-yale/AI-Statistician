@@ -71,11 +71,19 @@ acceptance requirements are unchanged.
 4. Shared corrections `38a18b0b` and `bb4a74e6` are delivered. The latter uses native
    Critic tool input with the unchanged full schema validated locally, avoiding a
    reproduced provider grammar-size rejection. Its synthetic checks do not rescore
-   any old candidate. Qualify and freeze the new
+   any old candidate. The new
    [fixed-alphabet multinomial entropy task](../benchmarks/research_l0_multinomial_entropy_questions_20260909.json)
-   with Theory, scientific code, independent review, frozen confirmatory Simulation
-   and final acceptance required. No product draw has started. This remains the
-   actual goal. Align future Lean execution and retrieval to the canonical repository
+   was independently qualified and frozen, then consumed once at `27df7f6e` with
+   Theory, scientific code, independent review, frozen confirmatory Simulation and
+   final acceptance required. It failed after 44 product Haiku calls and 490.98
+   seconds: a progress checkpoint appended four scratch observations to its parent's
+   four, but continuation incorrectly required equality of the complete histories.
+   Its [immutable closeout](operator_audits/multinomial_entropy_l0_v1.md) records no
+   accepted theory, algorithm, confirmatory result or final report. Shared correction
+   `8f4522f4` preserves an unchanged parent prefix while retaining appended observations;
+   synthetic tests and the full 1,296-test suite passed, without resuming this draw.
+   The next disjoint research task still requires its own frozen authority and the
+   same complete research contract; no new task is activated. Align future Lean execution and retrieval to the canonical repository
    checkout: the formal draw mixed that index with the old machine-level project.
    Malformed module metadata and incomplete OpenProver requests remain unresolved,
    not grounds for task-specific fixes or another framework survey. The earlier

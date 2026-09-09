@@ -1,10 +1,10 @@
 {
-  "schema_version": 445,
+  "schema_version": 446,
   "updated_at": "2026-09-09",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
-  "execution_status": "Shared Critic transport correction bb4a74e6 is verified and directly pushed. Independent synthetic inputs reproduced Anthropic's oversized strict grammar rejection; native tool transport plus full local JSON Schema validation now reaches the existing evidence gate. Five diagnostic requests included two provider rejections and three successful exact-Haiku responses; the real Critic workspace rejected missing research evidence. Full suite: 1290 passed in 390.37 seconds. No consumed evaluation was replayed or rescored, and no research-E2E credit is added. A new fixed-alphabet multinomial entropy research task is selected; independent authority qualification is pending and no product draw has started.",
+  "execution_status": "The independently qualified multinomial entropy research task is consumed as FAILED at 27df7f6e: 44 product Haiku calls, 490.98 seconds, no independently accepted theory/code/confirmatory result/final report. Its source owner received review and authored a progress checkpoint, but continuation falsely rejected appended scratch history. Shared correction 8f4522f4 passes 125 focused synthetic tests and the full 1296-test suite in 388.43 seconds. It preserves the exact parent prefix and all appended observations without source rewriting or reexecution. No consumed evaluation was replayed or rescored and no research-E2E credit is added. The native goal remains active and unmet; no next task is activated.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -18,12 +18,12 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "bb4a74e6a790b7efefbf7194e1b6a35e4f8ca079",
+  "validated_code_head": "8f4522f49bbaed8f8deee8932b06c5378f395601",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "76e5d02e20132e17a5f7538755f81ab3d46467b6",
+    "remote_before_current_change": "27df7f6e99dd56f88f7fb49d87a4afba35393945",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -64,7 +64,27 @@
     "development_panel_exact_lean_closure": "0/2",
     "strict_formal_boundary": "No development task has exact source-theorem kernel closure; support lemmas, retrieval, compilation, model review, and unit tests do not change this fact.",
     "sealed_unconsumed_candidates": [],
-    "consumed_standalone_evaluation_count": 2,
+    "consumed_standalone_evaluation_count": 3,
+    "standalone_multinomial_entropy_result": {
+      "task_id": "fixed_alphabet_multinomial_entropy_known_result",
+      "numbered_ladder_task": false,
+      "product_code_head": "27df7f6e99dd56f88f7fb49d87a4afba35393945",
+      "product_model_calls": 44,
+      "prequalification_model_calls": 32,
+      "post_runtime_evaluator_model_calls": 0,
+      "model": "claude-haiku-4-5-20251001",
+      "elapsed_seconds": 490.98,
+      "runtime_steps": 5,
+      "outer_graph_iterations": 2,
+      "workspace_continuations": 3,
+      "runtime_status": "FAILED",
+      "automated_gold_task_passed": false,
+      "budget_exhausted": false,
+      "trusted_full_task_credit_added": false,
+      "activation_ledger": "docs/evaluation_activations/multinomial_entropy_preactivation.json",
+      "operator_audit": "docs/operator_audits/multinomial_entropy_l0_v1.md",
+      "boundary": "Full research-first scope, not a formal-only substitute or Task114 retry. Reviewer requested revision; the same author revised and saved progress with eight scratch refs, whose first four exactly preserve the parent. The next continuation failed before another model call. No accepted theory, scientific code, confirmatory Simulation or final Critic; hidden candidate checks did not execute. Numbered task count remains 114; this is the third standalone consumed draw. Pending state must never be resumed."
+    },
     "standalone_rademacher_formal_result": {
       "task_id": "rademacher_weighted_sum_tail_formal_known_result",
       "numbered_ladder_task": false,
@@ -155,7 +175,7 @@
     "codex_adoption": "Reuse OpenAI Codex invariants such as retained source ownership, capability-accurate stable tools, raw observations, file-backed state, isolated review, and sparse handoffs. Do not embed Codex Core, App Server, provider transport, SDK threads, worktrees, Guardian, or a second scheduler."
   },
   "current_design_assessment": {
-    "direction": "The source-owner loop and evidence boundaries remain correct, but the formal draw was not a clean measure of mathematical capability: selected Lean paths conflicted with the default index, and prompt compaction removed requested search alternatives. The model voluntarily reported a gap before budget exhaustion; the kernel correctly rejected sorryAx. Restoring requested search results is mechanism evidence, not proof that formal or research-E2E capability is solved.",
+    "direction": "The entropy draw exercised Markdown theory, exploratory scratch calculations, independent review and same-author revision. It then failed in shared checkpoint restoration, before scientific-code or confirmatory evidence: a longer append-only history was mistaken for conflicting state. Fixing that identity predicate requires neither mathematical guidance nor another control layer. This run cannot establish completed theory or research-E2E capability; later Lean work still needs the previously identified project/index alignment.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -177,7 +197,7 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24810,
-    "theory_workspace_lines": 4510,
+    "theory_workspace_lines": 4511,
     "scientific_code_workspace_lines": 3537,
     "client_tool_loop_lines": 1221,
     "agent_runtime_lines": 1365,
@@ -185,20 +205,20 @@
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149472,
+    "top_level_package_lines": 149471,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "bb4a74e6a790b7efefbf7194e1b6a35e4f8ca079",
-    "summary": "Critic uses native client-tool input without oversized provider strict compilation. The unchanged complete schema is checked locally using the standard Draft202012Validator before normalization; existing semantic and evidence gates remain authoritative. No automatic fallback, provider restart, model escalation, new agent or task-family rule.",
-    "verification": "Full suite: 1290 passed in 390.37 seconds. Focused Critic/backend/tool-loop panel: 98 passed in 3.57 seconds. Compileall and diff checks passed. Synthetic real Critic workspace completed two Haiku turns in 33.123 seconds and rejected absent research evidence; this is transport and validation evidence, not calibrated mathematical capability.",
-    "capability_effect": "No research-E2E acceptance or new complete-task credit. Task114 and both standalone draws remain immutable. The historical Critic error discarded its message; synthetic reproduction establishes the shared schema defect but does not recover that lost error text or re-evaluate the old result."
+    "code_commit": "8f4522f49bbaed8f8deee8932b06c5378f395601",
+    "summary": "Theory progress restoration accepts an unchanged inherited prefix of the newer cumulative scratch history, instead of requiring complete-history equality. Rewritten, reordered or dropped parent records still fail before a model call. No new wrapper, task-specific content, retry, model escalation, scheduler or source mutation.",
+    "verification": "Full suite: 1296 passed in 388.43 seconds. Focused theory/workspace/runtime panel: 125 passed in 1.41 seconds. Compileall and diff checks passed. Synthetic tests reproduced the valid-append rejection and empty-checkpoint history loss before the fix, and verify continued same-author revision without repeating scratch execution. No live candidate was used by regression tests.",
+    "capability_effect": "No research-E2E acceptance or new complete-task credit. All 114 numbered and three standalone consumed draws remain immutable. Entropy independently exercised the prior derived-interface identity correction, but stopped at a different checkpoint mechanism before acceptance. The new prefix fix has no fresh live research-E2E result yet."
   },
   "next_gates": [
-    "Preserve all 114 numbered tasks and both standalone draws. Never resume, rerun, repair or rescore their candidates or judgments.",
-    "Qualify and freeze the new fixed_alphabet_multinomial_entropy_known_result research-first task. Require Markdown/LaTeX theory, model-authored scientific code and exploration, independent acceptance, frozen confirmatory Simulation and accepted final report in one fresh lineage. Product calls remain zero until activation is frozen.",
-    "Use the delivered shared Critic correction in the next fresh draw. Transport success and unit tests do not satisfy the native research-E2E goal; no smaller formal or reproduction credit substitutes for it.",
+    "Preserve all 114 numbered tasks and three standalone draws, including entropy. Never resume, rerun, repair or rescore their candidates or judgments.",
+    "Use the verified shared scratch-history continuation correction in a future independently activated draw; its local regressions are mechanism evidence only. Preserve model mathematics, budgets, review criteria and source ownership.",
+    "Any next disjoint research task requires independently qualified and frozen authority before its sole product draw, with the unchanged Markdown/LaTeX theory, scientific code/exploration, independent acceptance, frozen confirmatory Simulation and accepted final report contract. No next task is activated; unit tests or smaller subsystem credit cannot satisfy the native research-E2E goal.",
     "For later formal work, align execution and retrieval with the canonical repository checkout, and isolate malformed module metadata and incomplete OpenProver target inputs using unrelated synthetic tests. Optional Lean does not block ordinary research."
   ],
   "history_boundary": {
