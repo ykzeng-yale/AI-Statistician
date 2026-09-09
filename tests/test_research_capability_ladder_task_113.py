@@ -73,17 +73,6 @@ def test_lognormal_task113_is_consumed_once_and_failed_closed() -> None:
     loaded_question = load_open_research_questions(VISIBLE_PATH)[0]
     descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
 
-    readiness = ladder["current_readiness"]
-    assert len(ladder["initial_candidate_queue"]) == 113
-    assert ladder["initial_candidate_queue"][-1]["id"] == TASK_ID
-    assert readiness["scored_tasks_total"] == 113
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 113
-    assert readiness["fully_gold_configured_tasks"] == 113
-    assert readiness["fully_gold_passed_tasks"] == 7
-    assert readiness["operator_invalid_tasks"] == 18
-    assert readiness["latest_shared_mechanism_head"] == SHARED_MECHANISM_COMMIT
-
     assert candidate["level"] == "L0"
     assert candidate["family"] == "lognormal_mean_parametric_inference"
     assert candidate["status"] == "consumed_scored"

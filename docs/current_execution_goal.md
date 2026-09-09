@@ -51,14 +51,16 @@ acceptance requirements are unchanged.
 ## Evaluation Order
 
 1. Preserve Task114's consumed failure and frozen [activation ledger](evaluation_activations/task114_pareto_tail_index_preactivation.json).
-   Validate and deliver the shared theory-session identity fix without replaying the
-   task. Its required Theory, Python, and confirmatory Simulation path remains
+   Shared theory-session identity fix `146643bc` was validated and delivered without
+   replaying the task. Its required Theory, Python, and confirmatory Simulation path remains
    incomplete; Lean and source replication were not applicable to its frozen intent.
-2. Run the separately admitted, unnumbered beta-regression gasoline-precision
-   reproduction once. Its [qualified activation](evaluation_activations/betareg_gasoline_precision_qualified_activation.json)
-   records 16 exact-Haiku qualification calls and the unchanged frozen scope. It
-   measures pinned public R paper/code/data reproduction, not blind rediscovery,
-   Task115, or a substitute for the research-E2E goal.
+2. Preserve the separately admitted, unnumbered beta-regression gasoline-precision
+   draw. Its [closeout](operator_audits/betareg_gasoline_precision_l1_v1.md) records
+   successful R execution and automated acceptance, but also visual claims forbidden
+   by the frozen request. No trusted complete-task credit is added. Shared prompt
+   correction `94a30d9c` makes visual inspection task-dependent and passed full
+   verification without rerunning or rescoring the candidate. This was public reproduction, not blind
+   rediscovery, Task115, or a substitute for the research-E2E goal.
 3. Freeze a new, unrelated formal task only after the earlier boundary permits it.
    Success requires the exact requested theorem in the active project, not a nearby
    theorem, retrieved declaration, pseudo-formal review, or compiled helper.
@@ -179,9 +181,9 @@ the newer `main` implementation wins unless an isolated commit fixes a measured 
 
 ## After This Goal
 
-After this research-E2E milestone, measure the pinned R paper reproduction and a
-disjoint formal-only task under their separate completion contracts and the existing
-evaluation order. Then progress through hidden known-theory rederivation, historical
-frontier rediscovery, near-frontier extension, and genuinely open problems as their
-prerequisites are independently established. A single successful task is not
-cross-family generalization, and model agreement does not establish an open result.
+The source-reproduction and formal-only evaluations above are separate measurements,
+not replacements for the research-E2E milestone. After that milestone, progress
+through hidden known-theory rederivation, historical frontier rediscovery,
+near-frontier extension, and genuinely open problems as their prerequisites are
+independently established. A single successful task is not cross-family
+generalization, and model agreement does not establish an open result.

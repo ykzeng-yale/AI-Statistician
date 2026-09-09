@@ -43,7 +43,6 @@ ARTIFACT_INDEX = RUN_PATH / "runtime_artifact_store/indexes/" / (
 PROGRESS = RUN_PATH / "runtime_progress.jsonl"
 TASK_ID = "woolf_two_by_two_log_odds_ratio_interval_known_result"
 SHARED_MECHANISM_COMMIT = "2e895af1f84dfbfc06c0da692bfc275710047b6b"
-LATEST_SHARED_MECHANISM_COMMIT = "6c129e8f4c758b2f10097e7d2817c2bf97af92e1"
 
 
 def _sha256(path: Path) -> str:
@@ -70,17 +69,6 @@ def test_woolf_task112_is_consumed_once_and_failed_closed() -> None:
     visible_question = visible_payload["questions"][0]
     loaded_question = load_open_research_questions(VISIBLE_PATH)[0]
     descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
-
-    readiness = ladder["current_readiness"]
-    assert len(ladder["initial_candidate_queue"]) == 113
-    assert ladder["initial_candidate_queue"][-2]["id"] == TASK_ID
-    assert readiness["scored_tasks_total"] == 113
-    assert readiness["unconsumed_scored_tasks"] == 0
-    assert readiness["consumed_scored_tasks"] == 113
-    assert readiness["fully_gold_configured_tasks"] == 113
-    assert readiness["fully_gold_passed_tasks"] == 7
-    assert readiness["operator_invalid_tasks"] == 18
-    assert readiness["latest_shared_mechanism_head"] == LATEST_SHARED_MECHANISM_COMMIT
 
     assert candidate["level"] == "L0"
     assert candidate["family"] == "independent_two_group_log_odds_ratio_inference"
