@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "OpenResearchQuestionSet",
+  "questions": [
+    {
+      "id": "fixed_fraction_trimmed_mean_inference_known_result",
+      "title": "Fixed-fraction trimmed mean and uncertainty",
+      "description": "Develop and validate the symmetric 20-percent trimmed mean for iid real observations. The estimand is the population average of the quantile function between probabilities 0.2 and 0.8, not necessarily the ordinary population mean. Assume the two trimming quantiles are finite, distinct and unique, and F has a positive continuous locally Lipschitz density in neighborhoods of these quantiles. In an authoritative Markdown/LaTeX workspace, derive consistency, an asymptotically linear representation with a justified negligible remainder, the root-n normal limit, and a consistent winsorized variance estimator and studentized normal interval. Explain the effect of rounding the number trimmed and distinguish root-n variance from the variance of the estimator. Do not assume that sorted retained observations are an iid subsample, or equate a trimmed mean with a winsorized mean. Describe when symmetry gives a location interpretation and why a skewed distribution generally has a different trimmed functional. Implement est_fixed_fraction_trimmed_mean in Python under the frozen interface below. The empirical winsorized variance uses denominator n, and the reported root-n variance uses the actual retained fraction h/n. Useful exploratory Python or R calculations may test equations, invariances, skewed targets and uncertainty, and may inform theory revisions. After independent theory/code acceptance, run a frozen confirmatory experiment on fresh iid samples including symmetric light-tailed, symmetric heavy-tailed and skewed designs. Assess point estimation relative to the correct population trimmed functional, root-n variance calibration and approximate 95-percent interval coverage with Monte Carlo uncertainty and finite-sample limitations. Freeze all designs, sample sizes, seeds, repetition counts, metrics and tolerances before observing confirmatory results. Use enough independent repetitions for worst-case binomial Monte Carlo standard error at most 0.0071 per design. This is an assisted known-result task: attributed literature discovery is allowed. It does not request Edgeworth terms, optimal trimming, a bootstrap, novelty, source reproduction or Lean proof. Do not claim exact finite-sample unbiasedness or normal coverage, validity at nonunique trimming quantiles, arbitrary dependent sampling, or robustness to unlimited contamination. Keep unresolved mathematical and empirical limitations visible in the final report. Formalization and source replication are not applicable and must not block this research result.",
+      "tags": ["robust_location", "trimmed_mean", "order_statistics", "asymptotic_inference", "python_language", "L0"],
+      "source": {
+        "benchmark_mode": "known_result",
+        "public_source_discovery": "enabled_with_recorded_handles",
+        "primary_authority": "Gribkova and Helmers (2006), The Empirical Edgeworth Expansion for a Studentized Trimmed Mean, Mathematical Methods of Statistics 15(1), 61-87; first-order specialization of sections 2 and 4, arXiv:1106.2219v2. The symmetric floor-per-tail convention follows scipy.stats.trim_mean, rather than the paper's possibly asymmetric endpoint rounding.",
+        "primary_url": "https://arxiv.org/pdf/1106.2219v2",
+        "public_implementation_convention": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.trim_mean.html",
+        "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+      },
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_fixed_fraction_trimmed_mean",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {"clause_id": "request.values", "name": "values", "json_type": "array", "shape": "A JSON list of length 5 through 20000.", "units": "observation units", "indexing": "One entry per observation; input order is arbitrary.", "edge_cases": "Reject booleans, nonnumeric or nonfinite elements and out-of-domain lengths or magnitudes; ties and constant samples are valid.", "binding": "per_replicate_data", "meaning": "One iid sample; JSON list of 5 through 20000 finite int or float values, excluding booleans, with absolute value at most 1000000. Reject other request types, unknown or missing keys, and every invalid element with ValueError or TypeError. Values are observations, not sorted quantiles or sample summaries."}
+        ],
+        "response_fields": [
+          {"clause_id": "response.sample_size", "name": "sample_size", "json_type": "integer", "shape": "One non-Boolean integer.", "units": "observations", "indexing": "Sample-wide scalar.", "edge_cases": "Preserve the original count for every valid sample.", "meaning": "Original number n of observations.", "normalization": "Original sample, not retained count."},
+          {"clause_id": "response.trim_each_tail", "name": "trim_each_tail", "json_type": "integer", "shape": "One non-Boolean integer.", "units": "observations per tail", "indexing": "Same count at each end of the sorted sample.", "edge_cases": "Use exact floor even when n is not divisible by five.", "meaning": "Number g=floor(n/5) removed from each end after sorting; h=n-2g observations remain.", "normalization": "Trim by index count, including ties, not by interpolated quantile thresholds."},
+          {"clause_id": "response.trimmed_mean", "name": "trimmed_mean", "json_type": "number", "shape": "One finite non-Boolean number.", "units": "observation units", "indexing": "Sample-wide point estimate.", "edge_cases": "Defined for ties and constant samples.", "meaning": "Arithmetic mean of the middle h sorted observations after removing g from each tail.", "normalization": "Divide the retained sum by h."},
+          {"clause_id": "response.winsorized_mean", "name": "winsorized_mean", "json_type": "number", "shape": "One finite non-Boolean number.", "units": "observation units", "indexing": "Sample-wide auxiliary statistic.", "edge_cases": "Defined for ties and constant samples.", "meaning": "Mean of n observations after replacing the g removed lower and upper values by the smallest and largest retained observation respectively.", "normalization": "Winsorization preserves n entries. This value is a variance-centering auxiliary, not the requested point estimate."},
+          {"clause_id": "response.variance_root_n", "name": "variance_root_n", "json_type": "number", "shape": "One finite nonnegative non-Boolean number.", "units": "squared observation units", "indexing": "Sample-wide asymptotic variance estimate.", "edge_cases": "Zero when the winsorized sample is constant; no artificial variance floor.", "meaning": "Nonnegative consistent estimator of the asymptotic variance of sqrt(n) times the trimmed-mean error, derived from empirical winsorized variance using denominator n and the actual retained fraction h/n.", "normalization": "This is the root-n variance, not sampling variance or naive variance of the trimmed subsample."},
+          {"clause_id": "response.standard_error", "name": "standard_error", "json_type": "number", "shape": "One finite nonnegative non-Boolean number.", "units": "observation units", "indexing": "Sample-wide estimated standard deviation.", "edge_cases": "Zero exactly when the reported variance is zero.", "meaning": "Estimated standard deviation of the trimmed mean itself.", "normalization": "Use the derived root-n variance and original n, not h as a second sample-size divisor."},
+          {"clause_id": "response.ci_lower", "name": "ci_lower", "json_type": "number_or_null", "shape": "One finite non-Boolean number or null.", "units": "observation units", "indexing": "Lower interval endpoint.", "edge_cases": "Null for zero reported variance.", "meaning": "Lower endpoint of the untruncated two-sided nominal 95-percent normal interval centered on trimmed_mean, or null when variance_root_n is zero.", "normalization": "Standard normal 0.975 quantile, not a Student-t or bootstrap quantile."},
+          {"clause_id": "response.ci_upper", "name": "ci_upper", "json_type": "number_or_null", "shape": "One finite non-Boolean number or null.", "units": "observation units", "indexing": "Upper interval endpoint.", "edge_cases": "Null for zero reported variance.", "meaning": "Upper endpoint of the same interval, or null when variance_root_n is zero.", "normalization": "No clipping or bias correction."},
+          {"clause_id": "response.wald_available", "name": "wald_available", "json_type": "boolean", "shape": "One JSON Boolean.", "units": "indicator", "indexing": "Sample-wide numerical availability.", "edge_cases": "False for a constant winsorized sample, even when discarded extremes differ.", "meaning": "True exactly when the reported empirical root-n variance is positive. Otherwise standard_error is zero and both endpoints are null.", "normalization": "Numerical availability does not establish population regularity or exact coverage."}
+        ],
+        "invariants": [
+          {"clause_id": "invariant.closed_contract", "meaning": "Exactly one values request key and exactly the nine declared response keys. Deterministic index trimming is used even when ties occur; no adaptive trimming, imputation or filtering."},
+          {"clause_id": "invariant.permutation", "meaning": "Permuting the observations preserves all response values up to numerical rounding."},
+          {"clause_id": "invariant.affine", "meaning": "A positive affine transformation b+c*x, within the input domain, transforms both means and endpoints by b+c*x, root-n variance by c squared and standard error by c. Reflection negates the means and swaps and negates nonnull endpoints while preserving variance and availability."},
+          {"clause_id": "invariant.nonmutation", "meaning": "The estimator does not mutate the request or its values; it uses no random state, files, subprocesses or network."}
+        ],
+        "empirical_claims": [
+          {"clause_id": "claim.empirical.implementation", "meaning": "All returned objects agree with an independently implemented index-trimming and winsorization oracle under the public contract."},
+          {"clause_id": "claim.empirical.target", "meaning": "Evaluate estimation error relative to each distribution's population trimmed functional, including a skewed distribution where that functional differs from the ordinary mean; report sampling and Monte Carlo uncertainty rather than exact unbiasedness."},
+          {"clause_id": "claim.empirical.variance", "meaning": "Compare n times the empirical variance of trimmed_mean and the average reported root-n variance with the population winsorized influence-function variance."},
+          {"clause_id": "claim.empirical.coverage", "meaning": "Assess approximate nominal 95-percent coverage of the correct trimmed functional under the frozen regular designs, with predeclared finite-sample and Monte Carlo tolerances."},
+          {"clause_id": "claim.empirical.protocol", "meaning": "Symmetric light-tailed, symmetric heavy-tailed and skewed regular designs, all seeds, sizes, independent repetition counts and thresholds are fixed before outcomes; worst-case binomial Monte Carlo standard error per design is at most 0.0071. No outcome-dependent stopping or favorable-design selection."},
+          {"clause_id": "claim.empirical.scope", "meaning": "Simulation is finite implementation evidence, not proof, exact coverage, arbitrary-mean consistency, unlimited-contamination robustness, novelty, source replication or formal closure."}
+        ],
+        "termination_guarantee": "A bounded finite list can be validated and sorted once, then finite reductions and one fixed normal quantile produce the response. No numerical optimization or external effects are required."
+      }
+    }
+  ]
+}
