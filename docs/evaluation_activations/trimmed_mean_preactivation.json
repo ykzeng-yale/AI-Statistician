@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "fixed_fraction_trimmed_mean_inference_known_result",
+  "benchmark_id": "research-l0-trimmed-mean-20260909-v1",
+  "status": "frozen_qualified_pre_first_product_call",
+  "qualified_at": "2026-09-09",
+  "qualification_code_head": "8f4522f49bbaed8f8deee8932b06c5378f395601",
+  "visible_question_commit": "d2d17dd124a8f50ad3e9ed1ab46b6139f6cb8390",
+  "visible_questions_path": "benchmarks/research_l0_trimmed_mean_questions_20260909.json",
+  "visible_questions_sha256": "ba31c375fce9fcd1a5217e60205e47ef306aa065ae35dfec0ccfcd67ce11adbb",
+  "estimator_execution_contract_id": "frozen_estimator_execution_contract:bfb01803832a282adfb2",
+  "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+  "gold_manifest_sha256": "0ff3ec7fcae640cb23b2354bbdc099182dbe2d3430785fae32f7220769cf512c",
+  "gold_manifest_stable_hash": "a1c419cd0fe039ca234eca42594bbd67fc5ef347e5656fa900491d733920bf97",
+  "hidden_artifact_sha256": {
+    "semantic_reference.md": "9c54a7f7495cd4b95655bd4e7c7f9957281868ac4a69346e936911a72de9f965",
+    "semantic_rubric.json": "59a266a136c74cfd10cc6e41eacba43493b6db49c8988ea28c7478e667ad41eb",
+    "semantic_calibration_cases.json": "ec39c03cfec83f47c1c45edbe3c5ef0ebec91cebe1a9fe517c209080f23da8d8",
+    "candidate_mode_negative_cases.json": "5e4423fe53f43c1c49dc152c7fcdcce1ad5fe006f7d59c46f66ede6cccb639b6",
+    "candidate_mode_near_miss.md": "4159fe0263b91ec2c0bf15443cc8aee70282a75a770801720b6fdc9c75f8c052",
+    "semantic_activation_attempt_1.json": "6b76f5a433335e69ba2ce5d8ec4e318b06b01a4ddac795f7d8511682b66b7ab3",
+    "mechanical_activation_record.json": "1cbdb6bed452a18cb98f19e1570aecbde18654b27993c1e8b1720e1725963c7e",
+    "hidden_scientific_harness.py": "5dc4bfa1408338174d0a4cfb5f16b3933fe8bac1ffd6ae861c812d5b47544fba",
+    "hidden_theory_harness.py": "5a04d88ebc04e961d8794617794a8fe4d073b6d275feb831582ff07e09d2bb24",
+    "reference_estimator.py": "6615d93828a058224a6039efaffb32f838283ad7ff77974dff6a4362d7740a3b"
+  },
+  "semantic_qualification": {
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "attempts": 1,
+    "model": "claude-haiku-4-5-20251001",
+    "model_tier": "haiku",
+    "total_model_calls": 16,
+    "elapsed_seconds": 94.02,
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "6/6",
+    "judgment_hash": "b5913e95cc5baf08399de953529f15416d6cfafcb8574a3ac1e0da74ed2a8a62"
+  },
+  "production_activation_gate": {
+    "schema_version": 4,
+    "candidate_validator_path": "same_hidden_evaluator_path",
+    "reference_tasks_passed": 1,
+    "negative_evaluator_controls_rejected": 5,
+    "semantic_reference_documents_passed": 1,
+    "semantic_candidate_mode_negatives_rejected": 1,
+    "semantic_qualification_reused": true,
+    "additional_model_calls": 0
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 16,
+  "formalization_requirement": "not_applicable",
+  "resource_decisions": {
+    "exploratory_fallback_capacity_cli_runs": 10000,
+    "generated_simulation_timeout_seconds": 180,
+    "confirmatory_count_authority": "model authored and independently reviewed before outcomes; hidden evaluator precision frozen separately"
+  },
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "resume_or_rerun_allowed": false
+  },
+  "boundary": "Public identities and qualification outcomes only. Hidden reference mathematics, designs, code, seeds, thresholds, controls and judgments remain outside product prompts, tools, RAG and feedback. New full research task, not a rerun or smaller subsystem substitute. No product draw has started and no capability credit is added."
+}

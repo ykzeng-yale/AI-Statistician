@@ -82,8 +82,15 @@ acceptance requirements are unchanged.
    accepted theory, algorithm, confirmatory result or final report. Shared correction
    `8f4522f4` preserves an unchanged parent prefix while retaining appended observations;
    synthetic tests and the full 1,296-test suite passed, without resuming this draw.
-   The next disjoint research task still requires its own frozen authority and the
-   same complete research contract; no new task is activated. Align future Lean execution and retrieval to the canonical repository
+5. The disjoint [fixed-fraction trimmed-mean task](../benchmarks/research_l0_trimmed_mean_questions_20260909.json)
+   now has independently qualified and frozen [authority](evaluation_activations/trimmed_mean_preactivation.json).
+   The reference passed all mechanical checks and five negative evaluator controls
+   were rejected. Six semantic calibration cases, one long-form negative and the
+   six-claim reference passed in one qualification attempt using 16 exact-Haiku
+   calls. Its sole full research draw is next; no product call has started. Theory,
+   code, frozen confirmatory Simulation and an accepted final report remain required.
+
+Align future Lean execution and retrieval to the canonical repository
    checkout: the formal draw mixed that index with the old machine-level project.
    Malformed module metadata and incomplete OpenProver requests remain unresolved,
    not grounds for task-specific fixes or another framework survey. The earlier
