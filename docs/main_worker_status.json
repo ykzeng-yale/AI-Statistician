@@ -1,10 +1,10 @@
 {
-  "schema_version": 443,
+  "schema_version": 444,
   "updated_at": "2026-09-09",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
-  "execution_status": "The standalone unnumbered betareg draw is consumed: 19 exact-Haiku source-owner calls, one unmodified R execution, two independent post-runtime judge calls, and 204.652 seconds. Automated evaluation returned ACCEPTED, 11/11 mechanical checks and 7/7 semantic claims. Read-only contract verification found visual-inspection claims prohibited by the frozen request, so no trusted full-task or research-E2E credit is added. Those claims had genuine provider-native PDF input; the issue is a frozen-scope conflict, not fabricated tool use. Shared prompt fix 94a30d9c makes visual inspection task-dependent without removing the tool; all 1282 tests passed after consolidating obsolete global-count assertions out of two historical task tests. Task114 and all original automated outcomes remain immutable; the research-E2E goal is active and unmet.",
+  "execution_status": "The standalone weighted-Rademacher formal draw is consumed: 44 successful exact-Haiku authoring turns, one failed Critic provider request, 52 Formalizer tools, 237.745 seconds, BLOCKED and gold 0/1. No proof or research-E2E credit is added. The operator mixed a machine-level Lean project with the canonical repository source index, confounding exact-source inspection. Shared correction 38a18b0b removes the silent one-hit cap on explicit model search requests; full verification passed 1286/1286. Malformed module metadata, incomplete OpenProver target inputs and the unclassified Critic API error remain unresolved. Task114 and both standalone outcomes remain immutable; the research-first goal is active and unmet.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -18,12 +18,12 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "94a30d9c15622a8267699abdf44167f6d16d3473",
+  "validated_code_head": "38a18b0bd8b3d774c8370e83f537c9d31911439a",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "1b03aabf739b9178a6b1fe3251a1010880a01b13",
+    "remote_before_current_change": "0b2785ff31119168e9006c7f32738c1de91c2139",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -64,7 +64,28 @@
     "development_panel_exact_lean_closure": "0/2",
     "strict_formal_boundary": "No development task has exact source-theorem kernel closure; support lemmas, retrieval, compilation, model review, and unit tests do not change this fact.",
     "sealed_unconsumed_candidates": [],
-    "consumed_standalone_evaluation_count": 1,
+    "consumed_standalone_evaluation_count": 2,
+    "standalone_rademacher_formal_result": {
+      "task_id": "rademacher_weighted_sum_tail_formal_known_result",
+      "numbered_ladder_task": false,
+      "product_code_head": "0b2785ff31119168e9006c7f32738c1de91c2139",
+      "successful_formalizer_model_calls": 44,
+      "failed_critic_provider_requests": 1,
+      "total_attempted_product_turns": 45,
+      "formalizer_tool_calls": 52,
+      "prequalification_model_calls": 0,
+      "post_runtime_evaluator_model_calls": 0,
+      "model": "claude-haiku-4-5-20251001",
+      "elapsed_seconds": 237.745,
+      "runtime_steps": 3,
+      "runtime_status": "BLOCKED",
+      "automated_gold_task_passed": false,
+      "exact_target_kernel_closed": false,
+      "budget_exhausted": false,
+      "trusted_full_task_credit_added": false,
+      "operator_audit": "docs/operator_audits/rademacher_weighted_tail_formal_l0_v1.md",
+      "boundary": "Standalone formal-only failure, confounded by operator-selected project and default source-index path mismatch. Same-commit checkouts do not satisfy one active-source path boundary. Kernel rejected sorryAx; Critic produced no judgment. Numbered task count stays 114. No research-E2E or frontier proof credit."
+    },
     "standalone_betareg_result": {
       "task_id": "betareg_jss_gasoline_precision_public_replication",
       "numbered_ladder_task": false,
@@ -134,7 +155,7 @@
     "codex_adoption": "Reuse OpenAI Codex invariants such as retained source ownership, capability-accurate stable tools, raw observations, file-backed state, isolated review, and sparse handoffs. Do not embed Codex Core, App Server, provider transport, SDK threads, worktrees, Guardian, or a second scheduler."
   },
   "current_design_assessment": {
-    "direction": "The canonical design is broadly coding-agent-first. The standalone source path used one retained workspace and one outer step, with real R/PDF feedback. Its prompt nevertheless imposed visual inspection irrespective of task scope, and the independent judge missed the resulting frozen-scope violation. This is not evidence that the R executor or PDF transport failed. Fresh research-E2E capability remains unproved.",
+    "direction": "The source-owner loop and evidence boundaries remain correct, but the formal draw was not a clean measure of mathematical capability: selected Lean paths conflicted with the default index, and prompt compaction removed requested search alternatives. The model voluntarily reported a gap before budget exhaustion; the kernel correctly rejected sorryAx. Restoring requested search results is mechanism evidence, not proof that formal or research-E2E capability is solved.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -155,7 +176,7 @@
     "anti_overengineering_boundary": "Do not add agents, retries, fixed reasoning sequences, field-count quotas, theorem-family rules, Lean grammar/tactic patches, repair taxonomies, or framework wrappers merely because a model made a scientific error. Change the harness only for a demonstrated shared authority, state, tool, or feedback defect."
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24808,
+    "research_agent_runtime_lines": 24810,
     "theory_workspace_lines": 4510,
     "scientific_code_workspace_lines": 3537,
     "client_tool_loop_lines": 1221,
@@ -164,21 +185,21 @@
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149448,
+    "top_level_package_lines": 149457,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "94a30d9c15622a8267699abdf44167f6d16d3473",
-    "summary": "Removed unconditional PDF/image inspection instructions from both operator-fixed and model-selected source-workspace prompts. Task scope now determines whether available visual inspection is useful; provider-native PDF/image capability remains unchanged. Two historical task tests no longer duplicate mutable global ladder counts and latest-head assertions; the central ladder test retains those checks, while historical run identities and outcomes stay exact.",
-    "verification": "The final full repository suite passed 1282/1282 in 402.80 seconds. An earlier full run passed 1280 and exposed two obsolete 113-task global-count assertions, which were removed from historical tests rather than bumped to a new number. The focused historical-identity, ladder, source-workspace, and core panel then passed 128/128 in 0.86 seconds. The initial source/semantic/candidate/core panel passed 78/78. Compileall, diff hygiene, immutable closeout hashes, unchanged numbered outcomes, and credential scanning passed.",
-    "capability_effect": "Future-task prompt/mechanism evidence only. The consumed standalone source draw established real R execution and provider-native PDF delivery, but its automated full-task acceptance conflicts with the frozen no-visual-claim condition. No new grading invocation, repaired report, threshold change, or rerun was used. Existing Codex/Prove2Me, RAG, Lean pins, exact Haiku policy, optional formal intent, and kernel authority remain unchanged. The research-E2E goal is not completed."
+    "code_commit": "38a18b0bd8b3d774c8370e83f537c9d31911439a",
+    "summary": "Explicit Formalizer source search now passes the model-requested result count through the existing signature projection. Initial proactive context remains compact; explicit observations preserve requested complete signatures and use the existing atomic tool-loop size boundary. No ranking rule, theorem content, corpus, wrapper, repair action, scheduler or tier change.",
+    "verification": "Full suite: 1286 passed in 393.35 seconds. Source-index/topology/scoped panel: 65 passed in 6.54 seconds; actual runtime callback: 1 passed. Pre-draw formal/semantic/workspace panel: 100/100 in 221.14 seconds. Compileall, diff hygiene, immutable hashes and credential-pattern scanning passed.",
+    "capability_effect": "The formal-only draw remains a consumed failure. Claimed missing APIs exist in pinned Mathlib, but setup and result-projection defects confounded access. No saved task, candidate, grader or source output was resumed, rewritten or rescored. Task114 and betareg outcomes remain unchanged. Research-E2E acceptance is still absent."
   },
   "next_gates": [
-    "Preserve Task114's failure and the standalone betareg automated acceptance with its explicit contract contradiction. Shared fixes 146643bc and 94a30d9c are future-task evidence only. Do not rerun either consumed draw, change the frozen visual restriction, add a report-specific detector, or mistake source execution and PDF access for complete report compliance.",
-    "Then freeze an unrelated formal task and measure the current support-aware, proof-state-driven Lean workspace. Exact identity-bound, axiom-clean active-project kernel closure, not RAG volume or support compilation, is the success criterion.",
-    "Use the admitted Stat-Lean discovery corpus only through model-selected semantic or proof-state search. Port any selected declaration into the active Lean 4.30.0 import closure and re-elaborate it before treating it as a premise; retrieval alone is never proof evidence.",
-    "Reduce or move non-authoritative legacy baseline and audit code only when doing so shrinks the installed product surface without deleting reproducibility evidence or creating a compatibility layer."
+    "Preserve Task114 and both standalone draws, including the betareg contract contradiction and formal setup confound. None adds new trusted complete-task credit. Never resume, rerun, repair or rescore them.",
+    "After delivering 38a18b0b, qualify and freeze a new disjoint research-first task requiring reviewable theory, model-authored scientific code, independent acceptance, frozen confirmatory Simulation and final acceptance. This remains the active goal; optional Lean does not block ordinary research.",
+    "For future formal work, align execution and retrieval with the canonical repository checkout. Isolate malformed module names, missing OpenProver target inputs and the unclassified Critic BadRequestError through generic synthetic mechanisms, not consumed-task replay, aliases or source-boundary bypass.",
+    "Reuse existing pinned resources and the single source-owner loop. Admit shared changes only for demonstrated prompt, context, tool, identity, feedback or authority defects; do not add framework layers, corpus surveys or task-family repair logic."
   ],
   "history_boundary": {
     "policy": "This file contains current facts only, not a chronological transcript.",

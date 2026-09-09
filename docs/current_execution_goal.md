@@ -61,9 +61,21 @@ acceptance requirements are unchanged.
    correction `94a30d9c` makes visual inspection task-dependent and passed full
    verification without rerunning or rescoring the candidate. This was public reproduction, not blind
    rediscovery, Task115, or a substitute for the research-E2E goal.
-3. Freeze a new, unrelated formal task only after the earlier boundary permits it.
-   Success requires the exact requested theorem in the active project, not a nearby
-   theorem, retrieved declaration, pseudo-formal review, or compiled helper.
+3. Preserve the newly consumed, unrelated weighted-Rademacher formal-only draw.
+   Its [closeout](operator_audits/rademacher_weighted_tail_formal_l0_v1.md) records
+   44 successful Haiku authoring turns, one failed Critic request, and no exact
+   kernel closure. A shared search projection silently capped requests for eight
+   results at one; correct that mechanism using synthetic tests, never a rerun.
+   The model's missing-library claim is contradicted by the pinned source and
+   prequalified reference. No formal or research-E2E credit is added.
+4. After delivering the demonstrated shared correction, qualify and freeze a new
+   disjoint research-first task with Theory, scientific code, independent review,
+   frozen confirmatory Simulation and final acceptance required. This remains the
+   actual goal. Align future Lean execution and retrieval to the canonical repository
+   checkout: the formal draw mixed that index with the old machine-level project.
+   Malformed module metadata, incomplete OpenProver requests and the unclassified
+   Critic provider failure remain unresolved, not grounds for task-specific fixes
+   or another framework survey.
 
 This preserves the existing evaluation sequence, not a universal product waterfall
 or a requirement that all three deliveries complete in this goal. A failed consumed
