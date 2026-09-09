@@ -2017,9 +2017,10 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
         tool.name for tool in backend.requests[0].tools
     }
     initial_prompt = str(backend.requests[0].messages[0]["content"])
-    assert "an unfinished structured handoff or exhausted write quota is not" in (
-        initial_prompt
-    )
+    assert "there is no separate read or write quota" in initial_prompt
+    assert "An unfinished structured handoff is not a mathematical gap" in initial_prompt
+    assert "exhausted write quota" not in initial_prompt
+    assert "phase has no write left" not in initial_prompt
     assert "use checkpoint_theory_progress for same-owner continuation" in (
         initial_prompt
     )

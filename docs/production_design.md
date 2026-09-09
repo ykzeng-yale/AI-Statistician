@@ -9,8 +9,9 @@ research question or paper, it should be able to:
 2. identify the estimand, assumptions, procedure, and theorem targets;
 3. develop a reviewable theory argument with equation and lemma lineage;
 4. implement and test scientific Python or R code;
-5. run exploratory and then frozen confirmatory simulations; and
-6. when task intent requests it, formalize the exact target in Lean.
+5. run exploratory and then frozen confirmatory simulations;
+6. when task intent requests it, formalize the exact target in Lean; and
+7. grow source-identified reusable research and proof artifacts, measuring cross-task reuse.
 
 Every lane stops honestly with accepted evidence, an explicit unresolved gap, or
 a budget-bound failure. Formal evidence is one dimension of the product result,
@@ -78,11 +79,10 @@ Runtime externalizes hash references and rejects mutation; execution and report 
 
 Theory remains long-horizon and iterative. As soon as the estimand, DGP,
 procedure interface, and a testable claim are stable enough, exploratory coding
-may run in parallel and return non-confirmatory counterexamples to TheoryDeveloper.
+can interleave with theory and return non-confirmatory counterexamples to TheoryDeveloper.
 An accepted exploratory implementation returns to the exact parent Theory workspace whenever review is still `REVISE`; evaluator authoring and confirmatory execution fail closed until theory authority is accepted.
 Independent theory review establishes a stable checkpoint before frozen confirmation. A light
-formalization scout may expose missing definitions in parallel, but expensive Lean proving normally
-begins after the statement stabilizes unless the task explicitly selects `proof_first`.
+formalization scout may expose missing definitions; expensive Lean proving normally follows stable statements unless intent selects `proof_first`. The current outer runtime executes one workspace at a time: `dual_track` is a dependency policy, not implemented concurrency. Future independent work must use this same graph with isolated workspaces and hash-bound joins.
 
 ## Responsibility boundary
 

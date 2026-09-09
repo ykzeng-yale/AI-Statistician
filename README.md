@@ -12,8 +12,8 @@ the held-out panel is sealed. Passing unit tests or compiling support lemmas doe
 not change that claim.
 
 The canonical architecture and current boundary are documented in
-[Production Design](docs/production_design.md). The product objective is in
-[Agent Runtime Goal](docs/architect_llm_agent_goal.md), and current worker status
+[Production Design](docs/production_design.md). Read the [original product goal](docs/goal-ai-statistician.md)
+and [current execution goal](docs/current_execution_goal.md); current worker status
 is machine-readable in [main_worker_status.json](docs/main_worker_status.json).
 
 ## Architecture

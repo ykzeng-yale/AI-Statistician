@@ -1,221 +1,148 @@
-# Current Execution Goal and Resource Adoption
+# Current Execution Goal
 
-Updated: 2026-09-09
+Updated: 2026-09-09, following the user's original-goal and local-literature review.
 
-## Objective
+## Operative Objective
 
-Deliver one new, independently accepted **research-first end-to-end result** with
-the existing single `AgentRuntime` and retained exact-Haiku workspaces. Task114 was
-the first frozen draw under this objective and is now consumed as a failure. Do not
-retry it, substitute a scoped subsystem credit for research-E2E, or expand the
-framework to avoid the demonstrated bottleneck.
+Develop a general, model-led AI Statistical Theory Lab: given a statistical
+question or paper, it can investigate prior work, reproduce relevant baselines,
+progressively develop reviewable theory, implement and challenge methods in Python
+and R, independently validate stable results, optionally formalize them in Lean,
+and reuse verified research and proof artifacts across unrelated problems.
 
-This immediate milestone requires all of the following in one fresh lineage:
+This restores the complete [original product goal](goal-ai-statistician.md).
+One accepted task is a milestone, not the goal. Repeatedly substituting another
+easy benchmark, extending a scorecard, or collecting more repositories cannot
+stand in for scientific capability or completion of this roadmap.
 
-1. Reviewable Markdown/LaTeX definitions, assumptions, claims, and derivations, with
-   unresolved mathematical findings visible rather than hidden by schema validity.
-2. Model-authored scientific code and exploratory diagnostics that can inform
-   theory, followed by independent acceptance of the exact current artifacts.
-3. Frozen confirmatory Simulation evidence and final acceptance against the
-   task's independently qualified gold rubric and non-formal completion contract.
+Use the existing single outer `AgentRuntime` and shared retained model/tool loop.
+Improve or consolidate their actual tools, context, collaboration and authority
+mechanisms; do not rebuild working workspaces or add a second scheduler. The
+[local-literature and implementation audit](original_goal_harness_redesign_20260909.md)
+records what was inspected, what is already implemented, and what remains design
+rather than capability. [Production design](production_design.md) is the canonical
+implementation contract; the older Architect goal is now only a role map.
 
-Paper reproduction and formal-only kernel closure remain required capabilities of
-the overall product, but they are subsequent, separately scoped milestones. They
-are not additional acceptance gates for this ordinary research-E2E goal.
+### Native Goal Record
 
-Call Anthropic directly, without Claude Code or another agent CLI. All product and
-evaluator model calls for this goal use exactly `claude-haiku-4-5-20251001`.
-Formalization remains optional unless frozen task
-intent requires it. Passing unit tests, finding a declaration, or compiling a
-support lemma does not satisfy any of these gates.
-
-This narrows the previous three-deliverable goal; it does not weaken any frozen
-task's rubric. On 2026-09-06, a fresh check found no registered native goal, and this
-research-first objective was successfully registered with status `active`. No old
-goal was falsely marked complete to enable registration. This document and the
-native goal now describe the same immediate milestone.
-
-The native goal resumed as `active` on 2026-09-09. The user explicitly authorized
-direct process-only use of the designated supplied credential; authentication and
-16 exact-Haiku semantic qualification calls succeeded. No secret was written to
-the repository or added to product credential discovery. Task114's authority is
-qualified and frozen. Its sole product draw then failed after 35 product model calls
-and 496.754 seconds: a derived interface ID changed the persisted theory state
-identity when independent review returned to the original author. No revised-theory
-model call, accepted theory, scientific-code execution, or confirmatory simulation
-followed. The [immutable closeout](operator_audits/pareto_tail_index_l0_v1.md)
-records the failure. A shared identity fix is verified with synthetic tests, never
-by resuming Task114. The goal remains active and unmet; evaluation order and
-acceptance requirements are unchanged.
-
-## Evaluation Order
-
-1. Preserve Task114's consumed failure and frozen [activation ledger](evaluation_activations/task114_pareto_tail_index_preactivation.json).
-   Shared theory-session identity fix `146643bc` was validated and delivered without
-   replaying the task. Its required Theory, Python, and confirmatory Simulation path remains
-   incomplete; Lean and source replication were not applicable to its frozen intent.
-2. Preserve the separately admitted, unnumbered beta-regression gasoline-precision
-   draw. Its [closeout](operator_audits/betareg_gasoline_precision_l1_v1.md) records
-   successful R execution and automated acceptance, but also visual claims forbidden
-   by the frozen request. No trusted complete-task credit is added. Shared prompt
-   correction `94a30d9c` makes visual inspection task-dependent and passed full
-   verification without rerunning or rescoring the candidate. This was public reproduction, not blind
-   rediscovery, Task115, or a substitute for the research-E2E goal.
-3. Preserve the newly consumed, unrelated weighted-Rademacher formal-only draw.
-   Its [closeout](operator_audits/rademacher_weighted_tail_formal_l0_v1.md) records
-   44 successful Haiku authoring turns, one failed Critic request, and no exact
-   kernel closure. A shared search projection silently capped requests for eight
-   results at one; correct that mechanism using synthetic tests, never a rerun.
-   The model's missing-library claim is contradicted by the pinned source and
-   prequalified reference. No formal or research-E2E credit is added.
-4. Shared corrections `38a18b0b` and `bb4a74e6` are delivered. The latter uses native
-   Critic tool input with the unchanged full schema validated locally, avoiding a
-   reproduced provider grammar-size rejection. Its synthetic checks do not rescore
-   any old candidate. The new
-   [fixed-alphabet multinomial entropy task](../benchmarks/research_l0_multinomial_entropy_questions_20260909.json)
-   was independently qualified and frozen, then consumed once at `27df7f6e` with
-   Theory, scientific code, independent review, frozen confirmatory Simulation and
-   final acceptance required. It failed after 44 product Haiku calls and 490.98
-   seconds: a progress checkpoint appended four scratch observations to its parent's
-   four, but continuation incorrectly required equality of the complete histories.
-   Its [immutable closeout](operator_audits/multinomial_entropy_l0_v1.md) records no
-   accepted theory, algorithm, confirmatory result or final report. Shared correction
-   `8f4522f4` preserves an unchanged parent prefix while retaining appended observations;
-   synthetic tests and the full 1,296-test suite passed, without resuming this draw.
-5. The disjoint [fixed-fraction trimmed-mean task](../benchmarks/research_l0_trimmed_mean_questions_20260909.json)
-   now has independently qualified and frozen [authority](evaluation_activations/trimmed_mean_preactivation.json).
-   The reference passed all mechanical checks and five negative evaluator controls
-   were rejected. Six semantic calibration cases, one long-form negative and the
-   six-claim reference passed in one qualification attempt using 16 exact-Haiku
-   calls. Its sole full research draw is next; no product call has started. Theory,
-   code, frozen confirmatory Simulation and an accepted final report remain required.
-
-Align future Lean execution and retrieval to the canonical repository
-   checkout: the formal draw mixed that index with the old machine-level project.
-   Malformed module metadata and incomplete OpenProver requests remain unresolved,
-   not grounds for task-specific fixes or another framework survey. The earlier
-   Critic failure did not retain its provider message; independent schema probes
-   diagnose the shared transport defect without reconstructing that missing record.
-
-This preserves the existing evaluation sequence, not a universal product waterfall
-or a requirement that all three deliveries complete in this goal. A failed consumed
-draw stays failed. Any subsequent disjoint question needs its own frozen authority;
-do not silently reset Task114 or change its acceptance threshold. Within a research
-task, Theory, exploratory Python/R, Simulation, source search, and a light Lean scout
-may overlap whenever their inputs are stable.
-
-## Efficient Execution
-
-- Advance the next qualified evaluation step before starting another corpus
-  inventory, framework survey, audit-only task, or architecture rewrite.
-- Work on one demonstrated bottleneck at a time. Change shared model context,
-  prompts, tools, feedback, or verification only when evidence identifies a defect;
-  a wrong mathematical answer alone is not a reason to add a new control layer.
-- Keep raw execution and reviewer feedback with the same source owner. Preserve
-  useful file-backed work and checkpoints; do not reset research into a large JSON
-  answer or make ordinary compiler failures consume Architect routing rounds.
-- Use existing stage traces to report model calls, elapsed time, findings, and
-  scientific progress. Do not introduce additional counters, fixed reasoning steps,
-  universal repetition counts, or success claims based on estimated percentages.
-- Test shared changes first with focused synthetic mechanism cases, never by
-  replaying a consumed evaluation. Run the full suite before pushing a shared
-  mechanism change, not after every documentation update.
-- Keep exact task intent, hidden gold isolation, immutable consumption, and local
-  verifier authority. Efficiency cannot come from weakening acceptance or hiding
-  failed evidence.
+The app's native goal is still active with the older one-result/Task114 wording.
+The goal API cannot replace an unfinished objective, and its completion/blocking
+operations must not be misused to rename it. This user-revised document is the
+operative scope; the stale native text is recorded honestly in status. Neither
+the native milestone nor the broader objective has been achieved. Do not report
+that the native text was successfully replaced.
 
 ## Scientific Operating Model
 
-The model owns the scientific path:
-
 ```text
-question and source horizon
-  -> search literature, code, data, and reusable formal declarations
-  -> reproduce a pinned baseline first when one exists
-  -> develop a durable Markdown/LaTeX claim and derivation workspace
-       <-> run model-authored Python/R diagnostics and exploratory simulation
-       <-> use optional light Lean scouting to expose statement ambiguity
-  -> independent mathematical and source review
-  -> freeze a stable claim, algorithm, and confirmatory protocol
-  -> run confirmatory evidence to evaluator-owned precision
-  -> perform deep Lean formalization only when requested or useful
-  -> report a multidimensional evidence vector and unresolved gaps
+question / paper + explicit source horizon and evidence requirements
+  -> inspect literature, code, data and reusable declarations as needed
+  -> reproduce a pinned baseline when relevant and permitted
+  -> durable Markdown/LaTeX theory <-> exploratory Python/R and simulation
+       <-> optional light Lean investigation of definitions and stable lemmas
+  -> independent review of stable claims and their exact implementation
+  -> freeze confirmatory protocol, metrics and precision/stopping rule
+  -> confirmatory computation and intent-selected deep Lean work
+  -> evidence report, remaining gaps and reusable verified artifacts
 ```
 
-No mathematical quality criterion is a fixed number of derivation steps, files,
-agents, candidates, or simulation repetitions. Runtime ceilings protect execution
-and authority; a workspace may checkpoint and continue while its hash-bound files
-show real progress. Confirmatory sample size is selected from the frozen precision
-target, not a hardcoded repetition count.
+This is a dependency policy, not a mandatory waterfall. An executable estimand,
+DGP and procedure interface can justify an early prototype before all theory is
+finished. Exploratory observations can revise theory. Confirmation cannot revise
+its own criteria after seeing results. There is no universal 100-repetition rule:
+precision and valid stopping belong to the frozen experimental question.
 
-The harness mechanically owns only task identity, source horizon, permissions,
-artifact lineage, blinding, execution isolation, budgets, independent review, and
-verifier authority. It does not own statistical content, derivation order,
-experiments, Lean tactics, or repair recipes. Raw errors and reviewer findings
-return to the same source-owning model.
+Heavy Lean work normally follows stable statements; foundational lemmas may be
+investigated earlier. Formalization is required only by explicit task intent or
+its frozen benchmark. A formal gap stays visible without erasing valid evidence
+in unrelated dimensions. Current workspace transitions are serial/interleaved;
+true independent parallel execution is not yet implemented.
 
-## Change Admission Rule
+The model owns derivations, research order, useful tests, search queries and all
+source revisions. The harness owns identity, source horizon, permissions,
+isolation, checkpoints, budgets, blinding and verifier authority. No fixed step
+count, file count, candidate count or tool-use ritual defines research quality.
 
-A fresh failure may justify a shared change only when the evidence identifies a
-defect in model context, prompt instructions, a generic file/tool loop, source or
-retrieval identity, reviewer feedback, or evidence promotion. A model-only
-mathematical mistake does not justify a task-family branch or hardcoded correction.
+## Measurable Deliveries
 
-Prefer deleting or consolidating a control surface. Do not add a repair agent,
-second scheduler, framework wrapper, fixed reasoning recipe, task answer, theorem
-family rule, Lean grammar patch, universal formal gate, model escalation, or
-compatibility fallback. A new external corpus is not a capability until a current
-workspace uses it under an exact identity and the relevant executor verifies it.
+These are separate product evidence obligations, not gates imposed on every task.
+Current support and missing implementation are detailed in the audit.
 
-## Current Resource Decisions
-
-The following table is the operational adoption record. The older broad resource
-audit remains historical collection evidence.
-
-### Active Runtime and Scientific Sources
-
-| Resource | Audited identity | Decision |
+| Delivery | Required demonstration | Current boundary |
 |---|---|---|
-| [OpenAI Codex](https://github.com/openai/codex/tree/8e6a44b4) | `8e6a44b4` | Adopt retained source ownership, stable capability-accurate tools, file-backed state, raw observations, checkpoint lineage, and isolated review. Do not embed Codex Core, App Server, provider transport, worktree management, or another scheduler. |
-| [Statlib](https://github.com/stat-lib/statlib/tree/6575d611b5d32ef6013e9560d30b1a82a1972fb6) | active pin `6575d611` | Active importable statistical foundation and premise authority. |
-| [EmpericalProcessLEAN](https://github.com/ykzeng-yale/EmpericalProcessLEAN/tree/4cec7860c926feebd4cbcdaccedb63b2156972dd) | `4cec7860` | Active Lean project and current StatInference declaration authority. Its `main` RAG package supersedes the older divergent RAG branches; do not merge those branches wholesale. |
-| [lean-stat-learning-theory](https://github.com/YuanheZ/lean-stat-learning-theory/tree/d0f506f0a695) | `d0f506f0` | Active external companion corpus for source-identified retrieval. Reuse its layered module organization, small-lemma decomposition, exact references, and source review conventions; do not copy its model tier or human-supervision assumptions. |
-| [OpenProver](https://github.com/ykzeng-yale/OpenProver/tree/3960746da069) | `3960746d` | Existing optional LSP/MCP and hindsight-lemma proof-search provider. The Formalizer must choose model-authored proof-state queries; provider output remains candidate context until active-project checking. |
+| Progressive theory and scientific research | Two unrelated, fresh known-result research tasks with reviewable definitions and derivations, useful exploratory computation, accepted exact code, frozen confirmation and independent full-task acceptance | The latest trimmed-mean run completed the internal graph but failed independent gold; no new credit |
+| Reproduction and Python/R breadth | A pinned published-paper/code/data reproduction with exact environment and independently compared results, including real R execution; separately assess paper-to-code with author code hidden | R and controlled source execution exist; arbitrary dependency/data/environment reconstruction remains incomplete |
+| Optional formalization and library reuse | A nontrivial exact statistical target closed in the active Statlib/Mathlib project with independent statement review; reuse a verified supporting artifact in an unrelated formal task | Some scoped formal credits exist; strict development source-theorem closure remains 0/2 |
+| Long-horizon collaboration | Theory receives real code/simulation/prover findings, revises the relevant files and dependencies, and downstream evidence is revalidated only for changed inputs | Same-owner continuation and interleaving exist; independent concurrent work and join semantics remain unimplemented |
+| Durable improvement | A source/version/assumption-bound artifact demonstrably helps a disjoint later task, without hidden-answer leakage or stale proof authority | Retrieval and trace export exist; export alone is not learning or autonomous library growth |
 
-### Discovery or Design Sources
+These deliveries establish a first integrated capability baseline, not autonomous
+frontier discovery. Then advance through hidden known-theory rederivation,
+historical rediscovery, near-frontier extensions and genuinely open questions.
+Historical literature cutoffs restrict accessible sources but cannot remove
+pretraining contamination; report that limitation. Open results need external
+mathematical/scientific scrutiny, not model consensus or an invented success rate.
+Existing sealed held-out and strict-formal protocols are not weakened or unlocked.
 
-| Resource | Status | Admission boundary |
-|---|---|---|
-| [Statlib upstream](https://github.com/stat-lib/statlib/tree/01d2a03770455f5c775bb25c57e7fbb8e1eaf8d8) | Discovery only | Its own build passed, but the combined StatInference migration produced 207 Lean errors. Do not expose declarations as importable premises until a dedicated whole-project port succeeds. |
-| [Stat-Lean](https://github.com/StatLean/Stat-Lean/tree/855b6afb69fead1bef066111732ed44df181040e) | Discovery corpus | Apache-2.0, Lean 4.29.1, Mathlib `5e932f97`, 1,142 Lean files, about 549k lines, and 8,636 indexed declarations at tree `b1107070`. The existing generic index needs no adapter. A clean exact-snapshot trial retrieved BH, Kaplan-Meier, AIPW, and bootstrap obligations in both global and source-scoped context (4/4); the aggregate external benchmark remains red because two older LML/SciLean scoped cases miss. A static source scan found no standalone `sorry` or `axiom` declarations, but that is not a kernel audit. The corpus remains non-importable until selected declarations are ported and elaborated in the active Lean 4.30.0/Mathlib `81343555` project. |
-| [LeanDojo/ReProver](https://arxiv.org/abs/2306.15626) | Design and provider reference | Reuse accessible-premise extraction, proof-state retrieval, hard negatives, and challenging splits. Do not import another task controller. |
-| [Numina Lean Agent](https://arxiv.org/abs/2601.14027) and [AxProverBase](https://arxiv.org/abs/2602.24273) | Harness references | Reinforce the direct model -> search/compile -> raw feedback -> same-model revision loop. They do not justify task-specific repair infrastructure. |
-| [LeanMarathon](https://arxiv.org/abs/2606.05400) | Long-form formalization reference | Use an evolving theorem/lemma blueprint only for genuinely long formal projects. Do not force its DAG ceremony onto ordinary research tasks. |
-| [Prove2Me](https://github.com/prove2me/prove2me_workspace/tree/16e3fb51a061c05ea83e07617400fd642a9eac81) | Local mechanism adoption; remote corpus not connected | The existing reviewer now records a blinded Lean read-back before seeing intended mathematics. The existing project executor admits diagnostic helper sketches but retains exact-target transitive axiom checking. No new scheduler or remote proof authority. See [adoption and verification boundary](prove2me_adoption_20260904.md). |
-| [pseudo-formalization](https://github.com/Slim205/pseudo-formalization/tree/0aa51d25726c) | Advisory review reference | PF/BV can expose structural mathematical gaps. It is natural-language evidence and can never substitute for Lean proof. |
-| [ERA](https://github.com/google-research/era/tree/440711e3bef5) | Conditional algorithm-search reference | Use candidate tree search only where an independent executable score is trustworthy. Do not use it for open theory whose score is model opinion. |
-| [AI Co-Scientist](https://arxiv.org/abs/2502.18864) | Open-hypothesis reference | Generate, debate, and evolve hypotheses when no direct verifier exists; retain explicit uncertainty and external review. |
+## Implementation Order
 
-### Evaluation and Reproduction Sources
+1. Reconcile goals and capability claims with current code; remove contradictory
+   tool instructions. Implemented in this revision; verification is recorded in status.
+2. Establish the next shared reliability change from author/reviewer behavior on
+   visible artifacts and unrelated synthetic controls. The latest internal/gold
+   disagreement warrants diagnosis, not a benchmark-answer patch or more reviews
+   by default. Do not start another draw merely to find an acceptance.
+3. Improve existing source-project/environment support where real reproduction
+   needs it. Preserve model-selected actions and pinned dependencies; avoid a
+   package-specific installer or another reproduction agent.
+4. Align formal execution and retrieval to the same active checkout. Use current
+   file edits, Lean state and accessible-premise tools; transfer only selected
+   verified declarations and their dependencies. Do not bulk-merge incompatible
+   Lean libraries or equate RAG corpus membership with importability.
+5. Add concurrency only where independent, measured work benefits, inside the
+   existing graph with isolated workspaces, cancellation, hash-bound joins and
+   stale-result handling. Do not add another runtime or concurrent writes to one
+   authoritative document. Consolidate existing responsibility before expansion.
+6. Measure scoped deliveries on fresh qualified tasks and cross-task reuse. Record
+   actual calls, tokens, tool time, wall time and scientific outcomes. Compare
+   mechanisms on preregistered disjoint controls, not repeated consumed candidates.
 
-| Resource | Reuse decision |
-|---|---|
-| [PaperBench](https://openai.com/index/paperbench/) | Keep rollout and grading environments separate and use author-derived fine-grained rubrics. |
-| [Read Paper. Write Code.](https://arxiv.org/abs/2604.21965) | Use strict information isolation, deterministic result comparison, and error attribution for paper-to-code tasks. |
-| [SocSci Repro Bench](https://arxiv.org/abs/2606.11447) | Include both reproducible and demonstrably non-reproducible sources so the evaluator can distinguish agent failure from source failure. |
-| [ReproAgent](https://arxiv.org/abs/2608.24291) | Reuse the idea of a persistent, explicit source contract and file work packages. Do not import a separate prepare/plan/generate/repair orchestration pipeline. |
+## Resource and Change Policy
 
-`CodexProver` branches remain evaluated historical mechanism sources, not a merge
-target. Their evidence controls informed immutable splits and source identity, but
-their packet/controller surface would restore the complexity removed from the
-canonical runtime. `EmpericalProcessLEAN` branch tips likewise remain source history;
-the newer `main` implementation wins unless an isolated commit fixes a measured gap.
+- Call Anthropic directly. All tests, qualification and live evaluations use
+  exactly `claude-haiku-4-5-20251001`; no Opus or automatic tier escalation.
+- Credentials stay outside source, prompts, logs and `.env.example`. This revision
+  requires no new provider call. Use configured machine authentication for Git.
+- Reuse Codex's retained file/tool feedback and independent authority principles,
+  not Codex Core, App Server, provider transport or a second orchestrator.
+- Reuse Numina and ReProver's environment/state access, LeanMarathon's evolving
+  long-proof dependencies, and Prove2Me's stable target and blinded statement
+  read-back. No source establishes that their reported results transfer to Haiku.
+- Keep the active Statlib/Mathlib/StatInference foundation. External SLT, OpenProver,
+  CodexProver and other branches are selected source/provider resources, not an
+  instruction to merge every branch. The audit records pins and compatibility.
+- Use ERA-style search only with a trustworthy exploratory executable score;
+  never optimize against held-out confirmation or treat an LLM vote as proof.
+- Prefer deletion and consolidation. No task-family formulas, Lean grammar/tactic
+  patches, repair agents, packet hierarchies, model escalation or hidden fallback.
+- Run focused synthetic checks while iterating and the full suite before pushing
+  a shared mechanism change. Tests are mechanism evidence, not scientific success.
 
-## After This Goal
+## Immutable Evaluation Record
 
-The source-reproduction and formal-only evaluations above are separate measurements,
-not replacements for the research-E2E milestone. After that milestone, progress
-through hidden known-theory rederivation, historical frontier rediscovery,
-near-frontier extension, and genuinely open problems as their prerequisites are
-independently established. A single successful task is not cross-family
-generalization, and model agreement does not establish an open result.
+The 114 numbered draws and four additional standalone draws remain consumed.
+Their mixed-scope historical credits are preserved, not collapsed into E2E wins.
+The latest [trimmed-mean closeout](operator_audits/trimmed_mean_l0_v1.md) records
+102 completed product model turns over 947.444 seconds, internal acceptance, and
+independent full-task rejection: algorithm 2/5, structural theory 7/7, semantic
+theory 1 satisfied / 3 violated / 2 inconclusive, empirical 0/7. The 16 qualification
+and two candidate semantic-evaluation calls are separate. Lean was not required.
+
+Earlier [Task114](operator_audits/pareto_tail_index_l0_v1.md),
+[beta-regression reproduction](operator_audits/betareg_gasoline_precision_l1_v1.md),
+[Rademacher formal-only](operator_audits/rademacher_weighted_tail_formal_l0_v1.md)
+and [entropy](operator_audits/multinomial_entropy_l0_v1.md) outcomes remain unchanged.
+Never resume, repair, rerun, rejudge or rescore any consumed evaluation. No new
+benchmark is activated by this design revision. Current facts live in
+[main_worker_status.json](main_worker_status.json); historical manifests and
+qualification ledgers remain the original evidence.
