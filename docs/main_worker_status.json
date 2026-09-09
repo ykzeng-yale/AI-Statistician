@@ -1,10 +1,10 @@
 {
-  "schema_version": 447,
+  "schema_version": 448,
   "updated_at": "2026-09-09",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "2026-09-09 user-requested restoration of the original complete research-laboratory scope is operative in docs/current_execution_goal.md. Native goal remains active with the older Task114/one-result text: API cannot replace an unfinished objective, and no false completion or blocking was used to rename it. registered_chat_goal records that unchanged native text.",
-  "execution_status": "Original full research-laboratory goal restored in the operative goal document; native goal text remains stale because unfinished goals cannot be replaced by the API. Local literature and actual subsystem design audited; goal/role conflicts and nonexistent Theory write-quota guidance corrected in 7ec7aa87. Focused tests: 88 passed; full suite: 1296 passed in 389.03 seconds; compileall, diff and evidence-hash checks passed. Trimmed-mean draw remains consumed: internal ACCEPTED, independent gold FAILED, 102 completed product turns over 947.444 seconds; 16 qualification and 2 candidate judge calls are separate. No new trusted E2E credit, framework or benchmark activation.",
+  "execution_status": "Follow-up progress: read-only diagnosis confirms the failed trimmed-mean referee received the complete theory and conflicting raw scratch observations; no feedback-loss cause was established. A separate native-model capability gap is fixed in 6d8513ad: pinned Haiku retained tool requests can explicitly enable extended thinking with automatic tool selection, exact signed-block history and budget-bound session identity. Default sampling and all consumed evaluations remain unchanged. Focused transport/loop tests: 82 passed; full suite: 1309 passed in 386.17 seconds. No thinking-enabled live draw or new research-E2E credit; current shell has no configured Anthropic process credential and historical credentials were not retrieved.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -16,14 +16,24 @@
       "sonnet"
     ],
     "opus_allowed": false,
-    "automatic_tier_escalation_allowed": false
+    "automatic_tier_escalation_allowed": false,
+    "native_tool_thinking": {
+      "model": "claude-haiku-4-5-20251001 exactly",
+      "setting": "AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS",
+      "default_budget_tokens": 0,
+      "enabled_budget": "Explicit integer >=1024 and below every affected request's max_tokens; total output ceiling is unchanged.",
+      "scope": "Retained client-tool workspaces only. Tool-free Architect and hidden-gold generation are unchanged.",
+      "authority": "Resolved at request construction, recorded in provider/progress metadata and bound to the exact session contract. No silent disable fallback or automatic tier escalation.",
+      "limitation": "Haiku 4.5 does not support interleaved thinking; no private continuation or additional reasoning agent is added.",
+      "live_efficacy": "Not measured. Synthetic SDK/loop tests establish transport and continuation only."
+    }
   },
-  "validated_code_head": "7ec7aa87d5d149cca600e9c9eec19a3f8163d511",
+  "validated_code_head": "6d8513ad0eb35caa63ec1e144632803338971762",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "db6e434bba1e0a7c126b4542b9adfb18563f0850",
+    "remote_before_current_change": "5ccd79449c92d66f3a0a7f05ca6e2e32f4c7cd28",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -186,10 +196,11 @@
     "formalization": "Lean is selected by frozen task intent. It is mandatory for formal tasks and optional or advisory otherwise; only exact target-bound kernel promotion creates proof evidence.",
     "collaboration": "Architect resolves request-scoped evidence and genuine cross-workspace conflicts; ordinary feedback stays with its source owner. Current outer execution is serial/interleaved; dual_track is a dependency policy, not implemented parallel scheduling.",
     "source_use": "Literature, code, and data are model-selected and hash-bound under an explicit source horizon. Replication identity binds raw streams, declared result hashes, post-run workspace state, errors, and undeclared artifacts; only a clean run can reach success gates, and no run is automatic authority for theory or prose.",
-    "codex_adoption": "Reuse OpenAI Codex invariants such as retained source ownership, capability-accurate stable tools, raw observations, file-backed state, isolated review, and sparse handoffs. Do not embed Codex Core, App Server, provider transport, SDK threads, worktrees, Guardian, or a second scheduler."
+    "codex_adoption": "Reuse OpenAI Codex invariants such as retained source ownership, capability-accurate stable tools, raw observations, file-backed state, isolated review, and sparse handoffs. Do not embed Codex Core, App Server, provider transport, SDK threads, worktrees, Guardian, or a second scheduler.",
+    "native_model_capacity": "One typed thinking option in the existing pinned-Haiku request/transport. Enabled requests use automatic tool selection and preserve opaque signed/redacted content; plain-text stopping still requires explicit continuation, never automatic acceptance or resampling."
   },
   "current_design_assessment": {
-    "direction": "The original product scope is restored rather than narrowing to successive one-result draws. Current MD/LaTeX, source edits, scientific packages, R and Lean state tools are real and should be retained. Latest runtime/gold disagreement makes scientific author/referee reliability the immediate concern; it does not justify task-specific mathematics or another review layer. The broad redesign separates implemented capability from remaining environment, dependency, concurrency and reuse work.",
+    "direction": "Current work improves native model capability rather than adding mathematical rules. The failed reviewer saw conflicting observations and nevertheless accepted a candidate-derived comparison; a stronger scientific judgment is needed, but no content patch or new mandatory reviewer is justified. The native Haiku thinking mode previously had no transport support and now has opt-in support. Its efficacy remains unmeasured; it must not be described as a fix for the consumed candidate's mathematics.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -200,6 +211,7 @@
       "Formalization is intent-driven and cannot erase accepted non-formal evidence when it is not required; formal completion is revalidated against the exact frozen-target kernel-promotion artifact rather than an aggregate boolean."
     ],
     "remaining_risks": [
+      "Native Haiku thinking is now transport-supported but has no live efficacy evidence. It cannot interleave thinking with tools, does not raise total output ceilings, and remains opt-in before a new frozen run. Current shell has no configured Anthropic process credential; do not retrieve past chat/file credentials.",
       "Long-horizon mathematical judgment and independent-referee falsification remain unreliable under exact Haiku. Latest internal acceptance failed independent theory, code and empirical gold despite 77 reviewer/Critic turns.",
       "General publisher-paper, data and dependency/environment reconstruction remains incomplete; prepared frozen projects and scientific WASM runtimes do not establish arbitrary reproduction.",
       "Outer graph is serial; dependency-selective revalidation and true isolated concurrent work need measured, scoped implementation within the existing runtime.",
@@ -215,24 +227,25 @@
     "research_agent_runtime_lines": 24810,
     "theory_workspace_lines": 4510,
     "scientific_code_workspace_lines": 3537,
-    "client_tool_loop_lines": 1221,
+    "client_tool_loop_lines": 1224,
     "agent_runtime_lines": 1365,
     "formalizer_llm_lines": 1875,
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149470,
+    "top_level_package_lines": 149501,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "7ec7aa87d5d149cca600e9c9eec19a3f8163d511",
-    "summary": "Consolidated original/operative/Architect goals, documented implementation-grounded subsystem and local-literature redesign, corrected serial-versus-parallel claims, and removed Theory prompt references to nonexistent write quotas. Existing shared-budget/progress semantics are unchanged; no new module, scheduler, repair recipe, mathematical answer, iteration cap or model escalation.",
-    "verification": "Focused Theory/core/backend suite: 88 passed in 3.83 seconds. Full suite: 1296 passed in 389.03 seconds. Compileall, staged diff checks, local Markdown link checks and five immutable run-file hashes passed. Progress events confirm 102 completed product turns. Verification made no new provider or evaluator call.",
-    "capability_effect": "No new independently accepted E2E result. All 114 numbered and four standalone draws are immutable. Latest run reached the full internal non-formal graph but failed independent gold; scientific reliability remains open. Concurrent work, arbitrary paper environment reconstruction and demonstrated verified cross-task library growth are planned, not implemented by this change."
+    "code_commit": "6d8513ad0eb35caa63ec1e144632803338971762",
+    "summary": "Added native manual-thinking configuration for pinned-Haiku retained tool workspaces in the existing typed request and Anthropic transport. Positive opt-in selects auto tool choice, omits incompatible temperature, records the resolved budget, preserves signed blocks and binds it into resume identity. No new agent, scheduler, prompt recipe, statistical formula, model escalation or total-output-limit increase.",
+    "verification": "Focused backend/client-loop suite: 82 passed in 3.22 seconds. Full suite: 1309 passed in 386.17 seconds. Compileall and diff checks passed. Synthetic SDK plus real shared-loop tests cover signed/redacted block round-trip, raw feedback, session restore, budget drift, explicit invalid/unsupported settings and no silent thinking downgrade. Plain-text stopping remains nonaccepted and does not cause a hidden retry. Five consumed run-file hashes are unchanged.",
+    "capability_effect": "Native transport support only; no new provider, gold or consumed-task invocation. Last research draw remains internally ACCEPTED but independently FAILED. Full research-E2E objective remains unmet; default thinking budget is zero and a future explicit mode requires preregistered independent measurement."
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
+    "Before another full research draw, evaluate native Haiku tool thinking on preregistered disjoint controls with trusted current credentials. Freeze the mode, total output limits and independent authority; report actual calls/tokens/time and scientific judgments, not a claim that optional transport already improved accuracy.",
     "Diagnose author/referee scientific reliability with visible artifacts and unrelated synthetic controls before changing shared tools or prompting; do not inject the latest task's expected answer or add more mandatory reviewers.",
     "Improve existing reproducible project/environment continuity where a pinned paper needs it; keep source ownership, isolation and actual execution identity.",
     "Align active Lean/RAG project identity and reuse selected checked declarations; optional formal work must not block unrelated required research dimensions.",

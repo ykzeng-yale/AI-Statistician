@@ -282,3 +282,8 @@ secret from historical chat or files. All consumed candidates, source, observati
 and judgments remain unchanged. Future efficacy measurement must use a fresh,
 independently qualified draw or disjoint preregistered controls; transport tests
 cannot demonstrate mathematical improvement.
+
+Transport implementation: `6d8513ad0eb35caa63ec1e144632803338971762`. Focused
+backend/loop tests: 82 passed in 3.22 seconds. Full suite: 1,309 passed in 386.17
+seconds. Compileall and diff checks passed; the five consumed run-file hashes in
+the immutable closeout are unchanged. No live model or evaluator was invoked.
