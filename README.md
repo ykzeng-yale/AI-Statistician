@@ -69,6 +69,16 @@ AI_STATISTICIAN_CLAUDE_SONNET_MODEL
 Never commit credentials. The runtime records the resolved provider, model,
 tier, token use, latency, and tool-turn count in evidence artifacts.
 
+Pinned Haiku tool workspaces can opt into native extended thinking with
+`AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS`. It defaults to `0` (off);
+an enabled value must be at least 1024 and below each affected request's
+`max_tokens`, which remains the total output ceiling. Enable it before freezing a
+fresh run. The resolved request uses automatic tool selection, preserves signed
+thinking blocks and binds the budget into session identity. It does not enable
+interleaved thinking, escalate models or change tool-free Architect/gold calls.
+This is supported transport, not demonstrated improvement in scientific accuracy.
+See [Anthropic's thinking documentation](https://platform.claude.com/docs/en/build-with-claude/extended-thinking).
+
 ## Setup
 
 Create the Python environment:

@@ -395,6 +395,8 @@ def client_tool_session_contract_fingerprint(
             "tool_choice": request.tool_choice,
             "disable_parallel_tool_use": request.disable_parallel_tool_use,
             "enable_prompt_caching": request.enable_prompt_caching,
+            **({"thinking_budget_tokens": request.thinking_budget_tokens}
+               if request.thinking_budget_tokens else {}),
             "authorization_fingerprint": client_tool_authorization_fingerprint(request.metadata),
             "tools": [asdict(tool) for tool in request.tools],
         }
@@ -749,6 +751,7 @@ def run_bounded_client_tool_loop(
                 "turn_index": turn_index,
                 "max_turns": max_turns,
                 "model": request.model,
+                "thinking_budget_tokens": request.thinking_budget_tokens,
                 **progress_identity,
             },
         ):

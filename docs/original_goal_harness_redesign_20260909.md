@@ -242,3 +242,43 @@ passed in 389.03 seconds; compileall and diff checks passed. Local document link
 and the five recorded immutable run-file hashes were verified. No new model or
 grading call was made to validate this revision. These checks establish mechanism
 and documentation consistency, not improved live scientific correctness.
+
+## Follow-Up: Native Model Reasoning
+
+Read-only diagnosis of the consumed run found the complete theory document and
+conflicting referee scratch observations in its retained session. The referee
+investigated a mismatch, then substituted agreement with a candidate-derived
+quantity for the original comparison. Its report and final Critic accepted the
+work. No feedback-loss defect was established; this is not a new score or a reason
+to encode the expected statistical answer in runtime.
+
+A separate capability gap is concrete: the Anthropic tool transport never sent a
+`thinking` configuration, and workspace requests forced tool use. Anthropic supports
+manual extended thinking on pinned Haiku 4.5, requires automatic rather than forced
+tool selection, and requires signed thinking blocks to be returned intact with
+tool history. Haiku does not support interleaved thinking. This motivates native
+transport support, not a claim that thinking would have fixed this candidate.
+[API documentation](https://platform.claude.com/docs/en/build-with-claude/extended-thinking),
+[Haiku migration guide](https://platform.claude.com/docs/en/models/haiku-4-5/migration-guide).
+
+The existing `ClientToolTurnRequest` now captures an explicit thinking budget, or
+the pinned-Haiku-only `AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS` setting at
+construction. Default zero preserves the old sampling mode. Opt-in selects `auto`,
+omits incompatible temperature configuration and includes native thinking without
+increasing total output tokens. Invalid budgets and unsupported models fail
+explicitly; unsupported thinking is never silently disabled. This is one request
+option, not a new agent, scheduler, reasoning middleware or mathematical rule.
+
+The shared loop already preserves opaque signed/redacted blocks. New synthetic SDK
+and retained-loop tests exercise round-trip tool feedback, exact session restore,
+budget-drift rejection, unchanged total limits and absence of a hidden retry after
+plain-text stopping. Budget is recorded in provider metadata, substage progress and
+the session contract. Tool-free Architect and hidden-gold generation are unchanged;
+do not describe the experiment as enabling thinking for every model call.
+
+No thinking-enabled live experiment has been run. The current shell has no
+configured Anthropic process credential, and this follow-up does not retrieve a
+secret from historical chat or files. All consumed candidates, source, observations
+and judgments remain unchanged. Future efficacy measurement must use a fresh,
+independently qualified draw or disjoint preregistered controls; transport tests
+cannot demonstrate mathematical improvement.

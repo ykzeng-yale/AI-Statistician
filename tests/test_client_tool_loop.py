@@ -1300,7 +1300,8 @@ def test_terminal_only_tool_surface_remains_model_directed() -> None:
     assert "client_tool_loop_terminal_only_turn" not in observed.metadata
 
 
-def test_no_tool_response_requires_explicit_workspace_continuation() -> None:
+@pytest.mark.parametrize("thinking_budget", [0, 1024])
+def test_no_tool_response_requires_explicit_workspace_continuation(thinking_budget) -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {})),
@@ -1315,7 +1316,7 @@ def test_no_tool_response_requires_explicit_workspace_continuation() -> None:
     ) as exc:
         run_bounded_client_tool_loop(
             backend=backend,
-            request=_request(),
+            request=replace(_request(), thinking_budget_tokens=thinking_budget),
             execute_tool=lambda call, context: ClientToolExecutionResult(
                 content={"ok": True},
                 state_changed=call.name == "edit",

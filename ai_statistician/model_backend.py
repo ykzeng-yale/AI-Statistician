@@ -650,7 +650,7 @@ class ClientToolCall:
 
 @dataclass(frozen=True)
 class ClientToolTurnRequest:
-    """One conversational model turn with caller-executed client tools."""
+    """One model turn; native thinking opts into automatic tool selection."""
 
     system_prompt: str
     messages: tuple[Mapping[str, Any], ...]
@@ -662,6 +662,27 @@ class ClientToolTurnRequest:
     disable_parallel_tool_use: bool = False
     enable_prompt_caching: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    thinking_budget_tokens: int | None = None
+
+    def __post_init__(self) -> None:
+        budget = self.thinking_budget_tokens
+        if budget is None:
+            budget = int(os.environ.get(
+                "AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS", "0"
+            )) if self.model == DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL else 0
+        if type(budget) is not int or budget < 0 or (
+            budget and not 1024 <= budget < self.max_tokens
+        ):
+            raise ValueError(
+                "thinking_budget_tokens must be 0 or at least 1024 and less than max_tokens"
+            )
+        object.__setattr__(self, "thinking_budget_tokens", budget)
+        if budget:
+            if self.model != DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL:
+                raise ValueError("manual tool thinking is supported only for pinned Haiku 4.5")
+            if self.tool_choice not in {"auto", "any", *(tool.name for tool in self.tools)}:
+                raise ValueError("thinking requires a valid client-tool choice")
+            object.__setattr__(self, "tool_choice", "auto")
 
 
 @dataclass(frozen=True)
@@ -1165,6 +1186,11 @@ class AnthropicGeneratorBackend:
             "tools": serialized_tools,
             "tool_choice": tool_choice,
         }
+        if request.thinking_budget_tokens:
+            request_kwargs.pop("temperature")
+            request_kwargs["thinking"] = {
+                "type": "enabled", "budget_tokens": request.thinking_budget_tokens
+            }
         if request.enable_prompt_caching:
             request_kwargs["cache_control"] = {"type": "ephemeral"}
         with self._capability_lock:
@@ -1228,6 +1254,8 @@ class AnthropicGeneratorBackend:
             metadata={
                 "generator_only": True,
                 "client_tool_transport": True,
+                "thinking_budget_tokens": request.thinking_budget_tokens,
+                "effective_tool_choice": request.tool_choice,
                 "tools_available": True,
                 "tools_executed_by_backend": False,
                 "client_tool_names": tool_names,

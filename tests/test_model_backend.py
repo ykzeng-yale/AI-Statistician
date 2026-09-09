@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -252,6 +253,158 @@ def test_anthropic_generator_backend_transports_client_tool_turn(
     assert response.metadata["prompt_caching_requested"] is True
     assert response.metadata["prompt_caching_applied"] is True
     assert response.metadata["provider_stop_reason"] == "tool_use"
+
+
+def test_haiku_tool_thinking_is_frozen_on_request_creation(monkeypatch) -> None:
+    monkeypatch.setenv("AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS", "2048")
+    request = ClientToolTurnRequest(
+        system_prompt="Inspect and submit.", messages=(), tools=(),
+        model="claude-haiku-4-5-20251001", max_tokens=6000,
+    )
+    assert request.thinking_budget_tokens == 2048
+    assert request.tool_choice == "auto"
+    assert request.max_tokens == 6000
+    monkeypatch.setenv("AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS", "3072")
+    assert replace(request, messages=()).thinking_budget_tokens == 2048
+    assert replace(request, thinking_budget_tokens=0).thinking_budget_tokens == 0
+    other_model = ClientToolTurnRequest(
+        system_prompt="Inspect.", messages=(), tools=(), model="claude-sonnet-5"
+    )
+    assert other_model.thinking_budget_tokens == 0
+    assert other_model.tool_choice == "any"
+
+
+@pytest.mark.parametrize("budget", [-1, 1, 1023, 4096, 5000, True, 1024.5, "2048"])
+def test_haiku_tool_thinking_rejects_invalid_budget(budget) -> None:
+    with pytest.raises(ValueError, match="thinking_budget_tokens"):
+        ClientToolTurnRequest(
+            system_prompt="Inspect.", messages=(), tools=(),
+            model="claude-haiku-4-5-20251001", max_tokens=4096,
+            thinking_budget_tokens=budget,
+        )
+
+
+def test_tool_thinking_does_not_escalate_or_guess_another_model() -> None:
+    with pytest.raises(ValueError, match="pinned Haiku"):
+        ClientToolTurnRequest(
+            system_prompt="Inspect.", messages=(), tools=(), model="claude-opus-4-5",
+            thinking_budget_tokens=1024,
+        )
+
+
+def test_anthropic_tool_thinking_roundtrips_signed_blocks_and_raw_feedback(
+    monkeypatch, tmp_path,
+) -> None:
+    from ai_statistician.client_tool_loop import (
+        ClientToolExecutionResult,
+        load_client_tool_session,
+        persist_client_tool_session,
+        run_bounded_client_tool_loop,
+    )
+
+    captured = []
+    signed_blocks = [
+        {"type": "thinking", "thinking": "Synthetic private reasoning.", "signature": "opaque-sig"},
+        {"type": "redacted_thinking", "data": "opaque-data"},
+    ]
+
+    class OpaqueBlock:
+        def __init__(self, data):
+            self.type = data["type"]
+            self.data = data
+
+        def model_dump(self, **kwargs):
+            return dict(self.data)
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured.append(kwargs)
+            first = len(captured) == 1
+            return SimpleNamespace(
+                content=[
+                    *([OpaqueBlock(row) for row in signed_blocks] if first else []),
+                    SimpleNamespace(
+                        type="tool_use", id="inspect-1" if first else "submit-1",
+                        name="inspect" if first else "submit", input={},
+                    ),
+                ],
+                model="claude-haiku-4-5-20251001", stop_reason="tool_use",
+                usage=SimpleNamespace(input_tokens=20, output_tokens=1100),
+            )
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeClient))
+    request = ClientToolTurnRequest(
+        system_prompt="Inspect observations; submit a judgment.",
+        messages=({"role": "user", "content": "Inspect a synthetic artifact."},),
+        tools=tuple(ClientToolDefinition(
+            name=name, description=name, input_schema={"type": "object"},
+            terminal=name == "submit",
+        ) for name in ("inspect", "submit")),
+        model="claude-haiku-4-5-20251001", max_tokens=4096,
+        thinking_budget_tokens=1024, enable_prompt_caching=True,
+    )
+    result = run_bounded_client_tool_loop(
+        backend=AnthropicGeneratorBackend(api_key="test-anthropic-key"),
+        request=request,
+        execute_tool=lambda call, context: ClientToolExecutionResult(
+            content={"observation": "unresolved comparison"},
+            terminal=call.name == "submit",
+            terminal_payload={"disposition": "INCONCLUSIVE"} if call.name == "submit" else None,
+        ),
+        max_turns=2, max_tool_calls=2, max_no_progress_turns=2,
+    )
+    assert len(captured) == 2
+    for kwargs in captured:
+        assert kwargs["thinking"] == {"type": "enabled", "budget_tokens": 1024}
+        assert kwargs["tool_choice"] == {"type": "auto"}
+        assert "temperature" not in kwargs
+        assert kwargs["max_tokens"] == 4096
+        assert "betas" not in kwargs
+    assert captured[1]["messages"][-2]["content"][:2] == signed_blocks
+    assert "unresolved comparison" in captured[1]["messages"][-1]["content"][0]["content"]
+    assert result.terminal_payload == {"disposition": "INCONCLUSIVE"}
+    assert result.provider_usage["output_tokens"] == 2200
+    assert result.final_response_metadata["thinking_budget_tokens"] == 1024
+    assert result.final_response_metadata["effective_tool_choice"] == "auto"
+    reference = persist_client_tool_session(
+        session_dir=tmp_path, session_id="synthetic-thinking", request=request,
+        messages=result.messages,
+    )
+    assert load_client_tool_session(
+        reference, session_dir=tmp_path, session_id="synthetic-thinking", request=request,
+    ) == result.messages
+    for budget in (0, 2048):
+        with pytest.raises(ValueError, match="identity mismatch"):
+            load_client_tool_session(
+                reference, session_dir=tmp_path, session_id="synthetic-thinking",
+                request=replace(request, thinking_budget_tokens=budget),
+            )
+
+
+def test_anthropic_never_falls_back_by_disabling_requested_thinking(monkeypatch) -> None:
+    calls = []
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            raise ValueError("unsupported parameter 'thinking'")
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(
+        Anthropic=lambda **kwargs: SimpleNamespace(messages=FakeMessages())
+    ))
+    request = ClientToolTurnRequest(
+        system_prompt="Inspect.", messages=(),
+        tools=(ClientToolDefinition("inspect", "Inspect", {"type": "object"}),),
+        model="claude-haiku-4-5-20251001", thinking_budget_tokens=1024,
+    )
+    with pytest.raises(ValueError, match="unsupported parameter 'thinking'"):
+        AnthropicGeneratorBackend(api_key="test-anthropic-key").generate_client_tool_turn(request)
+    assert len(calls) == 1
+    assert calls[0]["thinking"]["budget_tokens"] == 1024
 
 
 def test_anthropic_backend_reuses_sdk_client_across_client_tool_turns(

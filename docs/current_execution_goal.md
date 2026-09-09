@@ -92,6 +92,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    visible artifacts and unrelated synthetic controls. The latest internal/gold
    disagreement warrants diagnosis, not a benchmark-answer patch or more reviews
    by default. Do not start another draw merely to find an acceptance.
+   Follow-up diagnosis found real conflicting scratch observations available to the
+   same referee, not missing mathematics or truncated feedback. Native Haiku tool
+   thinking is now opt-in transport support; assess it on preregistered disjoint
+   controls before claiming efficacy, without adding a scientific repair recipe.
 3. Improve existing source-project/environment support where real reproduction
    needs it. Preserve model-selected actions and pinned dependencies; avoid a
    package-specific installer or another reproduction agent.
@@ -111,6 +115,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 
 - Call Anthropic directly. All tests, qualification and live evaluations use
   exactly `claude-haiku-4-5-20251001`; no Opus or automatic tier escalation.
+- Freeze any `AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS` setting before a
+  fresh product draw. It enables native thinking only for retained tool workspaces,
+  not tool-free qualification/Architect calls; existing total token bounds and
+  explicit stopping remain. No thinking-enabled live capability result exists yet.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision
   requires no new provider call. Use configured machine authentication for Git.
 - Reuse Codex's retained file/tool feedback and independent authority principles,
