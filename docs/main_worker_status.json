@@ -1,10 +1,10 @@
 {
-  "schema_version": 440,
-  "updated_at": "2026-09-06",
-  "goal_status": "blocked",
-  "goal_blocker": "Three consecutive goal continuations confirmed that the process has no ANTHROPIC_API_KEY or configured AI_STATISTICIAN_ENV_FILE. Direct Anthropic SDK preflight rejects the missing key before network activity; Task114 semantic qualification needs an operator-configured process credential. Current repository instructions prohibit recovering credentials from chat, files, logs, or Git history. The native goal was marked blocked on 2026-09-06 without changing its objective or declaring completion. No semantic attempt or final activated gold manifest exists; no further meaningful evaluation progress is possible until credential availability changes.",
+  "schema_version": 441,
+  "updated_at": "2026-09-09",
+  "goal_status": "active",
+  "goal_blocker": "",
   "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
-  "execution_status": "Task114 readiness was revalidated at 0e506601 without model or network calls: visible question, hidden preactivation manifest, and mechanical activation hashes are unchanged; manifest validation passes; the product gate rejects missing frozen semantic activation; no semantic attempt or final activated gold manifest exists. Provider, semantic-judge, and gold-evaluation regressions passed 107/107 in 13.53 seconds. No runtime mechanism defect was demonstrated, no consumed evaluation was rerun, and no product capability credit changed. Next remains independent semantic activation once a process credential is configured.",
+  "execution_status": "The user's explicit 2026-09-09 authorization cleared the credential blocker without persisting the secret or adding credential discovery. Direct exact-Haiku semantic qualification completed in 16 model calls: 6/6 calibration cases, 1/1 candidate-mode negative, and 8/8 reference claims passed. The final gold manifest is frozen; its exact production activation gate passed with one executable reference and seven negative evaluator controls, reusing the semantic record with zero additional model calls. Only semantic activation fields differ from preactivation. Task114 remains unconsumed with zero product calls; next is its sole fresh product draw. No runtime code, benchmark answer, task requirements, threshold, or consumed evaluation was changed.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -23,7 +23,7 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "9952491694a323f0a4b2204efa9bd0317cd0f150",
+    "remote_before_current_change": "e0cdda5394e9a7535ddc51274ccd41805f5897ce",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -74,10 +74,13 @@
       "hidden_preactivation_sha256": "63390b52691005f4e93af366d1f202d0970a69b78161ade10defa4c4e21b1ae6",
       "mechanical_activation_sha256": "e853b3ebbc03cabbeac5d12c8d513c331c04b44da04029f57a7a7aac5b08f793",
       "mechanical_status": "PASSED_BEFORE_FIRST_PRODUCT_MODEL_CALL",
-      "semantic_status": "pending; no semantic activation attempt exists",
-      "provider_status": "The earlier one-off model lookup on 2026-09-06 returned HTTP 200 for the exact Haiku model but did not install a credential or test generation. The fresh direct SDK preflight at 0e506601 fails with ANTHROPIC_API_KEY is not set; both ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN are absent from the process. No secret recovery or network call was attempted. Execution requires a securely configured process credential, not Claude Code.",
+      "semantic_status": "QUALIFIED_AND_FROZEN_BEFORE_FIRST_PRODUCT_CALL: attempt 1 passed 6/6 calibration cases, 1/1 long-form negative, and 8/8 reference claims under protocol 11 integrated_plus_adversarial.",
+      "provider_status": "On 2026-09-09 the user explicitly authorized the designated supplied credential as a scoped exception to the earlier repository restriction. Direct Anthropic model lookup returned HTTP 200 and all 16 exact-Haiku generation calls succeeded. The credential existed only in the execution process, was not printed or persisted, and was removed from that process environment on exit. No .env.example edit, Git secret, generic credential search, Claude Code dependency, or model escalation was introduced. This explicit authorization must not be mistaken for a missing user-supplied credential in a later continuation.",
+      "activation_ledger": "docs/evaluation_activations/task114_pareto_tail_index_preactivation.json",
+      "qualified_gold_manifest_sha256": "22a753e9c013521ff479cada1fc1c89b8645d861c598ca53443c4da645b36fba",
+      "semantic_activation_record_sha256": "5adc5334ee2edd552db5c3591c4b4550fb7e128d701af7bdab672cad6776b81e",
       "product_model_calls": 0,
-      "semantic_evaluator_model_calls": 0,
+      "semantic_evaluator_model_calls": 16,
       "boundary": "The hidden authority remains outside Git, AgentRuntime, model tools, RAG, and product feedback. Its existence and hashes are readiness evidence only."
     }
   },
@@ -145,7 +148,7 @@
     "capability_effect": "Mechanism evidence only. No fresh Haiku efficacy evaluation ran, Task114 made zero product or evaluator calls, and no consumed task was rerun or rescored. Prove2Me's remote API returned HTTP 401 without platform authentication; Formalpedia is not connected and no remote theorem became an importable premise or proof. Existing RAG and Lean foundation pins remain unchanged. No research-task success or end-to-end capability credit is added."
   },
   "next_gates": [
-    "Prioritize Task114 as the next numbered draw. Direct API authentication and model visibility are confirmed; independently qualify and hash-bind its semantic activation record before the sole product call. Require its frozen Theory, Python, and confirmatory Simulation dimensions without adding a formal lane. A consumed failure stays immutable and cannot be retried for a better score.",
+    "Run Task114 as the next numbered draw using its frozen 2026-09-09 qualified authority; do not repeat semantic qualification. Direct exact-Haiku generation is confirmed through the user's explicitly authorized process-only credential use. Require its frozen Theory, Python, and confirmatory Simulation dimensions without adding a formal lane. A consumed failure stays immutable and cannot be retried for a better score.",
     "After Task114, complete the separate unnumbered beta-regression gasoline-precision candidate as a pinned R paper/code/data reproduction evaluation. Do not relabel it Task115 or let source execution validate prose automatically.",
     "Then freeze an unrelated formal task and measure the current support-aware, proof-state-driven Lean workspace. Exact identity-bound, axiom-clean active-project kernel closure, not RAG volume or support compilation, is the success criterion.",
     "Use the admitted Stat-Lean discovery corpus only through model-selected semantic or proof-state search. Port any selected declaration into the active Lean 4.30.0 import closure and re-elaborate it before treating it as a premise; retrieval alone is never proof evidence.",

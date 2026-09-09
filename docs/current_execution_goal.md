@@ -1,6 +1,6 @@
 # Current Execution Goal and Resource Adoption
 
-Updated: 2026-09-06
+Updated: 2026-09-09
 
 ## Objective
 
@@ -34,15 +34,19 @@ research-first objective was successfully registered with status `active`. No ol
 goal was falsely marked complete to enable registration. This document and the
 native goal now describe the same immediate milestone.
 
-The native goal is now `blocked`: three consecutive continuations confirmed no
-process-injected Anthropic credential. Resume after secure credential configuration;
-the objective, Task114 order, and frozen acceptance requirements remain unchanged.
+The native goal resumed as `active` on 2026-09-09. The user explicitly authorized
+direct process-only use of the designated supplied credential; authentication and
+16 exact-Haiku semantic qualification calls succeeded. No secret was written to
+the repository or added to product credential discovery. Task114's authority is
+now qualified and frozen; its sole product draw has not started. The objective,
+evaluation order, and acceptance requirements remain unchanged.
 
 ## Evaluation Order
 
-1. Preserve Task114 as the next numbered evaluation. Qualify its independent
-   semantic authority, freeze the activation record, and only then permit its one
-   product draw. Task114 measures a known-result Theory, Python, and confirmatory
+1. Preserve Task114 as the next numbered evaluation. Its independent semantic
+   authority is qualified and frozen in the [activation ledger](evaluation_activations/task114_pareto_tail_index_preactivation.json).
+   Next execute its one product draw without repeating semantic qualification.
+   Task114 measures a known-result Theory, Python, and confirmatory
    Simulation path; Lean and source replication are not applicable to its frozen
    intent.
 2. Keep the beta-regression gasoline-precision reproduction as a separate,

@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "pareto_known_threshold_tail_index_mle_known_result",
+  "benchmark_id": "research-l0-pareto-tail-index-20260830-v1",
+  "status": "frozen_qualified_pre_first_product_call",
+  "qualified_at": "2026-09-09",
+  "qualification_code_head": "e0cdda5394e9a7535ddc51274ccd41805f5897ce",
+  "visible_question_commit": "6206a56ec1c8f71633dea9521126dd30452165a2",
+  "visible_questions_path": "benchmarks/research_l0_pareto_tail_index_questions_20260830.json",
+  "visible_questions_sha256": "048e55f0077bebafbce92021befb36ba1006e2676f3d5f68067676bd10000ae2",
+  "estimator_execution_contract_id": "frozen_estimator_execution_contract:899b2a40f19732222948",
+  "gold_authority": "operator_provisioned_outside_repository_and_model_workspace",
+  "gold_manifest_sha256": "22a753e9c013521ff479cada1fc1c89b8645d861c598ca53443c4da645b36fba",
+  "gold_manifest_stable_hash": "76aaff0da9522cf2c00b1926a164ff665fd4959f7bce7bc6bb45be413df0139a",
+  "hidden_artifact_sha256": {
+    "gold_manifest.preactivation.json": "63390b52691005f4e93af366d1f202d0970a69b78161ade10defa4c4e21b1ae6",
+    "mechanical_activation_record.json": "e853b3ebbc03cabbeac5d12c8d513c331c04b44da04029f57a7a7aac5b08f793",
+    "semantic_activation_attempt_1.json": "5adc5334ee2edd552db5c3591c4b4550fb7e128d701af7bdab672cad6776b81e",
+    "semantic_reference.md": "1ab27bfdb523bdec9e05409b7d2abd34ab51c793598efa0e0eb2cd71eb9c23bd",
+    "semantic_rubric.json": "21c701aa81d90cbf487cc2f16882a4a6685bca4da79ef2cc82a22dc544e63786",
+    "semantic_calibration_cases.json": "132e4ce18fa6ce87fddde3741d05432e71582795f5ac5f332de175066566793b",
+    "candidate_mode_negative_cases.json": "3a776b09dff6cc3cc4eefcd702e23b3dc54bd2e4c7f4f8b273ea280f2861da59",
+    "candidate_mode_near_miss.md": "c69031a31c06eeadc10c0f284a3f9ff6f413f25656b7a3ce14f0b3fba0279433"
+  },
+  "semantic_qualification": {
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "attempts": 1,
+    "model": "claude-haiku-4-5-20251001",
+    "model_tier": "haiku",
+    "model_calls": 16,
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "8/8",
+    "judgment_hash": "887276f5e3a20e40fcb4e10c268aa4c90026c0a00ce0d9286afd8797e1843c36"
+  },
+  "production_activation_gate": {
+    "schema_version": 4,
+    "candidate_validator_path": "same_hidden_evaluator_path",
+    "reference_tasks_passed": 1,
+    "negative_evaluator_controls_rejected": 7,
+    "semantic_reference_documents_passed": 1,
+    "semantic_candidate_mode_negatives_rejected": 1,
+    "semantic_qualification_reused": true,
+    "additional_model_calls": 0
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 16,
+  "formalization_requirement": "not_applicable",
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "resume_or_rerun_allowed": false
+  },
+  "boundary": "Only identity, hashes, qualification counts, and scope are public. Hidden reference mathematics, code, designs, seeds, thresholds, rubric, cases, model responses, and judgments remain evaluator-only and never enter product prompts, tools, RAG, or feedback. The final authority differs from its preactivation snapshot only in semantic qualification fields. No product draw has begun and no capability credit is added."
+}
