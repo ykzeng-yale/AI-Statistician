@@ -1,14 +1,14 @@
 {
-  "schema_version": 446,
+  "schema_version": 447,
   "updated_at": "2026-09-09",
   "goal_status": "active",
   "goal_blocker": "",
-  "execution_goal_revision": "Successfully registered the new native research-first goal on 2026-09-06 after a fresh get_goal returned null. It agrees with docs/current_execution_goal.md. No old objective was falsely marked complete, and no capability success is claimed by registration.",
-  "execution_status": "Entropy remains consumed FAILED; shared continuation correction 8f4522f4 passed the 1296-test suite and was directly delivered. The new fixed_fraction_trimmed_mean_inference_known_result full research task is now independently qualified and frozen, with no product call yet: all mechanical reference checks passed, five negative evaluator controls were rejected, semantic calibration passed 6/6 plus 1/1 long-form negative and the complete six-claim reference in 16 exact-Haiku calls over 94.02 seconds. Its sole product draw is next. No consumed task was replayed or rescored, and no research-E2E credit is added. The native goal remains active and unmet.",
+  "execution_goal_revision": "2026-09-09 user-requested restoration of the original complete research-laboratory scope is operative in docs/current_execution_goal.md. Native goal remains active with the older Task114/one-result text: API cannot replace an unfinished objective, and no false completion or blocking was used to rename it. registered_chat_goal records that unchanged native text.",
+  "execution_status": "Original full research-laboratory goal restored in the operative goal document; native goal text remains stale because unfinished goals cannot be replaced by the API. Local literature and actual subsystem design audited; goal/role conflicts and nonexistent Theory write-quota guidance corrected in 7ec7aa87. Focused tests: 88 passed; full suite: 1296 passed in 389.03 seconds; compileall, diff and evidence-hash checks passed. Trimmed-mean draw remains consumed: internal ACCEPTED, independent gold FAILED, 102 completed product turns over 947.444 seconds; 16 qualification and 2 candidate judge calls are separate. No new trusted E2E credit, framework or benchmark activation.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
-  "operating_principle": "Models own statistical, mathematical, Python, R, retrieval-query, Lean, and confirmatory-precision content. The harness owns isolation, immutable identity, source visibility, safety capacity, checkpoints, independent review, result blinding, frozen evaluation authority, and proof promotion. It does not author substantive fixes or scientific precision.",
+  "operating_principle": "Model-owned long-horizon research in retained file/tool workspaces, backed by task-intent evidence and independent authority. Restore complete product scope without mandatory Lean, benchmark-answer patches, repetitive task substitution or another framework.",
   "model_policy": {
     "tests_and_live_evaluations": "claude-haiku-4-5-20251001 exactly",
     "production_allowed_tiers": [
@@ -18,12 +18,12 @@
     "opus_allowed": false,
     "automatic_tier_escalation_allowed": false
   },
-  "validated_code_head": "8f4522f49bbaed8f8deee8932b06c5378f395601",
+  "validated_code_head": "7ec7aa87d5d149cca600e9c9eec19a3f8163d511",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "27df7f6e99dd56f88f7fb49d87a4afba35393945",
+    "remote_before_current_change": "db6e434bba1e0a7c126b4542b9adfb18563f0850",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -64,7 +64,7 @@
     "development_panel_exact_lean_closure": "0/2",
     "strict_formal_boundary": "No development task has exact source-theorem kernel closure; support lemmas, retrieval, compilation, model review, and unit tests do not change this fact.",
     "sealed_unconsumed_candidates": [],
-    "consumed_standalone_evaluation_count": 3,
+    "consumed_standalone_evaluation_count": 4,
     "standalone_multinomial_entropy_result": {
       "task_id": "fixed_alphabet_multinomial_entropy_known_result",
       "numbered_ladder_task": false,
@@ -150,19 +150,33 @@
       "workspace_continuations": 3,
       "operator_audit": "docs/operator_audits/pareto_tail_index_l0_v1.md",
       "boundary": "The draw and sole post-runtime assessment are consumed. With no independently accepted parent, hidden candidate theory/code/empirical checks did not execute; this is not a hidden mathematical rejection or pass. Hidden authority stays outside Git, AgentRuntime, model tools, RAG, and feedback. Pending state must never be resumed for Task114."
+    },
+    "standalone_trimmed_mean_result": {
+      "task_id": "fixed_fraction_trimmed_mean_inference_known_result",
+      "numbered_ladder_task": false,
+      "product_code_head": "db6e434bba1e0a7c126b4542b9adfb18563f0850",
+      "product_model_calls": 102,
+      "product_reviewer_and_critic_turns": 77,
+      "prequalification_model_calls": 16,
+      "post_runtime_evaluator_model_calls": 2,
+      "model": "claude-haiku-4-5-20251001",
+      "elapsed_seconds": 947.444,
+      "runtime_steps": 9,
+      "runtime_status": "ACCEPTED",
+      "automated_gold_task_passed": false,
+      "algorithm_hidden_checks_passed": "2/5",
+      "theory_structural_checks_passed": "7/7",
+      "theory_semantic_statuses": {
+        "SATISFIED": 1,
+        "VIOLATED": 3,
+        "INCONCLUSIVE": 2
+      },
+      "empirical_hidden_checks_passed": "0/7",
+      "trusted_full_task_credit_added": false,
+      "activation_ledger": "docs/evaluation_activations/trimmed_mean_preactivation.json",
+      "operator_audit": "docs/operator_audits/trimmed_mean_l0_v1.md",
+      "boundary": "Full research draw, not formal-only. Internal review and graph acceptance do not establish scientific correctness; prequalified gold rejected the exact current theory, code and empirical result. Check counts alone do not isolate the mathematical cause. No new grading, source repair, resumption or hidden-answer disclosure. Numbered task count remains 114; fourth standalone draw is consumed."
     }
-  },
-  "maturity_estimate": {
-    "evidence_and_control_plane": "about 89-92%",
-    "model_owned_scientific_workspace": "about 81-85%",
-    "theory_development": "about 51-58%",
-    "source_replication_and_paper_ingest": "about 43-48%",
-    "formalization_and_exact_proof_closure": "about 34-40%",
-    "product_research_end_to_end_readiness": "about 58-63%",
-    "strict_formal_end_to_end_readiness": "about 35-40%",
-    "fully_gold_covered_research_tasks": "This field is not a full-task completion count: the seven recorded credits have mixed scopes listed above. Their original outcomes are unchanged and must not be collapsed into integrated full-system capability.",
-    "frozen_strict_protocol_completion_rate": "0%",
-    "boundary": "Percentages are engineering estimates. The authoritative strict-formal fact is exact development closure 0/2."
   },
   "canonical_architecture": {
     "outer_graph": "ai_statistician/agent_runtime.py is the sole typed research graph.",
@@ -170,12 +184,12 @@
     "theory_state": "Substantive mathematics lives in hash-bound Markdown/LaTeX files; JSON is limited to compact identity, dependency, checkpoint, and handoff envelopes.",
     "scientific_code": "The source-owning model writes Python/R, executes the complete hash-bound single-file or multi-file project in the scientific sandbox, receives raw observations, and authors revisions in the same retained session.",
     "formalization": "Lean is selected by frozen task intent. It is mandatory for formal tasks and optional or advisory otherwise; only exact target-bound kernel promotion creates proof evidence.",
-    "collaboration": "Architect chooses request-scoped evidence dimensions and resolves genuine cross-workspace conflicts. Routine compiler, simulation, review, and Lean feedback returns directly to the responsible source owner.",
+    "collaboration": "Architect resolves request-scoped evidence and genuine cross-workspace conflicts; ordinary feedback stays with its source owner. Current outer execution is serial/interleaved; dual_track is a dependency policy, not implemented parallel scheduling.",
     "source_use": "Literature, code, and data are model-selected and hash-bound under an explicit source horizon. Replication identity binds raw streams, declared result hashes, post-run workspace state, errors, and undeclared artifacts; only a clean run can reach success gates, and no run is automatic authority for theory or prose.",
     "codex_adoption": "Reuse OpenAI Codex invariants such as retained source ownership, capability-accurate stable tools, raw observations, file-backed state, isolated review, and sparse handoffs. Do not embed Codex Core, App Server, provider transport, SDK threads, worktrees, Guardian, or a second scheduler."
   },
   "current_design_assessment": {
-    "direction": "The entropy draw exercised Markdown theory, exploratory scratch calculations, independent review and same-author revision. It then failed in shared checkpoint restoration, before scientific-code or confirmatory evidence: a longer append-only history was mistaken for conflicting state. Fixing that identity predicate requires neither mathematical guidance nor another control layer. This run cannot establish completed theory or research-E2E capability; later Lean work still needs the previously identified project/index alignment.",
+    "direction": "The original product scope is restored rather than narrowing to successive one-result draws. Current MD/LaTeX, source edits, scientific packages, R and Lean state tools are real and should be retained. Latest runtime/gold disagreement makes scientific author/referee reliability the immediate concern; it does not justify task-specific mathematics or another review layer. The broad redesign separates implemented capability from remaining environment, dependency, concurrency and reuse work.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -186,18 +200,20 @@
       "Formalization is intent-driven and cannot erase accepted non-formal evidence when it is not required; formal completion is revalidated against the exact frozen-target kernel-promotion artifact rather than an aggregate boolean."
     ],
     "remaining_risks": [
-      "Long-horizon mathematical judgment and independent-referee falsification remain unreliable under exact Haiku even when workspace mechanics work.",
-      "General paper, dependency, data, and environment reconstruction remains incomplete beyond pinned text and controlled source projects.",
-      "Confirmatory Simulation has less trustworthy live evidence than the Python/R execution substrate.",
-      "Formal RAG is broad, but proof-state-driven exact statistical theorem closure remains unproved on the development panel.",
-      "Legacy research_lab baselines, task-scoped proof-bank data, and historical audit utilities still occupy the package; they are non-authoritative support surfaces and must never become silent product defaults.",
-      "The current typed outer runtime is still near its 25,000-line regression ceiling, so new outer features require deletion or extraction of existing responsibility first."
+      "Long-horizon mathematical judgment and independent-referee falsification remain unreliable under exact Haiku. Latest internal acceptance failed independent theory, code and empirical gold despite 77 reviewer/Critic turns.",
+      "General publisher-paper, data and dependency/environment reconstruction remains incomplete; prepared frozen projects and scientific WASM runtimes do not establish arbitrary reproduction.",
+      "Outer graph is serial; dependency-selective revalidation and true isolated concurrent work need measured, scoped implementation within the existing runtime.",
+      "Formal execution and retrieval must use the same active checkout. Broad cross-version discovery context is not an accessible active-project premise or exact theorem closure.",
+      "Prove2Me local mechanisms are adopted, but remote Formalpedia is not connected; source licensing/toolchain limits prohibit treating it as an available proof authority.",
+      "Verified cross-task library growth and learned research/tactic policies remain unestablished; retrieval and training-data export are not learning evidence.",
+      "Legacy baselines and historical audit utilities remain non-authoritative; the package and runtime are near structural regression ceilings, so expansion requires consolidation."
     ],
-    "anti_overengineering_boundary": "Do not add agents, retries, fixed reasoning sequences, field-count quotas, theorem-family rules, Lean grammar/tactic patches, repair taxonomies, or framework wrappers merely because a model made a scientific error. Change the harness only for a demonstrated shared authority, state, tool, or feedback defect."
+    "anti_overengineering_boundary": "Do not add agents, retries, fixed reasoning sequences, field-count quotas, theorem-family rules, Lean grammar/tactic patches, repair taxonomies, or framework wrappers merely because a model made a scientific error. Change the harness only for a demonstrated shared authority, state, tool, or feedback defect.",
+    "audit_document": "docs/original_goal_harness_redesign_20260909.md"
   },
   "current_structure": {
     "research_agent_runtime_lines": 24810,
-    "theory_workspace_lines": 4511,
+    "theory_workspace_lines": 4510,
     "scientific_code_workspace_lines": 3537,
     "client_tool_loop_lines": 1221,
     "agent_runtime_lines": 1365,
@@ -205,25 +221,35 @@
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 139,
-    "top_level_package_lines": 149471,
+    "top_level_package_lines": 149470,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "8f4522f49bbaed8f8deee8932b06c5378f395601",
-    "summary": "Theory progress restoration accepts an unchanged inherited prefix of the newer cumulative scratch history, instead of requiring complete-history equality. Rewritten, reordered or dropped parent records still fail before a model call. No new wrapper, task-specific content, retry, model escalation, scheduler or source mutation.",
-    "verification": "Full suite: 1296 passed in 388.43 seconds. Focused theory/workspace/runtime panel: 125 passed in 1.41 seconds. Compileall and diff checks passed. Synthetic tests reproduced the valid-append rejection and empty-checkpoint history loss before the fix, and verify continued same-author revision without repeating scratch execution. No live candidate was used by regression tests.",
-    "capability_effect": "No research-E2E acceptance or new complete-task credit. All 114 numbered and three standalone consumed draws remain immutable. Entropy independently exercised the prior derived-interface identity correction, but stopped at a different checkpoint mechanism before acceptance. The new prefix fix has no fresh live research-E2E result yet."
+    "code_commit": "7ec7aa87d5d149cca600e9c9eec19a3f8163d511",
+    "summary": "Consolidated original/operative/Architect goals, documented implementation-grounded subsystem and local-literature redesign, corrected serial-versus-parallel claims, and removed Theory prompt references to nonexistent write quotas. Existing shared-budget/progress semantics are unchanged; no new module, scheduler, repair recipe, mathematical answer, iteration cap or model escalation.",
+    "verification": "Focused Theory/core/backend suite: 88 passed in 3.83 seconds. Full suite: 1296 passed in 389.03 seconds. Compileall, staged diff checks, local Markdown link checks and five immutable run-file hashes passed. Progress events confirm 102 completed product turns. Verification made no new provider or evaluator call.",
+    "capability_effect": "No new independently accepted E2E result. All 114 numbered and four standalone draws are immutable. Latest run reached the full internal non-formal graph but failed independent gold; scientific reliability remains open. Concurrent work, arbitrary paper environment reconstruction and demonstrated verified cross-task library growth are planned, not implemented by this change."
   },
   "next_gates": [
-    "Preserve all 114 numbered tasks and three standalone draws, including entropy. Never resume, rerun, repair or rescore their candidates or judgments.",
-    "Use the verified shared scratch-history continuation correction in a future independently activated draw; its local regressions are mechanism evidence only. Preserve model mathematics, budgets, review criteria and source ownership.",
-    "Run the sole newly activated fixed_fraction_trimmed_mean_inference_known_result draw under docs/evaluation_activations/trimmed_mean_preactivation.json. Require the unchanged Markdown/LaTeX theory, scientific code/exploration, independent acceptance, frozen confirmatory Simulation and accepted final report contract; no smaller subsystem credit can satisfy the native research-E2E goal.",
-    "For later formal work, align execution and retrieval with the canonical repository checkout, and isolate malformed module metadata and incomplete OpenProver target inputs using unrelated synthetic tests. Optional Lean does not block ordinary research."
+    "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
+    "Diagnose author/referee scientific reliability with visible artifacts and unrelated synthetic controls before changing shared tools or prompting; do not inject the latest task's expected answer or add more mandatory reviewers.",
+    "Improve existing reproducible project/environment continuity where a pinned paper needs it; keep source ownership, isolation and actual execution identity.",
+    "Align active Lean/RAG project identity and reuse selected checked declarations; optional formal work must not block unrelated required research dimensions.",
+    "Implement useful independent execution and dependency-aware joins only in the existing graph, with isolation/stale-result tests; no second scheduler.",
+    "Demonstrate separately scoped multi-family research, real Python/R reproduction, exact formal/library reuse and cross-task benefit under frozen independent authority, then advance the published-result ladder without weakening held-out gates."
   ],
   "history_boundary": {
     "policy": "This file contains current facts only, not a chronological transcript.",
     "canonical_history": "Git history, immutable run manifests, benchmark activations, and test artifacts retain prior evaluations and mechanism changes.",
     "reason": "Repeating every old task and correction in the current status polluted agent context and obscured the active design and evidence boundary."
+  },
+  "evidence_boundary": {
+    "readiness_percentages": "Removed: uncalibrated engineering estimates are not measured capability.",
+    "strict_development_exact_closure": "0/2 unchanged",
+    "latest_fresh_research_full_task": "0/1 independently accepted; internal runtime ACCEPTED is separately recorded.",
+    "historical_credits": "Seven mixed-scope recorded credits keep their original outcomes and caveats; not seven complete research-E2E successes.",
+    "literature": "Attached directory contains 120 unique catalog URLs, not 120 fully read papers. Audited code paths, selected primary papers and coverage limits are recorded in docs/original_goal_harness_redesign_20260909.md.",
+    "implementation_vs_design": "Existing retained MD/LaTeX and code workspaces are implemented. True independent concurrency, arbitrary paper environment reconstruction and demonstrated autonomous verified-library growth remain incomplete."
   }
 }

@@ -233,3 +233,12 @@ Blind source access does not erase training-set familiarity. Report contaminatio
 limits, independent expert review needs, uncertainty and negative results. Learned
 policies or autonomous skill growth require measured disjoint-task benefit, not
 just exported traces. No new evaluation or framework is activated by this report.
+
+## Delivered Verification
+
+Shared prompt and goal/design revision: `7ec7aa87d5d149cca600e9c9eec19a3f8163d511`.
+Focused Theory/core/backend checks: 88 passed in 3.83 seconds. Full suite: 1,296
+passed in 389.03 seconds; compileall and diff checks passed. Local document links
+and the five recorded immutable run-file hashes were verified. No new model or
+grading call was made to validate this revision. These checks establish mechanism
+and documentation consistency, not improved live scientific correctness.
