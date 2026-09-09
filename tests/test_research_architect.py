@@ -68,6 +68,7 @@ from ai_statistician.research_architect import (
 )
 from ai_statistician.research_lab import load_open_research_questions
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.scientific_sandbox import ScientificSandboxExecution
 from ai_statistician.theory_proposal import GeneratorTheoryProposer
 from ai_statistician.theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
@@ -2647,7 +2648,9 @@ def test_theory_revision_reads_hash_bound_referee_markdown(tmp_path: Path) -> No
         )
 
 
-def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> None:
+def test_theory_revision_uses_model_owned_document_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     parent, parent_documents = _file_authority_theory_fixture(
         _serious_sample_response(),
         workspace_dir=tmp_path / "parent-theory",
@@ -2695,6 +2698,38 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     ] = scratch_refs
     scratchpad = TheoryScratchpadConfig(
         sandbox_dir=scratch_root, seed=23, replicates=10
+    )
+    executions = []
+
+    def execute_scratch(**kwargs):
+        executions.append(kwargs)
+        assert kwargs["code"] == scratch_source
+        return ScientificSandboxExecution(
+            status="EXECUTED",
+            language="python",
+            execution_profile="scientific_wasm",
+            backend="pyodide",
+            isolation_provider="test-isolation",
+            dependencies=(),
+            execution_attempted=True,
+            returncode=0,
+            metrics=scratch_result,
+            errors=(),
+            stdout_summary="",
+            stderr_summary="",
+            result_parse_error="",
+            code_path=str(scratch_source_path),
+            request_path="",
+            result_path=str(scratch_result_path),
+            code_hash=stable_hash(scratch_source),
+            request_hash="",
+            result_hash=stable_hash(scratch_result),
+            subprocess_environment_keys=(),
+            resource_limits={},
+        )
+
+    monkeypatch.setattr(
+        "ai_statistician.theory_workspace.execute_scientific_sandbox", execute_scratch
     )
     revision_inputs = build_theory_developer_revision_inputs(
         context,
@@ -2772,6 +2807,19 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
             ),
             _theory_tool_response(
                 ClientToolCall(
+                    call_id="extend-parent-scratch-history",
+                    name=THEORY_SCRATCHPAD_TOOL,
+                    input={
+                        "language": "python",
+                        "execution_profile": "scientific_wasm",
+                        "dependencies": [],
+                        "entrypoint": "run_sandbox",
+                        "code": scratch_source,
+                    },
+                )
+            ),
+            _theory_tool_response(
+                ClientToolCall(
                     call_id="checkpoint-revision-progress",
                     name=THEORY_WORKSPACE_PROGRESS_TOOL,
                     input={
@@ -2815,7 +2863,9 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     ]
     assert checkpoint["changed_document_paths"] == ["theory/workspace.md"]
     assert checkpoint["changed_artifact_names"] == []
-    assert checkpoint["scratch_execution_refs"] == scratch_refs
+    assert checkpoint["scratch_execution_refs"][:1] == scratch_refs
+    assert checkpoint["scratch_runs"] == 2
+    assert [ref["scratch_run"] for ref in checkpoint["scratch_execution_refs"]] == [1, 2]
     assert checkpoint["scratch_inspection_refs"][0]["scratch_run"] == 1
     second_provider = ScriptedTheoryToolBackend(
         tool_responses=[
@@ -2886,7 +2936,7 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert packet["theory_derivation_packet"]["claim_index"][-1]["id"] == (
         "bounded_outcome_moment_control"
     )
-    assert len(first_provider.tool_requests) == 6
+    assert len(first_provider.tool_requests) == 7
     assert len(second_provider.tool_requests) == 5
     assert first_provider.generator_requests == []
     assert second_provider.generator_requests == []
@@ -2968,7 +3018,10 @@ def test_theory_revision_uses_model_owned_document_workspace(tmp_path: Path) -> 
     assert workspace_evidence["model_owned_theory"] is True
     assert workspace_evidence["runtime_edited_theory"] is False
     assert workspace_evidence["reads"] == 7
-    assert workspace_evidence["scratch_execution_refs"] == scratch_refs
+    assert workspace_evidence["scratch_execution_refs"] == checkpoint["scratch_execution_refs"]
+    assert workspace_evidence["scratch_runs"] == 2
+    assert len(executions) == 1
+    assert revision_inputs["parent_scratch_execution_refs"] == scratch_refs
     assert workspace_evidence["submissions"] == 2
     assert workspace_evidence["n_model_document_writes"] == 1
     assert workspace_evidence["cumulative_tool_state_restored"] is True

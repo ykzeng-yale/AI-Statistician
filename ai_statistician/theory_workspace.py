@@ -652,9 +652,10 @@ def run_theory_artifact_workspace(
     )
     inherited_scratch_refs = [deepcopy(dict(ref)) for ref in prior_scratch_execution_refs]
     theory_scratch_execution_catalog(inherited_scratch_refs)
-    if inherited_scratch_refs and restored_tool_state["scratch_execution_refs"]:
+    if inherited_scratch_refs and prior_workspace_checkpoint:
+        # A progress checkpoint may append observations to its published parent.
         if stable_hash(inherited_scratch_refs) != stable_hash(
-                restored_tool_state["scratch_execution_refs"]):
+                restored_tool_state["scratch_execution_refs"][:len(inherited_scratch_refs)]):
             raise ValueError("continued theory scratch lineage conflicts with checkpoint")
     elif inherited_scratch_refs:
         restored_tool_state["scratch_execution_refs"] = inherited_scratch_refs

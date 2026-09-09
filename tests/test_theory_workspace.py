@@ -2615,9 +2615,23 @@ def test_rejected_theory_scratch_preserves_exact_request_for_continuation(
     }
 
 
+@pytest.mark.parametrize(
+    ("inherited_scratch_count", "lineage_mutation"),
+    [
+        pytest.param(0, None, id="checkpoint-only"),
+        pytest.param(2, None, id="checkpoint-extends-parent"),
+        pytest.param(4, None, id="checkpoint-equals-parent"),
+        pytest.param(2, "rewritten", id="reject-rewritten-parent"),
+        pytest.param(2, "reordered", id="reject-reordered-parent"),
+        pytest.param(4, "dropped-last", id="reject-dropped-parent-run"),
+        pytest.param(4, "dropped-all", id="reject-empty-checkpoint-history"),
+    ],
+)
 def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    inherited_scratch_count: int,
+    lineage_mutation: str | None,
 ) -> None:
     source = (
         "def run_sandbox(seed, replicates):\n"
@@ -2795,18 +2809,46 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
             _response(_commit_checkpoint("commit-after-progress")),
         ]
     )
-    result = _run_workspace(
-        continued,
-        workspace_dir=tmp_path / "theory",
-        require_document_authority=True,
-        scratchpad=scratchpad,
-        initial_artifacts=artifacts,
-        initial_documents=documents,
-        prior_changed_artifact_names=checkpoint["changed_artifact_names"],
-        prior_changed_document_paths=checkpoint["changed_document_paths"],
-        prior_client_tool_session_ref=checkpoint["client_tool_session_ref"],
-        prior_workspace_checkpoint=checkpoint,
-    )
+    inherited_refs = [
+        dict(ref)
+        for ref in checkpoint["scratch_execution_refs"][:inherited_scratch_count]
+    ]
+    if lineage_mutation == "rewritten":
+        inherited_refs[0]["code_hash"] = stable_hash("different source")
+    elif lineage_mutation == "reordered":
+        inherited_refs.reverse()
+    elif lineage_mutation in {"dropped-last", "dropped-all"}:
+        retained_refs = (
+            checkpoint["scratch_execution_refs"][:-1]
+            if lineage_mutation == "dropped-last"
+            else []
+        )
+        checkpoint = {
+            **checkpoint,
+            "scratch_runs": len(retained_refs),
+            "scratch_execution_refs": retained_refs,
+        }
+    continuation_kwargs = {
+        "workspace_dir": tmp_path / "theory",
+        "require_document_authority": True,
+        "scratchpad": scratchpad,
+        "initial_artifacts": artifacts,
+        "initial_documents": documents,
+        "prior_changed_artifact_names": checkpoint["changed_artifact_names"],
+        "prior_changed_document_paths": checkpoint["changed_document_paths"],
+        "prior_client_tool_session_ref": checkpoint["client_tool_session_ref"],
+        "prior_workspace_checkpoint": checkpoint,
+        "prior_scratch_execution_refs": inherited_refs,
+    }
+    if lineage_mutation is not None:
+        with pytest.raises(
+            ValueError, match="continued theory scratch lineage conflicts with checkpoint"
+        ):
+            _run_workspace(continued, **continuation_kwargs)
+        assert continued.requests == []
+        assert len(executions) == 4
+        return
+    result = _run_workspace(continued, **continuation_kwargs)
 
     assert len(executions) == 4
     continuation_observation = json.loads(
