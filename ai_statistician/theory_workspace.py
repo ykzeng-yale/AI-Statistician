@@ -22,6 +22,7 @@ from .client_tool_loop import (
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
 )
+from .estimator_interface_contract import normalize_theory_estimator_interface_contracts
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 from .research_source_library import (
@@ -686,6 +687,8 @@ def run_theory_artifact_workspace(
     }
     if not parent:
         raise ValueError("theory workspace requires initial artifacts")
+    if "estimator_specs" in parent:
+        normalize_theory_estimator_interface_contracts(parent)
     parent_documents = _normalized_theory_documents(initial_documents or {})
     context_documents = _normalized_theory_documents(read_only_documents or {})
     overlapping_document_paths = sorted(
@@ -942,6 +945,10 @@ def run_theory_artifact_workspace(
         artifact_writes: Sequence[Mapping[str, Any]] = (),
         document_writes: Sequence[Mapping[str, Any]] = (),
     ) -> ClientToolExecutionResult:
+        # Bind the same derived interface identities used by the published handoff.
+        candidate_artifacts = deepcopy(dict(candidate_artifacts))
+        if "estimator_specs" in candidate_artifacts:
+            normalize_theory_estimator_interface_contracts(candidate_artifacts)
         state["submissions"] += 1
         state_changed = stable_hash(
             {

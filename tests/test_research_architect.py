@@ -3221,6 +3221,109 @@ def test_theory_revision_reuses_exact_abi_when_estimator_core_is_unchanged(
     ]
 
 
+@pytest.mark.parametrize("tamper_interface", [False, True])
+def test_committed_theory_session_returns_to_source_owner_after_review(
+    tmp_path: Path, tamper_interface: bool,
+) -> None:
+    question = OpenResearchQuestion(
+        id="retained-theory-review-roundtrip",
+        title="Retained theory review roundtrip",
+        description="Develop and revise an argument in its original workspace.",
+        task_intent={
+            "theory": "required", "scientific_code": "required",
+            "empirical": "required", "formal": "required",
+        },
+    )
+    fixture, documents = _file_authority_theory_fixture(_serious_sample_response())
+    artifacts = {
+        field: fixture[field] for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+    }
+    document_path, document = next(iter(documents.items()))
+    config = ResearchArchitectConfig(
+        provider_name="anthropic",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        model_tier="haiku",
+        serious_model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        serious_model_tier="haiku",
+        max_tokens=16000,
+        serious_max_tokens=16000,
+    )
+    author = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(ClientToolCall(
+                call_id="author-document", name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                input={"path": document_path, "content": document},
+            )),
+            _theory_tool_response(ClientToolCall(
+                call_id="author-handoffs", name=THEORY_WORKSPACE_WRITE_TOOL,
+                input=_theory_artifact_writes(artifacts),
+            )),
+            _theory_tool_response(ClientToolCall(
+                call_id="inspect-author-document", name="read_theory_workspace",
+                input={"document_paths": [document_path]},
+            )),
+            _theory_checkpoint_response(),
+        ],
+        generator_responses=[],
+    )
+    parent = LLMTheoryDeveloperAgent(provider=author, config=config).derive(
+        question, theory_workspace_root=tmp_path / "workspaces",
+    )
+    parent_session = parent["llm_client_tool_loop"]["client_tool_session_ref"]
+    assert parent_session["durable_state_identity"] == stable_hash({
+        "artifacts": {
+            field: parent[field] for field in THEORY_DEVELOPER_FILE_HANDOFF_CONTRACT
+        },
+        "documents": documents,
+    })
+    if tamper_interface:
+        parent = deepcopy(parent)
+        parent["estimator_specs"][0]["estimator_interface_contract"][
+            "response_fields"
+        ][0]["normalization"] = "changed without a source-owner tool action"
+    context = _metric_theory_revision_context(question=question, parent=parent)
+    context[THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY][
+        "parent_client_tool_session_ref"
+    ] = parent_session
+    revised_document = document + "\n## bounded_outcomes\nAssume outcomes are bounded.\n"
+    revision = ScriptedTheoryToolBackend(
+        tool_responses=[
+            _theory_tool_response(ClientToolCall(
+                call_id="revise-document", name=THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                input={"path": document_path, "content": revised_document},
+            )),
+            _theory_tool_response(ClientToolCall(
+                call_id="inspect-revised-document", name="read_theory_workspace",
+                input={"document_paths": [document_path]},
+            )),
+            _theory_checkpoint_response(),
+        ],
+        generator_responses=[],
+    )
+    developer = LLMTheoryDeveloperAgent(provider=revision, config=config)
+    if tamper_interface:
+        with pytest.raises(ValueError, match="session reference identity mismatch"):
+            developer.derive(
+                question, architect_context=context,
+                theory_workspace_root=tmp_path / "workspaces",
+            )
+        assert revision.tool_requests == []
+        return
+    result = developer.derive(
+        question, architect_context=context,
+        theory_workspace_root=tmp_path / "workspaces",
+    )
+    evidence = result["llm_client_tool_loop"]
+    assert evidence["client_tool_session_lineage_continued"] is True
+    assert evidence["resumed_from_client_tool_session_ref"] == parent_session
+    assert evidence["workspace_id"] == parent_session["session_id"]
+    assert result["estimator_specs"] == parent["estimator_specs"]
+    assert len(revision.tool_requests) == 3
+    assert revision.generator_requests == []
+    assert "reviewer_observations" in str(revision.tool_requests[0].messages)
+    assert validate_theory_packet(result) == []
+
+
 def test_theory_revision_inputs_do_not_fill_optional_model_content() -> None:
     parent = _serious_sample_response()
     parent_derivation = dict(parent["theory_derivation_packet"])
