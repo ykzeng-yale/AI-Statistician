@@ -1611,6 +1611,11 @@ def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
     assert result.evidence["model_owned_source_report"] is True
     first_tools = {tool.name: tool for tool in backend.requests[0].tools}
     assert SOURCE_REPLICATION_WORKSPACE_COMMIT_TOOL not in first_tools
+    assert RESEARCH_SOURCE_RESULT_INSPECT_TOOL in first_tools
+    opening_request = json.dumps(backend.requests[0].messages)
+    assert "When the task calls for visual evidence, you may inspect" in opening_request
+    assert "tool availability does not expand the task's permitted scope" in opening_request
+    assert "inspect the exact artifact visually" not in opening_request
     expected_commit_fields = {
         "readiness_rationale",
         "source_replication_report_document_path",

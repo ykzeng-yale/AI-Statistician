@@ -2259,8 +2259,9 @@ def run_theory_artifact_workspace(
             "descriptor and returned manifest state the exact working directory and "
             "argument vector. For larger UTF-8 outputs, either read exact lines or "
             "select the result paths in your existing scratch tool and analyze them "
-            "with model-authored code. For declared PDF or image outputs, inspect the "
-            "exact artifact visually. It is exploratory source-execution evidence, "
+            "with model-authored code. When the task calls for visual evidence, you "
+            "may inspect declared PDF or image outputs; tool availability does not "
+            "expand the task's permitted scope. It is exploratory source-execution evidence, "
             "not model-authored scientific code, confirmatory simulation, or theorem "
             "proof. "
         )
@@ -2275,8 +2276,9 @@ def run_theory_artifact_workspace(
             "that observation yourself. The visible execution descriptor and returned "
             "manifest state the exact working directory and argument vector. For larger "
             "UTF-8 outputs, either read exact lines or select the result paths in your "
-            "existing scratch tool and analyze them with model-authored code. For "
-            "declared PDF or image outputs, inspect the exact artifact visually. It is "
+            "existing scratch tool and analyze them with model-authored code. When "
+            "the task calls for visual evidence, you may inspect declared PDF or image "
+            "outputs; tool availability does not expand the task's permitted scope. It is "
             "source-replication evidence, not model-authored scientific code, "
             "confirmatory simulation, or theorem proof. "
         )
