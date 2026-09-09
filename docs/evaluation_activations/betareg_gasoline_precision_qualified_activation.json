@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityPreactivationLedger",
+  "task_id": "betareg_jss_gasoline_precision_public_replication",
+  "benchmark_id": "research-l1-betareg-jss-gasoline-precision-20260903-v1",
+  "status": "frozen_qualified_pre_first_product_call",
+  "qualified_at": "2026-09-09",
+  "qualification_code_head": "c387c2401e5a99172b9b2b8fcf7e6516d032ee79",
+  "admission_scope": "standalone unnumbered public-source reproduction under docs/current_execution_goal.md; not Task115 or a research-E2E substitute",
+  "sealed_preactivation_ledger": "docs/evaluation_activations/betareg_gasoline_precision_candidate_preactivation.json",
+  "visible_question_commit": "b276777da6fe26705768db9ac9f2d5151eed5268",
+  "visible_questions_path": "benchmarks/research_l1_betareg_gasoline_precision_replication_questions_20260903.json",
+  "visible_questions_sha256": "4ff859a8b1393f5d1c554d10486db82e62fc120c5c277e57f61afe11b8c9eef6",
+  "source_snapshot_hash": "3c4c642b44ea9413b8b29f456606568a356e2b9c0b6301b8829ae3d640b67c8b",
+  "source_execution_spec_sha256": "51849a14f42d7c660a2da75c4e2047858072b3b07530c6c95e4e082aa0c2d050",
+  "gold_manifest_sha256": "3f485854d349f50f6dc9c85d78bdcae4f8cfd459d3f743962c4b09d0223880c7",
+  "gold_manifest_stable_hash": "9f7e2060b701fac30ebd428e43b68eb5666c138a322bdf293f606a22d51c6b41",
+  "semantic_activation_record_sha256": "9645bf832608c4faafd8e6a5acbbc898390bda8d7495bb286766ffd782f46e37",
+  "production_activation_record_sha256": "5aaeea6153831be9c7da204a60bed7cf9e533157afa55513a479b56ebb7d0b02",
+  "semantic_qualification": {
+    "attempts": 1,
+    "protocol_version": 11,
+    "candidate_adjudication_strategy": "integrated_plus_adversarial",
+    "model": "claude-haiku-4-5-20251001",
+    "model_calls": 16,
+    "elapsed_seconds": 113.842,
+    "calibration_cases_correct": "6/6",
+    "candidate_mode_negative_cases_correct": "1/1",
+    "reference_claims_satisfied": "7/7",
+    "judgment_hash": "23cb9623989305c82f496f2f9012548ff299d7c66ba8f31b2bed91965a3afd36"
+  },
+  "production_activation_gate": {
+    "schema_version": 4,
+    "semantic_qualification_reused": true,
+    "additional_model_calls": 0,
+    "mechanical_qualification": "Preserved the sealed candidate's exact source and negative-control qualification; current source snapshot, R interpreter, and helper executable hashes rechecked without executing the source. The schema-v4 activation gate does not rerun source-replication mechanical controls."
+  },
+  "information_boundary": "The active evaluator copy and model judgment reside outside the repository. Relocation changed only storage paths; hydrated reference/rubric/calibration inputs compare identically. Historical candidate authority files remain in Git, so this is not a sealed or contamination-free rediscovery benchmark. Product tools receive only the pinned public source snapshot, task, and their own observations, never evaluator references or previous consumed results. No blind-generalization claim is permitted.",
+  "single_draw_policy": {
+    "product_model": "claude-haiku-4-5-20251001",
+    "automatic_tier_escalation_allowed": false,
+    "fresh_product_draws": 1,
+    "post_runtime_assessments": 1,
+    "source_execution": "one unmodified operator-pinned official R invocation",
+    "rerun_consumed_evaluation_allowed": false
+  },
+  "preactivation_product_model_calls": 0,
+  "preactivation_evaluator_model_calls": 16,
+  "formalization_requirement": "not_applicable",
+  "capability_credit": false,
+  "boundary": "Activation is not a product result. The old sealed ledger remains a historical prequalification record. This admission neither renumbers the candidate nor changes any of the 114 consumed outcomes or the active research-E2E success criterion."
+}

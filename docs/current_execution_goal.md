@@ -54,9 +54,11 @@ acceptance requirements are unchanged.
    Validate and deliver the shared theory-session identity fix without replaying the
    task. Its required Theory, Python, and confirmatory Simulation path remains
    incomplete; Lean and source replication were not applicable to its frozen intent.
-2. Keep the beta-regression gasoline-precision reproduction as a separate,
-   unnumbered candidate. After Task114, freeze its remaining authority and measure
-   the pinned R paper/code/data reproduction path without turning it into Task115.
+2. Run the separately admitted, unnumbered beta-regression gasoline-precision
+   reproduction once. Its [qualified activation](evaluation_activations/betareg_gasoline_precision_qualified_activation.json)
+   records 16 exact-Haiku qualification calls and the unchanged frozen scope. It
+   measures pinned public R paper/code/data reproduction, not blind rediscovery,
+   Task115, or a substitute for the research-E2E goal.
 3. Freeze a new, unrelated formal task only after the earlier boundary permits it.
    Success requires the exact requested theorem in the active project, not a nearby
    theorem, retrieved declaration, pseudo-formal review, or compiled helper.
