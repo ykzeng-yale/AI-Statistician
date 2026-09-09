@@ -25,7 +25,11 @@ implementation contract; the older Architect goal is now only a role map.
 
 ### Native Goal Record
 
-The app's native goal is still active with the older one-result/Task114 wording.
+The app's native goal is blocked awaiting trusted current Anthropic credentials,
+after the same absence was verified across three consecutive goal turns. The
+offline configuration pilot is ready; no further speculative implementation or
+consumed-task retry substitutes for its live evidence. The native objective still
+has the older one-result/Task114 wording.
 The goal API cannot replace an unfinished objective, and its completion/blocking
 operations must not be misused to rename it. This user-revised document is the
 operative scope; the stale native text is recorded honestly in status. Neither
