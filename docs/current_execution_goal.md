@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including entropic-transport qualification and read-only startup.
+Updated: 2026-09-10, including the feedback-fidelity and overengineering review.
 
 ## Operative Objective
 
@@ -68,6 +68,9 @@ The model owns derivations, research order, useful tests, search queries and all
 source revisions. The harness owns identity, source horizon, permissions,
 isolation, checkpoints, budgets, blinding and verifier authority. No fixed step
 count, file count, candidate count or tool-use ritual defines research quality.
+Feedback handling must not infer scientific meaning or instruction ownership from
+field-name patterns. Preserve model methods and unknown tool observations; retire
+legacy routing metadata at its producers rather than expand a repair blacklist.
 
 ## Measurable Deliveries
 
@@ -94,8 +97,14 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 
 1. Reconcile goals and capability claims with current code; remove contradictory
    tool instructions. Implemented in this revision; verification is recorded in status.
-2. Establish the next shared reliability change from author/reviewer behavior on
-   visible artifacts and unrelated synthetic controls. The latest internal/gold
+2. Prioritize complete source and observation access for the same owning model.
+   A reproducible harness defect was found in recursive suffix-based filtering:
+   it deleted model methods and raw tool diagnostics, while duplicate Architect
+   filtering also modified the exact rejected candidate. Remove those heuristics
+   and consolidate projection, with synthetic feedback-fidelity tests. Do not
+   interpret this as improved mathematics or a reason to rerun consumed tasks.
+   Establish subsequent changes from author/reviewer behavior on visible artifacts
+   and unrelated synthetic controls. The latest internal/gold
    disagreement warrants diagnosis, not a benchmark-answer patch or more reviews
    by default. Do not start another draw merely to find an acceptance.
    Follow-up diagnosis found real conflicting scratch observations available to the

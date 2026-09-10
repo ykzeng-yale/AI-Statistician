@@ -79,17 +79,6 @@ precise active-environment gap instead of inventing an API. AgentRuntime preserv
 identity, budgets, review, and kernel authority but never writes Lean for you.
 """
 
-_RUNTIME_AUTHORED_PRESCRIPTIVE_FIELDS = PRESCRIPTIVE_REPAIR_FIELDS
-
-
-def _is_runtime_authored_prescriptive_field(key: Any) -> bool:
-    key_text = str(key)
-    return (
-        key_text in _RUNTIME_AUTHORED_PRESCRIPTIVE_FIELDS
-        or key_text.endswith(("_repair_rule", "_recipe"))
-    )
-
-
 @dataclass(frozen=True)
 class FormalizerConfig:
     model: str = ""
@@ -1576,7 +1565,7 @@ def _compact_rows(
 def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[str, Any]:
     compact: dict[str, Any] = {}
     for key in keys:
-        if _is_runtime_authored_prescriptive_field(key):
+        if str(key) in PRESCRIPTIVE_REPAIR_FIELDS:
             continue
         if key not in row or row.get(key) in (None, "", [], {}):
             continue
@@ -1867,7 +1856,7 @@ def _compact_value(value: Any, *, depth: int = 0) -> Any:
         return {
             str(key): _compact_value(child, depth=depth + 1)
             for key, child in list(value.items())[:24]
-            if not _is_runtime_authored_prescriptive_field(key)
+            if str(key) not in PRESCRIPTIVE_REPAIR_FIELDS
             and child not in (None, "", [], {})
         }
     if isinstance(value, list | tuple):

@@ -4,6 +4,7 @@ import json
 
 from ai_statistician.formalizer_llm import (
     _build_lean_candidate_workspace_tool_prompt,
+    _compact_value,
 )
 from ai_statistician.research_agent_runtime import (
     _formalizer_lean_candidate_revision_feedback,
@@ -124,7 +125,9 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     assert carried_row["future_compiler_observation"]["provider_specific"] == (
         "PRESERVE_ME"
     )
-    assert "future_repair_diagnostics" not in carried_row
+    assert carried_row["future_repair_diagnostics"] == {
+        "raw_provider_message": "PRESERVE_DESPITE_LEGACY_SUFFIX"
+    }
     assert "preferred_tool_order" not in carried_row
     assert "candidate_live_proof_state_request" not in carried_row
     assert "lean_multi_attempt" not in json.dumps(carried_row, sort_keys=True)
@@ -136,3 +139,13 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     )
     assert payload["boundaries"]["model_owns_lean_source_and_search_queries"]
     assert payload["boundaries"]["runtime_selected_lean_code"] is False
+
+
+def test_formalizer_compaction_preserves_model_method_and_tool_fields() -> None:
+    observations = {
+        "proof_strategy": "Model-authored argument.",
+        "experiment_recipe": {"source": "model-authored source"},
+        "provider_repair_rule": "Raw provider observation, not harness authority.",
+    }
+
+    assert _compact_value(observations) == observations

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
+import pytest
+
 from ai_statistician.semantic_review_feedback import (
     architect_observations_without_runtime_routing,
     coding_agent_observations_only,
@@ -74,7 +78,7 @@ def test_metric_author_receives_executable_semantic_control_observation() -> Non
     assert "repair_instructions" not in review
 
 
-def test_recursive_projection_drops_runtime_repair_memory_and_recommendations() -> None:
+def test_recursive_projection_drops_explicit_runtime_recommendations() -> None:
     projected = model_observations_without_repair_recipes(
         {
             "candidate_source": "theorem target : True := by\n  trivial",
@@ -82,13 +86,7 @@ def test_recursive_projection_drops_runtime_repair_memory_and_recommendations() 
             "candidate_source_hash": "sha256:candidate",
             "recommended_formalizer_target_mode": "replace_proof_body",
             "required_next_checks": ["prepend Mathlib import"],
-            "source_theorem_exact_candidate_requires_repair": True,
-            "source_theorem_exact_candidate_repair_diagnostics": [
-                {"suggested_fix": "use exact runtime_selected_term"}
-            ],
-            "formalizer_lean_candidate_repair_memory": [
-                {"preferred_tool_order": ["add_import", "splice_proof"]}
-            ],
+            "nested": {"preferred_tool_order": ["add_import", "splice_proof"]},
         }
     )
 
@@ -96,29 +94,50 @@ def test_recursive_projection_drops_runtime_repair_memory_and_recommendations() 
         "candidate_source": "theorem target : True := by\n  trivial",
         "compiler_feedback": "Main.lean:2:3: error: unknown tactic",
         "candidate_source_hash": "sha256:candidate",
+        "nested": {},
     }
 
 
-def test_projection_drops_runtime_authored_cli_recipes() -> None:
-    projected = model_observations_without_repair_recipes(
-        {
-            "local_lean_stderr": "type mismatch at the exact target",
-            "llm_route_planner_prompt_cli": "python -m hidden.route --fix target",
-            "nested": {
-                "reuse_smoke_cli": "python -m hidden.replay --repair target",
-                "target_theorem_statement": "theorem target : True",
-            },
-        }
-    )
+@pytest.mark.parametrize("project", [
+    model_observations_without_repair_recipes,
+    coding_agent_observations_only,
+    architect_observations_without_runtime_routing,
+])
+def test_projection_does_not_guess_ownership_from_field_suffixes(project) -> None:
+    evidence = {
+        "proof_strategy": "Model-authored argument, not a runtime decision.",
+        "nested": [{
+            "experiment_recipe": "Model-authored exploratory procedure.",
+            "source_cli": "python experiment.py",
+            "provider_repair_diagnostics": {"raw_message": "Unfamiliar failure."},
+            "tool_requires_repair": False,
+        }],
+    }
+    original = deepcopy(evidence)
 
-    assert projected["local_lean_stderr"] == (
-        "type mismatch at the exact target"
-    )
-    assert projected["nested"]["target_theorem_statement"] == (
-        "theorem target : True"
-    )
-    assert "llm_route_planner_prompt_cli" not in projected
-    assert "reuse_smoke_cli" not in projected["nested"]
+    projected = project(evidence)
+
+    assert projected == original
+    assert evidence == original
+    projected["nested"][0]["provider_repair_diagnostics"]["raw_message"] = "changed"
+    assert evidence == original
+
+
+@pytest.mark.parametrize("project", [
+    model_observations_without_repair_recipes,
+    coding_agent_observations_only,
+    architect_observations_without_runtime_routing,
+])
+def test_exact_candidate_payload_is_not_reinterpreted_as_routing(project) -> None:
+    candidate = {
+        "next_action": "candidate data",
+        "repair_scope": "candidate data",
+        "nested": [{"repair_owner": "candidate data"}],
+    }
+    projected = project({"rejected_candidate": candidate})
+
+    assert projected["rejected_candidate"] == candidate
+    assert projected["rejected_candidate"] is not candidate
 
 
 def test_coding_agent_projection_keeps_observations_without_repair_routing() -> None:

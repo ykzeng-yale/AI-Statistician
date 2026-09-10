@@ -31,6 +31,7 @@ PRESCRIPTIVE_REPAIR_FIELDS = frozenset(
         "required_architect_behavior",
         "required_behavior",
         "required_change",
+        "required_next_checks",
         "required_repair",
         "required_resolution",
         "required_revision",
@@ -104,40 +105,15 @@ ARCHITECT_RUNTIME_ROUTING_FIELDS = frozenset(
 )
 
 
-def model_observations_without_repair_recipes(
+def _project_runtime_fields(
     value: Any,
     *,
+    excluded_fields: frozenset[str],
     preserve_exact_keys: Sequence[str] = ("rejected_candidate",),
 ) -> Any:
-    """Remove prescriptive edits while preserving raw candidate observations."""
+    """Remove known envelope fields, never infer ownership from a key suffix."""
 
     preserved = frozenset(str(key) for key in preserve_exact_keys)
-
-    def is_prescriptive_key(key: Any) -> bool:
-        key_text = str(key)
-        return bool(
-            key_text in PRESCRIPTIVE_REPAIR_FIELDS
-            or key_text == "required_next_checks"
-            or key_text.endswith(
-                (
-                    "_cli",
-                    "_repair_contract",
-                    "_repair_directive",
-                    "_repair_directives",
-                    "_repair_diagnostics",
-                    "_repair_manifest_paths",
-                    "_repair_memory",
-                    "_repair_required",
-                    "_repair_rule",
-                    "_repair_sequence",
-                    "_repair_sequences",
-                    "_recipe",
-                    "_requires_repair",
-                    "_strategy",
-                    "_structural_reformulation_required",
-                )
-            )
-        )
 
     def project(child: Any, *, parent_key: str = "") -> Any:
         if parent_key in preserved:
@@ -146,7 +122,7 @@ def model_observations_without_repair_recipes(
             return {
                 str(key): project(item, parent_key=str(key))
                 for key, item in child.items()
-                if not is_prescriptive_key(key)
+                if str(key) not in excluded_fields
             }
         if isinstance(child, list):
             return [project(item) for item in child]
@@ -157,6 +133,20 @@ def model_observations_without_repair_recipes(
     return project(value)
 
 
+def model_observations_without_repair_recipes(
+    value: Any,
+    *,
+    preserve_exact_keys: Sequence[str] = ("rejected_candidate",),
+) -> Any:
+    """Remove explicit runtime directives while preserving candidate observations."""
+
+    return _project_runtime_fields(
+        value,
+        excluded_fields=PRESCRIPTIVE_REPAIR_FIELDS,
+        preserve_exact_keys=preserve_exact_keys,
+    )
+
+
 def coding_agent_observations_only(
     value: Any,
     *,
@@ -164,46 +154,17 @@ def coding_agent_observations_only(
 ) -> Any:
     """Expose evidence to a coding model without runtime-authored fix routing."""
 
-    projected = model_observations_without_repair_recipes(
+    return _project_runtime_fields(
         value,
+        excluded_fields=PRESCRIPTIVE_REPAIR_FIELDS | CODING_AGENT_ROUTING_FIELDS,
         preserve_exact_keys=preserve_exact_keys,
     )
-    preserved = frozenset(str(key) for key in preserve_exact_keys)
-
-    def strip_routing(child: Any, *, parent_key: str = "") -> Any:
-        if parent_key in preserved:
-            return deepcopy(child)
-        if isinstance(child, Mapping):
-            return {
-                str(key): strip_routing(item, parent_key=str(key))
-                for key, item in child.items()
-                if str(key) not in CODING_AGENT_ROUTING_FIELDS
-            }
-        if isinstance(child, list):
-            return [strip_routing(item) for item in child]
-        if isinstance(child, tuple):
-            return [strip_routing(item) for item in child]
-        return deepcopy(child)
-
-    return strip_routing(projected)
 
 
 def architect_observations_without_runtime_routing(value: Any) -> Any:
     """Give the Architect evidence without a runtime or reviewer-authored route."""
 
-    projected = model_observations_without_repair_recipes(value)
-
-    def strip_owner_plan(child: Any) -> Any:
-        if isinstance(child, Mapping):
-            return {
-                str(key): strip_owner_plan(item)
-                for key, item in child.items()
-                if str(key) not in ARCHITECT_RUNTIME_ROUTING_FIELDS
-            }
-        if isinstance(child, list):
-            return [strip_owner_plan(item) for item in child]
-        if isinstance(child, tuple):
-            return [strip_owner_plan(item) for item in child]
-        return deepcopy(child)
-
-    return strip_owner_plan(projected)
+    return _project_runtime_fields(
+        value,
+        excluded_fields=PRESCRIPTIVE_REPAIR_FIELDS | ARCHITECT_RUNTIME_ROUTING_FIELDS,
+    )
