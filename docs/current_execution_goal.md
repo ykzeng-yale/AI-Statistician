@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including failed full-task qualification and diagnostic preservation.
+Updated: 2026-09-10, including source-aware MCMC qualification and reviewer prompt consolidation.
 
 ## Operative Objective
 
@@ -134,6 +134,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    classifications in future records; do not rerun this attempt, drop the source
    requirement, weaken its gate or add a case-specific error handler. The
    mathematical oracle stays outside the runtime. This is not a research result.
+   The next full source-aware MCMC study was explicitly preregistered, not taken
+   from a nonexistent unconsumed queue. Original-source execution and independent
+   mechanical references passed, but theory qualification marked an honest gap
+   FAIL in both passes (5/6 controls; 16 calls; zero product calls). The
+   [MCMC qualification audit](operator_audits/emcee_stretch_prequalification_20260910.md)
+   preserves the actual responses. Shared reviewer instructions now distinguish
+   unresolved support from demonstrated falsehood without an error taxonomy.
+   Protocols 12/13 require new independent qualification; the old failed records
+   are not reinterpreted or retried. No live effectiveness is yet established.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -197,6 +206,8 @@ is also consumed: its 12 invocations are component diagnostics, not additional
 research draws or full-task credits. The separately recorded Firth authority
 qualification also adds zero research draws or credits; its failed source role
 prevented activation, and this diagnostic-only change does not authorize a retry.
-Current facts live in
+The MCMC theory qualification is also consumed and failed. Its source semantic
+role was not run after that required gate failed; no product draw or credit was
+added. Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.
