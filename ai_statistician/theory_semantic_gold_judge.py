@@ -553,6 +553,7 @@ def run_theory_semantic_gold_judge(
         calibration_results = [
             {
                 "case_id_hash": stable_hash(case_id),
+                "observed_status": assessment_by_case[case_id],
                 "correct": assessment_by_case[case_id] == expected_by_case[case_id],
             }
             for case_id in case_ids
@@ -566,6 +567,7 @@ def run_theory_semantic_gold_judge(
             candidate_mode_negative_results.append(
                 {
                     "case_id_hash": stable_hash(case_id),
+                    "observed_status": str(assessment["status"]),
                     "correct": str(assessment["status"]) == str(row["expected_status"]),
                 }
             )

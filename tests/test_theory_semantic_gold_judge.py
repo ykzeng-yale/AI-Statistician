@@ -369,6 +369,7 @@ def test_candidate_mode_negative_uses_exact_integrated_candidate_schema() -> Non
     assert result["candidate_mode_negative_results"] == [
         {
             "case_id_hash": stable_hash("long-form-active-contradiction"),
+            "observed_status": "FAIL",
             "correct": True,
         }
     ]
@@ -386,6 +387,32 @@ def test_candidate_mode_negative_uses_exact_integrated_candidate_schema() -> Non
     assert '"case_id": "candidate"' in negative_request.user_prompt
     assert '"claim:definition"' in negative_request.user_prompt
     assert '"claim:limit"' in negative_request.user_prompt
+
+
+@pytest.mark.parametrize("observed_status", ["PASS", "FAIL", "INCONCLUSIVE"])
+def test_calibration_retains_observed_status_without_hidden_case_content(
+    observed_status: str,
+) -> None:
+    packets = _keyed_calibration_packets()
+    assessment = packets[1]["assessments"][MODEL_CASE_IDS[1]]
+    assessment["document_status"] = observed_status
+    claim_status = {"PASS": "SATISFIED", "FAIL": "VIOLATED", "INCONCLUSIVE": "INCONCLUSIVE"}[observed_status]
+    assessment["claim_statuses"] = {claim_id: claim_status for claim_id in CLAIM_IDS}
+    provider = _RecordingProvider([*packets, _keyed_candidate_packet()])
+
+    result = _run(provider)
+
+    assert result["calibration_results"][1] == {
+        "case_id_hash": stable_hash(CASE_IDS[1]),
+        "observed_status": observed_status,
+        "correct": observed_status == "FAIL",
+    }
+    assert result["passed"] is (observed_status == "FAIL")
+    assert result["n_model_calls"] == 3
+    serialized = json.dumps(result["calibration_results"])
+    assert all(case_id not in serialized for case_id in CASE_IDS)
+    assert "expected_status" not in serialized
+    assert "documents" not in serialized
 
 
 def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> None:
@@ -453,7 +480,10 @@ def test_candidate_pass_cannot_override_candidate_mode_negative_false_accept() -
     assert result["passed"] is False
 
 
-def test_frozen_activation_skips_requalification_and_judges_candidate_once() -> None:
+@pytest.mark.parametrize("includes_observed_status", [True, False])
+def test_frozen_activation_skips_requalification_and_judges_candidate_once(
+    includes_observed_status: bool,
+) -> None:
     activation = _run(
         _RecordingProvider(
             [
@@ -465,6 +495,12 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once() -> 
         include_candidate_mode_negative=True,
         candidate_is_reference=True,
     )
+    if not includes_observed_status:
+        for field in ("calibration_results", "candidate_mode_negative_results"):
+            for row in activation[field]:
+                row.pop("observed_status")
+        activation.pop("judgment_hash")
+        activation["judgment_hash"] = stable_hash(activation)
     provider = _RecordingProvider([_keyed_candidate_packet()])
 
     result = _run(
@@ -480,6 +516,8 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once() -> 
     assert result["candidate_mode_negative_model_calls"] == 0
     assert result["activation_model_calls"] == 4
     assert result["activation_judgment_hash"] == activation["judgment_hash"]
+    for field in ("calibration_results", "candidate_mode_negative_results"):
+        assert result[field] == activation[field]
     assert result["n_model_calls"] == 1
     assert len(provider.requests) == 1
     assert provider.requests[0].metadata["semantic_adjudication_phase"] == (
