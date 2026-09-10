@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "emcee-stretch-public-source-20260910-v1",
+  "source_horizon": "2026-09-10",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "emcee-LICENSE",
+      "relative_path": "LICENSE",
+      "title": "LICENSE",
+      "source_kind": "source_metadata",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "5b4188c62d1ca46481057ab47cc15548552c06773e0704a6385cd98f330cb170"
+    },
+    {
+      "document_id": "emcee-environment_lock-json",
+      "relative_path": "environment_lock.json",
+      "title": "environment_lock.json",
+      "source_kind": "environment_lock",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "203ec1fe07044d10dd75355ae9ec33a65f15d3e11abc2a3fce42c22422916975"
+    },
+    {
+      "document_id": "emcee-paper-tex",
+      "relative_path": "paper.tex",
+      "title": "paper.tex",
+      "source_kind": "paper",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "59b74396735688662fb6b5926ed577f5d7e2347d5ab7beceb54521663c1abd1d"
+    },
+    {
+      "document_id": "emcee-quickstart-ipynb",
+      "relative_path": "quickstart.ipynb",
+      "title": "quickstart.ipynb",
+      "source_kind": "code",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "a0294277a488bdc98b250b82a1b08463ca554f4e1691cde0f9ddf97deb8ca3a1"
+    },
+    {
+      "document_id": "emcee-red_blue-py",
+      "relative_path": "red_blue.py",
+      "title": "red_blue.py",
+      "source_kind": "code",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "4abaa9154aa6a7358db3882fdccbc4009a41a33c391e9702cef42edb7aad129d"
+    },
+    {
+      "document_id": "emcee-reproduce_quickstart-py",
+      "relative_path": "reproduce_quickstart.py",
+      "title": "reproduce_quickstart.py",
+      "source_kind": "code",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "d3ebbccbb269333f12de05705dc621489b681ff625b6eef9f210d1fdb64a5bfe"
+    },
+    {
+      "document_id": "emcee-source_provenance-md",
+      "relative_path": "source_provenance.md",
+      "title": "source_provenance.md",
+      "source_kind": "source_metadata",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "336588c7cc57c48e6c4a588f124135eb7672a871fe651c79ec07bdb7e82de5ef"
+    },
+    {
+      "document_id": "emcee-stretch-py",
+      "relative_path": "stretch.py",
+      "title": "stretch.py",
+      "source_kind": "code",
+      "url": "https://github.com/dfm/emcee/tree/9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "37e6b16a390a522846799184aed45fcfbe48323a36ea405b425b9351855830ad"
+    }
+  ]
+}

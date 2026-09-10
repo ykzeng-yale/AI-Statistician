@@ -1,0 +1,13 @@
+{
+  "runtime": "3.12.13",
+  "base_prefix": "/Users/yukangzengcmac/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none",
+  "packages": {
+    "numpy": "2.4.6",
+    "emcee": "3.1.6"
+  },
+  "source_commit": "9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+  "interpreter_sha256": "a395f264e5612a2819662ed3e37fd30d39ed61179b98e5f86c3c783a008d8623",
+  "notebook_sha256": "a0294277a488bdc98b250b82a1b08463ca554f4e1691cde0f9ddf97deb8ca3a1",
+  "historical_environment_reproduced": false,
+  "network_during_execution": false
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 4,
+  "artifact_kind": "ResearchSourceExecutionSpec",
+  "execution_id": "emcee-quickstart-source-execution-20260910-v1",
+  "benchmark_id": "research-l0-emcee-stretch-20260910-v1",
+  "source_snapshot_id": "emcee-stretch-public-source-20260910-v1",
+  "source_snapshot_hash": "ec25f6346549f63f291b61a1c00e35833c8cff85b223961cd0d9a724728deb49",
+  "source_manifest_sha256": "eb1283871768c48cbd5a5667cd1d4611a142820f40e3c424a9ce9295cff3ee95",
+  "source_commit": "9c5f59b6ca2fce111cc7348bda415253e0e1c1b0",
+  "entrypoint_document_id": "emcee-reproduce_quickstart-py",
+  "environment_lock_document_id": "emcee-environment_lock-json",
+  "environment_root": "/Users/yukangzengcmac/.codex/external/emcee-3.1.6-env",
+  "runtime_language": "python",
+  "interpreter_executable_relative_path": "bin/python",
+  "interpreter_executable_sha256": "a395f264e5612a2819662ed3e37fd30d39ed61179b98e5f86c3c783a008d8623",
+  "runtime_read_roots": [
+    "/Users/yukangzengcmac/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none"
+  ],
+  "working_directory_relative": ".",
+  "arguments": [],
+  "package_distributions": {
+    "numpy": "numpy",
+    "emcee": "emcee"
+  },
+  "timeout_seconds": 300,
+  "max_output_bytes": 1048576,
+  "execution_workspace_mode": "staged_copy_on_write",
+  "result_artifact_paths": [
+    "quickstart_result.json"
+  ],
+  "command_selection_mode": "model_selected"
+}
