@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including source-aware MCMC qualification and reviewer prompt consolidation.
+Updated: 2026-09-10, including entropic-transport qualification and read-only startup.
 
 ## Operative Objective
 
@@ -119,30 +119,20 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 3. Improve existing source-project/environment support where real reproduction
    needs it. Preserve model-selected actions and pinned dependencies; avoid a
    package-specific installer or another reproduction agent.
-   The [Firth source preparation](operator_audits/firth_source_preparation_20260910.md)
-   now makes the published paper, proof supplement and unchanged author R routine
-   available through the existing source tools. An operator test executed its
-   published 1,000-by-200 coefficient experiment in the isolated native R
-   environment without any product change. This is resource availability, not an
-   autonomous result. The full source-aware logistic-finiteness task was then
-   preregistered, but its independent source-report authority failed qualification
-   (3/4 short controls); mechanical and theory authority checks passed. There were
-   28 qualification calls and zero product calls. The
-   [qualification audit](operator_audits/firth_logistic_prequalification_20260910.md)
-   records the failed attempt. Its actual mismatched label was discarded by the
-   evaluator, so do not infer a mathematical or prompt defect. Preserve observed
-   classifications in future records; do not rerun this attempt, drop the source
-   requirement, weaken its gate or add a case-specific error handler. The
-   mathematical oracle stays outside the runtime. This is not a research result.
-   The next full source-aware MCMC study was explicitly preregistered, not taken
-   from a nonexistent unconsumed queue. Original-source execution and independent
-   mechanical references passed, but theory qualification marked an honest gap
-   FAIL in both passes (5/6 controls; 16 calls; zero product calls). The
-   [MCMC qualification audit](operator_audits/emcee_stretch_prequalification_20260910.md)
-   preserves the actual responses. Shared reviewer instructions now distinguish
-   unresolved support from demonstrated falsehood without an error taxonomy.
-   Protocols 12/13 require new independent qualification; the old failed records
-   are not reinterpreted or retried. No live effectiveness is yet established.
+   Published Firth R, emcee and POT resources now execute through the existing
+   source tools in pinned environments. These are operator resource checks, not
+   autonomous research. Full source-aware task qualification failed for
+   [Firth](operator_audits/firth_logistic_prequalification_20260910.md),
+   [MCMC](operator_audits/emcee_stretch_prequalification_20260910.md) and
+   [entropic transport](operator_audits/entropic_ot_prequalification_20260910.md).
+   Each adds zero product draws. Preserve every record; do not rename a failed
+   task, reduce its scope or keep selecting replacements just to obtain a pass.
+   The latest protocol-13 theory calibration was 4/6; its reference also lacked
+   a concrete confirmation design, so this is not a clean prompt-efficacy test.
+   Do not turn that preparation flaw into another runtime prompt or error rule.
+   Startup now verifies frozen mechanical and semantic authority without
+   reexecuting calibration. Original reference/negative inputs stay hash-bound;
+   missing or changed records cannot trigger automatic requalification.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -206,8 +196,8 @@ is also consumed: its 12 invocations are component diagnostics, not additional
 research draws or full-task credits. The separately recorded Firth authority
 qualification also adds zero research draws or credits; its failed source role
 prevented activation, and this diagnostic-only change does not authorize a retry.
-The MCMC theory qualification is also consumed and failed. Its source semantic
-role was not run after that required gate failed; no product draw or credit was
-added. Current facts live in
+The MCMC and entropic-transport theory qualifications are also consumed and failed.
+Their source semantic roles were not run after the required gate failed; neither
+adds a product draw or credit. Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.

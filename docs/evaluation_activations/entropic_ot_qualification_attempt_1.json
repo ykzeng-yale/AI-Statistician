@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchTaskQualificationAttempt",
+  "task_id": "finite_entropic_transport_inference_known_result",
+  "benchmark_id": "research-l0-entropic-ot-20260910-v1",
+  "status": "qualification_failed_no_product_draw",
+  "attempt": 1,
+  "visible_question_commit": "5f7a2e2a91ce00a5906cf0dea271f6aaf050fc5d",
+  "visible_questions_sha256": "690da6f6d48834d4483bfbd3f900d3e63cec8b6b835eca16c97d8e0634c2fe06",
+  "gold_preactivation_sha256": "49394dc5cc928420a732e501bfd37963d43363e845dd656d792350f2d2f48316",
+  "mechanical_activation_sha256": "dc83676381e064ba2ea3c2dec80356bff71621944186fcd83217a608292b3a1a",
+  "source_resource_attempts": [
+    {"attempt": 1, "status": "FAILED_BEFORE_SOURCE_EXECUTION", "record_sha256": "6caf15f772d69ae7970c58ab257fce2049910318db40612e9d71c471c01153f3", "reason": "Operator mapped package distribution POT to import name ot; this was an unregistered resource preflight, not a product draw."},
+    {"attempt": 2, "status": "EXECUTED", "record_sha256": "d3d8a5f28241c3b7e84fc02a12286f195c6490482169d8b3ff9903ef8509d7d0", "reason": "Corrected resource metadata, unchanged original source; initial record and metadata preserved."}
+  ],
+  "mechanical_qualification": {
+    "passed": true,
+    "algorithm_reference_checks_passed": "6/6",
+    "empirical_designs_passed": "2/2",
+    "replicates_per_design": 1000,
+    "reference_maximum_coverage_mcse": 0.0071473071852271785,
+    "negative_candidate_evaluator_checks_rejected": 4,
+    "source_reference_accepted": true,
+    "altered_source_output_rejected": true
+  },
+  "theory_semantic_qualification": {
+    "protocol_version": 13,
+    "record_sha256": "98dd45e18fc31d84c97d86b1afb7bcd95c59dcff3b1570a5ab16b4a4a9e93d6e",
+    "original_responses_and_usage_sha256": "7cb37694d8c9e0f2048cf8ed08b4b0b10e5bb4c2114df6f47dd2c0931efb21ff",
+    "passed": false,
+    "calibration_correct": 4,
+    "calibration_total": 6,
+    "candidate_mode_negative_correct": 1,
+    "reference_claims_satisfied_in_candidate_phase": 5,
+    "calibration_reference_expected_status": "PASS",
+    "calibration_reference_observed_status": "INCONCLUSIVE",
+    "incomplete_control_expected_status": "INCONCLUSIVE",
+    "incomplete_control_observed_status": "FAIL",
+    "model_calls": 16,
+    "elapsed_seconds": 61.496,
+    "input_tokens": 126692,
+    "output_tokens": 2877
+  },
+  "source_semantic_qualification": {"status": "not_run_after_required_theory_qualification_failed", "model_calls": 0},
+  "model": "claude-haiku-4-5-20251001",
+  "automatic_model_escalation": false,
+  "product_model_calls": 0,
+  "qualified_gold_manifest_created": false,
+  "consumed_numbered_research_draws": 114,
+  "consumed_standalone_research_draws": 4,
+  "research_e2e_credit_added": false,
+  "boundary": "Frozen exact-label qualification failed once. The reference's confirmation section lacks a concrete two-design protocol, confounding interpretation as a prompt-only experiment. Preserve original labels, references and judgments; no requalification, relabeling, rescore, omitted dimension or product activation. A read-only check of the existing mechanical record is identity verification, not another execution or new score."
+}
