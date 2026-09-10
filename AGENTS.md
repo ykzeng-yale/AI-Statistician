@@ -38,7 +38,10 @@ the entire `docs/` directory as one prompt.
 
 - Tests and evaluations use exactly `claude-haiku-4-5-20251001`.
 - Opus is forbidden. Never add automatic model escalation.
-- Never commit or reuse credentials found in chat, files, logs, or Git history.
+- Never commit credentials or recover them from chat, logs, Git history, or
+  incidental files. The operator-designated, gitignored `.env` is an authorized
+  current credential source: use the existing CLI loader and never print values.
+  An absent process variable alone does not establish missing configuration.
 
 ## Working Style
 

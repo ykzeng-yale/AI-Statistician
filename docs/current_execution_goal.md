@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-09, following the user's original-goal and local-literature review.
+Updated: 2026-09-10, including the operator-designated local credential configuration.
 
 ## Operative Objective
 
@@ -25,11 +25,12 @@ implementation contract; the older Architect goal is now only a role map.
 
 ### Native Goal Record
 
-The app's native goal is blocked awaiting trusted current Anthropic credentials,
-after the same absence was verified across three consecutive goal turns. The
-offline configuration pilot is ready; no further speculative implementation or
-consumed-task retry substitutes for its live evidence. The native objective still
-has the older one-result/Task114 wording.
+The app's native goal is active again. The operator designated a local credential
+on 2026-09-10; it now resides only in gitignored `.env` with mode 0600. The existing
+CLI loader reads it, and Anthropic accepted a pinned-Haiku model metadata request.
+This removes the credential-configuration blocker, not the missing scientific
+evidence. The prepared configuration pilot remains unrun. The native objective
+still has the older one-result/Task114 wording.
 The goal API cannot replace an unfinished objective, and its completion/blocking
 operations must not be misused to rename it. This user-revised document is the
 operative scope; the stale native text is recorded honestly in status. Neither
@@ -128,7 +129,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
   not tool-free qualification/Architect calls; existing total token bounds and
   explicit stopping remain. No thinking-enabled live capability result exists yet.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision
-  requires no new provider call. Use configured machine authentication for Git.
+  uses the operator-designated `.env` through the existing CLI loader; absence of
+  a process variable alone is not a blocker. The authentication check made one
+  model-metadata request and zero model-generation calls. Use configured machine
+  authentication for Git.
 - Reuse Codex's retained file/tool feedback and independent authority principles,
   not Codex Core, App Server, provider transport or a second orchestrator.
 - Reuse Numina and ReProver's environment/state access, LeanMarathon's evolving
