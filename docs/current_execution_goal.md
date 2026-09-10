@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including ordinary-script execution and pinned source preparation.
+Updated: 2026-09-10, including failed full-task qualification and diagnostic preservation.
 
 ## Operative Objective
 
@@ -124,10 +124,16 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    available through the existing source tools. An operator test executed its
    published 1,000-by-200 coefficient experiment in the isolated native R
    environment without any product change. This is resource availability, not an
-   autonomous result. The proposed full source-aware logistic-finiteness task is
-   not activated: qualify its independent authority before any product draw, keep
-   the mathematical oracle outside the runtime, and do not broaden its scope into
-   every theorem or impose irrelevant interface corner cases.
+   autonomous result. The full source-aware logistic-finiteness task was then
+   preregistered, but its independent source-report authority failed qualification
+   (3/4 short controls); mechanical and theory authority checks passed. There were
+   28 qualification calls and zero product calls. The
+   [qualification audit](operator_audits/firth_logistic_prequalification_20260910.md)
+   records the failed attempt. Its actual mismatched label was discarded by the
+   evaluator, so do not infer a mathematical or prompt defect. Preserve observed
+   classifications in future records; do not rerun this attempt, drop the source
+   requirement, weaken its gate or add a case-specific error handler. The
+   mathematical oracle stays outside the runtime. This is not a research result.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -188,6 +194,9 @@ and [entropy](operator_audits/multinomial_entropy_l0_v1.md) outcomes remain unch
 Never resume, repair, rerun, rejudge or rescore any consumed evaluation. No new
 research benchmark is activated by this update. The separate configuration pilot
 is also consumed: its 12 invocations are component diagnostics, not additional
-research draws or full-task credits. Current facts live in
+research draws or full-task credits. The separately recorded Firth authority
+qualification also adds zero research draws or credits; its failed source role
+prevented activation, and this diagnostic-only change does not authorize a retry.
+Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.
