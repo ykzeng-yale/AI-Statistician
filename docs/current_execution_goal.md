@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including the operator-designated local credential configuration.
+Updated: 2026-09-10, including the completed referee configuration pilot.
 
 ## Operative Objective
 
@@ -29,8 +29,9 @@ The app's native goal is active again. The operator designated a local credentia
 on 2026-09-10; it now resides only in gitignored `.env` with mode 0600. The existing
 CLI loader reads it, and Anthropic accepted a pinned-Haiku model metadata request.
 This removes the credential-configuration blocker, not the missing scientific
-evidence. The prepared configuration pilot remains unrun. The native objective
-still has the older one-result/Task114 wording.
+evidence. The preregistered configuration pilot has now completed with 94 exact-Haiku
+generation calls; it adds no research-E2E credit. The native objective still has
+the older one-result/Task114 wording.
 The goal API cannot replace an unfinished objective, and its completion/blocking
 operations must not be misused to rename it. This user-revised document is the
 operative scope; the stale native text is recorded honestly in status. Neither
@@ -99,12 +100,16 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    by default. Do not start another draw merely to find an acceptance.
    Follow-up diagnosis found real conflicting scratch observations available to the
    same referee, not missing mathematics or truncated feedback. Native Haiku tool
-   thinking is now opt-in transport support; assess it on preregistered disjoint
-   controls before claiming efficacy, without adding a scientific repair recipe.
+   thinking is now opt-in transport support, without a scientific repair recipe.
    The [six-document configuration pilot](../benchmarks/reviewer_thinking_controls_20260909/README.md)
-   is prepared but unrun. It uses the existing referee, compares the operational
-   configuration bundle rather than isolated reasoning tokens, and cannot change
-   production defaults or confer E2E credit by itself.
+   completed once per case-arm pair. Both arms judged 6/6 candidates correctly,
+   but some referee equation chains were wrong; the primary ceiling result is
+   inconclusive. The [initial audit](operator_audits/referee_configuration_pilot_20260910.md)
+   records 94 calls, report defects and shared tool-contract friction. Keep
+   thinking off by default. Do not repeat or tune on this panel, add elementary
+   controls merely to find a win, or mistake component judgments for research
+   success. Any shared interface/context change needs its own demonstrated cause;
+   descriptions were delivered, so a missing-tool-description fix is not justified.
 3. Improve existing source-project/environment support where real reproduction
    needs it. Preserve model-selected actions and pinned dependencies; avoid a
    package-specific installer or another reproduction agent.
@@ -127,12 +132,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 - Freeze any `AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS` setting before a
   fresh product draw. It enables native thinking only for retained tool workspaces,
   not tool-free qualification/Architect calls; existing total token bounds and
-  explicit stopping remain. No thinking-enabled live capability result exists yet.
+  explicit stopping remain. Native transport worked in the live component pilot,
+  but scientific improvement and thinking-enabled research-E2E remain unproven.
+  The default budget stays zero; the pilot compared a configuration bundle, not
+  the isolated causal effect of thinking tokens.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision
   uses the operator-designated `.env` through the existing CLI loader; absence of
   a process variable alone is not a blocker. The authentication check made one
-  model-metadata request and zero model-generation calls. Use configured machine
-  authentication for Git.
+  model-metadata request; the subsequent pilot made 94 generation calls, all
+  exact Haiku. Use configured machine authentication for Git.
 - Reuse Codex's retained file/tool feedback and independent authority principles,
   not Codex Core, App Server, provider transport or a second orchestrator.
 - Reuse Numina and ReProver's environment/state access, LeanMarathon's evolving
@@ -163,6 +171,8 @@ Earlier [Task114](operator_audits/pareto_tail_index_l0_v1.md),
 [Rademacher formal-only](operator_audits/rademacher_weighted_tail_formal_l0_v1.md)
 and [entropy](operator_audits/multinomial_entropy_l0_v1.md) outcomes remain unchanged.
 Never resume, repair, rerun, rejudge or rescore any consumed evaluation. No new
-benchmark is activated by this design revision. Current facts live in
+research benchmark is activated by this update. The separate configuration pilot
+is also consumed: its 12 invocations are component diagnostics, not additional
+research draws or full-task credits. Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.
