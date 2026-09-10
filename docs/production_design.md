@@ -128,10 +128,10 @@ Compact packets are handoff indexes: problem and simulation handoffs contain cla
 The validator checks only typed handoff structure and formal artifacts depend on intent. Historical packets remain readable, but fresh no-intent authoring exposes only the mathematical core until the Architect binds a request-scoped plan.
 Durable Markdown/LaTeX is the publishable current argument, not a transcript of false starts. An integrated replication report is a separate workspace document and cannot be the sole mathematical document in a Theory packet. Exploration stays in scratch or is explicitly delimited as `SCRATCH` or `REJECTED`; a later correction does not silently deactivate earlier active text.
 
-Discovery and revision share exact parent and reviewer artifacts. Only model-authored
-edits apply, raw validation returns to the same model, and the editor contains no
-statistical rules, suggested values, or routing decisions. An explicit grounded gap
-blocks the lineage without treating model judgment as proof.
+Discovery and revision share exact parent and reviewer artifacts. Theory authors and
+referees execute ordinary Python/R scripts; hash-bound output and errors return to
+the same model. Scratch requires no function or JSON return; confirmation retains
+its separate metric ABI. Only model-authored edits apply, and scratch is not proof.
 
 Structural validity does not stop the session. Within one shared ordinary-action budget,
 the model chooses its mix of reads, searches, writes, edits, and scratch work, then continues, reports a gap, or calls `commit_theory_checkpoint`. No tool kind has a separate attempt quota; document-backed continuation preserves cumulative execution lineage under the same workspace and outer continuation bounds. The harness still owns total action and turn bounds, no-progress termination, execution safety caps, and the reserved terminal disposition. A commit proposes independent review; it is not evidence.

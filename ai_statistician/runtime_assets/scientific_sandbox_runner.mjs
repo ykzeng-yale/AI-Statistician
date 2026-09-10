@@ -108,6 +108,10 @@ async function runPython(
   if (request.dependencies.length > 0) {
     await pyodide.loadPackage(request.dependencies);
   }
+  if (request.invocation_mode === "script") {
+    pyodide.setStdout({ write: (bytes) => recordScriptOutput("stdout", bytes) });
+    pyodide.setStderr({ write: (bytes) => recordScriptOutput("stderr", bytes) });
+  }
   const simulationProject = materializePyodideProject(
     pyodide,
     "/ai_stat_projects/simulation",
@@ -141,7 +145,7 @@ async function runPython(
     `_ai_stat_estimator_projects = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(estimatorProjects))})\n` +
     `def _ai_stat_project_module_names(_roots):\n` +
     `    return [name for name in list(_ai_stat_sys.modules) if name.split('.', 1)[0] in _roots]\n` +
-    `def _ai_stat_load_project(_source, _project):\n` +
+    `def _ai_stat_load_project(_source, _project, _initial=None):\n` +
     `    _roots = set(_project.get("local_import_roots", []))\n` +
     `    _saved = {name: _ai_stat_sys.modules[name] for name in _ai_stat_project_module_names(_roots)}\n` +
     `    for _name in list(_saved):\n` +
@@ -149,6 +153,7 @@ async function runPython(
     `    _old_path = list(_ai_stat_sys.path)\n` +
     `    _old_cwd = _ai_stat_os.getcwd()\n` +
     `    _namespace = {"__name__": "__main__", "__file__": _project["root"] + "/" + _project["main_path"]}\n` +
+    `    _namespace.update(_initial or {})\n` +
     `    try:\n` +
     `        _ai_stat_sys.path.insert(0, _project["root"])\n` +
     `        _ai_stat_os.chdir(_project["root"])\n` +
@@ -181,7 +186,12 @@ async function runPython(
     `        _ai_stat_sys.modules.update(_saved)\n` +
     `        _ai_stat_sys.path[:] = _old_path\n` +
     `        _ai_stat_os.chdir(_old_cwd)\n`;
-  const wrapped = bound
+  const wrapped = request.invocation_mode === "script"
+    ? projectPrelude +
+      `_ai_stat_inputs = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(inputArtifacts))})\n` +
+      `_ai_stat_load_project(${JSON.stringify(source)}, _ai_stat_simulation_project, {"seed": ${Number(request.seed)}, "replicates": ${Number(request.replicates)}, "artifacts": _ai_stat_inputs})\n` +
+      `_ai_stat_json.dumps({"metrics": {}})`
+    : bound
     ? projectPrelude +
       `_ai_stat_simulation_source = ${JSON.stringify(source)}\n` +
       `_ai_stat_estimator_sources = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(estimatorSources))})\n` +
@@ -411,11 +421,12 @@ async function runR(
       `}\n` +
       `.ai_stat_simulation_project_root <- ${JSON.stringify(simulationProject.root)}\n` +
       `.ai_stat_estimator_project_roots <- list(${estimatorProjectRootList})\n` +
-      `.ai_stat_load_project <- function(source, root) {\n` +
+      `.ai_stat_load_project <- function(source, root, initial=list()) {\n` +
       `  .old <- getwd()\n` +
       `  on.exit(setwd(.old), add=TRUE)\n` +
       `  setwd(root)\n` +
       `  .environment <- new.env(parent=globalenv())\n` +
+      `  list2env(initial, envir=.environment)\n` +
       `  eval(parse(text=source, srcfile=paste0(root, "/main.R")), envir=.environment)\n` +
       `  .ai_stat_assert_declared_namespaces()\n` +
       `  .environment\n` +
@@ -426,7 +437,11 @@ async function runR(
       `  setwd(.root)\n` +
       `  .function(...)\n` +
       `}\n`;
-    const wrapped = bound
+    const wrapped = request.invocation_mode === "script"
+      ? `local({\n` + projectPrelude +
+        `.ai_stat_load_project(${JSON.stringify(source)}, .ai_stat_simulation_project_root, list(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=${inputArtifactList}))\n` +
+        `invisible(NULL)\n})`
+      : bound
       ? `local({\n` +
         projectPrelude +
         `.ai_stat_simulation_source <- ${JSON.stringify(source)}\n` +
@@ -552,6 +567,29 @@ async function runR(
         `.ai_stat_assert_declared_namespaces()\n` +
         `list(metrics=.ai_stat_result, estimator_invocation_counts=list())\n` +
         `})`;
+    if (request.invocation_mode === "script") {
+      const shelter = await new webR.Shelter();
+      try {
+        const capture = await shelter.captureR(wrapped, {
+          captureGraphics: false, captureConditions: true, throwJsException: false,
+        });
+        const errors = [];
+        for (const row of capture.output) {
+          if (row.type === "stdout" || row.type === "stderr") {
+            recordScriptOutput(row.type, `${row.data}\n`);
+          } else {
+            const conditionMessage = await row.data.get("message");
+            const message = await conditionMessage.toString();
+            recordScriptOutput("stderr", `${row.type}: ${message}\n`);
+            if (row.type === "error") errors.push(message);
+          }
+        }
+        if (errors.length) throw new Error(errors.join("\n"));
+        return { metrics: {} };
+      } finally {
+        await shelter.purge();
+      }
+    }
     result = await webR.evalR(wrapped);
     return rValueToJson(await result.toJs());
   } finally {
@@ -578,6 +616,18 @@ if (!requestPath || !outputPath) {
 }
 
 const request = JSON.parse(fs.readFileSync(requestPath, "utf8"));
+const scriptOutput = { stdout: [], stderr: [] };
+let scriptOutputBytes = 0;
+function recordScriptOutput(stream, value) {
+  const bytes = Buffer.from(value);
+  scriptOutputBytes += bytes.length;
+  if (scriptOutputBytes > request.resource_limits.file_size_bytes) {
+    throw new Error("script output exceeds configured artifact-size boundary");
+  }
+  scriptOutput[stream].push(bytes);
+  process[stream].write(bytes);
+  return bytes.length;
+}
 const source = fs.readFileSync(request.code_path, "utf8");
 const sourceSha256 = crypto.createHash("sha256").update(source, "utf8").digest("hex");
 if (sourceSha256 !== String(request.code_sha256)) {
@@ -631,6 +681,11 @@ const inputArtifacts = Object.fromEntries(
 const startedAt = new Date().toISOString();
 let envelope;
 try {
+  if (request.invocation_mode === "script" && (
+    Object.keys(estimatorSources).length || request.required_callable_exports?.length
+  )) {
+    throw new Error("script execution cannot bind estimators or required callable exports");
+  }
   const execution = request.language === "r"
     ? await runR(
       request,
@@ -648,6 +703,9 @@ try {
       projectFiles,
       estimatorProjectFiles,
     );
+  if (scriptOutputBytes > request.resource_limits.file_size_bytes) {
+    throw new Error("script output exceeds configured artifact-size boundary");
+  }
   const metrics = execution?.metrics;
   const estimatorInvocationCounts = execution?.estimator_invocation_counts || {};
   const estimatorInvocationSamples = execution?.estimator_invocation_samples || {};
@@ -699,8 +757,13 @@ try {
     completed_at: new Date().toISOString(),
   };
 }
+if (request.invocation_mode === "script") {
+  envelope.stdout = Buffer.concat(scriptOutput.stdout).toString("utf8");
+  envelope.stderr = Buffer.concat(scriptOutput.stderr).toString("utf8");
+  envelope.invocation_mode = "script";
+}
 fs.writeFileSync(outputPath, `${JSON.stringify(envelope, null, 2)}\n`, "utf8");
-console.log(JSON.stringify(envelope));
+if (request.invocation_mode !== "script") console.log(JSON.stringify(envelope));
 if (!envelope.ok) {
   process.exitCode = 1;
 }

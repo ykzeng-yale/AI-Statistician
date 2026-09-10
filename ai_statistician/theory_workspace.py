@@ -176,15 +176,21 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
         artifact_required=(),
         code_max_length=100_000,
     )
-    scratch_schema["properties"]["execution_profile"]["enum"] = [
-        SCIENTIFIC_WASM_SANDBOX_PROFILE
-    ]
+    for field in ("entrypoint", "execution_profile", "project_files"):
+        scratch_schema["properties"].pop(field, None)
+        if field in scratch_schema["required"]:
+            scratch_schema["required"].remove(field)
+    scratch_schema["properties"]["code"]["description"] = (
+        "Complete Python or R script, executed once as written. Use print/cat for "
+        "observations; no function entrypoint or JSON return is required. Globals "
+        "seed, replicates and artifacts are supplied. Choose any useful calculation; "
+        "replicates is a default, not a mandatory loop count."
+    )
     scratch_schema["properties"]["source_result_artifact_paths"] = {
         "type": "array",
         "description": (
             "Optional declared UTF-8 result paths from the completed published-"
-            "source run. When nonempty, define run_sandbox(seed, replicates, "
-            "artifacts); artifacts maps each selected path to exact content, "
+            "source run. The artifacts global maps each selected path to exact content, "
             "media_type, and sha256."
         ),
         "uniqueItems": True,
@@ -196,10 +202,8 @@ def theory_scratchpad_client_tool() -> ClientToolDefinition:
         description=(
             "Run one complete model-authored exploratory Python or R calculation, "
             "including exact symbolic algebra with SymPy when useful, "
-            "in the isolated scientific sandbox. Define, but do not call, "
-            "run_sandbox(seed, replicates); when selecting source-result artifacts, "
-            "accept the additional artifacts argument described in the schema. It "
-            "must return named JSON-finite quantities or predicates computed from "
+            "in the isolated scientific sandbox. Submit an ordinary script and print "
+            "the quantities, symbolic expressions or predicates computed from "
             "the definitions, not a prewritten verdict or unconditional verification "
             "flag. Successful execution validates only this submitted program, not "
             "the stochastic model it encoded; compare its random variables, joint "
@@ -224,18 +228,9 @@ def execute_theory_scratchpad_tool(
     """Execute exact model-authored exploratory code and return compact lineage."""
 
     language = str(tool_input.get("language", "") or "")
-    execution_profile = str(tool_input.get("execution_profile", "") or "")
+    execution_profile = SCIENTIFIC_WASM_SANDBOX_PROFILE
     dependencies = tool_input.get("dependencies", [])
     code = str(tool_input.get("code", "") or "")
-    entrypoint = str(tool_input.get("entrypoint", "") or "")
-    if entrypoint != "run_sandbox":
-        raise ClientToolInputError(
-            "theory scratchpad entrypoint must be run_sandbox"
-        )
-    if execution_profile != SCIENTIFIC_WASM_SANDBOX_PROFILE:
-        raise ClientToolInputError(
-            "theory scratchpad execution_profile must be scientific_wasm"
-        )
     if not isinstance(dependencies, list):
         raise ClientToolInputError(
             "theory scratchpad dependencies must be an array"
@@ -253,6 +248,7 @@ def execute_theory_scratchpad_tool(
         timeout_s=int(scratchpad.timeout_s),
         max_output_bytes=64 * 1024,
         input_artifacts=input_artifacts,
+        entrypoint=None,
     )
     source_hash = stable_hash(code)
     if execution.code_hash and execution.code_hash != source_hash:
@@ -273,7 +269,7 @@ def execute_theory_scratchpad_tool(
             "language": language,
             "execution_profile": execution_profile,
             "dependencies": [str(value) for value in dependencies],
-            "entrypoint": entrypoint,
+            "invocation_mode": "script",
             "code_hash": source_hash,
             "seed": int(scratchpad.seed),
             "replicates": int(scratchpad.replicates),
@@ -296,6 +292,7 @@ def execute_theory_scratchpad_tool(
         "status": execution.status,
         "language": execution.language,
         "execution_profile": execution_profile,
+        "invocation_mode": execution.invocation_mode,
         "execution_attempted": execution.execution_attempted,
         "returncode": execution.returncode,
         "dependencies": list(execution.dependencies),
@@ -436,7 +433,7 @@ def read_theory_scratch_execution(*, ref: Mapping[str, Any], scratch_root: Path)
         "request": {
             key: deepcopy(ref.get(key))
             for key in (
-                "status", "language", "execution_profile", "dependencies",
+                "status", "language", "execution_profile", "invocation_mode", "dependencies",
                 "seed", "replicates", "timeout_s", "execution_attempted",
                 "returncode", "errors", "request_hash", "request_identity_source",
                 "input_artifact_hashes",
@@ -2197,10 +2194,11 @@ def run_theory_artifact_workspace(
         "Use run_theory_scratchpad when a small Python or R calculation, exact "
         "model-chosen SymPy reduction, numerical check, or counterexample would resolve "
         "a mathematical uncertainty. Submit "
-        "complete source defining run_sandbox(seed, replicates); the isolated runtime "
-        "executes those exact bytes and returns the raw observation. After a published-"
-        "source run, you may select declared UTF-8 result paths and define "
-        "run_sandbox(seed, replicates, artifacts) to query their exact hash-bound "
+        "an ordinary script and print its observations; the isolated runtime "
+        "executes those exact bytes without requiring a function or JSON return. "
+        "Globals seed, replicates and artifacts are provided. After a published-"
+        "source run, you may select declared UTF-8 result paths and query their "
+        "exact hash-bound "
         "contents with your own Python or R rather than asking the runtime to "
         "interpret them. Encode the complete disputed proposition as the left and right "
         "sides, residuals, predicates, or witnesses computed from definitions rather "

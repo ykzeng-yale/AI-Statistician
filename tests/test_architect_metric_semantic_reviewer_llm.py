@@ -362,15 +362,12 @@ def test_metric_reviewer_recomputes_in_same_session_scratch(
                 name = THEORY_SCRATCHPAD_TOOL
                 payload = {
                     "language": "python",
-                    "execution_profile": "scientific_wasm",
                     "dependencies": [],
-                    "entrypoint": "run_sandbox",
                     "code": (
-                        "def run_sandbox(seed, replicates):\n"
-                        "    xs = list(range(10))\n"
-                        "    mean = sum(xs) / len(xs)\n"
-                        "    value = sum((x - mean) ** 2 for x in xs) / (len(xs) - 1)\n"
-                        "    return {'sample_variance': value}\n"
+                        "xs = list(range(10))\n"
+                        "mean = sum(xs) / len(xs)\n"
+                        "value = sum((x - mean) ** 2 for x in xs) / (len(xs) - 1)\n"
+                        "print({'sample_variance': value})\n"
                     ),
                 }
             else:
@@ -446,6 +443,7 @@ def test_metric_reviewer_recomputes_in_same_session_scratch(
     refs = packet["client_tool_loop"]["scratch_execution_refs"]
     assert len(refs) == 4
     assert all(ref["status"] == "EXECUTED" for ref in refs)
+    assert all(ref["invocation_mode"] == "script" for ref in refs)
     assert packet["client_tool_loop"]["runtime_executed_tool_calls"] == 5
 
 

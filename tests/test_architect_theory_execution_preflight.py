@@ -423,13 +423,8 @@ class _ScratchPreflightBackend:
                     THEORY_SCRATCHPAD_TOOL,
                     {
                         "language": "python",
-                        "execution_profile": "scientific_wasm",
                         "dependencies": ["numpy"],
-                        "entrypoint": "run_sandbox",
-                        "code": (
-                            "def run_sandbox(seed, replicates):\n"
-                            "    return {'counterexample_gap': 0.25, 'seed': seed}\n"
-                        ),
+                        "code": "print({'counterexample_gap': 0.25, 'seed': seed})\n",
                     },
                 )
             )
@@ -1345,8 +1340,9 @@ def test_preflight_failed_scratch_keeps_model_request_identity(
         for tool in backend.requests[0].tools
         if tool.name == THEORY_SCRATCHPAD_TOOL
     )
-    assert "run_sandbox(seed, replicates)" in scratch_tool.description
-    assert "do not call" in scratch_tool.description
+    assert "ordinary script" in scratch_tool.description
+    assert "entrypoint" not in scratch_tool.input_schema["properties"]
+    assert "execution_profile" not in scratch_tool.input_schema["properties"]
     assert "validates only this submitted program" in scratch_tool.description
     assert "joint dependence" in scratch_tool.description
 

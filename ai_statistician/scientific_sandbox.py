@@ -234,7 +234,9 @@ def normalized_scientific_dependencies(
     return tuple(normalized)
 
 
-def generated_code_execution_contract_errors(draft: Mapping[str, Any]) -> list[str]:
+def generated_code_execution_contract_errors(
+    draft: Mapping[str, Any], *, required_entrypoint: str | None = "run_sandbox"
+) -> list[str]:
     language = normalized_generated_code_language(draft.get("language"))
     profile = normalized_generated_code_profile(
         draft.get("execution_profile"),
@@ -273,8 +275,11 @@ def generated_code_execution_contract_errors(draft: Mapping[str, Any]) -> list[s
         errors.append(
             "generated code declares unsupported dependencies: " + ", ".join(unsupported)
         )
-    if str(draft.get("entrypoint", "") or "").strip() != "run_sandbox":
-        errors.append("generated code entrypoint must be run_sandbox")
+    if (
+        required_entrypoint is not None
+        and str(draft.get("entrypoint", "") or "").strip() != required_entrypoint
+    ):
+        errors.append("generated code entrypoint must be " + required_entrypoint)
     code = str(draft.get("code", "") or "")
     if not code.strip():
         errors.append("generated code draft is empty")
@@ -839,6 +844,7 @@ def _empty_execution(
     estimator_binding_errors: Sequence[str] = (),
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
     required_callable_exports: Sequence[str] = (),
+    invocation_mode: str = "standalone",
 ) -> ScientificSandboxExecution:
     backend = "webr" if language == "r" else "pyodide"
     estimator_code_hashes = {
@@ -877,7 +883,7 @@ def _empty_execution(
             sorted(_scientific_sandbox_environment(sandbox_dir))
         ),
         resource_limits=dict(resource_limits),
-        invocation_mode="estimator_bound" if estimator_bindings else "standalone",
+        invocation_mode=invocation_mode,
         required_callable_exports=tuple(required_callable_exports),
         estimator_code_hashes=estimator_code_hashes,
         estimator_project_hashes=estimator_project_hashes,
@@ -914,7 +920,12 @@ def execute_scientific_sandbox(
     estimator_transport: str = "json_finite",
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
     required_callable_exports: Sequence[str] = (),
+    entrypoint: str | None = "run_sandbox",
 ) -> ScientificSandboxExecution:
+    invocation_mode = (
+        "script" if entrypoint is None
+        else "estimator_bound" if estimator_bindings else "standalone"
+    )
     language = normalized_generated_code_language(language)
     dependencies = normalized_scientific_dependencies(
         dependencies,
@@ -1018,11 +1029,20 @@ def execute_scientific_sandbox(
             "language": language,
             "execution_profile": SCIENTIFIC_WASM_SANDBOX_PROFILE,
             "dependencies": list(dependencies),
-            "entrypoint": "run_sandbox",
+            "entrypoint": entrypoint,
             "code": code,
             "project_files": [row.to_json() for row in normalized_project_files],
-        }
+        },
+        required_entrypoint=entrypoint,
     )
+    if entrypoint is not None and entrypoint != "run_sandbox":
+        contract_errors.append("scientific entrypoint must be run_sandbox or None")
+    if entrypoint is None and (
+        normalized_bindings or normalized_required_callable_exports
+    ):
+        contract_errors.append(
+            "script execution cannot bind estimators or required callable exports"
+        )
     contract_errors.extend(project_file_errors)
     if language == "python":
         local_import_roots = scientific_python_local_import_roots(
@@ -1032,6 +1052,7 @@ def execute_scientific_sandbox(
             scientific_python_safety_errors(
                 code,
                 dependencies=dependencies,
+                required_functions=() if entrypoint is None else ("run_sandbox",),
                 local_import_roots=local_import_roots,
             )
         )
@@ -1165,6 +1186,7 @@ def execute_scientific_sandbox(
             estimator_binding_errors=sorted(set(binding_contract_errors)),
             input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
+            invocation_mode=invocation_mode,
         )
     language_available = (
         runtime.python_available if language == "python" else runtime.r_available
@@ -1187,6 +1209,7 @@ def execute_scientific_sandbox(
             estimator_bindings=normalized_bindings,
             input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
+            invocation_mode=invocation_mode,
         )
     cache_errors = (
         scientific_python_dependency_cache_errors(runtime, all_dependencies)
@@ -1208,6 +1231,7 @@ def execute_scientific_sandbox(
             estimator_bindings=normalized_bindings,
             input_artifacts=normalized_input_artifacts,
             required_callable_exports=normalized_required_callable_exports,
+            invocation_mode=invocation_mode,
         )
 
     sandbox_dir.mkdir(parents=True, exist_ok=True)
@@ -1219,6 +1243,7 @@ def execute_scientific_sandbox(
     execution_key = stable_hash(
         {
             "artifact_id": artifact_id,
+            "invocation_mode": invocation_mode,
             "language": language,
             "dependencies": list(all_dependencies),
             "seed": int(seed),
@@ -1308,9 +1333,7 @@ def execute_scientific_sandbox(
             }
             for project_file in normalized_project_files
         ],
-        "invocation_mode": (
-            "estimator_bound" if normalized_bindings else "standalone"
-        ),
+        "invocation_mode": invocation_mode,
         "estimator_transport": estimator_transport,
         "required_callable_exports": list(
             normalized_required_callable_exports
@@ -1445,6 +1468,8 @@ def execute_scientific_sandbox(
             envelope = dict(loaded) if isinstance(loaded, Mapping) else {}
         except Exception as exc:  # pragma: no cover - defensive artifact parsing
             result_parse_error = repr(exc)
+    if invocation_mode == "script" and envelope:
+        stdout = str(envelope.get("stdout", ""))
     metrics = (
         dict(envelope.get("metrics", {}))
         if isinstance(envelope.get("metrics", {}), Mapping)
@@ -1557,14 +1582,15 @@ def execute_scientific_sandbox(
             row.path: row.content_sha256 for row in normalized_project_files
         },
         request_hash=request_hash,
-        result_hash=stable_hash(metrics) if metrics else "",
+        result_hash=(
+            stable_hash(envelope) if invocation_mode == "script" and envelope
+            else stable_hash(metrics) if metrics else ""
+        ),
         subprocess_environment_keys=tuple(sorted(environment)),
         resource_limits=dict(limits),
         execution_envelope_path=str(result_path),
         execution_envelope_hash=stable_hash(envelope) if envelope else "",
-        invocation_mode=(
-            "estimator_bound" if normalized_bindings else "standalone"
-        ),
+        invocation_mode=invocation_mode,
         required_callable_exports=normalized_required_callable_exports,
         estimator_code_paths={
             artifact_id: str(path)

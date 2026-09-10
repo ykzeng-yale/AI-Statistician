@@ -833,10 +833,9 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
     )
     scratch_source = (
         "import csv\nimport io\n\n"
-        "def run_sandbox(seed, replicates, artifacts):\n"
-        "    rows = list(csv.DictReader(io.StringIO("
+        "rows = list(csv.DictReader(io.StringIO("
         "artifacts['results.csv']['content'])))\n"
-        "    return {'data_rows': len(rows)}\n"
+        "print({'data_rows': len(rows)})\n"
     )
     backend = ScriptedTheoryWorkspaceBackend(
         [
@@ -853,9 +852,7 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
-                        "execution_profile": "scientific_wasm",
                         "dependencies": [],
-                        "entrypoint": "run_sandbox",
                         "code": scratch_source,
                         "source_result_artifact_paths": ["results.csv"],
                     },
@@ -2409,10 +2406,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    source = (
-        "def run_sandbox(seed, replicates):\n"
-        "    return {'counterexample_gap': 0.25, 'seed': seed}\n"
-    )
+    source = "print({'counterexample_gap': 0.25, 'seed': seed})\n"
     captured: dict[str, object] = {}
 
     def fake_execute_scientific_sandbox(**kwargs):
@@ -2455,9 +2449,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
-                        "execution_profile": "scientific_wasm",
                         "dependencies": ["numpy"],
-                        "entrypoint": "run_sandbox",
                         "code": source,
                     },
                 )
@@ -2491,6 +2483,7 @@ def test_same_theory_model_runs_exact_scratch_source_then_revises(
     )
 
     assert captured["code"] == source
+    assert captured["entrypoint"] is None
     assert captured["language"] == "python"
     assert captured["dependencies"] == ["numpy"]
     assert captured["seed"] == 17
@@ -2544,7 +2537,7 @@ def test_rejected_theory_scratch_preserves_exact_request_for_continuation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    source = "def run_sandbox(seed, replicates):\n    return {'seed': seed}\n"
+    source = "print(seed)\n"
 
     def rejected_execution(**kwargs):
         return ScientificSandboxExecution(
@@ -2581,9 +2574,7 @@ def test_rejected_theory_scratch_preserves_exact_request_for_continuation(
     _, execution_ref = execute_theory_scratchpad_tool(
         tool_input={
             "language": "python",
-            "execution_profile": "scientific_wasm",
             "dependencies": ["numpy"],
-            "entrypoint": "run_sandbox",
             "code": source,
         },
         scratchpad=scratchpad,
@@ -2603,6 +2594,7 @@ def test_rejected_theory_scratch_preserves_exact_request_for_continuation(
         "status": "REJECTED_CONTRACT",
         "language": "python",
         "execution_profile": "scientific_wasm",
+        "invocation_mode": "standalone",
         "dependencies": ["numpy"],
         "seed": 31,
         "replicates": 17,
@@ -2634,10 +2626,7 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
     inherited_scratch_count: int,
     lineage_mutation: str | None,
 ) -> None:
-    source = (
-        "def run_sandbox(seed, replicates):\n"
-        "    return {'small_case_gap': 0.125, 'seed': seed}\n"
-    )
+    source = "print({'small_case_gap': 0.125, 'seed': seed})\n"
     executions: list[dict[str, object]] = []
 
     def fake_execute_scientific_sandbox(**kwargs):
@@ -2692,9 +2681,7 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
-                        "execution_profile": "scientific_wasm",
                         "dependencies": ["numpy"],
-                        "entrypoint": "run_sandbox",
                         "code": source,
                     },
                 )
@@ -2705,9 +2692,7 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
-                        "execution_profile": "scientific_wasm",
                         "dependencies": ["numpy"],
-                        "entrypoint": "run_sandbox",
                         "code": source,
                     },
                 )
@@ -2718,9 +2703,7 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
-                        "execution_profile": "scientific_wasm",
                         "dependencies": ["numpy"],
-                        "entrypoint": "run_sandbox",
                         "code": source,
                     },
                 )
@@ -2731,9 +2714,7 @@ def test_theory_progress_retains_scratch_lineage_without_a_scratch_sub_budget(
                     name=THEORY_SCRATCHPAD_TOOL,
                     input={
                         "language": "python",
-                        "execution_profile": "scientific_wasm",
                         "dependencies": ["numpy"],
-                        "entrypoint": "run_sandbox",
                         "code": source,
                     },
                 )

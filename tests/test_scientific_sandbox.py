@@ -60,6 +60,114 @@ from ai_statistician.simulation_engineer_llm import (
     validate_simulation_source_workspace_intent,
 )
 from ai_statistician.packet_validation import PacketValidationError
+from ai_statistician.theory_workspace import (
+    TheoryScratchpadConfig,
+    execute_theory_scratchpad_tool,
+    read_theory_scratch_execution,
+)
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("fail", [False, True])
+def test_live_theory_script_returns_exact_output_and_failure_lineage(
+    tmp_path: Path, language: str, fail: bool,
+) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("pinned scientific runtime is not installed on this host")
+    source = (
+        "print('context', seed, replicates, artifacts['sample.txt']['content'])\n"
+        "print({2: 1 + 3j})\n"
+        if language == "python" else
+        'cat("context", seed, replicates, artifacts[["sample.txt"]]$content, "\\n")\n'
+        'print(1 + 3i)\n'
+    )
+    if fail:
+        source += ('raise ValueError("diagnostic failure")\n' if language == "python"
+                   else 'stop("diagnostic failure")\n')
+    scratchpad = TheoryScratchpadConfig(tmp_path, seed=19, replicates=7, timeout_s=30)
+    content = "pinned text"
+    result, ref = execute_theory_scratchpad_tool(
+        tool_input={"language": language, "dependencies": [], "code": source},
+        scratchpad=scratchpad,
+        sandbox_binding=("synthetic-script", language, fail),
+        artifact_id="script-output",
+        run_index=1,
+        owner_label="TheoryDeveloper",
+        input_artifacts=(ScientificInputArtifactBinding(
+            artifact_id="sample.txt", content=content,
+            content_sha256=hashlib.sha256(content.encode()).hexdigest(),
+        ),),
+    )
+    assert result.content["status"] == ("FAILED" if fail else "EXECUTED")
+    assert result.content["execution_attempted"] is True
+    assert result.content["metrics"] == {}
+    assert "context 19 7 pinned text" in result.content["stdout_summary"]
+    assert ("3j" if language == "python" else "3i") in result.content["stdout_summary"]
+    if fail:
+        assert "diagnostic failure" in result.content["stderr_summary"]
+    assert ref["invocation_mode"] == "script"
+    assert ref["runtime_edited_source"] is False
+    assert ref["runtime_edited_theory"] is False
+    inspected = read_theory_scratch_execution(ref=ref, scratch_root=tmp_path)
+    assert inspected["source"] == source
+    assert inspected["result"]["stdout"] == result.content["stdout_summary"]
+    assert inspected["result"]["ok"] is (not fail)
+    assert stable_hash(inspected["result"]) == ref["result_hash"]
+    assert "not confirmatory simulation" in result.content["boundary"]
+    request = json.loads(Path(ref["request_path"]).read_text())
+    assert request["invocation_mode"] == "script"
+    assert request["network_access"] is False
+    assert request["secret_environment_inherited"] is False
+
+
+def test_script_mode_does_not_relax_scientific_entrypoint_or_safety(tmp_path: Path) -> None:
+    common = dict(sandbox_dir=tmp_path, artifact_id="mode-boundary", language="python",
+                  dependencies=[], seed=1, replicates=1, timeout_s=20)
+    assert execute_scientific_sandbox(code="print(7)", **common).status == "REJECTED_CONTRACT"
+    for kwargs in (
+        {"code": "import os\nprint(os.environ)", "entrypoint": None},
+        {"code": "print(7)", "entrypoint": None, "required_callable_exports": ("run_estimator",)},
+        {"code": "print(7)", "entrypoint": None, "estimator_bindings": (
+            ScientificEstimatorBinding("estimator", "python", "", "", ()),
+        )},
+    ):
+        execution = execute_scientific_sandbox(**common, **kwargs)
+        assert execution.status == "REJECTED_CONTRACT"
+        assert execution.execution_attempted is False
+        assert execution.invocation_mode == "script"
+
+
+def test_live_script_mode_is_part_of_execution_identity(tmp_path: Path) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Python runtime is not installed on this host")
+    source = "print('top-level')\ndef run_sandbox(seed, replicates):\n    return {'value': 7}\n"
+    common = dict(sandbox_dir=tmp_path, artifact_id="same-source", language="python",
+                  code=source, dependencies=[], seed=1, replicates=1, timeout_s=20)
+    script = execute_scientific_sandbox(**common, entrypoint=None)
+    callable_run = execute_scientific_sandbox(**common)
+    assert script.status == callable_run.status == "EXECUTED"
+    assert script.code_hash == callable_run.code_hash
+    assert script.request_path != callable_run.request_path
+    assert script.request_hash != callable_run.request_hash
+    assert script.metrics == {}
+    assert callable_run.metrics == {"value": 7}
+    assert json.loads(Path(script.result_path).read_text())["stdout"] == "top-level\n"
+
+
+def test_live_script_cannot_swallow_output_limit_failure(tmp_path: Path) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not runtime.python_available:
+        pytest.skip("pinned Python runtime is not installed on this host")
+    execution = execute_scientific_sandbox(
+        sandbox_dir=tmp_path, artifact_id="output-limit", language="python",
+        code="try:\n    print('x' * 100000)\nexcept Exception:\n    pass\n",
+        dependencies=[], seed=1, replicates=1, timeout_s=20,
+        entrypoint=None, max_output_bytes=8192,
+    )
+    assert execution.status == "FAILED"
+    assert execution.execution_attempted is True
 
 
 def test_generated_code_contract_keeps_stdlib_default_and_requires_r_wasm() -> None:
