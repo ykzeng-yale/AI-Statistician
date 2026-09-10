@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 
 import pytest
 
@@ -236,7 +237,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 10
+    assert result["protocol_version"] == 12
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -272,22 +273,24 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         for request in provider.requests
     )
     assert "expected_status" not in provider.requests[0].user_prompt
-    assert "Use PASS only when every required rubric claim is established" in (
+    assert "Use PASS only when every required claim is established" in (
         provider.requests[0].system_prompt
     )
-    assert "use FAIL for a material active contradiction" in (
+    assert "Use FAIL for a material active falsehood" in (
         provider.requests[0].system_prompt
     )
-    assert "use INCONCLUSIVE only when no material contradiction" in (
+    assert "INCONCLUSIVE when support is absent or indeterminate" in (
         provider.requests[0].system_prompt
     )
-    assert "an explicit statement of noncoverage" in (
+    assert "Missing support is not itself a demonstrated contradiction" in (
         provider.requests[0].system_prompt
     )
-    assert "proof branches cover only a strict subdomain" in (
+    assert "active intermediate equations, assumptions, quantifiers and dependencies" in (
         provider.requests[0].system_prompt
     )
     assert "invalid asserted derivation" in provider.requests[0].system_prompt
+    assert "Neither FAIL nor INCONCLUSIVE qualifies for acceptance" in provider.requests[0].system_prompt
+    assert "unsupported source/result claims" not in provider.requests[0].system_prompt
     assert all(case_id not in provider.requests[0].user_prompt for case_id in CASE_IDS)
     assert "reference_complete.md" not in provider.requests[0].user_prompt
     assert "wrong_limit.md" not in provider.requests[0].user_prompt
@@ -433,7 +436,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         candidate_adjudication_strategy="integrated_plus_adversarial",
     )
 
-    assert result["protocol_version"] == 11
+    assert result["protocol_version"] == 13
     assert result["candidate_adjudication_strategy"] == (
         "integrated_plus_adversarial"
     )
@@ -456,7 +459,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         "candidate_integrated",
         "candidate_integrated_adversarial",
     ]
-    assert "Assume the prior coverage assessment may have overlooked" in (
+    assert "uncertainty must not be relabeled as contradiction" in (
         provider.requests[-1].system_prompt
     )
 
@@ -523,6 +526,35 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once(
     assert provider.requests[0].metadata["semantic_adjudication_phase"] == (
         "candidate_integrated"
     )
+
+
+@pytest.mark.parametrize(
+    ("previous_protocol", "strategy"),
+    [(10, "integrated_single"), (11, "integrated_plus_adversarial")],
+)
+def test_previous_prompt_qualification_cannot_authorize_current_judge(
+    previous_protocol: int,
+    strategy: str,
+) -> None:
+    packets = [*_keyed_calibration_packets(), _keyed_candidate_packet()]
+    if strategy == "integrated_plus_adversarial":
+        packets = [packet for packet in packets for _ in range(2)]
+    activation = _run(
+        _RecordingProvider(packets),
+        candidate_is_reference=True,
+        candidate_adjudication_strategy=strategy,
+    )
+    activation["protocol_version"] = previous_protocol
+    activation.pop("judgment_hash")
+    activation["judgment_hash"] = stable_hash(activation)
+    original = deepcopy(activation)
+    provider = _RecordingProvider([])
+
+    with pytest.raises(ValueError, match="activation judgment protocol_version mismatch"):
+        _run(provider, activation_judgment=activation, candidate_adjudication_strategy=strategy)
+
+    assert provider.requests == []
+    assert activation == original
 
 
 def test_candidate_pass_cannot_override_failed_calibration() -> None:

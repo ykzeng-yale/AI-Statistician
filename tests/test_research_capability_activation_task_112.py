@@ -10,7 +10,6 @@ from ai_statistician.estimator_interface_contract import (
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_gold_evaluation import (
     _visible_question_hash_payload,
-    validate_research_gold_benchmark_activation,
     validate_research_gold_benchmark_manifest,
 )
 from ai_statistician.research_schema import load_open_research_questions
@@ -40,10 +39,10 @@ def test_task112_is_frozen_and_qualified_before_its_only_product_draw() -> None:
     visible_question = visible_payload["questions"][0]
     loaded_question = load_open_research_questions(VISIBLE_PATH)[0]
     descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
-    activation = validate_research_gold_benchmark_activation(
-        GOLD_MANIFEST,
-        visible_questions={TASK_ID: visible_question},
-    )
+    # Historical evidence is inspected, never reactivated by the current judge.
+    qualification = json.loads(
+        (GOLD_ROOT / "semantic_activation_attempt_1.json").read_text(encoding="utf-8")
+    )["judgment"]
 
     assert ledger["status"] == "frozen_qualified_pre_first_product_call"
     assert ledger["family"] == "independent_two_group_log_odds_ratio_inference"
@@ -111,15 +110,14 @@ def test_task112_is_frozen_and_qualified_before_its_only_product_draw() -> None:
     assert semantic["candidate_mode_negative_cases_correct"] == "1/1"
     assert semantic["reference_claims_satisfied"] == "8/8"
 
-    assert activation["activation_reference_tasks_passed"] == 1
-    assert activation["activation_negative_controls_rejected"] == 7
-    assert activation["activation_semantic_reference_documents_passed"] == 1
-    assert activation[
-        "activation_semantic_candidate_mode_negative_controls_rejected"
-    ] == 1
-    assert activation["activation_semantic_model_calls"] == 0
-    assert activation["activation_semantic_qualification_model_calls"] == 16
-    assert activation["activation_semantic_qualification_reused"] is True
+    assert qualification["protocol_version"] == 11
+    assert qualification["passed"] is True
+    assert qualification["n_model_calls"] == 16
+    assert qualification["n_calibration_cases_correct"] == 6
+    assert qualification["n_candidate_mode_negative_cases_correct"] == 1
+    assert qualification["candidate_claim_status_counts"] == {
+        "SATISFIED": 8, "VIOLATED": 0, "INCONCLUSIVE": 0,
+    }
 
     policy = ledger["single_draw_policy"]
     assert policy["product_model"] == "claude-haiku-4-5-20251001"

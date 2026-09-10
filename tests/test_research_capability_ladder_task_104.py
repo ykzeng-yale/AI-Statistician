@@ -7,7 +7,6 @@ from pathlib import Path
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_gold_evaluation import (
     _visible_question_hash_payload,
-    validate_research_gold_benchmark_activation,
     validate_research_gold_benchmark_manifest,
 )
 from ai_statistician.research_schema import load_open_research_questions
@@ -42,10 +41,10 @@ def test_bernoulli_lan_task104_is_consumed_after_its_only_product_draw() -> None
     visible_question = visible_payload["questions"][0]
     loaded_question = load_open_research_questions(VISIBLE_PATH)[0]
     descriptor = validate_research_gold_benchmark_manifest(GOLD_MANIFEST)
-    activation = validate_research_gold_benchmark_activation(
-        GOLD_MANIFEST,
-        visible_questions={TASK_ID: visible_question},
-    )
+    # Historical evidence is inspected, never reactivated by the current judge.
+    qualification = json.loads(
+        (GOLD_ROOT / "semantic_activation_attempt_1_protocol_v11.json").read_text(encoding="utf-8")
+    )["judgment"]
 
     assert candidate["level"] == "L3"
     assert candidate["family"] == "local_asymptotic_binary_experiments"
@@ -121,16 +120,14 @@ def test_bernoulli_lan_task104_is_consumed_after_its_only_product_draw() -> None
     assert evidence["semantic_calibration_model"] == (
         "claude-haiku-4-5-20251001"
     )
-    assert activation["activation_semantic_reference_documents_passed"] == 1
-    assert (
-        activation[
-            "activation_semantic_candidate_mode_negative_controls_rejected"
-        ]
-        == 1
-    )
-    assert activation["activation_semantic_model_calls"] == 0
-    assert activation["activation_semantic_qualification_model_calls"] == 16
-    assert activation["activation_semantic_qualification_reused"] is True
+    assert qualification["protocol_version"] == 11
+    assert qualification["passed"] is True
+    assert qualification["n_model_calls"] == 16
+    assert qualification["n_calibration_cases_correct"] == 6
+    assert qualification["n_candidate_mode_negative_cases_correct"] == 1
+    assert qualification["candidate_claim_status_counts"] == {
+        "SATISFIED": 8, "VIOLATED": 0, "INCONCLUSIVE": 0,
+    }
 
     assert evidence["hidden_gold_manifest_validated"] is True
     assert evidence["gold_frozen_before_first_runtime_model_call"] is True
