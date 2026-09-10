@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including ordinary-script exploratory execution.
+Updated: 2026-09-10, including ordinary-script execution and pinned source preparation.
 
 ## Operative Objective
 
@@ -119,6 +119,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 3. Improve existing source-project/environment support where real reproduction
    needs it. Preserve model-selected actions and pinned dependencies; avoid a
    package-specific installer or another reproduction agent.
+   The [Firth source preparation](operator_audits/firth_source_preparation_20260910.md)
+   now makes the published paper, proof supplement and unchanged author R routine
+   available through the existing source tools. An operator test executed its
+   published 1,000-by-200 coefficient experiment in the isolated native R
+   environment without any product change. This is resource availability, not an
+   autonomous result. The proposed full source-aware logistic-finiteness task is
+   not activated: qualify its independent authority before any product draw, keep
+   the mathematical oracle outside the runtime, and do not broaden its scope into
+   every theorem or impose irrelevant interface corner cases.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible

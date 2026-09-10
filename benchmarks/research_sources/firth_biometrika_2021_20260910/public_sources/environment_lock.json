@@ -1,0 +1,17 @@
+{
+  "runtime": "R version 4.4.3 (2025-02-28)",
+  "historical_runtime": "R version 3.6.3; not reproduced",
+  "package_versions": {
+    "enrichwith": "0.3.1"
+  },
+  "enrichwith_archive_sha256": "15f235128e468903b821e62014f224388646f86be8cad51b37285a35c4e8d015",
+  "author_supplement_archive_sha256": "9d7067b2b0831f39faec9b5bb8fb8e83699d717c98d20f67dc1f5890a9cb07b4",
+  "published_pdf_sha256": "86084e8a0db42a07041c69e219c830432a59b9b49f97d37466ca6a5ab78c14a1",
+  "interpreter_sha256": "d856d3fe7074578872a738f46d2b60f3ba335aa5718f5a5861849ae49caaedd6",
+  "network": "denied_during_execution",
+  "source_mutation": "forbidden",
+  "outputs": [
+    "coefficients.csv"
+  ],
+  "scope": "Single published coefficient experiment, not the 50-repeat timing benchmark or every figure."
+}

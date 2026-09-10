@@ -1,0 +1,685 @@
+[PDF page 1]
+Biometrika (2021), 108,1 , pp. 71–82 doi: 10.1093/biomet/asaa052
+Printed in Great Britain Advance Access publication 4 August 2020
+Jeffreys-prior penalty, finiteness and shrinkage in
+binomial-response generalized linear models
+By IOANNIS KOSMIDIS and DA VID FIRTH
+Department of Statistics, University of W arwick, Coventry CV4 7AL, U.K.
+ioannis.kosmidis@warwick.ac.uk d.ﬁrth@warwick.ac.uk
+Summary
+Penalization of the likelihood by Jeffreys’ invariant prior, or a positive power thereof, is shown
+to produce ﬁnite-valued maximum penalized likelihood estimates in a broad class of binomial gen-
+eralized linear models. The class of models includes logistic regression, where the Jeffreys-prior
+penalty is known additionally to reduce the asymptotic bias of the maximum likelihood estima-
+tor, and models with other commonly used link functions, such as probit and log-log. Shrinkage
+towards equiprobability across observations, relative to the maximum likelihood estimator, is
+established theoretically and studied through illustrative examples. Some implications of ﬁnite-
+ness and shrinkage for inference are discussed, particularly when inference is based on Wald-type
+procedures. A widely applicable procedure is developed for computation of maximum penalized
+likelihood estimates, by using repeated maximum likelihood ﬁts with iteratively adjusted binomial
+responses and totals. These theoretical results and methods underpin the increasingly widespread
+use of reduced-bias and similarly penalized binomial regression models in many applied ﬁelds.
+Some key words : Bias reduction; Bradley–Terry model; Data separation; Inﬁnite estimate; Logit link; Penalized
+likelihood; Probit link; Working weight.
+1. Introduction
+Logistic regression is one of the most frequently applied generalized linear models in sta-
+tistical practice, both for inference about covariate effects on binomial probabilities and for
+prediction. Consider realizations y
+1, ... , yn of independent binomial random variables Y1, ... , Yn
+with success probabilities π1, ... , πn and totals m1, ... , mn, respectively. Suppose that each yi
+is accompanied by a p-dimensional covariate vector xi and that the model matrix X with rows
+x1, ... , xn is of full rank. A logistic regression model has
+πi = (G ◦ηi)(β), G(η)= exp(η)
+1 + exp(η), ηi(β) =
+p∑
+t=1
+βt xit (i = 1, ... , n), (1)
+where β = (β1, ... , βp)T is the p-dimensional parameter vector and xit is the tth element of xi
+(i = 1, ... , n); if an intercept parameter is present in the model, then the ﬁrst column of X is a
+vector of ones. The maximum likelihood estimator ˆβ of β in (1) maximizes the loglikelihood
+l(β) =
+n∑
+i=1
+yiηi(β) −
+n∑
+i=1
+mi log
+[
+1 + exp{ηi(β)}
+]
+. (2)
+⃝c 2020 Biometrika Trust
+This is an Open Access article distributed under the terms of the Creative Commons Attribution License (http://creativecommons.org/
+licenses/by/4.0/), which permits unrestricted reuse, distribution, and reproduction in any medium, provided the original work is
+properly cited.
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 2]
+72 I. Kosmidis and D. Firth
+Albert & Anderson (1984) categorized the possible settings for the sample points (y1, xT
+1)T,
+... , (yn, xT
+n)T into complete separation, quasi-complete separation and overlap. Speciﬁcally, if
+there exists a vector γ ∈ Rp such that γTxi > 0 for all i with yi > 0 and γTxi < 0 for all i with
+yi = 0, then there is complete separation in the sample points; if there exists a vectorγ ∈ Rp such
+that γTxi ⩾ 0 for all i with yi > 0 and γTxi ⩽ 0 for all i with yi = 0, then there is quasi-complete
+separation in the sample points; and if the sample points exhibit neither complete separation nor
+quasi-complete separation, then they are said to overlap. Albert & Anderson (1984) showed that
+separation is necessary and sufﬁcient for the maximum likelihood estimate to have at least one
+inﬁnite-valued component. A parallel result appears in Silvapulle (1981), where it is shown that if
+G(η)in (1) is any strictly increasing distribution function such that − log G(η)and log{1− G(η)}
+are convex and if x
+i1 = 1 for all i ∈{ 1, ... , n}, then the maximum likelihood estimate has all
+components ﬁnite if and only if there is overlap.
+When data separation occurs, standard maximum likelihood estimation procedures, such as
+iteratively reweighted least squares (Green, 1984), can be numerically unstable due to the occur-
+rence of large parameter values as the procedures attempt to maximize (2). In addition, inferential
+procedures that directly depend on the estimates and the estimated standard errors, such as Wald
+tests, can give misleading results. For a recent review of such problems and some solutions, see
+Mansournia et al. (2018).
+Firth (1993) showed that if the logistic regression likelihood is penalized by Jeffreys’ invariant
+prior, then the resulting maximum penalized likelihood estimator has bias of smaller asymp-
+totic order than that of the maximum likelihood estimator in general. Speciﬁcally, for logistic
+regressions the reduced-bias estimator ˜β results from maximization of
+˜l(β) = l(β) + 1
+2 log
+⏐⏐X TW(β)X
+⏐⏐ (3)
+with W(β) = diag{w1(β), ... , wn(β)}, where wi(β) = mi(ω ◦ηi)(β) (i = 1, ... , n) is the
+working weight for the ith observation with ω(η) = exp(η)/{1 + exp(η)}2. Heinze & Schemper
+(2002), in extensive numerical studies, observed that the reduced-bias estimates have ﬁnite values
+even when data separation occurs. Based on an argument about parameter-dependent adjustments
+to y
+1, ... , yn and m1, ... , mn stemming from the form of the gradient of ( 3), Heinze & Schemper
+(2002) conjectured that ﬁniteness of the reduced-bias estimates holds for every combination of
+data and logistic regression model. Heinze & Schemper (2002) also observed that the reduced-
+bias estimates are typically smaller in absolute value than the corresponding maximum likelihood
+estimates when the latter are ﬁnite. These observations are in agreement with the asymptotic bias
+of the maximum likelihood estimator in logistic regressions being approximately collinear with
+the parameter vector (see, e.g., Cordeiro & McCullagh, 1991).
+Example 1 illustrates the ﬁniteness and shrinkage properties of the maximum penalized like-
+lihood estimator in the context of estimating the strengths of NBA basketball teams using a
+Bradley–Terry model ( Bradley & Terry, 1952).
+Example 1. Suppose that y
+ij = 1 when team i beats team j and yij = 0 otherwise. The Bradley–
+Terry model assumes that the contest outcomeyij is the realization of a Bernoulli random variable
+with probability πij = exp(βi − βj)/{1 + exp(βi − βj)} and that the outcomes of the available
+contests are independent. The Bradley–Terry model is a logistic regression with probabilities
+as in ( 1), for the particular X matrix whose rows are indexed by contest identiﬁers (i, j) and
+whose general element is x
+ij,t = δit − δjt (t = 1, ... , p). Here, δit is the Kronecker delta, taking
+value 1 when t = i and value 0 otherwise. The parameter βt can be thought of as measuring
+the ability or strength of team t (t = 1, ... , p). Only contrasts are estimable, and an identiﬁable
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 3]
+Jeffreys-prior penalty 73
+ML RB
+Atlanta HawksBoston CelticsBrooklyn Nets
+Charlotte Hornets
+Chicago Bulls
+Cleveland Cavaliers
+Dallas MavericksDenver NuggetsDetroit Pistons
+Golden State Warriors
+Houston Rockets
+Indiana Pacers
+Los Angeles ClippersLos Angeles Lak
+ers
+Memphis G
+rizzlies
+Miami Heat
+Mil
+wau
+kee Bucks
+Minnesota Timberwolves
+New Orleans 
+Pelicans
+New Y ork Knicks
+Oklahoma City Thunder
+Orlando Magic
+Philadelphia 76ers
+Phoenix Suns
+Portland 
+T rail Bla
+zers
+Sacramento KingsSan Antonio Spurs
+Toronto Raptors
+Utah 
+Jazz
+Washington Wizards
+−4
+0
+4
+−4
+0
+4
+Team
+Estimated ablility
+−2
+−1
+0
+1
+2
+−2 −1 0 1 2
+ML
+RB
+(a) (b)
+Fig. 1. (a) Estimated contrasts in ability of NBA teams with the San Antonio Spurs. The abilities are estimated using
+a Bradley–Terry model on the outcomes of the 262 games before 3 December 2014 in the regular season of the
+2014–2015 NBA conference, using the maximum likelihood (ML, top) and reduced-bias (RB, bottom) estimators; the
+vertical line segments represent nominally 95% Wald-type conﬁdence intervals. (b) Reduced-bias estimates of ability
+contrasts plotted against maximum likelihood estimates of ability contrasts; the maximum likelihood estimate for the
+Philadelphia 76ers is not plotted, and the 45
+◦ line is displayed for reference.
+parameterization can be achieved by setting one of the abilities to zero. See, for example, Agresti
+(2013, § 11.6) for a general discussion of the model.
+We use the Bradley–Terry model to estimate the abilities of basketball teams from game
+outcomes in the regular season of the 2014–2015 NBA conference. For illustrative purposes,
+we use only the 262 games that took place before 3 December 2014, up to which date the
+Philadelphia 76ers had recorded 17 straight losses and no win. The dataset was obtained from
+www.basketball-reference.com and is provided in the Supplementary Material. The
+ability of the San Antonio Spurs, the champion team of the 2013–2014 conference, is set to
+zero, so that each β
+i represents the contrast of the ability of team i with that of the San Antonio
+Spurs. The model is estimated via iteratively reweighted least squares, as implemented in the
+glm function of R (R Development Core Team, 2021) with default settings for the optimization.
+No warnings or errors were returned during the ﬁtting process.
+The top part of Fig. 1(a) shows the reported maximum likelihood estimates of the contrasts,
+along with their corresponding nominally 95% individual Wald-type conﬁdence intervals. The
+contrast for the Philadelphia 76ers stands out in the output from glm, with a value of − 19.24
+and a corresponding estimated standard error of 844.97. These values are in fact representations
+of −∞ and ∞ , respectively, as conﬁrmed by the detect_separation method of the R
+package brglm2 (Kosmidis, 2020), which implements separation-detection algorithms from
+a 2007 University of Oxford Department of Statistics PhD thesis by K. Konis. The data are
+separated, with the maximum likelihood estimates for all teams being ﬁnite except that for the
+Philadelphia 76ers, which is −∞ . A particularly worrying side-effect of data separation here
+is that if the computer output is used naively, a Wald test for difference in ability between the
+Philadelphia 76ers and the San Antonio Spurs results in no apparent evidence of a difference,
+which is counterintuitive given that the former had no wins in 17 games and the latter had 13
+wins in 17 games. In contrast, the reduced-bias estimates in the bottom part of Fig 1(a) all have
+ﬁnite values and ﬁnite standard errors. Figure 1(b) illustrates the shrinkage of the reduced-bias
+estimates towards zero, which has also been discussed in a range of different settings, such as in
+Heinze & Schemper (2002) and Zorn (2005).
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 4]
+74 I. Kosmidis and D. Firth
+The apparent ﬁniteness and shrinkage properties of the reduced-bias estimator, together with
+the fact that the estimator has the same ﬁrst-order asymptotic distribution as the maximum like-
+lihood estimator, are key reasons for the increasingly widespread use of Jeffreys-prior penalized
+logistic regression in applied work. At the time of writing, Google Scholar recorded approxi-
+mately 2700 citations of Firth (1993), more than half of which were from 2015 or later. The
+list of application areas is diverse, including agriculture and ﬁsheries research, animal and plant
+ecology, criminology, commerce, economics, psychology, health and medical sciences, politics,
+and many more. The particularly strong uptake of the method in health and medical sciences
+and in politics stems largely from the works of Heinze & Schemper (2002) and Zorn (2005),
+respectively. The reduced-bias estimator is also implemented in dedicated open-source software,
+such as the brglm2 (Kosmidis, 2020) and logistf (Heinze & Ploner, 2018) R packages, and
+it has now become part of textbook treatments of logistic regression; see, for example, Agresti
+(2013, § 7.4) or Hosmer et al. (2013, § 10.3).
+However, a deﬁnitive theoretical account of the empirically evident ﬁniteness and shrinkage
+properties has yet to appear in the literature. Such a formal account is much needed, particu-
+larly in light of recent advances that demonstrate beneﬁts of the reduced-bias estimator in wider
+contexts than the ones for which it was originally developed. An example of such an advance
+is the work of Lunardon (2018), which explores the performance of bias reduction in stratiﬁed
+settings and shows that it is particularly effective for inference about a low-dimensional param-
+eter of interest in the presence of high-dimensional nuisance parameters. For the estimation of
+high-dimensional logistic regression models with p/n → κ ∈ (0, 1), experiments reported in
+the supplementary information of Sur & Candès (2019), see also the Supplementary Material for
+the present article, show that bias reduction performs similarly to their newly proposed method
+and markedly better than maximum likelihood. These new theoretical and empirical results jus-
+tify and motivate the use of the reduced-bias estimator in even more complex applied settings
+than that covered by the framework of Firth (1993); in such settings, more involved methods
+such as modiﬁed proﬁle likelihoods (see, e.g., Sartori, 2003) and approximate message-passing
+algorithms (see, e.g., Sur & Candès , 2019) have also been proposed for recovering inferential
+accuracy.
+In this article we formally derive the ﬁniteness and shrinkage properties of reduced-bias esti-
+mators for logistic regressions under only the condition that the model matrix X has full rank.
+We also provide geometric insights into how penalized likelihood estimators shrink towards zero
+and discuss the implications of ﬁniteness and shrinkage for inference, especially with regard to
+hypothesis tests and conﬁdence regions using Wald-type procedures.
+We show how the results can be extended in a direct way to other commonly used link functions,
+such as the probit, log-log, complementary log-log and cauchit links, whenever the Jeffreys prior
+is used as a likelihood penalty. The work presented here thus complements earlier work of
+Ibrahim & Laud (1991) and especially Chen et al. (2008), which considers the same models from
+a Bayesian perspective. Here we study the behaviour of the posterior mode and thereby derive
+results that add to those earlier ﬁndings, whose focus was instead on important Bayesian aspects
+such as propriety and moments of the posterior distribution.
+The results in this paper also extend readily to situations where penalized loglikelihoods of
+the form
+l
+† (β; a) = l(β) + a log
+⏐⏐X TW(β)X
+⏐⏐ (a > 0) (4)
+are used, with a allowed to take values other than 1/2. Such penalized loglikelihoods have proven
+useful in prediction contexts, where the value of a can be tuned to deliver better estimates of the
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 5]
+Jeffreys-prior penalty 75
+binomial probabilities, and they are the subject of ongoing research (see, e.g.,Elgmati et al., 2015;
+Puhr et al. , 2017). The procedure of repeated maximum likelihood ﬁts with iteratively adjusted
+binomial responses and totals, derived in § 4, maximizes l† (β; a) for general binomial-response
+generalized linear models and any a > 0.
+2. Logistic regression
+2.1. Finiteness
+We ﬁrst derive results on ﬁniteness and shrinkage of the maximum penalized likelihood esti-
+mator for logistic regression, which is the most common case in applications and also the case for
+which maximum penalized likelihood, with the Jeffreys-prior penalty, coincides with asymptotic
+bias reduction. These results provide a platform for the generalization to link functions other than
+logit in § 3.
+Let W
+∗(r) be W(β) at β = β(r), for r ∈ R, where β(r) is a path in Rp such that β(r) → β0 as
+r →∞ , with β0 having at least one inﬁnite component. Theorem 1 below describes the limiting
+behaviour of the determinant of the expected information matrix X TW∗(r)X as r diverges to
+inﬁnity, under only the assumption that X has full rank. An important implication of Theorem 1
+is Corollary 1, which says that the reduced-bias estimators for logistic regressions are always
+ﬁnite. These new results formalize a sketch argument made in Firth (1993, § 3.3).
+Theorem 1. Suppose that X is of full rank. Then limr→∞ |X TW∗(r)X|= 0.
+Corollary 1. Suppose that X is of full rank. The vector ˜β that maximizes ˜l(β) has all of its
+components ﬁnite.
+The proofs of Theorem 1 and Corollary 1 are given in the Supplementary Material.
+Corollary 1 also holds for any ﬁxed a > 0i n( 4). As a result, the maximum penalized likelihood
+estimators from the maximization of l† (β; a) in (4) have ﬁnite components for any a > 0.
+Despite its practical utility, the ﬁniteness of the reduced-bias estimator results in some notable,
+and perhaps undesirable, side-effects for Wald-type inferences based on the reduced-bias esti-
+mator that have been largely overlooked in the literature. The ﬁniteness of ˜β implies that the
+estimated standard errors s
+t( ˜β) (t = 1, ... , p), calculated as the square roots of the diagonal
+elements of the inverse of X TW( ˜β)X , are also always ﬁnite. Since y1, ... , yn are realizations of
+binomial random variables, there is only a ﬁnite number of values that the estimator ˜β can take
+for any given x1, ... , xn. Hence, there will always be a parameter vector with large enough com-
+ponents that the usual Wald-type conﬁdence intervals ˜βt ± z1−α/2st( ˜β), or conﬁdence regions in
+general, will fail to cover regardless of the nominal levelα that is used. This phenomenon has also
+been observed in the complete enumerations of Kosmidis (2014) for proportional odds models
+which are extensions of logistic regression to ordinal responses; and it is also the case when
+the penalized likelihood is proﬁled for the construction of conﬁdence intervals, as proposed, for
+example, in Heinze & Schemper (2002), and in Bull et al. (2007) for multinomial regression
+models.
+2.2. Shrinkage
+The following theorem is key when exploring the shrinkage properties of the reduced-bias
+estimator that have been illustrated in Example 1.
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 6]
+76 I. Kosmidis and D. Firth
+Theorem 2. Suppose that X is of full rank. Then the following hold.
+(i) The function |X TW(β)X| is globally maximized at β = 0.
+(ii) If ¯W(π) = diag{m1π1(1− π1), ... , mnπn(1− πn)}, then |X T ¯W(π)X| is log-concave on π.
+A complete proof of Theorem 2 is given in the Supplementary Material. Part (i) also follows
+directly from Theorem 1 in Chen et al. (2008).
+Consider estimation by maximization of the penalized loglikelihood l† (β; a) in (4) for a = a1
+and a = a2 with a1 > a2 ⩾ 0. Let β(a1) and β(a2) be the maximizers of l† (β; a1) and l† (β; a2),
+respectively, and π(a1) and π(a2) the corresponding estimated n-vectors of probabilities. Then,
+by the concavity of log |X T ¯W(π)X|, the vector π(a1) is closer to (1/2, ... ,1 /2)T than is π(a2),
+in the sense that π(a1) lies within the hull of that convex contour of log |X T ¯W(π)X| containing
+π(a2). With the speciﬁc values a1 = 1/2 and a2 = 0, the last result refers to maximization of the
+likelihood penalized by Jeffreys’ prior and to maximization of the unpenalized likelihood, respec-
+tively. Hence, using reduced-bias estimators for logistic regressions has the effect of shrinking
+towards the model that implies equiprobability across observations, relative to maximum like-
+lihood. Shrinkage here is with respect to a metric based on the expected information matrix
+rather than with respect to Euclidean distance. Hence, the reduced-bias estimates are only typi-
+cally, rather than always, smaller in absolute value than the corresponding maximum likelihood
+estimates.
+If the determinant of the inverse of the expected information matrix is taken as a general-
+ized measure of the asymptotic variance, then the estimated generalized asymptotic variance at
+the reduced-bias estimates is always smaller than the corresponding estimated variance at the
+maximum likelihood estimates. Hence, approximate conﬁdence ellipsoids based on asymptotic
+normality of the reduced-bias estimator are reduced in volume.
+3. Non-logistic link functions
+3.1. Finiteness
+The results in this section generalize those of § 2.1 and § 2.2 beyond the logit link function,
+still for estimators from penalized likelihoods of the form ( 4). For non-logistic link functions,
+such estimators no longer coincide with the bias-reduced estimator of Firth (1993).
+Theorem 1 and Corollary 1 readily extend to link functions other than the logistic one. Specif-
+ically, if G(η)= exp(η)/{1 + exp(η)} in model (1) is replaced by an at least twice differentiable
+and invertible function G :
+R → (0, 1), then the expected information matrix again has the
+form X TW(β)X , but with working weights wi(β) = mi(ω ◦ ηi)(β) (i = 1, ... , n), where
+ω(η) = g(η)2/[G(η){1 − G(η)}] and g(η) = dG(η)/dη. If the link function is such that
+ω(η) → 0a s η diverges to either −∞ or ∞ , then the proofs of Theorem 1 and Corollary 1
+in the Supplementary Material carry through unaltered to show that lim r→∞ |X TW∗(r)X|= 0
+and that, when the penalty is a positive power of Jeffreys’ invariant prior, the maximum penalized
+likelihood estimates have ﬁnite components. The logit, probit, complementary log-log, log-log
+and cauchit links are some commonly used link functions for which ω(η) → 0. The functions
+G(η) and ω(η) for each of these link functions are shown in Table 1.
+3.2. Shrinkage
+Let ¯ω(z) ={ (g ◦G
+− 1)(z)}2/{z(1 − z)}. If the link function is such that ¯ω(z) is maximized
+at some value z0 ∈ (0, 1), then the same arguments as in the proof of Theorem 2(i) can be used
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 7]
+Jeffreys-prior penalty 77
+Table 1. Common link functions and the corresponding forms for G (η) and ω(η);
+for all the displayed link functions, ω(η) vanishes as η diverges
+Link function G(η) ω(η)
+logit exp(η)
+1 + exp(η)
+exp(η)
+{1 + exp(η)}2
+probit /Phi1(η) {φ(η)}2
+/Phi1(η){1 − /Phi1(η)}
+complementary log-log 1 − exp{− exp(η)} exp(2η)
+exp{exp(η)}− 1
+log-log exp {− exp(−η)} exp(− 2η)
+exp{exp(−η)}− 1
+cauchit 1
+2 + arctan(η)
+π
+1
+(1 + η2)2[π2
+4 −{ tan− 1(η)}2]
+z0 = 0.5
+complementary log-log cauchit
+logit probit
+0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+z
+ω( z)
+complementary log-log cauchit
+logit probit
+0.00 0.25 0.50 0.75 1.00 0.00 0.25 0.50 0.75 1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+π1
+π2
+z0 = 0.5
+z0 = 0.797 z0 = 0.5
+(a) (b)
+Fig. 2. (a) ¯ω(z) for various link functions; in each plot the dashed vertical line is at z0. (b) Demonstration of how
+ﬁtted probabilities from the penalized likelihood ﬁt shrink relative to those of the maximum likelihood ﬁt, from a
+complete enumeration of a saturated model with π
+i = G(β1 + β2xi)( i = 1, 2), where x1 =− 1 and x2 = 1, and with
+m1 = 9 and m2 = 9; the arrows point from the estimated probabilities based on the maximum likelihood estimates
+to those based on the penalized likelihood estimates, and the grey curves are the contours of log |X T ¯W(π)X|.
+to show that |X T ¯W(π)X| is globally maximized at (z0, ... , z0)T. Figure 2(a) illustrates that this
+condition is satisﬁed for the logit, probit, log-log and complementary log-log link functions. If
+x
+i1 = 1 (i = 1, ... , n), then the maximum of |X TW(β)X| is achieved at β = (b0,0 ,... ,0 )T,
+where b0 = g− 1(z0). Moreover, it can be seen directly from the proof of Theorem2 that a sufﬁcient
+condition for the log-concavity of|X T ¯W(π)X| for non-logit link functions is that ¯ω(z) is concave.
+4. Maximum penalized likelihood as repeated maximum likelihood
+The maximum penalized likelihood estimates, whenX has full rank, can be computed by direct
+numerical optimization of the penalized loglikelihoodl† (β; a) in (4) or by using a quasi-Newton–
+Raphson iteration as in Kosmidis & Firth (2010). Nevertheless, the particular form of the Jeffreys
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 8]
+78 I. Kosmidis and D. Firth
+prior allows the convenient computation of penalized likelihood estimates by leveraging readily
+available maximum likelihood implementations for binomial-response generalized linear models.
+If G(η) = exp(η)/{1 + exp(η)} in model ( 1) is replaced by any invertible function G :
+R → (0, 1) that is at least twice differentiable, then differentiation of l† (β; a) with respect to βt
+(t = 1, ... , q) gives that the penalized likelihood estimates are the solutions to
+n∑
+i=1
+wi(β)
+di(β)
+[
+yi + 2ahi(β)
+{
+qi(β) − 1
+2
+}
+− miπi(β)
+]
+xit = 0 (t = 1, ... , p), (5)
+where πi(β) = (G ◦ηi)(β), di(β) = mi(g ◦ηi)(β), qi(β) = d′
+i(β)/wi(β) + πi(β), and d′
+i(β) =
+mi(g′ ◦ηi)(β) with g′(η) = d2G(η)/dη2. The quantity hi(β) (i = 1, ... , n) is the ith diagonal
+element of the ‘hat’ matrix H(β) = X{X TW(β)X}− 1X TW(β).
+If we temporarily omit the observation index and suppress the dependence of the various
+quantities on β, the derivatives of l† (β; a) are the derivatives of the binomial loglikelihood l(β)
+with link function G(η), after adjusting the binomial response y to y + 2ah(q − 1/2). Hence,
+the penalized likelihood estimates can be conveniently computed through repeated maximum
+likelihood ﬁts, where each repetition consists of two steps: (i) the adjusted responses are computed
+at the current parameter values; and (ii) the maximum likelihood estimates of β are computed at
+the current value of the adjusted responses.
+However, depending on the sign and magnitude of 2ah(q− 1/2), the adjusted response can be
+either negative or greater than the binomial total m. In such cases, standard implementations
+of maximum likelihood either are unstable or report an error. This is because the binomial
+loglikelihood is not necessarily concave when y < 0o r y > m for at least one observation,
+if a link function with concave log {G(η)} and log{1 − G(η)} is used. The logit, probit, log-log
+and complementary log-log link functions are of this kind. See, for example, Pratt (1981, § 5) for
+results and discussion on concavity of the loglikelihood.
+Such issues with the use of repeated maximum likelihood ﬁts can be avoided by noting that
+expression ( 5) results if, in the derivatives of the loglikelihood, y and m are replaced by their
+adjusted versions
+˜y = y + 2ah(q − 1/2 + πc), ˜m = m +
+2ahc. (6)
+Here c is some arbitrarily chosen function of β. The following theorem identiﬁes one function c
+for which 0 ⩽ ˜y ⩽ ˜m.
+Theorem 3. Let I(A) be equal to 1 if A holds and 0 otherwise. If c = 1+(q− 1/2){π− I(q ⩽
+1/2)}/{π(1 − π)}, then 0 ⩽ ˜y ⩽ ˜m.
+The proof of Theorem 3 is given in the Supplementary Material, which also provides pseudo-
+code and R code for the algorithmJeffreysMPL that implements repeated maximum likelihood
+ﬁts to maximize l† (β; a) for any supplied a and link function G(η).
+The variance-covariance matrix of the penalized likelihood estimator can be obtained as
+(RTR)− 1, where R is the upper triangular matrix from the QR decomposition of W(β)1/2X
+at the ﬁnal iteration of the procedure. That decomposition is a by-product of the algorithm
+JeffreysMPL.
+If, in addition to X having of full rank, we require thatX has a column of ones and thatg(η)is a
+unimodal density function, it can be shown that if the starting value of the parameter vectorβ in the
+repeated maximum likelihood ﬁts procedure has ﬁnite components, then the values of β computed
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 9]
+Jeffreys-prior penalty 79
+in step (ii) will also have ﬁnite components at all repetitions. This is because, with a column of
+ones in the full-rank X , the adjusted responses and totals in ( 6) satisfy 0 < ˜y < ˜m, and hence
+maximum likelihood estimates with inﬁnite components are not possible. The strict inequalities
+0 < ˜y < ˜m hold because, under the aforementioned conditions, w
+i(β) > 0 and X TW(β)X is
+positive deﬁnite for β with ﬁnite components. Then, Theorem 4 in Magnus & Neudecker (1999,
+Ch. 11) on bounds for the Rayleigh quotient gives the inequality hi(β) ⩾ wi(β)xT
+i xiλ(β) > 0
+(1, ... , n), where λ(β) >0 is the minimum eigenvalue of (X TW(β)X)− 1.
+The repeated maximum likelihood ﬁts procedure has the correct ﬁxed point even if in step (ii)
+full maximum likelihood estimation is replaced by a procedure that merely increases the log-
+likelihood, such as a single step of iteratively reweighted least squares for the adjusted responses
+and totals. Firth (1992) suggested such a scheme for logistic regressions with a = 1/2. There is
+currently no conclusive result on whether full maximum likelihood iteration with a reasonable
+stopping criterion is better or worse than, for example, one step of iteratively reweighted least
+squares in terms of computational efﬁciency. A satisfactory starting value for the above procedure
+is the maximum likelihood estimate of β, after adding a small positive constant and twice that
+constant to the actual binomial responses and totals, respectively.
+Finally, for a = 1/2, repeated maximum likelihood ﬁts can be used to compute the posterior
+normalizing constant when implementing the importance sampling algorithm inChen et al.(2008,
+§ 5) for posterior sampling of the parameters of Bayesian binomial-response generalized linear
+models with the Jeffreys prior.
+The Supplementary Material illustrates the evolution of adjusted responses and totals through
+the iterations of JeffreysMPL, for the ﬁrst six games of the Philadelphia 76ers in Example 1.
+We also compute the reduced-bias estimates for a logistic regression model withn = 1000 binary
+responses and p = 200 covariates, as considered in Fig. 2(b) of the supplementary information
+appendix of Sur & Candès (2019), and show that such computation takes only a couple of seconds
+on a standard laptop computer.
+5. Illustrations
+Figure 2(a) shows ¯ω(z) and z
+0 for the various link functions. The plot for the log-log link is the
+reﬂection of the one for the complementary log-log link in z = 0.5. As is apparent, ¯ω(z) is concave
+for the logit, probit and complementary log-log links, but not for the cauchit link. Figure 2(b)
+visualizes the shrinkage induced by the penalization by Jeffreys’ invariant prior for the logit,
+probit, complementary log-log and cauchit links. For each link function, we obtain all possible
+ﬁtted probabilities from a complete enumeration of a saturated model with π
+i = G(β1 + β2xi)
+(i = 1, 2), where x1 =− 1, x2 = 1, m1 = 9 and m2 = 9. The grey curves are the contours
+of log |X T ¯W(π)X|. An arrow is drawn from each pair of estimated probabilities based on the
+maximum likelihood estimates to the corresponding pair of estimated probabilities based on the
+penalized likelihood estimates, to demonstrate the induced shrinkage towards (z
+0, z0)T according
+to the results in § 3. Despite the fact that ¯ω(z) is not concave for the cauchit link, the ﬁtted
+probabilities still shrink towards (z0, z0)T = (1/2, 1/2)T. The plots in Fig. 2 are invariant with
+respect to the particular choices of x1 and x2, as long as x1 |= x2. For either maximum likelihood
+or maximum penalized likelihood, if the estimates of β1 and β2 are b1 and b2 for x1 =− 1 and
+x2 = 1, then the new estimates for any x1, x2 ∈ R with x1 |= x2 are b1 − b2(x1 + x2)/(x2 − x1)
+and 2b2/(x2 − x1), respectively. Hence, the ﬁtted probabilities will be identical.
+Another illustration of ﬁniteness and shrinkage follows from Example 1. Figure 3 shows
+the paths of the team ability contrasts as a varies from 0 to 5. The estimates are obtained using
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 10]
+80 I. Kosmidis and D. Firth
+Portland T rail Blazers Sacramento Kings San Antonio Spurs T oronto Raptors Utah Jazz Washington Wizards
+New Orleans Pelicans New Y ork Knicks Oklahoma City Thunder Orlando Magic Philadelphia 76ers Phoenix Suns
+Los Angeles Clippers Los Angeles Lakers Memphis Grizzlies Miami Heat Milwaukee Bucks Minnesota Timberwolves
+Dallas Mavericks Denver Nuggets Detroit Pistons Golden State Warriors Houston Rockets Indiana Pacers
+Atlanta Hawks Boston Celtics Brooklyn Nets Charlotte Hornets Chicago Bulls Cleveland Cavaliers
+012345 012345 012345 012345 012345 012345
+−7.5
+−5.0
+−2.5
+0.0
+−7.5
+−5.0
+−2.5
+0.0
+−7.5
+−5.0
+−2.5
+0.0
+−7.5
+−5.0
+−2.5
+0.0
+−7.5
+−5.0
+−2.5
+0.0
+a
+Ability contrast
+Fig. 3. Paths of the estimated ability contrasts from the maximization of ( 4) for a ∈ (0, 5]; in each plot the dashed
+horizontal line is at zero and the dotted vertical line is at a = 0.5, identifying the reduced-bias estimates on the paths.
+JeffreysMPL, starting at the maximum likelihood estimates of the ability contrasts after adding
+0.01 and 0.02 to the actual responses and totals, respectively. In accordance with the theoretical
+results in § 2.1, the estimated ability contrasts are ﬁnite for every a > 0; and, as expected from
+the results in § 2.2, shrinkage towards equiprobability becomes stronger as a increases.
+6. Concluding remarks
+A recent stream of literature investigates the use of the coefﬁcient path deﬁned by maximization
+of the penalized loglikelihood ( 4) for the prediction of rare events through logistic regression.
+Elgmati et al. (2015) studied that path for a ∈ (0, 1/2] and proposed taking a to be around 0.1
+in order to handle issues related to inﬁnite estimates, and they obtained predicted probabilities
+that are less biased than those based on the reduced-bias estimates ( a = 0.5). More recently,
+Puhr et al. (2017) proposed two new methods for the prediction of rare events, and performed
+extensive simulation studies to compare the performance of their methods and various others,
+including maximum penalized likelihood with a = 0.1 and a = 0.5.
+The coefﬁcient path can be computed efﬁciently by using repeated maximum likelihood ﬁts
+with warm starts. For a grid of values a
+1 < ··· < ak with aj > 0 (j = 1, ... , k), the algorithm
+JeffreysMPL is ﬁrst applied with a = a1 to obtain the maximum penalized likelihood estimates
+β(a1); then JeffreysMPL is applied again with a = a2 and starting values b = β(a1), and so
+on, until β(ak) has been computed. This process supplies JeffreysMPL with the best available
+starting values as the algorithm walks through the grid. The ﬁniteness of the components of
+β
+(a1), ... , β(ak) and the shrinkage properties described in § 2.2 and § 3 contribute to the stability
+of the overall process. The properties of the coefﬁcient path for inference and prediction from
+binomial regression models, and the development of general procedures for selecting a, are
+interesting open research topics.
+Kenne Pagui et al. (2017) developed a method that can reduce the median bias of the com-
+ponents of the maximum likelihood estimator. According to their results, median bias reduction
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 11]
+Jeffreys-prior penalty 81
+for one-parameter logistic regression models is equivalent to maximizing ( 4) with a = 1/6.
+Hence, the results in § 2 also establish the ﬁniteness of the estimate from median bias reduction
+in one-parameter logistic regression, and imply that the induced shrinkage to equiprobability will
+be less strong than penalization by the Jeffreys prior. Kenne Pagui et al. (2017) observed such
+properties in numerical studies for p > 1. When p > 1, though, median bias reduction is no
+longer equivalent to maximizing ( 4) with a = 1/6.
+Acknowledgement
+The authors are afﬁliated with The Alan Turing Institute and were supported by the U.K.
+Engineering and Physical Sciences Research Council, EPSRC, under grant EP/N510129/1. Firth
+was also partly supported by the EPSRC programme ‘Intractable Likelihood: New Challenges
+from Modern Applications’ under grant EP/K014463/1.
+Supplementary material
+Supplementary material available at Biometrika online includes proofs of Theorems 1–3 and
+Corollary 1, the algorithm JeffreysMPL, additional numerical results, and R code and data to
+reproduce all of the numerical work and graphs.
+References
+Agresti, A. (2013). Categorical Data Analysis. Hoboken, New Jersey: John Wiley & Sons, 3rd ed.
+Albert, A. & Anderson, J. (1984). On the existence of maximum likelihood estimates in logistic regression models.
+Biometrika 71, 1–10.
+Bradley, R. A. & Terry, M. E. (1952). Rank analysis of incomplete block designs: I. The method of paired
+comparisons. Biometrika 39, 324–45.
+Bull, S. B., Lewinger, J. B. & Lee, S. S. F. (2007). Conﬁdence intervals for multinomial logistic regression in sparse
+data. Statist. Med. 26, 903–18.
+Chen, M.-H., Ibrahim, J. G. & Kim, S. (2008). Properties and implementation of Jeffreys’s prior in binomial regression
+models. J. Am. Statist. Assoc. 103, 1659–64.
+Cordeiro, G. M. & McCullagh, P. (1991). Bias correction in generalized linear models. J. R. Statist. Soc. B 53,
+629–43.
+Elgmati, E., Fiaccone, R. L., Henderson, R. & Matthews, J. N. S. (2015). Penalised logistic regression and dynamic
+prediction for discrete-time recurrent event data. Lifetime Data Anal. 21, 542–60.
+Firth, D. (1992). Bias reduction, the Jeffreys prior and GLIM. In Advances in GLIM and Statistical Modelling:
+Proceedings of the GLIM 92 Conference, Munich, L. Fahrmeir, B. Francis, R. Gilchrist & G. Tutz, eds. New Y ork:
+Springer, pp. 91–100.
+Firth, D. (1993). Bias reduction of maximum likelihood estimates. Biometrika 80, 27–38.
+Green, P. J. (1984). Iteratively reweighted least squares for maximum likelihood estimation, and some robust and
+resistant alternatives. J. R. Statist. Soc. B 46, 149–92.
+Heinze, G. & Ploner, M. (2018). logistf: Firth’ s Bias-Reduced Logistic Regression . R package version 1.23,
+https://CRAN.R-project.org/package=logistf.
+Heinze, G. & Schemper, M. (2002). A solution to the problem of separation in logistic regression. Statist. Med. 21,
+2409–19.
+Hosmer, D. W., Lemeshow, S. & Sturdivant, R. X. (2013). Applied Logistic Regression. Hoboken, New Jersey: John
+Wiley & Sons, 3rd ed.
+Ibrahim, J. G. & Laud, P. W. (1991). On Bayesian analysis of generalized linear models using Jeffreys’s prior. J. Am.
+Statist. Assoc. 86, 981–6.
+Kenne Pagui, E. C. , Salvan, A. & Sartori, N. (2017). Median bias reduction of maximum likelihood estimates.
+Biometrika 104, 923–38.
+Kosmidis, I. (2014). Improved estimation in cumulative link models. J. R. Statist. Soc. B 76, 169–96.
+Kosmidis, I. (2020). brglm2: Bias Reduction in Generalized Linear Models. R package version 0.6.2, https://CRAN.R-
+project.org/package=brglm2.
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+
+
+[PDF page 12]
+82 I. Kosmidis and D. Firth
+Kosmidis, I. & Firth, D. (2010). A generic algorithm for reducing bias in parametric estimation. Electron. J. Statist.
+4, 1097–112.
+Lunardon, N. (2018). On bias reduction and incidental parameters. Biometrika 105, 233–8.
+Magnus, J. R. & Neudecker, H. (1999). Matrix Differential Calculus with Applications in Statistics and Econometrics.
+Chichester: Wiley.
+Mansournia, M. A., Geroldinger, A., Greenland, S. & Heinze, G. (2018). Separation in logistic regression: Causes,
+consequences, and control. Am. J. Epidemiol. 187, 864–70.
+Pratt, J. W. (1981). Concavity of the log likelihood. J. Am. Statist. Assoc. 76, 103–6.
+Puhr, R. , Heinze, G. , Nold, M. , Lusa, L. & Geroldinger, A. (2017). Firth’s logistic regression with rare events:
+Accurate effect estimates and predictions? Statist. Med. 36, 2302–17.
+R Development Core Team (2021). R: A Language and Environment for Statistical Computing . R Foundation for
+Statistical Computing, Vienna, Austria. ISBN 3-900051-07-0. http://www.R-project.org.
+Sartori, N. (2003). Modiﬁed proﬁle likelihoods in models with stratum nuisance parameters. Biometrika 90, 533–49.
+Silvapulle, M. J. (1981). On the existence of maximum likelihood estimators for the binomial response models. J. R.
+Statist. Soc. B 43, 310–3.
+Sur, P. & Candès, E. J. (2019). A modern maximum-likelihood theory for high-dimensional logistic regression. Proc.
+Nat. Acad. Sci. 116, 14516–25.
+Zorn, C. (2005). A solution to separation in binary response models. Polit. Anal. 13, 157–70.
+[Received on 14 August 2019. Editorial decision on 20 March 2020]
+Downloaded from https://academic.oup.com/biomet/article/108/1/71/5880219 by guest on 08 March 2021
+

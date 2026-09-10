@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "firth-biometrika-2021-public-source-20260910-v1",
+  "source_horizon": "2026-09-10",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "relative_path": "source_provenance.md",
+      "document_id": "firth-provenance",
+      "title": "Public source provenance",
+      "source_kind": "source_metadata",
+      "url": "https://wrap.warwick.ac.uk/135327/13/WRAP-Jeffreys-prior-penalty-finiteness-shrinkage-binomial-response-generalized-linear-model-Kosmidis-2021.pdf",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "61443876c949c73947e0681afe76518836c7e5c96560aaa9334294adaa93c401"
+    },
+    {
+      "relative_path": "paper.txt",
+      "document_id": "firth-paper",
+      "title": "Published Biometrika paper",
+      "source_kind": "paper",
+      "url": "https://wrap.warwick.ac.uk/135327/13/WRAP-Jeffreys-prior-penalty-finiteness-shrinkage-binomial-response-generalized-linear-model-Kosmidis-2021.pdf",
+      "license": "CC BY 4.0",
+      "model_visible": true,
+      "sha256": "549061e4a4dee2cdd5db74751b880cf0111ce57c5f6d7bf3fe30dcd54cc92adc"
+    },
+    {
+      "relative_path": "supplement.txt",
+      "document_id": "firth-supplement",
+      "title": "Author proof and algorithm supplement",
+      "source_kind": "paper",
+      "url": "https://www.ikosmidis.com/files/finiteness-jeffreys-supplementary-v1.4.zip",
+      "license": "author supplementary material",
+      "model_visible": true,
+      "sha256": "03b0cb6560269311f3d309469066cf977c31ad8389f3407f750be12aec0620a1"
+    },
+    {
+      "relative_path": "jeffreys-MPL.R",
+      "document_id": "firth-author-algorithm",
+      "title": "Unchanged author JeffreysMPL function",
+      "source_kind": "code",
+      "url": "https://www.ikosmidis.com/files/finiteness-jeffreys-supplementary-v1.4.zip",
+      "license": "GPL-2-or-later",
+      "model_visible": true,
+      "sha256": "1785de5338e66a992c35fdfe10e6424d61953a97c176c894086278d218b6648f"
+    },
+    {
+      "relative_path": "sur-candes-2019.R",
+      "document_id": "firth-author-experiment",
+      "title": "Unchanged author coefficient experiment",
+      "source_kind": "code",
+      "url": "https://www.ikosmidis.com/files/finiteness-jeffreys-supplementary-v1.4.zip",
+      "license": "GPL-2-or-later",
+      "model_visible": true,
+      "sha256": "1f27a64aa00bae2c4cdae2dad45ca3547c3a89d00e4dd85c346904e7f44e35c3"
+    },
+    {
+      "relative_path": "README",
+      "document_id": "firth-author-readme",
+      "title": "Unchanged supplement README",
+      "source_kind": "source_metadata",
+      "url": "https://www.ikosmidis.com/files/finiteness-jeffreys-supplementary-v1.4.zip",
+      "license": "author supplementary material",
+      "model_visible": true,
+      "sha256": "e246b580d486403b4f5fc5ef7b859ccfd87164e7de89028ee4491b8daa2c79b3"
+    },
+    {
+      "relative_path": "reproduce_coefficients.R",
+      "document_id": "firth-coefficient-launcher",
+      "title": "Operator launcher for one author coefficient experiment",
+      "source_kind": "code",
+      "url": "",
+      "license": "project source; calls unchanged GPL author code",
+      "model_visible": true,
+      "sha256": "fa7c2c49dfabfa3e807a77386bdc3f63d02715a4517da11f20153345be678d3f"
+    },
+    {
+      "relative_path": "environment_probe.R",
+      "document_id": "firth-environment-probe",
+      "title": "R environment identity probe",
+      "source_kind": "environment_probe",
+      "url": "",
+      "license": "project source",
+      "model_visible": true,
+      "sha256": "422add92bfaa58adbbdbcb377979c888513aec9f0033eabe8452b190395dcdd2"
+    },
+    {
+      "relative_path": "environment_lock.json",
+      "document_id": "firth-environment-lock",
+      "title": "Pinned source execution environment",
+      "source_kind": "environment_lock",
+      "url": "",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "0902c2c5abb490c18fc01ef3013e4c02e6806c259bb48c0948e218aafbc71b5f"
+    }
+  ]
+}

@@ -1,0 +1,654 @@
+[PDF page 1]
+Supplementary material document for
+Jeﬀreys-prior penalty, ﬁniteness and shrinkage in
+binomial-response generalized linear models
+Ioannis Kosmidis
+ioannis.kosmidis@warwick.ac.uk
+and
+David Firth
+d.firth@warwick.ac.uk
+Department of Statistics, University of Warwick
+Coventry CV4 7AL, UK
+and
+The Alan Turing Institute
+British Library, London NW1 2DB, UK
+March 23, 2020
+S1 Supplementary material
+All labels for the sections, equations, the table, the algorithm and the ﬁgure in the current
+document have been preﬁxed by “S” (e.g. Section S2, Table S1, Algorithm S1, etc).
+The supplementary material for “Jeﬀreys-prior penalty, ﬁniteness and shrinkage in binomial-
+response generalized linear models” provides i) the proofs of Theorem 1, Corollary 1, Theorem 2,
+Theorem 3 in the main text (see Section S2); ii) the pseudo-code for AlgorithmJeffreysMPL (see
+Algorithm S1), which implements the repeated maximum-likelihood ﬁts procedure of Section 4
+in the main text to maximize the penalized log-likelihood l†(β;a) in (4) for any supplied a
+and link function G(η); iii) illustrations using an R implementation of Algorithm S1; and iv) R
+scripts to reproduce all numerical results and ﬁgures in the main text and the current document.
+The current supplementary material document and the R scripts are available for download at
+http://www.ikosmidis.com/files/finiteness-jeffreys-supplementary-v1.3.zip.
+In particular, the script nba-1415-case-study.R reproduces the numerical results in Exam-
+ple 1, Figure 1, and Figure 3 in the manuscript, and in Table S1 in the current document; the
+ﬁles nba-1415-functions.R and nba-1415-regular-season.csv provide the R functions and
+the data, respectively, for the case study in the main text; the script jeffreys-shrinkage.R
+reproduces Figure 2 in the main text; the ﬁle jeffreys-MPL.R provides an R implementation
+of Algorithm JeffreysMPL, and the ﬁle sur-candes-2019.R computes the timings for Algo-
+rithm JeffreysMPL that are reported in Section S3.3, and reproduces Figure 2b on page 11 of
+the supplementary information appendix of Sur and Cand` es (2019) (Figure S1 here).
+All code has been tested and run in R version 3.6.3 (R Core Team, 2020) using the R packages
+brglm2 version 0.6.2 (Kosmidis, 2020a), enrichwith version 0.3.1 (Kosmidis, 2020b), ggplot2
+version 3.2.1 (Wickham, 2016), qvcalc version 1.0.2 (Firth, 2020), rbenchmark version 1.0.0
+(Kusnierczyk, 2012).
+1
+
+[PDF page 2]
+S2 Proofs of Theorem 1, Corollary 1, Theorem 2, Theorem 3
+S2.1 Proof of Theorem 1
+SinceX has full rank, |X⊤W (β)X| is not trivially zero for all β ∈ ℜp. Let R = {1,...,n } and
+R(1) = {i : |ηi (β(r)) | → ∞ as r → ∞;i ∈R}
+R(2) = {i :ηi (β(r)) →ci, |ci|< ∞ as r → ∞;i ∈R} .
+Then R =R(1) ∪R(2) and R(1) ∩R(2) = ∅, where ∅ is the empty set.
+We ﬁrst consider the case where R(1) and R(2) are non-empty. Then, X and W (β) can be
+partitioned as
+X =
+[X(1)
+X(2)
+]
+and W (β) =
+[W(1)(β) 0
+0 W(2)(β)
+]
+,
+where X(l) has rows xi with i ∈ R(l) and W(l)(β) = diag
+{
+miω (ηi(β)),i ∈R(l)
+}
+(l = 1, 2). We
+can then write
+X⊤W (β(r))X =X⊤
+(1)W(1)(β(r))X(1) +X⊤
+(2)W(2)(β(r))X(2). (S1)
+The limit of the ﬁrst term in the right hand side of (S1), as r → ∞, is zero because the limit of
+ω(η) =eη/(1 +eη)2, as η grows to inﬁnity in absolute value, is zero. For the second term, X(2)
+is such that X(2)β(r) →c as r → ∞ wherec has all of its components ﬁnite. There must exist
+vectorsa ∈ ℜp andb ∈ ℜp with ﬁnite components such that a +br →β0. So, X(2)a +X(2)br →c
+as r → ∞ which is possible if and only if X(2)b = 0. Hence X(2) has rank smaller than p and
+|X⊤
+(2)W(2)(β(r))X(2)| = 0 for all r. The result follows because |X⊤
+(2)W(2)(β(r))X(2)| = 0 for all r
+and |X⊤
+(1)W(1)(β(r))X(1)| → 0 as r → ∞.
+BecauseX is of full rank and X(2) has rank smaller than p, R(1) cannot be empty. Hence,
+we only need to also examine the case that R(2) is empty and R(1) is not. In this case the same
+arguments as above give |X⊤W (β(r))X| = |X⊤
+(1)W(1)(β(r))X(1)| → 0 as r → ∞.
+S2.2 Proof of Corollary 1
+The binomial log-likelihood l(β) in (2) is bounded above by zero. Hence, according to Theorem 1
+and expression (3), ˜l(β(r)) → −∞ as β(r) →β0. Such a setting for β is always dominated, by
+a choice b with ﬁnite components for which ˜l(b) takes a ﬁnite value. Hence, the maximizer of
+˜l(β) must have ﬁnite components.
+S2.3 Proof of Theorem 2
+The sum of m independent Bernoulli distributions with probability π is binomial with index m
+and probability π. For this reason and without any loss of generality, the proof proceeds with
+mi = 1 so that wi(β) =ω(ηi(β)) (i = 1,...,n ).
+For proving i) decomposeX asX =QR, whereQ is an×p matrix with orthonormal columns
+(Q⊤Q = Ip where Ip is the p ×p identity matrix) and R is a p ×p non-singular matrix. This
+decomposition is always possible because X has full rank by assumption. Then |X⊤W (β)X| =
+|Q⊤W (β)Q||R|2. The functions |X⊤W (β)X| and |Q⊤W (β)Q| will have stationary points of the
+same kind and at the same values of β, because |R|2> 0 does not depend on β.
+Denote the ordered set of quadratic weights as w(1)(β),...,w (n)(β) with w(1)(β) ≤ ... ≤
+w(n)(β). The Poincar´ e separation theorem (see, for example Magnus and Neudecker, 1999,
+Chapter 11, Theorem 10 for statement) and the positive deﬁniteness of W (β) for β ∈ ℜp imply
+that p∏
+t=1
+w(t)(β) ≤ |Q⊤W (β)Q| ≤
+p∏
+t=1
+w(n−p+t)(β). (S2)
+2
+
+[PDF page 3]
+Note that 0 ≤ ω(η) ≤ 1/4, with the upper bound achieved when η = 0 . It follows that∏p
+t=1w(t)(β) ≤ 1/4p and ∏p
+t=1w(n−t+t)(β) ≤ 1/4p and that, at β = 0 inequalities (S2) be-
+come 1/4p ≤ |Q⊤W (0)Q| ≤ 1/4p. The proof of i) concludes by noting that |Q⊤W (0)Q| = 1/4p
+which is the maximum value that |Q⊤W (β)Q| can take.
+For proving ii), note that ¯ω(z) = z(1 −z) is concave. Hence, for θ ∈ (0, 1), θ∗ = 1 −θ and
+any pair of n-vectors of probabilities π and ρ ¯ω(θπi +θ∗ρi) ≥ ¯ω(θπi) + ¯ω(θ∗ρi) (i = 1,...,n ).
+Lemma 1 can then be used to show that
+⏐⏐⏐X⊤ ¯W (θπ +θ∗ρ)X
+⏐⏐⏐ ≥
+⏐⏐⏐θX⊤ ¯W (π)X +θ∗X⊤ ¯W (ρ)X
+⏐⏐⏐ ,
+The result in ii) follows from Magnus and Neudecker (1999, Chapter 11,Theorem 25) which can
+be used to show that
+⏐⏐⏐θX⊤ ¯W (π)X +θ∗X⊤ ¯W (ρ)X
+⏐⏐⏐ ≥
+⏐⏐⏐X⊤ ¯W (π)X
+⏐⏐⏐
+θ⏐⏐⏐X⊤ ¯W (ρ)X
+⏐⏐⏐
+θ∗
+.
+Lemma 1. If A and B are both diagonal n ×n matrices with non-negative diagonal elements
+{ar} and {br}, respectively , and ar ≥br, for every r ∈ {1,...,n }, then, if X is a n ×p matrix,
+|X⊤AX| ≥ |X⊤BX | .
+Proof. SinceA ≥B, elementwise,A =B+C, whereC is a diagonal matrix with non-negative en-
+tries. Furthermore, X⊤AX,X⊤BX andX⊤CX are positive semideﬁnite, by the non-negativity
+of the diagonal elements of A, B and C, respectively. Hence, by Magnus and Neudecker (1999,
+Chapter 11, Theorem 9),λt
+(
+X⊤AX
+)
+≥λt
+(
+X⊤BX
+)
+(t = 1,...,p ), whereλt(D) denotes thetth
+eigenvalue of the matrix D. Since the determinant of a matrix is the product of its eigenvalues
+the result follows.
+S2.4 Proof of Theorem 3
+Forc as in Theorem 3, the adjusted responses and totals in (6) have the form
+˜y =y + 2ahπ
+{
+1 + (q − 1/2)1 −I(q ≤ 1/2)
+π(1 −π)
+}
+, (S3)
+˜m =m + 2ah
+{
+1 + (q − 1/2)π −I(q ≤ 1/2)
+π(1 −π)
+}
+.
+The result follows for any value of q, because 0 ≤h ≤ 1 and 0 ≤π ≤ 1.
+S3 Algorithm JeffreysMPL
+S3.1 Details
+Algorithm JeffreysMPL (see Algorithm S1) implements the repeated maximum-likelihood ﬁts
+procedure of Section 4 in the main text, to maximize the penalized log-likelihood l†(β;a) in (4)
+for any supplied a and link function G(η).
+A satisfactory starting value b for JeffreysMPL is the maximum likelihood estimate of β,
+after adding a small positive constant and twice that constant to the actual binomial responses
+and totals, respectively.
+Step 22 of JeffreysMPL can be carried out using readily available maximum-likelihood im-
+plementations for binomial-response generalized linear models, such as the glm function in R
+(R Core Team, 2020) and the various implementations in the Python modules statsmodels
+(Seabold and Perktold, 2010) and scikit-learn (Pedregosa et al., 2011).
+3
+
+[PDF page 4]
+Algorithm S1 Repeated maximum-likelihood ﬁts for the maximization of l†(β;a) in expres-
+sion (4). The inputs y, m, X, a, G, g, gdash are y = (y1,...,y n)⊤, m = (m1,...,m n)⊤, X, a in
+expression (4) of the main text, G(η), g(η) and g′(η), respectively, and ||.|| is the L2 norm.
+The starting vector for β is b and ϵ is a small positive constant. ML is any maximum likelihood
+procedure.
+1: procedure JeffreysMPL(y, m, X, a, G, g, gdash, ML, b, ϵ)
+2: k ← 0
+3: n ← numberofrows(X) ⊿ Number of observations; must equal length(y) and length(m)
+4: p ← numberofcolumns(X) ⊿ Number of parameters; must equal length(b)
+5: eta, pi, d, dd ← vector(n)
+6: for i ∈ {1, 2,..., n} do
+7: xi ← (X[i, 1],..., X[i, p])
+8: eta[i] ← dotproduct(xi, b) ⊿ dot product of xi and b
+9: pi[i] ← G(eta[i])
+10: d[i] ← g(eta[i])
+11: dd[i] ← g′(eta[i])
+12: end for
+13: w ← d ∗ d/pi/(1 − pi) ⊿ elementwise operations
+14: q ← dd/w + pi ⊿ elementwise operations
+15: j ← I(q ≤ 1/2) ⊿ elementwise inequality and indicator function
+16: V ← diag(
+√
+m[1] ∗ w[1],...,
+√
+m[n] ∗ w[n]) · X ⊿ · stands for matrix product
+17: Q ← orthogonal matrix from the QR decomposition of V
+18: h ← rowsums(Q ∗ Q) ⊿ sum the elements in each row of the elementwise product Q ∗ Q
+19: y adj ← y + 2 ∗ a ∗ h ∗ pi ∗ (1 + (q − 1/2) ∗ (1 − j)/pi/(1 − pi))⊿ elementwise operations
+20: m adj ← m + 2 ∗ a ∗ h ∗ (1 + (q − 1/2) ∗ (pi − j)/pi/(1 − pi)) ⊿ elementwise operations
+21: bp ← b
+22: b ← ML(y adj, m adj, X, G) ⊿ Maximum likelihood ﬁt on adjusted data with link G
+23: if ||bp − b||<ϵ then
+24: return b
+25: else
+26: k ← k + 1
+27: Go to 6
+28: end if
+29: end procedure
+The estimated variance-covariance matrix of the penalized likelihood estimator can be ob-
+tained as ( R⊤R)−1, where R is the upper triangular matrix from the QR decomposition of
+W (β)1/2X at the ﬁnal iteration of the procedure. That decomposition is a by-product of step 17
+of JeffreysMPL.
+S3.2 Illustration: evolution of adjusted responses and totals
+Table S1 shows the values of the adjusted responses and totals for the ﬁrst 6 games of Philadel-
+phia 76ers in Example 1 of the main text, at the ﬁrst 6 iterations of Algorithm JeffreysMPL,
+when computing the reduced-bias ﬁt shown in Figure 1 (see script nba-1415-case-study.R
+for code to reproduce Table S1). The starting values (iteration 0) are the maximum likelihood
+estimates of the ability contrasts after adding 0 .01 and 0.02 to the actual responses and totals,
+respectively.
+4
+
+[PDF page 5]
+Table S1: The adjusted responses (top) and totals (bottom) for the ﬁrst 6 games of Philadelphia
+76ers (P76) at the ﬁrst 6 iterations of Algorithm S1, when computing the reduced-bias ﬁt in
+Figure 1. Figures are shown in 3 decimal digits. The home team is mentioned ﬁrst in column
+names. The actual response is 1 if the home team wins and 0 otherwise. The acronyms for the
+opponents are IP (Indiana Pacers), MB (Milwaukee Bucks), MH (Miami Heat), HR (Houston
+Rockets), OR (Orlando Magic) and CB (Chicago Bulls). The starting values are the maximum
+likelihood estimates of the ability contrasts after adding 0 .01 and 0.02 to the actual responses
+and totals (iteration 0).
+Iteration P76 vs IP P76 vs MB MH vs P76 HR vs P76 OM vs P76 CB cs P76
+Adjusted responses
+0 0.010 0.010 1.010 1.010 1.010 1.010
+1 0.039 0.036 1.045 1.012 1.104 1.039
+2 0.045 0.042 1.054 1.017 1.110 1.048
+3 0.046 0.043 1.055 1.017 1.111 1.049
+4 0.046 0.043 1.055 1.018 1.111 1.049
+5 0.046 0.043 1.055 1.018 1.111 1.049
+6 0.046 0.043 1.055 1.018 1.111 1.049
+Adjusted totals
+0 1.020 1.020 1.020 1.020 1.020 1.020
+1 1.114 1.105 1.067 1.018 1.158 1.059
+2 1.128 1.120 1.081 1.025 1.170 1.073
+3 1.130 1.122 1.083 1.026 1.171 1.075
+4 1.131 1.122 1.084 1.026 1.172 1.075
+5 1.131 1.122 1.084 1.026 1.172 1.075
+6 1.131 1.122 1.084 1.026 1.172 1.075
+S3.3 Illustration: Algorithm JeffreysMPL for the high-dimensional logistic
+regression setting in Sur and Cand` es (2019)
+The R implementation of JeffreysMPL in the supplementary material (see scriptJeffreys-MPL.R
+for code) is used here to compute the reduced-bias estimates for a logistic regression model with
+n = 1000 binary responses and p = 200 covariates, as considered in Figure 2(b) of the sup-
+plementary information appendix of Sur and Cand` es (2019) (see script sur-candes-2019.R for
+reproducible code).
+In particular, we construct a 1000 × 200 model matrix X by simulating 200 000 independent
+random variables from a normal distribution with mean 0 and variance 10−3. Then, we simulate
+1000 Bernoulli random variables from a logistic regression model with linear predictors Xβ,
+where β1 =... =β25 = 10, β26 =... =β50 = −10, and β50 =... =β200 = 0.
+The R implementation of JeffreysMPL relies on a full maximum-likelihood iteration for
+step 22 using the R function glm.fit, and it takes approximately 2.73 seconds to converge to
+the reduced-bias estimates of the 200 parameters in 4 decimal places on a MacBook Pro laptop
+with 3.5GHz processor and 16GB of memory. The resulting maximum penalized likelihood
+estimates are shown in Figure S1 along with the corresponding maximum likelihood estimates.
+5
+
+[PDF page 6]
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●●
+●
+●
+●
+●
+●●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●●
+●●
+●
+●
+●●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●
+●
+●●
+●●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●
+●
+0 50 100 150 200
+−30 −20 −10 0 10 20 30
+parameter
+estimate
+Maximum likelihood
+●●●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●
+●
+●●
+●
+●
+●
+●●
+●
+●
+●●
+●
+●
+●
+●
+●●
+●
+●
+●●●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●●
+●
+●
+●
+●
+●●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●●
+●●
+●
+●
+●●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●
+●
+●●
+●●
+●
+●●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●
+●
+●
+●
+●
+●
+●
+●
+●●●
+●
+●
+●
+0 50 100 150 200
+−30 −20 −10 0 10 20 30
+parameter
+estimate
+JeffreysMPL (a = 1/2; logistic link)
+Figure S1: Maximum likelihood and reduced-bias estimates for the parameters of a logistic
+regression model on data simulated as in the supplementary information appendix of Sur and
+Cand` es (2019). In particular, we construct a 1000× 200 model matrix X by simulating 200 000
+independent random variables from a normal distribution with mean 0 and variance 10−3. Then,
+we simulate 1000 Bernoulli random variables from a logistic regression model with linear pre-
+dictors Xβ, where β1 =... =β25 = 10, β26 =... =β50 = −10, and β50 =... =β200 = 0. The
+maximum likelihood estimates are computed using the glm R function and the reduced-bias
+estimates are computed using Algorithm JeffreysMPL. The horizontal segments indicate the
+parameter values used for simulating the data.
+References
+Firth, D. (2020). qvcalc: Quasi Variances for Factor Eﬀects in Statistical Models . R package
+version 1.0.2.
+Kosmidis, I. (2020a). brglm2: Bias Reduction in Generalized Linear Models . R package version
+0.6.2.
+Kosmidis, I. (2020b). enrichwith: Methods to enrich list-like R objects with extra components .
+R package version 0.3.1.
+Kusnierczyk, W. (2012). rbenchmark: Benchmarking routine for R . R package version 1.0.0.
+Magnus, J. R. and H. Neudecker (1999). Matrix Diﬀerential Calculus with Applications in
+Statistics and Econometrics . Chichester: Wiley.
+Pedregosa, F., G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel,
+P. Prettenhofer, R. Weiss, V. Dubourg, J. Vanderplas, A. Passos, D. Cournapeau, M. Brucher,
+M. Perrot, and E. Duchesnay (2011). Scikit-learn: Machine learning in Python. Journal of
+Machine Learning Research 12, 2825–2830.
+R Core Team (2020). R: A Language and Environment for Statistical Computing . Vienna,
+Austria: R Foundation for Statistical Computing.
+6
+
+[PDF page 7]
+Seabold, S. and J. Perktold (2010). Statsmodels: Econometric and statistical modeling with
+Python. In S. van der Walt and J. Millman (Eds.), Proceedings of the 9th Python in Science
+Conference, pp. 57–61.
+Sur, P. and E. J. Cand` es (2019). A modern maximum-likelihood theory for high-dimensional
+logistic regression. Proceedings of the National Academy of Sciences 116 (29), 14516–14525.
+Wickham, H. (2016). ggplot2: Elegant Graphics for Data Analysis . Springer-Verlag New York.
+7

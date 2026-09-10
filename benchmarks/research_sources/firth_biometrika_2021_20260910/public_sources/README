@@ -1,0 +1,23 @@
+The current directory includes the supplementary material document, and R scripts that can be used to reproduce all numerical results and figures in the manuscript
+
+Kosmidis, I and Firth, D (2019). Jeffreys-prior penalty, finiteness and shrinkage in binomial-response generalized linear models.
+
+
++ The document `ffiniteness_jeffreys_supplementary_document.pdf` provides the proofs of Theorem 1, Corollary 1, Theorem 2, Theorem 3 in the main text (see Section S2); ii) the pseudo-code for Algorithm JeffreysMPL (see Algorithm S1), which implements the repeated maximum-likelihood fits procedure of Section 4 in the main text to optimize the maximum penalized likelihood (4) for any supplied a and link function; iii) illustrations using an R implementation of Algorithm JeffreysMPL.
+
++ The script `nba-1415-case-study.R` reproduces the numerical results in Example 1.1, Figure 1, and Figure 3 in the manuscript, and Table S1 in the supplementary material document.
+
++ The files `nba-1415-functions.R` and `nba-1415-regular-season.csv` provide the R functions and the data for the case study in the manuscript, respectively.
+
++ The script `jeffreys-shrinkage.R` reproduces Figure 2.
+
++ The script `jeffreys-MPL.R` provides an R implementation of Algorithm 1.
+
++ The script `sur-candes-2019.R` computes the timings for Algorithm S1 that are reported in Section S3.5 of the supplementary material document, and reproduces Figure 2b on p 11 of the supplementary information appendix of
+
+Sur P, and Candès EJ (2019). A Modern Maximum-Likelihood Theory for High-Dimensional Logistic Regression.  Proceedings of the National Academy of Sciences 116 (29): 14516–25. https://doi.org/10.1073/pnas.1810420116
+
+The supplementary information appendix has been downloaded from https://www.pnas.org/content/pnas/suppl/2019/06/29/1810420116.DCSupplemental/pnas.1810420116.sapp.pdf
+
+See, also Figure S1 in the supplementary material document.
+
