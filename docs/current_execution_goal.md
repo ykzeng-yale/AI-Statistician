@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including the completed referee configuration pilot.
+Updated: 2026-09-10, including ordinary-script exploratory execution.
 
 ## Operative Objective
 
@@ -108,8 +108,14 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    records 94 calls, report defects and shared tool-contract friction. Keep
    thinking off by default. Do not repeat or tune on this panel, add elementary
    controls merely to find a win, or mistake component judgments for research
-   success. Any shared interface/context change needs its own demonstrated cause;
-   descriptions were delivered, so a missing-tool-description fix is not justified.
+   success. Code inspection established one shared interface defect: exploratory
+   mathematics unnecessarily inherited the simulation callable/JSON-result ABI.
+   Theory authors and isolated referees now run ordinary Python/R scripts in the
+   existing sandbox and receive source-bound output/errors. No source patching,
+   mathematical error classification, extra repair agent or statistical rule was
+   added. Confirmation keeps its callable/metric authority. Full-suite verification
+   passed 1326 tests; scientific improvement still requires fresh research evidence.
+   Descriptions were delivered in the old pilot, so no transport omission is claimed.
 3. Improve existing source-project/environment support where real reproduction
    needs it. Preserve model-selected actions and pinned dependencies; avoid a
    package-specific installer or another reproduction agent.
