@@ -100,7 +100,7 @@ def validate_research_gold_benchmark_activation(
     visible_questions: Mapping[str, Mapping[str, Any]] | None = None,
     run_theory_semantic_judge: GoldTheorySemanticJudgeRunner | None = None,
     theory_semantic_judge_provider: GeneratorBackend | None = None,
-    require_prequalified_semantic_activation: bool = False,
+    require_prequalified_activation: bool = False,
 ) -> dict[str, Any]:
     """Execute or verify future-task calibration through frozen validators."""
 
@@ -133,7 +133,7 @@ def validate_research_gold_benchmark_activation(
                 activation_record = str(
                     evaluator.get("activation_record_path") or ""
                 ).strip()
-                if require_prequalified_semantic_activation and not activation_record:
+                if require_prequalified_activation and not activation_record:
                     raise ValueError("semantic activation is not frozen")
                 if not isinstance(visible_question, Mapping):
                     raise ValueError(
@@ -158,16 +158,18 @@ def validate_research_gold_benchmark_activation(
                         semantic_artifact_role=artifact_role,
                     )
                 )
-    with tempfile.TemporaryDirectory(prefix="ai-stat-gold-activation-") as value:
-        rows = [
-            _run_activation_candidate_suite(
-                task,
-                project_root=Path(__file__).resolve().parents[1],
-                sandbox_root=Path(value),
-            )
-            for task in benchmark["active_tasks"]
-            if task.get("activation_candidate_suite")
-        ]
+    rows = []
+    for task in benchmark["active_tasks"]:
+        if not task.get("activation_candidate_suite"):
+            continue
+        project_root = Path(__file__).resolve().parents[1]
+        if require_prequalified_activation or "mechanical_activation_record" in task:
+            rows.append(_load_mechanical_activation_record(task, project_root=project_root))
+        else:
+            with tempfile.TemporaryDirectory(prefix="ai-stat-gold-activation-") as value:
+                rows.append(_run_activation_candidate_suite(
+                    task, project_root=project_root, sandbox_root=Path(value),
+                ))
     return {
         **descriptor,
         "activation_schema_version": schema_version,
@@ -191,6 +193,54 @@ def validate_research_gold_benchmark_activation(
             semantic_rows and all(row["qualification_reused"] for row in semantic_rows)
         ),
     }
+
+
+def _load_mechanical_activation_record(
+    task: Mapping[str, Any], *, project_root: Path,
+) -> dict[str, Any]:
+    """Verify immutable calibration against its original inputs, without execution."""
+
+    reference = task.get("mechanical_activation_record")
+    if not isinstance(reference, Mapping):
+        raise ValueError("mechanical activation is not frozen")
+    documents = {}
+    for name in ("record", "input_manifest"):
+        path = _project_path(str(reference.get(name + "_path", "")), project_root=project_root)
+        if not path.is_file() or _file_sha256(path) != reference.get(name + "_sha256"):
+            raise ValueError(f"mechanical activation {name} hash mismatch")
+        documents[name] = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(documents[name], dict):
+            raise ValueError(f"mechanical activation {name} must be an object")
+    original_tasks = documents["input_manifest"].get("active_tasks", [])
+    if not isinstance(original_tasks, list):
+        raise ValueError("mechanical activation input_manifest tasks must be an array")
+    matching = [row for row in original_tasks if isinstance(row, Mapping)
+                and row.get("task_id") == task.get("task_id")]
+    fields = ("task_id", "visible_question_hash", "task_intent", "estimator_execution_contract_id",
+              "hidden_algorithm_evaluator", "hidden_empirical_evaluator", "activation_candidate_suite")
+    if len(matching) != 1 or any(matching[0].get(key) != task.get(key) for key in fields):
+        raise ValueError("mechanical activation inputs changed")
+    record = documents["record"]
+    evaluators = {name: task[field] for name, field in (
+        ("algorithm", "hidden_algorithm_evaluator"), ("empirical", "hidden_empirical_evaluator"),
+    ) if task.get(field)}
+    expected_rejections = sum(len(row["must_fail_evaluators"])
+                              for row in task["activation_candidate_suite"]["negative_candidates"])
+    if (record.get("status") != "PASSED_BEFORE_FIRST_PRODUCT_MODEL_CALL"
+            or record.get("task_id_hash") != stable_hash(str(task["task_id"]))
+            or record.get("reference_validator_hashes") != {
+                name: stable_hash(value) for name, value in evaluators.items()}
+            or type(record.get("negative_controls_rejected")) is not int
+            or record.get("negative_controls_rejected") != expected_rejections):
+        raise ValueError("mechanical activation qualification mismatch")
+    results = record.get("reference_result_hashes")
+    if not isinstance(results, Mapping) or set(results) != set(evaluators) or any(
+        not isinstance(value, str) or len(value) != 64
+        or any(char not in "0123456789abcdef" for char in value)
+        for value in results.values()
+    ):
+        raise ValueError("mechanical activation reference results missing")
+    return record
 
 
 def evaluate_research_gold_benchmark(

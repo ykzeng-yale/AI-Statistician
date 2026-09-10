@@ -2228,6 +2228,111 @@ def test_schema_v3_activation_runs_reference_and_negative_through_same_validator
     assert "acceptance_checks" not in serialized
 
 
+def _freeze_synthetic_mechanical_activation(path: Path, tmp_path: Path) -> tuple[Path, Path]:
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    task = manifest["active_tasks"][0]
+    inputs = tmp_path / "frozen-mechanical-inputs.json"
+    inputs.write_text(json.dumps(manifest), encoding="utf-8")
+    evaluators = {name: task[field] for name, field in (
+        ("algorithm", "hidden_algorithm_evaluator"), ("empirical", "hidden_empirical_evaluator"),
+    ) if task.get(field)}
+    record_path = tmp_path / "frozen-mechanical-record.json"
+    record_path.write_text(json.dumps({
+        "status": "PASSED_BEFORE_FIRST_PRODUCT_MODEL_CALL",
+        "task_id_hash": stable_hash(str(task["task_id"])),
+        "reference_validator_hashes": {name: stable_hash(value) for name, value in evaluators.items()},
+        "reference_result_hashes": {name: stable_hash({"synthetic": name}) for name in evaluators},
+        "negative_controls_rejected": sum(len(row["must_fail_evaluators"])
+                                           for row in task["activation_candidate_suite"]["negative_candidates"]),
+    }), encoding="utf-8")
+    task["mechanical_activation_record"] = {
+        "record_path": str(record_path), "record_sha256": _fixture_sha256(record_path),
+        "input_manifest_path": str(inputs), "input_manifest_sha256": _fixture_sha256(inputs),
+    }
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    return record_path, inputs
+
+
+def test_product_preflight_reads_mechanical_qualification_without_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = _schema_v3_gold_manifest(tmp_path, include_empirical=True)
+    records = _freeze_synthetic_mechanical_activation(path, tmp_path)
+    originals = [record.read_bytes() for record in records]
+
+    def cannot_execute(*_args, **_kwargs):
+        raise AssertionError("frozen activation must never execute controls again")
+
+    monkeypatch.setattr(gold_evaluation_module, "_run_activation_candidate_suite", cannot_execute)
+    result = validate_research_gold_benchmark_activation(path, require_prequalified_activation=True)
+    assert result["activation_reference_tasks_passed"] == 1
+    assert result["activation_negative_controls_rejected"] == 2
+    assert result["activation_semantic_model_calls"] == 0
+    assert "reference_result_hashes" not in json.dumps(result)
+    assert [record.read_bytes() for record in records] == originals
+    assert validate_research_gold_benchmark_activation(path) == result
+
+
+@pytest.mark.parametrize("change, message", [
+    ("missing", "mechanical activation is not frozen"),
+    ("present_empty", "record hash mismatch"),
+    ("record_hash", "record hash mismatch"),
+    ("input_hash", "input_manifest hash mismatch"),
+    ("evaluator", "inputs changed"),
+    ("candidate", "inputs changed"),
+    ("rejections", "qualification mismatch"),
+    ("status", "qualification mismatch"),
+    ("result", "reference results missing"),
+    ("input_shape", "tasks must be an array"),
+])
+def test_product_preflight_rejects_changed_or_missing_mechanical_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str, message: str,
+) -> None:
+    path = _schema_v3_gold_manifest(tmp_path, include_empirical=True)
+    record_path, inputs = _freeze_synthetic_mechanical_activation(path, tmp_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    task = manifest["active_tasks"][0]
+    reference = task["mechanical_activation_record"]
+    if change == "missing":
+        task.pop("mechanical_activation_record")
+    elif change == "present_empty":
+        task["mechanical_activation_record"] = {}
+    elif change in {"record_hash", "input_hash"}:
+        reference["record_sha256" if change == "record_hash" else "input_manifest_sha256"] = "0" * 64
+    elif change == "evaluator":
+        task["hidden_algorithm_evaluator"]["seed"] += 1
+    elif change == "candidate":
+        candidate = task["activation_candidate_suite"]["reference_candidate"]
+        source = Path(candidate["source_path"])
+        source.write_text(source.read_text(encoding="utf-8") + "\n# changed synthetic input\n", encoding="utf-8")
+        candidate["source_sha256"] = _fixture_sha256(source)
+    elif change == "input_shape":
+        payload = json.loads(inputs.read_text(encoding="utf-8"))
+        payload["active_tasks"] = None
+        inputs.write_text(json.dumps(payload), encoding="utf-8")
+        reference["input_manifest_sha256"] = _fixture_sha256(inputs)
+    else:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        key, value = {"rejections": ("negative_controls_rejected", 0),
+                      "status": ("status", "FAILED"),
+                      "result": ("reference_result_hashes", {})}[change]
+        record[key] = value
+        record_path.write_text(json.dumps(record), encoding="utf-8")
+        reference["record_sha256"] = _fixture_sha256(record_path)
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    frozen_record = record_path.read_bytes()
+
+    def cannot_execute(*_args, **_kwargs):
+        raise AssertionError("missing or stale authority cannot trigger requalification")
+
+    monkeypatch.setattr(gold_evaluation_module, "_run_activation_candidate_suite", cannot_execute)
+    with pytest.raises(ValueError, match=message):
+        validate_research_gold_benchmark_activation(
+            path, require_prequalified_activation=change != "present_empty",
+        )
+    assert record_path.read_bytes() == frozen_record
+
+
 def test_schema_v4_activation_runs_long_form_negative_through_candidate_mode(
     tmp_path: Path,
 ) -> None:
@@ -2316,7 +2421,7 @@ def test_product_runtime_requires_frozen_schema_v4_semantic_activation(
             path,
             visible_questions={QUESTION_ID: visible_question},
             run_theory_semantic_judge=semantic_runner,
-            require_prequalified_semantic_activation=True,
+            require_prequalified_activation=True,
         )
 
     assert semantic_calls == 0

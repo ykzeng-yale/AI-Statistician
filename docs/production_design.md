@@ -350,9 +350,9 @@ tool-turn count.
 
 ## Evaluation authority
 
-Unit tests validate mechanisms, not research capability. The capability ladder reports
-theory, empirical, formal, novelty, replication, and unresolved-gap dimensions; frozen
-task intent decides which must pass, and no aggregate score hides a required failure.
+Unit tests validate mechanisms, not research capability. Startup reads frozen
+semantic/mechanical qualification and exact input hashes; it never reruns controls.
+Task intent selects required evidence dimensions; aggregates cannot hide failures.
 
 For formal-only gold, the visible `formal_target_contract` is the exact statement. The
 canonical evaluator already binds it to unchanged model source, independent semantic
