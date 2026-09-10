@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "entropic-ot-public-source-20260910-v1",
+  "source_horizon": "2026-09-10",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "pot-LICENSE",
+      "relative_path": "LICENSE",
+      "title": "LICENSE",
+      "source_kind": "source_metadata",
+      "url": "https://github.com/PythonOT/POT/tree/85113e9a380f5fcf684c50c73c1ff6a164a7366e",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "adbe7510d5e9bbf386306815a558387d6278203fd2688675fe4e0d9faebfb679"
+    },
+    {
+      "document_id": "pot-_sinkhorn-py",
+      "relative_path": "_sinkhorn.py",
+      "title": "_sinkhorn.py",
+      "source_kind": "code",
+      "url": "https://github.com/PythonOT/POT/tree/85113e9a380f5fcf684c50c73c1ff6a164a7366e",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "671958232afa87b8908d183c935475746f3d02c34827e78354d7505200e2dab2"
+    },
+    {
+      "document_id": "pot-environment_lock-json",
+      "relative_path": "environment_lock.json",
+      "title": "environment_lock.json",
+      "source_kind": "environment_lock",
+      "url": "https://github.com/PythonOT/POT/tree/85113e9a380f5fcf684c50c73c1ff6a164a7366e",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "93686194075045e5e54faff43bdb1e4965545b6b3687a2da9245c6ccece0dcf6"
+    },
+    {
+      "document_id": "pot-plot_OT_1D-py",
+      "relative_path": "plot_OT_1D.py",
+      "title": "plot_OT_1D.py",
+      "source_kind": "code",
+      "url": "https://github.com/PythonOT/POT/tree/85113e9a380f5fcf684c50c73c1ff6a164a7366e",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "3a449a8c19fbaa7be3949f46d174c7179814625c038d2defdb699cbd1fff88af"
+    },
+    {
+      "document_id": "pot-reproduce_example-py",
+      "relative_path": "reproduce_example.py",
+      "title": "reproduce_example.py",
+      "source_kind": "code",
+      "url": "https://github.com/PythonOT/POT/tree/85113e9a380f5fcf684c50c73c1ff6a164a7366e",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "2c578f1fc4dc09eaab0eb34f1a89ff8361455544391fee3fe3e9c58419ca0ae7"
+    },
+    {
+      "document_id": "pot-source_provenance-md",
+      "relative_path": "source_provenance.md",
+      "title": "source_provenance.md",
+      "source_kind": "source_metadata",
+      "url": "https://github.com/PythonOT/POT/tree/85113e9a380f5fcf684c50c73c1ff6a164a7366e",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "9db4dd20afa760386f6be07c137c09f27854caccbe3739f1134e14955431fb9f"
+    }
+  ]
+}
