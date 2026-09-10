@@ -1794,6 +1794,7 @@ def _load_hidden_semantic_activation_judgment(
         model=str(evaluator.get("model", "") or ""),
         model_tier=str(evaluator.get("model_tier", "") or ""),
         semantic_artifact_role=semantic_artifact_role,
+        max_tokens=int(evaluator.get("max_tokens", 6000) or 6000),
         candidate_adjudication_strategy=str(
             evaluator.get(
                 "candidate_adjudication_strategy",
@@ -1887,6 +1888,7 @@ def _run_hidden_document_semantic_evaluation(
         return dict(
             run_theory_semantic_gold_judge(
                 provider=provider,
+                workspace_root=_project_path(str(evaluator["rubric_path"]), project_root=project_root).parent / "semantic_review_workspaces",
                 **kwargs,
             )
         ), ""

@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.client_tool_loop import ClientToolExecutionResult
 from ai_statistician.model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL,
-    GeneratorResponse,
+    ClientToolCall,
+    ClientToolTurnResponse,
 )
 from ai_statistician.theory_semantic_gold_judge import (
     run_theory_semantic_gold_judge,
+    SEMANTIC_REVIEW_SUBMIT_TOOL,
     validate_theory_semantic_gold_judgment,
 )
 
@@ -146,19 +151,35 @@ def _keyed_candidate_packet(
 
 class _RecordingProvider:
     provider_name = "static"
+    workspace_root: Path
 
     def __init__(self, packets: list[dict[str, object]]) -> None:
         self.packets = packets
         self.requests = []
 
-    def generate(self, request):
-        packet = self.packets[len(self.requests)]
-        self.requests.append(request)
-        return GeneratorResponse(
-            text=json.dumps(packet),
+    def generate(self, _request):
+        raise AssertionError("gold must not fall back to one-shot generation")
+
+    def generate_client_tool_turn(self, request):
+        packet = deepcopy(self.packets[min(len(self.requests), len(self.packets) - 1)])
+        packet.setdefault("review_markdown", "# Referee report\n\nSynthetic mechanism fixture, not mathematical evidence.")
+        self.requests.append(SimpleNamespace(
+            native=request, model=request.model, metadata=request.metadata,
+            system_prompt=request.system_prompt, user_prompt=request.messages[0]["content"],
+            schema=request.tools[-1].input_schema,
+        ))
+        call = ClientToolCall(str(len(self.requests)), SEMANTIC_REVIEW_SUBMIT_TOOL, packet)
+        return ClientToolTurnResponse(
+            content_blocks=({"type": "tool_use", "id": call.call_id, "name": call.name, "input": packet},),
+            tool_calls=(call,), text="",
             provider=self.provider_name,
             model=request.model,
         )
+
+
+@pytest.fixture(autouse=True)
+def _private_reviewer_workspace(tmp_path, monkeypatch):
+    monkeypatch.setattr(_RecordingProvider, "workspace_root", tmp_path, raising=False)
 
 
 def _run(
@@ -169,12 +190,15 @@ def _run(
     candidate_is_reference: bool = False,
     activation_judgment: dict[str, object] | None = None,
     candidate_adjudication_strategy: str = "integrated_single",
+    max_tokens: int = 6000,
+    reference_content: str = "reference",
 ) -> dict[str, object]:
     reference_documents = [
-        {"path": "reference.md", "sha256": "reference", "content": "reference"}
+        {"path": "reference.md", "sha256": "reference", "content": reference_content}
     ]
     return run_theory_semantic_gold_judge(
         provider=provider,
+        workspace_root=provider.workspace_root,
         task_id="known-result",
         visible_question={"id": "known-result", "description": "derive it"},
         candidate_documents=(
@@ -227,6 +251,7 @@ def _run(
         semantic_artifact_role=semantic_artifact_role,
         activation_judgment=activation_judgment,
         candidate_adjudication_strategy=candidate_adjudication_strategy,
+        max_tokens=max_tokens,
     )
 
 
@@ -237,7 +262,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 12
+    assert result["protocol_version"] == 14
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -436,7 +461,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         candidate_adjudication_strategy="integrated_plus_adversarial",
     )
 
-    assert result["protocol_version"] == 13
+    assert result["protocol_version"] == 15
     assert result["candidate_adjudication_strategy"] == (
         "integrated_plus_adversarial"
     )
@@ -530,7 +555,7 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once(
 
 @pytest.mark.parametrize(
     ("previous_protocol", "strategy"),
-    [(10, "integrated_single"), (11, "integrated_plus_adversarial")],
+    [(12, "integrated_single"), (13, "integrated_plus_adversarial")],
 )
 def test_previous_prompt_qualification_cannot_authorize_current_judge(
     previous_protocol: int,
@@ -671,7 +696,7 @@ def test_keyed_candidate_schema_fails_closed_on_missing_claim() -> None:
         )
 
 
-def test_candidate_document_grounding_must_select_a_supplied_evidence_ref() -> None:
+def test_candidate_document_grounding_must_select_a_supplied_evidence_ref(tmp_path) -> None:
     candidate = _keyed_candidate_packet(document_status="FAIL")
     candidate["assessments"]["candidate"][
         "document_decisive_evidence_ref"
@@ -679,7 +704,7 @@ def test_candidate_document_grounding_must_select_a_supplied_evidence_ref() -> N
 
     with pytest.raises(
         ValueError,
-        match="document status needs a valid decisive candidate evidence ref",
+        match="invalid hidden candidate_integrated semantic judgment",
     ):
         _run(
             _RecordingProvider(
@@ -689,9 +714,11 @@ def test_candidate_document_grounding_must_select_a_supplied_evidence_ref() -> N
                 ]
             )
         )
+    incomplete = next(tmp_path.glob("candidate_integrated-*/incomplete.json"))
+    assert "document status needs a valid decisive candidate evidence ref" in incomplete.read_text()
 
 
-def test_candidate_grounding_must_select_a_supplied_evidence_ref() -> None:
+def test_candidate_grounding_must_select_a_supplied_evidence_ref(tmp_path) -> None:
     candidate = _keyed_candidate_packet()
     candidate["assessments"]["candidate"]["decisive_evidence_refs"][
         "claim:definition"
@@ -699,7 +726,7 @@ def test_candidate_grounding_must_select_a_supplied_evidence_ref() -> None:
 
     with pytest.raises(
         ValueError,
-        match="every claim needs a valid decisive candidate evidence ref",
+        match="invalid hidden candidate_integrated semantic judgment",
     ):
         _run(
             _RecordingProvider(
@@ -709,6 +736,182 @@ def test_candidate_grounding_must_select_a_supplied_evidence_ref() -> None:
                 ]
             )
         )
+    incomplete = next(tmp_path.glob("candidate_integrated-*/incomplete.json"))
+    assert "every claim needs a valid decisive candidate evidence ref" in incomplete.read_text()
+
+
+def test_retained_gold_uses_documents_and_same_model_scratch_feedback(monkeypatch, tmp_path) -> None:
+    source_attempts = []
+    scratch_roots = []
+
+    def scratch(**kwargs):
+        code = kwargs["tool_input"]["code"]
+        source_attempts.append(code)
+        scratch_roots.append(kwargs["scratchpad"].sandbox_dir)
+        failed = len(source_attempts) == 1
+        return ClientToolExecutionResult(
+            content={"ok": not failed, "raw_output": "UNFAMILIAR_ENVIRONMENT_ERROR" if failed else "EXACT_SECOND_OBSERVATION"},
+            is_error=failed,
+        ), {"source_hash": stable_hash(code)}
+
+    monkeypatch.setattr("ai_statistician.theory_semantic_gold_judge.execute_theory_scratchpad_tool", scratch)
+
+    class Reviewer(_RecordingProvider):
+        candidate_turns = 0
+
+        def generate_client_tool_turn(self, request):
+            if request.metadata["semantic_adjudication_phase"] != "candidate_integrated":
+                return super().generate_client_tool_turn(request)
+            self.candidate_turns += 1
+            serialized = json.dumps(request.messages)
+            if self.candidate_turns == 1:
+                payload = json.loads(request.messages[0]["content"])
+                path = payload["document_catalog"][0]["path"]
+                name, arguments = "read_theory_document", {"path": path, "line_start": 1, "line_end": 1}
+            elif self.candidate_turns in (2, 3):
+                assert "REFERENCE_DOCUMENT_BODY" in serialized
+                if self.candidate_turns == 3:
+                    assert "UNFAMILIAR_ENVIRONMENT_ERROR" in serialized
+                name = "run_theory_scratchpad"
+                arguments = {"language": "python", "dependencies": [], "code": f"print({self.candidate_turns})"}
+            elif self.candidate_turns == 4:
+                assert "EXACT_SECOND_OBSERVATION" in serialized
+                name, arguments = SEMANTIC_REVIEW_SUBMIT_TOOL, _keyed_candidate_packet()
+                arguments["review_markdown"] = ""
+            else:
+                assert "review_markdown must contain" in serialized
+                return super().generate_client_tool_turn(request)
+            call = ClientToolCall(f"candidate-{self.candidate_turns}", name, arguments)
+            return ClientToolTurnResponse(
+                content_blocks=({"type": "tool_use", "id": call.call_id, "name": name, "input": arguments},),
+                tool_calls=(call,), text="", provider=self.provider_name, model=request.model,
+            )
+
+    provider = Reviewer([*_keyed_calibration_packets(), _keyed_candidate_packet()])
+    result = _run(provider, reference_content="REFERENCE_DOCUMENT_BODY" * 150)
+
+    assert result["passed"] is True
+    assert result["n_model_calls"] == 7
+    assert result["candidate_integrated_model_calls"] == 5
+    assert source_attempts == ["print(2)", "print(3)"]
+    assert all(tmp_path in path.parents for path in scratch_roots)
+    assert len(set(scratch_roots)) == 1
+    audit = json.loads(Path(result["review_workspace_refs"][-1]["path"]).read_text())
+    assert len(audit["scratch_execution_refs"]) == 2
+    report = Path(audit["report_ref"]["path"])
+    assert report.suffix == ".md"
+    assert report.read_text().startswith("# Referee report")
+    assert "Referee report" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("changed", ["report", "session", "audit"])
+def test_modified_private_review_invalidates_activation_without_model_calls(changed) -> None:
+    activation = _run(_RecordingProvider([*_keyed_calibration_packets(), _keyed_candidate_packet()]), candidate_is_reference=True)
+    original = deepcopy(activation)
+    audit_path = Path(activation["review_workspace_refs"][0]["path"])
+    audit = json.loads(audit_path.read_text())
+    session = audit["session_ref"]
+    path = {"audit": audit_path, "report": Path(audit["report_ref"]["path"]),
+            "session": Path(session["root_path"]) / session["relative_path"]}[changed]
+    path.write_text("changed synthetic authority")
+    provider = _RecordingProvider([])
+
+    with pytest.raises(ValueError, match="activation review workspace invalid"):
+        _run(provider, activation_judgment=activation)
+
+    assert provider.requests == []
+    assert activation == original
+
+
+def test_review_sampling_contract_cannot_change_after_activation() -> None:
+    activation = _run(_RecordingProvider([*_keyed_calibration_packets(), _keyed_candidate_packet()]), candidate_is_reference=True)
+    provider = _RecordingProvider([])
+
+    with pytest.raises(ValueError, match="review_contract_hash mismatch"):
+        _run(provider, activation_judgment=activation, max_tokens=7000)
+
+    assert provider.requests == []
+
+
+def test_review_workspaces_are_isolated_and_tool_use_is_not_mandatory() -> None:
+    provider = _RecordingProvider([*_keyed_calibration_packets(), _keyed_candidate_packet()])
+    result = _run(provider)
+    assert result["passed"] is True
+    roots = []
+    for request, reference in zip(provider.requests, result["review_workspace_refs"]):
+        assert len(request.native.messages) == 1
+        assert request.native.tool_choice == "auto"
+        assert request.native.thinking_budget_tokens == 0
+        assert {tool.name for tool in request.native.tools} == {"run_theory_scratchpad", SEMANTIC_REVIEW_SUBMIT_TOOL}
+        audit = json.loads(Path(reference["path"]).read_text())
+        roots.append(audit["session_ref"]["root_path"])
+        assert audit["model_calls"] == 1
+        assert audit["scratch_execution_refs"] == []
+    assert len(set(roots)) == 3
+
+
+def test_gold_cannot_fall_back_to_tool_free_provider(monkeypatch) -> None:
+    provider = _RecordingProvider([])
+    monkeypatch.setattr(provider, "generate_client_tool_turn", None)
+    with pytest.raises(ValueError, match="requires native client-tool turns"):
+        _run(provider)
+    assert provider.requests == []
+
+
+def test_gold_cannot_write_hidden_reviews_into_product_repository(monkeypatch) -> None:
+    provider = _RecordingProvider([])
+    monkeypatch.setattr(provider, "workspace_root", Path(__file__).resolve().parents[1] / "runs" / "forbidden_gold")
+    with pytest.raises(ValueError, match="outside the product repository"):
+        _run(provider)
+    assert provider.requests == []
+
+
+@pytest.mark.parametrize(("language", "source"), [("python", "print(7)"), ("r", "cat(7)")])
+def test_gold_executes_real_scientific_sandbox_without_live_provider(language, source) -> None:
+    class Reviewer(_RecordingProvider):
+        def generate_client_tool_turn(self, request):
+            if request.metadata["semantic_adjudication_phase"] == "candidate_integrated":
+                if len(request.messages) == 1:
+                    arguments = {"language": language, "dependencies": [], "code": source}
+                    call = ClientToolCall("scratch", "run_theory_scratchpad", arguments)
+                    return ClientToolTurnResponse(
+                        content_blocks=({"type": "tool_use", "id": call.call_id, "name": call.name, "input": arguments},),
+                        tool_calls=(call,), text="", provider=self.provider_name, model=request.model,
+                    )
+                observation = json.loads(request.messages[-1]["content"][0]["content"])
+                assert observation["execution_attempted"] is True
+                assert observation["returncode"] == 0
+                assert observation["runtime_edited_source"] is False
+            return super().generate_client_tool_turn(request)
+
+    result = _run(Reviewer([*_keyed_calibration_packets(), _keyed_candidate_packet()]))
+    audit = json.loads(Path(result["review_workspace_refs"][-1]["path"]).read_text())
+    scratch = audit["scratch_execution_refs"][0]
+    assert scratch["language"] == language
+    assert scratch["code_hash"] == stable_hash(source)
+    assert Path(scratch["code_path"]).read_text() == source
+    assert result["n_model_calls"] == 4
+
+
+def test_plain_text_stop_preserves_incomplete_private_session_without_acceptance(tmp_path) -> None:
+    class Reviewer(_RecordingProvider):
+        def generate_client_tool_turn(self, request):
+            if request.metadata["semantic_adjudication_phase"] == "candidate_integrated":
+                return ClientToolTurnResponse(
+                    content_blocks=({"type": "text", "text": "Still unresolved."},),
+                    tool_calls=(), text="Still unresolved.", provider=self.provider_name, model=request.model,
+                )
+            return super().generate_client_tool_turn(request)
+
+    provider = Reviewer(_keyed_calibration_packets())
+    with pytest.raises(ValueError, match="without a client tool call"):
+        _run(provider)
+    workspace = next(tmp_path.glob("candidate_integrated-*"))
+    assert (workspace / "incomplete.json").is_file()
+    assert not (workspace / "review.md").exists()
+    transcripts = list(workspace.rglob("*.json"))
+    assert any("Still unresolved." in path.read_text() for path in transcripts)
+    assert len(provider.requests) == 2
 
 
 def test_semantic_judge_validator_rejects_inconsistent_overall_status() -> None:

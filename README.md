@@ -75,7 +75,8 @@ an enabled value must be at least 1024 and below each affected request's
 `max_tokens`, which remains the total output ceiling. Enable it before freezing a
 fresh run. The resolved request uses automatic tool selection, preserves signed
 thinking blocks and binds the budget into session identity. It does not enable
-interleaved thinking, escalate models or change tool-free Architect/gold calls.
+interleaved thinking, escalate models or change tool-free Architect calls.
+Hidden-gold reviewers use retained document/scratch tools with thinking explicitly off.
 This is supported transport, not demonstrated improvement in scientific accuracy.
 See [Anthropic's thinking documentation](https://platform.claude.com/docs/en/build-with-claude/extended-thinking).
 

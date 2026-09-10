@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including the feedback-fidelity and overengineering review.
+Updated: 2026-09-10, including retained independent semantic review.
 
 ## Operative Objective
 
@@ -142,6 +142,13 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    Startup now verifies frozen mechanical and semantic authority without
    reexecuting calibration. Original reference/negative inputs stay hash-bound;
    missing or changed records cannot trigger automatic requalification.
+   Hidden-gold review now reuses the retained loop, read-only document tools and
+   isolated Python/R scratch, with a private Markdown report and exact transcript.
+   Protocol 14/15 binds the new contract and actual calls; no old qualification
+   transfers. The next scientific gate needs a complete reference and concrete
+   confirmatory design for a fresh full-scope task, not another easy control panel
+   or a rerun. Tool connectivity and synthetic tests alone do not establish
+   mathematical reliability or authorize product execution.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -160,11 +167,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
   exactly `claude-haiku-4-5-20251001`; no Opus or automatic tier escalation.
 - Freeze any `AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS` setting before a
   fresh product draw. It enables native thinking only for retained tool workspaces,
-  not tool-free qualification/Architect calls; existing total token bounds and
+  not tool-free Architect calls; existing total token bounds and
   explicit stopping remain. Native transport worked in the live component pilot,
   but scientific improvement and thinking-enabled research-E2E remain unproven.
   The default budget stays zero; the pilot compared a configuration bundle, not
   the isolated causal effect of thinking tokens.
+  Hidden-gold protocol 14/15 uses the same retained loop and document/scratch tools,
+  with thinking explicitly off and a private Markdown referee report. Tool access
+  is a capability change, not evidence of improved judgment; new qualification is
+  required, and all consumed tool-free panels remain untouched.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision
   uses the operator-designated `.env` through the existing CLI loader; absence of
   a process variable alone is not a blocker. The authentication check made one

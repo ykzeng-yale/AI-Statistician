@@ -352,7 +352,7 @@ tool-turn count.
 
 Unit tests validate mechanisms, not research capability. Startup reads frozen
 semantic/mechanical qualification and exact input hashes; it never reruns controls.
-Task intent selects required evidence dimensions; aggregates cannot hide failures.
+Task intent selects required evidence dimensions; aggregates cannot hide failures. Hidden-gold protocols 14/15 use the existing retained loop with read-only document tools, isolated Python/R scratch and a model-authored Markdown referee report. Reports and exact transcripts remain outside the product repository; qualification binds their integrity, actual model-call counts and sampling contract. Old tool-free qualifications cannot authorize the new reviewer, and no consumed case is rerun.
 
 For formal-only gold, the visible `formal_target_contract` is the exact statement. The
 canonical evaluator already binds it to unchanged model source, independent semantic
