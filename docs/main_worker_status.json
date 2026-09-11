@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "PPI protocol-15 theory qualification completed once at 7389c461: 138 exact-Haiku generation turns, 2083.906 seconds, 5/6 short controls, 1/1 long negative, and final reference-candidate FAIL. The final referee introduced its own algebraic error and demanded execution of a pre-result design. Mechanical qualification passed; source semantic qualification and product execution did not run. Original judgments remain unchanged. A separate generic efficiency correction now stops qualification after a failed frozen control, retains completed private reviews and marks unreviewed candidates NOT_RUN. Protocols 16/17 change execution only, not prompts, scientific labels, model/tool budgets or acceptance criteria. Production code net +1 line. Focused tests: 112 passed; full suite: 1359 passed in 287.32 seconds. Counts remain 114 numbered plus four standalone draws, with no new scientific credit. See docs/operator_audits/ppi_logistic_prequalification_20260910.md.",
+  "execution_status": "Removed lossy scientific feedback projection and initial-message truncation. The same source owner can read complete permitted diagnostics through existing document tools, including long single-line and large structured observations; exact diagnostic references survive continuation and reject changed files before model calls. Outcome field visibility and current-source release authority are unchanged. Shared reviewer tool definitions now bind qualification identity. Production code net +36 lines, no new module, tool name, scheduler, error classifier, statistical recipe or retry budget. Full suite: 1372 passed in 288.41 seconds; compileall and diff check passed. No live model call, qualification, product draw or rescore ran for this correction. PPI remains failed and counts remain 114 numbered plus four standalone draws, with no new scientific credit.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "3e4aa4023505be8f3f9bf30332a7f54db824f160",
+  "validated_code_head": "fb732e652f24a817fb0399556ac806b54182beb0",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "7389c461bf9c2d62de38f6cb30596513f2b0e76b",
+    "remote_before_current_change": "d086d21a1e04612fa11e4332c3b62c9b8b210eb0",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -227,23 +227,23 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24789,
-    "theory_workspace_lines": 4508,
-    "scientific_code_workspace_lines": 3537,
+    "theory_workspace_lines": 4527,
+    "scientific_code_workspace_lines": 3552,
     "client_tool_loop_lines": 1224,
     "agent_runtime_lines": 1365,
     "formalizer_llm_lines": 1848,
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149132,
+    "top_level_package_lines": 149168,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "3e4aa4023505be8f3f9bf30332a7f54db824f160",
-    "summary": "Stop semantic qualification after the first failed frozen control assessment. Keep completed reports, hashes and actual calls; mark an unreviewed candidate NOT_RUN, with no invented claim verdicts. Successful qualification still requires every control and reference review. Production code net +1 line; no new tool, module, agent, configuration flag, mathematical content or repair recipe.",
-    "verification": "Focused semantic/gold/core tests: 112 passed in 12.35 seconds. Full suite: 1359 passed in 287.32 seconds; compileall and git diff --check passed. Synthetic controls cover both scientific-document roles and both review strategies, zero later model calls after failure, retained private reports, unchanged observations and rejection of failed/older authority without requalification. Read-only checks verified 18 original PPI authority files and 16 audit/report/session triples, 66 hashes total. The original attempt was finished before code edits.",
-    "capability_effect": "Execution efficiency and honest nonexecution only, not better mathematics, scientific qualification or E2E completion. No new live call or rescore tested this correction on PPI. The old protocol-15 result remains failed; future protocols 16/17 require independently frozen new authority. Scientific observation projections and metric/context complexity remain separate concerns; do not add benchmark-specific prompts or code patches to address referee errors. Goal remains active and unmet."
+    "code_commit": "fb732e652f24a817fb0399556ac806b54182beb0",
+    "summary": "Preserve complete permitted scientific observations for the source-owning model. Replace positional truncation with existing content-addressed read/search tools, add optional character ranges for long single lines, and persist immutable diagnostic references across continuation. Keep outcome selection separate from text transport and bind shared tool definitions into semantic qualification. Production code net +36 lines; no case-specific error handling or new repair layer.",
+    "verification": "Focused scientific/progress/theory/gold tests: 204 passed in 16.65 seconds, followed by two new structured-output/path-confinement tests passing. Full suite after all code and design changes: 1372 passed in 288.41 seconds; compileall and git diff --check passed. Synthetic same-owner tests recover late/middle diagnostics, retain exact accepted source identity, keep confirmation stdout/metrics/gates out of exposed documents, read earlier diagnostics after resume, reject tampering and escaping paths before calls, and reject changed qualification tools without reexecution. The original projection regression failed before the fix. Existing Python/R execution tests passed; no actual model inference was used.",
+    "capability_effect": "Feedback availability and checkpoint/tool identity only, not improved mathematical reasoning or E2E completion. Earlier diagnostics are readable history, not current-source acceptance. Raw stderr is not a general blinding guarantee; confirmation data must stay outside exploratory execution. Full structured check payloads still exist in state, and broader metric/context complexity remains; do not expand content filters or mathematical repair prompts to address those issues. Every consumed evaluation and failed qualification remains unchanged. Goal remains active and unmet."
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
