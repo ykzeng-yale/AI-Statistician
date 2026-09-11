@@ -113,10 +113,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    The source-owner tool now connects public discovery to exact Git acquisition,
    persistent offline reads, and existing scientific file imports. This is
    mechanism coverage, not autonomous environment preparation or replication.
-   Investigate the standalone Anthropic sandbox runtime as a narrow native
-   command backend, without Claude Code. Verify isolation before adoption;
-   dependency acquisition and frozen offline execution remain separate.
-   Reuse ordinary package/environment tooling rather than package-specific rules.
+   Standalone Anthropic sandbox-runtime has now been tested without Claude Code.
+   The macOS prototype passes scoped file/network and local dependency checks,
+   but a detached child can write after the execution receipt. It remains a
+   test-only development dependency, not an enabled product backend. Native
+   adoption needs an established process-lifetime boundary (for example, a
+   separately qualified Linux/OCI environment), not a custom process monitor.
+   Dependency acquisition and frozen offline execution remain separate. Use
+   ordinary environment tooling rather than package-specific rules; advance
+   recoverable research context while the native backend remains unqualified.
 2. Improve long-horizon Theory through recoverable observations and native
    Markdown/LaTeX work. Extend the existing session/artifact reads, not a second
    memory service. Let the model decide derivation length, useful scratch work,

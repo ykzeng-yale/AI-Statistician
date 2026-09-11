@@ -115,6 +115,27 @@ broad, so explicit read restrictions and adversarial isolation tests are mandato
 It does not freeze package versions or make an environment reproducible by
 itself.[^srt]
 
+**Implementation qualification, 2026-09-11:** the pinned npm release `0.0.76`
+was tested through its standalone SDK on this macOS host. It remains a development
+dependency used only by [qualification fixtures](../tests/test_native_project_execution.py),
+not a product executor or model tool. Five checks pass: scoped filesystem and
+credential isolation with raw feedback, ordinary local Python environment/package
+preparation, command timeout, output limits, and proxy allow/deny versus direct
+socket denial. The proxy fixture explicitly clears localhost bypass and uses the
+proxy's numeric loopback address; default Python/urllib localhost resolution did
+not work under the restricted read profile. This is not a claim of arbitrary
+networked package-manager compatibility or native R support.
+
+One **strict expected qualification failure** is retained: a child that creates
+a new session can write into the project after the wrapper has returned its
+receipt and called SRT reset. The test triggers that write after return, then
+kills its own synthetic child. This is a process-lifetime gap in our proposed
+embedding, not evidence that the child escaped SRT's file/network policy. Do not
+activate this candidate, freeze its still-mutable workspace as execution evidence,
+or patch around it with a new process-tree controller. A qualified Linux/OCI
+lifetime boundary is a separate adoption requirement. No Linux test, R process,
+model call, research draw, or replication/proof credit came from this experiment.
+
 ### Long-Horizon Theory: Native Files, Uncertainty, and Recoverable Context
 
 The AI co-mathematician is an interactive, asynchronous mathematical workspace:
@@ -438,7 +459,9 @@ compilation of helpers, or reviewer agreement as a research-E2E win.
 All model tests remain direct API calls to exactly
 `claude-haiku-4-5-20251001`. No Opus, automatic escalation, external service agent,
 or default third-party model is introduced. This report has made no model calls
-and has not executed or installed the proposed components.
+and had not executed or installed the proposed components at the initial review.
+The later SRT-only qualification above records its installation, test coverage,
+and explicit non-adoption; it does not retroactively expand the literature audit.
 
 ## Sources
 

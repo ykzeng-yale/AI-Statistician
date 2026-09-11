@@ -8,5 +8,8 @@
   "dependencies": {
     "pyodide": "314.0.2",
     "webr": "0.6.0"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sandbox-runtime": "0.0.76"
   }
 }
