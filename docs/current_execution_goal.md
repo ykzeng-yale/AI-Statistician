@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, with complete Lean startup/continuation feedback; no new product draw.
+Updated: 2026-09-11, after GEE qualification failed; no new product draw or production rule.
 
 ## Operative Objective
 
@@ -197,6 +197,17 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    the shared evaluator interface, not GP formulas, report-matching repairs, another
    reviewer or another topic selected merely to obtain acceptance. A possible
    interface correction is not yet a scientifically verified improvement.
+   The subsequent full-scope [GEE qualification](operator_audits/gee_poisson_prequalification_20260911.md)
+   used the unchanged production/evaluator contract and pinned upstream code.
+   Mechanics passed, but both referees again labeled an incomplete note as a
+   contradiction: 41 Haiku calls, 624.720 seconds, one of two attempted controls
+   correct. All later phases were not run. Inspected scratch scripts also printed
+   verification claims without computation. The existing prompt already distinguishes
+   these concepts; neither observation justifies another content rule, mandatory
+   tool ritual or prompt recipe. Do not repeat qualification on another topic as
+   a substitute for addressing the established evaluator limitation. Review whether
+   diagnostic-label calibration has excessive operational weight separately from
+   acceptance reliability, without changing consumed judgments or frozen gates.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
