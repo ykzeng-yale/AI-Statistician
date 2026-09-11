@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "conditional-quantile-public-source-20260911-v1",
+  "source_horizon": "2026-09-11",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "quantile-LICENSE-txt",
+      "title": "LICENSE.txt",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "LICENSE.txt",
+      "sha256": "1ca78e1dec9dcebc55f3b96a862317f23e76422c5fc943568d955aad1f6b5fad",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/LICENSE.txt",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "quantile-RESOURCE-md",
+      "title": "RESOURCE.md",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "RESOURCE.md",
+      "sha256": "561464a6ef19b87a0eeda60fe3984b8be9aa54cf232eca5582ca04c4dc34eaef",
+      "model_visible": true,
+      "citation": "Operator resource descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "quantile-environment_lock-json",
+      "title": "environment_lock.json",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "environment_lock.json",
+      "sha256": "c888a7a10444c601db52e9a6ad67d5008b1ed4eb24cbec0d523ba66bbe494448",
+      "model_visible": true,
+      "citation": "Operator resource descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "quantile-examples-python-quantile_regression-py",
+      "title": "examples/python/quantile_regression.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "examples/python/quantile_regression.py",
+      "sha256": "89366ad1b4b8657c4865d00a05233138d0d577babdff2aef762fd1d1c12a92ce",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/examples/python/quantile_regression.py",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "quantile-run_quantile_source-py",
+      "title": "run_quantile_source.py",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "run_quantile_source.py",
+      "sha256": "22a7a4883eae74f75ac1fb8ec94268a62673fe182f68fc7a84261ce01bf52c33",
+      "model_visible": true,
+      "citation": "Operator resource descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "quantile-statsmodels-datasets-engel-engel-csv",
+      "title": "statsmodels/datasets/engel/engel.csv",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/datasets/engel/engel.csv",
+      "sha256": "796c3da0406291dd324c51901b51386be12b5f52e330afaf69584f57c06ad45c",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/datasets/engel/engel.csv",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "quantile-statsmodels-regression-quantile_regression-py",
+      "title": "statsmodels/regression/quantile_regression.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/regression/quantile_regression.py",
+      "sha256": "06fb23f61e2b754ce393fd0ea452c78790e6df666a558a23d626bfba19164024",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/regression/quantile_regression.py",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "quantile-statsmodels-regression-tests-results-results_quantile_regression-py",
+      "title": "statsmodels/regression/tests/results/results_quantile_regression.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/regression/tests/results/results_quantile_regression.py",
+      "sha256": "12ef7aaf0df4117cdfcfbc791bb85e8ab2372d7ad5eca42124bdbde13419cf1e",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/regression/tests/results/results_quantile_regression.py",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "quantile-statsmodels-regression-tests-test_quantile_regression-py",
+      "title": "statsmodels/regression/tests/test_quantile_regression.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/regression/tests/test_quantile_regression.py",
+      "sha256": "37991b61c08f4e270bbed1ce81bd69616ee7376125c6f3da28118cc5c2d35465",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/regression/tests/test_quantile_regression.py",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    }
+  ]
+}

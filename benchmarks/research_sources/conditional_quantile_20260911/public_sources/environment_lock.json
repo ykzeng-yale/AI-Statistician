@@ -1,0 +1,22 @@
+{
+  "runtime": "3.12.14",
+  "base_prefix": "/Users/yukangzengcmac/.cache/codex-runtimes/codex-primary-runtime/dependencies/python",
+  "packages": {
+    "pandas": "3.0.5",
+    "packaging": "26.3",
+    "iniconfig": "2.3.0",
+    "Pygments": "2.21.0",
+    "statsmodels": "0.14.6",
+    "numpy": "2.5.2",
+    "patsy": "1.0.2",
+    "python-dateutil": "2.9.0.post0",
+    "pytest": "9.0.3",
+    "pluggy": "1.6.0",
+    "six": "1.17.0",
+    "scipy": "1.18.1"
+  },
+  "source_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+  "interpreter_sha256": "ac60cfe0268614638d0ffa35f3b0284fc7b3a11482723793455e17eeb278509e",
+  "historical_environment_reproduced": false,
+  "network_during_execution": false
+}
