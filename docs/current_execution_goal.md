@@ -240,3 +240,11 @@ retain their original time-specific facts. No research-E2E credit was added.
 Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.
+
+The later [UCB1 qualification](operator_audits/ucb1_prequalification_20260911.md)
+also failed: 22 exact-Haiku calls, unchanged complete inputs and the correct CLI
+context, but disagreement over an extra experimental condition introduced by one
+reviewer. No product draw occurred. This is an independent-authority limitation,
+not observed product TheoryDeveloper failure. Preserve the attempt; do not
+immediately substitute another task, strengthen the question after the fact,
+add an issue-specific prompt rule or append another judge to seek acceptance.
