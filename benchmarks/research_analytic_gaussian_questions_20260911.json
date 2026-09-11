@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ResearchCapabilityVisibleQuestionSet",
+  "questions": [
+    {
+      "id": "analytic_gaussian_calibration_research",
+      "title": "Exact Gaussian privacy calibration and empirical validation",
+      "description": "Develop a complete source-assisted research analysis of analytic Gaussian noise calibration. Consult Balle and Wang (ICML 2018), Improving the Gaussian Mechanism for Differential Privacy: Analytical Calibration and Optimal Denoising, especially Section 3 and the supplementary proofs (https://proceedings.mlr.press/v80/balle18a.html). Author calibration code is available at https://github.com/BorjaBalle/analytic-gaussian-mechanism, pinned commit 8ea4ba0b2b921338a1fb5db0de1100d9ec8c4ef5, file agm-example.py, Apache-2.0. Maintain reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations. Define symmetric adjacency, isotropic Gaussian output perturbation and global L2 sensitivity. Derive the exact privacy-loss law under both neighboring output distributions, the maximizing measurable event in the differential-privacy inequality, the exact Gaussian privacy profile, and a justified reduction from all neighboring pairs to sensitivity. Establish monotonicity, endpoint behavior and existence/uniqueness of the minimum positive noise scale for epsilon>0, delta in (0,1) and positive sensitivity. Distinguish exact sensitivity from a conservative upper bound and handle zero sensitivity separately. Derive and implement a numerically accurate calibration procedure under the public interface; numerical CDF and root-finding primitives and attributed author-code reuse are allowed. Inspect the author source, compare calibration values, and explain numerical error and the scope of any minimum-noise claim. Use exploratory computation to challenge the derivation and implementation, then obtain independent review of the exact current theory and source. Freeze a confirmatory experiment with at least two epsilon values strictly below one, at least one above one, at least two delta values, a non-unit sensitivity, and both scalar and multidimensional isotropic releases. Use at least 10000 independent releases per cell and select a fixed sample size or justified stopping rule targeting absolute Monte Carlo standard error at most 0.002 for the exact privacy-profile diagnostic. Estimate the maximizing-event probability difference or an explicitly derived equivalent expectation, account for dependence if samples are reused, report uncertainty, and compare to the analytic target. Also check the released-noise squared-error risk against its theoretical expectation, and compare noise variance to the classical sufficient calibration only within that bound's stated epsilon range. Freeze all cells, seeds, precision targets and acceptance criteria before confirmation; report failed criteria and numerical discrepancies. The final report must bind source use, full derivation, implementation, actual exploratory observations, independent review and confirmation. Simulation cannot establish the all-events/all-neighbors DP guarantee or finite-precision certified privacy. This task covers analytic calibration, not the paper's denoising or real-data studies, blind rediscovery, a new theorem, exact original-project replication, or mandatory Lean proof.",
+      "tags": [
+        "differential_privacy",
+        "gaussian_mechanism",
+        "finite_sample_theory",
+        "source_assisted",
+        "python_language"
+      ],
+      "task_intent": {
+        "source_replication": "not_applicable",
+        "theory": "required",
+        "scientific_code": "required",
+        "empirical": "required",
+        "formal": "not_applicable",
+        "novelty": "not_applicable",
+        "unresolved_gaps": "required"
+      },
+      "estimator_execution_contract": {
+        "schema_version": 1,
+        "estimator_id": "est_analytic_gaussian",
+        "entrypoint": "run_estimator",
+        "request_fields": [
+          {
+            "clause_id": "request.epsilon",
+            "name": "epsilon",
+            "meaning": "Positive privacy parameter for a single isotropic Gaussian release.",
+            "json_type": "number",
+            "shape": "Finite scalar, 0.05 <= epsilon <= 8.",
+            "units": "Natural-log likelihood-ratio units.",
+            "indexing": "Scalar.",
+            "edge_cases": "Only valid requests in this numerical domain are evaluated; no invalid-input taxonomy is imposed.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.delta",
+            "name": "delta",
+            "meaning": "Target approximate-DP slack for this single release.",
+            "json_type": "number",
+            "shape": "Finite scalar, 0.0001 <= delta <= 0.2.",
+            "units": "Probability difference.",
+            "indexing": "Scalar.",
+            "edge_cases": "Delta is strictly positive and below one, including both sides of the author's calibration branch boundary when inside this domain.",
+            "binding": "fixed_before_all_replicates"
+          },
+          {
+            "clause_id": "request.sensitivity",
+            "name": "sensitivity",
+            "meaning": "Nonnegative global L2 sensitivity or an explicitly stated conservative upper bound.",
+            "json_type": "number",
+            "shape": "Finite scalar, 0 <= sensitivity <= 5.",
+            "units": "Same units as the released statistic.",
+            "indexing": "Scalar.",
+            "edge_cases": "Zero sensitivity requires sigma=0; positive sensitivity uses the minimal Gaussian calibration for the supplied sensitivity value.",
+            "binding": "fixed_before_all_replicates"
+          }
+        ],
+        "response_fields": [
+          {
+            "clause_id": "response.sigma",
+            "name": "sigma",
+            "meaning": "Minimum standard deviation, up to numerical tolerance, of isotropic Gaussian noise satisfying the exact privacy-profile inequality at the supplied sensitivity. For positive sensitivity, agree with the exact calibration root to relative error <=0.000001 and make the profile residual no larger than 0.00000001 in absolute value. This is numerical agreement, not a machine-certified privacy certificate.",
+            "json_type": "number",
+            "shape": "One finite nonnegative scalar.",
+            "units": "Standard deviation in statistic units, not variance or precision.",
+            "indexing": "Scalar.",
+            "edge_cases": "Return exactly zero when sensitivity is zero. Additional diagnostic output fields are allowed.",
+            "normalization": "Noise covariance is sigma squared times the identity; scaling sensitivity by c>0 scales sigma by c."
+          }
+        ],
+        "invariants": [
+          {
+            "clause_id": "invariant.inputs",
+            "meaning": "Do not mutate the request. Identical requests return the same sigma. Do not inspect hidden evaluators, gold outputs or simulator state."
+          }
+        ],
+        "empirical_claims": [
+          {
+            "clause_id": "claim.empirical.protocol",
+            "meaning": "Use at least two epsilon values in (0,1), one above 1, two delta values, non-unit sensitivity, and dimensions 1 and greater than 1. Use at least 10000 independent releases per cell with frozen seeds, cell definitions, stopping/size rule and acceptance criteria; target absolute privacy-diagnostic MCSE <=0.002."
+          },
+          {
+            "clause_id": "claim.empirical.profile",
+            "meaning": "Actually invoke the accepted calibration implementation to determine release noise. Estimate the exact maximizing-event probability difference or a derived equivalent expectation, with the correct probability laws, likelihood-ratio direction and dependence-aware MCSE, and compare with the analytic profile at that sigma."
+          },
+          {
+            "clause_id": "claim.empirical.utility",
+            "meaning": "Check mean squared Euclidean noise against dimension times sigma squared with uncertainty, and compare analytic and classical noise variance only for epsilon where the classical guarantee applies. Include calibration agreement with the pinned author implementation and investigate discrepancies."
+          },
+          {
+            "clause_id": "claim.empirical.scope",
+            "meaning": "Report failed cells and precision targets. Empirical agreement is diagnostic, not a proof of differential privacy, minimum risk among all private mechanisms, composition privacy, denoising optimality or finite-precision implementation certification."
+          }
+        ],
+        "termination_guarantee": "Calibration must terminate on every valid finite input in the stated numerical domain. The model chooses its mathematical derivation length, source reads, numerical method, diagnostics and revision sequence."
+      }
+    }
+  ]
+}
