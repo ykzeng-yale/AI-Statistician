@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "gp-regression-public-source-20260910-v1",
+  "source_horizon": "2026-09-10",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "gp-COPYING",
+      "title": "COPYING",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "COPYING",
+      "sha256": "50d6a9d340f19ab355609917993114daf5f47e3161067bcf34955bbd05cd9cb0",
+      "model_visible": true,
+      "citation": "scikit-learn 1.9.1",
+      "url": "https://github.com/scikit-learn/scikit-learn/blob/866c0f51e7560ef0303cbcc5f159df5382ea9e3f/COPYING",
+      "git_commit": "866c0f51e7560ef0303cbcc5f159df5382ea9e3f",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gp-SOURCE_SCOPE-md",
+      "title": "SOURCE_SCOPE.md",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "SOURCE_SCOPE.md",
+      "sha256": "d5b923bf44d72807ac8079e7b69f662cd853efac5a46f51f6453c237d9e891dc",
+      "model_visible": true,
+      "citation": "Operator-authored resource descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "gp-_gpr-py",
+      "title": "_gpr.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "_gpr.py",
+      "sha256": "d135acc1e3b186f0b0829a6fe38ec1877d104f9b997edafb330a21626bdd5f4d",
+      "model_visible": true,
+      "citation": "scikit-learn 1.9.1",
+      "url": "https://github.com/scikit-learn/scikit-learn/blob/866c0f51e7560ef0303cbcc5f159df5382ea9e3f/sklearn/gaussian_process/_gpr.py",
+      "git_commit": "866c0f51e7560ef0303cbcc5f159df5382ea9e3f",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gp-environment_lock-json",
+      "title": "environment_lock.json",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "environment_lock.json",
+      "sha256": "1531b56de9de973747be6780dad87623e7e337e55ff45c7023629a47962cb71a",
+      "model_visible": true,
+      "citation": "Operator-authored resource descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "gp-gaussian_process-rst",
+      "title": "gaussian_process.rst",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "gaussian_process.rst",
+      "sha256": "29525ca7515a4846eb732da403cfc9afb10231e1e33a491e6be920ea07759057",
+      "model_visible": true,
+      "citation": "scikit-learn 1.9.1",
+      "url": "https://github.com/scikit-learn/scikit-learn/blob/866c0f51e7560ef0303cbcc5f159df5382ea9e3f/doc/modules/gaussian_process.rst",
+      "git_commit": "866c0f51e7560ef0303cbcc5f159df5382ea9e3f",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gp-run_gp_source-py",
+      "title": "run_gp_source.py",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "run_gp_source.py",
+      "sha256": "f7685f61f81be001fb7fd8da0d758bf1a03f96f92965f651a79c773dfad9e64f",
+      "model_visible": true,
+      "citation": "Operator-authored resource descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    }
+  ],
+  "snapshot_hash": "5db75b73a5a2880f5d63324145100a834c45246d797683e8107be40c1496402b"
+}

@@ -1,0 +1,15 @@
+{
+  "runtime": "3.12.13",
+  "base_prefix": "/Users/yukangzengcmac/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none",
+  "packages": {
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "joblib": "1.6.0",
+    "threadpoolctl": "3.6.0"
+  },
+  "source_commit": "866c0f51e7560ef0303cbcc5f159df5382ea9e3f",
+  "interpreter_sha256": "a395f264e5612a2819662ed3e37fd30d39ed61179b98e5f86c3c783a008d8623",
+  "historical_environment_reproduced": false,
+  "network_during_execution": false
+}
