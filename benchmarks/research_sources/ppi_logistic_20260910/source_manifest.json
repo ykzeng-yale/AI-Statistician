@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "ppi-logistic-public-source-20260910-v1",
+  "source_horizon": "2026-09-10",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "ppi-LICENSE",
+      "relative_path": "LICENSE",
+      "title": "LICENSE",
+      "source_kind": "source_metadata",
+      "url": "https://github.com/aangelopoulos/ppi_py/tree/3d1f0c668444907b39bd045cb9dd38e479ce7dd6",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "ef3c1a27540ae1a133179415bbfb7ca08f3ae5045dbb86bd870be2a1519d3783"
+    },
+    {
+      "document_id": "ppi-environment_lock-json",
+      "relative_path": "environment_lock.json",
+      "title": "environment_lock.json",
+      "source_kind": "environment_lock",
+      "url": "https://github.com/aangelopoulos/ppi_py/tree/3d1f0c668444907b39bd045cb9dd38e479ce7dd6",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "e12472cf069ca403fe7df692c0eded3c56c322bdc3c486e0173380338453cc18"
+    },
+    {
+      "document_id": "ppi-ppi-py",
+      "relative_path": "ppi.py",
+      "title": "ppi.py",
+      "source_kind": "code",
+      "url": "https://github.com/aangelopoulos/ppi_py/tree/3d1f0c668444907b39bd045cb9dd38e479ce7dd6",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "3c329fb57ce2e73f2cb6e8696188a3415eabcb9f3720128f350378b369693a9c"
+    },
+    {
+      "document_id": "ppi-reproduce_logistic-py",
+      "relative_path": "reproduce_logistic.py",
+      "title": "reproduce_logistic.py",
+      "source_kind": "code",
+      "url": "https://github.com/aangelopoulos/ppi_py/tree/3d1f0c668444907b39bd045cb9dd38e479ce7dd6",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "08fd480ec933f1db2c3416c5df56be7ec45f609d198e5ea2d33a25ea6b6193d6"
+    },
+    {
+      "document_id": "ppi-source_provenance-md",
+      "relative_path": "source_provenance.md",
+      "title": "source_provenance.md",
+      "source_kind": "source_metadata",
+      "url": "https://github.com/aangelopoulos/ppi_py/tree/3d1f0c668444907b39bd045cb9dd38e479ce7dd6",
+      "license": "operator metadata",
+      "model_visible": true,
+      "sha256": "9af245145f8b29829e10c4593c14079c790ec2194aadf5d73959499ef9a3cb5c"
+    },
+    {
+      "document_id": "ppi-test_logistic-py",
+      "relative_path": "test_logistic.py",
+      "title": "test_logistic.py",
+      "source_kind": "code",
+      "url": "https://github.com/aangelopoulos/ppi_py/tree/3d1f0c668444907b39bd045cb9dd38e479ce7dd6",
+      "license": "MIT",
+      "model_visible": true,
+      "sha256": "87e94fd3d00f3deab804fefa554ab4ee7065e1bd0422fc16d6c28caa116f2226"
+    }
+  ]
+}

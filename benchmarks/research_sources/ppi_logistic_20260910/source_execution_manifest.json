@@ -1,0 +1,36 @@
+{
+  "schema_version": 3,
+  "artifact_kind": "ResearchSourceExecutionSpec",
+  "execution_id": "ppi-logistic-source-execution-20260910-v1",
+  "benchmark_id": "research-ppi-logistic-20260910-v1",
+  "source_snapshot_id": "ppi-logistic-public-source-20260910-v1",
+  "source_snapshot_hash": "f6a9633e5f543e71ab65b46ef179efe0d5fa0ac3ef9fc67e3db1efe34ddbb0b7",
+  "source_manifest_sha256": "1a80ea5187457d1009ea7947d733bc36c88918aaefcf9b0c9c6d15f14b5b5b69",
+  "source_commit": "3d1f0c668444907b39bd045cb9dd38e479ce7dd6",
+  "entrypoint_document_id": "ppi-reproduce_logistic-py",
+  "environment_lock_document_id": "ppi-environment_lock-json",
+  "environment_root": "/Users/yukangzengcmac/.codex/external/ppi-py-e2e-20260910-env",
+  "runtime_language": "python",
+  "interpreter_executable_relative_path": "bin/python",
+  "interpreter_executable_sha256": "a395f264e5612a2819662ed3e37fd30d39ed61179b98e5f86c3c783a008d8623",
+  "runtime_read_roots": [
+    "/Users/yukangzengcmac/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none"
+  ],
+  "working_directory_relative": ".",
+  "arguments": [],
+  "package_distributions": {
+    "ppi-python": "ppi-python",
+    "numpy": "numpy",
+    "scipy": "scipy",
+    "scikit-learn": "scikit-learn",
+    "statsmodels": "statsmodels",
+    "numba": "numba",
+    "tqdm": "tqdm"
+  },
+  "timeout_seconds": 900,
+  "max_output_bytes": 4194304,
+  "execution_workspace_mode": "staged_copy_on_write",
+  "result_artifact_paths": [
+    "ppi_logistic_result.json"
+  ]
+}
