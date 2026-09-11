@@ -167,10 +167,13 @@ document is a forward work contract, not a growing chronology of fixes.
   but scientific improvement and thinking-enabled research-E2E remain unproven.
   The default budget stays zero; the pilot compared a configuration bundle, not
   the isolated causal effect of thinking tokens.
-  Hidden-gold protocols 22/23 retain complete read-only candidate/reference files,
+  Hidden-gold protocols 24/25 retain complete read-only candidate/reference files,
   scratch tools and private Markdown referee reports. They now honor the same
   explicit thinking setting, bound by the existing qualification/session hash;
-  past evaluations remain frozen with their original zero budget.
+  past evaluations remain frozen with their original configuration.
+  Provider/model provenance comes from the existing hash-bound retained turn
+  history, not a second operator-copied call log. Protocols 22/23 and consumed
+  qualifications cannot be migrated or retroactively accepted under this change.
   Prospectively, the next full research experiment uses thinking 16384 and
   max_tokens 32768 for every retained author/reviewer workspace, with a 600-second
   request timeout. Tool-free Architect behavior and existing workspace/outer

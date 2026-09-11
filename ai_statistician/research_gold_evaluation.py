@@ -1793,6 +1793,7 @@ def _load_hidden_semantic_activation_judgment(
         rubric=rubric,
         calibration_cases=calibration_cases,
         candidate_mode_negative_cases=candidate_mode_negative_cases,
+        provider_name=str(evaluator.get("provider", "") or ""),
         model=str(evaluator.get("model", "") or ""),
         model_tier=str(evaluator.get("model_tier", "") or ""),
         semantic_artifact_role=semantic_artifact_role,
@@ -1805,18 +1806,6 @@ def _load_hidden_semantic_activation_judgment(
             or "integrated_single"
         ),
     )
-    model_calls = record.get("model_calls", [])
-    if (
-        not isinstance(model_calls, list)
-        or len(model_calls) != int(judgment.get("n_model_calls", 0) or 0)
-        or any(
-            not isinstance(row, Mapping)
-            or row.get("provider") != evaluator.get("provider")
-            or row.get("model") != evaluator.get("model")
-            for row in model_calls
-        )
-    ):
-        errors.append("activation record model-call provenance mismatch")
     if errors:
         raise ValueError(
             "invalid hidden semantic activation record: " + "; ".join(errors)

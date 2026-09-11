@@ -52,8 +52,8 @@ THEORY_SEMANTIC_ERROR_ASSESSMENTS = {
     "NO_MATERIAL_ERROR_FOUND": "PASS",
     "UNRESOLVED": "INCONCLUSIVE",
 }
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 22
-THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 23
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 24
+THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 25
 THEORY_SEMANTIC_CANDIDATE_STRATEGIES = frozenset({"integrated_single", "integrated_plus_adversarial"})
 SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_semantic_review"
 SEMANTIC_REVIEW_MAX_TURNS = 32
@@ -578,6 +578,7 @@ def theory_semantic_activation_judgment_errors(
     rubric: Mapping[str, Any],
     calibration_cases: Sequence[Mapping[str, Any]],
     candidate_mode_negative_cases: Sequence[Mapping[str, Any]],
+    provider_name: str,
     model: str,
     model_tier: str,
     semantic_artifact_role: str,
@@ -594,6 +595,7 @@ def theory_semantic_activation_judgment_errors(
         "task_id_hash": stable_hash(task_id),
         "visible_question_hash": stable_hash(visible_question),
         "semantic_artifact_role": semantic_artifact_role,
+        "provider": provider_name,
         "model": model,
         "model_tier": model_tier,
         "rubric_hash": stable_hash(rubric),
@@ -653,6 +655,12 @@ def theory_semantic_activation_judgment_errors(
             if ref_errors:
                 raise ValueError("review workspace integrity mismatch")
             audit = json.loads(content)
+            history = audit.get("history")
+            if (not isinstance(history, list) or any(
+                not isinstance(turn, Mapping) or turn.get("provider") != provider_name
+                or turn.get("model") != model for turn in history
+            )):
+                raise ValueError("review turn provenance mismatch")
             document_refs = audit.get("document_refs", {})
             if not isinstance(document_refs, dict) or not document_refs or any(
                 not isinstance(ref, Mapping) or read_hash_bound_utf8_file(ref)[1] for ref in document_refs.values()
@@ -662,8 +670,9 @@ def theory_semantic_activation_judgment_errors(
             session_ref = audit["session_ref"]
             session_path = Path(session_ref["root_path"]) / session_ref["relative_path"]
             if (report_errors or hashlib.sha256(session_path.read_bytes()).hexdigest() != session_ref["sha256"]
-                or audit["model"] != model or type(audit["model_calls"]) is not int
-                or audit["model_calls"] < 1 or len(audit["history"]) != audit["model_calls"]
+                or audit["provider"] != provider_name or audit["model"] != model
+                or type(audit["model_calls"]) is not int
+                or audit["model_calls"] < 1 or len(history) != audit["model_calls"]
                 or audit["contract_hash"] != _review_contract_hash(max_tokens=max_tokens)):
                 raise ValueError("review workspace authority mismatch")
             audits.append(audit)
@@ -750,6 +759,7 @@ def run_theory_semantic_gold_judge(
             rubric=rubric,
             calibration_cases=calibration_cases,
             candidate_mode_negative_cases=candidate_mode_negative_cases,
+            provider_name=str(getattr(provider, "provider_name", "") or ""),
             model=model,
             model_tier=model_tier,
             semantic_artifact_role=artifact_role,

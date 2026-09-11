@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -264,7 +265,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 22
+    assert result["protocol_version"] == 24
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -450,7 +451,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         candidate_adjudication_strategy="integrated_plus_adversarial",
     )
 
-    assert result["protocol_version"] == 23
+    assert result["protocol_version"] == 25
     assert result["candidate_adjudication_strategy"] == (
         "integrated_plus_adversarial"
     )
@@ -595,7 +596,8 @@ def test_changed_project_question_cannot_reuse_semantic_qualification(
     ("previous_protocol", "strategy"),
     [(14, "integrated_single"), (15, "integrated_plus_adversarial"),
      (16, "integrated_single"), (17, "integrated_plus_adversarial"),
-     (20, "integrated_single"), (21, "integrated_plus_adversarial")],
+     (20, "integrated_single"), (21, "integrated_plus_adversarial"),
+     (22, "integrated_single"), (23, "integrated_plus_adversarial")],
 )
 def test_previous_prompt_qualification_cannot_authorize_current_judge(
     previous_protocol: int,
@@ -1170,6 +1172,75 @@ def test_modified_private_review_invalidates_activation_without_model_calls(chan
     provider = _RecordingProvider([])
 
     with pytest.raises(ValueError, match="activation review workspace invalid"):
+        _run(provider, activation_judgment=activation)
+
+    assert provider.requests == []
+    assert activation == original
+
+
+@pytest.mark.parametrize("observer_log", [None, [{"model": LIVE_EVALUATION_CLAUDE_MODEL}] * 3])
+def test_activation_loader_uses_retained_call_history_not_duplicate_observer_log(tmp_path, observer_log) -> None:
+    from ai_statistician.research_gold_evaluation import _load_hidden_semantic_activation_judgment
+
+    provider = _RecordingProvider([*_keyed_calibration_packets(), _keyed_candidate_packet()])
+    judgment = _run(provider, candidate_is_reference=True)
+    record = {
+        "artifact_kind": "HiddenSemanticActivationAttempt", "status": "COMPLETED",
+        "task_id": "known-result", "model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "model_tier": "haiku", "product_runtime_started": False, "judgment": judgment,
+    }
+    if observer_log is not None:
+        record["model_calls"] = observer_log
+    path = tmp_path / "activation.json"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    original = path.read_bytes()
+    loaded = _load_hidden_semantic_activation_judgment(
+        {"activation_record_path": str(path), "activation_record_sha256": hashlib.sha256(original).hexdigest(),
+         "provider": "static", "model": LIVE_EVALUATION_CLAUDE_MODEL, "model_tier": "haiku"},
+        task_id="known-result", visible_question={"id": "known-result", "description": "derive it"},
+        reference_documents=[{"path": "reference.md", "sha256": "reference", "content": "reference"}],
+        rubric={"rubric_id": "rubric:1", "claims": [
+            {"claim_id": "claim:definition", "criterion": "Definition is correct."},
+            {"claim_id": "claim:limit", "criterion": "Limit is correct."},
+        ]},
+        calibration_cases=[
+            {"case_id": CASE_IDS[0], "expected_status": "PASS",
+             "documents": [{"path": "reference_complete.md", "content": "correct"}]},
+            {"case_id": CASE_IDS[1], "expected_status": "FAIL",
+             "documents": [{"path": "wrong_limit.md", "content": "wrong limit"}]},
+        ],
+        candidate_mode_negative_cases=[], project_root=tmp_path, semantic_artifact_role="theory",
+    )
+    assert loaded == judgment
+    assert loaded["n_model_calls"] == 3
+    assert len(provider.requests) == 3
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("changed", ["audit_provider", "turn_provider", "turn_model", "history_shape", "judgment_provider"])
+def test_retained_provenance_must_match_even_with_consistent_synthetic_hashes(changed) -> None:
+    activation = _run(_RecordingProvider([*_keyed_calibration_packets(), _keyed_candidate_packet()]), candidate_is_reference=True)
+    reference = activation["review_workspace_refs"][0]
+    path = Path(reference["path"])
+    audit = json.loads(path.read_text())
+    if changed == "audit_provider":
+        audit["provider"] = "different-provider"
+    elif changed == "turn_provider":
+        audit["history"][0]["provider"] = "different-provider"
+    elif changed == "turn_model":
+        audit["history"][0]["model"] = "different-model"
+    elif changed == "history_shape":
+        audit["history"] = "x"
+    else:
+        activation["provider"] = "different-provider"
+    path.write_text(json.dumps(audit), encoding="utf-8")
+    reference.update(sha256=hashlib.sha256(path.read_bytes()).hexdigest(), byte_size=path.stat().st_size)
+    activation.pop("judgment_hash")
+    activation["judgment_hash"] = stable_hash(activation)
+    original = deepcopy(activation)
+    provider = _RecordingProvider([])
+
+    with pytest.raises(ValueError, match="activation review workspace invalid|activation judgment provider mismatch"):
         _run(provider, activation_judgment=activation)
 
     assert provider.requests == []
