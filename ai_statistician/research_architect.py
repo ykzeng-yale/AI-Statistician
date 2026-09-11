@@ -2361,15 +2361,18 @@ def _theory_workspace_read_only_observations(
     observations: dict[str, Any] = {
         "reviewer_observations": reviewer_observations,
     }
-    if report_content:
-        observations["read_only_documents"] = {
-            report_document_path: report_content,
-        }
     transport_feedback = revision_inputs.get("transport_feedback", {})
     if isinstance(transport_feedback, Mapping) and transport_feedback:
         observations["transport_observations"] = deepcopy(
             dict(transport_feedback)
         )
+    observations, documents, _ = externalize_client_tool_text_documents(
+        observations, min_characters=1024, path_prefix="feedback/revision",
+    )
+    if report_content:
+        documents[report_document_path] = report_content
+    if documents:
+        observations["read_only_documents"] = documents
     return observations
 
 

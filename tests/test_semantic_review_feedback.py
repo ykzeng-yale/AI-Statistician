@@ -97,6 +97,33 @@ def test_initial_theory_feedback_is_complete_readable_and_identity_bound() -> No
     assert binding(changed) != binding(artifacts)
 
 
+def test_revision_observations_externalize_exact_text_without_classifying_fields() -> None:
+    feedback = _observations()
+    feedback["tool_output"]["new_unknown_field"] = "unfamiliar raw observation\n" * 4000
+    feedback["rejected_candidate"]["source"] = "model-owned source\n" * 4000
+    transport = {"diagnostic": "opaque transport response\n" * 4000}
+    inputs = {"feedback": feedback, "transport_feedback": transport}
+    original = deepcopy(inputs)
+    artifacts = _theory_workspace_read_only_observations(inputs)
+    documents = artifacts["read_only_documents"]
+
+    def restore(value):
+        if isinstance(value, dict):
+            if "client_tool_evidence_document_ref" in value:
+                return documents[value["client_tool_evidence_document_ref"]]
+            return {key: restore(child) for key, child in value.items()}
+        if isinstance(value, list):
+            return [restore(child) for child in value]
+        return value
+
+    assert restore(artifacts["reviewer_observations"]) == feedback
+    assert restore(artifacts["transport_observations"]) == transport
+    assert len(json.dumps(artifacts["reviewer_observations"])) < 55_000
+    assert len(json.dumps(artifacts["transport_observations"])) < 55_000
+    assert inputs == original
+    assert _theory_workspace_read_only_observations(inputs) == artifacts
+
+
 def test_architect_receives_exact_observations_not_a_runtime_route() -> None:
     feedback = _observations()
     original = deepcopy(feedback)

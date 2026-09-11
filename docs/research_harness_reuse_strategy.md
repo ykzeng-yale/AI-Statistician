@@ -7,20 +7,22 @@ report, not a new runtime, benchmark activation, or capability result.
 
 ## Executive Decision
 
-**Reuse more executable infrastructure and source-grounded operating knowledge;
-add less orchestration.** The existing single outer research graph and retained
+**Make model-owned scientific iteration work; reuse proven components selectively.**
+The existing single outer research graph and retained
 Anthropic tool loop are the right ownership boundary. They are not a reason to
 reimplement every environment, parser, search component, or library extractor.
 Conversely, a popular framework is not automatically a suitable dependency.
 
-The highest-value change is to let the product researcher acquire permitted
-sources, construct an isolated environment, execute and inspect a baseline, and
-continue research in that same project. Currently, important parts of this work
-are still prepared by the operator. A better prompt cannot expose an unavailable
-action. More reviewer qualification does not close that product gap.
+The highest-value changes must remove demonstrated obstacles to the product's
+scientific work: progressive theory, useful exploratory computation, independent
+review and model-owned revision. Source acquisition and environment preparation
+matter when a required workflow needs them; they are not sufficient grounds for
+a container or network-infrastructure workstream. The uncommitted socket/proxy
+extension was withdrawn after that priority error. Keep existing execution tools
+and add infrastructure only when a concrete scientific workflow is blocked.
 
-The second priority is reusable, versioned operating context and recoverable
-research memory. Repo-To-Skill provides a particularly relevant new direction:
+Reusable, versioned operating context and recoverable research memory are relevant
+adoption directions. Repo-To-Skill provides a particularly useful example:
 distill repository knowledge into progressively loaded skills without replacing
 the downstream harness. Its controlled results use GPT-5.5, not this project's
 Haiku model, and include preparation outside the downstream execution budget.
@@ -381,7 +383,7 @@ index makes the current Haiku prover stronger.[^reprover]
 
 ## Current Product Gaps and Their Replacement Boundaries
 
-| Priority | Observed implementation | Consequence | Change and consolidation target |
+| Initial ranking | Baseline implementation observation | Consequence | Original adoption hypothesis |
 |---|---|---|---|
 | 1 | `theory_workspace.py:615-625` requires configured source execution for required replication; `research_source_project.py` acquisition is exposed through CLI, not this researcher tool surface | Operator prepares part of the research environment | Make acquisition and environment preparation model-directed within the existing source/project workspace; reuse the existing snapshot and execution identities |
 | 1 | `scientific_sandbox.py` has a finite Pyodide package cache and base-oriented webR surface | Arbitrary published Python/R projects remain out of reach | Add a native isolated command backend to the existing project executor, not one installer or fallback per package |
@@ -390,40 +392,44 @@ index makes the current Haiku prover stronger.[^reprover]
 | 3 | `agent_runtime.py` owns serial/interleaved workspace transitions | Independent experiments or stable-lemma work cannot yet overlap | Add isolated ready-task execution and exact-input joins inside that graph; retain one writer per artifact |
 | 3 | `lean_rag_dependency.py` includes source-derived lexical reference inference | Useful discovery references are not complete elaborated dependencies | Prefer native environment extraction for compiled libraries; retain lexical fallback only as explicitly non-authoritative discovery |
 
+The table preserves the initial review hypotheses, not the current implementation
+order. Public acquisition, observation-history reads and the optional offline
+native adapter were subsequently connected. Further network/container work is
+deferred; the operative goal prioritizes demonstrated scientific feedback defects.
 These are interface and environment limitations. They do not establish that every
 mathematical failure is a harness defect. The existing Markdown/LaTeX theory
 workspace, direct Python/R/Lean feedback, scoped file edits, independent review,
 and optional formal intent are real and should not be rebuilt under new names.
 
-### 1. Model-Owned Source and Environment Work
+### Model-Owned Source and Environment Work
 
 Public acquisition now connects a permitted source handle to an immutable
-snapshot and existing read/import tools. The next native integration should let
-the researcher author its environment recipe and run ordinary project commands.
+snapshot and existing read/import tools. The optional offline native tool permits
+ordinary project commands when explicitly configured; it is not a research prerequisite.
 The model chooses dependencies, entrypoint, tests, exploratory changes, and
 interpretation. The executor records the resolved source, data, package state,
 working directory, outputs, and process status.
 
-The standalone macOS SRT prototype failed lifetime qualification. The explicit
-Apple OCI/VM candidate above passes six native checks, but its test fixture is not
-a product adapter. Keep the current WASM backend where it is selected; never
+The standalone macOS SRT prototype failed lifetime qualification. The Apple
+offline adapter and its limited evidence are described above. Keep the current
+WASM backend where it is selected; never
 silently switch environments after failure. Native adoption is an execution
 selection, not model escalation, a new agent framework, or scientific authority.
 
-Dependency acquisition and computation need different capabilities. Installation
-can use explicitly allowed registries in a disposable secret-free environment;
-frozen confirmation runs from the resolved environment without network access.
+If a required project later demonstrates a native dependency-acquisition blocker,
+reuse an established execution service rather than build a network platform here.
+Frozen confirmation runs from its resolved environment without network access.
 No model API key, evaluator directory, host home directory, or Docker control
 socket belongs inside generated-code execution. A source repository's setup
 commands are untrusted code, not authorization.
 
-The replacement removes the need for Codex to manually install one paper's R
-packages, select its command, or translate an installation error into product
-rules. It does not remove operator control over allowed resources or data access.
+The scientific objective is for the model to prepare and inspect its own permitted
+baseline, not for Codex to prepare a paper's answer or encode its install errors.
+This does not remove operator control over allowed resources or data access.
 Use ordinary package managers and pinned environment artifacts, not a registry
 of package-specific recovery handlers.
 
-### 2. Long-Horizon Theory and Useful Operating Context
+### Long-Horizon Theory and Useful Operating Context
 
 Retain authoritative mathematics in Markdown/LaTeX, with model-chosen claim labels,
 assumptions, derivations, unresolved gaps, and rejected approaches. Do not mandate
@@ -436,6 +442,14 @@ what matters, while original observations remain recoverable. Summaries are
 working context, not replacements for sources or proof evidence. The current
 checkpoint identity and authorization checks must survive this change.
 
+A synthetic retained-owner test exposed an actual revision-feedback defect:
+`read_theory_workspace` rejected a single long observation above 55,000 characters,
+but the revision producer had not made it available through document range reads.
+The producer now reuses the existing exact-text externalizer for reviewer and
+transport observations. The same owner can read the tail and edit its current
+document; no diagnostic classification or mathematical correction is inserted.
+This establishes feedback access, not improved mathematical judgment.
+
 Offer a small, versioned catalog of relevant operating references through existing
 source/file tools. Start with selected, inspected package and Lean workflows, not
 all 5,000 AREX skills in a system prompt. The model decides what to open. Content
@@ -447,7 +461,7 @@ needs its own statement, assumptions, source, and validation. Neither is a hidde
 answer bank. A later disjoint task must demonstrate actual use before we call
 this capability improvement or library learning.
 
-### 3. Collaboration Without Routine Architect Routing
+### Collaboration Without Routine Architect Routing
 
 Theory can request an exploratory implementation once the relevant estimand and
 interface are usable, before the complete theory is finished. Simulation can
@@ -466,7 +480,7 @@ or a second scheduler merely to obtain concurrency. Count provider calls,
 environment time, and research decisions separately. A tool result is not itself
 a new scientific planning iteration.
 
-### 4. Formal Library Reuse and Foundation Management
+### Formal Library Reuse and Foundation Management
 
 The latest inspected Statlib is `78eb985e`, declaring Lean `v4.33.0-rc2` and
 Mathlib `3ef2c2e2`. The active EmpericalProcessLEAN foundation remains a different,

@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, prioritize executable infrastructure and operating-context reuse.
+Updated: 2026-09-11, prioritize model-owned scientific iteration and usable feedback.
 
 ## Operative Objective
 
@@ -23,11 +23,15 @@ records what was inspected, what is already implemented, and what remains design
 rather than capability. [Production design](production_design.md) is the canonical
 implementation contract; the older Architect goal is now only a role map.
 
-The [deeper comparative reuse review](research_harness_reuse_strategy.md) now
-sets the implementation priorities. Codex improves the product harness; the
+The [deeper comparative reuse review](research_harness_reuse_strategy.md) informs
+selective adoption, not a new infrastructure roadmap. Codex improves the product harness; the
 product researcher must do literature selection, environment preparation,
 derivation, implementation, and interpretation. Operator-prepared paper answers,
 install commands, or error-specific repairs cannot count as product autonomy.
+Do not prioritize VM, proxy, package-registry, or container engineering without
+evidence that a required scientific workflow is blocked by the existing tools.
+The proposed network extension was withdrawn before commit. Existing optional
+offline native execution remains available, not a prerequisite for research.
 
 ### Native Goal Record
 
@@ -108,26 +112,12 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 
 ## Implementation Order
 
-1. Connect the existing source-discovery, snapshot, file-import, and execution
-   surfaces so the product model can prepare and operate a research project.
-   The source-owner tool now connects public discovery to exact Git acquisition,
-   persistent offline reads, and existing scientific file imports. This is
-   mechanism coverage, not autonomous environment preparation or replication.
-   Standalone Anthropic sandbox-runtime has now been tested without Claude Code.
-   The macOS prototype passes scoped file/network and local dependency checks,
-   but a detached child can write after the execution receipt. It remains a
-   test-only development dependency, not an enabled product backend. Native
-   adoption needs an established process-lifetime boundary, not a custom process
-   monitor. The explicit Apple container 1.4.1 adapter now offers
-   `run_project_command` inside the existing Theory and Scientific loops.
-   Model commands operate a persistent offline Linux volume; acquired repositories
-   mount read-only, images are digest-pinned, and raw observations return to the
-   same owner. Actual volume size, command lineage, VM teardown and interrupted
-   receipt recovery are checked. The old test-only OCI runner is consolidated
-   into these adapter tests. This is optional exploratory execution, not source
-   acceptance, confirmation or proof. Networked dependency acquisition, automatic
-   environment reconstruction and fresh autonomous reproduction remain unproven.
-   Extend actual project tools without package-specific recipes or operator answers.
+1. Inspect the existing Theory -> exploratory code/simulation -> independent
+   review -> same-owner revision path. Demonstrate a missing tool, unreadable
+   observation, lost context, or incorrect lineage before changing the harness.
+   Repair the shared mechanism so the product model can investigate and revise
+   its own research. Do not infer a harness defect from a wrong mathematical
+   answer or spend a new scientific draw just to justify unrelated infrastructure.
 2. Improve long-horizon Theory through recoverable observations and native
    Markdown/LaTeX work. Theory, Scientific and Lean owners now share a read-only
    history tool backed by the existing immutable session store. Full observations
@@ -136,11 +126,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    This is mechanism support, not demonstrated long-horizon scientific reliability.
    Let the model decide derivation length, useful scratch work, and when to revise
    or report an unresolved gap; do not add a second memory service or summary agent.
-3. Make selected source-grounded operating knowledge accessible through existing
-   file/source tools. Evaluate portable AREX-Skill-style references and PaperQA's
+3. Use the existing source-discovery, exact snapshot, file-import, Python/R and
+   optional native tools for permitted baselines. Make selected source-grounded
+   operating knowledge accessible through those tools. Evaluate portable
+   AREX-Skill-style references and PaperQA's
    lower-level parsing/provenance components, not their agent controllers.
    Preserve original-source access, version identity, and benchmark blinding;
    do not turn skills into mandatory recipes or an answer bank.
+   General environment reconstruction remains incomplete, but further native or
+   network engineering is deferred until a required workflow demonstrates the need.
 4. Support genuinely independent work and exact-input joins in the sole
    AgentRuntime. Reuse Codex/Pi lifecycle principles; do not embed their loops.
    Normal environment feedback stays with the source owner. Changed premises

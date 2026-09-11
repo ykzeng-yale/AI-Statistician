@@ -40,6 +40,7 @@ from ai_statistician.research_source_discovery import (
     ResearchSourceDiscoveryError,
 )
 from ai_statistician.packet_validation import PacketValidationError
+from ai_statistician.research_architect import _theory_workspace_read_only_observations
 from ai_statistician.theory_derivation_trace import (
     document_authoritative_theory_context,
 )
@@ -3807,6 +3808,67 @@ def test_read_only_context_document_uses_file_tools_and_stays_out_of_theory(
     assert backend.requests[0].metadata["read_only_document_set_hash"] == stable_hash(
         [(report_path, report_sha256)]
     )
+
+
+def test_revision_owner_can_read_long_feedback_then_edit_its_current_document(tmp_path):
+    diagnostic = "opaque environment observation\n" * 3000 + "OBSERVATION_AT_END_731"
+    feedback = {"tool_output": {"raw_output": diagnostic}}
+    observations = _theory_workspace_read_only_observations({"feedback": feedback})
+    documents = observations.pop("read_only_documents", {})
+    parent = "# Claim C1\n\nUnresolved observation.\n"
+    parent_hash = hashlib.sha256(parent.encode()).hexdigest()
+
+    class ReadingOwner:
+        provider_name = "anthropic"
+
+        def __init__(self):
+            self.requests = []
+
+        def generate_client_tool_turn(self, request):
+            self.requests.append(request)
+            step = len(self.requests)
+            if step == 1:
+                return _response(ClientToolCall(
+                    call_id="read-feedback-index", name="read_theory_workspace",
+                    input={"artifact_names": ["reviewer_observations"]},
+                ))
+            observation = json.loads(request.messages[-1]["content"][0]["content"])
+            if step == 2:
+                assert "artifacts" in observation, observation
+                reference = observation["artifacts"]["reviewer_observations"]["tool_output"]["raw_output"]
+                return _response(ClientToolCall(
+                    call_id="inspect-raw-tail", name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                    input={"path": reference["client_tool_evidence_document_ref"],
+                           "line_start": reference["line_count"], "line_end": reference["line_count"]},
+                ))
+            if step == 3:
+                assert observation["content"] == "OBSERVATION_AT_END_731"
+                assert observation["document_sha256"] == hashlib.sha256(diagnostic.encode()).hexdigest()
+                return _response(ClientToolCall(
+                    call_id="model-edits-own-document", name=THEORY_WORKSPACE_EDIT_DOCUMENT_TOOL,
+                    input={"path": "claims/C1.md", "expected_sha256": parent_hash,
+                           "edits": [{"old_text": "Unresolved observation.",
+                                      "new_text": "Investigated OBSERVATION_AT_END_731."}]},
+                ))
+            assert step == 4
+            return _response(_commit_checkpoint())
+
+    owner = ReadingOwner()
+    result = _run_workspace(
+        owner, workspace_dir=tmp_path / "theory", require_document_authority=True,
+        workspace_operation="targeted_revision", initial_documents={"claims/C1.md": parent},
+        initial_artifacts={"problem_card": {"claim": "revised claim"}, "lemma_cards": [{"id": "C1"}]},
+        read_only_artifacts=observations, read_only_documents=documents,
+        build_candidate=lambda artifacts, changed, manifest, changed_documents: {
+            "artifacts": dict(artifacts), "theory_workspace_manifest": dict(manifest),
+        },
+    )
+    assert len(owner.requests) == 4
+    assert load_theory_workspace_documents(result.core_packet) == {
+        "claims/C1.md": parent.replace("Unresolved observation.", "Investigated OBSERVATION_AT_END_731."),
+    }
+    assert result.evidence["runtime_edited_theory"] is False
+    assert feedback["tool_output"]["raw_output"] == diagnostic
 
 
 def test_same_owner_continuation_can_commit_without_forced_document_reread(
