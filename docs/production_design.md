@@ -329,6 +329,14 @@ retrieval context. Semantic handoffs explicitly project current substantive
 fields; provider transport, tool history, telemetry, and prior drafts stay in
 the source trace rather than becoming review or retrieval inputs.
 
+Transport references resolve to unchanged artifact records. Nested dependencies
+are hash-validated but remain references inside those records; their consumers
+resolve them explicitly. Compaction can replace a whole exact record with its
+reference, but cannot rewrite its body and invalidate its identity. Cross-workspace
+review routing uses the original feedback reference, not a second observation wrapper.
+Theory resolves the linked exploratory source manifest into its existing read-only
+document tools; the revision binding still contains the unchanged original reference.
+
 Workspace completion is parent-bound. A Theory revision retires active Algorithm,
 Simulation, Formalization, accepted-review, and handoff references; historical IDs
 remain audit-only. A lane counts as completed only when its recorded parent IDs

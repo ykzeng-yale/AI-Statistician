@@ -2301,6 +2301,8 @@ def build_theory_developer_revision_inputs(
         ),
         "feedback": deepcopy(dict(feedback)),
         "transport_feedback": transport_feedback,
+        **({"exploratory_source_manifest": deepcopy(material["exploratory_source_manifest"])}
+           if "exploratory_source_manifest" in material else {}),
         "parent_client_tool_session_ref": deepcopy(
             dict(material.get("parent_client_tool_session_ref", {}))
             if isinstance(
@@ -2361,6 +2363,11 @@ def _theory_workspace_read_only_observations(
     observations: dict[str, Any] = {
         "reviewer_observations": reviewer_observations,
     }
+    if "exploratory_source_manifest" in revision_inputs:
+        observations["exploratory_source_manifest"] = json.dumps(
+            revision_inputs["exploratory_source_manifest"], ensure_ascii=False,
+            sort_keys=True, indent=2,
+        )
     transport_feedback = revision_inputs.get("transport_feedback", {})
     if isinstance(transport_feedback, Mapping) and transport_feedback:
         observations["transport_observations"] = deepcopy(

@@ -13859,48 +13859,9 @@ def _independent_semantic_review_architect_escalation_task(
         raise ValueError(
             "Architect escalation requires a content-addressed observation identity"
         )
-    observation_ref = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "RuntimeWorkspaceObservationRef",
-        "feedback_type": "workspace_replan_observation_ref",
-        "feedback_id": str(revision_feedback.get("feedback_id", "") or ""),
-        "source_task_id": task.task_id,
-        "source_subsystem": task.owner_subsystem,
-        "source_artifact_id": source_artifact_id,
-        "source_observation_hash": stable_hash(dict(revision_feedback)),
-        "observation_artifact_ref": runtime_artifact_reference(
-            observation_artifact_id,
-            revision_feedback,
-        ),
-        "failure_classification": failure_classification,
-        "source_failure_classification": str(
-            revision_feedback.get("source_failure_classification", "") or ""
-        ),
-        "validation_errors": [
-            str(value)
-            for value in revision_feedback.get("validation_errors", []) or []
-            if str(value)
-        ],
-        "related_artifact_ids": {
-            str(key): str(value)
-            for key, value in revision_feedback.items()
-            if str(key).endswith("_id")
-            and key not in {"feedback_id", "source_task_id"}
-            and isinstance(value, (str, int))
-            and str(value)
-        },
-        "runtime_edits_candidate": False,
-        "proof_evidence_status": str(
-            revision_feedback.get("proof_evidence_status", "NOT_PROOF_EVIDENCE")
-            or "NOT_PROOF_EVIDENCE"
-        ),
-        "boundary": (
-            "This compact control-plane reference identifies the immutable source "
-            "artifact and failure class. AgentRuntime resolves the hash-bound, bounded "
-            "reviewer observation for Architect, while complete source remains in the "
-            "artifact store and Architect does not receive or author a patch."
-        ),
-    }
+    observation_ref = runtime_artifact_reference(
+        observation_artifact_id, revision_feedback,
+    )
     replan_context["workspace_replan"] = {
         "artifact_kind": "RuntimeWorkspaceReplanContext",
         "source_task_id": task.task_id,
@@ -13910,7 +13871,7 @@ def _independent_semantic_review_architect_escalation_task(
             "artifact_kind": "RuntimeArtifactRef",
             "artifact_id": source_artifact_id,
         },
-        "feedback_id": str(observation_ref["feedback_id"]),
+        "feedback_id": str(revision_feedback.get("feedback_id", "") or ""),
         "feedback_hash": stable_hash(dict(revision_feedback)),
         "failure_classification": failure_classification,
         "implementation_gaps": [

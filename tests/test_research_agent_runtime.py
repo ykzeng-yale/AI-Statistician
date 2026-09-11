@@ -11,6 +11,7 @@ import pytest
 
 import ai_statistician.architect_coordinator_llm as architect_module
 import ai_statistician.research_agent_runtime as runtime_module
+import ai_statistician.research_architect as research_architect_module
 from ai_statistician.agent_runtime import (
     AgentStepResult,
     AgentTask,
@@ -1550,6 +1551,7 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
         "estimator_specs": [estimator_spec],
         "theorem_cards": [],
         "formalization_requests": [],
+        "simulation_ademp_spec": {},
     }
     finding_id = "finding:publication-proof-gap"
     preflight_id = "theory_preflight:exploratory-algorithm-theory-return"
@@ -1768,11 +1770,25 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
             return deepcopy(revised_theory)
 
     blackboard.artifacts.update(outcome.produced_artifacts)
-    theory_result = runtime_module.TheoryDeveloperRuntimeSubsystem(
+    theory_results = []
+
+    class ObservedTheorySubsystem(runtime_module.TheoryDeveloperRuntimeSubsystem):
+        def run(self, task, state):
+            result = super().run(task, state)
+            theory_results.append(result)
+            return result
+
+    theory_subsystem = ObservedTheorySubsystem(
         theory_developer=RevisedTheoryDeveloper(),  # type: ignore[arg-type]
         n_runs=8,
         seed=7,
-    ).run(outcome.next_task, blackboard)
+    )
+    runtime_module.AgentRuntime(
+        subsystems={"TheoryDeveloper": theory_subsystem},
+        blackboard=blackboard,
+    ).run(outcome.next_task, max_iterations=1)
+    assert len(theory_results) == 1
+    theory_result = theory_results[0]
 
     assert theory_result.status == "REROUTE"
     assert theory_result.next_task is not None
@@ -1789,6 +1805,25 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     ]["revision_source"] == (
         "theory_preflight_after_exploratory_scientific_execution"
     )
+    assert captured_revision_context[
+        runtime_module.THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY
+    ] == binding
+    assert runtime_module.theory_developer_revision_binding_errors(
+        binding, question_id=question.id,
+    ) == []
+    revision_inputs = research_architect_module.build_theory_developer_revision_inputs(
+        captured_revision_context, question=question,
+    )
+    observations = research_architect_module._theory_workspace_read_only_observations(
+        revision_inputs,
+    )
+    source_ref = observations["exploratory_source_manifest"]
+    source_text = observations["read_only_documents"][source_ref["path"]]
+    assert json.loads(source_text) == source_manifest
+    assert json.loads(source_text)["prototypes"][0]["source_code"] == source
+    assert binding["source_feedback"]["exploratory_scientific_observation"][
+        "source_manifest_ref"
+    ] == runtime_artifact_reference(manifest_id, source_manifest)
     revised_id = revised_theory["packet_id"]
     stored_revision = theory_result.produced_artifacts[revised_id]
     assert stored_revision["parent_theory_packet_id"] == theory_id
@@ -9168,9 +9203,11 @@ def test_independent_semantic_review_escalation_keeps_source_out_of_task_payload
     )
 
     routed = next_task.inputs["environment_feedback"]
-    assert routed["artifact_kind"] == "RuntimeWorkspaceObservationRef"
-    assert routed["source_artifact_id"] == "algorithm_manifest:compact"
-    assert routed["validation_errors"] == ["raw sandbox failure"]
+    assert routed["artifact_kind"] == "RuntimeArtifactRef"
+    assert routed["artifact_id"] == "feedback:compact"
+    assert next_task.inputs["architect_context"]["workspace_replan"][
+        "source_artifact_id"
+    ] == "algorithm_manifest:compact"
     assert "rejected_candidate" not in routed
     assert "environment_feedback" not in next_task.inputs["architect_context"]
     assert complete_source not in repr(next_task.inputs)
@@ -9264,19 +9301,17 @@ def test_cross_artifact_review_assessment_can_escalate_before_budget_exhaustion(
 
     assert next_task.owner_subsystem == "ArchitectCoordinator"
     observation = next_task.inputs["environment_feedback"]
-    assert observation["failure_classification"] == (
+    assert observation["artifact_kind"] == "RuntimeArtifactRef"
+    assert observation["artifact_id"] == "feedback:cross-artifact"
+    replan = next_task.inputs["architect_context"]["workspace_replan"]
+    assert replan["failure_classification"] == (
         "generated_code_semantic_review_requires_cross_artifact_resolution"
     )
-    assert observation["source_artifact_id"] == (
+    assert replan["source_artifact_id"] == (
         "algorithm_manifest:cross-artifact"
     )
     assert "unchanged_source_retry_authorized" not in observation
-    assert next_task.inputs["architect_context"]["workspace_replan"][
-        "failure_classification"
-    ] == observation["failure_classification"]
-    assert "unchanged_source_retry_authorized" not in (
-        next_task.inputs["architect_context"]["workspace_replan"]
-    )
+    assert "unchanged_source_retry_authorized" not in replan
 
 
 @pytest.mark.parametrize(
@@ -9460,16 +9495,44 @@ def test_rejected_review_routes_only_cross_artifact_conflicts_through_architect(
     if cross_artifact:
         assert RUNTIME_CONTINUATION_BUDGET_MARKER_KEY not in outcome.next_task.budget
         unresolved_feedback = outcome.next_task.inputs["environment_feedback"]
-        assert unresolved_feedback["observation_artifact_ref"]["artifact_kind"] == (
+        assert unresolved_feedback["artifact_kind"] == (
             "RuntimeArtifactRef"
         )
         resolved_feedback = resolve_runtime_artifact_references(
             unresolved_feedback,
             {**blackboard.artifacts, **outcome.produced_artifacts},
         )
-        assert resolved_feedback["observation_artifact_ref"][
+        assert resolved_feedback[
             "source_revision_assessment"
         ]["resolution_scope"] == "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
+
+        class ArchitectInputConsumer:
+            name = "ArchitectCoordinator"
+
+            def run(self, task, _blackboard):
+                assert task.inputs["environment_feedback"] == resolved_feedback
+                prompt = architect_module.build_architect_feedback_route_prompt(
+                    question=question,
+                    architect_context=task.inputs["architect_context"],
+                    environment_feedback=task.inputs["environment_feedback"],
+                )
+                model_input = json.loads(prompt.rsplit("\n\n", 1)[1])
+                assert model_input["active_source_revision_assessment"] == (
+                    resolved_feedback["source_revision_assessment"]
+                )
+                assert model_input["environment_feedback_fingerprint"] == (
+                    runtime_module.stable_hash(resolved_feedback)
+                )
+                return AgentStepResult(status="ACCEPTED", rationale="Prompt input verified")
+
+        graph_result = runtime_module.AgentRuntime(
+            subsystems={"ArchitectCoordinator": ArchitectInputConsumer()},
+            blackboard=BlackboardState(
+                project_id=question.id,
+                artifacts={**blackboard.artifacts, **outcome.produced_artifacts},
+            ),
+        ).run(outcome.next_task, max_iterations=1)
+        assert graph_result.status == "ACCEPTED"
     else:
         assert outcome.next_task.budget[RUNTIME_CONTINUATION_BUDGET_MARKER_KEY] == {
             "scope": "workspace_continuation",

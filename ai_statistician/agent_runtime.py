@@ -210,7 +210,7 @@ def _resolve_runtime_artifact_references(
 ) -> Any:
     active: set[str] = set()
 
-    def resolve(child: Any) -> Any:
+    def resolve(child: Any, *, expand: bool = True) -> Any:
         if isinstance(child, Mapping):
             if (
                 child.get("artifact_kind") == "RuntimeArtifactRef"
@@ -243,20 +243,28 @@ def _resolve_runtime_artifact_references(
                     )
                 active.add(artifact_id)
                 try:
-                    resolved_artifact = resolve(deepcopy(artifact))
+                    resolved_artifact = resolve(artifact, expand=False)
                 finally:
                     active.remove(artifact_id)
+                if not expand:
+                    return deepcopy(dict(child))
                 if bindings is not None:
                     bindings.setdefault(
                         stable_hash(resolved_artifact),
                         deepcopy(dict(child)),
                     )
                 return resolved_artifact
-            return {str(key): resolve(item) for key, item in child.items()}
+            # Artifact bytes carry identity. Validate their dependencies without
+            # replacing embedded references and invalidating the owner's hashes.
+            expand_children = expand and not child.get("artifact_kind")
+            return {
+                str(key): resolve(item, expand=expand_children)
+                for key, item in child.items()
+            }
         if isinstance(child, list):
-            return [resolve(item) for item in child]
+            return [resolve(item, expand=expand) for item in child]
         if isinstance(child, tuple):
-            return tuple(resolve(item) for item in child)
+            return tuple(resolve(item, expand=expand) for item in child)
         return deepcopy(child)
 
     return resolve(value)
@@ -266,7 +274,7 @@ def resolve_runtime_artifact_references(
     value: Any,
     artifacts: Mapping[str, Any],
 ) -> Any:
-    """Resolve explicit refs for a subsystem-owned restored task."""
+    """Resolve transport refs without rewriting identity-bearing artifact records."""
 
     return _resolve_runtime_artifact_references(value, artifacts)
 
@@ -284,6 +292,8 @@ def _reapply_runtime_artifact_references(
             reference = bindings.get(stable_hash(dict(child)))
             if isinstance(reference, Mapping):
                 return deepcopy(dict(reference))
+            if child.get("artifact_kind"):
+                return deepcopy(dict(child))
             return {str(key): compact(item) for key, item in child.items()}
         if isinstance(child, list):
             return [compact(item) for item in child]

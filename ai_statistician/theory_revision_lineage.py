@@ -482,6 +482,13 @@ def resolve_theory_developer_revision_parent_material(
         theory_packet_id=packet_id,
     )
     material["source_theory_packet_hash"] = expected_packet_hash
+    feedback = _mapping(revision_binding.get("source_feedback"))
+    observation = _mapping(feedback.get("exploratory_scientific_observation"))
+    source_ref = observation.get("source_manifest_ref")
+    if source_ref:
+        material["exploratory_source_manifest"] = resolve_runtime_artifact_references(
+            source_ref, artifacts,
+        )
     matching_workspace_evidence = [
         artifact
         for artifact in artifacts.values()

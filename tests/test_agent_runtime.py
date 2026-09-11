@@ -17,8 +17,10 @@ from ai_statistician.agent_runtime import (
     ToolCallRecord,
     agent_task_continuation_reference,
     agent_runtime_substage,
+    compact_runtime_artifact_references,
     materialize_agent_task_continuation,
     mark_workspace_continuation,
+    resolve_runtime_artifact_references,
     restore_agent_task_continuation,
     runtime_artifact_reference,
 )
@@ -312,6 +314,63 @@ def test_agent_runtime_rejects_stale_artifact_ref_before_subsystem_call() -> Non
     assert result.traces[0].failure_classification == (
         "task_artifact_reference_invalid"
     )
+
+
+@pytest.mark.parametrize("via_reference", [False, True])
+@pytest.mark.parametrize("stale_dependency", [False, True])
+def test_runtime_preserves_records_while_validating_nested_dependencies(
+    via_reference: bool, stale_dependency: bool,
+) -> None:
+    source = {"artifact_kind": "OpaqueSource", "text": "uninterpreted observation"}
+    dependency = runtime_artifact_reference("source", source)
+    if stale_dependency:
+        dependency["content_hash"] = "stale"
+    receipt = {"artifact_kind": "OpaqueReceipt", "dependencies": [dependency]}
+    record = {
+        "artifact_kind": "OpaqueBoundRecord",
+        "receipt": runtime_artifact_reference("receipt", receipt),
+        "receipt_hash": stable_hash(receipt),
+        "unchanged_inline_copy": source,
+    }
+    artifacts = {"source": source, "receipt": receipt, "record": record}
+    before = deepcopy(artifacts)
+    calls = []
+
+    class Consumer:
+        name = "Consumer"
+
+        def run(self, task, blackboard):
+            received = task.inputs["record"]
+            calls.append(received)
+            assert received == record
+            assert stable_hash(received) == stable_hash(record)
+            actual_receipt = resolve_runtime_artifact_references(
+                received["receipt"], blackboard.artifacts
+            )
+            assert actual_receipt == receipt
+            assert resolve_runtime_artifact_references(
+                actual_receipt["dependencies"][0], blackboard.artifacts
+            ) == source
+            return AgentStepResult(status="ACCEPTED", rationale="Exact records consumed")
+
+    result = AgentRuntime(
+        subsystems={"Consumer": Consumer()},
+        blackboard=BlackboardState(project_id="opaque-records", artifacts=artifacts),
+    ).run(AgentTask(
+        task_id="consume", owner_subsystem="Consumer", objective="Read exact dependencies",
+        inputs={"record": runtime_artifact_reference("record", record) if via_reference else record},
+    ))
+    assert artifacts == before
+    if stale_dependency:
+        assert not calls
+        assert result.status == "FAILED"
+        assert result.traces[0].failure_classification == "task_artifact_reference_invalid"
+    else:
+        assert calls == [record]
+        assert result.status == "ACCEPTED"
+        assert compact_runtime_artifact_references(
+            {"record": record}, {"source": source}
+        ) == {"record": record}
 
 
 def test_agent_runtime_leaves_non_blackboard_artifact_refs_opaque() -> None:
