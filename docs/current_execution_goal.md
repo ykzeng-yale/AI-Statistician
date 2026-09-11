@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, remove keyword-authored revisions; preserve failed IV/GMM qualification.
+Updated: 2026-09-11, bind semantic qualification to its exact question context.
 
 ## Operative Objective
 
@@ -123,6 +123,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    Do not launch another topic, add a reviewer, rename verdicts, or move the
    benchmark remedy into a prompt. Establish a shared interface/context defect
    independently before changing the harness; better judgment needs fresh evidence.
+   A separate identity gap is now fixed: qualification binds the exact original
+   question shown to the reviewer, not just its task ID. Changed or missing context
+   identity cannot reuse an old qualification or trigger automatic requalification.
+   This does not change the review prompt, solve scope overreach, or activate GMM.
 4. Improve the existing source-project and Python/R environment only where real
    reproduction exposes a general limitation. Pinned source execution exists;
    arbitrary paper/data/environment reconstruction remains incomplete.

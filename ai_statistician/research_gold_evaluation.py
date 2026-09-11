@@ -1744,6 +1744,7 @@ def _load_hidden_semantic_activation_judgment(
     evaluator: Mapping[str, Any],
     *,
     task_id: str,
+    visible_question: Mapping[str, Any],
     reference_documents: Sequence[Mapping[str, Any]],
     rubric: Mapping[str, Any],
     calibration_cases: Sequence[Mapping[str, Any]],
@@ -1787,6 +1788,7 @@ def _load_hidden_semantic_activation_judgment(
     errors = theory_semantic_activation_judgment_errors(
         judgment,
         task_id=task_id,
+        visible_question=visible_question,
         reference_documents=reference_documents,
         rubric=rubric,
         calibration_cases=calibration_cases,
@@ -1848,6 +1850,7 @@ def _run_hidden_document_semantic_evaluation(
         activation_judgment = _load_hidden_semantic_activation_judgment(
             evaluator,
             task_id=task_id,
+            visible_question=visible_question,
             reference_documents=reference_documents,
             rubric=rubric,
             calibration_cases=calibration_cases,
@@ -1934,6 +1937,7 @@ def _run_semantic_candidate_mode_activation(
         judgment = _load_hidden_semantic_activation_judgment(
             evaluator,
             task_id=task_id,
+            visible_question=visible_question,
             reference_documents=reference_documents,
             rubric=rubric,
             calibration_cases=calibration_cases,

@@ -574,6 +574,7 @@ def theory_semantic_activation_judgment_errors(
     judgment: Mapping[str, Any],
     *,
     task_id: str,
+    visible_question: Mapping[str, Any],
     reference_documents: Sequence[Mapping[str, Any]],
     rubric: Mapping[str, Any],
     calibration_cases: Sequence[Mapping[str, Any]],
@@ -592,6 +593,7 @@ def theory_semantic_activation_judgment_errors(
         "protocol_version": protocol_version,
         "review_contract_hash": _review_contract_hash(max_tokens=max_tokens),
         "task_id_hash": stable_hash(task_id),
+        "visible_question_hash": stable_hash(visible_question),
         "semantic_artifact_role": semantic_artifact_role,
         "model": model,
         "model_tier": model_tier,
@@ -744,6 +746,7 @@ def run_theory_semantic_gold_judge(
         activation_errors = theory_semantic_activation_judgment_errors(
             activation_judgment,
             task_id=task_id,
+            visible_question=visible_question,
             reference_documents=reference_documents,
             rubric=rubric,
             calibration_cases=calibration_cases,
@@ -839,6 +842,7 @@ def run_theory_semantic_gold_judge(
         "protocol_version": protocol_version,
         "candidate_adjudication_strategy": candidate_adjudication_strategy,
         "task_id_hash": stable_hash(task_id),
+        "visible_question_hash": stable_hash(visible_question),
         "provider": str(
             candidate_provider or activation_provider
             or (calibration_responses[0].provider if calibration_responses else "")

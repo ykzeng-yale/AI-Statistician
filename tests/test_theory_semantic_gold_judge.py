@@ -544,6 +544,53 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once(
     )
 
 
+@pytest.mark.parametrize("role", ["theory", "source_replication_report"])
+@pytest.mark.parametrize("strategy", ["integrated_single", "integrated_plus_adversarial"])
+@pytest.mark.parametrize("changed_field", ["description", "task_intent", "missing_binding"])
+def test_changed_project_question_cannot_reuse_semantic_qualification(
+    role: str, strategy: str, changed_field: str,
+) -> None:
+    question = {
+        "id": "known-result", "description": "Develop the requested result.",
+        "task_intent": {"theory": "required", "empirical": "not_applicable"},
+    }
+    packets = [*_keyed_calibration_packets(), _keyed_candidate_packet()]
+    if strategy == "integrated_plus_adversarial":
+        packets = [packet for packet in packets for _ in range(2)]
+    activation = _run(
+        _RecordingProvider(packets), candidate_is_reference=True,
+        visible_question=question, semantic_artifact_role=role,
+        candidate_adjudication_strategy=strategy,
+    )
+    identical = _run(
+        _RecordingProvider([_keyed_candidate_packet()]), activation_judgment=activation,
+        visible_question=dict(reversed(tuple(question.items()))), semantic_artifact_role=role,
+        candidate_adjudication_strategy=strategy,
+    )
+    assert identical["passed"] is True
+    assert identical["visible_question_hash"] == stable_hash(question)
+    changed_question = deepcopy(question)
+    if changed_field == "missing_binding":
+        activation.pop("visible_question_hash")
+        activation.pop("judgment_hash")
+        activation["judgment_hash"] = stable_hash(activation)
+    else:
+        changed_question[changed_field] = (
+            "Investigate a different result." if changed_field == "description"
+            else {"theory": "required", "empirical": "required"}
+        )
+    frozen = deepcopy(activation)
+    provider = _RecordingProvider([_keyed_candidate_packet()])
+
+    with pytest.raises(ValueError, match="activation judgment visible_question_hash mismatch"):
+        _run(provider, activation_judgment=activation,
+             visible_question=changed_question, semantic_artifact_role=role,
+             candidate_adjudication_strategy=strategy)
+
+    assert provider.requests == []
+    assert activation == frozen
+
+
 @pytest.mark.parametrize(
     ("previous_protocol", "strategy"),
     [(14, "integrated_single"), (15, "integrated_plus_adversarial"),
