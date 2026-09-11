@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -65,6 +66,7 @@ from .scientific_sandbox import (
     R_SCIENTIFIC_DEPENDENCIES,
     SCIENTIFIC_SANDBOX_LANGUAGES,
     SCIENTIFIC_SANDBOX_PROFILES,
+    execute_scientific_sandbox,
     generated_code_execution_contract_errors,
     normalized_generated_code_language,
     normalized_generated_code_profile,
@@ -1913,14 +1915,17 @@ def run_scientific_code_workspace(
     if not isinstance(observation_document_refs, dict):
         raise ValueError("scientific observation document references are malformed")
 
-    def model_observation(value: Mapping[str, Any]) -> dict[str, Any]:
+    def model_observation(value: Mapping[str, Any], *, retain_document: bool = False) -> dict[str, Any]:
         projected, documents, _ = externalize_client_tool_text_documents(
             value, min_characters=1024, path_prefix="observations/text",
         )
-        if len(_compact_json(projected)) > CLIENT_TOOL_RESULT_MAX_CHARS:
+        if retain_document or len(_compact_json(projected)) > CLIENT_TOOL_RESULT_MAX_CHARS:
             path = f"observations/{stable_hash(dict(value))}.md"
             documents[path] = json.dumps(projected, indent=2, sort_keys=True, ensure_ascii=False, default=str)
-            projected = {"client_tool_evidence_document_ref": path, "content_externalized_without_loss": True}
+            reference = {"client_tool_evidence_document_ref": path, "content_externalized_without_loss": True}
+            projected = {**projected, **reference}
+            if len(_compact_json(projected)) > CLIENT_TOOL_RESULT_MAX_CHARS:
+                projected = reference
         for path, content in documents.items():
             if path in context_documents or (path in observation_documents and observation_documents[path] != content):
                 raise ValueError("scientific observation document path collision")
@@ -2034,6 +2039,7 @@ def run_scientific_code_workspace(
         allow_current_source_run=bool(parent_draft) and allow_current_source_run,
         allow_dependency_handoff=allow_dependency_handoff,
         context_documents_available=True,
+        script_execution_available=resolved_session_dir is not None,
         research_sources_available=research_sources is not None,
         research_source_discovery_available=research_source_discovery is not None,
     )
@@ -2794,11 +2800,11 @@ def run_scientific_code_workspace(
             )
 
         if call.name == SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL:
-            if set(tool_input) != {"reason"} or not str(
+            if "reason" not in tool_input or set(tool_input) - {"reason", "script_path", "seed", "replicates"} or not str(
                 tool_input.get("reason", "") or ""
             ).strip():
                 raise ClientToolInputError(
-                    "run_current_scientific_source requires one nonempty reason"
+                    "run_current_scientific_source requires a reason; script_path, seed and replicates are optional for exploratory scripts"
                 )
             draft = deepcopy(dict(state["code_draft"]))
             draft_hash = str(state["code_draft_hash"] or "")
@@ -2807,6 +2813,32 @@ def run_scientific_code_workspace(
                     "run_current_scientific_source requires current source; use "
                     "submit_scientific_source for initial authoring"
                 )
+            if "script_path" in tool_input:
+                if resolved_session_dir is None:
+                    raise ClientToolInputError("project script execution requires a persistent workspace")
+                script_path = tool_input["script_path"]
+                seed, replicates = tool_input.get("seed", 0), tool_input.get("replicates", 1)
+                if not isinstance(script_path, str) or not script_path or type(seed) is not int or type(replicates) is not int or replicates < 1:
+                    raise ClientToolInputError("script_path must be nonempty, seed an integer, and replicates a positive integer")
+                resolved_session_dir.mkdir(parents=True, exist_ok=True)
+                execution = execute_scientific_sandbox(
+                    sandbox_dir=Path(tempfile.mkdtemp(prefix="project-script-", dir=resolved_session_dir)),
+                    artifact_id=artifact_id, language=draft["language"], code=draft["code"],
+                    project_files=draft.get("project_files", []), dependencies=draft["dependencies"],
+                    seed=seed, replicates=replicates, timeout_s=20, entrypoint=None, script_path=script_path,
+                )
+                return ClientToolExecutionResult(
+                    content=model_observation({
+                        **execution.to_json(), "script_path": script_path, "code_draft_hash": draft_hash,
+                        "runtime_edited_source": False,
+                        "execution_evidence_status": "EXPLORATORY_PROJECT_SCRIPT_NOT_RELEASE_OR_CONFIRMATION",
+                    }, retain_document=True),
+                    is_error=execution.status != "EXECUTED",
+                    state_changed=execution.execution_attempted,
+                    observation_key="project-script:" + stable_hash([draft_hash, tool_input, execution.request_hash, execution.result_hash]),
+                )
+            if set(tool_input) != {"reason"}:
+                raise ClientToolInputError("seed and replicates overrides require an exploratory script_path")
             dependency_reexecution = bool(
                 allow_current_source_run
                 and not resumed_checkpoint_id
@@ -3284,6 +3316,7 @@ def _scientific_code_tools(
     allow_current_source_run: bool,
     allow_dependency_handoff: bool,
     context_documents_available: bool = False,
+    script_execution_available: bool = False,
     research_sources_available: bool = False,
     research_source_discovery_available: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
@@ -3419,9 +3452,9 @@ def _scientific_code_tools(
         ClientToolDefinition(
             name=SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
             description=(
-                "Execute the exact current complete Python/R source and return raw "
-                "sandbox output. Source bytes are unchanged. Each newly authored "
-                "source hash can run once in this workspace"
+                "Run the bound execution check for the exact current Python/R project "
+                "and return raw output. Source bytes are unchanged. This bound check "
+                "can run once per newly authored source hash in this workspace"
                 + (
                     "; the unchanged parent may also run once because its bound "
                     "dependency environment changed"
@@ -3429,12 +3462,21 @@ def _scientific_code_tools(
                     else ""
                 )
                 + "."
+                + (" Alternatively, select script_path to run an exact current project file as an ordinary exploratory script, without the run_sandbox ABI. It may import/source the current main file. Globals seed (default 0), replicates (default 1), and empty artifacts are supplied. This uses an isolated fresh process and no confirmation data; its output cannot authorize source release. Omit script_path for the unchanged bound execution check."
+                   if script_execution_available else "")
             ),
             input_schema={
                 "type": "object",
                 "additionalProperties": False,
                 "required": ["reason"],
-                "properties": {"reason": {"type": "string"}},
+                "properties": {
+                    "reason": {"type": "string"},
+                    **({
+                        "script_path": {"type": "string", "minLength": 1},
+                        "seed": {"type": "integer"},
+                        "replicates": {"type": "integer", "minimum": 1},
+                    } if script_execution_available else {}),
+                },
             },
             terminal=False,
         ),

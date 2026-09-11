@@ -64,7 +64,7 @@ function materializePyodideProject(pyodide, root, mainPath, source, projectFiles
   return {
     root,
     main_path: mainPath,
-    local_import_roots: projectImportRoots(projectFiles),
+    local_import_roots: projectImportRoots(files),
   };
 }
 
@@ -119,6 +119,9 @@ async function runPython(
     source,
     projectFiles,
   );
+  const scriptSource = request.script_path && request.script_path !== request.main_path
+    ? projectFiles[request.script_path] : source;
+  if (request.script_path) simulationProject.main_path = request.script_path;
   const estimatorProjects = Object.fromEntries(
     Object.entries(estimatorSources).map(([artifactId, estimatorSource], index) => [
       artifactId,
@@ -189,7 +192,7 @@ async function runPython(
   const wrapped = request.invocation_mode === "script"
     ? projectPrelude +
       `_ai_stat_inputs = _ai_stat_json.loads(${JSON.stringify(JSON.stringify(inputArtifacts))})\n` +
-      `_ai_stat_load_project(${JSON.stringify(source)}, _ai_stat_simulation_project, {"seed": ${Number(request.seed)}, "replicates": ${Number(request.replicates)}, "artifacts": _ai_stat_inputs})\n` +
+      `_ai_stat_load_project(${JSON.stringify(scriptSource)}, _ai_stat_simulation_project, {"seed": ${Number(request.seed)}, "replicates": ${Number(request.replicates)}, "artifacts": _ai_stat_inputs})\n` +
       `_ai_stat_json.dumps({"metrics": {}})`
     : bound
     ? projectPrelude +
@@ -374,6 +377,8 @@ async function runR(
       source,
       projectFiles,
     );
+    const scriptSource = request.script_path && request.script_path !== request.main_path
+      ? projectFiles[request.script_path] : source;
     const estimatorProjects = {};
     for (const [index, [artifactId, estimatorSource]] of Object.entries(estimatorSources).entries()) {
       estimatorProjects[artifactId] = await materializeWebRProject(
@@ -421,13 +426,13 @@ async function runR(
       `}\n` +
       `.ai_stat_simulation_project_root <- ${JSON.stringify(simulationProject.root)}\n` +
       `.ai_stat_estimator_project_roots <- list(${estimatorProjectRootList})\n` +
-      `.ai_stat_load_project <- function(source, root, initial=list()) {\n` +
+      `.ai_stat_load_project <- function(source, root, initial=list(), path="main.R") {\n` +
       `  .old <- getwd()\n` +
       `  on.exit(setwd(.old), add=TRUE)\n` +
       `  setwd(root)\n` +
       `  .environment <- new.env(parent=globalenv())\n` +
       `  list2env(initial, envir=.environment)\n` +
-      `  eval(parse(text=source, srcfile=paste0(root, "/main.R")), envir=.environment)\n` +
+      `  eval(parse(text=source, srcfile=paste0(root, "/", path)), envir=.environment)\n` +
       `  .ai_stat_assert_declared_namespaces()\n` +
       `  .environment\n` +
       `}\n` +
@@ -439,7 +444,7 @@ async function runR(
       `}\n`;
     const wrapped = request.invocation_mode === "script"
       ? `local({\n` + projectPrelude +
-        `.ai_stat_load_project(${JSON.stringify(source)}, .ai_stat_simulation_project_root, list(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=${inputArtifactList}))\n` +
+        `.ai_stat_load_project(${JSON.stringify(scriptSource)}, .ai_stat_simulation_project_root, list(seed=${Number(request.seed)}, replicates=${Number(request.replicates)}, artifacts=${inputArtifactList}), ${JSON.stringify(request.script_path || "main.R")})\n` +
         `invisible(NULL)\n})`
       : bound
       ? `local({\n` +
@@ -645,6 +650,13 @@ function readProjectFiles(rows, label) {
   }));
 }
 const projectFiles = readProjectFiles(request.project_files, "main");
+if (request.script_path && (
+  request.invocation_mode !== "script" || typeof request.script_path !== "string" ||
+  ![request.main_path, ...Object.keys(projectFiles)].includes(request.script_path) ||
+  !request.script_path.toLowerCase().endsWith(request.language === "r" ? ".r" : ".py")
+)) {
+  throw new Error("script_path must select an exact current source file in script mode");
+}
 const estimatorSources = Object.fromEntries(
   (Array.isArray(request.estimators) ? request.estimators : []).map((row) => {
     const content = fs.readFileSync(row.code_path, "utf8");

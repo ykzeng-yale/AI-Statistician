@@ -3368,6 +3368,78 @@ def test_scientific_observation_directory_cannot_escape_through_symlink(tmp_path
     assert list(outside.iterdir()) == []
 
 
+@pytest.mark.parametrize("language", ["python", "r"])
+def test_same_source_owner_tests_project_then_revises_before_bound_check(tmp_path, language) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("pinned scientific runtime is not installed on this host")
+    source = ("def transform(x): return x + 2\ndef run_sandbox(seed, replicates): return {'value': transform(seed)}\n"
+              if language == "python" else
+              "transform <- function(x) x + 2\nrun_sandbox <- function(seed, replicates) list(value=transform(seed))\n")
+    path = "tests/check.py" if language == "python" else "tests/check.R"
+    test_source = ("from main import transform\nassert transform(3) == 6\nprint(transform(seed), replicates, artifacts)\n"
+                   if language == "python" else
+                   "source('main.R')\nstopifnot(transform(3) == 6)\ncat(transform(seed), replicates, length(artifacts), '\\n')\n")
+    draft = {"language": language, "execution_profile": "scientific_wasm", "dependencies": [],
+             "entrypoint": "run_sandbox", "code": source,
+             "project_files": [{"path": path, "content": test_source}]}
+    def script(seed):
+        return _response(ClientToolCall(f"diagnose-{seed}", SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {
+            "reason": "Run the current project test", "script_path": path, "seed": seed, "replicates": 3,
+        }))
+    backend = ScriptedScientificBackend([
+        script(5),
+        _commit_response(),
+        _response(ClientToolCall("edit-current", SCIENTIFIC_SOURCE_EDIT_TOOL, {
+            "old_text": "x + 2", "new_text": "x * 2",
+        })),
+        script(11), script(19), _commit_response(), _run_response(), _commit_response(),
+    ])
+    checked = []
+    def check(candidate):
+        checked.append(dict(candidate))
+        result = execute_scientific_sandbox(
+            sandbox_dir=tmp_path / "bound-check", artifact_id="required-check", language=language,
+            code=candidate["code"], project_files=candidate["project_files"], dependencies=[],
+            seed=101, replicates=7, timeout_s=30,
+        )
+        return {"code_draft_hash": stable_hash(candidate), "accepted": result.status == "EXECUTED"}
+
+    result = run_scientific_code_workspace(
+        provider=backend, system_prompt="Own this source.", user_prompt="Test and revise your project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
+        max_tokens=1200, max_turns=10, max_no_progress_turns=3, artifact_id="project-testing",
+        initial_code_draft=draft, initial_check_result={"accepted": False}, check_candidate=check,
+        session_dir=tmp_path / "session",
+    )
+    observations = [json.loads(backend.requests[index].messages[-1]["content"][0]["content"])
+                    for index in (1, 2, 4, 5, 6)]
+    assert observations[0]["status"] == "FAILED"
+    assert "no accepted hash-bound" in json.dumps(observations[1])
+    assert observations[2]["status"] == observations[3]["status"] == "EXECUTED"
+    assert "22 3" in observations[2]["stdout_summary"]
+    assert "38 3" in observations[3]["stdout_summary"]
+    assert "no accepted hash-bound" in json.dumps(observations[4])
+    assert all(observations[index]["metrics"] == {} for index in (0, 2, 3))
+    requests = [json.loads(path.read_text()) for path in (tmp_path / "session").glob("project-script-*/*_scientific_request.json")]
+    assert len(requests) == 3
+    assert {request["seed"] for request in requests} == {5, 11, 19}
+    assert all(request["input_artifacts"] == [] and request["estimators"] == [] for request in requests)
+    assert len(checked) == 1
+    assert checked[0]["code"] == source.replace("x + 2", "x * 2")
+    assert checked[0]["project_files"] == [{
+        **draft["project_files"][0], "content_sha256": hashlib.sha256(test_source.encode()).hexdigest(),
+    }]
+    assert dict(result.code_draft) == checked[0]
+    assert result.evidence["sandbox_checks"] == 1
+    assert result.evidence["runtime_edited_source"] is False
+    refs = result.evidence["observation_document_refs"]
+    for index in (0, 2, 3):
+        retained = json.loads(Path(refs[observations[index]["client_tool_evidence_document_ref"]]["path"]).read_text())
+        assert retained["request_hash"] == observations[index]["request_hash"]
+        assert retained["code_draft_hash"] == observations[index]["code_draft_hash"]
+
+
 def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:
     observation = scientific_workspace_prototype_observation(
         {

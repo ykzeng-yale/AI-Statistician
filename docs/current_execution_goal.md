@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including complete scientific feedback access; failed qualifications remain unchanged.
+Updated: 2026-09-10, including model-selected project diagnostics; failed qualifications remain unchanged.
 
 ## Operative Objective
 
@@ -122,6 +122,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    long observations, immutable context and model-selected next actions at actual
    entrypoints. No new tool name, classifier, repair agent or retry budget was added.
    This is feedback fidelity, not improved mathematics or permission to rerun tasks.
+   A further code-level restriction prevented scientific owners from executing
+   their own project test files without changing the fixed run_sandbox program.
+   The existing run tool now accepts an exact project script for exploratory
+   Python/R diagnostics, with model-selected diagnostic inputs and raw observations.
+   It reuses the current project and sandbox rather than a separate scratch agent;
+   confirmation data, bound estimators and release authority remain outside that
+   path. Script observations use the same persistent read-only documents. Passing
+   a script neither increments bound checks nor authorizes a commit. This removes
+   an execution constraint, not a mathematical reasoning error or qualification gate.
    Establish subsequent changes from author/reviewer behavior on visible artifacts
    and unrelated synthetic controls. The latest internal/gold
    disagreement warrants diagnosis, not a benchmark-answer patch or more reviews

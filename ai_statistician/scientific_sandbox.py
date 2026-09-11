@@ -921,6 +921,7 @@ def execute_scientific_sandbox(
     input_artifacts: Sequence[ScientificInputArtifactBinding] = (),
     required_callable_exports: Sequence[str] = (),
     entrypoint: str | None = "run_sandbox",
+    script_path: str = "",
 ) -> ScientificSandboxExecution:
     invocation_mode = (
         "script" if entrypoint is None
@@ -1037,6 +1038,12 @@ def execute_scientific_sandbox(
     )
     if entrypoint is not None and entrypoint != "run_sandbox":
         contract_errors.append("scientific entrypoint must be run_sandbox or None")
+    if not isinstance(script_path, str) or (script_path and (
+        entrypoint is not None
+        or script_path not in {scientific_main_path(language), *(row.path for row in normalized_project_files)}
+        or not script_path.lower().endswith(".r" if language == "r" else ".py")
+    )):
+        contract_errors.append("script_path must select an exact current source file in script mode")
     if entrypoint is None and (
         normalized_bindings or normalized_required_callable_exports
     ):
@@ -1045,9 +1052,8 @@ def execute_scientific_sandbox(
         )
     contract_errors.extend(project_file_errors)
     if language == "python":
-        local_import_roots = scientific_python_local_import_roots(
-            normalized_project_files
-        )
+        local_import_roots = (*scientific_python_local_import_roots(normalized_project_files),
+                              Path(scientific_main_path(language)).stem)
         contract_errors.extend(
             scientific_python_safety_errors(
                 code,
@@ -1057,7 +1063,7 @@ def execute_scientific_sandbox(
             )
         )
         for project_file in normalized_project_files:
-            if Path(project_file.path).suffix != ".py":
+            if Path(project_file.path).suffix.lower() != ".py":
                 continue
             contract_errors.extend(
                 scientific_python_safety_errors(
@@ -1244,6 +1250,7 @@ def execute_scientific_sandbox(
         {
             "artifact_id": artifact_id,
             "invocation_mode": invocation_mode,
+            **({"script_path": script_path} if script_path else {}),
             "language": language,
             "dependencies": list(all_dependencies),
             "seed": int(seed),
@@ -1334,6 +1341,7 @@ def execute_scientific_sandbox(
             for project_file in normalized_project_files
         ],
         "invocation_mode": invocation_mode,
+        **({"script_path": script_path} if script_path else {}),
         "estimator_transport": estimator_transport,
         "required_callable_exports": list(
             normalized_required_callable_exports

@@ -68,6 +68,37 @@ from ai_statistician.theory_workspace import (
 
 
 @pytest.mark.parametrize("language", ["python", "r"])
+def test_model_selected_project_script_runs_exact_source_without_callable_abi(tmp_path, language) -> None:
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("pinned scientific runtime is not installed on this host")
+    source = ("def transform(x): return x * 2\ndef run_sandbox(seed, replicates): raise RuntimeError('not this run')\n"
+              if language == "python" else
+              "transform <- function(x) x * 2\nrun_sandbox <- function(seed, replicates) stop('not this run')\n")
+    path = "tests/check.py" if language == "python" else "tests/check.R"
+    test_source = ("from main import transform\nassert transform(7) == 14\nprint(transform(seed), replicates, artifacts)\n"
+                   if language == "python" else
+                   "source('main.R')\nstopifnot(transform(7) == 14)\ncat(transform(seed), replicates, length(artifacts), '\\n')\n")
+    files = [{"path": path, "content": test_source}]
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path, artifact_id="project-script", language=language, code=source,
+        dependencies=[], project_files=files, seed=5, replicates=3, timeout_s=30,
+        entrypoint=None, script_path=path,
+    )
+    assert result.status == "EXECUTED", result.errors
+    assert "10 3" in result.stdout_summary
+    assert result.metrics == {}
+    assert result.project_hash == scientific_project_hash(language=language, code=source, project_files=files)
+    assert Path(result.code_path).read_text() == source
+    assert Path(result.project_file_paths[path]).read_text() == test_source
+    request = json.loads(Path(result.request_path).read_text())
+    assert request["script_path"] == path
+    assert request["invocation_mode"] == "script"
+    assert request["input_artifacts"] == []
+    assert request["estimators"] == []
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
 @pytest.mark.parametrize("fail", [False, True])
 def test_live_theory_script_returns_exact_output_and_failure_lineage(
     tmp_path: Path, language: str, fail: bool,
@@ -119,6 +150,33 @@ def test_live_theory_script_returns_exact_output_and_failure_lineage(
     assert request["invocation_mode"] == "script"
     assert request["network_access"] is False
     assert request["secret_environment_inherited"] is False
+
+
+@pytest.mark.parametrize("path,entrypoint", [
+    ("../check.py", None), ("/tmp/check.py", None), ("missing.py", None),
+    (False, None), (42, None), ("main.py", "run_sandbox"),
+])
+def test_script_selection_cannot_escape_or_override_callable_execution(tmp_path, path, entrypoint) -> None:
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path, artifact_id="rejected-script", language="python",
+        code="def run_sandbox(seed, replicates): return {}\n", dependencies=[],
+        seed=0, replicates=1, timeout_s=20, entrypoint=entrypoint, script_path=path,
+    )
+    assert result.status == "REJECTED_CONTRACT"
+    assert result.execution_attempted is False
+    assert any("script_path" in error for error in result.errors)
+
+
+@pytest.mark.parametrize("path", ["tests/check.py", "tests/check.PY"])
+def test_every_selected_python_script_receives_source_safety_checks(tmp_path, path) -> None:
+    result = execute_scientific_sandbox(
+        sandbox_dir=tmp_path, artifact_id="unsafe-script", language="python", code="pass\n",
+        project_files=[{"path": path, "content": "import os\nprint(os.environ)\n"}],
+        dependencies=[], seed=0, replicates=1, timeout_s=20, entrypoint=None, script_path=path,
+    )
+    assert result.status == "REJECTED_CONTRACT"
+    assert result.execution_attempted is False
+    assert any("os" in error for error in result.errors)
 
 
 def test_script_mode_does_not_relax_scientific_entrypoint_or_safety(tmp_path: Path) -> None:

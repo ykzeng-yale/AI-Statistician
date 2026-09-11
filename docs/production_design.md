@@ -169,10 +169,10 @@ For live providers with native client tools, fresh Algorithm planning envelopes 
 only artifact identity and immutable bindings. Simulation instead starts from one
 runtime-owned source intent with no separate model planner. In both lanes, source is
 authored in the same retained model-owned workspace. Submission and exact edits store
-complete Python or R source. The model
-explicitly runs the current source for raw sandbox feedback, so it may batch coherent
-edits before an expensive simulation. A later `commit_scientific_source` requires an
-accepted hash-bound execution observation.
+complete Python or R source. The existing run tool may also select an exact current project script for exploratory tests, importing/source-loading the unchanged project instead of copying functions into a second scratch program.
+These model-selected scripts use the existing isolated Python/R runner, may choose diagnostic seed/replicates, and receive no confirmation data or bound estimators. Their exact observations remain readable across checkpoints and cannot update release authority.
+The bound execution check still runs only on explicit request, so the owner can batch tests and edits before an expensive simulation. A later `commit_scientific_source` requires an
+accepted current-project observation from that bound check, never merely a successful diagnostic script.
 No repair worker, diagnostic parser, or content patch intervenes. Estimator IDs stay frozen.
 Structured-source packets are historical replay only; fresh authoring fails closed without native client tools.
 
