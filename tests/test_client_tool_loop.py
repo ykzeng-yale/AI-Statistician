@@ -209,7 +209,10 @@ def test_long_tool_observation_is_omitted_atomically() -> None:
     }
 
 
-def test_oversized_tool_result_reaches_same_model_as_incomplete_error() -> None:
+@pytest.mark.parametrize("as_input_error", [False, True])
+def test_oversized_tool_result_reaches_same_model_as_incomplete_error(
+    as_input_error: bool,
+) -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall(call_id="read-1", name="check", input={})),
@@ -220,9 +223,21 @@ def test_oversized_tool_result_reaches_same_model_as_incomplete_error() -> None:
         "grant": True,
         "restrictions": ["must remain visible"] * 10_000,
     }
+    detail = json.dumps(large_observation)
+    expected_observation = (
+        {
+            "ok": False,
+            "error": "client_tool_input_rejected",
+            "exception_type": "ClientToolInputError",
+            "detail": detail,
+        }
+        if as_input_error else large_observation
+    )
 
     def execute_tool(call, _context):
         if call.name == "check":
+            if as_input_error:
+                raise ClientToolInputError(detail)
             return ClientToolExecutionResult(
                 content=large_observation,
                 state_changed=True,
@@ -252,7 +267,7 @@ def test_oversized_tool_result_reaches_same_model_as_incomplete_error() -> None:
     assert observation["content_omitted_atomically"] is True
     assert observation["original_sha256"] == hashlib.sha256(
         json.dumps(
-            large_observation,
+            expected_observation,
             sort_keys=True,
             separators=(",", ":"),
             default=str,
@@ -1093,7 +1108,17 @@ def test_rejected_terminal_is_an_ordinary_same_model_observation() -> None:
     assert "client_tool_loop_terminal_decision_turn" not in backend.requests[2].metadata
 
 
-def test_rejected_terminal_can_be_followed_by_model_selected_edit() -> None:
+@pytest.mark.parametrize(
+    "diagnostic",
+    [
+        "parser rejected the current file",
+        "unfamiliar diagnostic\n" + "model-visible details\n" * 128 + "last constraint",
+    ],
+    ids=["short", "long"],
+)
+def test_rejected_terminal_can_be_followed_by_model_selected_edit(
+    diagnostic: str,
+) -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit-initial", "edit", {"value": 1})),
@@ -1116,7 +1141,7 @@ def test_rejected_terminal_can_be_followed_by_model_selected_edit() -> None:
             )
         submissions += 1
         if submissions == 1:
-            raise ClientToolInputError("parser rejected the current file")
+            raise ClientToolInputError(diagnostic)
         return ClientToolExecutionResult(
             content={"ok": True},
             terminal=True,
@@ -1141,9 +1166,10 @@ def test_rejected_terminal_can_be_followed_by_model_selected_edit() -> None:
     recovery_call = result.history[2]["tool_calls"][0]
     assert recovery_call["executed_by_runtime"] is True
     assert recovery_call["state_changed"] is True
-    assert "parser rejected the current file" in str(
-        backend.requests[2].messages[-1]["content"]
-    )
+    delivered = backend.requests[2].messages[-1]["content"][0]
+    assert delivered["is_error"] is True
+    assert json.loads(delivered["content"])["detail"] == diagnostic
+    assert result.history[1]["tool_calls"][0]["model_observation_complete"] is True
 
 
 def test_terminal_rejection_can_be_inspected_edited_and_resubmitted() -> None:

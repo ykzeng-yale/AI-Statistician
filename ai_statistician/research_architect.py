@@ -10,6 +10,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .client_tool_loop import (
     CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
+    externalize_client_tool_text_documents,
     read_hash_bound_utf8_file,
 )
 from .fingerprint import stable_hash
@@ -810,18 +811,6 @@ def _compact_architect_context_for_prompt(context: Mapping[str, Any]) -> dict[st
             if key in runtime_task
         }
 
-    environment_feedback = context.get("environment_feedback")
-    if isinstance(environment_feedback, Mapping):
-        compact["environment_feedback"] = _compact_environment_feedback_for_prompt(environment_feedback)
-
-    source_environment_feedback = context.get(
-        "theory_developer_source_environment_feedback"
-    )
-    if isinstance(source_environment_feedback, Mapping) and source_environment_feedback:
-        compact["theory_developer_source_environment_feedback"] = (
-            _compact_environment_feedback_for_prompt(source_environment_feedback)
-        )
-
     return compact
 
 
@@ -1024,344 +1013,6 @@ def _compact_prompt_value(value: Any, *, list_limit: int, text_limit: int) -> An
             for child in list(value)[:list_limit]
         ]
     return value
-
-
-def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dict[str, Any]:
-    high_priority_agenda = list(feedback.get("high_priority_agenda", []) or [])
-    formal_subclaims = list(feedback.get("formal_subclaim_feedback", []) or [])
-    failed_simulations = list(feedback.get("failed_simulations", []) or [])
-    implementation_gaps = list(feedback.get("implementation_gaps", []) or [])
-    rejected_candidate = feedback.get("rejected_candidate", {})
-    compact = {
-        "artifact_kind": feedback.get("artifact_kind", ""),
-        "feedback_id": feedback.get("feedback_id", ""),
-        "feedback_source": feedback.get("feedback_source", ""),
-        "feedback_type": feedback.get("feedback_type", ""),
-        "trigger": feedback.get("trigger", ""),
-        "failure_classification": feedback.get("failure_classification", ""),
-        "failure_classifications": _compact_learning_memory_value(
-            feedback.get("failure_classifications", [])
-        ),
-        "validation_errors": _compact_learning_memory_value(
-            feedback.get("validation_errors", [])
-        ),
-        "rejected_candidate": (
-            deepcopy(dict(rejected_candidate))
-            if isinstance(rejected_candidate, Mapping)
-            else {}
-        ),
-        "rejected_candidate_fingerprint": feedback.get(
-            "rejected_candidate_fingerprint", ""
-        ),
-        "retry_mode": feedback.get("retry_mode", ""),
-        "truncation_detected": feedback.get("truncation_detected", ""),
-        "question_id": feedback.get("question_id", ""),
-        "source_task_id": feedback.get("source_task_id", ""),
-        "source_owner_subsystem": feedback.get("source_owner_subsystem", ""),
-        "source_theory_packet_id": feedback.get("source_theory_packet_id", ""),
-        "source_theory_packet_hash": feedback.get("source_theory_packet_hash", ""),
-        "source_metric_protocol_rejection_manifest_id": feedback.get(
-            "source_metric_protocol_rejection_manifest_id", ""
-        ),
-        "target_consumer_subsystem": feedback.get("target_consumer_subsystem", ""),
-        "ownership_clarification_required": feedback.get(
-            "ownership_clarification_required", ""
-        ),
-        "upstream_theory_revision_count": feedback.get(
-            "upstream_theory_revision_count", ""
-        ),
-        "continuation_budget_authority": feedback.get(
-            "continuation_budget_authority", ""
-        ),
-        "critic_revision_round": feedback.get("critic_revision_round", ""),
-        "next_critic_revision_round": feedback.get("next_critic_revision_round", ""),
-        "max_critic_revision_rounds": feedback.get("max_critic_revision_rounds", ""),
-        "theory_packet_id": feedback.get("theory_packet_id", ""),
-        "simulation_manifest_id": feedback.get("simulation_manifest_id", ""),
-        "formalization_manifest_id": feedback.get("formalization_manifest_id", ""),
-        "formalization_counts": feedback.get("formalization_counts", {}),
-        "simulation_passed": feedback.get("simulation_passed", ""),
-        "high_priority_agenda": [_compact_feedback_row(row) for row in high_priority_agenda[:5]],
-        "formal_subclaim_feedback": [_compact_feedback_row(row) for row in formal_subclaims[:8]],
-        "failed_simulations": [_compact_feedback_row(row) for row in failed_simulations[:5]],
-        "implementation_gaps": [_compact_feedback_row(row) for row in implementation_gaps[:5]],
-        "acceptance_gate": _truncate_text(feedback.get("acceptance_gate", ""), 720),
-        "proof_evidence_status": _truncate_text(
-            feedback.get("proof_evidence_status", ""), 240
-        ),
-        "proof_evidence_boundary": _truncate_text(feedback.get("proof_evidence_boundary", ""), 400),
-        "boundary": _truncate_text(feedback.get("boundary", ""), 400),
-    }
-    metric_protocol_findings = feedback.get("findings", [])
-    if isinstance(metric_protocol_findings, list) and metric_protocol_findings:
-        compact["metric_protocol_findings"] = [
-            _compact_feedback_row(row) for row in metric_protocol_findings[:8]
-        ]
-    metric_protocol_dimension_reviews = feedback.get("dimension_reviews", [])
-    if (
-        isinstance(metric_protocol_dimension_reviews, list)
-        and metric_protocol_dimension_reviews
-    ):
-        compact["metric_protocol_dimension_reviews"] = [
-            _compact_feedback_row(row)
-            for row in metric_protocol_dimension_reviews[:8]
-        ]
-    theory_alignment_feedback = feedback.get("theory_trace_downstream_alignment_feedback")
-    if isinstance(theory_alignment_feedback, Mapping) and theory_alignment_feedback:
-        compact["theory_trace_downstream_alignment_feedback"] = _compact_feedback_row(
-            theory_alignment_feedback
-        )
-    theory_alignment_contract = feedback.get("theory_trace_downstream_alignment_contract")
-    if isinstance(theory_alignment_contract, Mapping) and theory_alignment_contract:
-        compact["theory_trace_downstream_alignment_contract"] = _compact_feedback_row(
-            theory_alignment_contract
-        )
-    formal_blocker_resource_requests = feedback.get("formal_blocker_resource_requests")
-    has_exact_semantic_blocker_rows = (
-        isinstance(formal_blocker_resource_requests, (list, tuple))
-        and bool(formal_blocker_resource_requests)
-    )
-    if has_exact_semantic_blocker_rows:
-        compact["formal_blocker_resource_requests"] = (
-            _compact_exact_semantic_feedback_rows(formal_blocker_resource_requests)
-        )
-    for exact_semantic_feedback_key in (
-        "source_theorem_exact_semantic_definition_repair_feedback",
-        "runtime_exact_semantic_definition_work_order_feedback",
-        "source_theorem_exact_semantic_definition_work_order_feedback",
-    ):
-        exact_semantic_feedback = feedback.get(exact_semantic_feedback_key)
-        if isinstance(exact_semantic_feedback, Mapping) and exact_semantic_feedback:
-            compact[exact_semantic_feedback_key] = (
-                _compact_exact_semantic_feedback_mapping(
-                    exact_semantic_feedback,
-                    include_row_containers=not has_exact_semantic_blocker_rows,
-                )
-            )
-    additional_feedback = feedback.get("additional_runtime_feedback", [])
-    if isinstance(additional_feedback, list) and additional_feedback:
-        compact["additional_runtime_feedback"] = [
-            _compact_feedback_row(row) for row in additional_feedback[:4]
-        ]
-    return {
-        key: value
-        for key, value in compact.items()
-        if value not in (None, "", [], {})
-    }
-
-
-def _compact_learning_memory_value(value: Any) -> Any:
-    if isinstance(value, str):
-        return _truncate_text(value, 320)
-    if isinstance(value, (int, float, bool)) or value is None:
-        return value
-    if isinstance(value, list):
-        return [_compact_learning_memory_value(item) for item in value[:6]]
-    if isinstance(value, Mapping):
-        return {
-            str(key): _compact_learning_memory_value(child)
-            for key, child in list(value.items())[:6]
-            if child not in (None, "", [], {})
-        }
-    return _truncate_text(value, 320)
-
-
-_EXACT_SEMANTIC_FEEDBACK_MAPPING_KEYS = (
-    "artifact_kind",
-    "feedback_type",
-    "trigger",
-    "question_id",
-    "source_task_id",
-    "source_owner_subsystem",
-    "target_consumer_subsystem",
-    "target_theorem_name",
-    "target_lean_declaration",
-    "failure_classification",
-    "acceptance_gate",
-    "proof_body_gate_status",
-    "proof_body_goal_reached",
-    "source_theorem_kernel_verified",
-    "source_theorem_kernel_evidence_eligible",
-    "proof_evidence_status",
-    "proof_evidence_boundary",
-    "boundary",
-)
-
-
-_EXACT_SEMANTIC_FEEDBACK_ROW_KEYS = (
-    "work_order_id",
-    "repair_feedback_id",
-    "diagnostic_id",
-    "placeholder_symbol",
-    "semantic_primitive_id",
-    "target_theorem_name",
-    "target_lean_declaration",
-    "target_ids",
-    "target_lane",
-    "lane",
-    "action_type",
-    "request_type",
-    "replacement_strategy",
-    "search_targets",
-    "semantic_primitives",
-    "semantic_primitive_requirements",
-    "failure_classification",
-    "runtime_queue_status",
-    "verification_status",
-    "proof_body_gate_status",
-    "proof_body_goal_reached",
-    "candidate_artifact_path",
-    "definition_only_candidate_artifact_path",
-    "source_candidate_artifact_path",
-    "adapter_candidate_artifact_path",
-    "adapter_candidate_artifact_paths",
-    "premise_candidate_artifact_path",
-    "proof_body_candidate_artifact_path",
-    "source_theorem_exact_semantic_definition_typechecked_candidate",
-    "source_theorem_kernel_verified",
-    "source_theorem_kernel_evidence_eligible",
-    "proof_evidence_status",
-    "boundary",
-)
-
-
-_EXACT_SEMANTIC_FEEDBACK_ROW_CONTAINER_KEYS = (
-    "formal_blocker_resource_requests",
-    "diagnostics",
-    "work_orders",
-    "rows",
-    "source_theorem_exact_semantic_definition_typechecked_candidates",
-)
-
-
-def _prompt_key_is_path_like(key: Any) -> bool:
-    key_text = str(key).lower()
-    return (
-        key_text.endswith("_path")
-        or key_text.endswith("_paths")
-        or key_text.endswith("_jsonl")
-        or key_text.endswith("_manifest")
-        or "artifact_path" in key_text
-    )
-
-
-def _compact_prompt_value_for_key(
-    key: Any,
-    value: Any,
-    *,
-    list_limit: int = 8,
-    mapping_limit: int = 10,
-    text_limit: int = 320,
-    path_limit: int = 1024,
-) -> Any:
-    string_limit = path_limit if _prompt_key_is_path_like(key) else text_limit
-    if isinstance(value, str):
-        return _truncate_text(value, string_limit)
-    if isinstance(value, (int, float, bool)) or value is None:
-        return value
-    if isinstance(value, list):
-        return [
-            _compact_prompt_value_for_key(
-                key,
-                item,
-                list_limit=list_limit,
-                mapping_limit=mapping_limit,
-                text_limit=text_limit,
-                path_limit=path_limit,
-            )
-            for item in value[:list_limit]
-        ]
-    if isinstance(value, Mapping):
-        return {
-            str(child_key): _compact_prompt_value_for_key(
-                child_key,
-                child_value,
-                list_limit=list_limit,
-                mapping_limit=mapping_limit,
-                text_limit=text_limit,
-                path_limit=path_limit,
-            )
-            for child_key, child_value in list(value.items())[:mapping_limit]
-            if child_value not in (None, "", [], {})
-        }
-    return _truncate_text(value, string_limit)
-
-
-def _compact_exact_semantic_feedback_mapping(
-    value: Any,
-    *,
-    include_row_containers: bool = True,
-) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    compact: dict[str, Any] = {}
-    for key in _EXACT_SEMANTIC_FEEDBACK_MAPPING_KEYS:
-        if value.get(key) not in (None, "", [], {}):
-            compact[key] = _compact_prompt_value_for_key(key, value.get(key))
-    if include_row_containers:
-        for key in _EXACT_SEMANTIC_FEEDBACK_ROW_CONTAINER_KEYS:
-            rows = value.get(key)
-            if isinstance(rows, (list, tuple)) and rows:
-                compact[key] = _compact_exact_semantic_feedback_rows(rows)
-            elif isinstance(rows, Mapping) and rows:
-                compact[key] = _compact_exact_semantic_feedback_row(rows)
-    else:
-        for key in _EXACT_SEMANTIC_FEEDBACK_ROW_CONTAINER_KEYS:
-            rows = value.get(key)
-            if isinstance(rows, (list, tuple)) and rows:
-                compact[f"n_{key}"] = len(rows)
-            elif isinstance(rows, Mapping) and rows:
-                compact[f"{key}_present"] = True
-    return {
-        key: row_value
-        for key, row_value in compact.items()
-        if row_value not in (None, "", [], {})
-    }
-
-
-def _compact_exact_semantic_feedback_rows(rows: Any) -> list[dict[str, Any]]:
-    if not isinstance(rows, (list, tuple)):
-        return []
-    return [_compact_exact_semantic_feedback_row(row) for row in list(rows)[:6]]
-
-
-def _compact_exact_semantic_feedback_row(row: Any) -> dict[str, Any]:
-    if not isinstance(row, Mapping):
-        return {"summary": _truncate_text(row, 240)}
-    compact: dict[str, Any] = {}
-    for key in _EXACT_SEMANTIC_FEEDBACK_ROW_KEYS:
-        if row.get(key) not in (None, "", [], {}):
-            compact[key] = _compact_prompt_value_for_key(key, row.get(key))
-    for key, value in row.items():
-        key_text = str(key)
-        if key_text in compact or value in (None, "", [], {}):
-            continue
-        if _prompt_key_is_path_like(key_text) or (
-            "source_theorem_exact_semantic_definition" in key_text
-        ):
-            compact[key_text] = _compact_prompt_value_for_key(key_text, value)
-    return compact
-
-
-def _compact_feedback_row(row: Any) -> dict[str, Any]:
-    if not isinstance(row, Mapping):
-        return {"summary": _truncate_text(row, 240)}
-    compact: dict[str, Any] = {}
-    for key, value in row.items():
-        if isinstance(value, (str, int, float, bool)) or value is None:
-            compact[str(key)] = _compact_prompt_value_for_key(key, value)
-        elif isinstance(value, list):
-            compact[str(key)] = [
-                _compact_prompt_value_for_key(key, item)
-                for item in value[:8]
-            ]
-        elif isinstance(value, Mapping):
-            compact[str(key)] = {
-                str(k): _compact_prompt_value_for_key(k, v)
-                for k, v in list(value.items())[:10]
-                if v not in (None, "", [], {})
-            }
-    return compact
 
 
 def _truncate_text(value: Any, limit: int) -> str:
@@ -2794,15 +2445,28 @@ def _initial_theory_workspace_read_only_artifacts(
         }
     else:
         output_contract = required_output_contract
+    context = _compact_architect_context_for_prompt(architect_context)
+    read_only_documents: dict[str, str] = {}
+    for key in ("environment_feedback", "theory_developer_source_environment_feedback"):
+        feedback = architect_context.get(key)
+        if isinstance(feedback, Mapping) and feedback:
+            path = f"feedback/{key}-{stable_hash(dict(feedback))[:20]}.md"
+            observation, documents, _ = externalize_client_tool_text_documents(
+                dict(feedback), min_characters=1024, path_prefix=f"feedback/{key}",
+            )
+            read_only_documents.update(documents)
+            read_only_documents[path] = json.dumps(
+                observation, indent=2, sort_keys=True, ensure_ascii=False, default=str,
+            )
+            context[key] = {"workspace_document_path": path}
     return {
+        "read_only_documents": read_only_documents,
         "initial_authoring_context": {
             "research_question": research_question_payload(
                 question,
                 include_task_intent=True,
             ),
-            "architect_context": _compact_architect_context_for_prompt(
-                architect_context
-            ),
+            "architect_context": context,
             "required_output_contract": output_contract,
             "authoring_policy": {
                 "theory_prompt_mode": theory_prompt_mode,
@@ -3428,6 +3092,7 @@ def _generate_initial_theory_artifact_workspace(
         workspace_operation="initial_discovery",
         initial_artifacts=initial_artifacts,
         initial_documents=initial_documents,
+        read_only_documents=read_only_artifacts.pop("read_only_documents", {}),
         read_only_artifacts=read_only_artifacts,
         build_candidate=build_candidate,
         validate_candidate=lambda packet: _validate_theory_packet_for_question(

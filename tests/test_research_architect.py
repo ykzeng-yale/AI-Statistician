@@ -95,6 +95,7 @@ from ai_statistician.theory_workspace import (
     THEORY_FILE_CLAIM_KINDS,
     THEORY_FILE_CLAIM_STATUSES,
     TheoryScratchpadConfig,
+    TheoryWorkspaceGapError,
     TheoryWorkspaceProgressError,
     TheoryWorkspaceResult,
     theory_workspace_document_manifest,
@@ -1416,6 +1417,69 @@ def test_advisory_theory_can_omit_formalization_authoring_artifacts() -> None:
     packet["kernel_verified"] = False
 
     assert validate_theory_core_packet(packet) == []
+
+
+def test_initial_theory_can_read_late_feedback_without_rewriting_it(tmp_path) -> None:
+    question = OpenResearchQuestion(
+        id="raw-observations", title="Raw observations", description="Inspect the feedback.",
+    )
+    feedback = {"unfamiliar_tool_observations": [
+        {"id": index, "detail": f"observation-{index}"} for index in range(1500)
+    ]}
+    context = {"environment_feedback": feedback}
+    artifacts = research_architect_module._initial_theory_workspace_read_only_artifacts(
+        question=question, architect_context=context,
+        theory_prompt_mode=THEORY_PROMPT_MODE_COMPACT,
+        max_tool_calls=48, formalization_authoring_required=True,
+    )
+    path, document = next(iter(artifacts["read_only_documents"].items()))
+    lines = document.splitlines()
+    assert len(document) > 55_000
+    provider = ScriptedTheoryToolBackend(tool_responses=[
+        _theory_tool_response(ClientToolCall(
+            "context", "read_theory_workspace",
+            {"artifact_names": ["initial_authoring_context"]},
+        )),
+        _theory_tool_response(ClientToolCall(
+            "unauthorized-write", THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+            {"path": path, "content": "replacement observation"},
+        )),
+        _theory_tool_response(ClientToolCall(
+            "late-read", THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            {"path": path, "line_start": len(lines) - 5, "line_end": len(lines)},
+        )),
+        _theory_tool_response(ClientToolCall(
+            "gap", THEORY_WORKSPACE_GAP_TOOL,
+            {
+                "summary": "The observation requires further investigation.",
+                "blocking_claims": ["unresolved claim"],
+                "evidence_refs": [path], "next_step": "Investigate the observation.",
+            },
+        )),
+    ], generator_responses=[])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="anthropic", model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+            model_tier="haiku",
+        ),
+    )
+
+    with pytest.raises(TheoryWorkspaceGapError):
+        developer.derive(question, architect_context=context, theory_workspace_root=tmp_path)
+
+    context_result = provider.tool_requests[1].messages[-1]["content"][0]
+    assert context_result["is_error"] is False
+    write_result = provider.tool_requests[2].messages[-1]["content"][0]
+    assert write_result["is_error"] is True
+    assert "read-only" in write_result["content"]
+    read_result = provider.tool_requests[3].messages[-1]["content"][0]
+    assert read_result["is_error"] is False
+    observation = json.loads(read_result["content"])
+    assert observation["content"] == "\n".join(lines[-6:])
+    assert "observation-1499" in observation["content"]
+    assert observation["document_sha256"] == hashlib.sha256(document.encode()).hexdigest()
+    assert "replacement observation" not in json.dumps(feedback)
 
 
 def test_optional_theory_prompt_does_not_invent_formalization_work() -> None:

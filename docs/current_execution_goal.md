@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including removal of feedback field-name filtering.
+Updated: 2026-09-10, including removal of lossy feedback selection and truncation.
 
 ## Operative Objective
 
@@ -73,7 +73,8 @@ field-name patterns. Preserve model methods and unknown tool observations; retir
 legacy routing metadata at its producers rather than expand a repair blacklist.
 Tests should establish shared feedback, tool, state and authority invariants, not
 teach the runtime how to fix a particular research answer. A model reasoning error
-stays with that model; it is not by itself evidence of a harness defect.
+stays with that model; it is not by itself evidence of a harness defect. Moving a
+catalog of benchmark-specific remedies into prompts is not a general solution either.
 
 ## Measurable Deliveries
 
@@ -105,10 +106,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    now been removed, including duplicate Formalizer filtering. Their historical
    recipe producers were largely offline utilities; live feedback could still lose
    model methods and raw tool diagnostics solely because of a dictionary key.
-   Existing callers now preserve observations directly, without a replacement
-   wrapper, recipe classifier or new runtime branch. Test fidelity at the actual
-   Theory, Architect and Lean boundaries and retain executor-authority tests. Do not
-   interpret this as improved mathematics or a reason to rerun consumed tasks.
+   Initial Theory feedback also retained a lossy whitelist and path-name-specific
+   compactor. That entire helper family is now removed: feedback uses existing
+   read-only documents and exact long-text externalization, accessible with the
+   same search/range-read tools. Safe tool-input errors no longer suffer a second
+   silent 1,200-character truncation before the shared observation-size boundary.
+   Test unfamiliar fields, late findings, long observations, immutable context and
+   model-selected next actions at actual entrypoints; keep executor authority.
+   No new tool, classifier, repair agent or retry budget was added. This is not
+   improved mathematics or a reason to rerun consumed tasks.
    Establish subsequent changes from author/reviewer behavior on visible artifacts
    and unrelated synthetic controls. The latest internal/gold
    disagreement warrants diagnosis, not a benchmark-answer patch or more reviews

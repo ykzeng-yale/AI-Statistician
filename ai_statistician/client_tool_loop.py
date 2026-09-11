@@ -167,7 +167,7 @@ class ClientToolLoopError(RuntimeError):
 
 
 class ClientToolInputError(ValueError):
-    """A caller-reviewed tool error whose bounded detail is safe for the model."""
+    """A caller-reviewed tool error whose detail is safe for the model."""
 
 
 def model_exact_text_edit_json_schema() -> dict[str, Any]:
@@ -938,7 +938,7 @@ def run_bounded_client_tool_loop(
                                 "ok": False,
                                 "error": "client_tool_input_rejected",
                                 "exception_type": type(exc).__name__,
-                                "detail": str(exc)[:1200],
+                                "detail": str(exc),
                             },
                             is_error=True,
                             observation_key=(
