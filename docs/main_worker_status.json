@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Audited model-owned feedback and removed the Formalizer's catch-all exception handler, message-keyword provider classifier and duplicate failure artifacts. Unexpected harness exceptions now reach the existing AgentRuntime boundary; an unavailable Lean workspace reports configuration status directly without generation fallback. Raw compiler observations, same-owner source iteration, provider transport handling and scientific acceptance gates are unchanged. Four new boundary cases pass; the full suite passed 1425. No new prompt, tool, retry, statistical rule, live evaluation, product draw or E2E credit. Failed qualifications and consumed evaluations remain unchanged.",
+  "execution_status": "Removed two content-dependent stopping prerequisites from the live Lean workspace: reporting unresolved work no longer requires a prior environment call or successful source compilation. The model chooses further search, source revision or a non-proof gap; prompts no longer prescribe a post-error edit-first or indexed-search-first sequence. Exact source and raw observations remain preserved, and a reported gap is not a verified library defect or proof. Production code decreased by 38 lines. The full suite passed 1427 tests. No new tool, error taxonomy, retry budget, live model call, product draw or E2E credit. Pre-existing untracked conditional-quantile preparation remains outside this delivery; consumed evaluations and failed qualifications are unchanged.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,13 +28,13 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "cf997f279c0913bd5f78f95644ce83a24de9fc58",
+  "validated_code_head": "2ac7e74b0775762a9c6a1880550b0e3bdf0af3e0",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "2cba57596e63fc035819dd8f30b975f8adc9fd9c",
-    "working_tree_before_current_change": "clean"
+    "remote_before_current_change": "5c8aaea410a3b168654ca169a5c5c1984e3e71e6",
+    "working_tree_before_current_change": "Tracked tree clean; pre-existing untracked conditional-quantile question and source preparation preserved and not included."
   },
   "capability_facts": {
     "consumed_task_count": 114,
@@ -220,7 +220,7 @@
       "Formal execution and retrieval must use the same active checkout. Broad cross-version discovery context is not an accessible active-project premise or exact theorem closure.",
       "Prove2Me local mechanisms are adopted, but remote Formalpedia is not connected; source licensing/toolchain limits prohibit treating it as an available proof authority.",
       "Verified cross-task library growth and learned research/tactic policies remain unestablished; retrieval and training-data export are not learning evidence.",
-      "Legacy baselines and historical audit utilities remain non-authoritative; the package and runtime are near structural regression ceilings, so expansion requires consolidation."
+      "Legacy baselines and historical audit utilities remain non-authoritative. frontier_theory_revision_queue still contains keyword-selected mathematical revision recipes in the offline export path; these were identified, not executed or removed in this live-workspace change. The package and runtime remain near structural regression ceilings, so expansion requires consolidation."
     ],
     "anti_overengineering_boundary": "Do not add agents, retries, fixed reasoning sequences, field-count quotas, theorem-family rules, Lean grammar/tactic patches, repair taxonomies, or framework wrappers merely because a model made a scientific error. Change the harness only for a demonstrated shared authority, state, tool, or feedback defect.",
     "audit_document": "docs/original_goal_harness_redesign_20260909.md"
@@ -231,19 +231,19 @@
     "scientific_code_workspace_lines": 3594,
     "client_tool_loop_lines": 1224,
     "agent_runtime_lines": 1365,
-    "formalizer_llm_lines": 1849,
-    "lean_candidate_revision_tool_loop_lines": 2911,
+    "formalizer_llm_lines": 1841,
+    "lean_candidate_revision_tool_loop_lines": 2881,
     "cli_lines": 7053,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149005,
+    "top_level_package_lines": 148967,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "cf997f279c0913bd5f78f95644ce83a24de9fc58",
-    "summary": "Deleted Formalizer-specific exception guessing and its duplicate failure-record pipeline, reducing production code by 109 lines. A local exception mentioning network or timeout no longer becomes a provider error. The sole runtime retains unexpected exceptions and pending tasks; missing workspace capability returns BLOCKED without another generation path. No changes to model-authored source, prompts, tools, scientific labels, budgets, reviewer contracts or frozen gates.",
-    "verification": "Initial focused run: 122 passed and four new tests failed because their fixtures omitted the required question description. Corrected fixtures and the trace evidence-field assertion; all four new cases passed in 0.24 seconds. Full suite then passed 1425 tests in 293.31 seconds, including same-model raw-feedback iteration, checkpoint integrity and no implicit restart. compileall and git diff --check passed. These are mechanism tests, not scientific capability evidence.",
-    "capability_effect": "Harness defects are no longer mislabeled by Formalizer-specific message heuristics. This does not establish better mathematical reasoning, semantic-referee reliability or new end-to-end success. No live evaluation or product draw was started. All 114 numbered plus four standalone consumed draws and failed qualifications remain immutable. Goal remains active and unmet."
+    "code_commit": "2ac7e74b0775762a9c6a1880550b0e3bdf0af3e0",
+    "summary": "Deleted mandatory prior-tool and source-elaboration conditions from non-proof gap reporting, plus prompt-prescribed post-error action ordering. The existing terminal tool records model uncertainty without classifying a library defect or changing source. Three behavioral cases cover absent source, failed compilation and opaque diagnostics; the runtime test retains zero target-proof credit. No new abstraction, tool, repair rule or acceptance relaxation; production net minus 38 lines.",
+    "verification": "The three new behavioral cases failed on the old stopping prerequisites. After implementation, focused checks exposed obsolete prompt-order assertions; these were corrected without weakening source or proof-identity assertions. The broad focused run had 152 passed and one stale assertion failure in 181.90 seconds; the corrected seven targeted cases passed in 0.26 seconds. The final full suite passed 1427 tests in 295.32 seconds. compileall and git diff --check passed. Tests isolate live credentials and use scripted pinned-Haiku responses; this is mechanism verification, not an LLM capability evaluation.",
+    "capability_effect": "The harness no longer forces extra source edits merely to let a model report an unresolved target. Gap reports preserve uncertainty and remain non-proof; formal-required tasks still need independent exact-target kernel evidence. No new live evaluation or product draw was started. All 114 numbered plus four standalone consumed draws and failed qualifications remain immutable. No scientific or E2E credit is added; the goal remains active and unmet."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-gee-poisson-20260911-v1",
