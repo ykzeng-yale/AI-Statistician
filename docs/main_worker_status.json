@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Removed the independent semantic reviewer's explicit thinking-off override so it honors the existing native Haiku configuration, just like retained product workspaces. The existing session/qualification fingerprint binds the resolved setting; changed configuration cannot reuse authority. Default remains zero. Production change is one deleted line, with no new prompt, tool, reviewer, retry or scientific acceptance rule. The next full research experiment is prospectively configured for thinking 16384, total output 32768 and a 600-second request timeout, without extra loop actions. No task is activated and no live model call or capability credit occurred. Scientific efficacy and a new independently accepted research-E2E result remain unproven; prior failed qualifications are unchanged.",
+  "execution_status": "Audited source-owner feedback and reviewer normalization following the operator's hardcoding concern. Removed generated-code review fallbacks that invented a missing verdict, Markdown report, observed behavior or source-sufficiency assessment. Existing validators return omissions to the same retained reviewer; runtime no longer fills them. Production change is a net deletion of 25 lines, with no new prompt, tool, validator, retry or scientific acceptance rule. Eight synthetic omission cases reproduced the defect before deletion; focused and full suites now pass. No new model call, qualification, product draw, consumed-result revision or capability credit occurred. Unfrozen particle-source benchmark preparation remains untracked and inactive; the native-thinking configuration is unchanged.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,13 +28,13 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "ee18a83deeffc0e214fccc4e84bd87bfad65cb9f",
+  "validated_code_head": "2c4f768db84f88fc441e5439868882dca2f8f407",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "ff769445",
-    "working_tree_before_current_change": "Clean tracked and untracked tree. Fetched origin and verified canonical and main matched the starting HEAD; no other worker changes were overwritten."
+    "remote_before_current_change": "8efb69f7",
+    "working_tree_before_current_change": "Tracked files were clean. Untracked research_bootstrap_particle_questions_20260911.json and research_sources/bootstrap_particle_20260911 preparation were preserved, not activated or included in this mechanism commit. Fetched origin; canonical and main matched HEAD."
   },
   "capability_facts": {
     "consumed_task_count": 114,
@@ -235,15 +235,15 @@
     "lean_candidate_revision_tool_loop_lines": 2881,
     "cli_lines": 6957,
     "top_level_python_modules": 136,
-    "top_level_package_lines": 148221,
+    "top_level_package_lines": 148196,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "ee18a83deeffc0e214fccc4e84bd87bfad65cb9f",
-    "summary": "Deleted one explicit thinking_budget_tokens=0 override from the hidden semantic reviewer. Existing ClientToolTurnRequest configuration, native transport, session fingerprint and qualification checks now apply without a separate evaluator policy path. No production code was added; defaults, prompts, tools, actions, review strategy and mathematical acceptance rules are unchanged.",
-    "verification": "Four synthetic cases first reproduced the ignored setting under both single and adversarial strategies. After deletion, zero/enabled configurations reach qualification and candidate requests unchanged, identical configuration reuses synthetic authority, and a changed budget is rejected before provider calls without mutating activation. Focused tests: 265 passed in 16.31 seconds. Full suite: 1467 passed in 291.37 seconds. compileall and git diff --check passed. These tests establish configuration transport and identity, not scientific correctness or a live thinking-enabled gold qualification.",
-    "capability_effect": "Allows a prospectively frozen full research experiment to exercise native Haiku reasoning in authors and independent reviewers consistently. The earlier six-case pilot remains inconclusive; Haiku has no interleaved thinking and no scientific improvement is claimed. GMM scope overreach is not fixed or rejudged. No live model calls, qualification, product draw, changed consumed result or E2E credit occurred."
+    "code_commit": "2c4f768db84f88fc441e5439868882dca2f8f407",
+    "summary": "Removed four runtime content defaults from generated-code review normalization: verdict inference, synthesized Markdown, invented source-sufficiency judgment and copying summary into missing observed behavior. Existing validation and same-reviewer tool feedback are unchanged. Old synthetic fixtures now explicitly supply model judgments instead of relying on those defaults; obsolete dimension-checklist fixture generation was removed. No new production abstraction or statistical rule.",
+    "verification": "Before deletion, all eight missing/empty-content cases were incorrectly accepted in one turn; the existing inconsistent-verdict case already passed. After deletion, all nine return validation feedback to the same exact-Haiku mock session and retain its explicitly authored judgment, report, observation and unchanged source identity. Focused tests: 187 passed in 17.62 seconds. Full suite: 1475 passed in 338.42 seconds. compileall and git diff --check passed. Tests exercise generic source ownership and transport, not mathematical or E2E capability.",
+    "capability_effect": "Prevents runtime-authored review content from being presented as a model judgment. This is a shared harness correction, not evidence of stronger scientific reasoning or a claim that all legacy heuristics are gone. Native thinking, independent gold, task intent, budgets and immutable consumed evaluations remain unchanged; no new research-E2E credit."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-linear-iv-gmm-20260911-v1",
