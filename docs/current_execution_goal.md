@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including model-selected project diagnostics; failed qualifications remain unchanged.
+Updated: 2026-09-10, including complete-file independent review; failed qualifications remain unchanged.
 
 ## Operative Objective
 
@@ -106,31 +106,24 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    now been removed, including duplicate Formalizer filtering. Their historical
    recipe producers were largely offline utilities; live feedback could still lose
    model methods and raw tool diagnostics solely because of a dictionary key.
-   Initial Theory feedback also retained a lossy whitelist and path-name-specific
-   compactor. That entire helper family is now removed: feedback uses existing
-   read-only documents and exact long-text externalization, accessible with the
-   same search/range-read tools. Safe tool-input errors no longer suffer a second
-   silent 1,200-character truncation before the shared observation-size boundary.
-   Scientific feedback also lost long strings, later list items, nested fields and
-   the middle of its initial message. That lossy projection is now removed; the
-   permitted observations use the same read-only document tools, with character
-   ranges for long single lines and exact persisted references across continuation.
-   Outcome visibility and current-source release authority are unchanged. Earlier
-   diagnostics remain readable history, not current acceptance. Shared reviewer
-   tool definitions now bind the qualification contract, so an old authority cannot
-   silently authorize changed tools. Tests exercise unfamiliar fields, late findings,
-   long observations, immutable context and model-selected next actions at actual
-   entrypoints. No new tool name, classifier, repair agent or retry budget was added.
-   This is feedback fidelity, not improved mathematics or permission to rerun tasks.
-   A further code-level restriction prevented scientific owners from executing
-   their own project test files without changing the fixed run_sandbox program.
-   The existing run tool now accepts an exact project script for exploratory
-   Python/R diagnostics, with model-selected diagnostic inputs and raw observations.
-   It reuses the current project and sandbox rather than a separate scratch agent;
-   confirmation data, bound estimators and release authority remain outside that
-   path. Script observations use the same persistent read-only documents. Passing
-   a script neither increments bound checks nor authorizes a commit. This removes
-   an execution constraint, not a mathematical reasoning error or qualification gate.
+   Theory and scientific feedback now preserve permitted text and structured data
+   through existing read-only documents, including line/character-range access to
+   long diagnostics across continuation. No positional or field-name summary may
+   silently replace the source. Prior diagnostics remain history, not current-source
+   acceptance; visibility and release authority are unchanged.
+   Scientific owners can use the existing run tool on their exact current project
+   test files, with model-selected diagnostic inputs. This uses the same source and
+   isolated Python/R runner, not a separate scratch agent. Confirmation artifacts
+   and bound estimators remain outside that path; a successful test is not release.
+   Independent semantic reviewers now receive complete candidate/reference files,
+   not stripped mathematical paragraphs embedded in JSON. Citation indexes contain
+   file locations; candidate excerpts remain verbatim. Private file identities are
+   rechecked with the qualification record. Protocols 18/19 bind this changed input
+   contract, with the same statuses, review strategies, model and reasoning budgets.
+   Tests cover source fidelity, readable full context, opaque case labels and exact
+   references. No new tool name, mathematical parser, reviewer, classifier or retry
+   budget was added. These are workspace mechanisms, not proof of better mathematics
+   or permission to rerun consumed tasks or failed qualifications.
    Establish subsequent changes from author/reviewer behavior on visible artifacts
    and unrelated synthetic controls. The latest internal/gold
    disagreement warrants diagnosis, not a benchmark-answer patch or more reviews
@@ -209,9 +202,9 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
   but scientific improvement and thinking-enabled research-E2E remain unproven.
   The default budget stays zero; the pilot compared a configuration bundle, not
   the isolated causal effect of thinking tokens.
-  Hidden-gold protocols 16/17 retain document/scratch tools, thinking explicitly
-  off, and private Markdown referee reports. Early termination affects only
-  qualification execution; it is not a mathematical correction. Failed or older
+  Hidden-gold protocols 18/19 retain complete read-only candidate/reference files,
+  scratch tools, thinking explicitly off, and private Markdown referee reports.
+  File-backed input is not a mathematical correction. Failed or older
   authority cannot silently qualify, resume or rerun. Tool access and reduced
   wasted calls are mechanism changes, not evidence of improved judgment.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision

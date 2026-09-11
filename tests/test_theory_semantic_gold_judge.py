@@ -262,7 +262,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 16
+    assert result["protocol_version"] == 18
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -461,7 +461,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         candidate_adjudication_strategy="integrated_plus_adversarial",
     )
 
-    assert result["protocol_version"] == 17
+    assert result["protocol_version"] == 19
     assert result["candidate_adjudication_strategy"] == (
         "integrated_plus_adversarial"
     )
@@ -557,7 +557,8 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once(
 
 @pytest.mark.parametrize(
     ("previous_protocol", "strategy"),
-    [(14, "integrated_single"), (15, "integrated_plus_adversarial")],
+    [(14, "integrated_single"), (15, "integrated_plus_adversarial"),
+     (16, "integrated_single"), (17, "integrated_plus_adversarial")],
 )
 def test_previous_prompt_qualification_cannot_authorize_current_judge(
     previous_protocol: int,
@@ -881,7 +882,61 @@ def test_retained_gold_uses_documents_and_same_model_scratch_feedback(monkeypatc
     assert "Referee report" not in json.dumps(result)
 
 
-@pytest.mark.parametrize("changed", ["report", "session", "audit"])
+def test_referee_reads_complete_candidate_file_with_its_original_layout() -> None:
+    content = "    INDENTED_SOURCE_MARKER\n\n\\begin{align}\n  a &= b \\\\\n\n  b &= c\n\\end{align}\n"
+
+    class Reader(_RecordingProvider):
+        def generate_client_tool_turn(self, request):
+            if request.metadata["semantic_adjudication_phase"] == "candidate_integrated":
+                if len(request.messages) == 1:
+                    payload = json.loads(request.messages[0]["content"])
+                    candidates = [row for row in payload["document_catalog"] if row.get("role") == "candidate"]
+                    assert len(candidates) == 1, "the complete candidate must be a readable file, not JSON paragraph fragments"
+                    assert "INDENTED_SOURCE_MARKER" not in request.messages[0]["content"]
+                    assert all("content" not in row for row in payload["document_evidence_units"])
+                    assert all(row["document_path"] == candidates[0]["path"] for row in payload["document_evidence_units"])
+                    call = ClientToolCall("read-current-file", "read_theory_document", {
+                        "path": candidates[0]["path"], "line_start": 1, "line_end": candidates[0]["line_count"],
+                    })
+                    return ClientToolTurnResponse(
+                        content_blocks=({"type": "tool_use", "id": call.call_id, "name": call.name, "input": call.input},),
+                        tool_calls=(call,), text="", provider=self.provider_name, model=request.model,
+                    )
+                observation = json.loads(request.messages[-1]["content"][0]["content"])
+                assert observation["content"] == content.rstrip("\n")
+                assert observation["content"].startswith("    INDENTED_SOURCE_MARKER")
+            return super().generate_client_tool_turn(request)
+
+    result = _run(Reader([*_keyed_calibration_packets(), _keyed_candidate_packet()]),
+                  candidate_is_reference=True, reference_content=content)
+    assert result["passed"] is True
+    assert result["candidate_claim_assessments"][0]["decisive_excerpt_hash"] == stable_hash("    INDENTED_SOURCE_MARKER")
+    audit = json.loads(Path(result["review_workspace_refs"][-1]["path"]).read_text())
+    assert all(Path(reference["path"]).read_text() == content for reference in audit["document_refs"].values())
+
+
+@pytest.mark.parametrize("content", [
+    "    first\n\n\n  second\n", "first\r\n\r\nsecond\r\n",
+    "first\u2028second\n\nlast\n", "\n\nfirst\n\n```text\n  second\n\n  third\n```\n",
+])
+def test_referee_citation_locations_match_full_document_reads(content) -> None:
+    from ai_statistician.theory_semantic_gold_judge import _semantic_document_inputs
+    from ai_statistician.theory_workspace import read_theory_document_lines
+
+    documents, catalog, units = _semantic_document_inputs([], [{
+        "case_id": "candidate", "documents": [{"path": "hidden_case_label.md", "content": content}],
+    }])
+    assert list(documents.values()) == [content]
+    assert "hidden_case_label" not in json.dumps(catalog)
+    for unit in units:
+        observation, _ = read_theory_document_lines(
+            documents, path=unit["document_path"], line_start=unit["line_start"], line_end=unit["line_end"],
+        )
+        assert observation["content"] == "\n".join(unit["content"].splitlines())
+        assert unit["content"] in content
+
+
+@pytest.mark.parametrize("changed", ["report", "session", "audit", "document"])
 def test_modified_private_review_invalidates_activation_without_model_calls(changed) -> None:
     activation = _run(_RecordingProvider([*_keyed_calibration_packets(), _keyed_candidate_packet()]), candidate_is_reference=True)
     original = deepcopy(activation)
@@ -889,6 +944,7 @@ def test_modified_private_review_invalidates_activation_without_model_calls(chan
     audit = json.loads(audit_path.read_text())
     session = audit["session_ref"]
     path = {"audit": audit_path, "report": Path(audit["report_ref"]["path"]),
+            "document": Path(next(iter(audit["document_refs"].values()))["path"]),
             "session": Path(session["root_path"]) / session["relative_path"]}[changed]
     path.write_text("changed synthetic authority")
     provider = _RecordingProvider([])
@@ -919,7 +975,9 @@ def test_review_workspaces_are_isolated_and_tool_use_is_not_mandatory() -> None:
         assert len(request.native.messages) == 1
         assert request.native.tool_choice == "auto"
         assert request.native.thinking_budget_tokens == 0
-        assert {tool.name for tool in request.native.tools} == {"run_theory_scratchpad", SEMANTIC_REVIEW_SUBMIT_TOOL}
+        assert {tool.name for tool in request.native.tools} == {
+            "read_theory_document", "search_theory_documents", "run_theory_scratchpad", SEMANTIC_REVIEW_SUBMIT_TOOL,
+        }
         audit = json.loads(Path(reference["path"]).read_text())
         roots.append(audit["session_ref"]["root_path"])
         assert audit["model_calls"] == 1

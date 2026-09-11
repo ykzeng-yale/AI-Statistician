@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import hashlib
 import tempfile
+from bisect import bisect_right
 from copy import deepcopy
 from dataclasses import asdict
+from itertools import accumulate
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -45,8 +47,8 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 16
-THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 17
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 18
+THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 19
 THEORY_SEMANTIC_CANDIDATE_STRATEGIES = frozenset({"integrated_single", "integrated_plus_adversarial"})
 SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_semantic_review"
 SEMANTIC_REVIEW_MAX_TURNS = 32
@@ -55,7 +57,7 @@ SEMANTIC_REVIEW_MAX_TOOL_CALLS = 64
 
 def _review_contract_hash(*, max_tokens: int) -> str:
     return stable_hash({
-        "transport": "retained_evaluator_document_and_scratch_workspace_v1",
+        "transport": "retained_evaluator_complete_documents_and_scratch_workspace_v2",
         "max_tokens": max_tokens,
         "max_turns": SEMANTIC_REVIEW_MAX_TURNS,
         "max_tool_calls": SEMANTIC_REVIEW_MAX_TOOL_CALLS,
@@ -207,24 +209,42 @@ def _materialize_semantic_assessment_packet(
     return {"assessments": assessments}
 
 
-def _semantic_evidence_units(document_cases: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
-    return [
-        {
-            "case_id": str(case.get("case_id", "") or ""),
-            "document_path": f"document_{document_index:04d}",
-            "evidence_ref": f"{case.get('case_id', '')}:{document_index}:{paragraph_index}",
-            "content": content,
-        }
-        for case in document_cases
-        if isinstance(case, Mapping)
-        for document_index, document in enumerate(case.get("documents", []) or [])
-        if isinstance(document, Mapping)
-        for paragraph_index, content in enumerate(
-            value.strip()
-            for value in str(document.get("content", "") or "").split("\n\n")
-            if value.strip()
-        )
-    ]
+def _semantic_document_inputs(
+    reference_documents: Sequence[Mapping[str, Any]], document_cases: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, str], list[dict[str, Any]], list[dict[str, Any]]]:
+    documents, catalog, evidence_units = {}, [], []
+    groups = [("reference", "", reference_documents), *(
+        ("candidate", str(case.get("case_id", "") or ""), case.get("documents", []) or [])
+        for case in document_cases if isinstance(case, Mapping)
+    )]
+    for group_index, (role, case_id, source_documents) in enumerate(groups):
+        for document_index, document in enumerate(source_documents):
+            if not isinstance(document, Mapping):
+                continue
+            content = str(document.get("content", "") or "")
+            path = f"{role}/group_{group_index:04d}/document_{document_index:04d}.md"
+            documents[path] = content
+            catalog.append({
+                "role": role, **({"case_id": case_id} if case_id else {}), "path": path,
+                "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                "line_count": max(1, len(content.splitlines())),
+            })
+            if role == "reference":
+                continue
+            line_offsets = [0, *accumulate(len(line) for line in content.splitlines(keepends=True))]
+            character_start, paragraph_index = 0, 0
+            for paragraph in content.split("\n\n"):
+                if paragraph.strip():
+                    evidence_units.append({
+                        "case_id": case_id, "document_path": path,
+                        "evidence_ref": f"{case_id}:{document_index}:{paragraph_index}",
+                        "line_start": bisect_right(line_offsets, character_start),
+                        "line_end": bisect_right(line_offsets, character_start + len(paragraph) - 1),
+                        "content": paragraph,
+                    })
+                    paragraph_index += 1
+                character_start += len(paragraph) + 2
+    return documents, catalog, evidence_units
 
 
 def _generate_semantic_assessment_batch(
@@ -244,7 +264,7 @@ def _generate_semantic_assessment_batch(
     artifact_role: str,
     phase: str,
 ) -> tuple[dict[str, Any], Any]:
-    evidence_units = _semantic_evidence_units(document_cases)
+    documents, document_catalog, evidence_units = _semantic_document_inputs(reference_documents, document_cases)
     evidence_by_ref = {row["evidence_ref"]: row["content"] for row in evidence_units}
     payload = {
         "task": {
@@ -252,9 +272,9 @@ def _generate_semantic_assessment_batch(
             "visible_question": deepcopy(dict(visible_question)),
             "semantic_artifact_role": artifact_role,
         },
-        "reference_documents": deepcopy(list(reference_documents)),
         "claim_rubric": deepcopy(dict(rubric)),
-        "document_evidence_units": evidence_units,
+        "document_evidence_units": [{key: value for key, value in row.items() if key != "content"} for row in evidence_units],
+        "document_catalog": document_catalog,
         "required_document_case_ids": list(required_case_ids),
         "rubric_claim_ids": _rubric_claim_ids(rubric),
         "adjudication_phase": phase,
@@ -271,15 +291,17 @@ def _generate_semantic_assessment_batch(
         "type": "string", "minLength": 1,
         "description": "Complete Markdown/LaTeX referee report with the decisive argument and evidence references.",
     }
-    model_payload, documents, catalog = externalize_client_tool_text_documents(
+    model_payload, long_text_documents, catalog = externalize_client_tool_text_documents(
         payload, min_characters=2400, path_prefix="evidence",
     )
-    model_payload["document_catalog"] = catalog
+    documents.update(long_text_documents)
+    model_payload["document_catalog"].extend(catalog)
     workspace = Path(tempfile.mkdtemp(prefix=f"{phase}-", dir=workspace_root))
+    document_refs = {}
     for relative_path, content in documents.items():
         path = workspace / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        _private_document_ref(path, content)
+        document_refs[relative_path] = _private_document_ref(path, content)
     scratchpad = TheoryScratchpadConfig(
         sandbox_dir=workspace / "scratch", seed=0, replicates=1,
     )
@@ -320,6 +342,9 @@ def _generate_semantic_assessment_batch(
             "You cannot edit the candidate or obtain expected control labels. Scratch execution "
             "is not proof; interpret its result and scope yourself. No tool-use count or fixed "
             "derivation length is required."
+            " The document catalog identifies complete, unchanged reference and candidate files. "
+            "Evidence units are only line locators for citations, not replacement fragments; "
+            "inspect the surrounding derivation in its file when judging dependencies."
             + (
                 " This is an independent adversarial verification pass. Seek a decisive "
                 "counterexample or contradiction to apparently supported conclusions; do not "
@@ -411,6 +436,7 @@ def _generate_semantic_assessment_batch(
         )
         _private_document_ref(workspace / "incomplete.json", json.dumps({
             "reason": exc.reason, "history": exc.history, "scratch_execution_refs": scratch_refs,
+            "document_refs": document_refs,
         }, ensure_ascii=False, default=str))
         raise ValueError(f"invalid hidden {phase} semantic judgment: {exc.reason}") from exc
     session_ref = persist_client_tool_session(
@@ -423,6 +449,7 @@ def _generate_semantic_assessment_batch(
         "input_hash": stable_hash(payload), "contract_hash": _review_contract_hash(max_tokens=max_tokens),
         "report_ref": report_ref, "session_ref": session_ref, "history": loop.history,
         "scratch_execution_refs": scratch_refs, "provider_usage": loop.provider_usage,
+        "document_refs": document_refs,
     }, ensure_ascii=False, default=str))
     packet = loop.terminal_payload["packet"]
     response = GeneratorResponse(
@@ -587,6 +614,11 @@ def theory_semantic_activation_judgment_errors(
             if ref_errors:
                 raise ValueError("review workspace integrity mismatch")
             audit = json.loads(content)
+            document_refs = audit.get("document_refs", {})
+            if not isinstance(document_refs, dict) or not document_refs or any(
+                not isinstance(ref, Mapping) or read_hash_bound_utf8_file(ref)[1] for ref in document_refs.values()
+            ):
+                raise ValueError("review document identity mismatch")
             _, report_errors = read_hash_bound_utf8_file(audit["report_ref"])
             session_ref = audit["session_ref"]
             session_path = Path(session_ref["root_path"]) / session_ref["relative_path"]
