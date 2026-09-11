@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Continued the existing bootstrap-particle qualification without rerunning its completed theory stage. Mechanical qualification passed once in 55.68 seconds, including three required negative-evaluator rejections and correct source/tampered-record checks. The first source-semantic qualification is running under unchanged references, controls, prompts, model and budgets. Product is not activated or started. Prepared a detached checkout of the original frozen product code so any later run retains the preregistration while main keeps the independently tested reviewer-input fix. No new product rule, task substitution or research-E2E credit.",
+  "execution_status": "Removed two redundant field-name repair blacklists from code and formal review, and preserved malformed/missing formal-review findings for the existing validator instead of silently erasing them. Production diff is two files, +6/-27; no new rule, prompt, tool, retry or module. Existing producer schemas, explicit projections, same-owner feedback, identity and evidence gates remain. Three new synthetic variants reproduced false acceptance before the fix; focused 129 tests and the fresh full suite of 1486 tests passed afterward. Separately, the original bootstrap-particle source qualification completed once with 76 exact-Haiku calls and passed its supplied context, but actual CLI activation rejected a context identity mismatch before any product call. The preparation script passed raw question JSON containing source metadata that the canonical CLI projection omits. Preserve original records; no product exception, rewritten hashes, requalification or research-E2E credit.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,13 +28,13 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "2c4f768db84f88fc441e5439868882dca2f8f407",
+  "validated_code_head": "700b658281b6a287f7dbd5de9aaceac7864d7070",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "8efb69f7",
-    "working_tree_before_current_change": "Tracked files were clean. Untracked research_bootstrap_particle_questions_20260911.json and research_sources/bootstrap_particle_20260911 preparation were preserved, not activated or included in this mechanism commit. Fetched origin; canonical and main matched HEAD."
+    "remote_before_current_change": "53a05716",
+    "working_tree_before_current_change": "Working tree was clean. Fetched origin; canonical and main matched HEAD. Frozen qualification inputs, source snapshots, consumed records and detached product checkout remain unchanged."
   },
   "capability_facts": {
     "consumed_task_count": 114,
@@ -235,30 +235,34 @@
     "lean_candidate_revision_tool_loop_lines": 2881,
     "cli_lines": 6957,
     "top_level_python_modules": 136,
-    "top_level_package_lines": 148198,
+    "top_level_package_lines": 148177,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "594d4fdfbd3f44bf80eda248d32f675ef756e946",
-    "summary": "Preserved malformed findings and removed the missing-findings empty-list default in generated-code review normalization. The existing packet validator now sees these inputs and returns its existing error to the same reviewer. Production diff is one file, +6/-4 lines; no new validator, prompt, tool, retry, module or statistical rule. The earlier removal of invented verdicts, reports, observations and source-sufficiency judgments remains in place.",
-    "verification": "Eight new synthetic regression cases failed before the fix: two same-session cases incorrectly accepted the first malformed submission, and six input shapes were erased. Afterward the input remains intact for validation, the same exact-Haiku mock authors the corrected judgment, and source identity is unchanged. Focused tests: 308 passed in 5.32 seconds. Full suite: 1483 passed in 348.74 seconds. compileall and git diff --check passed. No model API call was needed for this mechanism reproduction or fix; the separately recorded qualification used unchanged pre-fix code.",
-    "capability_effect": "Restores existing validation and model ownership instead of silently cleaning malformed observations into acceptance. This is not stronger mathematical reasoning, a task-specific source fix, a claim that every legacy heuristic is gone, or research-E2E credit. Consumed outcomes and the preceding frozen qualification remain immutable."
+    "code_commit": "700b658281b6a287f7dbd5de9aaceac7864d7070",
+    "summary": "Deleted duplicate repair-field blacklists from code and formal-review validators. Existing native schemas and explicit producer projections still define the envelope. Formal-review normalization now preserves malformed and missing findings for the existing validator and same-reviewer feedback instead of erasing them into acceptance, matching the earlier code-review correction. Production diff is two files, +6/-27; no new validator, prompt, tool, retry, module or statistical rule.",
+    "verification": "Extended one existing same-reviewer test with three synthetic input-shape variants. All three failed before the normalization fix because invalid input was accepted without correction; afterward the same mock reviewer receives the existing error and authors the valid submission, with candidate source identity unchanged. Focused tests: 129 passed in 0.53 seconds. Fresh full suite: 1486 passed in 344.03 seconds. compileall and git diff --check passed. The earlier incomplete suite was interrupted before the additional normalization edit and is not counted as a full pass. No model API calls or benchmark answers were used for this change.",
+    "capability_effect": "Less duplicate control logic and no runtime-erased findings. Same-owner iteration, independent review, identity, blinding and kernel authority remain. This does not demonstrate stronger mathematical reasoning, complete architecture cleanup, or research-E2E success. Consumed evaluation and qualification records remain immutable."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-bootstrap-particle-20260911-v1",
     "frozen_public_commit": "4e1e0928",
-    "status": "THEORY_AND_MECHANICAL_QUALIFIED_SOURCE_RUNNING",
+    "status": "CANONICAL_CONTEXT_ACTIVATION_REJECTED_PRODUCT_NOT_STARTED",
     "mechanical_elapsed_seconds": 55.68,
     "theory_model_calls": 181,
     "theory_elapsed_seconds": 3435.309,
     "theory_provider_call_seconds": 3384.927,
-    "theory_control_outcome": "6/6 calibration controls and 1/1 candidate-mode negative correct; full reference PASS with 6/6 claims established. Original theory result retained without re-execution. Mechanical qualification subsequently passed its first attempt; source-semantic qualification is in progress and product remains unrun.",
-    "source_semantic_status": "RUNNING_FIRST_ATTEMPT",
+    "theory_control_outcome": "6/6 calibration controls and 1/1 candidate-mode negative correct; full reference PASS with 6/6 claims established. Original theory result retained without re-execution. Mechanical qualification passed once. Both semantic roles saw raw rather than canonical question context; their original passing judgments do not activate the product.",
+    "source_semantic_status": "COMPLETED_PASS_FOR_RAW_CONTEXT_NOT_VALID_CLI_ACTIVATION",
+    "source_model_calls": 76,
+    "source_elapsed_seconds": 1647.162,
+    "source_provider_call_seconds": 1645.622,
+    "source_control_outcome": "4/4 calibration controls and 1/1 candidate-mode negative correct; full reference PASS with 4/4 claims established. Original attempt is consumed and unchanged.",
     "product_draws": 0,
     "research_e2e_credit": false,
     "production_mechanism_change": false,
-    "verification": "All 25 private preregistered inputs remain unchanged. The completed theory attempt SHA-256 remains 0077f34bb10635e4ebd5a09e24a3dff561c59e405a9d08140e94b9c673f8981e; mechanical record SHA-256 is 05a5fa0caf74a8917f6c78b11cfe146f535ecc320e3f864c396f3a1e043a3184. Qualification code and transport match the frozen version. The prepared detached product checkout preserves the original product package tree and CLI arguments, using the same installed Python/R runtime. Main retains 594d4fdf; the old result will not be presented as an evaluation of latest main. No product invocation has occurred.",
+    "verification": "All 25 original private inputs passed read-only integrity verification. Source attempt SHA-256 is a042972df95b06f0fa4425d9450fba5506c5c43e58ed4fc0303974265df66099; original nominal activation SHA-256 is 2c8357b101745a4a38e6fcbaa66c740a3e585f0efe1316bb1ebc26639332924d. Qualification context hash is 0e4ba65cc7b4c6cd33f33fbcd2594e95efc519cfe12af0f84bee3e667c8b13fa; canonical CLI context hash is 2db08fd401f79ec3f01e8845684250d9e7bb4a2a4e725c000c1d9b8d2cf1e612. Read-only comparison found only the extra raw source field, with no different shared values. CLI preflight rejected activation judgment visible_question_hash mismatch without model calls. Product start/end records and output directory are absent. The prepared frozen-code launcher was never invoked; its raw-context checks are insufficient to authorize launch. These are qualification/preparation facts, not an evaluation of latest main.",
     "audit_document": "docs/evaluation_activations/bootstrap_particle_frozen_execution.json"
   },
   "next_gates": [
@@ -266,7 +270,7 @@
     "The preregistered configuration pilot is consumed. Preserve all 12 invocations, original reports and initial analysis; no rerun, prompt tuning on this panel, default thinking change or E2E credit. Keep the frozen preparation files unchanged and read the dated closeout for its current outcome.",
     "Prioritize source/observation fidelity and producer-owned envelope boundaries. Retire obsolete routing metadata at its source instead of expanding filters; preserve model-authored scientific methods and unfamiliar tool output. Test shared invariants and same-owner feedback, not benchmark-specific fixes.",
     "Startup and candidate review must reuse only independently frozen authority whose exact question context, rubric, controls, reference, model and execution contract, including resolved thinking configuration, still match. Missing or changed identity cannot trigger backfilling or automatic requalification. Earlier failed or consumed records remain untouched; this integrity check creates no new eligibility.",
-    "Finish the existing bootstrap-particle preregistered stages in order without rerunning completed qualification. Mechanical qualification passed once; source qualification is running. Only after every original gate passes may the single original product draw run from the detached frozen-code checkout. Keep main's later fix intact and attribute all results to their actual version. Do not substitute topics, change scope or criteria, add a review layer, silently reuse the freeze for new code, or retry a consumed outcome.",
+    "Keep bootstrap-particle activation stopped: its consumed qualifications used a different context from the canonical CLI. Preserve the completed records and do not launch, requalify, rewrite identity hashes or add a product exception. Future preparation must reuse research_question_payload from the existing typed question loader and compare qualification/product contexts before model calls, not introduce another validator into the generic semantic judge. This does not authorize a replacement task or a new draw.",
     "Preserve all failed qualifications, including conditional-quantile and linear IV/GMM, and every consumed draw. No renamed task, reduced scope, omitted control, relabeling or requalification. Any future product draw needs independently qualified, frozen authority; no current task is activated.",
     "Align active Lean/RAG project identity and reuse selected checked declarations; optional formal work must not block unrelated required research dimensions.",
     "Implement useful independent execution and dependency-aware joins only in the existing graph, with isolation/stale-result tests; no second scheduler.",

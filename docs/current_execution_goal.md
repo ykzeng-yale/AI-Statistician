@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, preserve reviewer input; keep qualification separate from product activation.
+Updated: 2026-09-11, remove redundant review filters; preserve the stopped activation.
 
 ## Operative Objective
 
@@ -119,8 +119,11 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    observed behavior or source-sufficiency assessment. Existing validation returns
    omissions to the same reviewer, which authors the complete judgment. Synthetic
    tests must supply explicit model judgments, not rely on runtime defaults.
-   Malformed or missing findings must reach that existing validator unchanged,
-   rather than being silently converted into an empty, acceptable finding list.
+   Both code and formal review now preserve malformed or missing findings for
+   existing validation, rather than convert them into an acceptable empty list.
+   Code and formal-review validators no longer duplicate field-name repair
+   blacklists. Existing producer schemas and explicit projections define the
+   envelope; data never gains routing or tool authority from a field name.
 3. Address scientific reliability without turning evaluation into the product.
    The earlier [linear IV/GMM qualification](operator_audits/linear_iv_gmm_prequalification_20260911.md)
    failed under protocols 22/23: one incomplete control was judged correctly,
@@ -224,11 +227,19 @@ The later MCMC, entropic-transport, PPI, GP, GEE, conditional-quantile and linea
 IV/GMM theory qualifications are also consumed and failed.
 Their source semantic roles were not run after the required gate failed; neither
 the protocol-15 PPI report nor later execution changes add a product draw or credit.
-The bootstrap-particle theory qualification passed its single frozen attempt;
-its [receipt](evaluation_activations/bootstrap_particle_theory_qualification.json)
-records the controls and cost. Mechanical/source qualification and product were
-not run. A separate synthetic input-loss defect was corrected only afterward;
-the changed product code must not silently inherit the old product freeze.
+The bootstrap-particle theory and source qualifications completed once with
+181 and 76 exact-Haiku calls; mechanical qualification also passed once. These
+results used raw question JSON, while the product CLI uses the existing typed
+question projection. The preparation script included extra source metadata, so
+the exact-context identity check rejected activation before any product call.
+The original judgments and nominal raw-context activation remain unchanged, but
+are not valid product activation. Do not launch, requalify, change their hashes,
+or add a product exception. Future qualification preparation must reuse the
+CLI's existing question producer and compare contexts before model calls, not
+introduce another reviewer validator or expose bookkeeping metadata to agents.
+The [theory receipt](evaluation_activations/bootstrap_particle_theory_qualification.json)
+and [execution preparation](evaluation_activations/bootstrap_particle_frozen_execution.json)
+retain their original time-specific facts. No research-E2E credit was added.
 Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.
