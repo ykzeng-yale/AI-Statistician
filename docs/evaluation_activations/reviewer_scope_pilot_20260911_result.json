@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "ReviewerPromptStudyResult",
+  "study_id": "reviewer-scope-pilot-20260911-v1",
+  "preregistration": "reviewer_scope_pilot_20260911.json",
+  "status": "COMPLETE_NO_PROMPT_CHANGE_ADOPTED",
+  "model": "claude-haiku-4-5-20251001",
+  "independent_invocations": 12,
+  "model_calls": 53,
+  "elapsed_seconds": 957.895,
+  "A": {
+    "expected_label_matches": 6,
+    "cases": 6,
+    "model_calls": 28,
+    "request_seconds": 474.813,
+    "uncached_input_tokens": 52731,
+    "cache_creation_input_tokens": 50760,
+    "cache_read_input_tokens": 47269,
+    "output_tokens": 31069,
+    "thinking_tokens_within_output": 12683
+  },
+  "B": {
+    "expected_label_matches": 6,
+    "cases": 6,
+    "model_calls": 25,
+    "request_seconds": 445.805,
+    "uncached_input_tokens": 53669,
+    "cache_creation_input_tokens": 44748,
+    "cache_read_input_tokens": 14859,
+    "output_tokens": 26803,
+    "thinking_tokens_within_output": 11579
+  },
+  "both_conditions": "Accepted all three valid alternative certificates, rejected both false-assertion controls, and left the partial certificate inconclusive.",
+  "decision": "The predeclared error-reduction criterion was not met. Do not ship B, tune it after outcomes, repeat these cells, or reinterpret descriptive call/time differences as the adoption criterion.",
+  "script_and_cases_unchanged": true,
+  "all_calls_exact_haiku": true,
+  "private_attempt_sha256": "bb194ddb434226fbaf2a620ebfabf4497488c069b234b00430f830345e7a2543",
+  "separate_read_only_context_check": {
+    "record": "ucb1_theory_qualification.json",
+    "primary_review_read_original_question_before_submission": true,
+    "question_characters_received": 2802,
+    "exact_canonical_question_text_received": true,
+    "complete_document_hash_verified": "d71217f33d1efd1261407f00c1cc348f9eeaa47970a9de9c5f75151197507f23",
+    "boundary": "Original transcript inspection only. No model was called, no verdict changed, and the failed UCB qualification was not rerun or reassessed. It does not demonstrate a missing or truncated task-context defect."
+  },
+  "limitations": "Six short synthetic certificate fixtures and one invocation per condition/case do not establish long-document reviewer reliability, validate every sentence of a generated report, reproduce or resolve the UCB disagreement, qualify a research authority, or demonstrate research-E2E capability. Call/time differences are descriptive and include varying tool choices and cache behavior.",
+  "product_effect": "No product source, prompt, tool, schema, protocol, budget, model tier or authority-combination change. No new reviewer, scheduler, repair rule, VM/proxy work, research task activation or scientific credit."
+}
