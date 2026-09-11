@@ -30,7 +30,7 @@ def _claim_rows(*, violated: str = "") -> list[dict[str, object]]:
     return [
         {
             "claim_id": claim_id,
-            "status": "VIOLATED" if claim_id == violated else "SATISFIED",
+            "status": "NOT_ESTABLISHED" if claim_id == violated else "ESTABLISHED",
         }
         for claim_id in CLAIM_IDS
     ]
@@ -40,7 +40,7 @@ def _assessment(case_id: str, *, violated: str = "") -> dict[str, object]:
     return {
         "case_id": case_id,
         "status": "FAIL" if violated else "PASS",
-        "document_status": "PASS",
+        "document_status": "FAIL" if violated else "PASS",
         "document_decisive_excerpt": "candidate",
         "claim_assessments": _claim_rows(violated=violated),
     }
@@ -89,10 +89,10 @@ def _keyed_calibration_packets(
         {
             "assessments": {
                 MODEL_CASE_IDS[0]: {
-                    "document_status": "PASS",
+                    "error_assessment": "NO_MATERIAL_ERROR_FOUND",
                     "document_decisive_evidence_ref": "case_0001:0:0",
-                    "claim_statuses": {
-                        claim_id: "SATISFIED" for claim_id in CLAIM_IDS
+                    "claim_support": {
+                        claim_id: "ESTABLISHED" for claim_id in CLAIM_IDS
                     },
                     "decisive_evidence_refs": {
                         claim_id: "case_0001:0:0" for claim_id in CLAIM_IDS
@@ -103,15 +103,15 @@ def _keyed_calibration_packets(
         {
             "assessments": {
                 MODEL_CASE_IDS[1]: {
-                    "document_status": (
-                        "PASS" if misclassify_second_case else "FAIL"
+                    "error_assessment": (
+                        "NO_MATERIAL_ERROR_FOUND" if misclassify_second_case else "MATERIAL_ERROR_FOUND"
                     ),
                     "document_decisive_evidence_ref": "case_0002:0:0",
-                    "claim_statuses": {
+                    "claim_support": {
                         claim_id: (
-                            "VIOLATED"
+                            "NOT_ESTABLISHED"
                             if claim_id == second_violated
-                            else "SATISFIED"
+                            else "ESTABLISHED"
                         )
                         for claim_id in CLAIM_IDS
                     },
@@ -126,18 +126,18 @@ def _keyed_calibration_packets(
 
 def _keyed_candidate_packet(
     *,
-    violated: str = "",
-    document_status: str = "PASS",
+    missing: str = "",
+    error_assessment: str = "NO_MATERIAL_ERROR_FOUND",
     claim_ids: list[str] | None = None,
 ) -> dict[str, object]:
     required_claim_ids = claim_ids if claim_ids is not None else CLAIM_IDS
     return {
         "assessments": {
             "candidate": {
-                "document_status": document_status,
+                "error_assessment": error_assessment,
                 "document_decisive_evidence_ref": "candidate:0:0",
-                "claim_statuses": {
-                    claim_id: "VIOLATED" if claim_id == violated else "SATISFIED"
+                "claim_support": {
+                    claim_id: "NOT_ESTABLISHED" if claim_id == missing else "ESTABLISHED"
                     for claim_id in required_claim_ids
                 },
                 "decisive_evidence_refs": {
@@ -264,13 +264,13 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 20
+    assert result["protocol_version"] == 22
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
         {
             "claim_id_hash": stable_hash(claim_id),
-            "status": "SATISFIED",
+            "status": "ESTABLISHED",
             "decisive_excerpt_hash": stable_hash("candidate"),
         }
         for claim_id in CLAIM_IDS
@@ -283,7 +283,6 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
     assert result["candidate_integrated_model_calls"] == 1
     assert result["candidate_claim_scope_isolated"] is False
     assert result["candidate_integrated_context"] is True
-    assert result["candidate_document_status_requested"] is True
     assert result["candidate_document_status"] == "PASS"
     assert result["candidate_document_decisive_excerpt_hash"] == stable_hash(
         "candidate"
@@ -300,24 +299,11 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         for request in provider.requests
     )
     assert "expected_status" not in provider.requests[0].user_prompt
-    assert "Use PASS only when every required claim is established" in (
-        provider.requests[0].system_prompt
-    )
-    assert "Use FAIL for a material active falsehood" in (
-        provider.requests[0].system_prompt
-    )
-    assert "INCONCLUSIVE when support is absent or indeterminate" in (
-        provider.requests[0].system_prompt
-    )
-    assert "Missing support is not itself a demonstrated contradiction" in (
-        provider.requests[0].system_prompt
-    )
+    assert "Acceptance requires every obligation ESTABLISHED and NO_MATERIAL_ERROR_FOUND" in provider.requests[0].system_prompt
+    assert "Missing work is NOT_ESTABLISHED, not by itself a material error" in provider.requests[0].system_prompt
     assert "active intermediate equations, assumptions, quantifiers and dependencies" in (
         provider.requests[0].system_prompt
     )
-    assert "invalid asserted derivation" in provider.requests[0].system_prompt
-    assert "Neither FAIL nor INCONCLUSIVE qualifies for acceptance" in provider.requests[0].system_prompt
-    assert "unsupported source/result claims" not in provider.requests[0].system_prompt
     assert all(case_id not in provider.requests[0].user_prompt for case_id in CASE_IDS)
     assert "reference_complete.md" not in provider.requests[0].user_prompt
     assert "wrong_limit.md" not in provider.requests[0].user_prompt
@@ -342,25 +328,25 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
         )
         calibration_schema = calibration_assessments["properties"][model_case_id]
         assert calibration_schema["required"] == [
-            "document_status",
+            "error_assessment",
             "document_decisive_evidence_ref",
-            "claim_statuses",
+            "claim_support",
             "decisive_evidence_refs",
         ]
-        assert calibration_schema["properties"]["claim_statuses"][
+        assert calibration_schema["properties"]["claim_support"][
             "required"
         ] == CLAIM_IDS
     candidate_assessments = provider.requests[2].schema["properties"]["assessments"]
     assert candidate_assessments["required"] == ["candidate"]
     candidate_schema = candidate_assessments["properties"]["candidate"]
     assert candidate_schema["required"] == [
-        "document_status",
+        "error_assessment",
         "document_decisive_evidence_ref",
-        "claim_statuses",
+        "claim_support",
         "decisive_evidence_refs",
     ]
     assert "status" not in candidate_schema["properties"]
-    assert candidate_schema["properties"]["claim_statuses"]["required"] == (
+    assert candidate_schema["properties"]["claim_support"]["required"] == (
         CLAIM_IDS
     )
     assert provider.requests[0].metadata["semantic_adjudication_phase"] == (
@@ -378,7 +364,7 @@ def test_candidate_mode_negative_uses_exact_integrated_candidate_schema() -> Non
     provider = _RecordingProvider(
         [
             *_keyed_calibration_packets(),
-            _keyed_candidate_packet(document_status="FAIL"),
+            _keyed_candidate_packet(error_assessment="MATERIAL_ERROR_FOUND"),
             _keyed_candidate_packet(),
         ]
     )
@@ -425,9 +411,10 @@ def test_calibration_retains_observed_status_without_hidden_case_content(
 ) -> None:
     packets = _keyed_calibration_packets()
     assessment = packets[1]["assessments"][MODEL_CASE_IDS[1]]
-    assessment["document_status"] = observed_status
-    claim_status = {"PASS": "SATISFIED", "FAIL": "VIOLATED", "INCONCLUSIVE": "INCONCLUSIVE"}[observed_status]
-    assessment["claim_statuses"] = {claim_id: claim_status for claim_id in CLAIM_IDS}
+    assessment["error_assessment"] = {
+        "PASS": "NO_MATERIAL_ERROR_FOUND", "FAIL": "MATERIAL_ERROR_FOUND", "INCONCLUSIVE": "UNRESOLVED",
+    }[observed_status]
+    assessment["claim_support"] = {claim_id: "ESTABLISHED" for claim_id in CLAIM_IDS}
     provider = _RecordingProvider([*packets, _keyed_candidate_packet()])
 
     result = _run(provider)
@@ -454,7 +441,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
             calibration_packets[1],
             calibration_packets[1],
             _keyed_candidate_packet(),
-            _keyed_candidate_packet(violated="claim:limit"),
+            _keyed_candidate_packet(missing="claim:limit", error_assessment="MATERIAL_ERROR_FOUND"),
         ]
     )
 
@@ -463,13 +450,13 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         candidate_adjudication_strategy="integrated_plus_adversarial",
     )
 
-    assert result["protocol_version"] == 21
+    assert result["protocol_version"] == 23
     assert result["candidate_adjudication_strategy"] == (
         "integrated_plus_adversarial"
     )
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "FAIL"
-    assert result["candidate_claim_status_counts"]["VIOLATED"] == 1
+    assert result["candidate_claim_status_counts"]["NOT_ESTABLISHED"] == 1
     assert result["passed"] is False
     assert result["n_model_calls"] == 6
     assert result["calibration_model_calls"] == 4
@@ -520,7 +507,7 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once(
         _RecordingProvider(
             [
                 *_keyed_calibration_packets(),
-                _keyed_candidate_packet(document_status="FAIL"),
+                _keyed_candidate_packet(error_assessment="MATERIAL_ERROR_FOUND"),
                 _keyed_candidate_packet(),
             ]
         ),
@@ -560,7 +547,8 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once(
 @pytest.mark.parametrize(
     ("previous_protocol", "strategy"),
     [(14, "integrated_single"), (15, "integrated_plus_adversarial"),
-     (16, "integrated_single"), (17, "integrated_plus_adversarial")],
+     (16, "integrated_single"), (17, "integrated_plus_adversarial"),
+     (20, "integrated_single"), (21, "integrated_plus_adversarial")],
 )
 def test_previous_prompt_qualification_cannot_authorize_current_judge(
     previous_protocol: int,
@@ -611,7 +599,7 @@ def test_first_failed_control_stops_later_reviews_and_preserves_private_records(
     semantic_artifact_role: str, strategy: str,
 ) -> None:
     first = _keyed_calibration_packets()[0]
-    first["assessments"][MODEL_CASE_IDS[0]]["document_status"] = "INCONCLUSIVE"
+    first["assessments"][MODEL_CASE_IDS[0]]["error_assessment"] = "UNRESOLVED"
     provider = _RecordingProvider([first])
     original = deepcopy(first)
 
@@ -636,7 +624,6 @@ def test_first_failed_control_stops_later_reviews_and_preserves_private_records(
     assert result["candidate_claim_assessments"] == []
     assert set(result["candidate_claim_status_counts"].values()) == {0}
     assert result["candidate_claim_assessments_requested"] is False
-    assert result["candidate_document_status_requested"] is False
     assert result["candidate_integrated_context"] is False
     assert result["candidate_adversarial_model_calls"] == 0
     assert result["passed"] is False
@@ -789,7 +776,7 @@ def test_artifact_review_retains_full_project_context_without_owning_its_complet
         assert "candidate document set, not overall project completion" in request.system_prompt
         assert "The artifact-specific rubric defines the obligations of this review" in request.system_prompt
         assert "original question supplies context and target fidelity" in request.system_prompt
-        assert "including one outside the rubric" in request.system_prompt
+        assert "including those outside the rubric" in request.system_prompt
         assert "expected_status" not in request.user_prompt
 
 
@@ -833,23 +820,23 @@ def test_candidate_status_combines_document_and_keyed_claim_statuses() -> None:
         _RecordingProvider(
             [
                 *_keyed_calibration_packets(),
-                _keyed_candidate_packet(violated="claim:limit"),
+                _keyed_candidate_packet(missing="claim:limit", error_assessment="MATERIAL_ERROR_FOUND"),
             ]
         )
     )
 
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "FAIL"
-    assert result["candidate_claim_status_counts"]["VIOLATED"] == 1
+    assert result["candidate_claim_status_counts"]["NOT_ESTABLISHED"] == 1
     assert result["candidate_claim_assessments"] == [
         {
             "claim_id_hash": stable_hash("claim:definition"),
-            "status": "SATISFIED",
+            "status": "ESTABLISHED",
             "decisive_excerpt_hash": stable_hash("candidate"),
         },
         {
             "claim_id_hash": stable_hash("claim:limit"),
-            "status": "VIOLATED",
+            "status": "NOT_ESTABLISHED",
             "decisive_excerpt_hash": stable_hash("candidate"),
         },
     ]
@@ -861,7 +848,7 @@ def test_candidate_global_falsehood_blocks_satisfied_rubric_claims() -> None:
         _RecordingProvider(
             [
                 *_keyed_calibration_packets(),
-                _keyed_candidate_packet(document_status="FAIL"),
+                _keyed_candidate_packet(error_assessment="MATERIAL_ERROR_FOUND"),
             ]
         )
     )
@@ -869,13 +856,82 @@ def test_candidate_global_falsehood_blocks_satisfied_rubric_claims() -> None:
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_document_status"] == "FAIL"
     assert result["candidate_status"] == "FAIL"
-    assert result["candidate_claim_status_counts"]["SATISFIED"] == 2
+    assert result["candidate_claim_status_counts"]["ESTABLISHED"] == 2
     assert result["passed"] is False
+
+
+@pytest.mark.parametrize("missing", ["", "claim:limit"])
+@pytest.mark.parametrize(("error_assessment", "error_status"), [
+    ("NO_MATERIAL_ERROR_FOUND", "PASS"),
+    ("MATERIAL_ERROR_FOUND", "FAIL"),
+    ("UNRESOLVED", "INCONCLUSIVE"),
+])
+@pytest.mark.parametrize("strategy", ["integrated_single", "integrated_plus_adversarial"])
+def test_support_and_error_axes_preserve_reports_without_content_reinterpretation(
+    missing, error_assessment, error_status, strategy,
+) -> None:
+    candidate = _keyed_candidate_packet(missing=missing, error_assessment=error_assessment)
+    report = "# Opaque report\n\nPASS FAIL INCONCLUSIVE SATISFIED VIOLATED\n\nNo content parser may change this text or derive a verdict from these words.\n"
+    candidate["review_markdown"] = report
+    packets = [*_keyed_calibration_packets(), candidate]
+    if strategy == "integrated_plus_adversarial":
+        packets = [packet for packet in packets for _ in range(2)]
+    provider = _RecordingProvider(packets)
+
+    result = _run(provider, candidate_adjudication_strategy=strategy)
+
+    expected = "INCONCLUSIVE" if missing and error_status == "PASS" else error_status
+    assert result["candidate_status"] == expected
+    assert result["candidate_document_status"] == error_status
+    assert result["passed"] is (expected == "PASS")
+    assert result["n_model_calls"] == len(packets)
+    assert provider.packets[-1] == candidate
+    for reference in result["review_workspace_refs"][-(2 if strategy.endswith("adversarial") else 1):]:
+        audit = json.loads(Path(reference["path"]).read_text())
+        assert Path(audit["report_ref"]["path"]).read_text() == report
+        assert audit["scratch_execution_refs"] == []
+    schema = provider.requests[-1].schema["properties"]["assessments"]["properties"]["candidate"]
+    assert set(schema["properties"]) == {
+        "error_assessment", "document_decisive_evidence_ref", "claim_support", "decisive_evidence_refs",
+    }
+    assert schema["properties"]["claim_support"]["properties"]["claim:limit"]["enum"] == [
+        "ESTABLISHED", "NOT_ESTABLISHED",
+    ]
+
+
+@pytest.mark.parametrize("adversarial", [False, True])
+def test_reviewer_missing_support_does_not_become_a_mathematical_error(adversarial) -> None:
+    packets = [*_keyed_calibration_packets(), _keyed_candidate_packet(missing="claim:limit")]
+    if adversarial:
+        packets = [packet for packet in packets[:2] for _ in range(2)] + [
+            _keyed_candidate_packet(), packets[-1],
+        ]
+    result = _run(_RecordingProvider(packets), candidate_adjudication_strategy=(
+        "integrated_plus_adversarial" if adversarial else "integrated_single"
+    ))
+    assert result["semantic_judge_calibrated"] is True
+    assert result["candidate_status"] == "INCONCLUSIVE"
+    assert result["candidate_claim_status_counts"] == {"ESTABLISHED": 1, "NOT_ESTABLISHED": 1}
+    assert result["passed"] is False
+
+
+def test_old_ambiguous_native_labels_are_not_automatically_translated() -> None:
+    candidate = _keyed_candidate_packet()
+    assessment = candidate["assessments"]["candidate"]
+    assessment.pop("error_assessment")
+    assessment.pop("claim_support")
+    assessment.update(document_status="PASS", claim_statuses={claim_id: "SATISFIED" for claim_id in CLAIM_IDS})
+    original = deepcopy(candidate)
+
+    with pytest.raises(ValueError, match="invalid hidden candidate_integrated semantic judgment"):
+        _run(_RecordingProvider([*_keyed_calibration_packets(), candidate]))
+
+    assert candidate == original
 
 
 def test_keyed_candidate_schema_fails_closed_on_missing_claim() -> None:
     candidate = _keyed_candidate_packet()
-    del candidate["assessments"]["candidate"]["claim_statuses"]["claim:limit"]
+    del candidate["assessments"]["candidate"]["claim_support"]["claim:limit"]
 
     with pytest.raises(
         ValueError,
@@ -892,7 +948,7 @@ def test_keyed_candidate_schema_fails_closed_on_missing_claim() -> None:
 
 
 def test_candidate_document_grounding_must_select_a_supplied_evidence_ref(tmp_path) -> None:
-    candidate = _keyed_candidate_packet(document_status="FAIL")
+    candidate = _keyed_candidate_packet(error_assessment="MATERIAL_ERROR_FOUND")
     candidate["assessments"]["candidate"][
         "document_decisive_evidence_ref"
     ] = "invented:evidence:ref"
@@ -1170,7 +1226,7 @@ def test_semantic_judge_validator_rejects_inconsistent_overall_status() -> None:
     packet = _packet()
     candidate = packet["assessments"][-1]
     candidate["status"] = "PASS"
-    candidate["claim_assessments"][0]["status"] = "VIOLATED"
+    candidate["claim_assessments"][0]["status"] = "NOT_ESTABLISHED"
 
     errors = validate_theory_semantic_gold_judgment(
         packet,

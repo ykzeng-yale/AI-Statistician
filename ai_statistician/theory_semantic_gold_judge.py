@@ -45,10 +45,15 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
     "AgentRuntime termination. It cannot revise the candidate, route a runtime "
     "task, enter model RAG, or become theorem proof evidence."
 )
-THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
+THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"ESTABLISHED", "NOT_ESTABLISHED"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 20
-THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 21
+THEORY_SEMANTIC_ERROR_ASSESSMENTS = {
+    "MATERIAL_ERROR_FOUND": "FAIL",
+    "NO_MATERIAL_ERROR_FOUND": "PASS",
+    "UNRESOLVED": "INCONCLUSIVE",
+}
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 22
+THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 23
 THEORY_SEMANTIC_CANDIDATE_STRATEGIES = frozenset({"integrated_single", "integrated_plus_adversarial"})
 SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_semantic_review"
 SEMANTIC_REVIEW_MAX_TURNS = 32
@@ -111,22 +116,24 @@ def _theory_semantic_gold_judge_schema(
             "type": "object",
             "additionalProperties": False,
             "required": [
-                "document_status",
+                "error_assessment",
                 "document_decisive_evidence_ref",
-                "claim_statuses",
+                "claim_support",
                 "decisive_evidence_refs",
             ],
             "properties": {
-                "document_status": {
+                "error_assessment": {
                     "type": "string",
-                    "enum": sorted(THEORY_SEMANTIC_DOCUMENT_STATUSES),
+                    "enum": sorted(THEORY_SEMANTIC_ERROR_ASSESSMENTS),
+                    "description": "Whether a material error in an active candidate assertion or derivation was found, independently of missing work. Explain the finding or uncertainty in the referee report.",
                 },
                 "document_decisive_evidence_ref": {
                     "type": "string",
                     "enum": list(evidence_refs),
                 },
-                "claim_statuses": {
+                "claim_support": {
                     "type": "object",
+                    "description": "Whether the candidate establishes each rubric obligation. Missing, uncertain or incorrect support is NOT_ESTABLISHED; assess material errors separately.",
                     "additionalProperties": False,
                     "required": list(claim_ids),
                     "properties": {
@@ -205,21 +212,16 @@ def _semantic_review_request(
             "A correct final answer does not erase a false active step; a reference proof does "
             "not fill a missing candidate argument. Reconstruct implications or counterexamples "
             "when useful, and distinguish what is established, contradicted and unresolved. "
-            "For each required claim use SATISFIED when the candidate establishes it, VIOLATED "
-            "when an active assertion or asserted derivation is demonstrably incorrect, and "
-            "INCONCLUSIVE when support is absent or indeterminate. Missing support is not itself "
-            "a demonstrated contradiction. Apply the same distinction to mathematical and "
-            "source/result assertions. Use PASS only when every required claim is established "
-            "and no material active falsehood remains. Use FAIL for a material active falsehood "
-            "or invalid asserted derivation, including one outside the rubric; otherwise use "
-            "INCONCLUSIVE if required evidence is incomplete. An incomplete task is not thereby "
-            "a false assertion. Neither FAIL nor INCONCLUSIVE qualifies for acceptance. "
-            "Apply these meanings identically in every phase. Return document_status and "
-            "document_decisive_evidence_ref, then claim_statuses and decisive_evidence_refs "
-            "keyed by every rubric claim ID in the supplied schema. A document can FAIL even "
-            "when all listed claims are SATISFIED. Select only supplied evidence_ref values "
+            "Submit claim_support for each rubric obligation and an independent error_assessment "
+            "of active assertions throughout the document, including those outside the rubric. "
+            "Missing work is NOT_ESTABLISHED, not by itself a material error. Explain any "
+            "material error with a decisive argument in the report; uncertainty can remain "
+            "UNRESOLVED. These meanings apply to mathematics and source/result assertions alike. "
+            "Acceptance requires every obligation ESTABLISHED and NO_MATERIAL_ERROR_FOUND. "
+            "Select only supplied evidence_ref values "
             "that ground the judgment; do not rewrite excerpts or invent missing evidence. "
-            "The evaluator resolves references and combines document-wide and per-claim status."
+            "The evaluator resolves references and applies that acceptance rule, not a "
+            "mathematical interpretation of your report."
             " Use the read/search tools for externalized documents and the isolated Python/R "
             "scratch tool when useful. Write a reviewable Markdown/LaTeX referee report "
             "explaining the decisive mathematical argument, calculations and unresolved gaps, "
@@ -269,9 +271,11 @@ def _materialize_semantic_assessment_packet(
     for case_id, raw_assessment in raw_assessments.items():
         assessment = dict(raw_assessment) if isinstance(raw_assessment, Mapping) else {}
         if claim_ids:
-            document_status = str(assessment.get("document_status", "") or "")
+            document_status = THEORY_SEMANTIC_ERROR_ASSESSMENTS.get(
+                str(assessment.get("error_assessment", "") or ""), "",
+            )
             document_evidence_ref = str(assessment.get("document_decisive_evidence_ref", "") or "")
-            raw_statuses = assessment.get("claim_statuses", {})
+            raw_statuses = assessment.get("claim_support", {})
             raw_statuses = raw_statuses if isinstance(raw_statuses, Mapping) else {}
             raw_refs = assessment.get("decisive_evidence_refs", {})
             raw_refs = raw_refs if isinstance(raw_refs, Mapping) else {}
@@ -507,7 +511,7 @@ def _combine_semantic_assessment_packets(
 
     primary_by_case = by_id(primary_packet["assessments"], "case_id")
     adversarial_by_case = by_id(adversarial_packet["assessments"], "case_id")
-    claim_priority = {"SATISFIED": 0, "INCONCLUSIVE": 1, "VIOLATED": 2}
+    claim_priority = {"ESTABLISHED": 0, "NOT_ESTABLISHED": 1}
     document_priority = {"PASS": 0, "INCONCLUSIVE": 1, "FAIL": 2}
     assessments: list[dict[str, Any]] = []
     for case_id in required_case_ids:
@@ -868,7 +872,6 @@ def run_theory_semantic_gold_judge(
         "candidate_mode_negative_results": candidate_mode_negative_results,
         "candidate_mode_negative_controls_passed": candidate_mode_negative_controls_passed,
         "candidate_claim_assessments_requested": bool(candidate_responses),
-        "candidate_document_status_requested": bool(candidate_responses),
         "candidate_claim_scope_isolated": False,
         "candidate_integrated_context": bool(candidate_responses),
         "candidate_claim_model_calls": _response_calls(candidate_responses),
@@ -1019,9 +1022,7 @@ def _derived_document_status(
     *,
     expected_claim_count: int,
 ) -> str:
-    if "VIOLATED" in claim_statuses:
-        return "FAIL"
-    if "INCONCLUSIVE" in claim_statuses:
+    if "NOT_ESTABLISHED" in claim_statuses:
         return "INCONCLUSIVE"
     if claim_statuses and len(claim_statuses) == expected_claim_count and set(
         claim_statuses

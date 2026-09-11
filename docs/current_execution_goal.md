@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, prospective conditional-quantile qualification failed; no new product draw.
+Updated: 2026-09-11, simplify the shared referee interface; no new qualification or product draw.
 
 ## Operative Objective
 
@@ -228,11 +228,20 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    qualification stage or product draw ran. The scope correction has not resolved
    the distinction; no failed authority is requalified or made eligible. Preserve
    the [immutable closeout](operator_audits/conditional_quantile_prequalification_20260911.md).
-   Stop replacing scientific topics. Before any further live qualification,
-   resolve whether completion criteria, contradiction diagnosis and qualification
-   acceptance are conflated in the shared interface. Do not add a statistical
-   recipe, prose-to-label repair or another reviewer, or weaken/rescore this frozen
-   attempt. Its conservative rejection alone does not establish acceptance reliability.
+   Stop replacing scientific topics. Protocols 22/23 now separate two existing
+   submission responsibilities: establishing a rubric obligation and finding a
+   material error in the document. Native claim support has no VIOLATED label;
+   missing support alone remains INCONCLUSIVE and cannot pass. The model supplies
+   both judgments and its untouched Markdown report; the existing reducer applies
+   the acceptance conjunction without interpreting mathematics or report prose.
+   This replaces ambiguous fields and shortens the prompt, not another reviewer,
+   tool, retry or mathematical repair rule. Old contracts remain ineligible and
+   frozen outcomes unchanged. Tests establish this interface boundary, not better
+   scientific judgment. Any future qualification uses the existing frozen positive
+   and negative controls on disjoint material, not an extra preliminary review
+   layer or another topic chosen merely to find a pass. A failed control still
+   stops qualification; neither conservative rejection nor synthetic fixtures
+   establish a qualified authority.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -256,7 +265,7 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
   but scientific improvement and thinking-enabled research-E2E remain unproven.
   The default budget stays zero; the pilot compared a configuration bundle, not
   the isolated causal effect of thinking tokens.
-  Hidden-gold protocols 20/21 retain complete read-only candidate/reference files,
+  Hidden-gold protocols 22/23 retain complete read-only candidate/reference files,
   scratch tools, thinking explicitly off, and private Markdown referee reports.
   File-backed input is not a mathematical correction. Failed or older
   authority cannot silently qualify, resume or rerun. Tool access and reduced
