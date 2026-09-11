@@ -1,10 +1,10 @@
 {
-  "schema_version": 452,
+  "schema_version": 453,
   "updated_at": "2026-09-10",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Removed the remaining recursive feedback field blacklists and duplicate Formalizer filters. Theory, Architect, Metric, scientific-source and Lean callers preserve model/tool observations directly; no replacement wrapper, error classifier, repair agent or source patch was added. Production code decreased by 224 lines and one module. A synthetic comparison reproduced feedback loss in the prior code and exact preservation in the current Theory entrypoint. Full suite passed 1351 tests in 290.83 seconds. No live model call, scientific qualification, product draw or consumed-evaluation rescore occurred. Counts stay 114 numbered plus four standalone draws; scientific capability and the unqualified protocol-14/15 boundary remain unchanged.",
+  "execution_status": "Removed the initial Theory feedback whitelist, path-name heuristics and exact-semantic compactor family. Exact feedback uses existing read-only documents and long-text externalization; safe input errors no longer lose their tail at a separate 1,200-character cutoff. Production code net -335 lines, without a new tool, classifier, repair agent, scheduler or retry budget. Final focused tests: 169 passed; full suite: 1355 passed in 277.75 seconds. No live model call, scientific qualification, product draw or consumed-evaluation rescore in this change. PPI source/task preparation at 14c41e3b is separate benchmark/resource work, not product capability. Counts remain 114 numbered plus four standalone draws; no new scientific credit.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "f3e17635af2ac496562548094b465b9c6ec2944b",
+  "validated_code_head": "7aa3daeccd79d794063dea838613a48cddedc7ec",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "ca33b539dc4b178d67c8519ad315374b803f07d6",
+    "remote_before_current_change": "14c41e3ba35706befb2d9c13311cb182d3d1a3a0",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -200,7 +200,7 @@
     "native_model_capacity": "One typed thinking option in the existing pinned-Haiku request/transport. Enabled requests use automatic tool selection and preserve opaque signed/redacted content; plain-text stopping still requires explicit continuation, never automatic acceptance or resampling."
   },
   "current_design_assessment": {
-    "direction": "Keep one retained source-owning loop and let the model interpret errors and author every scientific revision. Removed feedback filtering that inferred instruction ownership from dictionary keys; do not replace it with a new provenance framework or special-case parser. Permissions, artifact identity, blinding, independent review and kernel authority remain enforced by their actual interfaces. Scientific mistakes alone do not justify harness changes. No new research-E2E acceptance is established.",
+    "direction": "The same source-owning model interprets environment observations and authors scientific revisions. Initial Theory feedback no longer passes through a whitelist or semantic/path-name compactor; safe input errors use the shared observation-size boundary without an extra silent truncation. Existing read-only documents and range inspection preserve feedback without a new layer. Permissions, identity, blinding, independent review and kernel authority remain enforced. Scientific mistakes alone justify neither runtime error rules nor benchmark-specific prompt recipes. No new research-E2E acceptance is established.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -235,15 +235,15 @@
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149466,
+    "top_level_package_lines": 149131,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "f3e17635af2ac496562548094b465b9c6ec2944b",
-    "summary": "Delete semantic_review_feedback.py, three field-name blacklists, their projection wrappers and duplicate Formalizer filtering. Existing callers retain feedback directly. Replace filter-specific tests with actual Theory/Architect entrypoint fidelity tests and preserve raw Lean diagnostics and referee findings in the source-owner prompt. No statistical answer, Lean grammar/tactic patch, new runtime branch or generic framework.",
-    "verification": "Focused feedback/Architect/Formalizer/shared-loop panel: 75 passed in 0.35 seconds. Full suite: 1351 passed in 290.83 seconds. Core and feedback checks after the documentation edit: 12 passed in 0.55 seconds. Compileall and git diff --check passed. Synthetic prior/current comparison reproduced destructive filtering only in the old code. Existing same-owner Python/R/Lean revision, tool authorization, blinding, identity and evidence tests remain in the full suite. No live provider or consumed scientific artifact was used.",
-    "capability_effect": "Regression-verified feedback fidelity and less product code, not improved mathematical accuracy or E2E completion. No live calls or evaluation activation in this revision. Retained hidden-gold protocols 14/15 still require fresh independent qualification; consumed tasks remain immutable. Goal remains active and unmet; thinking stays off."
+    "code_commit": "7aa3daeccd79d794063dea838613a48cddedc7ec",
+    "summary": "Delete the initial Theory feedback whitelist and exact-semantic/path-name compactor family; preserve observations through existing read-only documents and long-text externalization. Remove the shared tool-input exception's silent 1,200-character truncation. Production code net -335 lines; no new production module, tool, classifier, repair mechanism or statistical content.",
+    "verification": "Synthetic tests reproduced input-error truncation and missing initial-feedback access before the fixes. Final focused shared-loop, feedback, Theory workspace/entrypoint and Formalizer tests: 169 passed in 0.53 seconds. Final full suite: 1355 passed in 277.75 seconds. Compileall and git diff --check passed. The actual Theory entrypoint reads the end of a >55,000-character feedback document, rejects writes to it and retains its exact hash. Long string references reconstruct the original feedback. Existing authority, blinding and same-owner continuation tests remain.",
+    "capability_effect": "Information fidelity and simpler mechanisms, not improved mathematics or E2E completion. No live provider call or consumed scientific artifact was used to tune these changes. Initial-feedback checkpoints bind the complete document set and must not be migrated or silently resumed under changed context. Metric protocol authoring and plan/retrieval summaries still need separately justified consolidation. Goal remains active and unmet; thinking stays off."
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
