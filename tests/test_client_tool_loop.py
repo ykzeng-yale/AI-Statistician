@@ -23,6 +23,7 @@ from ai_statistician.client_tool_loop import (
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
+    workspace_history_tool,
 )
 from ai_statistician import client_tool_loop
 from ai_statistician.model_backend import (
@@ -117,6 +118,236 @@ def _request() -> ClientToolTurnRequest:
             CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: "auth:q1:v1",
         },
     )
+
+
+def _history_request():
+    request = _request()
+    return replace(request, tools=(*request.tools, workspace_history_tool()))
+
+
+def _history_checkpoint(tmp_path, request, content):
+    backend = ScriptedToolTurnBackend([
+        _response(ClientToolCall(call_id="opaque-check", name="check", input={})),
+        _response(ClientToolCall(call_id="save", name="submit", input={})),
+    ])
+
+    def execute(call, _context):
+        if call.name == "check":
+            return ClientToolExecutionResult(content=content, is_error=True)
+        return ClientToolExecutionResult(content={"saved": True}, terminal=True,
+                                         terminal_payload={"disposition": "checkpoint"})
+
+    result = run_bounded_client_tool_loop(
+        backend=backend, request=request, execute_tool=execute,
+        max_turns=2, max_tool_calls=2, max_no_progress_turns=2,
+        session_dir=tmp_path, session_id="history-owner",
+    )
+    ref = persist_client_tool_session(
+        session_dir=tmp_path, session_id="history-owner", request=request,
+        messages=result.messages, observation_refs=result.observation_refs,
+        durable_state_identity="checkpoint",
+    )
+    return ref, result, backend
+
+
+@pytest.mark.parametrize("opaque_content", [
+    "opaque prefix\n" + "unresolved\n" * 10000 + "original-tail-37",
+    "\u03b1 = \u03b2 + \u03b3\n" * 10000 + "original-tail-61",
+    {"observations": ["opaque unresolved"] * 10000, "tail": "original-tail-83"},
+])
+def test_exact_oversized_observation_survives_two_context_windows(tmp_path, opaque_content):
+    request = _history_request()
+    first, result, backend = _history_checkpoint(tmp_path, request, opaque_content)
+    assert len(result.observation_refs) == 2
+    encoded = (tmp_path / result.observation_refs[0]["relative_path"]).read_text()
+    assert json.loads(encoded)["content"] == opaque_content
+    omitted = json.loads(backend.requests[1].messages[-1]["content"][0]["content"])
+    assert omitted["content_omitted_atomically"] is True
+    assert omitted["workspace_history"] == {"observation_sha256": result.observation_refs[0]["sha256"]}
+    assert omitted["read_tool"] == "read_workspace_history"
+    resumed, _ = resume_client_tool_session_from_checkpoint(
+        first, session_dir=tmp_path, session_id="history-owner", request=request,
+        checkpoint_identity="checkpoint", require_durable_state_binding=True,
+    )
+    second, _, _ = _history_checkpoint(tmp_path, resumed, "a later observation")
+    second_payload = json.loads((tmp_path / second["relative_path"]).read_text())
+    assert second_payload["parent_session_ref"] == first
+    assert len(second_payload["observation_refs"]) == 2
+    assert "original-tail" not in json.dumps(second_payload["messages"])
+    latest, _ = resume_client_tool_session_from_checkpoint(
+        second, session_dir=tmp_path, session_id="history-owner", request=request,
+        checkpoint_identity="checkpoint", require_durable_state_binding=True,
+    )
+    scripted = ScriptedToolTurnBackend([
+        _response(ClientToolCall(call_id="old-tail", name="read_workspace_history", input={
+            **omitted["workspace_history"],
+            "character_start": len(encoded) - 1000, "character_end": len(encoded),
+        })),
+        _response(ClientToolCall(call_id="save-latest", name="submit", input={})),
+    ])
+    executed = []
+
+    def execute(call, _context):
+        executed.append(call.name)
+        return ClientToolExecutionResult(content={"saved": True}, terminal=True,
+                                         terminal_payload={"disposition": "checkpoint"})
+
+    recovered = run_bounded_client_tool_loop(
+        backend=scripted, request=latest, execute_tool=execute,
+        max_turns=2, max_tool_calls=2, max_no_progress_turns=2,
+        session_dir=tmp_path, session_id="history-owner",
+    )
+    observation = json.loads(scripted.requests[1].messages[-1]["content"][0]["content"])
+    assert observation["text"] == encoded[-1000:]
+    assert observation["sha256"] == result.observation_refs[0]["sha256"]
+    assert observation["session_sha256"] == first["sha256"]
+    assert observation["evidence_role"] == "historical_tool_observation_not_current_acceptance"
+    assert executed == ["submit"]  # Old tools never execute again.
+    assert len(recovered.observation_refs) == 1  # A history read is not copied into the archive.
+    assert recovered.terminal_payload == {"disposition": "checkpoint"}
+
+
+def test_history_reads_current_observation_without_exposing_private_reasoning(tmp_path):
+    request = _history_request()
+    first = _response(ClientToolCall(call_id="observe", name="check", input={}))
+    first = replace(first, content_blocks=(
+        {"type": "thinking", "thinking": "private-model-reasoning", "signature": "opaque-signature"},
+        *first.content_blocks,
+    ))
+    class HistoryReaderBackend(ScriptedToolTurnBackend):
+        def generate_client_tool_turn(self, request):
+            if len(self.requests) == 2:
+                catalog = json.loads(request.messages[-1]["content"][0]["content"])
+                ref = json.loads(catalog["text"])[0]
+                self.responses[0] = _response(ClientToolCall(
+                    call_id="read", name="read_workspace_history", input={"observation_sha256": ref["sha256"]},
+                ))
+            return super().generate_client_tool_turn(request)
+
+    backend = HistoryReaderBackend([
+        first,
+        _response(ClientToolCall(call_id="catalog", name="read_workspace_history", input={})),
+        _response(),
+        _response(ClientToolCall(call_id="save", name="submit", input={})),
+    ])
+
+    def execute(call, _context):
+        return ClientToolExecutionResult(content={"opaque": "observed-result"},
+            terminal=call.name == "submit", terminal_payload={"disposition": "checkpoint"})
+
+    result = run_bounded_client_tool_loop(
+        backend=backend, request=request, execute_tool=execute,
+        max_turns=4, max_tool_calls=4, max_no_progress_turns=2,
+        session_dir=tmp_path, session_id="history-owner",
+    )
+    catalog = json.loads(backend.requests[2].messages[-1]["content"][0]["content"])
+    assert catalog["parent_session_sha256"] == "" and catalog["observation_count"] == 1
+    read = json.loads(backend.requests[3].messages[-1]["content"][0]["content"])
+    assert json.loads(read["text"])["content"] == {"opaque": "observed-result"}
+    assert "private-model-reasoning" not in read["text"]
+    assert "opaque-signature" not in read["text"]
+    assert len(result.observation_refs) == 2
+
+
+@pytest.mark.parametrize("mutation", ["observation_bytes", "session_bytes", "authorization", "root", "session_id"])
+def test_history_requires_original_store_bytes_and_workspace_authority(tmp_path, mutation):
+    request = _history_request()
+    reference, result, _ = _history_checkpoint(tmp_path, request, "private-to-this-workspace")
+    resumed, _ = resume_client_tool_session_from_checkpoint(
+        reference, session_dir=tmp_path, session_id="history-owner", request=request,
+        checkpoint_identity="checkpoint",
+    )
+    root, session_id = tmp_path, "history-owner"
+    if mutation == "observation_bytes":
+        (tmp_path / result.observation_refs[0]["relative_path"]).write_text("changed bytes")
+    elif mutation == "session_bytes":
+        (tmp_path / reference["relative_path"]).write_text("changed bytes")
+    elif mutation == "authorization":
+        resumed = replace(resumed, metadata={**resumed.metadata,
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: "different-reviewer"})
+    elif mutation == "root":
+        root = tmp_path / "foreign-store"
+        root.mkdir()
+    else:
+        session_id = "different-owner"
+    with pytest.raises(ValueError):
+        client_tool_loop._read_workspace_history(
+            {"session_sha256": reference["sha256"], "observation_sha256": result.observation_refs[0]["sha256"]},
+            session_dir=root, session_id=session_id, request=resumed, observation_refs=(),
+        )
+
+
+def test_history_cannot_select_unlinked_windows_or_escape_observation_store(tmp_path):
+    request = _history_request()
+    reference, result, _ = _history_checkpoint(tmp_path, request, "scoped-observation")
+    with pytest.raises(ClientToolInputError, match="authorized parent chain"):
+        client_tool_loop._read_workspace_history(
+            {"session_sha256": reference["sha256"]}, session_dir=tmp_path,
+            session_id="history-owner", request=request, observation_refs=(),
+        )
+    forged = {**result.observation_refs[0], "relative_path": "../outside.json"}
+    with pytest.raises(ValueError, match="escapes"):
+        client_tool_loop._read_workspace_history(
+            {"observation_sha256": forged["sha256"]}, session_dir=tmp_path, session_id="history-owner",
+            request=request, observation_refs=[forged],
+        )
+
+
+def test_interrupted_loop_preserves_original_observation_refs(tmp_path):
+    request = _history_request()
+    backend = ScriptedToolTurnBackend([
+        _response(ClientToolCall(call_id="check-before-stop", name="check", input={})),
+        _response(text="unfinished checkpoint", stop_reason="end_turn"),
+    ])
+    with pytest.raises(ClientToolLoopError) as error:
+        run_bounded_client_tool_loop(
+            backend=backend, request=request,
+            execute_tool=lambda *_: ClientToolExecutionResult(content="opaque-checkpoint-observation"),
+            max_turns=3, max_tool_calls=3, max_no_progress_turns=2,
+            session_dir=tmp_path, session_id="history-owner",
+        )
+    assert len(error.value.observation_refs) == 1
+    saved = json.loads((tmp_path / error.value.observation_refs[0]["relative_path"]).read_text())
+    assert saved["content"] == "opaque-checkpoint-observation"
+
+
+def test_observation_storage_failure_stops_without_reexecuting_source(tmp_path, monkeypatch):
+    def cannot_store(*_args):
+        raise OSError("synthetic private filesystem detail")
+
+    monkeypatch.setattr(client_tool_loop, "_persist_workspace_observation", cannot_store)
+    backend = ScriptedToolTurnBackend([
+        _response(ClientToolCall(call_id="check", name="check", input={})),
+    ])
+    executions = []
+
+    def execute(call, _context):
+        executions.append(call.call_id)
+        return ClientToolExecutionResult(content="opaque result", state_changed=True)
+
+    with pytest.raises(ClientToolLoopError, match="observation persistence failed") as error:
+        run_bounded_client_tool_loop(
+            backend=backend, request=_history_request(), execute_tool=execute,
+            max_turns=3, max_tool_calls=3, max_no_progress_turns=2,
+            session_dir=tmp_path, session_id="history-owner",
+        )
+    assert executions == ["check"] and len(backend.requests) == 1
+    assert "synthetic private filesystem detail" not in str(error.value)
+
+
+@pytest.mark.parametrize("tool_input", [
+    {"observation_sha256": True}, {"observation_sha256": ""},
+    {"character_start": -1}, {"character_start": True}, {"character_end": 0},
+    {"character_end": 999999}, {"session_sha256": {}}, {"path": "/host-file"},
+])
+def test_history_read_range_and_selection_errors_are_model_actionable(tmp_path, tool_input):
+    request = _history_request()
+    _, result, _ = _history_checkpoint(tmp_path, request, "source-owned observation")
+    with pytest.raises(ClientToolInputError):
+        client_tool_loop._read_workspace_history(
+            tool_input, session_dir=tmp_path, session_id="history-owner",
+            request=request, observation_refs=result.observation_refs,
+        )
 
 
 def test_exact_text_edits_support_count_checked_repeated_literals() -> None:

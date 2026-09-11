@@ -3437,6 +3437,12 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
 
     second_backend = ScriptedLeanToolBackend(
         [
+            _response(ClientToolCall(
+                "read-lean-history", "read_workspace_history",
+                {"observation_sha256": json.loads(
+                    (Path(session_ref["root_path"]) / session_ref["relative_path"]).read_text()
+                )["observation_refs"][1]["sha256"]},
+            )),
             _response(
                 ClientToolCall(
                     "submit-accepted",
@@ -3457,7 +3463,7 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=1,
+        max_turns=2,
         max_no_progress_turns=1,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
@@ -3469,6 +3475,10 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
     )
 
     resumed_state = _initial_workspace(second_backend.requests[0])
+    historical = json.loads(second_backend.requests[1].messages[-1]["content"][0]["content"])
+    assert "opaque retained observation" in historical["text"]
+    assert "missing_revision" in historical["text"]
+    assert historical["evidence_role"] == "historical_tool_observation_not_current_acceptance"
     assert "current_lean_source" not in resumed_state
     assert resumed_state["current_source_manifest"]["source_hash"] == (
         stable_hash(failed)

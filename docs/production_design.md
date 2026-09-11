@@ -271,8 +271,8 @@ injects no import, statement, tactic or proof body; unknown fields confer no aut
 
 One turn/call budget covers every action. The initial message carries target/support
 manifests, hashes, declaration and complete Lean observations; exact files are read on demand.
-One bounded transcript retains actions and observations with a cacheable append-only prefix.
-Fresh revision sessions check their initial source; continuations retain exact checkpoint observations and recent history, not new verification evidence.
+One bounded model transcript retains a cacheable append-only prefix; complete tool observations are archived separately in the existing immutable session store, including outputs omitted from model context. Theory, Scientific and Lean owners use one shared read-only history tool, with hash-bound parent-window links and character-range reads; no author reasoning is exposed, old tools are not rerun, and history reads cannot grant current acceptance.
+Fresh revision sessions check their initial source; continuations retain exact checkpoints and recent context, while earlier observations remain recoverable by the same authorized owner. Current source and verifier checks, not historical results, remain the evidence authority.
 Declaration inspection resolves the model-selected active-project symbol through
 task-bound RAG and OpenProver's `lean-lsp-mcp`; the candidate file is only a local
 fallback. All such observations remain explicitly non-proof evidence.

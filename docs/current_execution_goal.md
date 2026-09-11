@@ -123,9 +123,13 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    ordinary environment tooling rather than package-specific rules; advance
    recoverable research context while the native backend remains unqualified.
 2. Improve long-horizon Theory through recoverable observations and native
-   Markdown/LaTeX work. Extend the existing session/artifact reads, not a second
-   memory service. Let the model decide derivation length, useful scratch work,
-   and when to revise or report an unresolved gap.
+   Markdown/LaTeX work. Theory, Scientific and Lean owners now share a read-only
+   history tool backed by the existing immutable session store. Full observations
+   survive model-context omission; parent references permit on-demand reads across
+   checkpoint windows without copying the entire history or rerunning tools.
+   This is mechanism support, not demonstrated long-horizon scientific reliability.
+   Let the model decide derivation length, useful scratch work, and when to revise
+   or report an unresolved gap; do not add a second memory service or summary agent.
 3. Make selected source-grounded operating knowledge accessible through existing
    file/source tools. Evaluate portable AREX-Skill-style references and PaperQA's
    lower-level parsing/provenance components, not their agent controllers.

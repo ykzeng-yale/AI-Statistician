@@ -1981,6 +1981,7 @@ def test_live_initial_theory_uses_model_owned_artifact_workspace() -> None:
     )
     assert {tool.name for tool in first_request.tools} == {
         "read_theory_workspace",
+        "read_workspace_history",
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
@@ -3013,6 +3014,7 @@ def test_theory_revision_uses_model_owned_document_workspace(
     )
     assert {tool.name for tool in first_tool_request.tools} == {
         "read_theory_workspace",
+        "read_workspace_history",
         THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,

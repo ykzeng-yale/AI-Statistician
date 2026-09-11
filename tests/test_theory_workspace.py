@@ -2093,7 +2093,14 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
                         "line_start": 1,
                         "line_end": 3,
                     },
-                )
+                ),
+                ClientToolCall(
+                    call_id="read-original-theory-observation",
+                    name="read_workspace_history",
+                    input={"observation_sha256": json.loads(
+                        (Path(session_ref["root_path"]) / session_ref["relative_path"]).read_text()
+                    )["observation_refs"][0]["sha256"]},
+                ),
             ),
             _response(
                 ClientToolCall(
@@ -2123,6 +2130,9 @@ def test_model_can_checkpoint_document_backed_theory_progress(tmp_path) -> None:
     )
 
     assert result.evidence["client_tool_session_lineage_continued"] is True
+    original_observation = json.loads(continuation.requests[1].messages[-1]["content"][1]["content"])
+    assert json.loads(original_observation["text"])["input"]["content"] == markdown
+    assert original_observation["evidence_role"] == "historical_tool_observation_not_current_acceptance"
     assert result.evidence["resumed_from_client_tool_session_ref"] == session_ref
     window = result.evidence["client_tool_checkpoint_window"]
     assert window["policy"] == CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY

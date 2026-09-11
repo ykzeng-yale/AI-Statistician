@@ -21,6 +21,7 @@ from .client_tool_loop import (
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
+    workspace_history_tool,
 )
 from .estimator_interface_contract import normalize_theory_estimator_interface_contracts
 from .fingerprint import stable_hash
@@ -829,6 +830,8 @@ def run_theory_artifact_workspace(
         document_authority_enabled=require_document_authority,
         writable_artifact_names=selected_writable_names,
     )
+    if resolved_workspace_dir is not None:
+        tools = (*tools, workspace_history_tool())
 
     def current_changed_artifact_names(
         artifacts: Mapping[str, Any],
@@ -2612,6 +2615,8 @@ def run_theory_artifact_workspace(
             max_turns=effective_max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
+            session_dir=resolved_workspace_dir,
+            session_id=workspace_id,
         )
     except ClientToolLoopError as exc:
         checkpoint = recovery_checkpoint()
@@ -2620,6 +2625,7 @@ def run_theory_artifact_workspace(
             session_id=workspace_id,
             request=request,
             messages=exc.messages,
+            observation_refs=exc.observation_refs,
             durable_state_identity=checkpoint["current_workspace_hash"],
         )
         if client_tool_session_ref:
@@ -2646,6 +2652,7 @@ def run_theory_artifact_workspace(
         session_id=workspace_id,
         request=request,
         messages=loop.messages,
+        observation_refs=loop.observation_refs,
         durable_state_identity=recovery_checkpoint()["current_workspace_hash"],
     )
     client_tool_session_evidence = {

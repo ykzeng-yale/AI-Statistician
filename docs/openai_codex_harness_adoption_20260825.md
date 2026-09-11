@@ -84,7 +84,7 @@ without duplicating the control plane.
 | function-call output returned to the model | `ClientToolExecutionResult` appended to the same Anthropic message history |
 | model-actionable versus fatal tool failure | `ClientToolInputError` versus `ClientToolRuntimeError` |
 | external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; Python/R and Lean target/support manifests open first, exact files are read on demand, and accepted Lean projects persist as content-addressed references |
-| thread persistence and context windows | root-authorized, content-addressed `ClientToolWorkspaceSessionRef` with durable-state-bound checkpoint windows |
+| thread persistence and context windows | root-authorized `ClientToolWorkspaceSessionRef`, durable checkpoints, exact observation files and linked parent-window reads; model context is not the durable archive |
 | sandboxed command execution | `scientific_sandbox` and the active Lean project checker |
 | isolated exact-input review | Clean Theory referee, scientific-source reviewer, formal-target reviewer, and final Critic sessions with reviewer-selected reads of hash-bound replication results |
 | request-scoped capability plan and sparse delegation | Architect-selected evidence dimensions over configured workspaces, plus the sole typed `AgentRuntime`, exact artifact references, and preserved pending work before a frozen cross-owner continuation |

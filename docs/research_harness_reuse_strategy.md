@@ -185,6 +185,21 @@ published method; it must not silently prescribe an acceptance threshold, change
 the estimand, or force an error-specific repair. Skill construction must not read
 hidden benchmark answers, and its cost must be reported separately from research.
 
+**Implemented context boundary, 2026-09-11:** Theory, Scientific and Lean owners
+now configure one shared `read_workspace_history` tool in the existing retained
+loop. Exact tool observations are stored as content-addressed files beside the
+existing session records, independently of bounded model messages. A session keeps
+only its own observation references and a hash-bound parent link. The model can
+inspect a catalog or read selected character ranges, including older windows and
+previously omitted long results, without replaying the old tool.
+Selectors use stable content hashes, not per-window ordinals, so a replayed
+omission notice still identifies the same original observation. Namespace,
+authorization, contract and byte-identity checks remain in the existing store;
+assistant thinking/signatures are not part of the observation surface. Independent
+reviewers do not receive author-history access. This implements the durable-event
+versus selected-context distinction, not a new memory service, summary model or
+demonstration of improved mathematical judgment. Consumed evaluations are unchanged.
+
 PaperQA offers another concrete reuse boundary. Its `read_doc` handles document
 parsing/chunking through a supplied PDF parser; `Docs` adds indexing, embeddings,
 and model-backed evidence gathering. Start below its agent layer. Do not call

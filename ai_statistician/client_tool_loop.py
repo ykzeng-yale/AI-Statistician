@@ -54,6 +54,7 @@ class ClientToolLoopResult:
     transcript_fingerprint: str
     provider_usage: Mapping[str, int] = field(default_factory=dict)
     final_response_metadata: Mapping[str, Any] = field(default_factory=dict)
+    observation_refs: tuple[Mapping[str, Any], ...] = ()
 
 
 def read_hash_bound_utf8_file(
@@ -144,6 +145,7 @@ class ClientToolLoopError(RuntimeError):
         provider: str = "",
         model: str = "",
         final_response_metadata: Mapping[str, Any] | None = None,
+        observation_refs: Sequence[Mapping[str, Any]] = (),
     ) -> None:
         self.reason = str(reason)
         self.turns = int(turns)
@@ -160,6 +162,7 @@ class ClientToolLoopError(RuntimeError):
         )
         self.provider_usage = _provider_usage_totals(self.history)
         self.transcript_fingerprint = stable_hash(self.messages)
+        self.observation_refs = tuple(deepcopy(dict(ref)) for ref in observation_refs)
         super().__init__(
             f"bounded client-tool loop stopped after {turns} turn(s) and "
             f"{tool_calls} call(s): {reason}"
@@ -290,6 +293,7 @@ class ClientToolRuntimeError(ClientToolLoopError):
         provider: str,
         model: str,
         final_response_metadata: Mapping[str, Any],
+        observation_refs: Sequence[Mapping[str, Any]] = (),
     ) -> None:
         self.tool_name = str(tool_name)
         self.turn_index = int(turn_index)
@@ -310,6 +314,7 @@ class ClientToolRuntimeError(ClientToolLoopError):
             provider=provider,
             model=model,
             final_response_metadata=final_response_metadata,
+            observation_refs=observation_refs,
         )
 
 
@@ -329,6 +334,127 @@ CLIENT_TOOL_RECENT_HISTORY_ROUNDS = 8
 CLIENT_TOOL_TRANSCRIPT_POLICY = "linear_with_state_bound_checkpoint_windows_v4"
 CLIENT_TOOL_RESULT_MAX_CHARS = 60_000
 CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY = "client_tool_authorization_fingerprint"
+CLIENT_TOOL_PARENT_SESSION_METADATA_KEY = "client_tool_parent_session_ref"
+WORKSPACE_HISTORY_TOOL_NAME = "read_workspace_history"
+
+
+def workspace_history_tool() -> ClientToolDefinition:
+    return ClientToolDefinition(
+        name=WORKSPACE_HISTORY_TOOL_NAME,
+        description=(
+            "Read exact tool observations from this workspace, not private model reasoning. "
+            "Omit session_sha256 for the current window; an older window must belong to "
+            "its validated parent chain. Omit observation_sha256 to read the observation "
+            "catalog and parent window hash; otherwise select an exact observation hash. "
+            "Without a window selector, that hash is found in the current or authorized older windows. "
+            "Read up to 20000 characters of the exact serialized observation or catalog; "
+            "character_end is exclusive. "
+            "Historical results are working context, not current scientific acceptance."
+        ),
+        input_schema={
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "session_sha256": {"type": "string"},
+                "observation_sha256": {"type": "string", "minLength": 1},
+                "character_start": {"type": "integer", "minimum": 0},
+                "character_end": {"type": "integer", "minimum": 1},
+            },
+        },
+    )
+
+
+def _persist_workspace_observation(
+    session_dir: Path, call: ClientToolCall, execution: ClientToolExecutionResult,
+) -> dict[str, Any]:
+    text = json.dumps({
+        "tool_name": call.name, "call_id": call.call_id, "input": dict(call.input),
+        "is_error": execution.is_error, "content": execution.content,
+        "model_content_blocks": list(execution.model_content_blocks),
+    }, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
+    encoded = text.encode("utf-8")
+    sha256 = hashlib.sha256(encoded).hexdigest()
+    relative = PurePosixPath(CLIENT_TOOL_SESSION_DIRECTORY, "observations", sha256 + ".json")
+    root = session_dir.resolve()
+    path = (root / Path(relative)).resolve()
+    if not path.is_relative_to(root):
+        raise ValueError("workspace observation escapes its session directory")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        if path.read_bytes() != encoded:
+            raise ValueError("workspace observation contains different bytes")
+    else:
+        path.write_bytes(encoded)
+    return {
+        "relative_path": relative.as_posix(), "sha256": sha256,
+        "byte_size": len(encoded), "character_count": len(text),
+        "tool_name": call.name, "call_id": call.call_id, "is_error": execution.is_error,
+    }
+
+
+def _read_workspace_history(
+    tool_input: Mapping[str, Any], *, session_dir: Path, session_id: str,
+    request: ClientToolTurnRequest, observation_refs: Sequence[Mapping[str, Any]],
+) -> ClientToolExecutionResult:
+    allowed = {"session_sha256", "observation_sha256", "character_start", "character_end"}
+    if set(tool_input) - allowed:
+        raise ClientToolInputError("unexpected workspace history fields")
+    selected = tool_input.get("session_sha256", "")
+    if not isinstance(selected, str):
+        raise ClientToolInputError("session_sha256 must be a string")
+    observation_sha = tool_input.get("observation_sha256")
+    if observation_sha is not None and (not isinstance(observation_sha, str) or not observation_sha):
+        raise ClientToolInputError("observation_sha256 must be a nonempty string")
+    parent = request.metadata.get(CLIENT_TOOL_PARENT_SESSION_METADATA_KEY, {})
+    refs = list(observation_refs)
+    if selected or (observation_sha and not any(ref["sha256"] == observation_sha for ref in refs)):
+        seen = set()
+        while parent:
+            sha = str(parent.get("sha256", ""))
+            if sha in seen:
+                raise ValueError("workspace session parent cycle")
+            seen.add(sha)
+            payload = _load_client_tool_session_payload(
+                parent, session_dir=session_dir, session_id=session_id, request=request,
+            )
+            parent = payload.get("parent_session_ref", {})
+            archived_refs = payload.get("observation_refs", [])
+            if sha == selected or (not selected and any(ref["sha256"] == observation_sha for ref in archived_refs)):
+                refs = archived_refs
+                selected = sha
+                break
+        else:
+            raise ClientToolInputError("selection is not in this workspace's authorized parent chain")
+    if observation_sha is None:
+        text = json.dumps(refs, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        sha = hashlib.sha256(text.encode()).hexdigest()
+    else:
+        ref = next((ref for ref in refs if ref["sha256"] == observation_sha), None)
+        if ref is None:
+            raise ClientToolInputError("observation_sha256 is outside this window's catalog")
+        relative = PurePosixPath(str(ref.get("relative_path", "")))
+        root = session_dir.resolve()
+        path = (root / Path(relative)).resolve()
+        if (relative.is_absolute() or ".." in relative.parts
+            or relative.parts[:2] != (CLIENT_TOOL_SESSION_DIRECTORY, "observations")
+            or not path.is_relative_to(root)):
+            raise ValueError("workspace observation reference escapes its store")
+        text, errors = read_hash_bound_utf8_file({**ref, "path": str(path)})
+        if errors:
+            raise ValueError("workspace observation identity mismatch: " + ",".join(errors))
+        sha = ref["sha256"]
+    start = tool_input.get("character_start", 0)
+    end = tool_input.get("character_end", min(len(text), start + 20000) if type(start) is int else 0)
+    if (type(start) is not int or type(end) is not int
+        or not 0 <= start < end <= len(text) or end - start > 20000):
+        raise ClientToolInputError("history character range must select 1..20000 characters within the document")
+    return ClientToolExecutionResult(content={
+        "ok": True, "session_sha256": selected, "observation_sha256": observation_sha,
+        "parent_session_sha256": str(parent.get("sha256", "")),
+        "observation_count": len(refs), "sha256": sha,
+        "character_start": start, "character_end": end, "total_characters": len(text),
+        "complete": start == 0 and end == len(text), "text": text[start:end],
+        "evidence_role": "historical_tool_observation_not_current_acceptance",
+    })
 
 
 def client_tool_authorization_fingerprint(
@@ -410,6 +536,7 @@ def persist_client_tool_session(
     request: ClientToolTurnRequest,
     messages: Sequence[Mapping[str, Any]],
     durable_state_identity: str = "",
+    observation_refs: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Persist one immutable transcript and return a compact integrity reference."""
 
@@ -439,6 +566,8 @@ def persist_client_tool_session(
         "transcript_fingerprint": transcript_fingerprint,
         "message_count": len(normalized_messages),
         "messages": normalized_messages,
+        "observation_refs": [deepcopy(dict(ref)) for ref in observation_refs],
+        "parent_session_ref": deepcopy(dict(request.metadata.get(CLIENT_TOOL_PARENT_SESSION_METADATA_KEY, {}))),
     }
     encoded = json.dumps(
         body,
@@ -475,14 +604,14 @@ def persist_client_tool_session(
     }
 
 
-def load_client_tool_session(
+def _load_client_tool_session_payload(
     reference: Mapping[str, Any],
     *,
     session_dir: Path,
     session_id: str,
     request: ClientToolTurnRequest,
     durable_state_identity: str | None = None,
-) -> tuple[Mapping[str, Any], ...]:
+) -> dict[str, Any]:
     """Load a transcript only when its workspace and tool contract still match."""
 
     ref = dict(reference)
@@ -548,7 +677,18 @@ def load_client_tool_session(
         == ref.get("transcript_fingerprint")
     ):
         raise ValueError("client-tool session payload identity mismatch")
-    return tuple(deepcopy(dict(message)) for message in messages)
+    return dict(payload)
+
+
+def load_client_tool_session(
+    reference: Mapping[str, Any], *, session_dir: Path, session_id: str,
+    request: ClientToolTurnRequest, durable_state_identity: str | None = None,
+) -> tuple[Mapping[str, Any], ...]:
+    payload = _load_client_tool_session_payload(
+        reference, session_dir=session_dir, session_id=session_id,
+        request=request, durable_state_identity=durable_state_identity,
+    )
+    return tuple(deepcopy(dict(message)) for message in payload["messages"])
 
 
 def resume_client_tool_session_from_checkpoint(
@@ -643,6 +783,10 @@ def resume_client_tool_session_from_checkpoint(
         "evidence.\n"
         + json.dumps(window, sort_keys=True, separators=(",", ":"))
     )
+    if any(tool.name == WORKSPACE_HISTORY_TOOL_NAME for tool in request.tools):
+        notice += ("\nEarlier exact tool observations remain available through read_workspace_history; "
+                   "select parent session_sha256=" + str(ref.get("sha256", "")) +
+                   ". Current checkpoint and verifier authority are unchanged.")
     if replay_enabled:
         if str(prior_messages[0].get("role", "") or "") != "user":
             raise ValueError("recent-history resume requires a parent initial user message")
@@ -674,6 +818,7 @@ def resume_client_tool_session_from_checkpoint(
                     "parent_transcript_fingerprint"
                 ],
                 "client_tool_checkpoint_window": deepcopy(window),
+                CLIENT_TOOL_PARENT_SESSION_METADATA_KEY: deepcopy(ref),
             },
         ),
         window,
@@ -688,6 +833,8 @@ def run_bounded_client_tool_loop(
     max_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
+    session_dir: Path | None = None,
+    session_id: str = "",
 ) -> ClientToolLoopResult:
     """Run one retained model/tool session under explicit caller-owned bounds.
 
@@ -710,6 +857,11 @@ def run_bounded_client_tool_loop(
         or len(set(allowed_tool_names)) != len(allowed_tool_names)):
         raise ValueError("client-tool definitions must have unique nonempty names")
     tool_definitions = {tool.name: tool for tool in request.tools}
+    history_enabled = WORKSPACE_HISTORY_TOOL_NAME in tool_definitions
+    if history_enabled and (session_dir is None or not session_id
+                            or not client_tool_authorization_fingerprint(request.metadata)):
+        raise ValueError("workspace history requires an authorized persistent session")
+    observation_refs: list[Mapping[str, Any]] = []
     messages = [deepcopy(dict(message)) for message in request.messages]
     history: list[dict[str, Any]] = []
     seen_observations: set[str] = set()
@@ -740,6 +892,7 @@ def run_bounded_client_tool_loop(
                 getattr(backend, "provider_name", "") or "")),
             model=(last_response.model if last_response else request.model),
             final_response_metadata=last_response.metadata if last_response else {},
+            observation_refs=observation_refs,
         )
 
     for turn_index in range(max_turns):
@@ -931,7 +1084,12 @@ def run_bounded_client_tool_loop(
                     },
                 ) as progress_metadata:
                     try:
-                        execution = execute_tool(call, context)
+                        execution = (
+                            _read_workspace_history(call.input, session_dir=session_dir,
+                                session_id=session_id, request=request, observation_refs=observation_refs)
+                            if history_enabled and call.name == WORKSPACE_HISTORY_TOOL_NAME
+                            else execute_tool(call, context)
+                        )
                     except ClientToolInputError as exc:
                         execution = ClientToolExecutionResult(
                             content={
@@ -1000,6 +1158,7 @@ def run_bounded_client_tool_loop(
                             provider=response.provider,
                             model=response.model,
                             final_response_metadata=response.metadata,
+                            observation_refs=observation_refs,
                         )
                     if isinstance(progress_metadata, dict):
                         progress_metadata.update(
@@ -1032,6 +1191,20 @@ def run_bounded_client_tool_loop(
             result_text, model_observation_complete = (
                 _client_tool_result_for_model(execution.content)
             )
+            observation_ref = {}
+            if history_enabled and call.name != WORKSPACE_HISTORY_TOOL_NAME:
+                try:
+                    observation_ref = _persist_workspace_observation(session_dir, call, execution)
+                except (OSError, ValueError, TypeError):
+                    raise loop_error("workspace observation persistence failed; explicit continuation required",
+                                     turns=turn_index + 1, tool_calls=total_calls) from None
+                observation_refs.append(observation_ref)
+                if not model_observation_complete:
+                    result_text = json.dumps({
+                        **json.loads(result_text),
+                        "workspace_history": {"observation_sha256": observation_ref["sha256"]},
+                        "read_tool": WORKSPACE_HISTORY_TOOL_NAME,
+                    }, sort_keys=True, separators=(",", ":"))
             model_result_is_error = bool(
                 execution.is_error or not model_observation_complete
             )
@@ -1066,6 +1239,7 @@ def run_bounded_client_tool_loop(
                     "state_changed": bool(execution.state_changed),
                     "terminal": bool(execution.terminal),
                     "observation_key": observation_key,
+                    **({"observation_ref": observation_ref} if observation_ref else {}),
                 }
             )
             if execution.terminal:
@@ -1091,6 +1265,7 @@ def run_bounded_client_tool_loop(
                 transcript_fingerprint=stable_hash(messages),
                 provider_usage=_provider_usage_totals(history),
                 final_response_metadata=deepcopy(dict(response.metadata)),
+                observation_refs=tuple(observation_refs),
             )
 
         if turn_state_changed or turn_new_observation:

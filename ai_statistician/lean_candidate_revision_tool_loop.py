@@ -20,6 +20,7 @@ from .client_tool_loop import (
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
+    workspace_history_tool,
 )
 from .fingerprint import stable_hash
 from .lean_project import (
@@ -701,6 +702,8 @@ def run_lean_candidate_revision_tool_loop(
     )
     if theory_document_map:
         tools = (*tools, *theory_documents.theory_document_client_tools())
+    if session_dir is not None:
+        tools = (*tools, workspace_history_tool())
 
     def current_project_files() -> tuple[LeanProjectFile, ...]:
         return normalized_lean_project_files(
@@ -1960,6 +1963,8 @@ def run_lean_candidate_revision_tool_loop(
             max_turns=max_turns,
             max_tool_calls=max_tool_calls,
             max_no_progress_turns=max_no_progress_turns,
+            session_dir=resolved_session_dir,
+            session_id=f"lean:{candidate_id}",
         )
     except ClientToolLoopError as exc:
         client_tool_session_ref = persist_client_tool_session(
@@ -1967,6 +1972,7 @@ def run_lean_candidate_revision_tool_loop(
             session_id=f"lean:{candidate_id}",
             request=request,
             messages=exc.messages,
+            observation_refs=exc.observation_refs,
         )
         new_progress = bool(
             len(state["workspace_observation_fingerprints"])
@@ -2081,6 +2087,7 @@ def run_lean_candidate_revision_tool_loop(
         session_id=f"lean:{candidate_id}",
         request=request,
         messages=loop.messages,
+        observation_refs=loop.observation_refs,
     )
     terminal = dict(loop.terminal_payload)
     disposition = str(terminal.get("disposition", "AUTHOR_LEAN") or "AUTHOR_LEAN")

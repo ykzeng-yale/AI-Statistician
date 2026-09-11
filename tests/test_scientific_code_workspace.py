@@ -2717,6 +2717,12 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
 
     second_backend = ScriptedScientificBackend(
         [
+            _response(ClientToolCall(
+                call_id="read-scientific-history", name="read_workspace_history",
+                input={"observation_sha256": json.loads(
+                    (Path(session_ref["root_path"]) / session_ref["relative_path"]).read_text()
+                )["observation_refs"][0]["sha256"]},
+            )),
             _run_response("run-checkpoint-source"),
             _response(
                 ClientToolCall(
@@ -2743,7 +2749,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
         model_tier="haiku",
         temperature=0.0,
         max_tokens=1200,
-        max_turns=4,
+        max_turns=5,
         max_no_progress_turns=1,
         artifact_id="question:durable-source",
         initial_code_draft=checkpoint_draft,
@@ -2754,6 +2760,9 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
     )
 
     assert executed == [first_revision, accepted_revision]
+    historical = json.loads(second_backend.requests[1].messages[-1]["content"][0]["content"])
+    assert json.loads(historical["text"])["input"] == first_revision
+    assert historical["evidence_role"] == "historical_tool_observation_not_current_acceptance"
     assert dict(result.code_draft) == accepted_revision
     assert result.evidence["resumed_from_checkpoint_id"] == checkpoint[
         "checkpoint_id"
@@ -3309,6 +3318,9 @@ def test_source_owner_reads_complete_blinded_feedback_and_authors_its_revision(t
     contents = [Path(ref["path"]).read_text() for ref in references.values()]
     assert initial_stderr in contents and final_stderr in contents
     assert all(withheld not in content for content in contents)
+    archived = list((tmp_path / "session/.client_tool_sessions/observations").glob("*.json"))
+    assert archived
+    assert all(withheld not in path.read_text() for path in archived)
 
 
 def test_persistent_scientific_observations_survive_resume_and_reject_tampering(tmp_path) -> None:
