@@ -44,8 +44,8 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 14
-THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 15
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 16
+THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 17
 THEORY_SEMANTIC_CANDIDATE_STRATEGIES = frozenset({"integrated_single", "integrated_plus_adversarial"})
 SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_semantic_review"
 SEMANTIC_REVIEW_MAX_TURNS = 32
@@ -696,30 +696,27 @@ def run_theory_semantic_gold_judge(
         activation_model_calls = int(activation_judgment.get("n_model_calls", 0) or 0)
     else:
         model_case_ids = [f"case_{index:04d}" for index in range(1, len(case_ids) + 1)]
-        case_id_by_model_case_id = dict(zip(model_case_ids, case_ids))
-        calibration_assessments: list[dict[str, Any]] = []
+        calibration_results = []
+        # Retain completed reviews, but do not spend more calls on failed authority.
         for model_case_id, row in zip(model_case_ids, calibration_cases):
             assessment, case_responses = assess(
                 model_case_id, row.get("documents", []) or [], "calibration"
             )
-            calibration_assessments.append(assessment)
             calibration_responses.extend(case_responses)
-        assessment_by_case = {
-            case_id_by_model_case_id[str(row["case_id"])]: str(row["status"])
-            for row in calibration_assessments
-        }
-        expected_by_case = {str(row["case_id"]): str(row["expected_status"]) for row in calibration_cases}
-        calibration_results = [
-            {
-                "case_id_hash": stable_hash(case_id),
-                "observed_status": assessment_by_case[case_id],
-                "correct": assessment_by_case[case_id] == expected_by_case[case_id],
-            }
-            for case_id in case_ids
-        ]
-        calibrated = bool(calibration_results and all(row["correct"] for row in calibration_results))
+            calibration_results.append({
+                "case_id_hash": stable_hash(str(row["case_id"])),
+                "observed_status": str(assessment["status"]),
+                "correct": str(assessment["status"]) == str(row["expected_status"]),
+            })
+            if not calibration_results[-1]["correct"]:
+                break
+        calibrated = len(calibration_results) == len(case_ids) and all(
+            row["correct"] for row in calibration_results
+        )
         candidate_mode_negative_results: list[dict[str, Any]] = []
         for case_id, row in zip(negative_case_ids, candidate_mode_negative_cases):
+            if not calibrated:
+                break
             assessment, case_responses = assess(
                 "candidate", row.get("documents", []) or [], "candidate_mode_negative"
             )
@@ -731,17 +728,21 @@ def run_theory_semantic_gold_judge(
                 }
             )
             candidate_mode_negative_responses.extend(case_responses)
-        candidate_mode_negative_controls_passed = all(
+            calibrated = candidate_mode_negative_results[-1]["correct"] is True
+        candidate_mode_negative_controls_passed = len(candidate_mode_negative_results) == len(negative_case_ids) and all(
             row["correct"] is True for row in candidate_mode_negative_results
         )
         calibrated = bool(calibrated and candidate_mode_negative_controls_passed)
-    candidate_assessment, candidate_responses = assess(
-        "candidate", candidate_documents, "candidate_integrated"
-    )
-    candidate_status = str(candidate_assessment["status"])
+    candidate_assessment: dict[str, Any] = {}
+    candidate_responses: list[Any] = []
+    if calibrated:
+        candidate_assessment, candidate_responses = assess(
+            "candidate", candidate_documents, "candidate_integrated"
+        )
+    candidate_status = str(candidate_assessment.get("status", "NOT_RUN"))
     passed = bool(calibrated and candidate_status == "PASS")
-    candidate_provider = str(candidate_responses[-1].provider or "")
-    candidate_model = str(candidate_responses[-1].model or "")
+    candidate_provider = str(candidate_responses[-1].provider or "") if candidate_responses else ""
+    candidate_model = str(candidate_responses[-1].model or "") if candidate_responses else ""
     activation_provider = str(activation_judgment.get("provider", "") if activation_judgment else "")
     activation_model = str(activation_judgment.get("model", "") if activation_judgment else "")
     activation_judgment_hash = str(activation_judgment.get("judgment_hash", "") if activation_judgment else "")
@@ -789,8 +790,8 @@ def run_theory_semantic_gold_judge(
         "activation_judgment_hash": activation_judgment_hash,
         "candidate_mode_negative_cases_configured": bool(candidate_mode_negative_cases),
         "candidate_mode_negative_case_ids_opaque": True,
-        "candidate_mode_negative_claim_assessments_requested": True,
-        "candidate_mode_negative_integrated_context": True,
+        "candidate_mode_negative_claim_assessments_requested": bool(candidate_mode_negative_results),
+        "candidate_mode_negative_integrated_context": bool(candidate_mode_negative_results),
         "candidate_mode_negative_model_calls": _response_calls(candidate_mode_negative_responses),
         "n_candidate_mode_negative_cases": len(negative_case_ids),
         "n_candidate_mode_negative_cases_correct": sum(
@@ -798,14 +799,14 @@ def run_theory_semantic_gold_judge(
         ),
         "candidate_mode_negative_results": candidate_mode_negative_results,
         "candidate_mode_negative_controls_passed": candidate_mode_negative_controls_passed,
-        "candidate_claim_assessments_requested": True,
-        "candidate_document_status_requested": True,
+        "candidate_claim_assessments_requested": bool(candidate_responses),
+        "candidate_document_status_requested": bool(candidate_responses),
         "candidate_claim_scope_isolated": False,
-        "candidate_integrated_context": True,
+        "candidate_integrated_context": bool(candidate_responses),
         "candidate_claim_model_calls": _response_calls(candidate_responses),
         "candidate_integrated_model_calls": _response_calls(candidate_responses),
         "candidate_adversarial_model_calls": (candidate_responses[-1].metadata["model_calls"]
-                                              if candidate_adjudication_strategy == "integrated_plus_adversarial" else 0),
+                                              if candidate_responses and candidate_adjudication_strategy == "integrated_plus_adversarial" else 0),
         "rubric_hash": stable_hash(rubric),
         "reference_documents_hash": stable_hash(reference_documents),
         "candidate_documents_hash": stable_hash(candidate_documents),
@@ -817,7 +818,7 @@ def run_theory_semantic_gold_judge(
         "calibration_results": calibration_results,
         "semantic_judge_calibrated": calibrated,
         "candidate_status": candidate_status,
-        "candidate_document_status": str(candidate_assessment.get("document_status", "") or ""),
+        "candidate_document_status": str(candidate_assessment.get("document_status", "NOT_RUN")),
         "candidate_document_decisive_excerpt_hash": stable_hash(
             candidate_assessment.get("document_decisive_excerpt", "")
         ),
@@ -828,7 +829,7 @@ def run_theory_semantic_gold_judge(
                 "status": str(row["status"]),
                 "decisive_excerpt_hash": stable_hash(row["decisive_excerpt"]),
             }
-            for row in candidate_assessment["claim_assessments"]
+            for row in candidate_assessment.get("claim_assessments", [])
         ],
         "passed": passed,
         "calibration_raw_response_fingerprint": calibration_fingerprint,

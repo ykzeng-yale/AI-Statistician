@@ -262,7 +262,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 14
+    assert result["protocol_version"] == 16
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -436,7 +436,7 @@ def test_calibration_retains_observed_status_without_hidden_case_content(
         "correct": observed_status == "FAIL",
     }
     assert result["passed"] is (observed_status == "FAIL")
-    assert result["n_model_calls"] == 3
+    assert result["n_model_calls"] == (3 if observed_status == "FAIL" else 2)
     serialized = json.dumps(result["calibration_results"])
     assert all(case_id not in serialized for case_id in CASE_IDS)
     assert "expected_status" not in serialized
@@ -461,7 +461,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         candidate_adjudication_strategy="integrated_plus_adversarial",
     )
 
-    assert result["protocol_version"] == 15
+    assert result["protocol_version"] == 17
     assert result["candidate_adjudication_strategy"] == (
         "integrated_plus_adversarial"
     )
@@ -489,7 +489,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
     )
 
 
-def test_candidate_pass_cannot_override_candidate_mode_negative_false_accept() -> None:
+def test_candidate_is_not_run_after_candidate_mode_negative_false_accept() -> None:
     result = _run(
         _RecordingProvider(
             [
@@ -504,7 +504,9 @@ def test_candidate_pass_cannot_override_candidate_mode_negative_false_accept() -
     assert result["n_candidate_mode_negative_cases_correct"] == 0
     assert result["candidate_mode_negative_controls_passed"] is False
     assert result["semantic_judge_calibrated"] is False
-    assert result["candidate_status"] == "PASS"
+    assert result["candidate_status"] == "NOT_RUN"
+    assert result["candidate_claim_model_calls"] == 0
+    assert result["n_model_calls"] == 3
     assert result["passed"] is False
 
 
@@ -555,7 +557,7 @@ def test_frozen_activation_skips_requalification_and_judges_candidate_once(
 
 @pytest.mark.parametrize(
     ("previous_protocol", "strategy"),
-    [(12, "integrated_single"), (13, "integrated_plus_adversarial")],
+    [(14, "integrated_single"), (15, "integrated_plus_adversarial")],
 )
 def test_previous_prompt_qualification_cannot_authorize_current_judge(
     previous_protocol: int,
@@ -582,7 +584,7 @@ def test_previous_prompt_qualification_cannot_authorize_current_judge(
     assert activation == original
 
 
-def test_candidate_pass_cannot_override_failed_calibration() -> None:
+def test_candidate_is_not_run_after_failed_calibration() -> None:
     result = _run(
         _RecordingProvider(
             [
@@ -593,9 +595,66 @@ def test_candidate_pass_cannot_override_failed_calibration() -> None:
     )
 
     assert result["semantic_judge_calibrated"] is False
-    assert result["candidate_status"] == "PASS"
+    assert result["candidate_status"] == "NOT_RUN"
+    assert result["candidate_claim_model_calls"] == 0
+    assert result["n_model_calls"] == 2
     assert result["passed"] is False
     assert result["n_calibration_cases_correct"] == 1
+
+
+@pytest.mark.parametrize("semantic_artifact_role", ["theory", "source_replication_report"])
+@pytest.mark.parametrize("strategy", ["integrated_single", "integrated_plus_adversarial"])
+def test_first_failed_control_stops_later_reviews_and_preserves_private_records(
+    semantic_artifact_role: str, strategy: str,
+) -> None:
+    first = _keyed_calibration_packets()[0]
+    first["assessments"][MODEL_CASE_IDS[0]]["document_status"] = "INCONCLUSIVE"
+    provider = _RecordingProvider([first])
+    original = deepcopy(first)
+
+    result = _run(
+        provider, semantic_artifact_role=semantic_artifact_role,
+        candidate_adjudication_strategy=strategy, include_candidate_mode_negative=True,
+    )
+
+    calls = 2 if strategy == "integrated_plus_adversarial" else 1
+    assert len(provider.requests) == result["n_model_calls"] == calls
+    assert result["n_calibration_cases"] == 2
+    assert result["calibration_results"] == [{
+        "case_id_hash": stable_hash(CASE_IDS[0]),
+        "observed_status": "INCONCLUSIVE", "correct": False,
+    }]
+    assert result["candidate_mode_negative_results"] == []
+    assert result["candidate_mode_negative_controls_passed"] is False
+    assert result["candidate_mode_negative_model_calls"] == 0
+    assert result["candidate_mode_negative_claim_assessments_requested"] is False
+    assert result["candidate_mode_negative_integrated_context"] is False
+    assert result["candidate_status"] == result["candidate_document_status"] == "NOT_RUN"
+    assert result["candidate_claim_assessments"] == []
+    assert set(result["candidate_claim_status_counts"].values()) == {0}
+    assert result["candidate_claim_assessments_requested"] is False
+    assert result["candidate_document_status_requested"] is False
+    assert result["candidate_integrated_context"] is False
+    assert result["candidate_adversarial_model_calls"] == 0
+    assert result["passed"] is False
+    assert first == original
+    assert len(result["review_workspace_refs"]) == calls
+    for ref in result["review_workspace_refs"]:
+        audit = json.loads(Path(ref["path"]).read_text())
+        assert audit["phase"].startswith("calibration")
+        assert Path(audit["report_ref"]["path"]).is_file()
+        assert audit["model_calls"] == 1
+
+    frozen = deepcopy(result)
+    unused_provider = _RecordingProvider([])
+    with pytest.raises(ValueError, match="invalid hidden semantic activation judgment"):
+        _run(
+            unused_provider, activation_judgment=result,
+            semantic_artifact_role=semantic_artifact_role,
+            candidate_adjudication_strategy=strategy, include_candidate_mode_negative=True,
+        )
+    assert unused_provider.requests == []
+    assert result == frozen
 
 
 def test_theory_role_preserves_existing_judgment_contract() -> None:
