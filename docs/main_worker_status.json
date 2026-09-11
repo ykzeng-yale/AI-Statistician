@@ -1,10 +1,10 @@
 {
-  "schema_version": 455,
+  "schema_version": 456,
   "updated_at": "2026-09-11",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Closed a reproducible qualification-identity defect: changing the semantic submission schema previously left the review-contract hash unchanged and reached the provider generation path under old authority. Qualification now reuses the existing client-tool session fingerprint over the actual shared native request constructor, including prompts, complete tool schemas and sampling settings; loop and scratch settings are bound too. Changed authority is rejected before provider calls. Native prompts, tools, labels, model and budgets are unchanged. Full suite passed 1413 tests. No live model evaluation, new research task, product draw or E2E credit; GP qualification remains failed and every consumed record is immutable.",
+  "execution_status": "Removed the remaining Lean startup/continuation check-observation whitelist. Four synthetic regressions demonstrated that recorded structured diagnostics disappeared from the authoritative opening solely because their keys were not listed; the opening now preserves the complete recorded observation. Production code decreased by 30 lines, without new tools, prompts, error classifications or budgets. Documentation now distinguishes retained checkpoint diagnostics from fresh verification. Full suite passed 1415 tests. No live model evaluation, new research task, product draw or E2E credit; failed qualifications and consumed records remain immutable.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "3b03bcbf995b29dee6694cb94fb57fc7d7281dbc",
+  "validated_code_head": "9fd90d8810a42a65fba6d5bf882f66141d4e9e45",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "87be32bafd0f374ded39dce764828d86ba36089e",
+    "remote_before_current_change": "c9cf664750cb316c6d8fa6e35e76d52154f44385",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -232,25 +232,25 @@
     "client_tool_loop_lines": 1224,
     "agent_runtime_lines": 1365,
     "formalizer_llm_lines": 1849,
-    "lean_candidate_revision_tool_loop_lines": 2941,
+    "lean_candidate_revision_tool_loop_lines": 2911,
     "cli_lines": 7053,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149141,
+    "top_level_package_lines": 149111,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "3b03bcbf995b29dee6694cb94fb57fc7d7281dbc",
-    "summary": "One native request constructor now serves both independent review execution and qualification identity, reusing client_tool_session_contract_fingerprint instead of maintaining a partial tool/settings list. Prompt, submission schema/description/strictness/terminal behavior, sampling, no-progress and scratch-policy changes invalidate old authority. No new scheduler, reviewer, statistical rule, label translation, reasoning instruction or retry budget.",
-    "verification": "The new synthetic submission-schema regression failed against the previous implementation by reaching provider generation instead of rejecting stale qualification, then passed after the fix. Focused semantic-gold, gold-evaluation and core suites: 138 passed in 12.87 seconds. Four intercepted native-request comparisons against the previous committed implementation preserved system prompts, messages, tools and session-contract fingerprints exactly; interception made zero live model calls. compileall and git diff --check passed. Full suite: 1413 passed in 301.36 seconds. Tests also preserve the original synthetic qualification record and verify zero provider requests after interface or execution-policy changes.",
-    "capability_effect": "This establishes qualification identity, not independent mathematical reliability. Protocol labels 18/19 and scientific status meanings remain unchanged, but the stronger contract hash correctly rejects old qualifications without reexecution. No consumed evaluation is rerun, rejudged, repaired or rescored. GP's report/status disagreement remains unresolved; no evidence shows that label renaming would fix it. All 114 numbered plus four standalone research draws and failed qualifications remain immutable. No new research result or E2E credit; goal remains active and unmet."
+    "code_commit": "9fd90d8810a42a65fba6d5bf882f66141d4e9e45",
+    "summary": "Deleted _compact_lean_check_observation and its fixed field list. The initial and resumed model context receives a deep copy of the complete recorded check observation, including unfamiliar nested fields. Existing exact source/project bindings, checkpoint integrity and final proof authority remain unchanged. No model-authored source is patched, no diagnostic is interpreted, and no new prompt, tool, reviewer, retry or repair rule is added.",
+    "verification": "Before the deletion, all four new startup/continuation scenarios failed because ordinary diagnostics and an opaque extension field disappeared. Afterward the Lean workspace suite passed 64 tests in 160.01 seconds, including unchanged-source ownership and immutable checkpoint checks. Core suite: 8 passed in 0.52 seconds. compileall and git diff --check passed. Full suite: 1415 passed in 298.86 seconds. These are deterministic mechanism tests; no live model evaluation or consumed-run replay occurred.",
+    "capability_effect": "This establishes observation fidelity, not improved mathematical reasoning or theorem proving. The misleading claim that continuation automatically rechecks Lean was corrected: checkpoint diagnostics are retained history, while final kernel promotion requires fresh exact verification. Semantic protocols, statuses and qualification identity are unchanged. All 114 numbered plus four standalone research draws and failed qualifications remain immutable. No research result or E2E credit; goal remains active and unmet."
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
     "The preregistered configuration pilot is consumed. Preserve all 12 invocations, original reports and initial analysis; no rerun, prompt tuning on this panel, default thinking change or E2E credit. Keep the frozen preparation files unchanged and read the dated closeout for its current outcome.",
     "Prioritize source/observation fidelity and producer-owned envelope boundaries. Retire obsolete routing metadata at its source instead of expanding filters; preserve model-authored scientific methods and unfamiliar tool output. Test shared invariants and same-owner feedback, not benchmark-specific fixes.",
     "Keep explicit calibration separate from read-only startup. Freeze the mechanical record and original inputs as well as semantic qualification; never let missing, stale or empty authority trigger control execution. No current failed task is made eligible by this shared correction.",
-    "GP's full-scope qualification failed on report/status disagreement for an explicitly incomplete note. Inspect whether the evaluator interface conflates missing deliverables with contradicted mathematics, without parsing prose into replacement labels, adding case-specific instructions or weakening rejection of unsupported work. No source semantic qualification, product draw or additional topic substitution is authorized by this failure. See docs/operator_audits/gp_regression_prequalification_20260910.md.",
+    "GP's full-scope qualification remains failed on report/status disagreement for an explicitly incomplete note. FAIL and INCONCLUSIVE both reject unsupported work; optimizing that label distinction alone is not research capability. No new label-placement pilot was frozen or run. Preserve the failure and diagnose demonstrated general source/tool/feedback defects without parsing prose into replacement labels, adding case-specific prompt recipes or weakening authority. No source semantic qualification, product draw or topic substitution is activated. See docs/operator_audits/gp_regression_prequalification_20260910.md.",
     "Preserve failed Firth, MCMC, entropic-transport, PPI and GP qualifications and every consumed draw. No renamed task, reduced scope, omitted control, relabeling or requalification. Any future product draw needs independently qualified, frozen authority under the current execution contract; no current task is activated.",
     "Align active Lean/RAG project identity and reuse selected checked declarations; optional formal work must not block unrelated required research dimensions.",
     "Implement useful independent execution and dependency-aware joins only in the existing graph, with isolation/stale-result tests; no second scheduler.",
