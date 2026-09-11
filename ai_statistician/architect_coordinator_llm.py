@@ -55,9 +55,6 @@ from .research_schema import (
     research_dimension_requirements,
     research_question_payload,
 )
-from .semantic_review_feedback import (
-    architect_observations_without_runtime_routing,
-)
 from .scientific_code_workspace import (
     SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
 )
@@ -737,9 +734,6 @@ def build_architect_feedback_route_prompt(
             and value not in (None, "", [], {})
         )
     }
-    active_runtime_context = architect_observations_without_runtime_routing(
-        active_runtime_context
-    )
     available_route_subsystems = _architect_feedback_route_subsystems(
         architect_context=architect_context,
         environment_feedback=environment_feedback,
@@ -833,9 +827,7 @@ def build_architect_feedback_route_prompt(
             if key in runtime_plan
         },
         "active_runtime_context": active_runtime_context,
-        "environment_observations": architect_observations_without_runtime_routing(
-            environment_feedback
-        ),
+        "environment_observations": deepcopy(dict(environment_feedback)),
         "environment_feedback_fingerprint": stable_hash(dict(environment_feedback)),
         "terminal_gap_report_required": terminal_gap_report_required,
         "routing_contract": {
@@ -2001,7 +1993,7 @@ def build_architect_coordinator_prompt(
         },
     }
     model_architect_context = withhold_confirmatory_evaluation_seed(
-        architect_observations_without_runtime_routing(architect_context)
+        architect_context
     )
     available_subsystems = _architect_available_subsystems(architect_context)
     payload = {

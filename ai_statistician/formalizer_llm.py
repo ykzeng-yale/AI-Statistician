@@ -31,10 +31,6 @@ from .research_schema import (
     OpenResearchQuestion,
     research_workspace_authorization_fingerprint,
 )
-from .semantic_review_feedback import (
-    PRESCRIPTIVE_REPAIR_FIELDS,
-    coding_agent_observations_only,
-)
 from .theory_derivation_trace import (
     compact_theory_derivation_trace,
     theory_trace_alignment_contract,
@@ -1565,8 +1561,6 @@ def _compact_rows(
 def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[str, Any]:
     compact: dict[str, Any] = {}
     for key in keys:
-        if str(key) in PRESCRIPTIVE_REPAIR_FIELDS:
-            continue
         if key not in row or row.get(key) in (None, "", [], {}):
             continue
         compact[key] = _compact_value(row.get(key))
@@ -1583,13 +1577,9 @@ def _complete_lean_candidate_revision_feedback(
     if not isinstance(feedback, Mapping):
         return {}
     prior_payload = feedback.get("prior_environment_feedback", {})
-    prior_observations = coding_agent_observations_only(
-        prior_payload if isinstance(prior_payload, Mapping) else {},
-        preserve_exact_keys=(),
-    )
     prior = (
-        prior_observations
-        if isinstance(prior_observations, Mapping)
+        prior_payload
+        if isinstance(prior_payload, Mapping)
         else {}
     )
     context_payload = feedback.get("formalizer_workspace_context", {})
@@ -1642,17 +1632,12 @@ def _complete_lean_candidate_revision_feedback(
             None,
         )
         if isinstance(match, Mapping):
-            projected_match = coding_agent_observations_only(
-                match,
-                preserve_exact_keys=(),
-            )
-            if isinstance(projected_match, Mapping):
-                candidate_observation = {
-                    str(field): deepcopy(value)
-                    for field, value in projected_match.items()
-                    if field not in ("lean_source", "lean_source_excerpt")
-                    and value not in (None, "", [], {})
-                }
+            candidate_observation = {
+                str(field): deepcopy(value)
+                for field, value in match.items()
+                if field not in ("lean_source", "lean_source_excerpt")
+                and value not in (None, "", [], {})
+            }
             break
 
     checkpoint_payload = feedback.get("formalizer_recovery_checkpoint", {})
@@ -1856,8 +1841,7 @@ def _compact_value(value: Any, *, depth: int = 0) -> Any:
         return {
             str(key): _compact_value(child, depth=depth + 1)
             for key, child in list(value.items())[:24]
-            if str(key) not in PRESCRIPTIVE_REPAIR_FIELDS
-            and child not in (None, "", [], {})
+            if child not in (None, "", [], {})
         }
     if isinstance(value, list | tuple):
         return [_compact_value(child, depth=depth + 1) for child in list(value)[:8]]

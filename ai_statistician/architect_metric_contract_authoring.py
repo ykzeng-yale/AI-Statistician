@@ -68,7 +68,6 @@ from .metric_protocol_finding_ledger import (
     update_metric_protocol_finding_ledger,
 )
 from .research_schema import OpenResearchQuestion, research_question_payload
-from .semantic_review_feedback import model_observations_without_repair_recipes
 
 
 ARCHITECT_METRIC_REQUIREMENT_AUTHORING_SCHEMA_VERSION = 7
@@ -2039,7 +2038,7 @@ def author_reviewed_architect_metric_requirements(
         candidate_prompt_payload = dict(prompt_payload)
         if prior_review_packet:
             candidate_prompt_payload["independent_semantic_review_feedback"] = (
-                model_observations_without_repair_recipes(
+                deepcopy(
                     {
                         "revision_index": revision_index,
                         "rejected_authoring_packet_id": str(
@@ -2113,11 +2112,6 @@ def author_reviewed_architect_metric_requirements(
                             else {}
                         ),
                     },
-                    preserve_exact_keys=(
-                        ("rejected_empirical_metric_requirements",)
-                        if not metric_workspace_document
-                        else ()
-                    ),
                 )
             )
         (

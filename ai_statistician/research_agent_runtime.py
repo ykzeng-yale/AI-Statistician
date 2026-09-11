@@ -219,9 +219,6 @@ from .formalizer_candidate_identity import (
     source_theorem_explicit_target_ids,
 )
 from .packet_validation import PacketValidationError
-from .semantic_review_feedback import (
-    coding_agent_observations_only,
-)
 from .model_backend import (
     AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
@@ -9941,7 +9938,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 )
                 for row in confirmatory_source_revision_code_drafts
             }
-            confirmatory_source_revision_observation = coding_agent_observations_only(
+            confirmatory_source_revision_observation = deepcopy(
                 dict(environment_feedback)
                 if semantic_source_revision
                 else {
@@ -12787,7 +12784,7 @@ class AlgorithmEngineerRuntimeSubsystem:
                 if parent_source_errors:
                     code_draft = {}
                 external_initial_observation = {
-                    **coding_agent_observations_only(dict(environment_feedback)),
+                    **deepcopy(dict(environment_feedback)),
                     "parent_source": {
                         "manifest_id": semantic_parent_id,
                         "manifest_hash": semantic_parent_hash,
@@ -15516,7 +15513,7 @@ def _formalizer_provider_failure_result(
             failure_summary,
         ]
     )[:20]
-    prior_observations = coding_agent_observations_only(environment_feedback)
+    prior_observations = deepcopy(dict(environment_feedback))
     feedback = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "FormalizerProviderObservation",
@@ -17413,8 +17410,8 @@ def _formalizer_lean_candidate_revision_feedback(
     if not failed_rows:
         return None
 
-    prior_feedback = coding_agent_observations_only(
-        prior_environment_feedback
+    prior_feedback = deepcopy(
+        dict(prior_environment_feedback)
         if isinstance(prior_environment_feedback, Mapping)
         else {}
     )
@@ -17431,15 +17428,6 @@ def _formalizer_lean_candidate_revision_feedback(
         diagnostics=failed_rows,
     )
     candidate_context = {**prior_context, **current_context}
-    for runtime_authored_strategy_field in (
-        "owner_subsystem",
-        "repair_scope",
-        "required_behavior",
-        "acceptance_gate",
-        "proof_body_generation_contract",
-        "proof_search_role",
-    ):
-        candidate_context.pop(runtime_authored_strategy_field, None)
     candidate_context.update(
         {
             "context_kind": "model_owned_complete_lean_revision_observations",
@@ -17783,15 +17771,6 @@ def _formalizer_compiled_exact_candidate_semantic_review_feedback(
     )
     if not context:
         return None
-    for runtime_authored_strategy_field in (
-        "owner_subsystem",
-        "repair_scope",
-        "required_behavior",
-        "acceptance_gate",
-        "proof_body_generation_contract",
-        "proof_search_role",
-    ):
-        context.pop(runtime_authored_strategy_field, None)
     return {
         "feedback_type": "formal_target_semantic_review_required_feedback",
         "failure_classification": (

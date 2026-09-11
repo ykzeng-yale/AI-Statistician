@@ -44,7 +44,6 @@ from .research_source_library import (
     ResearchSourceSnapshot,
 )
 from .research_source_discovery import ResearchSourceDiscovery
-from .semantic_review_feedback import model_observations_without_repair_recipes
 from .theory_revision_lineage import (
     THEORY_DEVELOPER_REVISION_BINDING_CONTEXT_KEY,
     THEORY_DEVELOPER_RESOLVED_PARENT_MATERIAL_CONTEXT_KEY,
@@ -1028,7 +1027,6 @@ def _compact_prompt_value(value: Any, *, list_limit: int, text_limit: int) -> An
 
 
 def _compact_environment_feedback_for_prompt(feedback: Mapping[str, Any]) -> dict[str, Any]:
-    feedback = model_observations_without_repair_recipes(feedback)
     high_priority_agenda = list(feedback.get("high_priority_agenda", []) or [])
     formal_subclaims = list(feedback.get("formal_subclaim_feedback", []) or [])
     failed_simulations = list(feedback.get("failed_simulations", []) or [])
@@ -2673,11 +2671,10 @@ def _theory_workspace_read_only_observations(
 ) -> dict[str, Any]:
     feedback = revision_inputs.get("feedback", {})
     reviewer_observations = (
-        model_observations_without_repair_recipes(feedback)
+        deepcopy(dict(feedback))
         if isinstance(feedback, Mapping)
         else {}
     )
-    reviewer_observations = deepcopy(dict(reviewer_observations))
     report_ref = reviewer_observations.get("review_document_ref", {})
     report_content = ""
     report_document_path = ""

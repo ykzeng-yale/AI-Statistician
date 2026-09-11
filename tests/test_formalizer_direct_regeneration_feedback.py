@@ -61,7 +61,7 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
                         "status": "mcp_tool_call_succeeded",
                     }
                 ],
-                "preferred_tool_order": ["runtime-authored-legacy-recipe"],
+                "preferred_tool_order": ["tool-authored-suggestion"],
             }
         ],
     }
@@ -128,15 +128,14 @@ def test_formalizer_receives_complete_source_and_raw_tool_observations() -> None
     assert carried_row["future_repair_diagnostics"] == {
         "raw_provider_message": "PRESERVE_DESPITE_LEGACY_SUFFIX"
     }
-    assert "preferred_tool_order" not in carried_row
-    assert "candidate_live_proof_state_request" not in carried_row
-    assert "lean_multi_attempt" not in json.dumps(carried_row, sort_keys=True)
+    assert carried_row["preferred_tool_order"] == ["tool-authored-suggestion"]
+    assert carried_row["candidate_live_proof_state_request"] == (
+        row["candidate_live_proof_state_request"]
+    )
     assert carried_row["tool_call_trace"][0]["tool"] == (
         "lean_lsp_mcp.lean_diagnostic_messages"
     )
-    assert "required_change" not in (
-        carried["semantic_review"]["findings"][0]
-    )
+    assert carried["semantic_review"]["findings"] == reviewer_feedback["findings"]
     assert payload["boundaries"]["model_owns_lean_source_and_search_queries"]
     assert payload["boundaries"]["runtime_selected_lean_code"] is False
 
@@ -146,6 +145,8 @@ def test_formalizer_compaction_preserves_model_method_and_tool_fields() -> None:
         "proof_strategy": "Model-authored argument.",
         "experiment_recipe": {"source": "model-authored source"},
         "provider_repair_rule": "Raw provider observation, not harness authority.",
+        "recommended_action": "Tool-authored suggestion, not harness authority.",
+        "nested": {"required_change": "Model-authored review finding."},
     }
 
     assert _compact_value(observations) == observations

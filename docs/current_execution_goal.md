@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including retained independent semantic review.
+Updated: 2026-09-10, including removal of feedback field-name filtering.
 
 ## Operative Objective
 
@@ -71,6 +71,9 @@ count, file count, candidate count or tool-use ritual defines research quality.
 Feedback handling must not infer scientific meaning or instruction ownership from
 field-name patterns. Preserve model methods and unknown tool observations; retire
 legacy routing metadata at its producers rather than expand a repair blacklist.
+Tests should establish shared feedback, tool, state and authority invariants, not
+teach the runtime how to fix a particular research answer. A model reasoning error
+stays with that model; it is not by itself evidence of a harness defect.
 
 ## Measurable Deliveries
 
@@ -98,10 +101,13 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 1. Reconcile goals and capability claims with current code; remove contradictory
    tool instructions. Implemented in this revision; verification is recorded in status.
 2. Prioritize complete source and observation access for the same owning model.
-   A reproducible harness defect was found in recursive suffix-based filtering:
-   it deleted model methods and raw tool diagnostics, while duplicate Architect
-   filtering also modified the exact rejected candidate. Remove those heuristics
-   and consolidate projection, with synthetic feedback-fidelity tests. Do not
+   Both suffix heuristics and the remaining explicit field-name blacklists have
+   now been removed, including duplicate Formalizer filtering. Their historical
+   recipe producers were largely offline utilities; live feedback could still lose
+   model methods and raw tool diagnostics solely because of a dictionary key.
+   Existing callers now preserve observations directly, without a replacement
+   wrapper, recipe classifier or new runtime branch. Test fidelity at the actual
+   Theory, Architect and Lean boundaries and retain executor-authority tests. Do not
    interpret this as improved mathematics or a reason to rerun consumed tasks.
    Establish subsequent changes from author/reviewer behavior on visible artifacts
    and unrelated synthetic controls. The latest internal/gold
