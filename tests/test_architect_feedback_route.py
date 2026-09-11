@@ -406,6 +406,38 @@ def test_compact_architect_decision_builds_runtime_workspace_topology() -> None:
     assert validate_architect_coordinator_packet(packet) == []
 
 
+@pytest.mark.parametrize("text", [
+    "No theorem proved; no simulation passed. These remain open work.",
+    'The source says "kernel verified theorem"; check its evidence independently.',
+    "Record whether simulation passed after the future frozen experiment.",
+])
+def test_architect_prose_does_not_grant_or_revoke_execution_authority(text: str) -> None:
+    decision = _capability_scoped_architect_decision({
+        "theory": "required", "scientific_code": "not_applicable",
+        "empirical": "not_applicable", "formal": "not_applicable",
+    })
+    decision["problem_analysis"]["key_obstacles"] = [text]
+    packet = _normalize_architect_packet(
+        decision, question=_question(), model=EXACT_HAIKU_MODEL,
+        model_tier="haiku", provider_name="anthropic",
+        raw_response=json.dumps(decision),
+        runtime_config={"evaluation_mode": "debug", "formal_verification_policy": "optional"},
+        architect_context={"runtime_requested_evidence_contract": {
+            "acceptance_modes": ["independent review"],
+            "disclosure_requirements": ["report unresolved work"],
+        }},
+    )
+
+    assert packet["problem_analysis"]["key_obstacles"] == [text]
+    assert validate_architect_coordinator_packet(packet) == []
+    for field, value, error in (
+        ("runtime_executed", True, "LLM ArchitectCoordinator packet cannot set runtime_executed=true"),
+        ("kernel_verified", True, "LLM ArchitectCoordinator packet cannot set kernel_verified=true"),
+        ("proof_evidence_status", "PROVEN", "proof_evidence_status must preserve architect proposal boundary"),
+    ):
+        assert error in validate_architect_coordinator_packet({**packet, field: value})
+
+
 def test_architect_provider_schema_is_compact_and_has_one_action() -> None:
     encoded = json.dumps(ARCHITECT_COORDINATOR_JSON_SCHEMA, separators=(",", ":"))
     assert len(encoded) < 3000

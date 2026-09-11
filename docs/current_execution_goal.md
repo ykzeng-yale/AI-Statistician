@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, simplify the shared referee interface; no new qualification or product draw.
+Updated: 2026-09-11, remove keyword-authored revisions; preserve failed IV/GMM qualification.
 
 ## Operative Objective
 
@@ -102,157 +102,43 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 
 ## Implementation Order
 
-1. Reconcile goals and capability claims with current code; remove contradictory
-   tool instructions. Implemented in this revision; verification is recorded in status.
-2. Prioritize complete source and observation access for the same owning model.
-   Both suffix heuristics and the remaining explicit field-name blacklists have
-   now been removed, including Formalizer and Lean startup/continuation filtering.
-   The catch-all provider-error classifier and duplicate Formalizer failure artifacts
-   are also removed: unavailable tools report configuration status, while unexpected
-   harness failures use the existing outer exception boundary.
-   Model-reported formal gaps no longer require a prior environment call or a
-   compiled source: those were content-dependent stopping prerequisites, not proof
-   checks. The model chooses whether and how to continue; its gap is unresolved
-   work, not an established library defect. Exact source/observations are retained
-   and every proof-acceptance gate is unchanged. No new tool or error taxonomy is added.
-   Historical repair recipe producers were largely offline utilities; live feedback could still lose
-   model methods and raw tool diagnostics solely because of a dictionary key.
-   Theory and scientific feedback now preserve permitted text and structured data
-   through existing read-only documents, including line/character-range access to
-   long diagnostics across continuation. No positional or field-name summary may
-   silently replace the source. Prior diagnostics remain history, not current-source
-   acceptance; visibility and release authority are unchanged.
-   Scientific owners can use the existing run tool on their exact current project
-   test files, with model-selected diagnostic inputs. This uses the same source and
-   isolated Python/R runner, not a separate scratch agent. Confirmation artifacts
-   and bound estimators remain outside that path; a successful test is not release.
-   Independent semantic reviewers now receive complete candidate/reference files,
-   not stripped mathematical paragraphs embedded in JSON. Citation indexes contain
-   file locations; candidate excerpts remain verbatim. Private file identities are
-   rechecked with the qualification record. Protocols 18/19 bind this changed input
-   contract, with the same statuses, review strategies, model and reasoning budgets.
-   Qualification now fingerprints the actual shared native request constructor,
-   including the previously unbound prompt and submission tool. It reuses the
-   retained-loop session fingerprint rather than another interface registry;
-   loop/scratch settings are frozen as well. Changed authority is rejected before
-   model calls, never automatically requalified. This closes an identity defect,
-   not the unresolved mathematical reliability or report/status disagreement.
-   Tests cover source fidelity, readable full context, opaque case labels and exact
-   references. No new tool name, mathematical parser, reviewer, classifier or retry
-   budget was added. These are workspace mechanisms, not proof of better mathematics
-   or permission to rerun consumed tasks or failed qualifications.
-   Establish subsequent changes from author/reviewer behavior on visible artifacts
-   and unrelated synthetic controls. The latest internal/gold
-   disagreement warrants diagnosis, not a benchmark-answer patch or more reviews
-   by default. Do not start another draw merely to find an acceptance.
-   Follow-up diagnosis found real conflicting scratch observations available to the
-   same referee, not missing mathematics or truncated feedback. Native Haiku tool
-   thinking is now opt-in transport support, without a scientific repair recipe.
-   The [six-document configuration pilot](../benchmarks/reviewer_thinking_controls_20260909/README.md)
-   completed once per case-arm pair. Both arms judged 6/6 candidates correctly,
-   but some referee equation chains were wrong; the primary ceiling result is
-   inconclusive. The [initial audit](operator_audits/referee_configuration_pilot_20260910.md)
-   records 94 calls, report defects and shared tool-contract friction. Keep
-   thinking off by default. Do not repeat or tune on this panel, add elementary
-   controls merely to find a win, or mistake component judgments for research
-   success. Code inspection established one shared interface defect: exploratory
-   mathematics unnecessarily inherited the simulation callable/JSON-result ABI.
-   Theory authors and isolated referees now run ordinary Python/R scripts in the
-   existing sandbox and receive source-bound output/errors. No source patching,
-   mathematical error classification, extra repair agent or statistical rule was
-   added. Confirmation keeps its callable/metric authority. Full-suite verification
-   passed 1326 tests; scientific improvement still requires fresh research evidence.
-   Descriptions were delivered in the old pilot, so no transport omission is claimed.
-3. Improve existing source-project/environment support where real reproduction
-   needs it. Preserve model-selected actions and pinned dependencies; avoid a
-   package-specific installer or another reproduction agent.
-   Published Firth R, emcee and POT resources now execute through the existing
-   source tools in pinned environments. These are operator resource checks, not
-   autonomous research. Full source-aware task qualification failed for
-   [Firth](operator_audits/firth_logistic_prequalification_20260910.md),
-   [MCMC](operator_audits/emcee_stretch_prequalification_20260910.md) and
-   [entropic transport](operator_audits/entropic_ot_prequalification_20260910.md).
-   Each adds zero product draws. Preserve every record; do not rename a failed
-   task, reduce its scope or keep selecting replacements just to obtain a pass.
-   The latest protocol-13 theory calibration was 4/6; its reference also lacked
-   a concrete confirmation design, so this is not a clean prompt-efficacy test.
-   Do not turn that preparation flaw into another runtime prompt or error rule.
-   Startup now verifies frozen mechanical and semantic authority without
-   reexecuting calibration. Original reference/negative inputs stay hash-bound;
-   missing or changed records cannot trigger automatic requalification.
-   Hidden-gold review now reuses the retained loop, read-only document tools and
-   isolated Python/R scratch, with a private Markdown report and exact transcript.
-   The [PPI full-task qualification](operator_audits/ppi_logistic_prequalification_20260910.md)
-   then completed once under protocol 15: 138 Haiku turns, 2083.906 seconds, 5/6
-   short controls, and a rejected reference candidate. Its independent final
-   referee introduced its own algebraic error and confused a pre-result design
-   with completed experiments. The failed record is preserved, not corrected or
-   relabeled; no source semantic qualification or product draw followed.
-   A separate shared efficiency defect is corrected under protocols 16/17:
-   stop after the first failed frozen control assessment, keep completed private
-   reports, and mark an unreviewed candidate NOT_RUN. Do not change scientific
-   labels, prompts, tools, within-case reasoning budgets or acceptance criteria.
-   Do not run another task merely to find a pass or convert referee mistakes into
-   statistical recipes. Diagnose general workspace/feedback limitations separately
-   from mathematical reliability. New qualification remains unestablished; tests
-   and operator source execution do not authorize a draw or establish research.
-   A disjoint full-scope [GP qualification](operator_audits/gp_regression_prequalification_20260910.md)
-   now supplies live evidence under the complete-file contract: mechanics passed,
-   but theory qualification failed after 41 Haiku turns. Both reviewers described
-   missing derivations without a counterexample yet emitted VIOLATED/FAIL. The
-   original results remain unchanged; source semantic qualification and product
-   execution did not run. Investigate completion-versus-contradiction semantics in
-   the shared evaluator interface, not GP formulas, report-matching repairs, another
-   reviewer or another topic selected merely to obtain acceptance. A possible
-   interface correction is not yet a scientifically verified improvement.
-   The subsequent full-scope [GEE qualification](operator_audits/gee_poisson_prequalification_20260911.md)
-   used the unchanged production/evaluator contract and pinned upstream code.
-   Mechanics passed, but both referees again labeled an incomplete note as a
-   contradiction: 41 Haiku calls, 624.720 seconds, one of two attempted controls
-   correct. All later phases were not run. Inspected scratch scripts also printed
-   verification claims without computation. The existing prompt already distinguishes
-   these concepts; neither observation justifies another content rule, mandatory
-   tool ritual or prompt recipe. Do not repeat qualification on another topic as
-   a substitute for addressing the established evaluator limitation. Review whether
-   diagnostic-label calibration has excessive operational weight separately from
-   acceptance reliability, without changing consumed judgments or frozen gates.
-   A distinct responsibility ambiguity is now addressed in the shared referee
-   opening: the artifact-specific rubric defines the current review, while the
-   unchanged original question supplies context and target fidelity. PPI and GEE
-   reports had demanded other research-stage deliverables during a theory review.
-   Protocols 20/21 bind this instruction change. Scientific labels, document-wide
-   falsehood checks, qualification criteria and full-task completion gates remain
-   unchanged. The prospective full-scope conditional-quantile qualification under
-   protocol 21 then failed on its first control: both referees again labeled
-   explicit unfinished work as a contradiction, in seven Haiku calls. No later
-   qualification stage or product draw ran. The scope correction has not resolved
-   the distinction; no failed authority is requalified or made eligible. Preserve
-   the [immutable closeout](operator_audits/conditional_quantile_prequalification_20260911.md).
-   Stop replacing scientific topics. Protocols 22/23 now separate two existing
-   submission responsibilities: establishing a rubric obligation and finding a
-   material error in the document. Native claim support has no VIOLATED label;
-   missing support alone remains INCONCLUSIVE and cannot pass. The model supplies
-   both judgments and its untouched Markdown report; the existing reducer applies
-   the acceptance conjunction without interpreting mathematics or report prose.
-   This replaces ambiguous fields and shortens the prompt, not another reviewer,
-   tool, retry or mathematical repair rule. Old contracts remain ineligible and
-   frozen outcomes unchanged. Tests establish this interface boundary, not better
-   scientific judgment. Any future qualification uses the existing frozen positive
-   and negative controls on disjoint material, not an extra preliminary review
-   layer or another topic chosen merely to find a pass. A failed control still
-   stops qualification; neither conservative rejection nor synthetic fixtures
-   establish a qualified authority.
-4. Align formal execution and retrieval to the same active checkout. Use current
-   file edits, Lean state and accessible-premise tools; transfer only selected
-   verified declarations and their dependencies. Do not bulk-merge incompatible
-   Lean libraries or equate RAG corpus membership with importability.
-5. Add concurrency only where independent, measured work benefits, inside the
-   existing graph with isolated workspaces, cancellation, hash-bound joins and
-   stale-result handling. Do not add another runtime or concurrent writes to one
-   authoritative document. Consolidate existing responsibility before expansion.
-6. Measure scoped deliveries on fresh qualified tasks and cross-task reuse. Record
-   actual calls, tokens, tool time, wall time and scientific outcomes. Compare
-   mechanisms on preregistered disjoint controls, not repeated consumed candidates.
+1. Keep the model in control of source and scientific decisions. The retained
+   file/tool loop already returns complete observations to the same owner.
+   Regression tests should vary source and unfamiliar errors, check exact transport
+   and model-authored edits, and preserve identity/authority. A failed mathematical
+   judgment does not justify a new runtime rule or a case-specific prompt.
+2. Remove identified content-authoring machinery instead of wrapping it. Architect
+   no longer rejects prose by matching phrases such as "simulation passed": even
+   negated statements and future acceptance conditions hit that old blacklist.
+   Existing typed execution/proof flags still cannot grant model authority.
+   The offline keyword-based theory revision generator and its downstream
+   formal-obligation audit, CLI commands and smoke stages are now removed.
+   This is deletion of a known architectural violation, not improved E2E capability.
+   Other legacy baselines remain explicitly non-authoritative.
+3. Address scientific reliability without turning evaluation into the product.
+   The latest [linear IV/GMM qualification](operator_audits/linear_iv_gmm_prequalification_20260911.md)
+   failed under protocols 22/23: one incomplete control was judged correctly,
+   but the complete reference was marked incomplete for lacking executed
+   confirmation, which its theory rubric did not request. Preserve that failure.
+   Do not launch another topic, add a reviewer, rename verdicts, or move the
+   benchmark remedy into a prompt. Establish a shared interface/context defect
+   independently before changing the harness; better judgment needs fresh evidence.
+4. Improve the existing source-project and Python/R environment only where real
+   reproduction exposes a general limitation. Pinned source execution exists;
+   arbitrary paper/data/environment reconstruction remains incomplete.
+   Keep published-source replication separate from hidden rederivation.
+5. Align formal execution and retrieval to the same active checkout, reuse selected
+   verified declarations, and keep deep Lean optional unless task intent requires
+   it. Implement useful isolated concurrency and dependency-aware joins only
+   within the existing graph, without concurrent writes to one artifact.
+6. Demonstrate the scoped deliveries above on fresh, independently qualified
+   tasks, then assess cross-task reuse and advance the published-result ladder.
+   Record actual scientific outcomes and calls/time. Mechanism tests, source
+   resource checks and rejected qualifications add no research-E2E credit.
+
+The [implementation audit](original_goal_harness_redesign_20260909.md), dated
+operator audits and Git history retain earlier changes and evidence. This goal
+document is a forward work contract, not a growing chronology of fixes.
 
 ## Resource and Change Policy
 
@@ -310,7 +196,8 @@ is also consumed: its 12 invocations are component diagnostics, not additional
 research draws or full-task credits. The separately recorded Firth authority
 qualification also adds zero research draws or credits; its failed source role
 prevented activation, and this diagnostic-only change does not authorize a retry.
-The MCMC, entropic-transport, PPI and GP theory qualifications are also consumed and failed.
+The later MCMC, entropic-transport, PPI, GP, GEE, conditional-quantile and linear
+IV/GMM theory qualifications are also consumed and failed.
 Their source semantic roles were not run after the required gate failed; neither
 the protocol-15 PPI report nor later execution changes add a product draw or credit.
 Current facts live in

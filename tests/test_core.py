@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import ai_statistician
+import pytest
 from ai_statistician.cli import build_parser
 from ai_statistician.model_backend import (
     ALLOWED_LIVE_ANTHROPIC_MODEL_TIERS,
@@ -31,6 +32,7 @@ RETIRED_MODULE_PREFIXES = (
     "source_theorem_semantic_primitive_",
     "theorem_reduction_closure_",
     "research_next_iteration_audit",
+    "frontier_theory_revision_",
 )
 
 RETIRED_CLI_COMMANDS = {
@@ -39,6 +41,8 @@ RETIRED_CLI_COMMANDS = {
     "formalization-gap-planner-evaluation",
     "formalization-gap-planner-interactive-session",
     "next-iteration-audit",
+    "frontier-theory-revision-queue",
+    "frontier-theory-revision-formalization-audit",
 }
 
 
@@ -71,6 +75,32 @@ def test_cli_exposes_canonical_runtime_without_retired_control_planes() -> None:
 
     assert {"research-agent-runtime", "research-agent-runtime-audit"} <= commands
     assert commands.isdisjoint(RETIRED_CLI_COMMANDS)
+
+
+@pytest.mark.parametrize("passed", [False, True])
+def test_legacy_smoke_cli_reports_remaining_gates_without_revision_recipes(
+    monkeypatch, tmp_path, capsys, passed: bool,
+) -> None:
+    from ai_statistician import cli, frontier_smoke_benchmark
+
+    async def run_stub(*args, **kwargs):
+        return {
+            "n_selected": 1, "selections": [], "all_gates_passed": passed,
+            "counts": {
+                "ready_with_gaps": 0, "questions": 1, "frontier_triage_items": 1,
+                "frontier_simulation_rerun_resolved": 0,
+                "frontier_smoke_cache_status": "disabled",
+            },
+        }
+
+    monkeypatch.setattr(frontier_smoke_benchmark, "run_frontier_smoke_benchmark", run_stub)
+    monkeypatch.setattr(cli, "_load_dotenv", lambda _path: None)
+    args = build_parser().parse_args(["frontier-smoke-benchmark", "--out", str(tmp_path)])
+
+    assert args.func(args) == (0 if passed else 1)
+    output = capsys.readouterr().out
+    assert f"all_gates_passed={passed}" in output
+    assert "revision" not in output
 
 
 def test_canonical_control_plane_has_a_regression_budget() -> None:

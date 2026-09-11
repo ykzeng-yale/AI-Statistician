@@ -2653,9 +2653,6 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
                 "remove formal subsystems: "
                 + ", ".join(forbidden_formal_subsystems)
             )
-    forbidden = _contains_forbidden_claim(packet)
-    if forbidden:
-        errors.append(f"packet contains forbidden execution/proof claim: {forbidden}")
     return sorted(set(errors))
 
 
@@ -3170,18 +3167,3 @@ def _required_architect_plan_subsystems(
 
 def _extract_json_object(text: str) -> dict[str, Any]:
     return extract_json_object(text, label="LLM ArchitectCoordinator")
-
-
-def _contains_forbidden_claim(value: Any) -> str:
-    text = json.dumps(value, default=str).lower()
-    forbidden = (
-        "runtime_executed\": true",
-        "kernel_verified\": true",
-        "simulation passed",
-        "theorem proved",
-        "kernel verified theorem",
-    )
-    for token in forbidden:
-        if token in text:
-            return token
-    return ""

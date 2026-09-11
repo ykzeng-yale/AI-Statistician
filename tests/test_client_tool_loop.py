@@ -1108,6 +1108,7 @@ def test_rejected_terminal_is_an_ordinary_same_model_observation() -> None:
     assert "client_tool_loop_terminal_decision_turn" not in backend.requests[2].metadata
 
 
+@pytest.mark.parametrize("source_size", [16, 4096])
 @pytest.mark.parametrize(
     "diagnostic",
     [
@@ -1117,29 +1118,33 @@ def test_rejected_terminal_is_an_ordinary_same_model_observation() -> None:
     ids=["short", "long"],
 )
 def test_rejected_terminal_can_be_followed_by_model_selected_edit(
-    diagnostic: str,
+    diagnostic: str, source_size: int,
 ) -> None:
+    sources = [hashlib.sha256(str(i).encode()).hexdigest() * source_size for i in range(2)]
     backend = ScriptedToolTurnBackend(
         [
-            _response(ClientToolCall("call-edit-initial", "edit", {"value": 1})),
+            _response(ClientToolCall("call-edit-initial", "edit", {"value": sources[0]})),
             _response(ClientToolCall("call-submit-invalid", "submit", {})),
-            _response(ClientToolCall("call-edit-recovery", "edit", {"value": 2})),
+            _response(ClientToolCall("call-edit-recovery", "edit", {"value": sources[1]})),
             _response(ClientToolCall("call-submit-valid", "submit", {})),
         ]
     )
     submissions = 0
     executed_tools: list[str] = []
+    authored_sources: list[str] = []
 
     def execute(call, _context):
         nonlocal submissions
         executed_tools.append(call.name)
         if call.name == "edit":
+            authored_sources.append(call.input["value"])
             return ClientToolExecutionResult(
                 content={"ok": True, "value": call.input["value"]},
                 state_changed=True,
                 observation_key=f"edit:{call.input['value']}",
             )
         submissions += 1
+        assert authored_sources == sources[:submissions]
         if submissions == 1:
             raise ClientToolInputError(diagnostic)
         return ClientToolExecutionResult(
@@ -1161,6 +1166,7 @@ def test_rejected_terminal_can_be_followed_by_model_selected_edit(
     assert result.terminal_payload == {"submitted": True}
     assert result.turns == 4
     assert executed_tools == ["edit", "submit", "edit", "submit"]
+    assert authored_sources == sources
     assert "client_tool_loop_terminal_recovery_action_allowed" not in backend.requests[2].metadata
     assert "client_tool_loop_terminal_recovery_action_allowed" not in backend.requests[3].metadata
     recovery_call = result.history[2]["tool_calls"][0]

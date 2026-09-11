@@ -12,8 +12,6 @@ from .fingerprint import stable_hash
 from .frontier_coverage_audit import FrontierBenchmarkQuestion, load_frontier_benchmark_questions
 from .frontier_evaluation_triage import audit_frontier_evaluation_triage
 from .frontier_simulation_rerun_audit import audit_frontier_simulation_reruns
-from .frontier_theory_revision_formalization_audit import audit_frontier_theory_revision_formalization
-from .frontier_theory_revision_queue import export_frontier_theory_revision_queue
 from .frontier_theory_target_audit import audit_frontier_theory_targets
 from .proof_bank import proof_bank_fingerprint
 from .research_gap_audit import audit_research_gap_backlog
@@ -171,21 +169,6 @@ async def run_frontier_smoke_benchmark(
         seed=config.seed,
     )
     stage_start = _record_stage(stage_timings, "frontier_simulation_rerun", stage_start)
-    theory_revision_manifest = export_frontier_theory_revision_queue(
-        out_dir / "frontier_simulation_rerun" / "frontier_simulation_rerun_manifest.json",
-        out_dir / "frontier_theory_revision_queue",
-    )
-    stage_start = _record_stage(stage_timings, "frontier_theory_revision_queue", stage_start)
-    theory_revision_formalization_manifest = audit_frontier_theory_revision_formalization(
-        out_dir / "frontier_theory_revision_queue" / "frontier_theory_revision_queue_manifest.json",
-        out_dir / "frontier_theory_revision_formalization",
-        formal_source_index_path=(
-            Path(str(formal_source_search.get("sqlite_index_path", "")))
-            if formal_source_search and formal_source_search.get("sqlite_index_path")
-            else out_dir / "formal_source_index.sqlite"
-        ),
-    )
-    stage_start = _record_stage(stage_timings, "frontier_theory_revision_formalization", stage_start)
 
     selected_classes = sorted({row.problem_class for row in selections})
     benchmark_ok = (
@@ -203,8 +186,6 @@ async def run_frontier_smoke_benchmark(
         "frontier_theory_target_audit": bool(theory_target_manifest["all_scored"]),
         "frontier_evaluation_triage": bool(evaluation_triage_manifest["all_ok"]),
         "frontier_simulation_rerun": bool(simulation_rerun_manifest["all_ok"]),
-        "frontier_theory_revision_queue": bool(theory_revision_manifest["all_ok"]),
-        "frontier_theory_revision_formalization": bool(theory_revision_formalization_manifest["all_ok"]),
     }
     if cache_info["enabled"] and cache_status == "miss" and all(gates.values()):
         _store_cached_research_benchmark(cache_info=cache_info, source_dir=benchmark_dir)
@@ -271,28 +252,6 @@ async def run_frontier_smoke_benchmark(
             "frontier_simulation_rerun_items": simulation_rerun_manifest["n_items"],
             "frontier_simulation_rerun_resolved": simulation_rerun_manifest["n_resolved"],
             "frontier_simulation_rerun_still_flagged": simulation_rerun_manifest["n_still_flagged"],
-            "frontier_theory_revision_tasks": theory_revision_manifest["n_tasks"],
-            "frontier_theory_revision_tasks_ok": theory_revision_manifest["n_ok"],
-            "frontier_theory_revision_formal_obligations": theory_revision_formalization_manifest["n_obligations"],
-            "frontier_theory_revision_unique_formal_obligations": theory_revision_formalization_manifest[
-                "n_unique_obligations"
-            ],
-            "frontier_theory_revision_proof_bank_bridge": theory_revision_formalization_manifest[
-                "n_proof_bank_bridge"
-            ],
-            "frontier_theory_revision_local_source_only": theory_revision_formalization_manifest[
-                "n_local_source_only"
-            ],
-            "frontier_theory_revision_source_gap": theory_revision_formalization_manifest["n_source_gap"],
-            "frontier_theory_revision_unique_proof_bank_bridge": theory_revision_formalization_manifest[
-                "n_unique_proof_bank_bridge"
-            ],
-            "frontier_theory_revision_unique_local_source_only": theory_revision_formalization_manifest[
-                "n_unique_local_source_only"
-            ],
-            "frontier_theory_revision_unique_source_gap": theory_revision_formalization_manifest[
-                "n_unique_source_gap"
-            ],
             "frontier_smoke_total_elapsed_ms": total_elapsed_ms,
             "frontier_smoke_slowest_stage": str(slowest_stages[0]["stage"]) if slowest_stages else "",
             "frontier_smoke_slowest_stage_elapsed_ms": int(slowest_stages[0]["elapsed_ms"]) if slowest_stages else 0,
@@ -333,28 +292,6 @@ async def run_frontier_smoke_benchmark(
             ),
             "frontier_simulation_rerun_report": str(
                 out_dir / "frontier_simulation_rerun" / "frontier_simulation_rerun.md"
-            ),
-            "frontier_theory_revision_queue": str(
-                out_dir / "frontier_theory_revision_queue" / "frontier_theory_revision_queue_manifest.json"
-            ),
-            "frontier_theory_revision_queue_jsonl": str(
-                out_dir / "frontier_theory_revision_queue" / "frontier_theory_revision_queue.jsonl"
-            ),
-            "frontier_theory_revision_queue_report": str(
-                out_dir / "frontier_theory_revision_queue" / "frontier_theory_revision_queue.md"
-            ),
-            "frontier_theory_revision_formalization": str(
-                out_dir
-                / "frontier_theory_revision_formalization"
-                / "frontier_theory_revision_formalization_manifest.json"
-            ),
-            "frontier_theory_revision_formalization_jsonl": str(
-                out_dir
-                / "frontier_theory_revision_formalization"
-                / "frontier_theory_revision_formalization_tasks.jsonl"
-            ),
-            "frontier_theory_revision_formalization_report": str(
-                out_dir / "frontier_theory_revision_formalization" / "frontier_theory_revision_formalization.md"
             ),
         },
     }
