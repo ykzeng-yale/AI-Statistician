@@ -1,0 +1,43 @@
+{
+  "artifact_kind": "IndependentQualificationCloseout",
+  "task_id": "gaussian_process_latent_and_noisy_prediction",
+  "benchmark_id": "research-gp-regression-20260910-v1",
+  "visible_question_commit": "aafbc8534e958b3ba75c19012ceeb53df12578dd",
+  "preregistration_sha256": "809bffa3ad9346d55805d7c7512cd21d982cde7f3a45c48662cd36747d985cf0",
+  "status": "FAILED_BEFORE_PRODUCT_ACTIVATION",
+  "model": "claude-haiku-4-5-20251001",
+  "semantic_protocol_version": 19,
+  "mechanical": {
+    "status": "PASSED_BEFORE_FIRST_PRODUCT_MODEL_CALL",
+    "elapsed_seconds": 25.275,
+    "negative_evaluator_controls_rejected": 4,
+    "source_reference_accepted": true,
+    "changed_source_identity_rejected": true,
+    "record_sha256": "bf28e02ed583fda8ffc73c463fb40f84871c2eba828fc920fa85496e49db975a"
+  },
+  "theory_semantic": {
+    "invocations": 1,
+    "completed_model_turns": 41,
+    "elapsed_seconds": 501.551,
+    "controls_configured": 6,
+    "controls_evaluated": 2,
+    "controls_correct": 1,
+    "complete_positive_control_status": "PASS",
+    "incomplete_control_status": "FAIL",
+    "remaining_controls_status": "NOT_RUN",
+    "long_form_negative_status": "NOT_RUN",
+    "final_reference_candidate_status": "NOT_RUN",
+    "record_sha256": "81e47b029c0c854d8c1fa08748ccd4beb2712052967e74d649f54ab045a91ddf",
+    "usage": {
+      "input_tokens": 197,
+      "output_tokens": 39212,
+      "cache_creation_input_tokens": 107426,
+      "cache_read_input_tokens": 833655
+    }
+  },
+  "source_semantic_status": "NOT_RUN",
+  "product_model_calls": 0,
+  "new_research_draws": 0,
+  "new_research_e2e_credit": false,
+  "boundary": "Original qualification and all reports remain unchanged. Both reviewers described absent derivations without a mathematical counterexample but emitted VIOLATED/FAIL against the frozen INCONCLUSIVE control. This is observed report/status disagreement, not a corrected grade or a GP formula patch. No requalification, resumed draw, renamed task or reduced-scope replacement is authorized."
+}

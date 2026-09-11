@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including complete-file independent review; failed qualifications remain unchanged.
+Updated: 2026-09-10, including the failed fresh GP qualification; no new product draw.
 
 ## Operative Objective
 
@@ -179,6 +179,15 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    statistical recipes. Diagnose general workspace/feedback limitations separately
    from mathematical reliability. New qualification remains unestablished; tests
    and operator source execution do not authorize a draw or establish research.
+   A disjoint full-scope [GP qualification](operator_audits/gp_regression_prequalification_20260910.md)
+   now supplies live evidence under the complete-file contract: mechanics passed,
+   but theory qualification failed after 41 Haiku turns. Both reviewers described
+   missing derivations without a counterexample yet emitted VIOLATED/FAIL. The
+   original results remain unchanged; source semantic qualification and product
+   execution did not run. Investigate completion-versus-contradiction semantics in
+   the shared evaluator interface, not GP formulas, report-matching repairs, another
+   reviewer or another topic selected merely to obtain acceptance. A possible
+   interface correction is not yet a scientifically verified improvement.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -247,7 +256,7 @@ is also consumed: its 12 invocations are component diagnostics, not additional
 research draws or full-task credits. The separately recorded Firth authority
 qualification also adds zero research draws or credits; its failed source role
 prevented activation, and this diagnostic-only change does not authorize a retry.
-The MCMC, entropic-transport and PPI theory qualifications are also consumed and failed.
+The MCMC, entropic-transport, PPI and GP theory qualifications are also consumed and failed.
 Their source semantic roles were not run after the required gate failed; neither
 the protocol-15 PPI report nor later execution changes add a product draw or credit.
 Current facts live in
