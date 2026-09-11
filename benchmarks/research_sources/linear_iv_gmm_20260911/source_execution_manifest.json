@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "artifact_kind": "ResearchSourceExecutionSpec",
+  "execution_id": "linear-iv-gmm-source-execution-20260911-v1",
+  "benchmark_id": "research-linear-iv-gmm-20260911-v1",
+  "source_snapshot_id": "linear-iv-gmm-public-source-20260911-v1",
+  "source_snapshot_hash": "a98fcf184d2891426ac6071066dba319fd561eca4e83f70f81f298884a054fab",
+  "source_manifest_sha256": "e749b903856031c6ec964fb2805509e1d24149799b211c2b05226aa1f8d315c8",
+  "source_commit": "28af72ed08b1df00157d08a12a16a6c18f31a358",
+  "entrypoint_document_id": "iv-run_iv_source-py",
+  "environment_lock_document_id": "iv-environment_lock-json",
+  "environment_root": "/Users/yukangzengcmac/.codex/external/linearmodels-7.0-env",
+  "runtime_language": "python",
+  "interpreter_executable_relative_path": "bin/python",
+  "interpreter_executable_sha256": "ac60cfe0268614638d0ffa35f3b0284fc7b3a11482723793455e17eeb278509e",
+  "runtime_read_roots": [
+    "/Users/yukangzengcmac/.cache/codex-runtimes/codex-primary-runtime/dependencies/python"
+  ],
+  "working_directory_relative": ".",
+  "arguments": [],
+  "package_distributions": {
+    "numpy": "numpy",
+    "pandas": "pandas",
+    "packaging": "packaging",
+    "iniconfig": "iniconfig",
+    "Pygments": "Pygments",
+    "linearmodels": "linearmodels",
+    "formulaic": "formulaic",
+    "pyhdfe": "pyhdfe",
+    "python-dateutil": "python-dateutil",
+    "pytest": "pytest",
+    "statsmodels": "statsmodels",
+    "pluggy": "pluggy",
+    "interface_meta": "interface_meta",
+    "wrapt": "wrapt",
+    "patsy": "patsy",
+    "typing_extensions": "typing_extensions",
+    "mypy_extensions": "mypy_extensions",
+    "six": "six",
+    "scipy": "scipy",
+    "narwhals": "narwhals"
+  },
+  "timeout_seconds": 180,
+  "max_output_bytes": 4194304,
+  "execution_workspace_mode": "staged_copy_on_write",
+  "result_artifact_paths": [
+    "iv_source_result.json"
+  ]
+}
