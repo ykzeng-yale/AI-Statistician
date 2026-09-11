@@ -1108,48 +1108,44 @@ def test_model_can_correct_declaration_identity_without_rewriting_source() -> No
     assert result.evidence["declaration_updates"] == 1
 
 
-def test_formal_gap_tool_keeps_model_authored_errors_in_source_revision_loop() -> None:
-    failing = "theorem target : Missing.Type := by\n  sorry\n"
-    passing = "theorem target : True := by\n  exact True.intro\n"
+@pytest.mark.parametrize("source,diagnostic", [
+    ("", ""),
+    ("theorem target : Missing.Type := by\n  sorry\n", "unknown identifier"),
+    ("unelaborated model-owned source", "opaque future compiler observation"),
+])
+def test_model_can_report_unresolved_gap_without_compilation_or_tool_ritual(
+    source: str, diagnostic: str,
+) -> None:
     tools = lean_candidate_tool_loop_module._lean_candidate_revision_tools(
         include_formal_gap=True,
     )
     gap_tool = next(tool for tool in tools if tool.name == LEAN_FORMAL_GAP_TOOL)
-    assert "model-authored source are revision feedback" in gap_tool.description
-    assert "existing target statement must elaborate first" in gap_tool.description
-    assert "terminal result is not proof" in gap_tool.description
+    assert "not proof" in gap_tool.description
 
     backend = ScriptedLeanToolBackend(
         [
             _response(
                 ClientToolCall(
-                    "premature-gap",
+                    "unresolved-gap",
                     LEAN_FORMAL_GAP_TOOL,
                     {
-                        "summary": "The active project lacks Missing.Type.",
-                        "missing_primitives": ["Missing.Type"],
-                    },
-                )
-            ),
-            _response(
-                ClientToolCall(
-                    "submit-passing",
-                    LEAN_SOURCE_SUBMISSION_TOOL,
-                    {
-                        "lean_source": passing,
-                        "candidate_declaration_name": "target",
+                        "summary": "I have not resolved the target; the cause is uncertain.",
+                        "blocking_observations": [diagnostic] if diagnostic else [],
                     },
                 )
             ),
         ]
     )
 
-    def check(source: str, _declaration: str):
-        compiled = source == passing
+    checked = []
+
+    def check(candidate: str, _declaration: str):
+        checked.append(candidate)
         return {
-            "source_hash": stable_hash(source),
-            "compiled": compiled,
-            "local_lean_source_compiled": compiled,
+            "source_hash": stable_hash(candidate),
+            "compiled": False,
+            "local_lean_source_compiled": False,
+            "local_lean_stderr": diagnostic,
         }
 
     result = run_lean_candidate_revision_tool_loop(
@@ -1164,17 +1160,26 @@ def test_formal_gap_tool_keeps_model_authored_errors_in_source_revision_loop() -
         max_no_progress_turns=2,
         candidate_id="target-candidate",
         candidate_lean_declaration="target",
-        initial_source=failing,
+        initial_source=source,
         check_candidate=check,
         search_formal_environment=lambda query, k: [],
         allow_formal_gap=True,
     )
 
-    assert result.disposition == "AUTHOR_LEAN"
-    assert result.lean_source == passing
-    assert result.evidence["local_lean_checks"] == 2
-    recovery_context = json.dumps(backend.requests[1].messages, sort_keys=True)
-    assert "cannot promote an unelaborated model-authored source" in recovery_context
+    assert result.disposition == "FORMAL_GAP"
+    assert result.lean_source == source
+    assert checked == ([source] if source else [])
+    assert len(backend.requests) == 1
+    assert result.formal_gap["missing_primitives"] == []
+    assert result.evidence["source_updates"] == 0
+    assert result.evidence["formal_environment_searches"] == 0
+    assert result.evidence["local_candidate_validation_passed"] is False
+    assert result.evidence["kernel_verified"] is False
+    observation = result.evidence["formal_gap_observation"]
+    assert observation["current_source"] == source
+    assert observation["current_source_hash"] == stable_hash(source)
+    if source:
+        assert observation["latest_check_observation"]["local_lean_stderr"] == diagnostic
 
 
 def test_lean_candidate_workspace_lets_model_report_task_bound_formal_gap() -> None:
@@ -1395,11 +1400,11 @@ def test_formalizer_agent_keeps_formal_gap_available_after_workspace_resume() ->
     assert LEAN_FORMAL_GAP_TOOL in {
         tool.name for tool in backend.requests[0].tools
     }
-    assert "your own submitted source is revision feedback" in (
+    assert "report the unresolved gap and your uncertainty" in (
         backend.requests[0].system_prompt
     )
     assert "inspected declaration source" in backend.requests[0].system_prompt
-    assert "prioritize a model-authored exact edit" in (
+    assert "Choose your next action" in (
         backend.requests[0].system_prompt
     )
     assert evidence["disposition"] == "FORMAL_GAP"
@@ -3711,9 +3716,6 @@ def test_lean_candidate_prompt_leaves_current_workspace_state_to_snapshot() -> N
             "signature": "theorem Statlib.Target.exact_support : True",
         }
     ]
-    assert "do not repeat a search for the same identity" in payload[
-        "tool_workflow"
-    ]
     assert "candidate_rerun_specs" not in context
     assert "reviewed_source_artifacts" not in feedback
     observation = feedback["candidate_diagnostics"][0]
@@ -5679,6 +5681,12 @@ def test_formalizer_subsystem_records_direct_workspace_gap_without_packet_failur
     assert manifest["formalizer_reported_gap"] is True
     assert manifest["counts"]["formal_gap"] == 1
     assert manifest["source_theorem_kernel_verified"] is False
+    assert manifest["counts"]["source_theorem_kernel_verified"] == 0
+    gap_observation = next(
+        row for row in result.observations
+        if row.observation_type == "formalization_proof_feedback"
+    )
+    assert gap_observation.summary == "model-reported unresolved formalization gap recorded"
     workspace_artifact = next(
         row
         for row in result.produced_artifacts.values()

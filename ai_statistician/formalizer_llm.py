@@ -232,17 +232,16 @@ class LLMFormalizerProofEngineerAgent:
                 "unchanged hash-bound target; do not answer with prose or JSON. Use "
                 "the tools to read Theory context, run independent Lean scratch, inspect "
                 "the active environment, and compile early. Retrieval and review are observations, "
-                "not proof. A diagnostic caused by your own submitted source is revision "
-                "feedback, not a foundation gap. Treat inspected declaration source as "
+                "not proof. Treat inspected declaration source as "
                 "the executable API, including its importable module and lexical context. "
-                "After a compiler diagnostic, prioritize a model-authored exact edit or "
-                "complete source replacement; search again only for a concrete unresolved "
-                "environment question. The same tools remain available during standard "
+                "Choose your next action from the exact source, local context and raw "
+                "diagnostics. The same tools remain available during standard "
                 "turns, and independent read-only calls may be batched. Temporary admitted "
                 "sources, #check, and #print are diagnostic only and must be replaced by a "
-                "complete proof. Report a formal gap only after active-environment evidence "
-                "establishes a missing primitive required by the unchanged target. Finish "
-                "with an exact source action or a grounded formal-gap action."
+                "complete proof before proof acceptance. When you cannot advance the "
+                "unchanged target, report the unresolved gap and your uncertainty; a "
+                "compiler error alone does not establish a missing library primitive. "
+                "Finish with an exact source action or a non-proof formal-gap action."
             ),
             user_prompt=_build_lean_candidate_workspace_tool_prompt(
                 question=question,
@@ -759,16 +758,9 @@ def _build_lean_candidate_workspace_tool_prompt(
             "Raw observations return to this same source owner; successful source bytes "
             "go to independent semantic review."
             + (
-                " Inspect carried indexed declarations and their exact modules first; "
-                "do not repeat a search for the same identity unless Lean reports "
-                "that it is stale or incompatible."
+                " Carried indexed declarations and their exact modules are available "
+                "as context; choose further inspection or search as needed."
                 if indexed_environment_candidates
-                else ""
-            )
-            + (
-                " Report a non-proof formal gap only when active-environment evidence "
-                "establishes a required missing primitive."
-                if initial_authoring
                 else ""
             )
         ),

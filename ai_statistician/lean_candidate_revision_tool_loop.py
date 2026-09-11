@@ -927,7 +927,7 @@ def run_lean_candidate_revision_tool_loop(
                         "Lean compiled this exact source-and-support project, but "
                         "it is identical to the project rejected by independent "
                         "semantic review. Use the findings to author a changed "
-                        "project, or report a grounded formal gap."
+                        "project, or report an unresolved formal gap."
                     ),
                 }
             )
@@ -1412,37 +1412,6 @@ def run_lean_candidate_revision_tool_loop(
                 raise ClientToolInputError(
                     "blocking_observations must be an array of nonempty strings"
                 )
-            n_environment_observations = sum(
-                int(state[key] or 0)
-                for key in (
-                    "checks",
-                    "support_file_checks",
-                    "scratch_checks",
-                    "searches",
-                    "proof_searches",
-                    "state_inspections",
-                    "declaration_inspections",
-                )
-            )
-            if n_environment_observations == 0:
-                raise ClientToolInputError(
-                    "report_formal_gap requires at least one concrete compiler, "
-                    "search, or inspection observation from the active environment"
-                )
-            current_source = str(state["source"] or "")
-            latest_check = state["last_check"]
-            if current_source.strip() and not bool(
-                latest_check.get(
-                    "local_lean_source_compiled",
-                    latest_check.get("compiled", False),
-                )
-            ):
-                raise ClientToolInputError(
-                    "report_formal_gap cannot promote an unelaborated model-authored "
-                    "source into a foundation gap; rewrite and resubmit the complete "
-                    "source, or first establish the unchanged target with a locally "
-                    "elaborated statement-level witness"
-                )
             formal_gap = {
                 "summary": summary.strip(),
                 "missing_primitives": [value.strip() for value in missing_primitives],
@@ -1871,7 +1840,7 @@ def run_lean_candidate_revision_tool_loop(
                     "rejected_source_hash": rejected_source_hash,
                     "rejected_lean_project_hash": rejected_lean_project_hash,
                     "required_disposition": (
-                        "author a changed source/support project or report grounded formal gap"
+                        "author a changed source/support project or report an unresolved formal gap"
                     ),
                 }
             }
@@ -2765,10 +2734,11 @@ def _lean_candidate_revision_tools(
             ClientToolDefinition(
                 name=LEAN_FORMAL_GAP_TOOL,
                 description=(
-                    "Report a concrete active-environment blocker for the unchanged "
-                    "target after search, scratch, inspection, or compiler evidence. "
-                    "Errors in model-authored source are revision feedback; an existing "
-                    "target statement must elaborate first. This terminal result is not proof."
+                    "End work on the unchanged target with an unresolved gap. Explain "
+                    "what remains unknown and cite any available observations; no "
+                    "successful compilation or prior tool call is required. Missing "
+                    "primitives are model hypotheses, not established library defects. "
+                    "The current source and observations are preserved. This result is not proof."
                 ),
                 input_schema={
                     "type": "object",

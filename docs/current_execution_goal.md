@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, removing redundant Formalizer exception handling; no new product draw.
+Updated: 2026-09-11, removing model-stop prerequisites in Formalizer; no new product draw.
 
 ## Operative Objective
 
@@ -109,8 +109,13 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    now been removed, including Formalizer and Lean startup/continuation filtering.
    The catch-all provider-error classifier and duplicate Formalizer failure artifacts
    are also removed: unavailable tools report configuration status, while unexpected
-   harness failures use the existing outer exception boundary. Historical repair
-   recipe producers were largely offline utilities; live feedback could still lose
+   harness failures use the existing outer exception boundary.
+   Model-reported formal gaps no longer require a prior environment call or a
+   compiled source: those were content-dependent stopping prerequisites, not proof
+   checks. The model chooses whether and how to continue; its gap is unresolved
+   work, not an established library defect. Exact source/observations are retained
+   and every proof-acceptance gate is unchanged. No new tool or error taxonomy is added.
+   Historical repair recipe producers were largely offline utilities; live feedback could still lose
    model methods and raw tool diagnostics solely because of a dictionary key.
    Theory and scientific feedback now preserve permitted text and structured data
    through existing read-only documents, including line/character-range access to

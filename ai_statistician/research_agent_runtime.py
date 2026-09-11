@@ -15005,7 +15005,7 @@ class FormalizerWorkspaceRuntimeSubsystem:
                     "exact source theorem kernel verified"
                     if source_theorem_kernel_verified
                     else (
-                        "model-authored formal foundation gap recorded"
+                        "model-reported unresolved formalization gap recorded"
                         if formalizer_reported_gap
                         else "model-authored formalization observations recorded"
                     )
