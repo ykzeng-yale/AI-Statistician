@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including the failed fresh GP qualification; no new product draw.
+Updated: 2026-09-10, with the shared-feedback audit; no new product draw.
 
 ## Operative Objective
 
@@ -71,10 +71,13 @@ count, file count, candidate count or tool-use ritual defines research quality.
 Feedback handling must not infer scientific meaning or instruction ownership from
 field-name patterns. Preserve model methods and unknown tool observations; retire
 legacy routing metadata at its producers rather than expand a repair blacklist.
-Tests should establish shared feedback, tool, state and authority invariants, not
-teach the runtime how to fix a particular research answer. A model reasoning error
-stays with that model; it is not by itself evidence of a harness defect. Moving a
-catalog of benchmark-specific remedies into prompts is not a general solution either.
+Shared changes require a demonstrated context, tool, state or authority defect.
+Deterministic tests should vary opaque diagnostics and candidate data to verify
+unchanged source, complete feedback and same-owner iteration, not teach a particular
+research answer. A model reasoning error is not by itself a harness defect. Moving
+benchmark-specific remedies into prompts or renaming verdicts is not a demonstrated
+solution either. Scientific improvement requires separate fresh capability evidence;
+mechanism tests cannot establish it or authorize rejudging consumed evaluations.
 
 ## Measurable Deliveries
 

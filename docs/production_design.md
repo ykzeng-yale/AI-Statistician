@@ -259,20 +259,20 @@ simulation or review can never be promoted to theorem proof. Optional/advisory
 product work defaults to `simulation_first`; explicit tasks may choose another path,
 while strict formal-capability evaluation remains `required` and `dual_track`.
 
-Formalizer/ProofEngineer receives one exact theorem-goal reference already owned by
-the outer research graph. Runtime resolves that upstream ID and hash only; it makes
-no second LLM target-binding call. Initial authoring and later revision use the same
-client-tool workspace. The model chooses retrieval, inspection, target/support edits,
-dependency order, declaration submission, or a task-bound formal gap. Exact files are
-checked unchanged. Exact support hashes and build order permit `.olean` reuse only inside
-that session; any drift rebuilds, and final promotion starts clean. Raw Lean failure returns to that model. Runtime injects no import, theorem statement, tactic, or proof body.
+Formalizer/ProofEngineer receives an exact goal reference from the outer graph;
+runtime resolves its ID/hash without a second LLM target-binding call. The same
+client-tool workspace owns authoring and revision. The model chooses retrieval,
+inspection, target/support edits, dependency order, submission or a task-bound gap.
+Files are checked unchanged. Session-local `.olean` reuse requires exact support
+hashes and build order; drift rebuilds, and final promotion starts clean.
+Raw failures and complete rejected candidates return to the model, without a
+second field-whitelisted or length/depth-clipped candidate projection. Runtime
+injects no import, statement, tactic or proof body; unknown fields confer no authority.
 
-One global turn/call budget covers every action. The initial message carries the
-target/support manifests, hashes, declaration, and a fresh raw Lean check; exact files
-are read on demand. One bounded transcript then retains every model action and environment
-observation, which also leaves an append-only prefix for provider prompt caching.
-A resumed source is rechecked in the active Lake project before the first model turn;
-old checkpoint checks and search/state payloads are not copied into the new session.
+One turn/call budget covers every action. The initial message carries target/support
+manifests, hashes, declaration and a fresh Lean check; exact files are read on demand.
+One bounded transcript retains actions and observations with a cacheable append-only prefix.
+Resumed sources are rechecked in the active Lake project; old checks/search/state are not replayed.
 Declaration inspection resolves the model-selected active-project symbol through
 task-bound RAG and OpenProver's `lean-lsp-mcp`; the candidate file is only a local
 fallback. All such observations remain explicitly non-proof evidence.

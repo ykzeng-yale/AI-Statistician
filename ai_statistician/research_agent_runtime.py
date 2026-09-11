@@ -210,7 +210,6 @@ from .formalizer_llm import (
     compact_lean_workspace_observation,
 )
 from .formalizer_feedback import (
-    formalizer_tool_observation_envelope,
     formalizer_validation_feedback_envelope,
 )
 from .formalizer_candidate_identity import (

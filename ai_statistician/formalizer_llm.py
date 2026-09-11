@@ -1690,7 +1690,8 @@ def _complete_lean_candidate_revision_feedback(
             "validation_error_messages",
             "validation_error_fingerprint",
             "rejected_packet_fingerprint",
-            "rejected_packet_projection",
+            "rejected_candidate",
+            "rejected_candidate_complete",
             "retry_depth",
         )
         if validation.get(field) not in (None, "", [], {})

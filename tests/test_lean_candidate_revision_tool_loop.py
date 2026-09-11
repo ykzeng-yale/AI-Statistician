@@ -2678,7 +2678,11 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> Non
     assert "context_actions_since_source_submission" not in result.evidence
 
 
-def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -> None:
+@pytest.mark.parametrize("raw_error", [
+    "unknown identifier 'missing_name'",
+    "unclassified future diagnostic: inspect the exact candidate",
+])
+def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn(raw_error: str) -> None:
     initial = "theorem target : True := by\n  sorry\n"
     failing = "theorem target : True := by\n  exact missing_name\n"
     compiled = "theorem target : True := by\n  exact True.intro\n"
@@ -2724,7 +2728,7 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
             "source_hash": stable_hash(source),
             "compiled": source == compiled,
             "local_lean_stderr": (
-                "unknown identifier 'missing_name'" if source == failing else ""
+                raw_error if source == failing else ""
             ),
         },
         search_formal_environment=lambda query, k: [],
@@ -2746,7 +2750,7 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn() -
     assert backend.requests[1].tool_choice == "any"
     recovery_context = json.dumps(backend.requests[1].messages, sort_keys=True)
     assert failing in recovery_context.replace("\\n", "\n")
-    assert "unknown identifier 'missing_name'" in recovery_context
+    assert raw_error in recovery_context
 
 
 def test_lean_candidate_workspace_revises_after_context_stall_compile_error() -> None:
