@@ -47,8 +47,8 @@ THEORY_SEMANTIC_GOLD_JUDGE_BOUNDARY = (
 )
 THEORY_SEMANTIC_CLAIM_STATUSES = frozenset({"SATISFIED", "VIOLATED", "INCONCLUSIVE"})
 THEORY_SEMANTIC_DOCUMENT_STATUSES = frozenset({"PASS", "FAIL", "INCONCLUSIVE"})
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 18
-THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 19
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 20
+THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 21
 THEORY_SEMANTIC_CANDIDATE_STRATEGIES = frozenset({"integrated_single", "integrated_plus_adversarial"})
 SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_semantic_review"
 SEMANTIC_REVIEW_MAX_TURNS = 32
@@ -195,8 +195,11 @@ def _semantic_review_request(
     document_tools = theory_document_client_tools() if documents_available else ()
     return ClientToolTurnRequest(
         system_prompt=(
-            "You are an independent scientific-document adjudicator. The reference and rubric "
-            "define the assessment, but are not assertions or accomplishments of the candidate. "
+            "You are an independent scientific-document adjudicator reviewing the supplied "
+            "candidate document set, not overall project completion. The artifact-specific rubric "
+            "defines the obligations of this review; the original question supplies context and "
+            "target fidelity, not instructions to complete or grade other stages. The reference "
+            "is evidence for comparison, not an assertion or accomplishment of the candidate. "
             "Assess the complete candidate, including active intermediate equations, assumptions, "
             "quantifiers and dependencies. Accept equivalent mathematics, not keyword overlap. "
             "A correct final answer does not erase a false active step; a reference proof does "

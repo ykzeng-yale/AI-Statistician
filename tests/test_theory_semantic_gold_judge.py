@@ -192,6 +192,7 @@ def _run(
     candidate_adjudication_strategy: str = "integrated_single",
     max_tokens: int = 6000,
     reference_content: str = "reference",
+    visible_question: dict[str, object] | None = None,
 ) -> dict[str, object]:
     reference_documents = [
         {"path": "reference.md", "sha256": "reference", "content": reference_content}
@@ -200,7 +201,8 @@ def _run(
         provider=provider,
         workspace_root=provider.workspace_root,
         task_id="known-result",
-        visible_question={"id": "known-result", "description": "derive it"},
+        visible_question=(visible_question if visible_question is not None else
+                          {"id": "known-result", "description": "derive it"}),
         candidate_documents=(
             reference_documents
             if candidate_is_reference
@@ -262,7 +264,7 @@ def test_semantic_gold_judge_requires_hidden_case_calibration() -> None:
 
     result = _run(provider)
 
-    assert result["protocol_version"] == 18
+    assert result["protocol_version"] == 20
     assert result["semantic_judge_calibrated"] is True
     assert result["candidate_status"] == "PASS"
     assert result["candidate_claim_assessments"] == [
@@ -461,7 +463,7 @@ def test_adversarial_candidate_pass_can_overturn_plausible_integrated_pass() -> 
         candidate_adjudication_strategy="integrated_plus_adversarial",
     )
 
-    assert result["protocol_version"] == 19
+    assert result["protocol_version"] == 21
     assert result["candidate_adjudication_strategy"] == (
         "integrated_plus_adversarial"
     )
@@ -760,6 +762,35 @@ def test_changed_execution_policy_invalidates_qualification_without_calls(monkey
     with pytest.raises(ValueError, match="review_contract_hash mismatch"):
         _run(provider, activation_judgment=activation)
     assert provider.requests == []
+
+
+@pytest.mark.parametrize("role", ["theory", "source_replication_report", "design_memo"])
+@pytest.mark.parametrize("strategy", ["integrated_single", "integrated_plus_adversarial"])
+def test_artifact_review_retains_full_project_context_without_owning_its_completion(role, strategy) -> None:
+    packets = [*_keyed_calibration_packets(), _keyed_candidate_packet()]
+    if strategy == "integrated_plus_adversarial":
+        packets = [packet for packet in packets for _ in range(2)]
+    provider = _RecordingProvider(packets)
+    question = {
+        "id": "known-result",
+        "description": "Develop a method, implement it, run experiments and deliver a final report.",
+        "task_intent": {"theory": "required", "scientific_code": "required", "empirical": "required"},
+    }
+    result = _run(provider, semantic_artifact_role=role, visible_question=question,
+                  candidate_adjudication_strategy=strategy)
+
+    assert result["passed"] is True  # Synthetic artifact verdict, not full-task evidence.
+    assert len(provider.requests) == len(packets)
+    for request in provider.requests:
+        payload = json.loads(request.user_prompt)
+        assert payload["task"]["semantic_artifact_role"] == role
+        assert payload["task"]["visible_question"] == question
+        assert [row["claim_id"] for row in payload["claim_rubric"]["claims"]] == CLAIM_IDS
+        assert "candidate document set, not overall project completion" in request.system_prompt
+        assert "The artifact-specific rubric defines the obligations of this review" in request.system_prompt
+        assert "original question supplies context and target fidelity" in request.system_prompt
+        assert "including one outside the rubric" in request.system_prompt
+        assert "expected_status" not in request.user_prompt
 
 
 def test_theory_role_preserves_existing_judgment_contract() -> None:

@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, after GEE qualification failed; no new product draw or production rule.
+Updated: 2026-09-11, with artifact-scoped reviewer instructions; no new product draw.
 
 ## Operative Objective
 
@@ -208,6 +208,14 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    a substitute for addressing the established evaluator limitation. Review whether
    diagnostic-label calibration has excessive operational weight separately from
    acceptance reliability, without changing consumed judgments or frozen gates.
+   A distinct responsibility ambiguity is now addressed in the shared referee
+   opening: the artifact-specific rubric defines the current review, while the
+   unchanged original question supplies context and target fidelity. PPI and GEE
+   reports had demanded other research-stage deliverables during a theory review.
+   Protocols 20/21 bind this instruction change. Scientific labels, document-wide
+   falsehood checks, qualification criteria and full-task completion gates remain
+   unchanged. This clarifies scope; fresh mathematical efficacy is not established.
+   No failed authority is requalified or made eligible by the change.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -231,7 +239,7 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
   but scientific improvement and thinking-enabled research-E2E remain unproven.
   The default budget stays zero; the pilot compared a configuration bundle, not
   the isolated causal effect of thinking tokens.
-  Hidden-gold protocols 18/19 retain complete read-only candidate/reference files,
+  Hidden-gold protocols 20/21 retain complete read-only candidate/reference files,
   scratch tools, thinking explicitly off, and private Markdown referee reports.
   File-backed input is not a mathematical correction. Failed or older
   authority cannot silently qualify, resume or rerun. Tool access and reduced
