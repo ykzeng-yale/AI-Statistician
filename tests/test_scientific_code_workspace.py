@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -246,7 +247,9 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
     )
 
     tool_names = [tool.name for tool in backend.requests[0].tools]
-    assert tool_names[:3] == [
+    assert tool_names[:5] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
         RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
         SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL,
@@ -564,7 +567,9 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
             "content_sha256": method_sha256,
         },
     ]
-    assert [tool.name for tool in backend.requests[0].tools[:4]] == [
+    assert [tool.name for tool in backend.requests[0].tools[:6]] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         RESEARCH_SOURCE_LIST_TOOL,
         RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
@@ -1007,7 +1012,9 @@ def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) 
         research_sources=snapshot,
     )
 
-    assert [tool.name for tool in backend.requests[0].tools[:3]] == [
+    assert [tool.name for tool in backend.requests[0].tools[:5]] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         RESEARCH_SOURCE_LIST_TOOL, RESEARCH_SOURCE_SEARCH_TOOL,
         RESEARCH_SOURCE_READ_TOOL,
     ]
@@ -1216,6 +1223,8 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
     assert all(request.enable_prompt_caching for request in backend.requests)
     assert all(request.disable_parallel_tool_use for request in backend.requests)
     assert [tool.name for tool in backend.requests[0].tools] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
@@ -1514,6 +1523,8 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
     assert result.evidence["source_updates"] == 1
     assert result.evidence["sandbox_checks"] == 1
     assert [tool.name for tool in backend.requests[0].tools] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
@@ -2156,6 +2167,8 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
     assert result.evidence["sandbox_checks"] == 1
     assert len(backend.requests) == 3
     assert [tool.name for tool in backend.requests[0].tools] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
@@ -2296,6 +2309,8 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
     assert result.evidence["current_source_run_requests"] == 1
     assert result.evidence["accepted"] is True
     assert [tool.name for tool in backend.requests[0].tools] == [
+        THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+        THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
         SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
         SCIENTIFIC_SOURCE_EDIT_TOOL,
         SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
@@ -2550,6 +2565,8 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
     assert all(
         [tool.name for tool in request.tools]
         == [
+            THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
+            THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
             SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
             SCIENTIFIC_SOURCE_EDIT_TOOL,
             SCIENTIFIC_PROJECT_FILE_WRITE_TOOL,
@@ -3126,6 +3143,229 @@ def test_execution_observation_omits_stale_callback_samples_after_binding_passes
     )
     assert "estimator_invocation_samples" not in compact
     assert "estimator_invocation_samples" in failed_binding
+
+
+def test_allowed_execution_diagnostics_are_not_summarized_by_content_or_position() -> None:
+    errors = [
+        {f"detail_{key}": f"diagnostic {index} field {key}" for key in range(32)}
+        for index in range(40)
+    ]
+    stderr = "\n".join(f"raw diagnostic line {i}" for i in range(4000))
+    prototype = {
+        "runtime_errors": errors, "stderr_summary": stderr,
+        "stdout_summary": "withheld experimental result", "metrics": {"hidden": 0.1},
+    }
+
+    observation = scientific_workspace_prototype_observation(
+        prototype, include_empirical_outcomes=False,
+    )
+
+    assert observation["runtime_errors"] == errors
+    assert observation["stderr_summary"] == stderr
+    assert "stdout_summary" not in observation
+    assert "metrics_preview" not in observation
+    observation["runtime_errors"][0]["detail_0"] = "changed locally"
+    assert prototype["runtime_errors"][0]["detail_0"] == "diagnostic 0 field 0"
+
+
+def test_source_owner_reads_complete_blinded_feedback_and_authors_its_revision(tmp_path) -> None:
+    drafts = [
+        {"language": "python", "execution_profile": "stdlib", "dependencies": [],
+         "entrypoint": "run_sandbox",
+         "code": f"def run_sandbox(seed, replicates): return {{'value': {value}}}\n"}
+        for value in (1, 2)
+    ]
+    initial_stderr = "\n".join(f"raw diagnostic line {i}" for i in range(4000))
+    final_stderr = "q" * 60000 + "fresh warning marker" + "z" * 60000
+    withheld = "CONFIRMATORY_OUTCOME_MUST_STAY_PRIVATE"
+    executions = []
+
+    class Reader(ScriptedScientificBackend):
+        def generate_client_tool_turn(self, request):
+            index = len(self.requests)
+            self.requests.append(request)
+            assert withheld not in json.dumps(request.messages)
+            if index == 0:
+                text = request.messages[0]["content"].split("Initial workspace observation:\n", 1)[1]
+                observation = json.JSONDecoder().raw_decode(text)[0]
+                ref = observation["prototype"]["stderr_summary"]
+                return _response(ClientToolCall("read-initial", THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {
+                    "path": ref["client_tool_evidence_document_ref"], "line_start": 3001, "line_end": 3001,
+                }))
+            if index == 1:
+                observation = json.loads(request.messages[-1]["content"][0]["content"])
+                assert observation["content"] == "raw diagnostic line 3000"
+                return _response(ClientToolCall("write-revision", SCIENTIFIC_SOURCE_SUBMISSION_TOOL, drafts[1]))
+            if index == 2:
+                return _run_response()
+            if index == 3:
+                observation = json.loads(request.messages[-1]["content"][0]["content"])
+                ref = observation["prototype"]["stderr_summary"]
+                return _response(ClientToolCall("read-final", THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {
+                    "path": ref["client_tool_evidence_document_ref"], "line_start": 1, "line_end": 1,
+                    "character_start": 60000, "character_end": 60020,
+                }))
+            observation = json.loads(request.messages[-1]["content"][0]["content"])
+            assert observation["content"] == "fresh warning marker"
+            return _commit_response()
+
+    backend = Reader([])
+
+    class SourceAgent:
+        provider = backend
+
+        def iterate_code_with_tools(self, **kwargs):
+            return run_scientific_code_workspace(
+                provider=self.provider, system_prompt="Own this source.", user_prompt="Inspect the observations.",
+                model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
+                max_tokens=1200, max_turns=8, max_no_progress_turns=3,
+                artifact_id=kwargs["artifact_id"], initial_code_draft=kwargs["code_draft"],
+                initial_check_result=kwargs["initial_observation"], check_candidate=kwargs["check_candidate"],
+                workspace_operation=kwargs["workspace_operation"], session_dir=kwargs["session_dir"],
+            )
+
+    def execute(draft):
+        executions.append(dict(draft))
+        revised = draft == drafts[1]
+        return {
+            "execution_attempted": True, "execution_smoke_passed": revised,
+            "prototype_status": "FAILED_METRIC_GATE", "smoke_passed": False,
+            "source_code": draft["code"], "script_hash": stable_hash(draft["code"]),
+            "stderr_summary": final_stderr if revised else initial_stderr,
+            "stdout_summary": withheld, "metrics": {"hidden": withheld},
+            "metric_gate_errors": [withheld], "runtime_seed": 91234,
+        }, object()
+
+    prototype, _ = run_source_owner_scientific_workspace(
+        proposal_agent=SourceAgent(), question=object(), artifact_id="long-feedback",
+        code_draft=drafts[0], source_deferred=False, workspace_context={},
+        execute_candidate=execute, failure_identity={"estimator_id": "long-feedback"},
+        confirmatory_result_blind=True, session_dir=tmp_path / "session",
+    )
+    assert executions == drafts
+    assert prototype["source_code"] == drafts[1]["code"]
+    assert prototype["smoke_passed"] is False
+    references = prototype["scientific_code_workspace"]["observation_document_refs"]
+    contents = [Path(ref["path"]).read_text() for ref in references.values()]
+    assert initial_stderr in contents and final_stderr in contents
+    assert all(withheld not in content for content in contents)
+
+
+def test_persistent_scientific_observations_survive_resume_and_reject_tampering(tmp_path) -> None:
+    drafts = [
+        {"language": "python", "execution_profile": "stdlib", "dependencies": [],
+         "entrypoint": "run_sandbox",
+         "code": f"def run_sandbox(seed, replicates): return {{'value': {value}}}\n"}
+        for value in (1, 2)
+    ]
+    diagnostics = ["first raw diagnostic\n" * 4000, "second raw diagnostic\n" * 4000]
+
+    def check(draft):
+        index = drafts.index(draft)
+        return {"code_draft_hash": stable_hash(draft), "accepted": index == 1,
+                "stderr": diagnostics[index]}
+
+    config = dict(
+        system_prompt="Own this source.", user_prompt="Inspect the observations.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
+        max_tokens=1200, max_turns=3, max_no_progress_turns=3,
+        artifact_id="persistent-observations", check_candidate=check,
+        allow_current_source_run=True, session_dir=tmp_path / "session",
+    )
+    with pytest.raises(PacketValidationError) as failed:
+        run_scientific_code_workspace(
+            **config, provider=ScriptedScientificBackend([
+                _run_response("first-run"),
+                _response(ClientToolCall("revise", SCIENTIFIC_SOURCE_SUBMISSION_TOOL, drafts[1])),
+                _run_response("second-run"),
+            ]), initial_code_draft=drafts[0], initial_check_result={"accepted": False},
+        )
+    checkpoint = failed.value.recovery_checkpoint
+    references = checkpoint["observation_document_refs"]
+    old_path = next(path for path, ref in references.items() if Path(ref["path"]).read_text() == diagnostics[0])
+    provider = ScriptedScientificBackend([
+        _response(ClientToolCall("read-old-observation", THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                                {"path": old_path, "line_start": 3000, "line_end": 3000})),
+        _commit_response(),
+    ])
+    result = run_scientific_code_workspace(
+        **config, provider=provider, initial_code_draft=drafts[1],
+        initial_check_result=checkpoint["last_check"], recovery_checkpoint=checkpoint,
+    )
+    read = json.loads(provider.requests[1].messages[-1]["content"][0]["content"])
+    assert read["content"] == "first raw diagnostic"
+    assert result.check_result["stderr"] == diagnostics[1]
+    assert result.evidence["observation_document_refs"] == references
+    assert "first raw diagnostic" not in json.dumps(references)
+
+    Path(references[old_path]["path"]).write_text("tampered")
+    untouched = ScriptedScientificBackend([])
+    with pytest.raises(ValueError, match="observation document identity mismatch"):
+        run_scientific_code_workspace(
+            **config, provider=untouched, initial_code_draft=drafts[1],
+            initial_check_result=checkpoint["last_check"], recovery_checkpoint=checkpoint,
+        )
+    assert untouched.requests == []
+
+
+def test_large_structured_observation_remains_searchable_without_payload_copy(tmp_path) -> None:
+    draft = {"language": "python", "execution_profile": "stdlib", "dependencies": [],
+             "entrypoint": "run_sandbox", "code": "def run_sandbox(seed, replicates): return {}\n"}
+    check = {"code_draft_hash": stable_hash(draft), "accepted": True,
+             "source_iteration_disposition": "accepted",
+             "unfamiliar_observation": {f"field_{i:04}": i for i in range(6000)}}
+
+    class Reader(ScriptedScientificBackend):
+        def generate_client_tool_turn(self, request):
+            index = len(self.requests)
+            self.requests.append(request)
+            if index == 0:
+                text = request.messages[0]["content"].split("Initial workspace observation:\n", 1)[1]
+                ref = json.JSONDecoder().raw_decode(text)[0]
+                assert len(json.dumps(ref)) < 500
+                assert "field_5999" not in text
+                return _response(ClientToolCall("search-late-field", THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL, {
+                    "document_paths": [ref["client_tool_evidence_document_ref"]], "query": "field_5999",
+                }))
+            if index == 1:
+                hit = json.loads(request.messages[-1]["content"][0]["content"])["hits"][0]
+                assert '"field_5999": 5999' in hit["line"]
+                return _response(ClientToolCall("read-late-field", THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {
+                    "path": hit["path"], "line_start": hit["line_number"], "line_end": hit["line_number"],
+                }))
+            assert '"field_5999": 5999' in json.loads(request.messages[-1]["content"][0]["content"])["content"]
+            return _commit_response()
+
+    result = run_scientific_code_workspace(
+        provider=Reader([]), system_prompt="Own this source.", user_prompt="Inspect the observations.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
+        max_tokens=1200, max_turns=4, max_no_progress_turns=3, artifact_id="structured-observation",
+        initial_code_draft=draft, initial_check_result=check, check_candidate=lambda _: pytest.fail("no execution requested"),
+        session_dir=tmp_path / "session",
+    )
+    refs = result.evidence["observation_document_refs"]
+    assert len(refs) == 1
+    assert json.loads(Path(next(iter(refs.values()))["path"]).read_text()) == check
+    assert result.check_result == check
+    assert result.evidence["runtime_edited_source"] is False
+
+
+def test_scientific_observation_directory_cannot_escape_through_symlink(tmp_path) -> None:
+    session_dir, outside = tmp_path / "session", tmp_path / "outside"
+    session_dir.mkdir()
+    outside.mkdir()
+    (session_dir / "observation_documents").symlink_to(outside, target_is_directory=True)
+    provider = ScriptedScientificBackend([])
+    with pytest.raises(ValueError, match="observation directory escapes workspace"):
+        run_scientific_code_workspace(
+            provider=provider, system_prompt="Own this source.", user_prompt="Inspect the observations.",
+            model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
+            max_tokens=1200, max_turns=4, max_no_progress_turns=3, artifact_id="confined-observation",
+            initial_code_draft={}, initial_check_result={"stderr": "diagnostic\n" * 1000},
+            check_candidate=lambda _: pytest.fail("no execution requested"), session_dir=session_dir,
+        )
+    assert provider.requests == []
+    assert list(outside.iterdir()) == []
 
 
 def test_confirmatory_source_observation_withholds_realized_outcomes() -> None:

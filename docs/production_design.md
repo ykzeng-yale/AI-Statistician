@@ -156,9 +156,9 @@ computing ecosystem.
 The runtime may require a small general executor ABI, but it may not encode a
 statistical answer. Syntax, safety, ABI, runtime, serialization, and consumer failures
 return raw observations to the same source owner; exploratory work may also return
-explicitly non-confirmatory empirical diagnostics. Execution is persisted once, stale
-observations leave model context, and identical source is a tool no-op rather than a
-runtime edit.
+explicitly non-confirmatory empirical diagnostics. Permitted diagnostics remain complete in hash-bound read-only documents, available through existing search and line/character-range reads across checkpoints.
+Only the exact current source-bound observation can authorize release; earlier diagnostics remain readable history. Identical source is a tool no-op rather than a runtime edit.
+Outcome visibility is applied before externalization; the runtime neither summarizes errors by position nor authors a content repair. Raw diagnostics are not by themselves a data-blinding guarantee: confirmation data must remain outside exploratory execution.
 
 Exploratory source may start before the complete theorem program is closed once
 its consumed interfaces are stable. A bound replication report is exposed through

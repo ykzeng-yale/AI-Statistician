@@ -4,6 +4,7 @@ import json
 import hashlib
 import tempfile
 from copy import deepcopy
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -60,6 +61,7 @@ def _review_contract_hash(*, max_tokens: int) -> str:
         "max_tool_calls": SEMANTIC_REVIEW_MAX_TOOL_CALLS,
         "thinking_budget_tokens": 0,
         "scratch": {"seed": 0, "replicates": 1, "timeout_s": 20},
+        "tool_definitions": [asdict(tool) for tool in (*theory_document_client_tools(), theory_scratchpad_client_tool())],
     })
 
 

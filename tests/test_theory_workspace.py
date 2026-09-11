@@ -68,12 +68,39 @@ from ai_statistician.theory_workspace import (
     _replace_theory_workspace_artifacts,
     _theory_workspace_tools,
     execute_theory_scratchpad_tool,
+    execute_theory_document_client_tool,
     load_theory_workspace_documents,
     load_theory_progress_checkpoint_state,
     read_theory_scratch_execution,
     run_theory_artifact_workspace,
     theory_workspace_manifest_errors,
 )
+
+
+def test_read_document_character_slice_preserves_long_line_identity() -> None:
+    content = "a" * 60000 + "middle diagnostic" + "z" * 60000
+    original = {"observations/long.md": content}
+    observation, reference = execute_theory_document_client_tool(
+        original, tool_name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+        tool_input={"path": "observations/long.md", "line_start": 1, "line_end": 1,
+                    "character_start": 60000, "character_end": 60017},
+    )
+    assert observation["content"] == "middle diagnostic"
+    assert observation["document_sha256"] == hashlib.sha256(content.encode()).hexdigest()
+    assert observation["content_sha256"] == hashlib.sha256(b"middle diagnostic").hexdigest()
+    assert reference["character_start"] == 60000
+    assert reference["character_end"] == 60017
+    assert original["observations/long.md"] == content
+
+
+@pytest.mark.parametrize("start,end", [(-1, 3), (1, 1), (3, 2), (True, 3), (0, 6), ("0", 2)])
+def test_document_character_bounds_are_validated(start, end) -> None:
+    with pytest.raises(ClientToolInputError, match="character"):
+        execute_theory_document_client_tool(
+            {"note.md": "abcde"}, tool_name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+            tool_input={"path": "note.md", "line_start": 1, "line_end": 1,
+                        "character_start": start, "character_end": end},
+        )
 
 
 class ScriptedTheoryWorkspaceBackend:

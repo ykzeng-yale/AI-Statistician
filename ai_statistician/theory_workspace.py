@@ -3179,8 +3179,8 @@ def theory_document_client_tools() -> tuple[ClientToolDefinition, ...]:
         ClientToolDefinition(
             name=THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
             description=(
-                "Search exact current hash-bound Markdown/LaTeX/BibTeX theory "
-                "documents for a case-insensitive literal string. Returns "
+                "Search current hash-bound Markdown/LaTeX/BibTeX documents and "
+                "read-only tool observations for a case-insensitive literal string. Returns "
                 "line-addressed hits and document hashes; it does not interpret "
                 "mathematics."
             ),
@@ -3207,8 +3207,10 @@ def theory_document_client_tools() -> tuple[ClientToolDefinition, ...]:
             name=THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
             description=(
                 "Read an exact inclusive line range from one current hash-bound "
-                "Markdown/LaTeX/BibTeX theory document. Returns the full document "
-                "hash and exact range hash for model-owned reasoning."
+                "document or read-only tool observation. Returns the full document "
+                "hash and exact range hash for model-owned reasoning. Optional "
+                "character_start/character_end select a zero-based, end-exclusive "
+                "slice within that line range, including a single long line."
             ),
             input_schema={
                 "type": "object",
@@ -3218,6 +3220,8 @@ def theory_document_client_tools() -> tuple[ClientToolDefinition, ...]:
                     "path": {"type": "string", "minLength": 1},
                     "line_start": {"type": "integer", "minimum": 1},
                     "line_end": {"type": "integer", "minimum": 1},
+                    "character_start": {"type": "integer", "minimum": 0},
+                    "character_end": {"type": "integer", "minimum": 1},
                 },
             },
         ),
@@ -4015,6 +4019,8 @@ def read_theory_document_lines(
     path: Any,
     line_start: Any,
     line_end: Any,
+    character_start: Any = None,
+    character_end: Any = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     normalized_documents = _normalized_theory_documents(documents)
     document_path = _normalized_theory_document_path(path)
@@ -4039,10 +4045,20 @@ def read_theory_document_lines(
             f"theory document line_end exceeds document length {len(lines)}"
         )
     content = "\n".join(lines[line_start - 1 : line_end])
+    character_range = {}
+    if character_start is not None or character_end is not None:
+        start = 0 if character_start is None else character_start
+        end = len(content) if character_end is None else character_end
+        if any(isinstance(value, bool) or not isinstance(value, int) for value in (start, end)):
+            raise ClientToolInputError("document character offsets must be integers")
+        if start < 0 or end <= start or end > len(content):
+            raise ClientToolInputError("document character range must be ordered and within the selected lines")
+        character_range = {"character_start": start, "character_end": end}
+        content = content[start:end]
     if len(content) > MAX_THEORY_DOCUMENT_OBSERVATION_CHARS:
         raise ClientToolInputError(
             "theory document line range exceeds one model observation; read a "
-            "smaller range"
+            "smaller line or character range"
         )
     document_sha256 = _text_sha256(normalized_documents[document_path])
     content_sha256 = _text_sha256(content)
@@ -4052,6 +4068,7 @@ def read_theory_document_lines(
         "document_sha256": document_sha256,
         "line_start": line_start,
         "line_end": line_end,
+        **character_range,
         "content_sha256": content_sha256,
         "proof_evidence_status": "THEORY_DOCUMENT_INSPECTION_NOT_PROOF_EVIDENCE",
     }
@@ -4063,6 +4080,7 @@ def read_theory_document_lines(
             "document_line_count": len(lines),
             "line_start": line_start,
             "line_end": line_end,
+            **character_range,
             "content": content,
             "content_sha256": content_sha256,
             "proof_evidence_status": (
@@ -4082,9 +4100,10 @@ def execute_theory_document_client_tool(
     """Execute either shared read-only Theory document tool."""
 
     if tool_name == THEORY_WORKSPACE_READ_DOCUMENT_TOOL:
-        if set(tool_input) != {"path", "line_start", "line_end"}:
+        required = {"path", "line_start", "line_end"}
+        if not required.issubset(tool_input) or set(tool_input) - required - {"character_start", "character_end"}:
             raise ClientToolInputError(
-                "read_theory_document requires path, line_start, and line_end"
+                "read_theory_document requires path, line_start, and line_end; character_start and character_end are optional"
             )
         return read_theory_document_lines(documents, **dict(tool_input))
     if tool_name == THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL:

@@ -19,14 +19,17 @@ from .agent_runtime import (
 from .client_tool_loop import (
     CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_RECENT_HISTORY_ROUNDS,
+    CLIENT_TOOL_RESULT_MAX_CHARS,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
     apply_model_exact_text_edits,
     client_tool_authorization_fingerprint,
+    externalize_client_tool_text_documents,
     model_exact_text_edit_json_schema,
     persist_client_tool_session,
+    read_hash_bound_utf8_file,
     resume_client_tool_session_from_checkpoint,
     run_bounded_client_tool_loop,
 )
@@ -1234,7 +1237,7 @@ def scientific_workspace_prototype_observation(
     include_empirical_outcomes: bool = True,
     include_acceptance_outcomes: bool | None = None,
 ) -> dict[str, Any]:
-    """Project one persisted sandbox result into bounded model feedback."""
+    """Apply outcome visibility without summarizing the permitted diagnostics."""
 
     if include_acceptance_outcomes is None:
         include_acceptance_outcomes = include_empirical_outcomes
@@ -1265,7 +1268,7 @@ def scientific_workspace_prototype_observation(
         contract = contracts.get(contract_id, {})
         failed_contracts.append(
             {
-                key: _bounded_observation_value(value)
+                key: deepcopy(value)
                 for key, value in {
                     "contract_id": contract_id,
                     "requirement_id": row.get("requirement_id", ""),
@@ -1359,7 +1362,7 @@ def scientific_workspace_prototype_observation(
     return {
         "artifact_kind": "ScientificSandboxWorkspaceObservation",
         **{
-            key: _bounded_observation_value(value)
+            key: deepcopy(value)
             for key, value in direct_fields.items()
         },
         **(
@@ -1369,7 +1372,7 @@ def scientific_workspace_prototype_observation(
                     if include_acceptance_outcomes and failed_contracts
                     else {}
                 ),
-                "metrics_preview": _bounded_observation_value(
+                "metrics_preview": deepcopy(
                     prototype.get("metrics", {})
                 ),
                 **(
@@ -1852,43 +1855,6 @@ def advance_scientific_consumer_revision_budget(
     return budget, row, sorted(set(errors))
 
 
-def _bounded_observation_value(value: Any, *, depth: int = 0) -> Any:
-    if depth >= 8:
-        return {"preview": "depth_limit", "type": type(value).__name__}
-    if value is None or isinstance(value, (bool, int, float)):
-        return value
-    if isinstance(value, str):
-        return value if len(value) <= 2_000 else value[:2_000] + "..."
-    if isinstance(value, Mapping):
-        items = list(value.items())
-        preview = {
-            str(key): _bounded_observation_value(child, depth=depth + 1)
-            for key, child in items[:24]
-        }
-        if len(items) > 24:
-            preview["truncated_key_count"] = len(items) - 24
-        return preview
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-        rows = list(value)
-        if len(rows) <= 12:
-            return [
-                _bounded_observation_value(row, depth=depth + 1) for row in rows
-            ]
-        return {
-            "preview": "sequence",
-            "length": len(rows),
-            "head": [
-                _bounded_observation_value(row, depth=depth + 1)
-                for row in rows[:8]
-            ],
-            "tail": [
-                _bounded_observation_value(row, depth=depth + 1)
-                for row in rows[-2:]
-            ],
-        }
-    return str(value)[:2_000]
-
-
 def run_scientific_code_workspace(
     *,
     provider: Any,
@@ -1937,6 +1903,46 @@ def run_scientific_code_workspace(
         if isinstance(recovery_checkpoint, Mapping) and recovery_checkpoint
         else {}
     )
+    resolved_session_dir = session_dir.resolve() if session_dir else None
+    observation_root = resolved_session_dir / "observation_documents" if resolved_session_dir else None
+    if observation_root is not None and resolved_session_dir not in observation_root.resolve().parents:
+        raise ValueError("scientific observation directory escapes workspace")
+    context_documents = deepcopy(dict(context_documents or {}))
+    observation_documents: dict[str, str] = {}
+    observation_document_refs = deepcopy(resumed_checkpoint.get("observation_document_refs", {}))
+    if not isinstance(observation_document_refs, dict):
+        raise ValueError("scientific observation document references are malformed")
+
+    def model_observation(value: Mapping[str, Any]) -> dict[str, Any]:
+        projected, documents, _ = externalize_client_tool_text_documents(
+            value, min_characters=1024, path_prefix="observations/text",
+        )
+        if len(_compact_json(projected)) > CLIENT_TOOL_RESULT_MAX_CHARS:
+            path = f"observations/{stable_hash(dict(value))}.md"
+            documents[path] = json.dumps(projected, indent=2, sort_keys=True, ensure_ascii=False, default=str)
+            projected = {"client_tool_evidence_document_ref": path, "content_externalized_without_loss": True}
+        for path, content in documents.items():
+            if path in context_documents or (path in observation_documents and observation_documents[path] != content):
+                raise ValueError("scientific observation document path collision")
+            observation_documents[path] = content
+            if observation_root is not None:
+                target = (observation_root / path).resolve()
+                if observation_root.resolve() not in target.parents:
+                    raise ValueError("scientific observation document escapes workspace")
+                encoded = content.encode("utf-8")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists():
+                    if target.read_bytes() != encoded:
+                        raise ValueError("scientific observation document changed")
+                else:
+                    with target.open("xb") as stream:
+                        stream.write(encoded)
+                observation_document_refs[path] = {
+                    "path": str(target), "sha256": hashlib.sha256(encoded).hexdigest(),
+                    "byte_size": len(encoded),
+                }
+        return projected
+
     resumed_checkpoint_id = ""
     prior_source_updates = 0
     prior_checks = 0
@@ -1990,6 +1996,18 @@ def run_scientific_code_workspace(
             )
     if workspace_operation == "targeted_revision" and not parent_draft:
         raise ValueError("targeted scientific source revision requires parent source")
+    for path, reference in observation_document_refs.items():
+        relative_path = theory_documents._normalized_theory_document_path(path)
+        if observation_root is None or not isinstance(reference, Mapping):
+            raise ValueError("scientific observation resume requires its persistent directory")
+        expected_path = (observation_root / relative_path).resolve()
+        if observation_root.resolve() not in expected_path.parents or str(expected_path) != reference.get("path"):
+            raise ValueError("scientific observation document path mismatch")
+        content, errors = read_hash_bound_utf8_file(reference)
+        if errors or path in context_documents:
+            raise ValueError("scientific observation document identity mismatch")
+        observation_documents[path] = content
+    initial_model_observation = model_observation(initial_check_result)
     parent_hash = stable_hash(parent_draft) if parent_draft else ""
     observed_draft_hashes = set(prior_observed_hashes)
     initial_check_hash = str(
@@ -2015,7 +2033,7 @@ def run_scientific_code_workspace(
     tools = _scientific_code_tools(
         allow_current_source_run=bool(parent_draft) and allow_current_source_run,
         allow_dependency_handoff=allow_dependency_handoff,
-        context_documents_available=bool(context_documents),
+        context_documents_available=True,
         research_sources_available=research_sources is not None,
         research_source_discovery_available=research_source_discovery is not None,
     )
@@ -2086,7 +2104,7 @@ def run_scientific_code_workspace(
                     "dependency-owner disposition requires bound source owner refs"
                 )
         return ClientToolExecutionResult(
-            content={
+            content=model_observation({
                 **check,
                 "ok": accepted,
                 "changed": source_changed,
@@ -2096,7 +2114,7 @@ def run_scientific_code_workspace(
                 "execution_evidence_status": (
                     "SCIENTIFIC_SANDBOX_OBSERVATION_NOT_PROOF_EVIDENCE"
                 ),
-            },
+            }),
             is_error=not accepted,
             state_changed=True,
             observation_key="scientific-submission:"
@@ -2504,7 +2522,8 @@ def run_scientific_code_workspace(
             theory_documents.THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
         }:
             observation, _ = theory_documents.execute_theory_document_client_tool(
-                context_documents or {}, tool_name=call.name, tool_input=tool_input
+                {**context_documents, **observation_documents},
+                tool_name=call.name, tool_input=tool_input,
             )
             return ClientToolExecutionResult(content=observation)
         if call.name == SCIENTIFIC_SOURCE_SUBMISSION_TOOL:
@@ -2940,7 +2959,8 @@ def run_scientific_code_workspace(
                     })
                 )
                 + "\n\nInitial workspace observation:\n"
-                + _compact_json(initial_check_result)
+                + _compact_json(initial_model_observation)
+                + "\nLong permitted observations are exact read-only documents. Use read_theory_document or search_theory_documents for their referenced paths; they are separate from editable project files."
                 + (
                     "\n\nPublic research source snapshot:\n"
                     + _compact_json(research_sources.descriptor())
@@ -2997,7 +3017,6 @@ def run_scientific_code_workspace(
             "resumed_from_checkpoint_id": resumed_checkpoint_id,
         },
     )
-    resolved_session_dir = session_dir.resolve() if session_dir else None
     resumed_client_tool_session_ref: dict[str, Any] = {}
     resumed_client_tool_context_window: dict[str, Any] = {}
     prior_client_tool_session_ref = resumed_checkpoint.get(
@@ -3066,6 +3085,7 @@ def run_scientific_code_workspace(
             "segment_start_checks": prior_checks,
             "last_check": last_check,
             "last_check_hash": stable_hash(last_check),
+            "observation_document_refs": deepcopy(observation_document_refs),
             "research_source_refs": deepcopy(research_source_refs),
             "resumed_from_checkpoint_id": resumed_checkpoint_id,
             "resumed_from_client_tool_session_ref": deepcopy(
@@ -3165,6 +3185,7 @@ def run_scientific_code_workspace(
         "initial_check_accepted": initial_check_result.get("accepted") is True,
         "submitted_code_draft_hash": draft_hash,
         "terminal_check_result_hash": stable_hash(check),
+        "observation_document_refs": deepcopy(observation_document_refs),
         "source_changed": draft_hash != parent_hash,
         "current_source_run_requested": bool(
             state["current_source_run_requests"]
@@ -3527,11 +3548,5 @@ def _scientific_code_tools(
     return tuple(tools)
 
 
-def _compact_json(value: Any, *, max_chars: int = 30_000) -> str:
-    encoded = json.dumps(value, separators=(",", ":"), default=str)
-    if len(encoded) <= max_chars:
-        return encoded
-    marker = "\n[observation middle truncated]\n"
-    available = max_chars - len(marker)
-    head = available // 2
-    return encoded[:head] + marker + encoded[-(available - head) :]
+def _compact_json(value: Any) -> str:
+    return json.dumps(value, separators=(",", ":"), default=str, ensure_ascii=False)

@@ -657,6 +657,24 @@ def test_first_failed_control_stops_later_reviews_and_preserves_private_records(
     assert result == frozen
 
 
+def test_changed_shared_tool_contract_invalidates_qualification_without_calls(monkeypatch) -> None:
+    from dataclasses import replace
+    import ai_statistician.theory_semantic_gold_judge as judge
+
+    activation = _run(_RecordingProvider([
+        *_keyed_calibration_packets(), _keyed_candidate_packet(),
+    ]), candidate_is_reference=True)
+    original_tools = judge.theory_document_client_tools()
+    monkeypatch.setattr(judge, "theory_document_client_tools", lambda: (
+        replace(original_tools[0], description=original_tools[0].description + " Changed contract."),
+        *original_tools[1:],
+    ))
+    provider = _RecordingProvider([])
+    with pytest.raises(ValueError, match="review_contract_hash mismatch"):
+        _run(provider, activation_judgment=activation)
+    assert provider.requests == []
+
+
 def test_theory_role_preserves_existing_judgment_contract() -> None:
     provider = _RecordingProvider(
         [*_keyed_calibration_packets(), _keyed_candidate_packet()]

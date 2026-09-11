@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including the failed PPI qualification and generic early termination.
+Updated: 2026-09-10, including complete scientific feedback access; failed qualifications remain unchanged.
 
 ## Operative Objective
 
@@ -111,10 +111,17 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    read-only documents and exact long-text externalization, accessible with the
    same search/range-read tools. Safe tool-input errors no longer suffer a second
    silent 1,200-character truncation before the shared observation-size boundary.
-   Test unfamiliar fields, late findings, long observations, immutable context and
-   model-selected next actions at actual entrypoints; keep executor authority.
-   No new tool, classifier, repair agent or retry budget was added. This is not
-   improved mathematics or a reason to rerun consumed tasks.
+   Scientific feedback also lost long strings, later list items, nested fields and
+   the middle of its initial message. That lossy projection is now removed; the
+   permitted observations use the same read-only document tools, with character
+   ranges for long single lines and exact persisted references across continuation.
+   Outcome visibility and current-source release authority are unchanged. Earlier
+   diagnostics remain readable history, not current acceptance. Shared reviewer
+   tool definitions now bind the qualification contract, so an old authority cannot
+   silently authorize changed tools. Tests exercise unfamiliar fields, late findings,
+   long observations, immutable context and model-selected next actions at actual
+   entrypoints. No new tool name, classifier, repair agent or retry budget was added.
+   This is feedback fidelity, not improved mathematics or permission to rerun tasks.
    Establish subsequent changes from author/reviewer behavior on visible artifacts
    and unrelated synthetic controls. The latest internal/gold
    disagreement warrants diagnosis, not a benchmark-answer patch or more reviews
