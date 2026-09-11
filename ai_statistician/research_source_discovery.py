@@ -13,11 +13,13 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition
+from .research_source_library import ResearchSourceSnapshot, load_research_source_snapshot
+from .research_source_project import acquire_public_github_repository_snapshot
 from .storage.public_source_observations import (
     PublicSourceObservationStore,
     ResearchSourceDiscoveryError,
@@ -26,6 +28,7 @@ from .storage.public_source_observations import (
 
 RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL = "discover_research_sources"
 RESEARCH_SOURCE_DISCOVERY_READ_TOOL = "read_discovered_research_source"
+RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL = "acquire_discovered_research_repository"
 RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE = (
     "PUBLIC_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE"
 )
@@ -104,8 +107,14 @@ class ResearchSourceDiscovery(Protocol):
         line_end: int = 0,
     ) -> Mapping[str, Any]: ...
 
+    def acquire_repository(
+        self, source_handle: str, *, revision: str
+    ) -> Mapping[str, Any]: ...
 
-def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]:
+
+def research_source_discovery_client_tools(
+    *, repository_acquisition: bool = False,
+) -> tuple[ClientToolDefinition, ...]:
     search_schema = {
         "type": "object", "additionalProperties": False, "required": ["query"],
         "properties": {
@@ -124,7 +133,7 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
             "line_end": {"type": "integer", "minimum": 1},
         },
     }
-    return (
+    tools = (
         ClientToolDefinition(
             name=RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
             description=(
@@ -143,6 +152,25 @@ def research_source_discovery_client_tools() -> tuple[ClientToolDefinition, ...]
             input_schema=read_schema,
         ),
     )
+    if repository_acquisition:
+        tools += (ClientToolDefinition(
+            name=RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
+            description=(
+                "Acquire the complete public Git repository at a previously resolved "
+                "commit into immutable local source storage. Subsequent source reads "
+                "and scientific file imports use these exact bytes without network. "
+                "This does not install dependencies, run code, or establish replication."
+            ),
+            input_schema={
+                "type": "object", "additionalProperties": False,
+                "required": ["source_handle", "revision"],
+                "properties": {
+                    "source_handle": {"type": "string", "minLength": 1},
+                    "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                },
+            },
+        ),)
+    return tools
 
 
 def execute_research_source_discovery_client_tool(
@@ -154,9 +182,11 @@ def execute_research_source_discovery_client_tool(
     """Execute one shared discovery tool and return a compact provenance ref."""
 
     is_search = tool_name == RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL
-    if not is_search and tool_name != RESEARCH_SOURCE_DISCOVERY_READ_TOOL:
+    is_acquisition = tool_name == RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL
+    if not is_search and not is_acquisition and tool_name != RESEARCH_SOURCE_DISCOVERY_READ_TOOL:
         raise ResearchSourceDiscoveryInputError("unsupported public research source discovery tool")
     allowed = ({"query", "source_kind", "top_k"} if is_search else
+               {"source_handle", "revision"} if is_acquisition else
                {"source_handle", "path", "revision", "line_start", "line_end"})
     if set(tool_input) - allowed:
         accepted = ", ".join(sorted(allowed))
@@ -167,6 +197,10 @@ def execute_research_source_discovery_client_tool(
                 tool_input.get("query", ""),
                 source_kind=tool_input.get("source_kind", "all"),
                 top_k=tool_input.get("top_k", 5),
+            )
+        elif is_acquisition:
+            observation = discovery.acquire_repository(
+                tool_input.get("source_handle", ""), revision=tool_input.get("revision", "")
             )
         else:
             read_kwargs = {"path": tool_input.get("path", ""), "revision": tool_input.get("revision", "")}
@@ -179,7 +213,7 @@ def execute_research_source_discovery_client_tool(
     except ResearchSourceDiscoveryError as exc:
         return {
             "ok": False, "error": "public_research_source_discovery_failed",
-            "detail": str(exc)[:1_200],
+            "detail": str(exc),
             "model_may_continue_without_this_source": True,
         }, {}, True
     if not isinstance(observation, Mapping):
@@ -188,6 +222,7 @@ def execute_research_source_discovery_client_tool(
     compact = dict(observation)
     ref_fields = (
         ("provider", "source_horizon", "query_hash", "source_kind") if is_search else
+        ("provider", "source_handle", "source_kind", "revision", "snapshot") if is_acquisition else
         ("provider", "source_handle", "source_kind", "title", "url", "publication_date",
          "revision", "path", "content_sha256", "content_line_count", "content_truncated",
          "line_start", "line_end",
@@ -251,6 +286,7 @@ class PublicResearchSourceDiscovery:
             arxiv_request_pacer or _DEFAULT_ARXIV_REQUEST_PACER
         )
         self._state_dir = state_dir.resolve() if state_dir is not None else None
+        self._repository_snapshots: dict[tuple[str, str], ResearchSourceSnapshot] = {}
         self._observations = PublicSourceObservationStore(
             state_dir=self._state_dir,
             provider=self.provider_name,
@@ -271,6 +307,7 @@ class PublicResearchSourceDiscovery:
             "model_selects_sources": True,
             "arbitrary_url_fetch_allowed": False,
             "author_source_execution_allowed": False,
+            "repository_snapshot_acquisition_allowed": self._state_dir is not None,
             "strict_historical_benchmark_authority": False,
             "durable_exact_observation_store": self._state_dir is not None,
             "durable_observation_policy": "hash_bound_exact_model_observations_v1"
@@ -412,6 +449,68 @@ class PublicResearchSourceDiscovery:
             line_start=line_start,
             line_end=line_end,
         )
+
+    def acquire_repository(self, source_handle: str, *, revision: str) -> dict[str, Any]:
+        row = self._observations.result(str(source_handle or "").strip())
+        if row is None or row.get("source_kind") != "repository":
+            raise ResearchSourceDiscoveryInputError("acquisition requires a discovered repository handle")
+        if self._state_dir is None:
+            raise ResearchSourceDiscoveryInputError("repository acquisition requires durable source storage")
+        handle = str(row["source_handle"])
+        if not isinstance(revision, str) or revision not in self._observations.revisions(handle):
+            raise ResearchSourceDiscoveryInputError("repository acquisition requires a previously resolved revision")
+        snapshot = self._acquired_repository(row, revision)
+        if snapshot is None:
+            try:
+                snapshot = acquire_public_github_repository_snapshot(
+                    repository_url=f"https://github.com/{row['repository']}",
+                    revision=revision,
+                    output_dir=self._repository_directory(handle, revision),
+                    snapshot_id="public-repository:" + stable_hash([handle, revision]),
+                    source_horizon=self.config.source_horizon,
+                )
+            except (OSError, ValueError) as exc:
+                raise ResearchSourceDiscoveryError(str(exc)) from exc
+            self._observations.pin_snapshot(handle, revision, snapshot.descriptor())
+            self._repository_snapshots[(handle, revision)] = snapshot
+        errors = snapshot.identity_errors()
+        if errors:
+            raise ResearchSourceDiscoveryError("acquired repository is unavailable: " + "; ".join(errors))
+        return {
+            "ok": True, "provider": self.provider_name,
+            "source_handle": handle, "source_kind": "repository", "revision": revision,
+            "snapshot": snapshot.descriptor(),
+            "proof_evidence_status": RESEARCH_SOURCE_DISCOVERY_NOT_PROOF_EVIDENCE,
+        }
+
+    def _repository_directory(self, source_handle: str, revision: str) -> Path:
+        assert self._state_dir is not None
+        return self._state_dir / "repositories" / stable_hash([source_handle, revision])
+
+    def _acquired_repository(
+        self, row: Mapping[str, Any], revision: str
+    ) -> ResearchSourceSnapshot | None:
+        handle = str(row["source_handle"])
+        expected = self._observations.snapshot(handle, revision)
+        if expected is None:
+            return None
+        manifest_path = self._repository_directory(handle, revision) / "sources.json"
+        try:
+            manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        except OSError as exc:
+            raise ResearchSourceDiscoveryError(f"acquired repository is unavailable: {exc}") from exc
+        if manifest_hash != expected.get("manifest_sha256"):
+            raise ResearchSourceDiscoveryError("acquired repository snapshot identity changed")
+        snapshot = self._repository_snapshots.get((handle, revision))
+        if snapshot is None:
+            try:
+                snapshot = load_research_source_snapshot(manifest_path)
+            except (OSError, ValueError) as exc:
+                raise ResearchSourceDiscoveryError(f"acquired repository is unavailable: {exc}") from exc
+            if snapshot.descriptor() != expected:
+                raise ResearchSourceDiscoveryError("acquired repository snapshot identity changed")
+        self._repository_snapshots[(handle, revision)] = snapshot
+        return snapshot
 
     def _search_crossref(self, query: str, *, top_k: int) -> list[dict[str, Any]]:
         params = {
@@ -714,10 +813,17 @@ class PublicResearchSourceDiscovery:
                 else self._github_revision_at_horizon(repository)
             )
 
+        snapshot = self._acquired_repository(row, resolved_revision)
+        acquired_content, is_directory = (
+            _acquired_repository_content(snapshot, normalized_path)
+            if snapshot is not None else (None, False)
+        )
         stored = self._observations.read(
             source_handle, resolved_revision, normalized_path or "."
         )
         if stored is not None:
+            if snapshot is not None and not is_directory and acquired_content != stored["content"]:
+                raise ResearchSourceDiscoveryError("acquired repository differs from the observed source bytes")
             return _source_read_observation(
                 **stored, line_start=line_start, line_end=line_end
             )
@@ -725,7 +831,17 @@ class PublicResearchSourceDiscovery:
         quoted_repo = "/".join(
             urllib.parse.quote(part, safe="") for part in repository.split("/")
         )
-        if normalized_path:
+        if snapshot is not None:
+            content = acquired_content
+            if is_directory:
+                content = _github_directory_markdown(
+                    repository, resolved_revision, normalized_path, content,
+                    description=str(row.get("summary", "") or ""),
+                )
+            pinned_url = f"https://github.com/{repository}/{'tree' if is_directory else 'blob'}/{resolved_revision}"
+            if normalized_path:
+                pinned_url += "/" + urllib.parse.quote(normalized_path, safe="/")
+        elif normalized_path:
             quoted_path = urllib.parse.quote(normalized_path, safe="/")
             payload = self._json_fetcher(
                 f"https://api.github.com/repos/{quoted_repo}/contents/{quoted_path}?"
@@ -1225,6 +1341,34 @@ def _normalized_repository_path(value: str) -> str:
     if len(normalized) > 1_000:
         raise ResearchSourceDiscoveryInputError("repository path is too long")
     return normalized
+
+
+def _acquired_repository_content(
+    snapshot: ResearchSourceSnapshot, path: str,
+) -> tuple[str | list[dict[str, str]], bool]:
+    for document in snapshot.documents:
+        if document.relative_path != path:
+            continue
+        if document.content_mode != "text" or document.file_mode == "120000":
+            raise ResearchSourceDiscoveryInputError("selected repository file is not a regular UTF-8 text file")
+        try:
+            raw = snapshot.document_path(document.document_id).read_bytes()
+        except (OSError, ValueError) as exc:
+            raise ResearchSourceDiscoveryError(f"acquired repository is unavailable: {exc}") from exc
+        if hashlib.sha256(raw).hexdigest() != document.sha256:
+            raise ResearchSourceDiscoveryError("acquired repository is unavailable: source file bytes changed")
+        return raw.decode("utf-8"), False
+    directory = PurePosixPath(path)
+    children: dict[str, str] = {}
+    for document in snapshot.documents:
+        relative = PurePosixPath(document.relative_path)
+        if not relative.is_relative_to(directory):
+            continue
+        parts = relative.relative_to(directory).parts
+        children[str(directory / parts[0])] = "dir" if len(parts) > 1 else "file"
+    if not children:
+        raise ResearchSourceDiscoveryInputError("selected repository path does not exist")
+    return [{"path": name, "type": kind} for name, kind in sorted(children.items())], True
 
 
 def _github_directory_markdown(

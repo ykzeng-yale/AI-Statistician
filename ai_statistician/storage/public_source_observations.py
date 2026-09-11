@@ -55,6 +55,7 @@ class PublicSourceObservationStore:
         self._results: dict[str, dict[str, Any]] = {}
         self._reads: dict[tuple[str, str, str], dict[str, Any]] = {}
         self._revisions: dict[str, set[str]] = {}
+        self._snapshots: dict[tuple[str, str], dict[str, Any]] = {}
         if self._db_path is not None:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._load()
@@ -100,6 +101,35 @@ class PublicSourceObservationStore:
 
     def revisions(self, source_handle: str) -> set[str]:
         return set(self._revisions.get(source_handle, set()))
+
+    def snapshot(self, source_handle: str, revision: str) -> Mapping[str, Any] | None:
+        row = self._snapshots.get((source_handle, revision))
+        return dict(row) if row is not None else None
+
+    def pin_snapshot(
+        self, source_handle: str, revision: str, descriptor: Mapping[str, Any]
+    ) -> None:
+        if revision not in self.revisions(source_handle):
+            raise PublicSourceObservationStoreError("snapshot revision was not observed")
+        key, row = (source_handle, revision), dict(descriptor)
+        if key in self._snapshots and self._snapshots[key] != row:
+            raise PublicSourceObservationStoreError("acquired source snapshot changed")
+        if self._db_path is not None:
+            values = (*key, _json(row), stable_hash(row))
+            try:
+                with sqlite3.connect(self._db_path, timeout=5.0) as database:
+                    database.execute(
+                        "INSERT OR IGNORE INTO source_snapshots VALUES (?, ?, ?, ?)", values
+                    )
+                    actual = database.execute(
+                        "SELECT * FROM source_snapshots WHERE source_handle = ? AND revision = ?",
+                        key,
+                    ).fetchone()
+            except sqlite3.DatabaseError as exc:
+                raise PublicSourceObservationStoreError("source snapshot could not be stored") from exc
+            if actual != values:
+                raise PublicSourceObservationStoreError("acquired source snapshot changed")
+        self._snapshots[key] = row
 
     def remember_read(self, observation: Mapping[str, Any]) -> dict[str, Any]:
         stored = {field: observation[field] for field in _READ_FIELDS}
@@ -218,6 +248,12 @@ class PublicSourceObservationStore:
                     "content_sha256 TEXT NOT NULL, "
                     "PRIMARY KEY (source_handle, revision, source_path))"
                 )
+                database.execute(
+                    "CREATE TABLE IF NOT EXISTS source_snapshots "
+                    "(source_handle TEXT NOT NULL, revision TEXT NOT NULL, "
+                    "descriptor_json TEXT NOT NULL, descriptor_hash TEXT NOT NULL, "
+                    "PRIMARY KEY (source_handle, revision))"
+                )
                 for key, expected in (
                     ("schema_version", "1"),
                     ("provider", self.provider),
@@ -235,6 +271,7 @@ class PublicSourceObservationStore:
                         )
                 results = database.execute("SELECT * FROM source_results").fetchall()
                 reads = database.execute("SELECT * FROM source_reads").fetchall()
+                snapshots = database.execute("SELECT * FROM source_snapshots").fetchall()
         except sqlite3.DatabaseError as exc:
             raise PublicSourceObservationStoreError(
                 "public source store is unreadable"
@@ -296,6 +333,15 @@ class PublicSourceObservationStore:
             self._reads[(handle, revision, path)] = stored
             if stored["source_kind"] == "repository":
                 self._revisions.setdefault(handle, set()).add(revision)
+
+        for handle, revision, descriptor_json, descriptor_hash in snapshots:
+            descriptor = _object(descriptor_json)
+            if (
+                revision not in self.revisions(handle)
+                or stable_hash(descriptor) != descriptor_hash
+            ):
+                raise PublicSourceObservationStoreError("source snapshot identity mismatch")
+            self._snapshots[(handle, revision)] = descriptor
 
 
 def _json(value: Mapping[str, Any]) -> str:

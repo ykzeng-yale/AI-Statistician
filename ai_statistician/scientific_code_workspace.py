@@ -54,6 +54,7 @@ from .research_source_library import (
     research_source_client_tools,
 )
 from .research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
     ResearchSourceDiscovery,
@@ -1993,7 +1994,7 @@ def run_scientific_code_workspace(
             raise ValueError("scientific checkpoint research source refs are malformed")
         prior_research_source_refs = [deepcopy(dict(row)) for row in prior_refs]
         if research_source_discovery is None and any(
-            row.get("tool") in {RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, RESEARCH_SOURCE_DISCOVERY_READ_TOOL}
+            row.get("tool") in {RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, RESEARCH_SOURCE_DISCOVERY_READ_TOOL, RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL}
             for row in prior_research_source_refs
         ):
             raise ValueError(
@@ -2042,6 +2043,10 @@ def run_scientific_code_workspace(
         script_execution_available=resolved_session_dir is not None,
         research_sources_available=research_sources is not None,
         research_source_discovery_available=research_source_discovery is not None,
+        research_repository_acquisition_available=bool(
+            research_source_discovery is not None
+            and research_source_discovery.descriptor().get("repository_snapshot_acquisition_allowed") is True
+        ),
     )
     research_source_refs = prior_research_source_refs
 
@@ -2205,7 +2210,7 @@ def run_scientific_code_workspace(
                 content=observation,
                 observation_key=call.name + ":" + stable_hash(source_ref),
             )
-        if call.name in {RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, RESEARCH_SOURCE_DISCOVERY_READ_TOOL}:
+        if call.name in {RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, RESEARCH_SOURCE_DISCOVERY_READ_TOOL, RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL}:
             assert research_source_discovery is not None
             try:
                 observation, source_ref, is_error = (
@@ -3319,6 +3324,7 @@ def _scientific_code_tools(
     script_execution_available: bool = False,
     research_sources_available: bool = False,
     research_source_discovery_available: bool = False,
+    research_repository_acquisition_available: bool = False,
 ) -> tuple[ClientToolDefinition, ...]:
     edit_schema = deepcopy(model_exact_text_edit_json_schema())
     edit_schema["properties"]["path"] = {
@@ -3497,7 +3503,9 @@ def _scientific_code_tools(
     ]
     source_tools = [
         *(
-            research_source_discovery_client_tools()
+            research_source_discovery_client_tools(
+                repository_acquisition=research_repository_acquisition_available,
+            )
             if research_source_discovery_available
             else ()
         ),

@@ -32,6 +32,7 @@ from ai_statistician.research_source_library import (
     load_research_source_snapshot,
 )
 from ai_statistician.research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
     PublicResearchSourceDiscovery,
@@ -488,6 +489,34 @@ def test_same_theory_model_discovers_and_reads_public_source_without_a_scout_age
     persisted_evidence = json.dumps(result.evidence)
     assert "exact asymptotic variance is finite" not in persisted_evidence.lower()
     assert "research source text omitted" in persisted_evidence
+
+
+def test_same_theory_owner_acquires_and_reads_a_repository(discovered_repository):
+    fixture = discovered_repository
+    handle, revision = fixture["handle"], fixture["revision"]
+    calls = [
+        (RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, {"query": "fixture", "source_kind": "repository"}),
+        (RESEARCH_SOURCE_DISCOVERY_READ_TOOL, {"source_handle": handle}),
+        (RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL, {"source_handle": handle, "revision": revision}),
+        (RESEARCH_SOURCE_DISCOVERY_READ_TOOL, {"source_handle": handle, "revision": revision, "path": "pkg/method.py"}),
+        (THEORY_WORKSPACE_WRITE_TOOL, _artifact_writes({
+            "problem_card": {"claim": "revised claim"}, "lemma_cards": [{"id": "fixture-claim"}],
+        })),
+    ]
+    backend = ScriptedTheoryWorkspaceBackend([
+        *[_response(ClientToolCall(call_id=str(index), name=name, input=inputs))
+          for index, (name, inputs) in enumerate(calls)],
+        _response(_commit_checkpoint()),
+    ])
+    result = _run_workspace(backend, research_source_discovery=fixture["discovery"], max_turns=6)
+    assert len(fixture["acquisitions"]) == 1
+    assert RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL in {tool.name for tool in backend.requests[0].tools}
+    observation = json.loads(backend.requests[4].messages[-1]["content"][0]["content"])
+    assert observation["content"] == fixture["files"]["pkg/method.py"]
+    acquisitions = [row for row in result.evidence["source_discovery_read_refs"]
+                    if row["tool"] == RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL]
+    assert len(acquisitions) == 1 and acquisitions[0]["revision"] == revision
+    assert not result.evidence["kernel_verified"]
 
 
 def test_theory_progress_resume_reopens_exact_discovered_source_without_network(

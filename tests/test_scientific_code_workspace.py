@@ -51,6 +51,7 @@ from ai_statistician.research_source_library import (
     load_research_source_snapshot,
 )
 from ai_statistician.research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
 )
@@ -284,6 +285,65 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
         project_files=result.code_draft["project_files"],
     )
     assert published_source not in str(result.evidence)
+
+
+def test_same_scientific_owner_acquires_imports_and_executes_repository(discovered_repository, tmp_path):
+    fixture = discovered_repository
+    handle, revision = fixture["handle"], fixture["revision"]
+    source = fixture["files"]["pkg/method.py"]
+    main = "from method import marker\n\ndef run_sandbox(seed, replicates):\n    return {'value': marker()}\n"
+    calls = [
+        (RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, {"query": "fixture", "source_kind": "repository"}),
+        (RESEARCH_SOURCE_DISCOVERY_READ_TOOL, {"source_handle": handle}),
+        (RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL, {"source_handle": handle, "revision": revision}),
+        (SCIENTIFIC_SOURCE_SUBMISSION_TOOL, {
+            "language": "python", "execution_profile": "stdlib", "dependencies": [],
+            "entrypoint": "run_sandbox", "code": main,
+        }),
+        (RESEARCH_SOURCE_DISCOVERY_READ_TOOL, {"source_handle": handle, "revision": revision, "path": "pkg/method.py"}),
+        (SCIENTIFIC_PROJECT_RESEARCH_SOURCE_IMPORT_TOOL, {"imports": [{
+            "source_origin": "discovered_repository", "source_id": handle,
+            "revision": revision, "source_path": "pkg/method.py", "project_path": "method.py",
+            "expected_content_sha256": hashlib.sha256(source.encode()).hexdigest(),
+        }]}),
+    ]
+    backend = ScriptedScientificBackend([
+        *[_response(ClientToolCall(call_id=str(index), name=name, input=inputs))
+          for index, (name, inputs) in enumerate(calls)],
+        _run_response(), _commit_response(),
+    ])
+    executions = []
+
+    def check(candidate):
+        execution = execute_scientific_sandbox(
+            sandbox_dir=tmp_path / "sandbox", artifact_id="acquired-project-import",
+            language=candidate["language"], code=candidate["code"],
+            project_files=candidate.get("project_files", []), dependencies=[],
+            seed=0, replicates=1, timeout_s=30,
+        )
+        executions.append(execution)
+        return {
+            "code_draft_hash": stable_hash(dict(candidate)),
+            "accepted": execution.status == "EXECUTED" and execution.metrics == {"value": 17},
+            "execution_status": execution.status, "metrics": execution.metrics,
+            "errors": list(execution.errors),
+        }
+
+    result = run_scientific_code_workspace(
+        provider=backend, system_prompt="Use exact project sources.", user_prompt="Inspect and execute a project.",
+        model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
+        max_tokens=1200, max_turns=8, max_no_progress_turns=3,
+        artifact_id="question:acquired-project", initial_code_draft=None,
+        initial_check_result={"accepted": False}, check_candidate=check,
+        workspace_operation="initial_authoring", research_source_discovery=fixture["discovery"],
+    )
+    assert len(executions) == len(fixture["acquisitions"]) == 1
+    assert result.check_result["accepted"]
+    assert result.code_draft["code"] == main
+    assert result.code_draft["project_files"][0]["content"] == source
+    assert RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL in {tool.name for tool in backend.requests[0].tools}
+    assert any(row["tool"] == RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL
+               for row in result.evidence["research_source_refs"])
 
 
 def test_public_source_file_batch_is_atomic_when_one_exact_read_drifts() -> None:

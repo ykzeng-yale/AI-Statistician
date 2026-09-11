@@ -46,6 +46,7 @@ from .research_source_library import (
     source_replication_model_observation,
 )
 from .research_source_discovery import (
+    RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
     RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL,
     ResearchSourceDiscovery,
@@ -815,6 +816,10 @@ def run_theory_artifact_workspace(
         scratchpad_enabled=scratchpad is not None,
         research_sources_enabled=research_sources is not None,
         research_source_discovery_enabled=research_source_discovery is not None,
+        research_repository_acquisition_enabled=bool(
+            research_source_discovery is not None
+            and research_source_discovery.descriptor().get("repository_snapshot_acquisition_allowed") is True
+        ),
         research_source_execution_enabled=research_source_execution is not None,
         model_selected_source_execution=model_selected_source_execution,
         source_replication_checkpoint_enabled=allow_source_replication_checkpoint,
@@ -1393,7 +1398,7 @@ def run_theory_artifact_workspace(
                 observation_key=call.name + ":" + stable_hash(source_ref),
             )
 
-        if call.name in {RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, RESEARCH_SOURCE_DISCOVERY_READ_TOOL}:
+        if call.name in {RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL, RESEARCH_SOURCE_DISCOVERY_READ_TOOL, RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL}:
             if research_source_discovery is None:
                 raise ClientToolInputError(
                     "public research source discovery is unavailable"
@@ -3233,6 +3238,7 @@ def _theory_workspace_tools(
     scratchpad_enabled: bool = False,
     research_sources_enabled: bool = False,
     research_source_discovery_enabled: bool = False,
+    research_repository_acquisition_enabled: bool = False,
     research_source_execution_enabled: bool = False,
     model_selected_source_execution: bool = False,
     source_replication_checkpoint_enabled: bool = False,
@@ -3311,7 +3317,9 @@ def _theory_workspace_tools(
     if research_sources_enabled:
         tools.extend(research_source_client_tools())
     if research_source_discovery_enabled:
-        tools.extend(research_source_discovery_client_tools())
+        tools.extend(research_source_discovery_client_tools(
+            repository_acquisition=research_repository_acquisition_enabled,
+        ))
     if research_source_execution_enabled:
         tools.extend(
             (

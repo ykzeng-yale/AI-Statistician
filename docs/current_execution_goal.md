@@ -110,6 +110,9 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 
 1. Connect the existing source-discovery, snapshot, file-import, and execution
    surfaces so the product model can prepare and operate a research project.
+   The source-owner tool now connects public discovery to exact Git acquisition,
+   persistent offline reads, and existing scientific file imports. This is
+   mechanism coverage, not autonomous environment preparation or replication.
    Investigate the standalone Anthropic sandbox runtime as a narrow native
    command backend, without Claude Code. Verify isolation before adoption;
    dependency acquisition and frozen offline execution remain separate.

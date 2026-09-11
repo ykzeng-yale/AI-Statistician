@@ -228,8 +228,17 @@ def _run_public_git(
             env=environment,
             timeout=timeout_seconds,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        raise ValueError("public GitHub repository acquisition failed") from exc
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        streams = [
+            value.decode("utf-8", errors="replace") if isinstance(value, bytes) else str(value or "")
+            for value in (exc.stdout, exc.stderr)
+        ]
+        raise ValueError(
+            f"public GitHub repository acquisition failed: {exc}\n"
+            f"stdout:\n{streams[0]}\nstderr:\n{streams[1]}"
+        ) from exc
+    except OSError as exc:
+        raise ValueError(f"public GitHub repository acquisition failed: {exc}") from exc
 
 
 def freeze_git_repository_snapshot(

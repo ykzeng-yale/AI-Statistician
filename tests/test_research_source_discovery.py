@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 import urllib.parse
 
@@ -11,10 +12,107 @@ from ai_statistician.research_source_discovery import (
     PublicResearchSourceDiscovery,
     PublicResearchSourceDiscoveryConfig,
     RESEARCH_SOURCE_DISCOVERY_READ_TOOL,
+    RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
     ResearchSourceDiscoveryError,
     ResearchSourceDiscoveryInputError,
     execute_research_source_discovery_client_tool,
+    research_source_discovery_client_tools,
 )
+
+
+def test_acquired_repository_is_exact_durable_and_readable_without_network(discovered_repository, monkeypatch):
+    fixture = discovered_repository
+    discovery, handle, revision = (fixture[key] for key in ("discovery", "handle", "revision"))
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="discovered repository"):
+        discovery.acquire_repository(handle, revision=revision)
+    discovery.search("fixture", source_kind="repository")
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="resolved revision"):
+        discovery.acquire_repository(handle, revision=revision)
+    discovery.read(handle)
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="resolved revision"):
+        discovery.acquire_repository(handle, revision="a" * 40)
+
+    observation, ref, error = execute_research_source_discovery_client_tool(
+        discovery, tool_name=RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
+        tool_input={"source_handle": handle, "revision": revision},
+    )
+    assert not error and ref["snapshot"]["document_count"] == len(fixture["files"])
+    assert ref["snapshot"]["repository_identity"]["git_commit"] == revision
+    assert "content" not in ref and "manifest_path" not in ref["snapshot"]
+    assert "NOT_PROOF_EVIDENCE" in ref["proof_evidence_status"]
+    assert fixture["acquisitions"][0]["source_horizon"] == "2025-12-31"
+    assert fixture["acquisitions"][0]["repository_url"] == "https://github.com/fixture/project"
+    resumed = discovery.new_session()
+    monkeypatch.setattr(resumed, "_json_fetcher", lambda *_: pytest.fail("acquired project must read offline"))
+    assert resumed.acquire_repository(handle, revision=revision) == observation
+    assert len(fixture["acquisitions"]) == 1
+    assert "pkg/method.py" in resumed.read(handle, revision=revision, path="pkg")["content"]
+    assert resumed.read(handle, revision=revision, path="pkg/method.py")["content"] == fixture["files"]["pkg/method.py"]
+    assert resumed.read(handle, revision=revision, path="pkg/__init__.py")["content"] == ""
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="UTF-8"):
+        resumed.read(handle, revision=revision, path="assets/raw.bin")
+    with pytest.raises(ResearchSourceDiscoveryInputError, match="does not exist"):
+        resumed.read(handle, revision=revision, path="missing.py")
+
+    snapshot_dir = fixture["acquisitions"][0]["output_dir"]
+    (snapshot_dir / "repository/pkg/method.py").write_text("changed bytes\n")
+    for action in (
+        lambda: resumed.read(handle, revision=revision, path="pkg/method.py"),
+        lambda: resumed.acquire_repository(handle, revision=revision),
+    ):
+        with pytest.raises(ResearchSourceDiscoveryError, match="unavailable"):
+            action()
+    assert len(fixture["acquisitions"]) == 1
+
+
+def test_acquisition_tool_reports_failure_without_repair_or_authority(discovered_repository, monkeypatch):
+    from ai_statistician import research_source_discovery as module
+
+    discovery = discovered_repository["discovery"]
+    handle, revision = discovered_repository["handle"], discovered_repository["revision"]
+    discovery.search("fixture", source_kind="repository")
+    discovery.read(handle)
+    diagnostic = "unfamiliar acquisition diagnostic: " + "q" * 1500
+
+    def fail(**_kwargs):
+        raise ValueError(diagnostic)
+
+    monkeypatch.setattr(module, "acquire_public_github_repository_snapshot", fail)
+    observation, ref, error = execute_research_source_discovery_client_tool(
+        discovery, tool_name=RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
+        tool_input={"source_handle": handle, "revision": revision},
+    )
+    assert error and not ref and observation["detail"] == diagnostic
+    assert not discovery._observations.snapshot(handle, revision)
+    for extra in ({"output_dir": "/tmp/other"}, {"source_horizon": "2099-01-01"}):
+        with pytest.raises(ResearchSourceDiscoveryInputError, match="accepts only"):
+            execute_research_source_discovery_client_tool(
+                discovery, tool_name=RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL,
+                tool_input={"source_handle": handle, "revision": revision, **extra},
+            )
+    assert RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL not in {
+        tool.name for tool in research_source_discovery_client_tools()
+    }
+    assert RESEARCH_SOURCE_DISCOVERY_ACQUIRE_TOOL in {
+        tool.name for tool in research_source_discovery_client_tools(repository_acquisition=True)
+    }
+
+
+def test_acquired_manifest_cannot_change_its_pinned_descriptor(discovered_repository, monkeypatch):
+    from ai_statistician import research_source_discovery as module
+
+    fixture = discovered_repository
+    discovery, handle, revision = (fixture[key] for key in ("discovery", "handle", "revision"))
+    discovery.search("fixture", source_kind="repository")
+    discovery.read(handle)
+    discovery.acquire_repository(handle, revision=revision)
+    manifest = fixture["acquisitions"][0]["output_dir"] / "sources.json"
+    payload = json.loads(manifest.read_text())
+    payload["snapshot_id"] = "different-source-identity"
+    manifest.write_text(json.dumps(payload))
+    monkeypatch.setattr(module, "load_research_source_snapshot", lambda *_: pytest.fail("reject changed manifest before opening its files"))
+    with pytest.raises(ResearchSourceDiscoveryError, match="snapshot identity changed"):
+        discovery.new_session().read(handle, revision=revision, path="pkg/method.py")
 
 
 def test_public_paper_discovery_is_horizon_bound_and_handle_scoped() -> None:

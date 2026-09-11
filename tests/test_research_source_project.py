@@ -439,6 +439,24 @@ def test_git_project_snapshot_does_not_lazy_fetch_missing_blobs(
     assert not (tmp_path / "partial-snapshot").exists()
 
 
+@pytest.mark.parametrize("failure", ["exit", "timeout"])
+def test_public_git_failure_preserves_unknown_stdout_and_stderr(tmp_path, monkeypatch, failure):
+    stdout, stderr = b"opaque progress\n", b"unfamiliar environment diagnostic\n"
+
+    def fail(command, **_kwargs):
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(command, 1, output=stdout, stderr=stderr)
+        raise subprocess.CalledProcessError(71, command, output=stdout, stderr=stderr)
+
+    monkeypatch.setattr(research_source_project_module.subprocess, "run", fail)
+    with pytest.raises(ValueError) as error:
+        research_source_project_module._run_public_git(
+            ["git", "fetch"], private_home=tmp_path, timeout_seconds=1,
+        )
+    assert stdout.decode() in str(error.value)
+    assert stderr.decode() in str(error.value)
+
+
 def test_public_github_project_acquisition_fetches_exact_commit_without_credentials(
     tmp_path: Path,
     capsys,

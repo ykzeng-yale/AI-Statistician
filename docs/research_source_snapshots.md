@@ -9,6 +9,20 @@ ai-statistician research-agent-runtime \
   ...
 ```
 
+With `--public-research-source-discovery --research-source-horizon YYYY-MM-DD`
+and a durable output directory, Theory and Scientific source owners can also call
+`acquire_discovered_research_repository(source_handle, revision)`. The model first
+discovers a repository and resolves its commit using the existing source-read tool.
+Acquisition reuses the Git fetch/freezer below; the model cannot change the host,
+storage location, credentials or source horizon. The returned snapshot identity
+is retained in the existing source observation store and workspace provenance.
+Subsequent `read_discovered_research_source` calls and scientific file imports
+read exact local bytes without network. Reacquisition checks the existing snapshot,
+never silently refetches a missing or changed pinned project. Acquiring a repository
+does not execute it, install dependencies or satisfy a replication requirement.
+Frozen benchmarks keep their existing source policy; reviewers are not given the
+acquisition tool. Native dependency/environment preparation remains incomplete.
+
 For a public GitHub repository, an operator or evaluator can acquire one exact full
 commit without ambient credentials and immediately freeze it:
 
