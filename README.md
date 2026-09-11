@@ -76,7 +76,8 @@ an enabled value must be at least 1024 and below each affected request's
 fresh run. The resolved request uses automatic tool selection, preserves signed
 thinking blocks and binds the budget into session identity. It does not enable
 interleaved thinking, escalate models or change tool-free Architect calls.
-Hidden-gold reviewers use retained document/scratch tools with thinking explicitly off.
+Hidden-gold reviewers use the same explicit setting; qualification and candidate
+review must share its frozen value. Changing it invalidates prior qualification.
 This is supported transport, not demonstrated improvement in scientific accuracy.
 See [Anthropic's thinking documentation](https://platform.claude.com/docs/en/build-with-claude/extended-thinking).
 

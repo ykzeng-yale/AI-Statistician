@@ -251,7 +251,6 @@ def _semantic_review_request(
         max_tokens=max_tokens,
         temperature=0.0,
         tool_choice="auto",
-        thinking_budget_tokens=0,
         disable_parallel_tool_use=True,
         enable_prompt_caching=True,
         metadata=dict(metadata or {}),

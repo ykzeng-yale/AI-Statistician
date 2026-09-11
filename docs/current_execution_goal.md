@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, bind semantic qualification to its exact question context.
+Updated: 2026-09-11, use one explicit native-thinking configuration for retained workspaces.
 
 ## Operative Objective
 
@@ -127,6 +127,12 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    question shown to the reviewer, not just its task ID. Changed or missing context
    identity cannot reuse an old qualification or trigger automatic requalification.
    This does not change the review prompt, solve scope overreach, or activate GMM.
+   Hidden reviewers now honor the existing explicit Haiku thinking setting instead
+   of overriding it with zero. Default-off behavior and acceptance rules stay
+   unchanged; changed configuration requires fresh independent qualification.
+   The next full research experiment can use native model reasoning without a
+   second reviewer framework. Its efficacy remains unproven, and no consumed
+   task or control may be reused to tune or qualify it.
 4. Improve the existing source-project and Python/R environment only where real
    reproduction exposes a general limitation. Pinned source execution exists;
    arbitrary paper/data/environment reconstruction remains incomplete.
@@ -156,7 +162,15 @@ document is a forward work contract, not a growing chronology of fixes.
   The default budget stays zero; the pilot compared a configuration bundle, not
   the isolated causal effect of thinking tokens.
   Hidden-gold protocols 22/23 retain complete read-only candidate/reference files,
-  scratch tools, thinking explicitly off, and private Markdown referee reports.
+  scratch tools and private Markdown referee reports. They now honor the same
+  explicit thinking setting, bound by the existing qualification/session hash;
+  past evaluations remain frozen with their original zero budget.
+  Prospectively, the next full research experiment uses thinking 16384 and
+  max_tokens 32768 for every retained author/reviewer workspace, with a 600-second
+  request timeout. Tool-free Architect behavior and existing workspace/outer
+  action budgets stay unchanged. Freeze the exact task and independent authority
+  before calls; this configuration decision does not activate a task or establish
+  efficacy, and is not permission to repeat any consumed evaluation.
   File-backed input is not a mathematical correction. Failed or older
   authority cannot silently qualify, resume or rerun. Tool access and reduced
   wasted calls are mechanism changes, not evidence of improved judgment.

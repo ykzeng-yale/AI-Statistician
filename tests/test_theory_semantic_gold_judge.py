@@ -1186,6 +1186,37 @@ def test_review_sampling_contract_cannot_change_after_activation() -> None:
     assert provider.requests == []
 
 
+@pytest.mark.parametrize("budget", [0, 2048])
+@pytest.mark.parametrize("strategy", ["integrated_single", "integrated_plus_adversarial"])
+def test_review_inherits_and_freezes_native_thinking_configuration(monkeypatch, budget, strategy) -> None:
+    setting = "AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS"
+    monkeypatch.setenv(setting, str(budget))
+    packets = [*_keyed_calibration_packets(), _keyed_candidate_packet()]
+    if strategy == "integrated_plus_adversarial":
+        packets = [packet for packet in packets for _ in range(2)]
+    provider = _RecordingProvider(packets)
+    activation = _run(provider, candidate_is_reference=True,
+                      candidate_adjudication_strategy=strategy)
+    frozen = deepcopy(activation)
+    assert activation["passed"] is True  # Synthetic transport, not scientific evidence.
+    assert all(request.native.thinking_budget_tokens == budget for request in provider.requests)
+    assert all(request.native.model == LIVE_EVALUATION_CLAUDE_MODEL for request in provider.requests)
+
+    candidate_provider = _RecordingProvider([_keyed_candidate_packet()] * 2)
+    candidate = _run(candidate_provider, activation_judgment=activation,
+                     candidate_adjudication_strategy=strategy)
+    assert candidate["passed"] is True
+    assert all(request.native.thinking_budget_tokens == budget for request in candidate_provider.requests)
+
+    monkeypatch.setenv(setting, "1024")
+    changed_provider = _RecordingProvider([])
+    with pytest.raises(ValueError, match="review_contract_hash mismatch"):
+        _run(changed_provider, activation_judgment=activation,
+             candidate_adjudication_strategy=strategy)
+    assert changed_provider.requests == []
+    assert activation == frozen
+
+
 def test_review_workspaces_are_isolated_and_tool_use_is_not_mandatory() -> None:
     provider = _RecordingProvider([*_keyed_calibration_packets(), _keyed_candidate_packet()])
     result = _run(provider)
