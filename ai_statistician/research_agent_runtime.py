@@ -14005,10 +14005,6 @@ def _formalizer_semantic_review_continuation_task(
     )
 
 
-class FormalizerDirectWorkspaceUnavailableError(RuntimeError):
-    """The canonical model-owned Lean tool workspace cannot start."""
-
-
 class FormalizerWorkspaceRuntimeSubsystem:
     """One model-owned Lean workspace exposed through two task entry names."""
 
@@ -14363,9 +14359,13 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         client_tool_workspace
                     )
                 else:
-                    raise FormalizerDirectWorkspaceUnavailableError(
-                        "Formalizer direct Lean workspace unavailable; structured "
-                        "proposal fallback is disabled"
+                    return AgentStepResult(
+                        status="BLOCKED",
+                        rationale=(
+                            "Formalizer direct Lean workspace unavailable; no "
+                            "generation fallback or automatic restart was attempted."
+                        ),
+                        failure_classification="formalizer_direct_workspace_unavailable",
                     )
             except PacketValidationError as exc:
                 return _formalizer_packet_validation_failure_result(
@@ -14377,16 +14377,6 @@ class FormalizerWorkspaceRuntimeSubsystem:
                         exc=exc,
                         environment_feedback=environment_feedback,
                         workspace_artifacts=produced_artifacts,
-                )
-            except Exception as exc:
-                return _formalizer_provider_failure_result(
-                        task=task,
-                        question=question,
-                        theory_packet_id=packet_id,
-                        simulation_manifest_id=simulation_manifest_id,
-                        algorithm_sandbox_manifest_id=algorithm_sandbox_manifest_id,
-                        environment_feedback=environment_feedback,
-                        exc=exc,
                 )
             proposal_source = "llm_formalizer_proof_engineer_proposal"
         if proposal_packet is not None:
@@ -15468,105 +15458,6 @@ class FormalizerWorkspaceRuntimeSubsystem:
             failure_classification=failure_classification,
         )
 
-
-def _formalizer_provider_failure_classification(exc: Exception) -> str:
-    name = type(exc).__name__.lower()
-    text = str(exc).lower()
-    haystack = f"{name} {text}"
-    if isinstance(exc, FormalizerDirectWorkspaceUnavailableError):
-        return "formalizer_direct_workspace_unavailable"
-    if "timeout" in haystack or "timed out" in haystack:
-        return "provider_timeout_error"
-    if (
-        "connection" in haystack
-        or "network" in haystack
-        or "dns" in haystack
-        or "host resolution" in haystack
-        or "temporarily unavailable" in haystack
-        or "server error" in haystack
-        or "overloaded" in haystack
-    ):
-        return "provider_connection_error"
-    return "formalizer_provider_generation_failed"
-
-
-def _formalizer_provider_failure_result(
-    *,
-    task: AgentTask,
-    question: OpenResearchQuestion,
-    theory_packet_id: str,
-    simulation_manifest_id: str,
-    algorithm_sandbox_manifest_id: str,
-    environment_feedback: Mapping[str, Any],
-    exc: Exception,
-) -> AgentStepResult:
-    """Record one terminal provider failure without restarting the workspace."""
-
-    failure_classification = _formalizer_provider_failure_classification(exc)
-    failure_summary = f"{type(exc).__name__}: {str(exc)[:2000]}"
-    failure_id = "formalizer_provider_failure:" + stable_hash(
-        [
-            task.task_id,
-            theory_packet_id,
-            failure_classification,
-            failure_summary,
-        ]
-    )[:20]
-    prior_observations = deepcopy(dict(environment_feedback))
-    feedback = {
-        "schema_version": RUNTIME_SCHEMA_VERSION,
-        "artifact_kind": "FormalizerProviderObservation",
-        "failure_id": failure_id,
-        "failure_classification": failure_classification,
-        "provider_error": failure_summary,
-        "automatic_workspace_restart": False,
-        "prior_environment_observations": prior_observations,
-        "runtime_edits_source": False,
-        "runtime_selects_mathematics_or_lean": False,
-        "proof_evidence_status": "FORMALIZER_PROVIDER_FAILURE_NOT_PROOF_EVIDENCE",
-        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
-    }
-    artifact = {
-        **feedback,
-        "artifact_kind": "RuntimeFormalizerProviderFailure",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "question": _question_to_payload(question),
-        "task_id": task.task_id,
-        "theory_packet_id": theory_packet_id,
-        "simulation_manifest_id": simulation_manifest_id,
-        "algorithm_sandbox_manifest_id": algorithm_sandbox_manifest_id,
-    }
-
-    evidence = EvidenceLedgerEntry(
-        evidence_id="evidence:" + stable_hash([task.task_id, failure_id])[:20],
-        task_id=task.task_id,
-        artifact_id=failure_id,
-        evidence_type="formalizer_provider_failure",
-        status="FORMALIZER_PROVIDER_FAILURE_RECORDED_NOT_PROOF_EVIDENCE",
-        boundary=KERNEL_PROOF_BOUNDARY,
-        payload={
-            "failure_classification": failure_classification,
-            "automatic_workspace_restart": False,
-            "proof_evidence_status": artifact["proof_evidence_status"],
-        },
-    )
-    return AgentStepResult(
-        status="BLOCKED",
-        rationale=(
-            "The terminal provider failure was recorded without restarting the "
-            "Formalizer workspace or promoting proof evidence."
-        ),
-        produced_artifacts={failure_id: artifact},
-        observations=(
-            EnvironmentObservation(
-                observation_type="formalizer_provider_failure",
-                summary=failure_classification,
-                payload=feedback,
-            ),
-        ),
-        evidence_entries=(evidence,),
-        failure_classification=failure_classification,
-    )
 
 def _formalizer_packet_validation_failure_result(
     *,

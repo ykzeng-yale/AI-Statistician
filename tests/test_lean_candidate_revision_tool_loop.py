@@ -13,6 +13,7 @@ from ai_statistician.client_tool_loop import (
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import (
+    AgentRuntime,
     AgentTask,
     BlackboardState,
     RUNTIME_CONTINUATION_BUDGET_MARKER_KEY,
@@ -4240,15 +4241,107 @@ def test_formalizer_workspace_hydrates_observation_ref_before_source_loop(
         proposal_agent=SameSourceOwner(),
     )
 
-    result = subsystem.run(task, blackboard)
-
-    assert result.failure_classification == "formalizer_provider_generation_failed"
+    with pytest.raises(RuntimeError, match="stop after hydration observation"):
+        subsystem.run(task, blackboard)
     assert captured["environment_feedback"]["formalizer_recovery_checkpoint"] == (
         checkpoint
     )
     assert captured["task_environment_feedback"] == stored_feedback
     assert task.owner_subsystem == source_task.owner_subsystem
     assert task.inputs["formalizer_workspace_continuation_count"] == 1
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        TypeError("unexpected workspace result"),
+        ValueError("network field is invalid"),
+        RuntimeError("timeout counter is inconsistent"),
+    ],
+)
+def test_formalizer_harness_failure_uses_shared_runtime_boundary(
+    monkeypatch, failure,
+) -> None:
+    attempts = []
+
+    def fail_workspace(**kwargs):
+        attempts.append(kwargs["task"])
+        raise failure
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_formalizer_lean_candidate_client_tool_workspace",
+        fail_workspace,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_formalizer_client_tool_workspace_available",
+        lambda **kwargs: True,
+    )
+    monkeypatch.setattr(runtime_module, "evaluate_lean_kernel_promotion", lambda **kwargs: None)
+    task = AgentTask(
+        task_id="formalize:harness-failure",
+        owner_subsystem="FormalizationEvaluator",
+        objective="Preserve an unexpected workspace failure without guessing its cause.",
+        inputs={"question": {
+            "id": "harness-failure",
+            "description": "Exercise the workspace exception boundary.",
+        }},
+    )
+    subsystem = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
+        proposal_agent=object(),
+        formal_source_retriever=object(),
+    )
+    result = AgentRuntime(
+        subsystems={task.owner_subsystem: subsystem},
+        blackboard=BlackboardState(project_id="harness-failure"),
+    ).run(task)
+
+    assert result.status == "FAILED"
+    assert len(attempts) == len(result.traces) == 1
+    assert result.traces[0].failure_classification == "subsystem_exception"
+    observation = result.traces[0].observations[0]
+    assert observation.payload["exception_type"] == type(failure).__name__
+    assert observation.summary == str(failure)
+    assert observation.payload["automatic_subsystem_restart"] is False
+    assert result.pending_task == task
+    assert result.pending_task_checkpoint_reason == "terminal_subsystem_error"
+    assert not result.traces[0].evidence_ids
+
+
+def test_formalizer_missing_workspace_blocks_without_generation_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runtime_module,
+        "_runtime_formalizer_client_tool_workspace_available",
+        lambda **kwargs: False,
+    )
+    monkeypatch.setattr(runtime_module, "evaluate_lean_kernel_promotion", lambda **kwargs: None)
+
+    class SourceOwner:
+        def propose(self, **kwargs):
+            pytest.fail("missing workspace must not invoke a generation fallback")
+
+    result = runtime_module.FormalizerWorkspaceRuntimeSubsystem(
+        proposal_agent=SourceOwner(),
+        formal_source_retriever=object(),
+    ).run(
+        AgentTask(
+            task_id="formalize:unavailable",
+            owner_subsystem="FormalizationEvaluator",
+            objective="Report the unavailable workspace.",
+            inputs={"question": {
+                "id": "unavailable",
+                "description": "Exercise the unavailable workspace boundary.",
+            }},
+        ),
+        BlackboardState(project_id="unavailable"),
+    )
+
+    assert result.status == "BLOCKED"
+    assert result.failure_classification == "formalizer_direct_workspace_unavailable"
+    assert result.next_task is None
+    assert not result.produced_artifacts
+    assert not result.evidence_entries
 
 
 def test_kernel_verified_formalizer_source_skips_repeat_semantic_review(

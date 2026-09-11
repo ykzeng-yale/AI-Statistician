@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, with artifact-scoped reviewer instructions; no new product draw.
+Updated: 2026-09-11, removing redundant Formalizer exception handling; no new product draw.
 
 ## Operative Objective
 
@@ -106,7 +106,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    tool instructions. Implemented in this revision; verification is recorded in status.
 2. Prioritize complete source and observation access for the same owning model.
    Both suffix heuristics and the remaining explicit field-name blacklists have
-   now been removed, including Formalizer and Lean startup/continuation filtering. Their historical
+   now been removed, including Formalizer and Lean startup/continuation filtering.
+   The catch-all provider-error classifier and duplicate Formalizer failure artifacts
+   are also removed: unavailable tools report configuration status, while unexpected
+   harness failures use the existing outer exception boundary. Historical repair
    recipe producers were largely offline utilities; live feedback could still lose
    model methods and raw tool diagnostics solely because of a dictionary key.
    Theory and scientific feedback now preserve permitted text and structured data
