@@ -1,10 +1,10 @@
 {
-  "schema_version": 458,
+  "schema_version": 459,
   "updated_at": "2026-09-11",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Verified the prospective shared referee interface change at 5b53ba39: native claim support and document-wide error assessment replace ambiguous completion/contradiction labels, with no extra reviewer, tool, retry or mathematical parser. All 1444 tests passed in 298.03 seconds. The existing acceptance conjunction, qualification criteria and immutable records remain enforced. No live model call, qualification or product draw occurred; mathematical efficacy is unestablished. Conditional-quantile protocol-21 qualification remains failed and unactivated, along with every earlier failed authority. Stop topic substitution and benchmark-answer patches; the research goal is still unmet.",
+  "execution_status": "Removed the canonical Architect's whole-packet phrase blacklist, which rejected negated, quoted and prospective proof/execution statements despite existing typed authority checks. Deleted the offline keyword-authored theory revision and downstream formal-obligation chain, CLI commands and smoke fields without replacement. Source/error variation tests preserve same-owner, exact-source iteration. No prompt, evaluator protocol or acceptance gate changed. Latest linear IV/GMM qualification remains failed: 29 exact-Haiku calls, 1/2 attempted controls correct, no product draw. The model corrected its scratch source but the referee imported executed confirmation into a pre-result design review. Do not convert that judgment error into a runtime recipe or another task substitution. The full research goal remains unmet.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "5b53ba398357e36477f03d2921075b6612121000",
+  "validated_code_head": "379343d13d45d16604fbedd0601a6588f9c0b945",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "fd9c52758f067ee121108a5e48f6987213b93250",
+    "remote_before_current_change": "5a290181a023b854ee274e20ac0a44c1182db799",
     "working_tree_before_current_change": "Clean tracked and untracked tree. Fetched origin and verified canonical and main matched the starting HEAD; no other worker changes were overwritten."
   },
   "capability_facts": {
@@ -200,7 +200,7 @@
     "native_model_capacity": "One typed thinking option in the existing pinned-Haiku request/transport. Enabled requests use automatic tool selection and preserve opaque signed/redacted content; plain-text stopping still requires explicit continuation, never automatic acceptance or resampling."
   },
   "current_design_assessment": {
-    "direction": "The same source-owning model interprets raw observations and authors every scientific revision. The shared hidden referee interface now separates establishing obligations from finding material errors instead of conflating both in VIOLATED. Models retain mathematical judgment and untouched Markdown reports; existing code combines typed judgments without parsing prose or adding calls. Full-task acceptance independently requires every frozen evidence dimension and terminal acceptance. Scientific mistakes alone justify neither runtime error rules nor benchmark-specific prompt recipes; this interface change is not evidence of better mathematics or research-E2E acceptance.",
+    "direction": "The model owns scientific interpretation and every source revision; the harness owns transport, identity, permissions and independent evidence authority. Architect's redundant lexical prose rejection and the offline mathematical revision generator are removed, not replaced with a classifier, prompt rule or repair layer. Typed execution/proof flags still cannot be asserted by the planner. The same-owner tool loop is unchanged. Referee scope and mathematical reliability remain unresolved; deletion and regression tests do not establish improved research capability.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -214,13 +214,13 @@
       "Metric authoring, compact context projections and some role prompts remain oversized. The deleted feedback blacklists are not a general cleanup of all contracts; further simplification needs a demonstrated shared defect, not another field rule, packet type or case-specific instruction. Ordinary observations never grant tool permissions or evidence authority.",
       "Native Haiku thinking transport worked live, but the small paired pilot cannot establish scientific improvement. It does not interleave thinking with tools or raise output ceilings. Keep it opt-in and frozen before a future run. Authorized local .env configuration is available; no historical credential recovery is needed.",
       "Long-horizon mathematical judgment and independent-referee falsification remain unreliable under exact Haiku. Latest internal acceptance failed independent theory, code and empirical gold despite 77 reviewer/Critic turns.",
-      "Firth, MCMC, entropic-transport, PPI, GP, GEE and conditional-quantile qualifications remain failed and unactivated. Protocols 22/23 replace the shared ambiguous submission fields, but only synthetic mechanism evidence exists for this change. Referees may still misjudge mathematics, falsely claim verification or contradict their own reports; the harness must not silently rewrite their judgments from prose. Keep existing qualification criteria and all frozen outcomes unchanged. No rerun, relabeling, reduced scope, extra review layer or another topic chosen merely to obtain a pass.",
+      "All recent failed authorities, including linear IV/GMM under protocol 23, remain unactivated. The newest full reference was marked incomplete because an adversarial referee demanded actual experiments from a pre-result theory design. Both referees reported no material error. The original failed judgment is preserved, not parsed into a replacement verdict. No transport omission or need for a mathematical error-handling rule has been established, and the support/error interface has not qualified a new task. Do not rerun, relabel, reduce scope, add reviewers or substitute another topic to obtain a pass.",
       "General publisher-paper, data and dependency/environment reconstruction remains incomplete; prepared frozen projects and scientific WASM runtimes do not establish arbitrary reproduction.",
       "Outer graph is serial; dependency-selective revalidation and true isolated concurrent work need measured, scoped implementation within the existing runtime.",
       "Formal execution and retrieval must use the same active checkout. Broad cross-version discovery context is not an accessible active-project premise or exact theorem closure.",
       "Prove2Me local mechanisms are adopted, but remote Formalpedia is not connected; source licensing/toolchain limits prohibit treating it as an available proof authority.",
       "Verified cross-task library growth and learned research/tactic policies remain unestablished; retrieval and training-data export are not learning evidence.",
-      "Legacy baselines and historical audit utilities remain non-authoritative. frontier_theory_revision_queue still contains keyword-selected mathematical revision recipes in the offline export path; these were identified, not executed or removed in this live-workspace change. The package and runtime remain near structural regression ceilings, so expansion requires consolidation."
+      "The keyword-selected offline theory revision recipes and their formal-obligation consumer are deleted, including CLI/smoke integration. Other legacy registered baselines and historical audit utilities remain non-authoritative; this is not a claim that the entire repository is free of heuristics. The main runtime and several metric/review contracts still need evidence-led consolidation."
     ],
     "anti_overengineering_boundary": "Do not add agents, retries, fixed reasoning sequences, field-count quotas, theorem-family rules, Lean grammar/tactic patches, repair taxonomies, or framework wrappers merely because a model made a scientific error. Change the harness only for a demonstrated shared authority, state, tool, or feedback defect.",
     "audit_document": "docs/original_goal_harness_redesign_20260909.md"
@@ -233,41 +233,41 @@
     "agent_runtime_lines": 1365,
     "formalizer_llm_lines": 1841,
     "lean_candidate_revision_tool_loop_lines": 2881,
-    "cli_lines": 7053,
-    "top_level_python_modules": 138,
-    "top_level_package_lines": 148968,
+    "cli_lines": 6957,
+    "top_level_python_modules": 136,
+    "top_level_package_lines": 148214,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "5b53ba398357e36477f03d2921075b6612121000",
-    "summary": "Replaced two ambiguous native referee fields with claim_support and error_assessment, shortened the prompt and removed an obsolete submission flag. Missing support alone cannot create a FAIL or acceptance; a model-reported material error still blocks acceptance independently of rubric coverage. The existing reducer and retained loop are reused. One production file changed, net plus one line; no new module, reviewer, tool, retry, statistical recipe or report parser.",
-    "verification": "Focused semantic-judge and gold-evaluation tests passed 153 cases in 12.40 seconds. The final full suite passed 1444 tests in 298.03 seconds. compileall and git diff --check passed. Tests cover support/error combinations for both existing review strategies, unchanged reports, same-owner raw-feedback iteration, unchanged call counts, no automatic translation of obsolete native labels, and rejection of protocols 20/21 before model calls. Scripted pinned-Haiku responses and real sandbox mechanism tests are not live mathematical evaluation.",
-    "capability_effect": "The interface no longer asks one VIOLATED label to express both incomplete work and mathematical error. The model still decides both support and correctness; whether this improves its judgment is unverified. No live calls, fresh qualification, product draws or capability credit. All 114 numbered plus four standalone draws and every failed qualification remain immutable. The current protocol requires prospective frozen authority; no existing failed task is made eligible."
+    "code_commit": "379343d13d45d16604fbedd0601a6588f9c0b945",
+    "summary": "Deleted the canonical Architect's phrase-based execution/proof-claim scan while retaining existing typed authority validation. Deleted two offline modules that generated keyword-selected mathematical revisions and assigned downstream formal obligations, plus their CLI/smoke integration. Production diff is 754 deleted lines and zero added lines. No new prompt, parser, error taxonomy, repair agent, tool, fallback or scheduler.",
+    "verification": "Three generic negation/quotation/future-condition tests reproduced the Architect false rejection before deletion, then passed while forged runtime_executed, kernel_verified and proof-status flags still failed. Focused core/tool-loop/Architect tests: 86 passed in 0.79 seconds. Final full suite: 1451 passed in 293.92 seconds. compileall and git diff --check passed. Source/error-size variants verify unchanged model-authored inputs and complete same-owner feedback. The legacy CLI test covers both exit statuses after removing revision counters. Two earlier full runs were intentionally interrupted before final edits were complete; neither is counted as a completed verification.",
+    "capability_effect": "Removes demonstrated content-guessing behavior without replacing it or modifying generated answers. This cleanup made no live model call, changed no evaluator protocol or frozen acceptance gate, and adds no E2E credit. The separately recorded protocol-23 linear IV/GMM qualification failed; its original records and all consumed evaluations remain immutable. Scientific reliability is still unestablished."
   },
   "latest_independent_qualification": {
-    "benchmark_id": "research-conditional-quantile-20260911-v1",
-    "frozen_public_commit": "53d007fa",
+    "benchmark_id": "research-linear-iv-gmm-20260911-v1",
+    "frozen_public_commit": "5a290181",
     "status": "FAILED_NOT_ACTIVATED",
     "mechanical_elapsed_seconds": null,
-    "theory_model_calls": 7,
-    "theory_elapsed_seconds": 143.057,
-    "theory_provider_call_seconds": 143.020,
-    "theory_control_outcome": "0/1 attempted correct; 5/6 configured controls, long negative and complete reference NOT_RUN after failure. Mechanical qualification also NOT_RUN.",
+    "theory_model_calls": 29,
+    "theory_elapsed_seconds": 488.729,
+    "theory_provider_call_seconds": 467.803,
+    "theory_control_outcome": "1/2 attempted correct; incomplete control passed, full reference was INCONCLUSIVE instead of PASS. Four remaining controls, long negative and candidate-mode reference NOT_RUN. Mechanical qualification also NOT_RUN.",
     "source_semantic_status": "NOT_RUN",
     "product_draws": 0,
     "research_e2e_credit": false,
     "production_mechanism_change": false,
-    "verification": "159 focused tests passed in 13.01 seconds; full-task descriptor and source/execution identities validated. All 31 private frozen inputs match after the attempt, and no product output directory exists. No tests or production mechanism changed; no new full-suite run is claimed.",
-    "audit_document": "docs/operator_audits/conditional_quantile_prequalification_20260911.md"
+    "verification": "Before qualification, 161 focused tests passed in 12.60 seconds. All 24 private preregistered inputs were rechecked unchanged after the attempt, and no product output directory exists. Source execution and numerical oracle checks are operator resource verification, not confirmation or model-authored research. No product code changed for this qualification.",
+    "audit_document": "docs/operator_audits/linear_iv_gmm_prequalification_20260911.md"
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
     "The preregistered configuration pilot is consumed. Preserve all 12 invocations, original reports and initial analysis; no rerun, prompt tuning on this panel, default thinking change or E2E credit. Keep the frozen preparation files unchanged and read the dated closeout for its current outcome.",
     "Prioritize source/observation fidelity and producer-owned envelope boundaries. Retire obsolete routing metadata at its source instead of expanding filters; preserve model-authored scientific methods and unfamiliar tool output. Test shared invariants and same-owner feedback, not benchmark-specific fixes.",
     "Keep explicit calibration separate from read-only startup. Freeze the mechanical record and original inputs as well as semantic qualification; never let missing, stale or empty authority trigger control execution. No current failed task is made eligible by this shared correction.",
-    "Protocols 22/23 now separate support from document-wide errors in the existing referee submission, but no fresh efficacy evidence exists. Any future qualification uses the existing frozen positive/negative controls on disjoint material, without an extra preliminary review or another topic chosen merely to find a pass. Both completeness and error-detection reliability matter; no correct full reference was reached in the failed conditional-quantile attempt. Preserve that outcome and do not parse reports into replacement labels, require scratch rituals or bypass authority.",
-    "Preserve failed Firth, MCMC, entropic-transport, PPI, GP, GEE and conditional-quantile qualifications and every consumed draw. No renamed task, reduced scope, omitted control, relabeling or requalification. Any future product draw needs independently qualified, frozen authority under the current execution contract; no current task is activated.",
+    "Stop topic substitution. Protocol 23 has fresh evidence of unresolved referee scope overreach, not a qualified authority. Preserve the full reference rejection and unused controls. Only an independently demonstrated shared state, context, tool or authority defect warrants a harness change; model reasoning mistakes alone do not. Do not translate prose into new labels, impose scratch rituals or add a review layer.",
+    "Preserve all failed qualifications, including conditional-quantile and linear IV/GMM, and every consumed draw. No renamed task, reduced scope, omitted control, relabeling or requalification. Any future product draw needs independently qualified, frozen authority; no current task is activated.",
     "Align active Lean/RAG project identity and reuse selected checked declarations; optional formal work must not block unrelated required research dimensions.",
     "Implement useful independent execution and dependency-aware joins only in the existing graph, with isolation/stale-result tests; no second scheduler.",
     "Demonstrate separately scoped multi-family research, real Python/R reproduction, exact formal/library reuse and cross-task benefit under frozen independent authority, then advance the published-result ladder without weakening held-out gates."
