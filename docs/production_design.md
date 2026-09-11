@@ -266,13 +266,13 @@ inspection, target/support edits, dependency order, submission or a task-bound g
 Files are checked unchanged. Session-local `.olean` reuse requires exact support
 hashes and build order; drift rebuilds, and final promotion starts clean.
 Raw failures and complete rejected candidates return to the model, without a
-second field-whitelisted or length/depth-clipped candidate projection. Runtime
+second field-whitelisted or length/depth-clipped projection, including startup/checkpoint diagnostics. Runtime
 injects no import, statement, tactic or proof body; unknown fields confer no authority.
 
 One turn/call budget covers every action. The initial message carries target/support
-manifests, hashes, declaration and a fresh Lean check; exact files are read on demand.
+manifests, hashes, declaration and complete Lean observations; exact files are read on demand.
 One bounded transcript retains actions and observations with a cacheable append-only prefix.
-Resumed sources are rechecked in the active Lake project; old checks/search/state are not replayed.
+Fresh revision sessions check their initial source; continuations retain exact checkpoint observations and recent history, not new verification evidence.
 Declaration inspection resolves the model-selected active-project symbol through
 task-bound RAG and OpenProver's `lean-lsp-mcp`; the candidate file is only a local
 fallback. All such observations remain explicitly non-proof evidence.

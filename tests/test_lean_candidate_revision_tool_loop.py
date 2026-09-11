@@ -358,7 +358,10 @@ def test_formalizer_prompt_exposes_model_owned_scratch_without_proof_promotion()
     assert "runtime does not select a file or goal" in state_tool.description
 
 
-def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() -> None:
+@pytest.mark.parametrize("diagnostic_field", ["diagnostics", "opaque_provider_extension_62"])
+def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound(
+    diagnostic_field: str,
+) -> None:
     initial = "import Missing.Module\n\ntheorem target : True := by trivial\n"
     repaired = "import Mathlib.Data.Nat.Basic\n\ntheorem target : True := by trivial\n"
     backend = ScriptedLeanToolBackend(
@@ -384,6 +387,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     )
     checked_sources: list[str] = []
     searches: list[tuple[str, int]] = []
+    raw_diagnostic = {"entries": [{"detail": "opaque observation\n" * 200}], "extra": None}
 
     def check(source: str, _declaration: str):
         checked_sources.append(source)
@@ -393,6 +397,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
             "compiled": compiled,
             "local_lean_attempted": True,
             "local_lean_stderr": "" if compiled else "unknown module",
+            diagnostic_field: raw_diagnostic,
         }
 
     def search(query: str, k: int):
@@ -464,6 +469,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound() ->
     assert initial_workspace["latest_check_observation"][
         "local_lean_stderr"
     ] == "unknown module"
+    assert initial_workspace["latest_check_observation"][diagnostic_field] == raw_diagnostic
     assert result.evidence["handoff_mode"] == (
         "successful_model_source_submission"
     )
@@ -3315,8 +3321,9 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
         raise AssertionError("uncompiled final source was not checkpointed")
 
 
+@pytest.mark.parametrize("diagnostic_field", ["diagnostics", "opaque_provider_extension_62"])
 def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
-    tmp_path,
+    tmp_path, diagnostic_field: str,
 ) -> None:
     parent = "theorem target : True := by exact missing_parent\n"
     failed = "theorem target : True := by exact missing_revision\n"
@@ -3328,6 +3335,10 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
         }
     ]
     checked_sources: list[str] = []
+    raw_diagnostic = {
+        "nested": {"entries": [{"detail": "opaque retained observation\n" * 200}]},
+        "empty": [],
+    }
 
     def check(source: str, _declaration: str) -> dict:
         checked_sources.append(source)
@@ -3341,6 +3352,7 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
                 if source == parent
                 else ""
             ),
+            diagnostic_field: raw_diagnostic,
         }
 
     first_backend = ScriptedLeanToolBackend(
@@ -3411,6 +3423,8 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
         exact_search_result
     )
     assert checkpoint["checks"] == 2
+    assert checkpoint["latest_check_observation"][diagnostic_field] == raw_diagnostic
+    checkpoint_hash = stable_hash(checkpoint)
     session_ref = checkpoint["client_tool_session_ref"]
     assert session_ref["artifact_kind"] == "ClientToolWorkspaceSessionRef"
     assert session_ref["authorization_fingerprint"]
@@ -3456,6 +3470,8 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
     assert resumed_state["latest_check_observation"]["local_lean_stderr"] == (
         "unknown identifier 'missing_revision'"
     )
+    assert resumed_state["latest_check_observation"] == checkpoint["latest_check_observation"]
+    assert stable_hash(checkpoint) == checkpoint_hash
     assert resumed_state["latest_formal_environment_search"]["results"] == (
         exact_search_result
     )

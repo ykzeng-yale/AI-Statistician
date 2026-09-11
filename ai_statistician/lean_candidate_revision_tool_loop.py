@@ -806,9 +806,8 @@ def run_lean_candidate_revision_tool_loop(
         ):
             state[field] = {}
 
-    # A resumed source is rechecked in the active project before the first model
-    # turn, so the initial message carries fresh diagnostics rather than a copied
-    # observation from an earlier runtime packet.
+    # Fresh revision sessions check their initial source. Continuations retain
+    # checkpoint diagnostics; they do not create fresh verification evidence.
     if parent_source.strip() and not resume_metadata["resumed_from_model_checkpoint"]:
         check_current_source()
 
@@ -1841,7 +1840,7 @@ def run_lean_candidate_revision_tool_loop(
             for row in current_project_files()
         ],
         "support_build_order": list(state["support_build_order"]),
-        "latest_check_observation": _compact_lean_check_observation(
+        "latest_check_observation": deepcopy(
             state["latest_check_observation"]
         ),
         "latest_formal_environment_search": deepcopy(
@@ -2542,35 +2541,6 @@ def _lean_candidate_revision_success_result(
         lean_project=deepcopy(lean_project),
         evidence=evidence,
     )
-
-
-def _compact_lean_check_observation(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    keys = (
-        "source_hash",
-        "lean_project_hash",
-        "candidate_lean_declaration",
-        "compiled",
-        "precheck_errors",
-        "blocking_precheck_errors",
-        "local_lean_attempted",
-        "local_lean_source_compiled",
-        "local_lean_exit_status",
-        "local_lean_stdout",
-        "local_lean_stderr",
-        "candidate_identity_lean_checked",
-        "candidate_identity_lean_verified",
-        "candidate_identity_lean_stdout",
-        "candidate_identity_lean_stderr",
-        "candidate_declaration_elaborated",
-        "candidate_development_status",
-        "candidate_axiom_names",
-        "candidate_untrusted_axiom_names",
-        "candidate_axiom_audit_checked",
-        "candidate_axiom_audit_clean",
-    )
-    return {key: deepcopy(value[key]) for key in keys if key in value}
 
 
 def _lean_state_executed_tools(value: Any) -> tuple[str, ...]:
