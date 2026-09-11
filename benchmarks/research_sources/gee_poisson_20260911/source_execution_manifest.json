@@ -1,0 +1,41 @@
+{
+  "schema_version": 3,
+  "artifact_kind": "ResearchSourceExecutionSpec",
+  "execution_id": "gee-poisson-source-execution-20260911-v1",
+  "benchmark_id": "research-gee-poisson-20260911-v1",
+  "source_snapshot_id": "gee-poisson-public-source-20260911-v1",
+  "source_snapshot_hash": "f414607d533f463eff22605f581ae67e70d77a03122e2c7ad8d80698cb0f09c3",
+  "source_manifest_sha256": "99f08cf4e5dbd159e818592d4fec5b2aa33a394aabf7c0045adae5a47a961dc2",
+  "source_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+  "entrypoint_document_id": "gee-run_gee_source-py",
+  "environment_lock_document_id": "gee-environment_lock-json",
+  "environment_root": "/Users/yukangzengcmac/.codex/external/gee-statsmodels-0.14.6-env",
+  "runtime_language": "python",
+  "interpreter_executable_relative_path": "bin/python",
+  "interpreter_executable_sha256": "ac60cfe0268614638d0ffa35f3b0284fc7b3a11482723793455e17eeb278509e",
+  "runtime_read_roots": [
+    "/Users/yukangzengcmac/.cache/codex-runtimes/codex-primary-runtime/dependencies/python"
+  ],
+  "working_directory_relative": ".",
+  "arguments": [],
+  "package_distributions": {
+    "pandas": "pandas",
+    "packaging": "packaging",
+    "iniconfig": "iniconfig",
+    "Pygments": "Pygments",
+    "statsmodels": "statsmodels",
+    "numpy": "numpy",
+    "patsy": "patsy",
+    "python-dateutil": "python-dateutil",
+    "pytest": "pytest",
+    "pluggy": "pluggy",
+    "six": "six",
+    "scipy": "scipy"
+  },
+  "timeout_seconds": 180,
+  "max_output_bytes": 4194304,
+  "execution_workspace_mode": "staged_copy_on_write",
+  "result_artifact_paths": [
+    "gee_source_result.json"
+  ]
+}

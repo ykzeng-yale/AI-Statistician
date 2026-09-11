@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "OpenResearchQuestionSet",
+  "questions": [{
+    "id": "poisson_gee_working_correlation_and_cluster_inference",
+    "title": "Poisson GEE with a working correlation: research, implementation, and cluster-level validation",
+    "description": "Develop a complete known-result research analysis of marginal Poisson generalized estimating equations for independent clusters with bounded repeated-measure size and a log mean link with known offsets. Within-cluster dependence and variance need not be Poisson or equal the working covariance. Reproduce the pinned public statsmodels implementation test and interpret its actual outputs; distinguish its estimated exchangeable correlation from the fixed working correlation in the new estimator. In persistent Markdown/LaTeX, define the estimand and assumptions, derive the estimating equation, justify consistency and the cluster-normalized asymptotic distribution under explicit identification, smoothness, moment and uniform-convergence conditions, and derive a consistent robust sandwich covariance. Explain when the model-based covariance is justified and exhibit a counterexample when it is not. Do not infer robustness to a wrong marginal mean, informative missingness or dependent clusters. Supply reviewable equation-level arguments, not a quotation or a schema-complete claim list. Implement the specified estimator in Python, using existing numerical or statistical libraries when appropriate and disclosing reuse. Use exploratory code and simulation to challenge the derivation, source behavior and numerical implementation. Independently review stable exact theory and code, then freeze and execute confirmatory experiments in at least two nondegenerate designs, including correct and misspecified working covariance. Each design requires at least 1000 independent datasets and coverage Monte Carlo standard error at most 0.01. Assess coefficient bias, robust interval coverage, estimated-versus-empirical covariance, convergence failures, and model-based versus robust uncertainty; freeze seeds, precision, criteria and stopping before confirmation and report all outcomes. A Poisson-lognormal random intercept construction may be used provided its marginal mean and covariance are derived correctly. Successful source tests are not evidence for newly authored code or universal finite-sample coverage. The final report must bind the actual source reproduction, current theory and code, confirmatory evidence and remaining gaps. This is source-assisted known-result research, not blind rediscovery, novelty, new R execution, or replication of the original 1986 paper experiments. Formalization is not required.",
+    "tags": ["known_result", "full_research", "longitudinal", "estimating_equations", "source_reuse"],
+    "task_intent": {
+      "source_replication": "required", "theory": "required", "scientific_code": "required",
+      "empirical": "required", "formal": "not_applicable", "novelty": "not_applicable",
+      "unresolved_gaps": "required"
+    },
+    "source": {
+      "benchmark_mode": "known_result",
+      "public_source_discovery": "enabled_with_recorded_handles",
+      "primary_authority": "Liang and Zeger (1986), Biometrika 73(1), 13-22, DOI 10.1093/biomet/73.1.13; unmodified statsmodels 0.14.6 GEE implementation and R-comparison test at commit 40e6a84d26ac74623c6b94b718f0987ef0351c53. Full paper text was not fetched; exact source scope is described in RESOURCE.md.",
+      "primary_url": "https://doi.org/10.1093/biomet/73.1.13",
+      "snapshot_manifest": "benchmarks/research_sources/gee_poisson_20260911/source_manifest.json",
+      "target_proof_reference_code_seeds_thresholds_and_outcomes": "evaluator_only_hidden"
+    },
+    "estimator_execution_contract": {
+      "schema_version": 1,
+      "estimator_id": "est_poisson_gee",
+      "entrypoint": "run_estimator",
+      "request_fields": [
+        {"clause_id":"request.x","name":"x","json_type":"array","shape":"Finite G-by-m-by-p array, G>=20, 2<=m<=8, 1<=p<=6.","units":"Declared design coordinates.","indexing":"Independent cluster, repeated observation, regression coefficient.","edge_cases":"An intercept, if intended, is explicitly a column of ones. Evaluation uses full-rank, well-conditioned designs with a finite identifiable root.","binding":"fixed_before_all_replicates","meaning":"Complete design matrix for each cluster; do not add a hidden intercept."},
+        {"clause_id":"request.y","name":"y","json_type":"array","shape":"G-by-m array of nonnegative integer counts.","units":"Response count.","indexing":"Same cluster and observation ordering as x.","edge_cases":"Within-cluster outcomes may be dependent and overdispersed; individual zeros are valid.","binding":"per_replicate_data","meaning":"Observed responses, not latent conditional means."},
+        {"clause_id":"request.offset","name":"offset","json_type":"array","shape":"Finite G-by-m array.","units":"Log mean.","indexing":"Same cluster and observation ordering as y.","edge_cases":"Zero and nonconstant offsets are valid. Offsets are known and not regression coefficients.","binding":"fixed_before_all_replicates","meaning":"Known additive offset in the log marginal mean."},
+        {"clause_id":"request.rho","name":"working_correlation","json_type":"number","shape":"Finite scalar strictly between -1/(m-1) and 1.","units":"Dimensionless working correlation.","indexing":"One fixed off-diagonal correlation for all clusters.","edge_cases":"Zero specifies working independence. Do not estimate or change the supplied value using responses.","binding":"fixed_before_all_replicates","meaning":"Fixed exchangeable working correlation with diagonal entries one. The working marginal variance function is mu and the working scale is one."}
+      ],
+      "response_fields": [
+        {"clause_id":"response.beta","name":"coefficients","json_type":"array","shape":"Finite length-p vector on convergence.","units":"Log mean per design coordinate.","indexing":"x column order.","edge_cases":"No hidden regularization, standardization or changed offset.","meaning":"A converged root of the specified Poisson GEE.","normalization":"Original parameter coordinates."},
+        {"clause_id":"response.robust","name":"robust_covariance","json_type":"array","shape":"Finite symmetric p-by-p matrix on convergence.","units":"Coefficient product.","indexing":"Coefficient order on both axes.","edge_cases":"Cluster outer-product sandwich using residuals at the fitted root, with no finite-sample multiplier.","meaning":"Estimated sampling covariance of coefficients, robust to working covariance misspecification under the stated conditions.","normalization":"Covariance of beta_hat, not of sqrt(G)*(beta_hat-beta)."},
+        {"clause_id":"response.model","name":"model_covariance","json_type":"array","shape":"Finite symmetric p-by-p matrix on convergence.","units":"Coefficient product.","indexing":"Coefficient order on both axes.","edge_cases":"Working scale is exactly one; no estimated dispersion or finite-sample multiplier.","meaning":"Model-based covariance for the supplied working covariance.","normalization":"Covariance of beta_hat, not its standard errors or an asymptotic limit matrix."},
+        {"clause_id":"response.score","name":"score_sum","json_type":"array","shape":"Finite length-p vector on convergence.","units":"Estimating equation coordinates.","indexing":"Coefficient order.","edge_cases":"Evaluate at the returned coefficients using every cluster.","meaning":"Sum, not average, of the specified cluster estimating functions.","normalization":"Unscaled total estimating equation."},
+        {"clause_id":"response.convergence","name":"converged","json_type":"boolean","shape":"One boolean.","units":"None.","indexing":"Whole fit.","edge_cases":"Report a numerical failure honestly rather than a fabricated successful fit.","meaning":"Whether a finite, numerically resolved root was obtained.","normalization":"A numerical status, not a scientific correctness or proof claim."}
+      ],
+      "invariants": [
+        {"clause_id":"invariant.source","meaning":"Do not mutate the input request or use undeclared external data. Reuse of disclosed public NumPy/SciPy/statsmodels routines is permitted. The model must author and review the complete callable implementation and its configuration."},
+        {"clause_id":"invariant.identity","meaning":"All outputs describe the same supplied design, offsets and fixed working correlation. Reordering clusters or jointly reordering observations within each cluster must not change fitted coefficients or covariance."},
+        {"clause_id":"invariant.numerics","meaning":"Use stable bounded numerical computation and honest nonconvergence reporting. Evaluation uses valid, numerically resolvable domain inputs and does not impose undeclared coercion or malformed-input rejection rules."}
+      ],
+      "empirical_claims": [
+        {"clause_id":"claim.empirical.protocol","meaning":"Freeze two or more nondegenerate designs, at least 1000 independent datasets per design, seeds, nominal 95% intervals, coverage MCSE <=0.01, acceptance criteria and stopping before confirmation."},
+        {"clause_id":"claim.empirical.inference","meaning":"Assess coefficient bias, robust interval coverage, empirical versus estimated coefficient covariance, numerical failures and model-based versus robust uncertainty under correct marginal means and both correct and misspecified working covariance."},
+        {"clause_id":"claim.empirical.honesty","meaning":"Derive the DGP's actual marginal mean and covariance; report all unmet criteria and finite-sample limitations. Asymptotic robustness does not imply exact finite-sample coverage or validity under mean misspecification."}
+      ],
+      "termination_guarantee": "Bounded numerical root finding with explicit convergence reporting. No prescribed source-edit, scratch-run or reasoning-step count."
+    }
+  }]
+}

@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "gee-poisson-public-source-20260911-v1",
+  "source_horizon": "2026-09-11",
+  "source_root": "public_sources",
+  "documents": [
+    {
+      "document_id": "gee-LICENSE-txt",
+      "title": "LICENSE.txt",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "LICENSE.txt",
+      "sha256": "1ca78e1dec9dcebc55f3b96a862317f23e76422c5fc943568d955aad1f6b5fad",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/LICENSE.txt",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gee-RESOURCE-md",
+      "title": "RESOURCE.md",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "RESOURCE.md",
+      "sha256": "9920e61576db9460c2bd95db16c227310bee7da3caab838ce65667b02ed538a3",
+      "model_visible": true,
+      "citation": "Operator-authored descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "gee-docs-source-gee-rst",
+      "title": "docs/source/gee.rst",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "docs/source/gee.rst",
+      "sha256": "6b22b6be224fdaac6ce64867d8239a79725eea0466671fd3057bb8d6e0eeeb7f",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/docs/source/gee.rst",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gee-environment_lock-json",
+      "title": "environment_lock.json",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "environment_lock.json",
+      "sha256": "c888a7a10444c601db52e9a6ad67d5008b1ed4eb24cbec0d523ba66bbe494448",
+      "model_visible": true,
+      "citation": "Operator-authored descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "gee-run_gee_source-py",
+      "title": "run_gee_source.py",
+      "source_kind": "operator_resource_descriptor",
+      "relative_path": "run_gee_source.py",
+      "sha256": "05d23a69dc1519c67d70fa9812b0ae2b89eb79d5b15503cb0413ba5698a90087",
+      "model_visible": true,
+      "citation": "Operator-authored descriptor or launcher",
+      "url": "",
+      "git_commit": "",
+      "license": "operator-authored"
+    },
+    {
+      "document_id": "gee-statsmodels-genmod-cov_struct-py",
+      "title": "statsmodels/genmod/cov_struct.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/genmod/cov_struct.py",
+      "sha256": "dd270c3312722c7ad15d723f3617e5d273b46400089b6fefbe551dba669e6436",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/genmod/cov_struct.py",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gee-statsmodels-genmod-generalized_estimating_equations-py",
+      "title": "statsmodels/genmod/generalized_estimating_equations.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/genmod/generalized_estimating_equations.py",
+      "sha256": "7c636e42ec94f03f5047983bec628cdb0b9c7a482711d716e346b281bf036574",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/genmod/generalized_estimating_equations.py",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gee-statsmodels-genmod-tests-results-gee_poisson_1-csv",
+      "title": "statsmodels/genmod/tests/results/gee_poisson_1.csv",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/genmod/tests/results/gee_poisson_1.csv",
+      "sha256": "e29d04f8f55958483395bf96c22d84bf82f3258d83500d70c36b87db0abedf0d",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/genmod/tests/results/gee_poisson_1.csv",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "document_id": "gee-statsmodels-genmod-tests-test_gee-py",
+      "title": "statsmodels/genmod/tests/test_gee.py",
+      "source_kind": "upstream_code_or_documentation",
+      "relative_path": "statsmodels/genmod/tests/test_gee.py",
+      "sha256": "757730df112e9fdd1ef2218ecfd96750f746149c9efeb46dae2587c799f52e3a",
+      "model_visible": true,
+      "citation": "statsmodels 0.14.6",
+      "url": "https://github.com/statsmodels/statsmodels/blob/40e6a84d26ac74623c6b94b718f0987ef0351c53/statsmodels/genmod/tests/test_gee.py",
+      "git_commit": "40e6a84d26ac74623c6b94b718f0987ef0351c53",
+      "license": "BSD-3-Clause"
+    }
+  ]
+}
