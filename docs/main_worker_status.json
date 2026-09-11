@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Clarified the shared semantic referee's artifact scope: its rubric defines the current review, while the complete original question supplies context and target fidelity rather than responsibility for other stages. This addresses a role ambiguity observed in retained PPI/GEE reports, not their mathematical errors or diagnostic-label disagreement. Protocols 20/21 bind the changed instruction. No labels, schemas, acceptance criteria, tools, budgets or source-authoring behavior changed. Six new contract scenarios cover three roles and both review modes; focused tests passed 144 and the full suite passed 1421. No live calls, requalification, product draw or E2E credit; all failed qualifications remain unchanged.",
+  "execution_status": "Audited model-owned feedback and removed the Formalizer's catch-all exception handler, message-keyword provider classifier and duplicate failure artifacts. Unexpected harness exceptions now reach the existing AgentRuntime boundary; an unavailable Lean workspace reports configuration status directly without generation fallback. Raw compiler observations, same-owner source iteration, provider transport handling and scientific acceptance gates are unchanged. Four new boundary cases pass; the full suite passed 1425. No new prompt, tool, retry, statistical rule, live evaluation, product draw or E2E credit. Failed qualifications and consumed evaluations remain unchanged.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "2ea3f87b67a623e00b576b5fbbd3e94e4ceb4e1d",
+  "validated_code_head": "cf997f279c0913bd5f78f95644ce83a24de9fc58",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "3ebbda2b9e1fd2cb7f65ab314e4e80208b73bfe5",
+    "remote_before_current_change": "2cba57596e63fc035819dd8f30b975f8adc9fd9c",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -226,7 +226,7 @@
     "audit_document": "docs/original_goal_harness_redesign_20260909.md"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24788,
+    "research_agent_runtime_lines": 24679,
     "theory_workspace_lines": 4527,
     "scientific_code_workspace_lines": 3594,
     "client_tool_loop_lines": 1224,
@@ -235,15 +235,15 @@
     "lean_candidate_revision_tool_loop_lines": 2911,
     "cli_lines": 7053,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149114,
+    "top_level_package_lines": 149005,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "2ea3f87b67a623e00b576b5fbbd3e94e4ceb4e1d",
-    "summary": "Replaced the semantic referee opening with a generic artifact-scoped responsibility statement. The original question and rubric remain unchanged in model context. The reviewer still checks all active assertions, including falsehoods outside the rubric; independent full-task scoring retains all required dimensions. Protocols 20/21 mark the changed input contract. Production code is net +3 lines, with no new field, schema, tool, module, branch, retry, source patch or diagnostic rule.",
-    "verification": "Six synthetic role/mode scenarios first failed because the requested scope statement was absent, then passed with unchanged project context, rubric and model-owned verdicts. Focused semantic/gold/core suite: 144 passed in 12.43 seconds, including failed-authority isolation, request-identity invalidation and incomplete full-task rejection. Full suite: 1421 passed in 300.07 seconds. compileall and git diff --check passed. These are contract tests, not a model-efficacy experiment.",
-    "capability_effect": "The responsibility ambiguity is clarified at the interface; no live evidence yet shows better mathematical reasoning, useful scratch work or correct diagnostic labels. No acceptance criterion or frozen result changed. Old authority cannot automatically authorize the new request contract. All 114 numbered plus four standalone research draws and failed qualifications remain immutable. No new model calls, research result or E2E credit; goal remains active and unmet."
+    "code_commit": "cf997f279c0913bd5f78f95644ce83a24de9fc58",
+    "summary": "Deleted Formalizer-specific exception guessing and its duplicate failure-record pipeline, reducing production code by 109 lines. A local exception mentioning network or timeout no longer becomes a provider error. The sole runtime retains unexpected exceptions and pending tasks; missing workspace capability returns BLOCKED without another generation path. No changes to model-authored source, prompts, tools, scientific labels, budgets, reviewer contracts or frozen gates.",
+    "verification": "Initial focused run: 122 passed and four new tests failed because their fixtures omitted the required question description. Corrected fixtures and the trace evidence-field assertion; all four new cases passed in 0.24 seconds. Full suite then passed 1425 tests in 293.31 seconds, including same-model raw-feedback iteration, checkpoint integrity and no implicit restart. compileall and git diff --check passed. These are mechanism tests, not scientific capability evidence.",
+    "capability_effect": "Harness defects are no longer mislabeled by Formalizer-specific message heuristics. This does not establish better mathematical reasoning, semantic-referee reliability or new end-to-end success. No live evaluation or product draw was started. All 114 numbered plus four standalone consumed draws and failed qualifications remain immutable. Goal remains active and unmet."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-gee-poisson-20260911-v1",
