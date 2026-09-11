@@ -1,10 +1,10 @@
 {
-  "schema_version": 453,
+  "schema_version": 454,
   "updated_at": "2026-09-10",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "A disjoint full-scope GP research task and pinned public implementation were frozen and pushed at aafbc853 before qualification. No product module, shared prompt or repair rule changed. The source resource check completed 2000 fits; mechanical qualification passed with four negative evaluator obligations rejected. Theory qualification then failed after 41 exact-Haiku turns in 501.551 seconds: the complete positive control passed, but an explicitly unfinished note received VIOLATED/FAIL despite reports identifying missing work without a mathematical falsehood. One of two evaluated controls matched; four remaining controls, long negative, final reference candidate, source semantic qualification and product execution did not run. Original reports remain immutable. No new topic substitution, retrospective label repair or activation is authorized. Consumed research counts remain 114 numbered plus four standalone; no new E2E credit.",
+  "execution_status": "Shared-feedback audit removed an unused Formalizer tool envelope and the lossy rejected-candidate projection selected by the model prompt. The existing exact rejected candidate now reaches the source owner without field, row, length or depth clipping. No error recipe, output repair, reviewer, scheduler, fallback or model call was added. The proposed evaluator-label translation was not implemented: a model judgment error alone does not demonstrate a harness defect. GP qualification remains failed; all consumed research and qualification results are immutable. No new task, product draw or E2E credit.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "b5442675e3983e60d629c229a0a0835d6e8cab9c",
+  "validated_code_head": "058efbb8a4cce7148e23c087cee00633a8cd2ecf",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "d17c2e2ea77dcb3d7fb2bf3a77863c36000a9491",
+    "remote_before_current_change": "cff5092bfeb3c6998c050e0a5f427943b9e52704",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -226,24 +226,24 @@
     "audit_document": "docs/original_goal_harness_redesign_20260909.md"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24789,
+    "research_agent_runtime_lines": 24788,
     "theory_workspace_lines": 4527,
     "scientific_code_workspace_lines": 3594,
     "client_tool_loop_lines": 1224,
     "agent_runtime_lines": 1365,
-    "formalizer_llm_lines": 1848,
+    "formalizer_llm_lines": 1849,
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149250,
+    "top_level_package_lines": 149110,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "aafbc8534e958b3ba75c19012ceeb53df12578dd",
-    "summary": "Freeze and qualify one new GP full-research task after shared source/feedback corrections, without changing product code or prompts. Reuse the exact public scikit-learn implementation and existing source executor, scientific sandbox and independent evaluator; keep reference mathematics and checks outside product context. The failed semantic qualification exposes completion-versus-contradiction report/status disagreement, not a demonstrated GP formula defect.",
-    "verification": "Core and source-library tests: 31 passed in 1.33 seconds; launcher syntax and source/gold manifests validated. Public upstream _gpr.py exactly matched the installed pinned implementation. Source resource execution: 2000 fits, exit zero, 1.408 seconds with the nonfatal warning retained. Mechanical qualification: 25.275 seconds, reference accepted and four wrong-program evaluator obligations rejected; changed source-output identity rejected. Theory qualification: 41 completed exact-Haiku turns, 501.551 seconds, four private review workspaces, one of two evaluated controls correct. No source semantic or product calls followed. Shared production code is unchanged from the previously verified 1392-test suite; this turn did not claim a new full-suite run.",
-    "capability_effect": "Whole-file review and isolated numerical scratch were exercised live, but evaluator qualification failed and there is no new autonomous research result. Some scratch programs only printed reasoning, so tool counts are not verification counts. The original failed record and all 114 numbered plus four standalone research draws remain unchanged. Do not turn report/status disagreement into a GP-specific prompt, output parser, automatic label correction or another reviewer. Investigate the shared evaluator interface with independent evidence before another research draw. Goal remains active and unmet."
+    "code_commit": "058efbb8a4cce7148e23c087cee00633a8cd2ecf",
+    "summary": "Delete dormant feedback wrapping and duplicate rejected-candidate clipping; the model prompt uses the existing exact candidate. Production code decreases by 140 lines. Replace source-keyword prohibition assertions with behavioral tests for opaque fields, long/deep data, copy isolation, absent candidates, exact identity and same-owner feedback. No error-specific source repair or semantic verdict translation.",
+    "verification": "Focused Formalizer/Lean workspace suite: 67 passed in 162.29 seconds. A synthetic comparison against the previous committed helper reproduced truncation from 10 rows to 8 and loss of an unknown field; current transport preserves the complete candidate. compileall and git diff --check passed. Full suite completed with 1395 passed and one documentation-length failure in 299.46 seconds. The description was consolidated without raising the limit; core tests then passed 8/8 in 0.48 seconds and the failed-test rerun passed 1/1 in 0.28 seconds. This is a full-suite run followed by a targeted resolved check, not a claim of a second all-green full-suite invocation. No live model evaluation ran.",
+    "capability_effect": "Feedback fidelity and unchanged-source ownership are verified mechanisms, not improved mathematics or proof capability. Evaluator protocols 18/19, status meanings, model policy, independent review and kernel authority are unchanged. The latest GP report/status disagreement remains unresolved; renaming labels or parsing reports into replacement verdicts was not justified or implemented. All 114 numbered plus four standalone research draws and failed qualifications remain immutable. No new task is activated and no E2E credit is added; goal remains active and unmet."
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
