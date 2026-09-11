@@ -231,10 +231,7 @@ def _descriptive_finding(value: Mapping[str, Any]) -> dict[str, Any]:
     """Project reviewer output to observations, never a repair recipe."""
 
     summary = str(value.get("summary", "") or "").strip()
-    observed = str(
-        value.get("observed_behavior", "")
-        or summary
-    ).strip()
+    observed = str(value.get("observed_behavior", "") or "").strip()
     expected = str(value.get("expected_behavior", "") or "").strip()
     return {
         "severity": str(value.get("severity", "") or "").strip().lower(),
@@ -1503,12 +1500,8 @@ def _normalize_prior_reviews(
 def _normalize_source_revision_assessment(
     value: Any,
 ) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or not value:
-        return {
-            "resolution_scope": SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE,
-            "rationale": "No cross-artifact conflict was asserted by the reviewer.",
-            "evidence_refs": [],
-        }
+    if not isinstance(value, Mapping):
+        return {}
     resolution_scope = str(value.get("resolution_scope", "") or "").strip()
     return {
         "resolution_scope": resolution_scope,
@@ -1544,32 +1537,14 @@ def _normalize_generated_code_semantic_review_packet(
     source_revision_assessment = _normalize_source_revision_assessment(
         payload.get("source_revision_assessment", {})
     )
-    legacy_verdict = (
-        "ACCEPT"
-        if not findings
-        and all(
-            row.get("status")
-            in GENERATED_CODE_SEMANTIC_REVIEW_CLOSED_PRIOR_FINDING_STATUSES
-            for row in prior_reviews
-        )
-        else "REVISE"
-    )
     requested_verdict = str(
-        payload.get("overall_verdict", "") or legacy_verdict
+        payload.get("overall_verdict", "") or ""
     ).strip().upper()
     verdict = requested_verdict
     review_input_fingerprint = stable_hash(review_material)
     review_document_content = str(
         payload.get("review_document", "") or ""
     ).strip()
-    if not review_document_content:
-        snapshot = {
-            "findings": findings,
-        }
-        review_document_content = (
-            f"# Generated Code Semantic Review\n\nVerdict: **{verdict}**\n\n"
-            f"```json\n{json.dumps(snapshot, indent=2, ensure_ascii=False)}\n```\n"
-        )
     document_sha256 = hashlib.sha256(review_document_content.encode("utf-8")).hexdigest()
     review_document = {
         "schema_version": 1,

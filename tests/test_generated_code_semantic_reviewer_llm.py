@@ -48,17 +48,6 @@ from ai_statistician.theory_workspace import (
 )
 
 
-_LEGACY_REVIEW_DIMENSIONS = (
-    "question_alignment",
-    "theory_assumption_alignment",
-    "executable_interface_alignment",
-    "frozen_measurement_protocol_alignment",
-    "execution_argument_alignment",
-    "experiment_non_vacuity_and_identifiability",
-    "metric_semantics_alignment",
-)
-
-
 def _question() -> OpenResearchQuestion:
     return OpenResearchQuestion(
         id="semantic-review-test",
@@ -384,23 +373,6 @@ def test_simulation_review_authority_stops_at_present_artifact_lineage() -> None
         review_material=material,
     )
     assert '"artifact_id":"algorithm:accepted"' in prompt_with_dependency
-
-
-def _dimension_rows(*, failed: str = "") -> dict[str, dict[str, object]]:
-    return {
-        dimension: {
-            "status": "FAIL" if dimension == failed else "PASS",
-            "rationale": (
-                "The returned estimate is constant despite a stochastic claim."
-                if dimension == failed
-                else "The supplied artifact is aligned on this dimension."
-            ),
-            "evidence_refs": [
-                "/exact_executed_artifacts/0/exact_source_code"
-            ],
-        }
-        for dimension in _LEGACY_REVIEW_DIMENSIONS
-    }
 
 
 def _agent(response: dict[str, object]) -> LLMGeneratedCodeSemanticReviewerAgent:
@@ -1277,10 +1249,26 @@ def test_executable_evaluator_decision_path_review_is_model_owned() -> None:
     assert "never reject a small diagnostic" in prompt
 
 
-def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() -> None:
-    invalid = {
+@pytest.mark.parametrize(
+    "omitted_field,empty,expected_error",
+    [("", False, "model verdict must agree with active findings")]
+    + [
+        (field, empty, error)
+        for field, error in (
+            ("overall_verdict", "requires an ACCEPT or REVISE verdict"),
+            ("review_document", "review document artifact is inconsistent"),
+            ("source_revision_assessment", "requires a valid resolution_scope"),
+            ("observed_behavior", "missing observed_behavior"),
+        )
+        for empty in (False, True)
+    ],
+)
+def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session(
+    omitted_field: str, empty: bool, expected_error: str,
+) -> None:
+    corrected = {
         "prior_finding_reviews": [],
-        "overall_verdict": "ACCEPT",
+        "overall_verdict": "REVISE",
         "review_document": "# Review\n\nThe exact source has a blocking defect.",
         "findings": [
             {
@@ -1296,7 +1284,15 @@ def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() 
             "rationale": "The immutable parents can remain fixed.",
         },
     }
-    corrected = {**invalid, "overall_verdict": "REVISE"}
+    invalid = deepcopy(corrected)
+    if omitted_field:
+        target = invalid["findings"][0] if omitted_field == "observed_behavior" else invalid
+        if empty:
+            target[omitted_field] = {} if omitted_field == "source_revision_assessment" else ""
+        else:
+            del target[omitted_field]
+    else:
+        invalid["overall_verdict"] = "ACCEPT"
 
     class TerminalRecoveryBackend:
         provider_name = "anthropic"
@@ -1356,9 +1352,16 @@ def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session() 
     assert "client_tool_loop_terminal_decision_turn" not in (
         backend.requests[1].metadata
     )
-    assert "model verdict must agree with active findings" in str(
-        backend.requests[1].messages[-1]
-    )
+    assert expected_error in str(backend.requests[1].messages[-1])
+    assert packet["_review_document_artifact"]["content"] == corrected["review_document"]
+    assert packet["source_revision_assessment"]["rationale"] == corrected[
+        "source_revision_assessment"
+    ]["rationale"]
+    assert packet["findings"][0]["observed_behavior"] == corrected["findings"][0][
+        "observed_behavior"
+    ]
+    assert packet["source_manifest_hash"] == _trusted_lineage()["source_manifest_hash"]
+    assert all(request.model == "claude-haiku-4-5-20251001" for request in backend.requests)
 
 
 def test_native_reviewer_fails_closed_after_repeated_no_progress() -> None:
@@ -2080,7 +2083,12 @@ def test_reviewer_accepts_without_selecting_a_repair_owner() -> None:
     packet = _agent(
         {
             "prior_finding_reviews": [],
-            "dimension_reviews": _dimension_rows(),
+            "overall_verdict": "ACCEPT",
+            "review_document": "# Review\n\nNo source defect was found.",
+            "source_revision_assessment": {
+                "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+                "rationale": "The current source needs no revision.",
+            },
             "findings": [],
         }
     ).review(
@@ -2105,9 +2113,8 @@ def test_reviewer_accepts_without_selecting_a_repair_owner() -> None:
 def test_reviewer_reports_evidence_bound_defect_without_source_edit() -> None:
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": _dimension_rows(
-            failed="experiment_non_vacuity_and_identifiability"
-        ),
+        "overall_verdict": "REVISE",
+        "review_document": "# Review\n\nSource line 2 ignores the runtime arguments.",
         "findings": [
             {
                 "severity": "high",
@@ -2194,9 +2201,8 @@ def test_review_document_owns_locations_without_pointer_abi() -> None:
 def test_reviewer_can_flag_cross_artifact_conflict_without_selecting_owner() -> None:
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": _dimension_rows(
-            failed="metric_semantics_alignment"
-        ),
+        "overall_verdict": "REVISE",
+        "review_document": "# Review\n\nThe frozen meaning contradicts the supplied theory.",
         "findings": [
             {
                 "severity": "high",
@@ -2242,7 +2248,11 @@ def test_all_pass_review_cannot_emit_blocking_findings() -> None:
     response = {
         "prior_finding_reviews": [],
         "overall_verdict": "ACCEPT",
-        "dimension_reviews": _dimension_rows(),
+        "review_document": "# Review\n\nThe finite run is noisy.",
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No change to the immutable parents is needed.",
+        },
         "findings": [
             {
                 "severity": "medium",
@@ -2268,7 +2278,12 @@ def test_all_pass_review_cannot_emit_blocking_findings() -> None:
 def test_repair_fields_are_ignored_in_descriptive_observations() -> None:
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": _dimension_rows(failed="metric_semantics_alignment"),
+        "overall_verdict": "REVISE",
+        "review_document": "# Review\n\nSource line 2 returns an unrelated constant.",
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The source can implement the stated estimand with parents fixed.",
+        },
         "findings": [
             {
                 "severity": "high",
@@ -2301,7 +2316,12 @@ def test_repair_fields_are_ignored_in_descriptive_observations() -> None:
 def test_legacy_pointer_metadata_is_not_a_review_acceptance_gate() -> None:
     response = {
         "prior_finding_reviews": [],
-        "dimension_reviews": _dimension_rows(failed="metric_semantics_alignment"),
+        "overall_verdict": "REVISE",
+        "review_document": "# Review\n\nThe cited executed value is absent.",
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The source owns the emitted value; no parent change is needed.",
+        },
         "findings": [
             {
                 "severity": "high",
@@ -2352,7 +2372,12 @@ def test_prior_findings_are_reviewed_by_identity_without_owner_state() -> None:
                 ],
             }
         ],
-        "dimension_reviews": _dimension_rows(),
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe current source resolves the prior finding.",
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The current source needs no further change.",
+        },
         "findings": [],
     }
 
@@ -2461,7 +2486,12 @@ def test_revision_reviewer_reads_exact_support_file_from_current_project() -> No
                 ],
             }
         ],
-        "dimension_reviews": _dimension_rows(),
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nmetrics/helper.py implements the intended metric.",
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The revised helper closes the finding with parents fixed.",
+        },
         "findings": [],
     }
 
@@ -2555,7 +2585,12 @@ def test_unresolved_prior_finding_keeps_review_in_revise_without_restatement() -
                 ],
             }
         ],
-        "dimension_reviews": _dimension_rows(),
+        "overall_verdict": "REVISE",
+        "review_document": "# Review\n\nThe prior source defect remains unresolved.",
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The finding can be closed by changing current source alone.",
+        },
         "findings": [],
     }
 
@@ -2603,7 +2638,12 @@ def test_prior_scope_error_can_be_retracted_by_the_independent_reviewer() -> Non
                 ],
             }
         ],
-        "dimension_reviews": _dimension_rows(),
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nThe empirical-precision finding was out of scope.",
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "No source or parent change is needed after retracting the finding.",
+        },
         "findings": [],
     }
 

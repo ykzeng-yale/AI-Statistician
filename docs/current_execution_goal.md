@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, use one explicit native-thinking configuration for retained workspaces.
+Updated: 2026-09-11, remove reviewer-content fallbacks; preserve the native-thinking configuration.
 
 ## Operative Objective
 
@@ -115,6 +115,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    formal-obligation audit, CLI commands and smoke stages are now removed.
    This is deletion of a known architectural violation, not improved E2E capability.
    Other legacy baselines remain explicitly non-authoritative.
+   Generated-code review no longer invents a missing verdict, Markdown report,
+   observed behavior or source-sufficiency assessment. Existing validation returns
+   omissions to the same reviewer, which authors the complete judgment. Synthetic
+   tests must supply explicit model judgments, not rely on runtime defaults.
 3. Address scientific reliability without turning evaluation into the product.
    The latest [linear IV/GMM qualification](operator_audits/linear_iv_gmm_prequalification_20260911.md)
    failed under protocols 22/23: one incomplete control was judged correctly,
