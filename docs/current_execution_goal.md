@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, including removal of lossy feedback selection and truncation.
+Updated: 2026-09-10, including the failed PPI qualification and generic early termination.
 
 ## Operative Objective
 
@@ -156,11 +156,20 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    missing or changed records cannot trigger automatic requalification.
    Hidden-gold review now reuses the retained loop, read-only document tools and
    isolated Python/R scratch, with a private Markdown report and exact transcript.
-   Protocol 14/15 binds the new contract and actual calls; no old qualification
-   transfers. The next scientific gate needs a complete reference and concrete
-   confirmatory design for a fresh full-scope task, not another easy control panel
-   or a rerun. Tool connectivity and synthetic tests alone do not establish
-   mathematical reliability or authorize product execution.
+   The [PPI full-task qualification](operator_audits/ppi_logistic_prequalification_20260910.md)
+   then completed once under protocol 15: 138 Haiku turns, 2083.906 seconds, 5/6
+   short controls, and a rejected reference candidate. Its independent final
+   referee introduced its own algebraic error and confused a pre-result design
+   with completed experiments. The failed record is preserved, not corrected or
+   relabeled; no source semantic qualification or product draw followed.
+   A separate shared efficiency defect is corrected under protocols 16/17:
+   stop after the first failed frozen control assessment, keep completed private
+   reports, and mark an unreviewed candidate NOT_RUN. Do not change scientific
+   labels, prompts, tools, within-case reasoning budgets or acceptance criteria.
+   Do not run another task merely to find a pass or convert referee mistakes into
+   statistical recipes. Diagnose general workspace/feedback limitations separately
+   from mathematical reliability. New qualification remains unestablished; tests
+   and operator source execution do not authorize a draw or establish research.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
@@ -184,10 +193,11 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
   but scientific improvement and thinking-enabled research-E2E remain unproven.
   The default budget stays zero; the pilot compared a configuration bundle, not
   the isolated causal effect of thinking tokens.
-  Hidden-gold protocol 14/15 uses the same retained loop and document/scratch tools,
-  with thinking explicitly off and a private Markdown referee report. Tool access
-  is a capability change, not evidence of improved judgment; new qualification is
-  required, and all consumed tool-free panels remain untouched.
+  Hidden-gold protocols 16/17 retain document/scratch tools, thinking explicitly
+  off, and private Markdown referee reports. Early termination affects only
+  qualification execution; it is not a mathematical correction. Failed or older
+  authority cannot silently qualify, resume or rerun. Tool access and reduced
+  wasted calls are mechanism changes, not evidence of improved judgment.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision
   uses the operator-designated `.env` through the existing CLI loader; absence of
   a process variable alone is not a blocker. The authentication check made one
@@ -228,8 +238,9 @@ is also consumed: its 12 invocations are component diagnostics, not additional
 research draws or full-task credits. The separately recorded Firth authority
 qualification also adds zero research draws or credits; its failed source role
 prevented activation, and this diagnostic-only change does not authorize a retry.
-The MCMC and entropic-transport theory qualifications are also consumed and failed.
+The MCMC, entropic-transport and PPI theory qualifications are also consumed and failed.
 Their source semantic roles were not run after the required gate failed; neither
-adds a product draw or credit. Current facts live in
+the protocol-15 PPI report nor later execution changes add a product draw or credit.
+Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.
