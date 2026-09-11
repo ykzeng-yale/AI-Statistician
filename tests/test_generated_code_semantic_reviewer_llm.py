@@ -1259,6 +1259,7 @@ def test_executable_evaluator_decision_path_review_is_model_owned() -> None:
             ("review_document", "review document artifact is inconsistent"),
             ("source_revision_assessment", "requires a valid resolution_scope"),
             ("observed_behavior", "missing observed_behavior"),
+            ("findings", "findings must be objects"),
         )
         for empty in (False, True)
     ],
@@ -1292,6 +1293,8 @@ def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session(
         else:
             del target[omitted_field]
     else:
+        invalid["overall_verdict"] = "ACCEPT"
+    if omitted_field == "findings":
         invalid["overall_verdict"] = "ACCEPT"
 
     class TerminalRecoveryBackend:
@@ -1362,6 +1365,38 @@ def test_native_reviewer_corrects_a_rejected_terminal_verdict_in_same_session(
     ]
     assert packet["source_manifest_hash"] == _trusted_lineage()["source_manifest_hash"]
     assert all(request.model == "claude-haiku-4-5-20251001" for request in backend.requests)
+
+
+@pytest.mark.parametrize("findings", [None, {}, False, "opaque", [None], ["opaque"]])
+def test_normalization_preserves_malformed_findings_for_existing_validator(findings) -> None:
+    payload = {
+        "overall_verdict": "ACCEPT",
+        "review_document": "# Review\n\nAn explicit model judgment.",
+        "findings": deepcopy(findings),
+        "prior_finding_reviews": [],
+        "source_revision_assessment": {
+            "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+            "rationale": "The immutable parents can remain fixed.",
+        },
+    }
+    original = deepcopy(payload)
+    material = _review_material()
+    packet = reviewer_module._normalize_generated_code_semantic_review_packet(
+        payload,
+        question=_question(),
+        trusted_lineage=_trusted_lineage(),
+        review_material=material,
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
+        provider_name="mock",
+        raw_response=json.dumps(payload),
+    )
+
+    assert payload == original
+    assert packet["findings"] == findings
+    assert "findings must be objects" in validate_generated_code_semantic_review_packet(
+        packet, review_material=material
+    )
 
 
 def test_native_reviewer_fails_closed_after_repeated_no_progress() -> None:

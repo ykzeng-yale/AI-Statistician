@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, remove reviewer-content fallbacks; preserve the native-thinking configuration.
+Updated: 2026-09-11, preserve reviewer input; keep qualification separate from product activation.
 
 ## Operative Objective
 
@@ -119,8 +119,10 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    observed behavior or source-sufficiency assessment. Existing validation returns
    omissions to the same reviewer, which authors the complete judgment. Synthetic
    tests must supply explicit model judgments, not rely on runtime defaults.
+   Malformed or missing findings must reach that existing validator unchanged,
+   rather than being silently converted into an empty, acceptable finding list.
 3. Address scientific reliability without turning evaluation into the product.
-   The latest [linear IV/GMM qualification](operator_audits/linear_iv_gmm_prequalification_20260911.md)
+   The earlier [linear IV/GMM qualification](operator_audits/linear_iv_gmm_prequalification_20260911.md)
    failed under protocols 22/23: one incomplete control was judged correctly,
    but the complete reference was marked incomplete for lacking executed
    confirmation, which its theory rubric did not request. Preserve that failure.
@@ -222,6 +224,11 @@ The later MCMC, entropic-transport, PPI, GP, GEE, conditional-quantile and linea
 IV/GMM theory qualifications are also consumed and failed.
 Their source semantic roles were not run after the required gate failed; neither
 the protocol-15 PPI report nor later execution changes add a product draw or credit.
+The bootstrap-particle theory qualification passed its single frozen attempt;
+its [receipt](evaluation_activations/bootstrap_particle_theory_qualification.json)
+records the controls and cost. Mechanical/source qualification and product were
+not run. A separate synthetic input-loss defect was corrected only afterward;
+the changed product code must not silently inherit the old product freeze.
 Current facts live in
 [main_worker_status.json](main_worker_status.json); historical manifests and
 qualification ledgers remain the original evidence.

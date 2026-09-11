@@ -208,12 +208,14 @@ def normalize_generated_code_semantic_review_findings(
     source_subsystem: str,
     findings: Any,
     preserve_existing_ids: bool = True,
-) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+) -> Any:
+    # Preserve malformed observations for the existing packet validator.
     if not isinstance(findings, list):
-        return rows
+        return deepcopy(findings)
+    rows: list[Any] = []
     for raw in findings:
         if not isinstance(raw, Mapping):
+            rows.append(deepcopy(raw))
             continue
         row = _descriptive_finding(raw)
         prior_finding_id = str(raw.get("prior_finding_id", "") or "").strip()
@@ -1531,7 +1533,7 @@ def _normalize_generated_code_semantic_review_packet(
     findings = normalize_generated_code_semantic_review_findings(
         question_id=question.id,
         source_subsystem=source_subsystem,
-        findings=payload.get("findings", []),
+        findings=payload.get("findings"),
         preserve_existing_ids=False,
     )
     source_revision_assessment = _normalize_source_revision_assessment(
