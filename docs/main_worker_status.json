@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Removed two content-dependent stopping prerequisites from the live Lean workspace: reporting unresolved work no longer requires a prior environment call or successful source compilation. The model chooses further search, source revision or a non-proof gap; prompts no longer prescribe a post-error edit-first or indexed-search-first sequence. Exact source and raw observations remain preserved, and a reported gap is not a verified library defect or proof. Production code decreased by 38 lines. The full suite passed 1427 tests. No new tool, error taxonomy, retry budget, live model call, product draw or E2E credit. Pre-existing untracked conditional-quantile preparation remains outside this delivery; consumed evaluations and failed qualifications are unchanged.",
+  "execution_status": "The prospective full-scope conditional-quantile research task and pinned source reuse were frozen at 53d007fa. Its protocol-21 theory qualification failed on the first control: seven exact-Haiku calls in 143.057 seconds. Both referees recognized explicitly incomplete work but emitted VIOLATED/FAIL, so five further controls, the long negative, full reference, mechanical/source qualification and product remained NOT_RUN. No product draw or E2E credit. The scope clarification has not resolved this shared distinction; stop substituting topics or treating conservative rejection of one negative as a reliable acceptance authority. No production mechanism changed in this preparation, and all consumed evidence remains immutable.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -33,8 +33,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "5c8aaea410a3b168654ca169a5c5c1984e3e71e6",
-    "working_tree_before_current_change": "Tracked tree clean; pre-existing untracked conditional-quantile question and source preparation preserved and not included."
+    "remote_before_current_change": "6cd6ed0427f9d9a7b0da4a2514be90a7b83d8aca",
+    "working_tree_before_current_change": "Tracked tree clean; pre-existing conditional-quantile preparation was inspected, frozen and committed before its single qualification attempt."
   },
   "capability_facts": {
     "consumed_task_count": 114,
@@ -246,28 +246,28 @@
     "capability_effect": "The harness no longer forces extra source edits merely to let a model report an unresolved target. Gap reports preserve uncertainty and remain non-proof; formal-required tasks still need independent exact-target kernel evidence. No new live evaluation or product draw was started. All 114 numbered plus four standalone consumed draws and failed qualifications remain immutable. No scientific or E2E credit is added; the goal remains active and unmet."
   },
   "latest_independent_qualification": {
-    "benchmark_id": "research-gee-poisson-20260911-v1",
-    "frozen_public_commit": "109519da",
+    "benchmark_id": "research-conditional-quantile-20260911-v1",
+    "frozen_public_commit": "53d007fa",
     "status": "FAILED_NOT_ACTIVATED",
-    "mechanical_elapsed_seconds": 46.98,
-    "theory_model_calls": 41,
-    "theory_elapsed_seconds": 624.72,
-    "theory_provider_call_seconds": 601.684,
-    "theory_control_outcome": "1/2 attempted correct; 4/6 configured controls NOT_RUN after failure",
+    "mechanical_elapsed_seconds": null,
+    "theory_model_calls": 7,
+    "theory_elapsed_seconds": 143.057,
+    "theory_provider_call_seconds": 143.020,
+    "theory_control_outcome": "0/1 attempted correct; 5/6 configured controls, long negative and complete reference NOT_RUN after failure. Mechanical qualification also NOT_RUN.",
     "source_semantic_status": "NOT_RUN",
     "product_draws": 0,
     "research_e2e_credit": false,
     "production_mechanism_change": false,
-    "verification": "87 focused contract/core tests passed in 9.70 seconds; 100 shared-loop/semantic-judge tests passed in 2.88 seconds. All 23 private frozen inputs match. No tests or production code changed and no new full-suite run is claimed.",
-    "audit_document": "docs/operator_audits/gee_poisson_prequalification_20260911.md"
+    "verification": "159 focused tests passed in 13.01 seconds; full-task descriptor and source/execution identities validated. All 31 private frozen inputs match after the attempt, and no product output directory exists. No tests or production mechanism changed; no new full-suite run is claimed.",
+    "audit_document": "docs/operator_audits/conditional_quantile_prequalification_20260911.md"
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
     "The preregistered configuration pilot is consumed. Preserve all 12 invocations, original reports and initial analysis; no rerun, prompt tuning on this panel, default thinking change or E2E credit. Keep the frozen preparation files unchanged and read the dated closeout for its current outcome.",
     "Prioritize source/observation fidelity and producer-owned envelope boundaries. Retire obsolete routing metadata at its source instead of expanding filters; preserve model-authored scientific methods and unfamiliar tool output. Test shared invariants and same-owner feedback, not benchmark-specific fixes.",
     "Keep explicit calibration separate from read-only startup. Freeze the mechanical record and original inputs as well as semantic qualification; never let missing, stale or empty authority trigger control execution. No current failed task is made eligible by this shared correction.",
-    "GP and GEE failed the same diagnostic distinction despite complete files and explicit instructions. FAIL and INCONCLUSIVE both reject unsupported work; optimizing that label distinction alone is not research capability. Do not repeat qualification on another topic, parse prose into replacement labels, add a print ban or mandatory scratch count, or manufacture another repair branch. Assess diagnostic calibration separately from acceptance reliability without bypassing frozen authority. See docs/operator_audits/gee_poisson_prequalification_20260911.md.",
-    "Preserve failed Firth, MCMC, entropic-transport, PPI, GP and GEE qualifications and every consumed draw. No renamed task, reduced scope, omitted control, relabeling or requalification. Any future product draw needs independently qualified, frozen authority under the current execution contract; no current task is activated.",
+    "GP, GEE and now the full-scope protocol-21 conditional-quantile attempt failed the same diagnostic distinction. FAIL and INCONCLUSIVE both reject unsupported work; optimizing that label distinction alone is not research capability. The correct full reference was not reached, so conservative rejection of this control establishes no acceptance reliability. Before any further live qualification, resolve the shared interface's completion-versus-contradiction semantics prospectively, not by another topic, prose-to-label repair, extra reviewer, mandatory scratch or bypass of frozen authority. See docs/operator_audits/conditional_quantile_prequalification_20260911.md.",
+    "Preserve failed Firth, MCMC, entropic-transport, PPI, GP, GEE and conditional-quantile qualifications and every consumed draw. No renamed task, reduced scope, omitted control, relabeling or requalification. Any future product draw needs independently qualified, frozen authority under the current execution contract; no current task is activated.",
     "Align active Lean/RAG project identity and reuse selected checked declarations; optional formal work must not block unrelated required research dimensions.",
     "Implement useful independent execution and dependency-aware joins only in the existing graph, with isolation/stale-result tests; no second scheduler.",
     "Demonstrate separately scoped multi-family research, real Python/R reproduction, exact formal/library reuse and cross-task benefit under frozen independent authority, then advance the published-result ladder without weakening held-out gates."

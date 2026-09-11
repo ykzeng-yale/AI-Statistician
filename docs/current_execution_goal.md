@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, removing model-stop prerequisites in Formalizer; no new product draw.
+Updated: 2026-09-11, prospective conditional-quantile qualification failed; no new product draw.
 
 ## Operative Objective
 
@@ -222,8 +222,17 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    reports had demanded other research-stage deliverables during a theory review.
    Protocols 20/21 bind this instruction change. Scientific labels, document-wide
    falsehood checks, qualification criteria and full-task completion gates remain
-   unchanged. This clarifies scope; fresh mathematical efficacy is not established.
-   No failed authority is requalified or made eligible by the change.
+   unchanged. The prospective full-scope conditional-quantile qualification under
+   protocol 21 then failed on its first control: both referees again labeled
+   explicit unfinished work as a contradiction, in seven Haiku calls. No later
+   qualification stage or product draw ran. The scope correction has not resolved
+   the distinction; no failed authority is requalified or made eligible. Preserve
+   the [immutable closeout](operator_audits/conditional_quantile_prequalification_20260911.md).
+   Stop replacing scientific topics. Before any further live qualification,
+   resolve whether completion criteria, contradiction diagnosis and qualification
+   acceptance are conflated in the shared interface. Do not add a statistical
+   recipe, prose-to-label repair or another reviewer, or weaken/rescore this frozen
+   attempt. Its conservative rejection alone does not establish acceptance reliability.
 4. Align formal execution and retrieval to the same active checkout. Use current
    file edits, Lean state and accessible-premise tools; transfer only selected
    verified declarations and their dependencies. Do not bulk-merge incompatible
