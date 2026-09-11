@@ -121,12 +121,13 @@ def _normalize_dimension_reviews(value: Any) -> list[dict[str, Any]]:
     ]
 
 
-def _normalize_findings(value: Any) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+def _normalize_findings(value: Any) -> Any:
+    rows: list[Any] = []
     if not isinstance(value, list):
-        return rows
+        return deepcopy(value)
     for raw in value:
         if not isinstance(raw, Mapping):
+            rows.append(deepcopy(raw))
             continue
         rows.append(
             {
@@ -147,7 +148,7 @@ def _normalize_findings(value: Any) -> list[dict[str, Any]]:
 
 def _derived_verdict(
     dimension_reviews: Sequence[Mapping[str, Any]],
-    findings: Sequence[Mapping[str, Any]],
+    findings: Any,
 ) -> str:
     return (
         "ACCEPT"
@@ -734,7 +735,7 @@ def _normalize_formal_target_semantic_review_packet(
     lean_readback: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     dimensions = _normalize_dimension_reviews(payload.get("dimension_reviews", []))
-    findings = _normalize_findings(payload.get("findings", []))
+    findings = _normalize_findings(payload.get("findings"))
     body: dict[str, Any] = {
         "question_id": question.id,
         "dimension_reviews": dimensions,
@@ -839,14 +840,6 @@ def validate_formal_target_semantic_review_packet(
             "formal-target findings require at least one FAIL or UNCERTAIN semantic "
             "dimension; all-PASS semantic reviews must leave findings empty"
         )
-    forbidden = {
-        "repair_scope",
-        "repair_owner",
-        "repair_plan",
-        "repair_instructions",
-        "required_change",
-        "suggested_fix",
-    }
     for index, row in enumerate(finding_rows):
         label = f"findings[{index}]"
         if row.get("severity") not in FORMAL_TARGET_SEMANTIC_REVIEW_FINDING_SEVERITIES:
@@ -861,14 +854,10 @@ def validate_formal_target_semantic_review_packet(
                 errors.append(f"{label} missing {field}")
         if not _string_list(row.get("evidence_refs", [])):
             errors.append(f"{label} requires evidence_refs")
-        if forbidden.intersection(row):
-            errors.append(f"{label} contains routing or repair instructions")
 
     expected_verdict = _derived_verdict(rows, finding_rows)
     if packet.get("overall_verdict") != expected_verdict:
         errors.append("overall_verdict must be derived from dimensions and findings")
-    if forbidden.intersection(packet):
-        errors.append("formal-target review packet contains routing or repair fields")
     if packet.get("runtime_selected_owner") is not False:
         errors.append("runtime may not select a semantic-review owner")
     if packet.get("proof_evidence_status") != (

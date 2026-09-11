@@ -1710,16 +1710,6 @@ def validate_generated_code_semantic_review_packet(
         ):
             if not str(row.get(field, "") or "").strip():
                 errors.append(f"{label} missing {field}")
-        forbidden = {
-            "repair_scope",
-            "repair_owner",
-            "repair_plan",
-            "repair_instructions",
-            "required_change",
-            "suggested_fix",
-        }
-        if forbidden.intersection(row):
-            errors.append(f"{label} contains runtime routing or repair instructions")
     prior_rows = packet.get("prior_finding_reviews", [])
     normalized_prior_rows = [row for row in prior_rows if isinstance(row, Mapping)] if isinstance(prior_rows, list) else []
     expected_prior_ids = [

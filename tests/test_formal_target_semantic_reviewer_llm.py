@@ -1059,9 +1059,24 @@ def test_slot_mapping_normalizes_without_model_copied_identity(
     )
 
 
-def test_invalid_submission_returns_to_same_retained_reviewer_session() -> None:
+@pytest.mark.parametrize(
+    "invalid_findings", ["inconsistent", "missing", "nonlist", "nonobject"]
+)
+def test_invalid_submission_returns_to_same_retained_reviewer_session(
+    invalid_findings: str,
+) -> None:
     invalid = _review_response(accepted=True)
-    invalid["findings"] = _review_response(accepted=False)["findings"]
+    expected_error = "findings must be objects"
+    if invalid_findings == "inconsistent":
+        invalid["findings"] = _review_response(accepted=False)["findings"]
+        expected_error = "all-PASS semantic reviews must leave findings empty"
+    elif invalid_findings == "missing":
+        del invalid["findings"]
+    else:
+        invalid["findings"] = (
+            "opaque observation" if invalid_findings == "nonlist"
+            else ["opaque observation"]
+        )
     backend = _ClientToolReviewBackend(
         [invalid, _review_response(accepted=True)]
     )
@@ -1112,7 +1127,8 @@ def test_invalid_submission_returns_to_same_retained_reviewer_session() -> None:
         sort_keys=True,
     )
     assert "client_tool_input_rejected" in returned_observation
-    assert "all-PASS semantic reviews must leave findings empty" in returned_observation
+    assert expected_error in returned_observation
+    assert packet["candidate_source_hash"] == lineage["candidate_source_hash"]
     assert packet["client_tool_loop"]["turns"] == 3
     assert packet["client_tool_loop"]["full_packet_regeneration_used"] is False
 
