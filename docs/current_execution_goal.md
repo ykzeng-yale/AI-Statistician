@@ -117,11 +117,14 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    The macOS prototype passes scoped file/network and local dependency checks,
    but a detached child can write after the execution receipt. It remains a
    test-only development dependency, not an enabled product backend. Native
-   adoption needs an established process-lifetime boundary (for example, a
-   separately qualified Linux/OCI environment), not a custom process monitor.
-   Dependency acquisition and frozen offline execution remain separate. Use
-   ordinary environment tooling rather than package-specific rules; advance
-   recoverable research context while the native backend remains unqualified.
+   adoption needs an established process-lifetime boundary, not a custom process
+   monitor. Apple's container 1.4.1 now passes six explicit native Linux/OCI
+   checks, including offline Python and R package reuse and detached-child
+   containment after exit, timeout and output overflow. It remains test-only:
+   networked acquisition, disk limits, crash recovery, exact environment freezing
+   and retained-model integration are not established. Connect ordinary project
+   tooling only after those authority/lifecycle boundaries are demonstrated;
+   do not replace them with package-specific recipes or operator-prepared answers.
 2. Improve long-horizon Theory through recoverable observations and native
    Markdown/LaTeX work. Theory, Scientific and Lean owners now share a read-only
    history tool backed by the existing immutable session store. Full observations

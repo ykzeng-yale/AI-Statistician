@@ -136,6 +136,46 @@ or patch around it with a new process-tree controller. A qualified Linux/OCI
 lifetime boundary is a separate adoption requirement. No Linux test, R process,
 model call, research draw, or replication/proof credit came from this experiment.
 
+**OCI/VM qualification, 2026-09-11:** Apple's standalone `container` supplies
+the missing kind of lifetime boundary without an agent framework. Release 1.4.1
+at `9a8917ca2da5cd6ba059b9ba5ca5a74892e9bb7d` was inspected and run on macOS
+26.5.2/arm64. Its signed installer SHA-256 is
+`c0d2716afefbb194c93fae662e9cae7cc186bcbcf746816608ec673dd648a6a4`;
+Apple package signature, notarization and executable signature checks passed.
+The payload was expanded under the existing external-resource directory and
+started using official `--install-root`/`--app-root` options, without a system
+installation. No Docker/Podman runtime was already installed on this host.[^apple-container]
+
+The [explicit qualification fixture](../tests/test_oci_project_execution.py)
+uses pinned official Python 3.12.13 and R 4.6.1 OCI digests, no network attachment,
+read-only guest root, dropped Linux capabilities, an unprivileged guest UID,
+one writable synthetic project, bounded CPU/memory/time/output, and no inherited
+credentials, SSH forwarding or host-home mount. Separate output streams retain
+raw diagnostics. Each command ends with upstream VM deletion before a receipt;
+we do not implement process-tree monitoring. Six checks pass: file/network/secret
+isolation with a nonzero exit, offline Python environment/package reuse, offline
+R package/library reuse, and detached-child containment after normal exit,
+timeout and output overflow. In the three lifetime cases, the host creates a
+trigger after receipt that would allow a surviving child to write; no late write
+occurs and the container is absent. This exercises actual native R, not WebR.
+
+The first five-check run exposed a fixture I/O bug: after overflow it stopped
+reading but kept the pipes open, blocking upstream deletion on output backpressure.
+Closing the abandoned readers before deletion fixed that generic ownership error;
+the subsequent six-check run passed in 20.28 seconds. Cleanup failure produces no
+receipt, not a successful execution. This is not an upstream security certification.
+The live tests are opt-in through `AI_STATISTICIAN_TEST_APPLE_CONTAINER`, require
+an already started exact-version service and locally acquired digest-addressed
+images, and never install software or start services during default pytest runs.
+
+This is a **test-only execution candidate**, not an enabled product backend.
+Networked dependency acquisition, total disk quotas, controller-crash recovery,
+image/environment freezing and retained-model integration still need qualification.
+Do not mount live author/evaluator stores into a future writable guest: pass only
+the selected project and externalize evidence after shutdown. The macOS SRT
+non-adoption result remains unchanged. No model call or scientific evaluation was
+used; command/environment plumbing is not autonomous reproduction.
+
 ### Long-Horizon Theory: Native Files, Uncertainty, and Recoverable Context
 
 The AI co-mathematician is an interactive, asynchronous mathematical workspace:
@@ -294,19 +334,18 @@ and optional formal intent are real and should not be rebuilt under new names.
 
 ### 1. Model-Owned Source and Environment Work
 
-The next implementation slice should connect an already permitted public source
-handle to the existing immutable snapshot, then let the researcher inspect the
-project, author its environment recipe, and run ordinary commands in isolation.
+Public acquisition now connects a permitted source handle to an immutable
+snapshot and existing read/import tools. The next native integration should let
+the researcher author its environment recipe and run ordinary project commands.
 The model chooses dependencies, entrypoint, tests, exploratory changes, and
 interpretation. The executor records the resolved source, data, package state,
 working directory, outputs, and process status.
 
-Evaluate the standalone Anthropic sandbox runtime as the first narrow backend
-candidate for this native-command path. Keep the current WASM backend available
-where it is the selected environment; do not silently switch after failure.
-If OS isolation cannot satisfy the required threat model, use an explicitly
-selected OCI environment instead. This is an engineering selection, not a model
-escalation or a new agent framework.
+The standalone macOS SRT prototype failed lifetime qualification. The explicit
+Apple OCI/VM candidate above passes six native checks, but its test fixture is not
+a product adapter. Keep the current WASM backend where it is selected; never
+silently switch environments after failure. Native adoption is an execution
+selection, not model escalation, a new agent framework, or scientific authority.
 
 Dependency acquisition and computation need different capabilities. Installation
 can use explicitly allowed registries in a disposable secret-free environment;
@@ -409,7 +448,8 @@ uncertainty, not a claim that no permission can exist elsewhere.
 | Pi `b2158840` | `packages/agent/src/agent-loop.ts` | Adapt history/context/continuation separation; MIT; no second loop |
 | mini-SWE-agent `04d809ce` | `src/minisweagent/environments/docker.py`, default-agent entrypoints | Small environment reference; MIT; remove submission coupling if reused |
 | OpenHands SDK `9bc73b48` | Docker workspace and terminal/conversation layout | Defer full stack; MIT; not a standalone executor |
-| Anthropic sandbox runtime `c392e6cf` | `sandbox-manager.ts`, configuration and security documentation | First narrow native-execution candidate; Apache-2.0; isolation tests still required |
+| Anthropic sandbox runtime `c392e6cf` | `sandbox-manager.ts`, configuration and security documentation | Test-only; detached macOS process lifetime failed qualification; Apache-2.0 |
+| Apple container `9a8917ca` / 1.4.1 | Startup paths, forced deletion, Linux runtime shutdown; six native checks | Prefer established OCI/VM lifetime over a custom monitor; test-only pending product integration; Apache-2.0 |
 | AREX-Skill `ac3fe1af` | Architecture, statsmodels skill and provenance | Select portable operating context; inspect per-file terms; no DisCo runtime |
 | PaperQA `57e89f72` | `src/paperqa/readers.py`, `docs.py` boundaries | Reuse parsing/chunk provenance below agent layer; Apache-2.0 |
 | ERA `440711e3` | `implementation/futs.py` | Direct search-component candidate only with a trustworthy exploratory score; Apache-2.0 |
@@ -475,8 +515,8 @@ All model tests remain direct API calls to exactly
 `claude-haiku-4-5-20251001`. No Opus, automatic escalation, external service agent,
 or default third-party model is introduced. This report has made no model calls
 and had not executed or installed the proposed components at the initial review.
-The later SRT-only qualification above records its installation, test coverage,
-and explicit non-adoption; it does not retroactively expand the literature audit.
+The later SRT and OCI/VM qualifications above record their setup, test coverage,
+and product non-adoption; they do not retroactively expand the literature audit.
 
 ## Sources
 
@@ -489,6 +529,7 @@ to the full pins in these source links.
 [^mini]: SWE-agent contributors, [mini-SWE-agent Docker environment](https://github.com/SWE-agent/mini-swe-agent/blob/04d809ceab9df28f9adaed044884180159172930/src/minisweagent/environments/docker.py), [agent](https://github.com/SWE-agent/mini-swe-agent/blob/04d809ceab9df28f9adaed044884180159172930/src/minisweagent/agents/default.py).
 [^openhands]: OpenHands, [Docker workspace](https://github.com/OpenHands/software-agent-sdk/blob/9bc73b48bda5d345049e44df0199d04939ac0aba/openhands-workspace/openhands/workspace/docker/workspace.py).
 [^srt]: Anthropic, [standalone sandbox runtime](https://github.com/anthropic-experimental/sandbox-runtime/tree/c392e6cf9f8df957c66d9ab1461e2cfa99b1ab5d), [sandbox manager](https://github.com/anthropic-experimental/sandbox-runtime/blob/c392e6cf9f8df957c66d9ab1461e2cfa99b1ab5d/src/sandbox/sandbox-manager.ts).
+[^apple-container]: Apple, [container 1.4.1 release](https://github.com/apple/container/releases/tag/1.4.1), [official startup paths](https://github.com/apple/container/blob/9a8917ca2da5cd6ba059b9ba5ca5a74892e9bb7d/Sources/ContainerCommands/System/SystemStart.swift), [forced deletion](https://github.com/apple/container/blob/9a8917ca2da5cd6ba059b9ba5ca5a74892e9bb7d/Sources/Services/ContainerAPIService/Server/Containers/ContainersService.swift), [guest shutdown](https://github.com/apple/container/blob/9a8917ca2da5cd6ba059b9ba5ca5a74892e9bb7d/Sources/Services/RuntimeLinux/Server/RuntimeService.swift). Apache-2.0. Named implementation paths inspected, not a full repository/security audit.
 [^comath]: Zheng et al., [AI co-mathematician](https://arxiv.org/html/2605.06651v2), May 2026, workspace and collaboration sections.
 [^aletheia]: Feng et al., [Towards Autonomous Mathematics Research](https://arxiv.org/html/2602.10177v1), February 2026, sections 2 and 5.
 [^anthropic-long]: Anthropic, [Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps), March 24, 2026.
