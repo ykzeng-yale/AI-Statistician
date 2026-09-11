@@ -1,0 +1,29 @@
+{
+  "benchmark_id": "research-bootstrap-particle-20260911-v1",
+  "original_preregistration": "bootstrap_particle_preactivation.json",
+  "theory_qualification_receipt": "bootstrap_particle_theory_qualification.json",
+  "product_code_head": "412a8587ab5335eefea19b64b361c83266a34eaa",
+  "execution_checkout_head": "4e1e092851ad46cc6e9ad938c11f038e024c0698",
+  "product_package_git_tree": "e904aaaf62db90ecc8100957dc19d958567edd6c",
+  "execution_checkout": "/Users/yukangzengcmac/.codex/eval_checkouts/AI-Statistician-bootstrap-4e1e0928",
+  "main_at_preparation": "23e0294ad2cc5d3cd948466b232606274e7f1f9e",
+  "product_configuration_sha256": "cf60ca7718f8fd21d28e0c1aca346680b8c0916c45b068c6f6c9ff7a07429d21",
+  "private_launcher_sha256": "5266c1b655c540af0d4a9da4d69e0ff3a210203e7f07bea09e7f6a00e2015165",
+  "mechanical_qualification": {
+    "attempt": 1,
+    "passed": true,
+    "elapsed_seconds": 55.68,
+    "negative_evaluator_checks_rejected": 3,
+    "source_record_control_correct": true,
+    "tampered_record_control_rejected": true,
+    "private_record_sha256": "05a5fa0caf74a8917f6c78b11cfe146f535ecc320e3f864c396f3a1e043a3184"
+  },
+  "source_semantic_status_at_preparation": "RUNNING_FIRST_ATTEMPT",
+  "product_status_at_preparation": "NOT_STARTED_NOT_ACTIVATED",
+  "maximum_product_draws": 1,
+  "maximum_automatic_post_runtime_assessments": 1,
+  "resume_rerun_rejudge_rescore_allowed": false,
+  "execution_binding": "The detached checkout adds only the preregistered non-product source resources to the original product code. Its ai_statistician tree, pyproject.toml and package-lock.json match the frozen code commit. The interpreter is the existing project venv, working directory is the detached checkout, and its node_modules link resolves to the unchanged installed Pyodide/WebR cache. No development branch is created and main is not reverted. Original CLI arguments, question, sources, private gold, model, thinking and budgets remain unchanged.",
+  "activation_boundary": "Only the still-unrun preregistered stages proceed. The completed theory qualification is verified by identity, never re-executed. Product launch remains forbidden until every original qualification gate passes; the canonical CLI performs the sole post-runtime assessment. This record does not activate the task or replace any prior record.",
+  "version_boundary": "Any resulting research evidence belongs to the original frozen product version, which predates the reviewer-input preservation fix on main. It must not be reported as a fresh evaluation of latest main, as evidence that the old input-loss defect cannot occur, or as completion of the full laboratory goal."
+}
