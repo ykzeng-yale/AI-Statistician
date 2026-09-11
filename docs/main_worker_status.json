@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Removed lossy scientific feedback projection and initial-message truncation. The same source owner can read complete permitted diagnostics through existing document tools, including long single-line and large structured observations; exact diagnostic references survive continuation and reject changed files before model calls. Outcome field visibility and current-source release authority are unchanged. Shared reviewer tool definitions now bind qualification identity. Production code net +36 lines, no new module, tool name, scheduler, error classifier, statistical recipe or retry budget. Full suite: 1372 passed in 288.41 seconds; compileall and diff check passed. No live model call, qualification, product draw or rescore ran for this correction. PPI remains failed and counts remain 114 numbered plus four standalone draws, with no new scientific credit.",
+  "execution_status": "The existing scientific run tool now lets the source-owning model select a current Python/R project script for exploratory diagnostics, without changing the fixed run_sandbox execution program. Scripts can import/source current main code and choose diagnostic seed/replicates; they execute in the existing isolated WASM runner with no confirmation artifacts or bound estimators. Exact observations use existing persistent read-only documents. Script success never updates bound-check or release authority. No new tool name, module, scheduler, repair agent or statistical recipe. Production code net +62 lines including the runner. Full suite: 1384 passed in 297.30 seconds; Python compileall, Node syntax and diff checks passed. No model inference, qualification, product draw or rescore ran. Consumed counts remain 114 numbered plus four standalone draws, with no new research-E2E credit.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "fb732e652f24a817fb0399556ac806b54182beb0",
+  "validated_code_head": "c81bf0d470ea0dff010fe1bb91e74374ca23c566",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "d086d21a1e04612fa11e4332c3b62c9b8b210eb0",
+    "remote_before_current_change": "07e825e194f7142791073f0de13b86f9544e0082",
     "working_tree_before_current_change": "clean"
   },
   "capability_facts": {
@@ -228,22 +228,22 @@
   "current_structure": {
     "research_agent_runtime_lines": 24789,
     "theory_workspace_lines": 4527,
-    "scientific_code_workspace_lines": 3552,
+    "scientific_code_workspace_lines": 3594,
     "client_tool_loop_lines": 1224,
     "agent_runtime_lines": 1365,
     "formalizer_llm_lines": 1848,
     "lean_candidate_revision_tool_loop_lines": 2941,
     "cli_lines": 7053,
     "top_level_python_modules": 138,
-    "top_level_package_lines": 149168,
+    "top_level_package_lines": 149218,
     "production_design_lines": 399,
     "codex_adoption_lines": 249
   },
   "latest_validated_change": {
-    "code_commit": "fb732e652f24a817fb0399556ac806b54182beb0",
-    "summary": "Preserve complete permitted scientific observations for the source-owning model. Replace positional truncation with existing content-addressed read/search tools, add optional character ranges for long single lines, and persist immutable diagnostic references across continuation. Keep outcome selection separate from text transport and bind shared tool definitions into semantic qualification. Production code net +36 lines; no case-specific error handling or new repair layer.",
-    "verification": "Focused scientific/progress/theory/gold tests: 204 passed in 16.65 seconds, followed by two new structured-output/path-confinement tests passing. Full suite after all code and design changes: 1372 passed in 288.41 seconds; compileall and git diff --check passed. Synthetic same-owner tests recover late/middle diagnostics, retain exact accepted source identity, keep confirmation stdout/metrics/gates out of exposed documents, read earlier diagnostics after resume, reject tampering and escaping paths before calls, and reject changed qualification tools without reexecution. The original projection regression failed before the fix. Existing Python/R execution tests passed; no actual model inference was used.",
-    "capability_effect": "Feedback availability and checkpoint/tool identity only, not improved mathematical reasoning or E2E completion. Earlier diagnostics are readable history, not current-source acceptance. Raw stderr is not a general blinding guarantee; confirmation data must stay outside exploratory execution. Full structured check payloads still exist in state, and broader metric/context complexity remains; do not expand content filters or mathematical repair prompts to address those issues. Every consumed evaluation and failed qualification remains unchanged. Goal remains active and unmet."
+    "code_commit": "c81bf0d470ea0dff010fe1bb91e74374ca23c566",
+    "summary": "Remove the restriction that every coding-agent test must enter the fixed run_sandbox ABI. Extend the existing run tool with exact current-project script selection and optional diagnostic inputs; reuse the same source files, sandbox, retained loop and read-only observation storage. The chosen script and complete project bind execution identity. Keep required bound execution and source release separate. Production Python net +50 lines and runner net +12 lines; no new module, tool name, control plane or error-content repair.",
+    "verification": "Focused scientific/progress/sandbox suite: 121 passed in 59.32 seconds. Final path/safety/selection tests: 10 passed in 2.90 seconds. Final full suite after all changes: 1384 passed in 297.30 seconds; Python compileall, Node --check and git diff --check passed. Real Python and R executions with a scripted provider cover failing tests, same-owner source edits, repeated diagnostics on model-selected inputs, unchanged test-file bytes, retained observations, empty private-input/bound-estimator collections, and rejection of commit before the original bound check. Missing/escaping paths, non-script overrides and selected Python files with disallowed imports are rejected before execution. An earlier partial full suite was intentionally interrupted to align extension handling with source safety; only the final completed suite is full-suite evidence.",
+    "capability_effect": "A general coding-workspace execution capability is implemented and mechanically verified, not autonomous research success or improved mathematical reasoning. Diagnostic scripts use the pinned WASM environment and existing resource policy; they are not arbitrary dependency installers or confirmatory experiments. No Haiku inference or consumed evaluation ran. Mathematical reviewer reliability, broader metric/context complexity, independent concurrency and the accepted research-E2E requirement remain unresolved. Every failed qualification and consumed draw is unchanged. Goal remains active and unmet."
   },
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
