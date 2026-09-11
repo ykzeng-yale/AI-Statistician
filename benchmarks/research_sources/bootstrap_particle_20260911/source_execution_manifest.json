@@ -1,0 +1,56 @@
+{
+  "schema_version": 3,
+  "artifact_kind": "ResearchSourceExecutionSpec",
+  "execution_id": "bootstrap-particle-source-execution-20260911-v1",
+  "benchmark_id": "research-bootstrap-particle-20260911-v1",
+  "source_snapshot_id": "bootstrap-particle-public-source-20260911-v1",
+  "source_snapshot_hash": "156361c671aa32c132db197b8448cfc27a86c102377b326a394fabf6b19e68c4",
+  "source_manifest_sha256": "e0f704a5d1f327fbd3bf204124104e413461d2210150a0050d134310420a9021",
+  "source_commit": "f71e94a21a11c73b58e2d694775b1b1d379b8854",
+  "entrypoint_document_id": "pf-run_particle_source-py",
+  "environment_lock_document_id": "pf-environment_lock-json",
+  "environment_root": "/Users/yukangzengcmac/.codex/external/particles-bootstrap-env",
+  "runtime_language": "python",
+  "interpreter_executable_relative_path": "bin/python",
+  "interpreter_executable_sha256": "a395f264e5612a2819662ed3e37fd30d39ed61179b98e5f86c3c783a008d8623",
+  "runtime_read_roots": [
+    "/Users/yukangzengcmac/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none"
+  ],
+  "working_directory_relative": ".",
+  "arguments": [],
+  "package_distributions": {
+    "threadpoolctl": "threadpoolctl",
+    "pandas": "pandas",
+    "matplotlib": "matplotlib",
+    "kiwisolver": "kiwisolver",
+    "packaging": "packaging",
+    "scipy": "scipy",
+    "fonttools": "fonttools",
+    "pytz": "pytz",
+    "contourpy": "contourpy",
+    "seaborn": "seaborn",
+    "joblib": "joblib",
+    "tzdata": "tzdata",
+    "numpy": "numpy",
+    "numba": "numba",
+    "particles": "particles",
+    "python-dateutil": "python-dateutil",
+    "cycler": "cycler",
+    "pyparsing": "pyparsing",
+    "pillow": "pillow",
+    "scikit-learn": "scikit-learn",
+    "six": "six",
+    "llvmlite": "llvmlite"
+  },
+  "runtime_environment": {
+    "MPLBACKEND": "Agg",
+    "LOKY_MAX_CPU_COUNT": "1"
+  },
+  "timeout_seconds": 900,
+  "max_output_bytes": 4194304,
+  "execution_workspace_mode": "staged_copy_on_write",
+  "result_artifact_paths": [
+    "particle_source_result.json",
+    "stochvol_filtering_error_boot_vs_guided_vs_apf.pdf"
+  ]
+}
