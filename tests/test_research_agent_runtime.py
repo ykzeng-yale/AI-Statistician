@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 from copy import deepcopy
@@ -1555,6 +1556,9 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     }
     finding_id = "finding:publication-proof-gap"
     preflight_id = "theory_preflight:exploratory-algorithm-theory-return"
+    referee_text = "# Independent report\n\n" + "Full reviewer observation.\n" * 100
+    referee_path = tmp_path / "preflight-review.md"
+    referee_path.write_text(referee_text, encoding="utf-8")
     preflight = {
         "artifact_kind": "ArchitectTheoryExecutionPreflightReviewPacket",
         "packet_id": preflight_id,
@@ -1562,6 +1566,12 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
         "source_theory_packet_hash": runtime_module.stable_hash(theory),
         "overall_verdict": "REVISE",
         "execution_handoff_status": runtime_module.PREFLIGHT_EXECUTION_HANDOFF_READY,
+        "review_report": {
+            "path": str(referee_path),
+            "sha256": hashlib.sha256(referee_text.encode()).hexdigest(),
+            "byte_size": len(referee_text.encode()),
+            "persisted": True,
+        },
         "findings": [
             {
                 "finding_id": finding_id,
@@ -1817,6 +1827,9 @@ def test_exploratory_algorithm_revision_reaches_terminal_empirical_acceptance(
     observations = research_architect_module._theory_workspace_read_only_observations(
         revision_inputs,
     )
+    report_ref = observations["reviewer_observations"]["review_document_ref"]
+    assert observations["read_only_documents"][report_ref["workspace_document_path"]] == referee_text
+    assert binding["source_feedback"]["review_document_ref"] == preflight["review_report"]
     source_ref = observations["exploratory_source_manifest"]
     source_text = observations["read_only_documents"][source_ref["path"]]
     assert json.loads(source_text) == source_manifest

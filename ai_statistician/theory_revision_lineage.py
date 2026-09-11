@@ -127,6 +127,8 @@ def build_exploratory_scientific_theory_observation(
             "Theory workspace."
         ),
     }
+    if "review_report" in preflight_packet:
+        feedback["review_document_ref"] = deepcopy(preflight_packet["review_report"])
     feedback["feedback_id"] = (
         "exploratory_scientific_theory_observation:"
         + stable_hash(feedback)[:20]
