@@ -4,7 +4,7 @@
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "The prospective reviewer-scope prompt comparison completed 12 independent component invocations with 53 exact-Haiku calls in 957.895 seconds. Both original and proposed prompts matched all six expected labels; the predeclared improvement criterion was not met, so no prompt or product change is adopted. See docs/evaluation_activations/reviewer_scope_pilot_20260911_result.json. A separate read-only transcript check confirms that the original UCB reviewer read the complete 2802-character canonical question before submission; no missing/truncated context defect was demonstrated. The UCB qualification remains failed and consumed, product research remains unstarted, and no new research-E2E credit or task activation exists. Do not infer a shared harness defect from a model error or respond with another rule, judge, infrastructure project or immediate task substitution.",
+  "execution_status": "Fixed a reproduced research handoff defect: the real AgentRuntime expanded identity-bearing records before Theory could validate them, blocking the source owner before any model call. Record resolution and compaction now preserve exact bodies while checking nested dependencies. Theory exposes the referenced exploratory source manifest through existing read-only document tools, and cross-artifact review routing uses the original feedback reference without a duplicate wrapper. No statistical source, prompt, model, budget, verifier threshold, VM/network facility or consumed evaluation was changed. The reviewer prompt pilot remains tied and unadopted; UCB qualification remains failed and consumed. No research task is activated and no new research-E2E credit exists.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,13 +28,13 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "f66213926aeeec7504211708cdd89ec1e0da2b98",
+  "validated_code_head": "59cdf332590b638a5cb92cbe5defc9de2f815dc1",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "2425b7b7",
-    "working_tree_before_current_change": "Working tree was clean. Fetched origin; canonical and main matched HEAD. Frozen qualification inputs, source snapshots, consumed records and detached product checkout remain unchanged."
+    "remote_before_current_change": "804d83cb37c3f9300d2b9540adaded81969934e9",
+    "working_tree_before_current_change": "Started clean at 804d83cb; remote main and the canonical branch matched. Frozen qualification inputs, source snapshots, consumed records and detached product checkout remain unchanged."
   },
   "capability_facts": {
     "consumed_task_count": 114,
@@ -226,24 +226,24 @@
     "audit_document": "docs/research_harness_reuse_strategy.md"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24679,
+    "research_agent_runtime_lines": 24640,
     "theory_workspace_lines": 4571,
     "scientific_code_workspace_lines": 3634,
     "client_tool_loop_lines": 1399,
-    "agent_runtime_lines": 1365,
+    "agent_runtime_lines": 1375,
     "formalizer_llm_lines": 1841,
     "lean_candidate_revision_tool_loop_lines": 2881,
     "cli_lines": 6957,
     "top_level_python_modules": 137,
-    "top_level_package_lines": 149008,
+    "top_level_package_lines": 148993,
     "production_design_lines": 399,
     "codex_adoption_lines": 248
   },
   "latest_validated_change": {
-    "code_commit": "f66213926aeeec7504211708cdd89ec1e0da2b98",
-    "summary": "Reuse the existing exact-text document externalizer for long reviewer and transport strings in Theory revision inputs. Existing file read/search tools expose unchanged text without a new action, wrapper, repair policy, statistical instruction or scheduler. The original hash-bound referee report remains read-only. Goal and reuse documents now prioritize scientific workflow defects and defer unsupported infrastructure expansion; the network extension is absent from this commit.",
-    "verification": "A new synthetic retained-owner test failed before the fix because read_theory_workspace rejected a single observation above 55000 characters. After the fix, the same scripted owner reads its index, inspects the exact final line through the existing document tool, edits its current source and checkpoints in four turns. A second test round-trips arbitrary nested reviewer, candidate-source and transport strings without changing the originals. Focused suites: 62 and 221 passed. Full suite: 1525 passed, 13 native opt-in tests skipped, 1 pre-existing SRT xfail in 353.30 seconds. runs/theory_revision_feedback_20260911_full.junit.xml records 1539 tests, zero errors/failures, and 14 XML skips including that xfail. Compileall and diff checks passed. No model API calls, VM startup, research draws or consumed-record changes. The earlier withdrawn network suite stopped after 596 passing tests and was not a completed verification of any shipped change.",
-    "capability_effect": "Removes a demonstrated feedback-access obstacle to model-owned theory revision. Scripted interaction and mechanism tests do not establish mathematical correctness, autonomous research, replication or exact proof. No scientific credit is added, no frozen evaluation is activated, and existing failed or consumed records remain immutable."
+    "code_commit": "59cdf332590b638a5cb92cbe5defc9de2f815dc1",
+    "summary": "Preserve identity-bearing artifact records during transport resolution and compaction; validate nested dependency hashes without rewriting records. Theory explicitly resolves its linked exploratory manifest into existing read-only file tools. Remove the duplicate semantic-review observation wrapper and route the original feedback. Product source is 15 lines smaller, with no new model tool, schema, repair policy or scheduler.",
+    "verification": "The existing exploratory Algorithm-to-Theory test failed when changed from a direct subsystem call to the real AgentRuntime: Theory was BLOCKED before the author call. A second assertion reproduced inaccessible complete source observations. Both now pass, including exact binding equality and full manifest/source round-trip through the existing revision document projection. Four neutral reference tests cover inline/referenced records and stale nested dependencies; Architect prompt inputs retain the exact review assessment and feedback hash. Focused source suites: 317 passed. The full final-source run in runs/runtime_record_identity_20260911_final.junit.xml completed 1543 cases in 350.89 seconds: 1528 passed, 13 native opt-in skips, 1 pre-existing SRT xfail, and one documentation-length failure (407 lines versus the existing limit below 400). Only documentation was then consolidated to 399 lines; the 10 core tests passed without changing that limit. Compileall and diff checks passed. No model API calls, VM startup, research draws or consumed-record changes. Do not describe that original full-run XML as failure-free.",
+    "capability_effect": "Repairs a demonstrated graph-to-owner identity and observation-access defect. Tests use synthetic observations and scripted authors, not a live scientific result. They do not establish mathematical correctness, independent referee reliability, replication or exact proof, and do not explain or change any consumed qualification. Fresh independently accepted research-E2E evidence remains absent; the goal stays active."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-bootstrap-particle-20260911-v1",

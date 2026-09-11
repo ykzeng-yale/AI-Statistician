@@ -322,20 +322,12 @@ Decision: action, target_ref, rationale_ref
 ```
 
 Substantive artifacts live once in the content-addressed store. Tasks and traces
-carry references, not recursive copies of prior tasks, deferred tasks, source,
-and manifests. Full raw output remains available by reference; prompts receive
-only the current source, active observations, target identity, and bounded
-retrieval context. Semantic handoffs explicitly project current substantive
-fields; provider transport, tool history, telemetry, and prior drafts stay in
-the source trace rather than becoming review or retrieval inputs.
-
-Transport references resolve to unchanged artifact records. Nested dependencies
-are hash-validated but remain references inside those records; their consumers
-resolve them explicitly. Compaction can replace a whole exact record with its
-reference, but cannot rewrite its body and invalidate its identity. Cross-workspace
-review routing uses the original feedback reference, not a second observation wrapper.
-Theory resolves the linked exploratory source manifest into its existing read-only
-document tools; the revision binding still contains the unchanged original reference.
+carry references, not recursive payload copies. Transport resolves each reference
+to its unchanged record, validating nested dependencies without expanding them.
+Compaction may replace a whole exact record, never rewrite its body. Consumers
+explicitly read dependencies; Theory exposes linked exploratory manifests through
+its existing read-only document tools. Review routing uses the original feedback.
+Provider transport, telemetry and prior drafts remain in the source trace.
 
 Workspace completion is parent-bound. A Theory revision retires active Algorithm,
 Simulation, Formalization, accepted-review, and handoff references; historical IDs
