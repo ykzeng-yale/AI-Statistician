@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, remove redundant review filters; preserve the stopped activation.
+Updated: 2026-09-11, prioritize executable infrastructure and operating-context reuse.
 
 ## Operative Objective
 
@@ -22,6 +22,12 @@ mechanisms; do not rebuild working workspaces or add a second scheduler. The
 records what was inspected, what is already implemented, and what remains design
 rather than capability. [Production design](production_design.md) is the canonical
 implementation contract; the older Architect goal is now only a role map.
+
+The [deeper comparative reuse review](research_harness_reuse_strategy.md) now
+sets the implementation priorities. Codex improves the product harness; the
+product researcher must do literature selection, environment preparation,
+derivation, implementation, and interpretation. Operator-prepared paper answers,
+install commands, or error-specific repairs cannot count as product autonomy.
 
 ### Native Goal Record
 
@@ -102,58 +108,37 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 
 ## Implementation Order
 
-1. Keep the model in control of source and scientific decisions. The retained
-   file/tool loop already returns complete observations to the same owner.
-   Regression tests should vary source and unfamiliar errors, check exact transport
-   and model-authored edits, and preserve identity/authority. A failed mathematical
-   judgment does not justify a new runtime rule or a case-specific prompt.
-2. Remove identified content-authoring machinery instead of wrapping it. Architect
-   no longer rejects prose by matching phrases such as "simulation passed": even
-   negated statements and future acceptance conditions hit that old blacklist.
-   Existing typed execution/proof flags still cannot grant model authority.
-   The offline keyword-based theory revision generator and its downstream
-   formal-obligation audit, CLI commands and smoke stages are now removed.
-   This is deletion of a known architectural violation, not improved E2E capability.
-   Other legacy baselines remain explicitly non-authoritative.
-   Generated-code review no longer invents a missing verdict, Markdown report,
-   observed behavior or source-sufficiency assessment. Existing validation returns
-   omissions to the same reviewer, which authors the complete judgment. Synthetic
-   tests must supply explicit model judgments, not rely on runtime defaults.
-   Both code and formal review now preserve malformed or missing findings for
-   existing validation, rather than convert them into an acceptable empty list.
-   Code and formal-review validators no longer duplicate field-name repair
-   blacklists. Existing producer schemas and explicit projections define the
-   envelope; data never gains routing or tool authority from a field name.
-3. Address scientific reliability without turning evaluation into the product.
-   The earlier [linear IV/GMM qualification](operator_audits/linear_iv_gmm_prequalification_20260911.md)
-   failed under protocols 22/23: one incomplete control was judged correctly,
-   but the complete reference was marked incomplete for lacking executed
-   confirmation, which its theory rubric did not request. Preserve that failure.
-   Do not launch another topic, add a reviewer, rename verdicts, or move the
-   benchmark remedy into a prompt. Establish a shared interface/context defect
-   independently before changing the harness; better judgment needs fresh evidence.
-   A separate identity gap is now fixed: qualification binds the exact original
-   question shown to the reviewer, not just its task ID. Changed or missing context
-   identity cannot reuse an old qualification or trigger automatic requalification.
-   This does not change the review prompt, solve scope overreach, or activate GMM.
-   Hidden reviewers now honor the existing explicit Haiku thinking setting instead
-   of overriding it with zero. Default-off behavior and acceptance rules stay
-   unchanged; changed configuration requires fresh independent qualification.
-   The next full research experiment can use native model reasoning without a
-   second reviewer framework. Its efficacy remains unproven, and no consumed
-   task or control may be reused to tune or qualify it.
-4. Improve the existing source-project and Python/R environment only where real
-   reproduction exposes a general limitation. Pinned source execution exists;
-   arbitrary paper/data/environment reconstruction remains incomplete.
-   Keep published-source replication separate from hidden rederivation.
-5. Align formal execution and retrieval to the same active checkout, reuse selected
-   verified declarations, and keep deep Lean optional unless task intent requires
-   it. Implement useful isolated concurrency and dependency-aware joins only
-   within the existing graph, without concurrent writes to one artifact.
-6. Demonstrate the scoped deliveries above on fresh, independently qualified
-   tasks, then assess cross-task reuse and advance the published-result ladder.
-   Record actual scientific outcomes and calls/time. Mechanism tests, source
-   resource checks and rejected qualifications add no research-E2E credit.
+1. Connect the existing source-discovery, snapshot, file-import, and execution
+   surfaces so the product model can prepare and operate a research project.
+   Investigate the standalone Anthropic sandbox runtime as a narrow native
+   command backend, without Claude Code. Verify isolation before adoption;
+   dependency acquisition and frozen offline execution remain separate.
+   Reuse ordinary package/environment tooling rather than package-specific rules.
+2. Improve long-horizon Theory through recoverable observations and native
+   Markdown/LaTeX work. Extend the existing session/artifact reads, not a second
+   memory service. Let the model decide derivation length, useful scratch work,
+   and when to revise or report an unresolved gap.
+3. Make selected source-grounded operating knowledge accessible through existing
+   file/source tools. Evaluate portable AREX-Skill-style references and PaperQA's
+   lower-level parsing/provenance components, not their agent controllers.
+   Preserve original-source access, version identity, and benchmark blinding;
+   do not turn skills into mandatory recipes or an answer bank.
+4. Support genuinely independent work and exact-input joins in the sole
+   AgentRuntime. Reuse Codex/Pi lifecycle principles; do not embed their loops.
+   Normal environment feedback stays with the source owner. Changed premises
+   invalidate dependent evidence, not all work in unrelated dimensions.
+5. Prefer native Lean dependency extraction and active-project premise access
+   over source-text guesses. Reuse Prove2Me's statement/proof separation,
+   LeanMarathon's scoped DAG context, ReProver's accessibility contract, and
+   Statlib/SLT's mathematical module conventions. Keep incompatible upstream
+   libraries discovery-only until an explicit full-project migration succeeds.
+6. Use ERA-style candidate search only inside an existing exploratory workspace
+   with a trustworthy executable score. No automatic search tree, model ensemble,
+   extra reviewer, repair taxonomy, or fixed iteration ritual is required.
+7. Verify each shared change with content-neutral mechanism tests, then fresh,
+   prospectively defined cross-task evidence. Measure research outcomes and
+   preparation/downstream costs separately. Preserve all consumed evaluations;
+   do not replace failed tasks repeatedly to manufacture a success milestone.
 
 The [implementation audit](original_goal_harness_redesign_20260909.md), dated
 operator audits and Git history retain earlier changes and evidence. This goal

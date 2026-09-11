@@ -1,5 +1,12 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-04. Current audited upstream: [`openai/codex` at `8e6a44b4`](https://github.com/openai/codex/tree/8e6a44b4), Apache-2.0. Since the prior `03467026` pin, the only architecturally relevant changes add managed worktrees to `codex exec` and narrow asynchronous user-message guidance; the remaining commits concern product UI, voice, model catalogs, protocol hardening, and tests. Worktree lifecycle and user messaging belong to Codex's product control plane, not AI Statistician's scientific inner loop, so the selective-adoption decision remains unchanged and no Codex runtime layer is imported.
+Updated: 2026-09-11. Latest selectively inspected upstream:
+[`openai/codex` at `654b0a77`](https://github.com/openai/codex/tree/654b0a77d0d2f81aa21f61caf7af4be88fe550bb),
+Apache-2.0. This review inspected tool routing and execution/concurrency lifetime,
+not every change since the earlier `8e6a44b4` audit. The step that advertises a
+tool remains bound to its later execution; parallel and exclusive calls have
+separate admission semantics. The [comparative reuse strategy](research_harness_reuse_strategy.md)
+maps this to the existing shared loop and isolated workspaces. No Codex runtime
+layer is imported, and no newly measured product capability is claimed.
 
 This document records the current architectural decision. Earlier chronological
 adoption notes remain available in Git history; they are not repeated here because
