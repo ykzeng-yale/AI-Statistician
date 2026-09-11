@@ -1,10 +1,10 @@
 {
-  "schema_version": 463,
+  "schema_version": 464,
   "updated_at": "2026-09-11",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "The complete research-laboratory scope remains operative in docs/current_execution_goal.md. Native goal is active again following the operator's explicit local credential designation on 2026-09-10; its older Task114/one-result objective text remains unchanged, not completed or renamed. Credential authentication is not research-E2E completion.",
-  "execution_status": "Tested standalone Anthropic sandbox-runtime 0.0.76 as a candidate native command backend. Five macOS checks pass, but a detached child can still write after the execution receipt and SRT reset. The candidate is therefore test-only, a development dependency, and absent from product tools/runtime. Full suite: 1498 passed, 1 strict expected qualification failure in 355.25 seconds. Existing model-owned source acquisition is unchanged. No model API calls, consumed-record changes, native R claim or new research-E2E credit. Continue recoverable research context while a native process-lifetime boundary remains unqualified.",
+  "execution_status": "Theory, Scientific and Lean owners now share model-selected history reads from the existing immutable session store. Complete model-facing tool observations survive bounded-context omission and are retrievable by content hash across linked checkpoint windows without reexecuting old tools. Independent reviewers do not receive author-history access; confirmatory blinding and current verifier authority remain intact. Final full suite: 1518 passed, 1 existing SRT qualification xfail in 336.06 seconds. No model API calls, consumed-record changes or research-E2E credit. Native SRT remains test-only and unqualified for product execution.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Achieve one new, independently accepted research-first end-to-end result with AI-Statistician, beginning with the frozen Task114 evaluation. Use the existing single AgentRuntime and retained source-owning workspaces, calling Anthropic directly with exactly claude-haiku-4-5-20251001; no Claude Code dependency, Opus, or automatic escalation. Qualify and freeze Task114's independent semantic authority before its single product draw. Require one immutable lineage containing reviewable Markdown/LaTeX definitions, assumptions and equation-level derivations; model-authored scientific code and useful exploratory Python/R diagnostics; independent acceptance of the exact current theory/code; frozen confirmatory simulation under the qualified rubric; and an accepted final research report with honest gaps. Let theory and exploratory computation inform each other, without fixed derivation lengths, mandatory scratch counts, or routine Architect routing. Formalization follows frozen task intent and is not a gate for this non-formal research task; pinned paper/R reproduction and exact formal-only kernel closure remain subsequent, separately scoped milestones. Reuse the already pinned source/RAG infrastructure and Codex/Prove2Me mechanisms instead of launching more inventory or framework work. Fix only a demonstrated shared prompt, context, tool, feedback, source-identity, or verifier defect; never hand-edit a benchmark answer, add task-family rules, Lean grammar/tactic patches, repair agents, or another scheduler. Consumed evaluations remain immutable: never rerun, repair, reassess, or rescore them. A failed draw stays failed, and any later disjoint task requires its own frozen authority within the existing evaluation order. Report rubric-level evidence and actual calls/time, not estimated readiness percentages or test-count proxies. Completion requires a fresh independently accepted research-E2E result and verified, committed, directly pushed shared changes on main and the canonical work branch; tests, documentation, a stopped run, or partial subsystem success alone do not complete this goal.",
   "current_goal_document": "docs/current_execution_goal.md",
@@ -28,12 +28,12 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "79eb0ee35904414b4e556eea1c60ba72baeb7c4e",
+  "validated_code_head": "f7647a5964dbb9410dae4fcdec4b8410f5309de9",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "9094723a",
+    "remote_before_current_change": "c824fd16",
     "working_tree_before_current_change": "Working tree was clean. Fetched origin; canonical and main matched HEAD. Frozen qualification inputs, source snapshots, consumed records and detached product checkout remain unchanged."
   },
   "capability_facts": {
@@ -190,7 +190,7 @@
   },
   "canonical_architecture": {
     "outer_graph": "ai_statistician/agent_runtime.py is the sole typed research graph.",
-    "inner_loop": "ai_statistician/client_tool_loop.py is the shared retained model-tool loop for Theory, Python/R, Simulation, Lean, and isolated review.",
+    "inner_loop": "ai_statistician/client_tool_loop.py is the shared retained model-tool loop. Theory, Scientific and Lean source owners additionally configure its read-only observation history; isolated reviewers are not granted author history. Durable observations and parent references are separate from selected model context, not a second memory service or scheduler.",
     "theory_state": "Substantive mathematics lives in hash-bound Markdown/LaTeX files; JSON is limited to compact identity, dependency, checkpoint, and handoff envelopes. Exploratory Python/R scripts have no function/JSON-return ABI: exact source, raw output and errors are retained for model-owned interpretation and revision.",
     "scientific_code": "The source-owning model writes Python/R, executes the complete hash-bound single-file or multi-file project in the scientific sandbox, receives raw observations, and authors revisions in the same retained session.",
     "formalization": "Lean is selected by frozen task intent. It is mandatory for formal tasks and optional or advisory otherwise; only exact target-bound kernel promotion creates proof evidence.",
@@ -200,7 +200,7 @@
     "native_model_capacity": "One typed thinking option in the existing pinned-Haiku request/transport. Enabled requests use automatic tool selection and preserve opaque signed/redacted content; plain-text stopping still requires explicit continuation, never automatic acceptance or resampling."
   },
   "current_design_assessment": {
-    "direction": "Reuse executable infrastructure and recoverable operating context instead of adding orchestration. Source acquisition remains available to the same model-owned Theory and Scientific sessions. The standalone SRT candidate was tested, not promoted: macOS detached-process lifetime violates stable post-execution workspace identity. No production Python module or central runtime changed. Native project/environment preparation, long-horizon mathematical reliability and fresh independent research acceptance remain unresolved; component tests do not establish autonomy or E2E success.",
+    "direction": "Reuse infrastructure and recoverable operating context instead of adding orchestration. One shared history tool now closes demonstrated observation loss and old-window access gaps in the three source-owning workspaces. No new Python module, scheduler, repair agent, mathematical rule or outer AgentRuntime branch was added. This is recoverable context, not improved mathematical judgment: native environment preparation, long-horizon scientific reliability and fresh independent research acceptance remain unresolved.",
     "correct_boundaries": [
       "No runtime-authored statistical, mathematical, Python/R, or Lean repair content.",
       "No RepairAgent, hidden post-runtime workflow, whole-packet regeneration loop, or second scheduler in the canonical path.",
@@ -215,7 +215,7 @@
       "Native Haiku thinking transport worked live, but the small paired pilot cannot establish scientific improvement. It does not interleave thinking with tools or raise output ceilings. Keep it opt-in and frozen before a future run. Authorized local .env configuration is available; no historical credential recovery is needed.",
       "Long-horizon mathematical judgment and independent-referee falsification remain unreliable under exact Haiku. Latest internal acceptance failed independent theory, code and empirical gold despite 77 reviewer/Critic turns.",
       "All recent failed authorities, including linear IV/GMM under protocol 23, remain unactivated. The newest complete reference was marked incomplete because an adversarial referee demanded actual experiments from a pre-result theory design. Original reports remain unchanged. The newly fixed missing question-identity binding was reproduced with synthetic data, not established as the cause of that scope error. Exact identity does not improve mathematical judgment or qualify an old task. No rerun, relabeling, extra reviewer, task-specific instruction or topic substitution is justified by this change.",
-      "General publisher-paper, data and dependency/environment reconstruction remains incomplete; prepared frozen projects and scientific WASM runtimes do not establish arbitrary reproduction.",
+      "General paper/data/dependency reconstruction remains incomplete. The standalone SRT prototype remains test-only: a detached macOS child can write after the receipt and reset. A separately qualified established process-lifetime environment is needed; prepared projects, WASM and scoped SRT checks do not establish arbitrary reproduction.",
       "Outer graph is serial; dependency-selective revalidation and true isolated concurrent work need measured, scoped implementation within the existing runtime.",
       "Formal execution and retrieval must use the same active checkout. Broad cross-version discovery context is not an accessible active-project premise or exact theorem closure.",
       "Prove2Me local mechanisms are adopted, but remote Formalpedia is not connected; source licensing/toolchain limits prohibit treating it as an available proof authority.",
@@ -227,23 +227,23 @@
   },
   "current_structure": {
     "research_agent_runtime_lines": 24679,
-    "theory_workspace_lines": 4535,
-    "scientific_code_workspace_lines": 3602,
-    "client_tool_loop_lines": 1224,
+    "theory_workspace_lines": 4542,
+    "scientific_code_workspace_lines": 3609,
+    "client_tool_loop_lines": 1399,
     "agent_runtime_lines": 1365,
     "formalizer_llm_lines": 1841,
     "lean_candidate_revision_tool_loop_lines": 2881,
     "cli_lines": 6957,
     "top_level_python_modules": 136,
-    "top_level_package_lines": 148346,
+    "top_level_package_lines": 148542,
     "production_design_lines": 399,
     "codex_adoption_lines": 248
   },
   "latest_validated_change": {
-    "code_commit": "79eb0ee35904414b4e556eea1c60ba72baeb7c4e",
-    "summary": "Pinned SRT 0.0.76 as a development-only dependency and retained a standalone SDK qualification fixture. Temporary production integration was removed before commit. The experiment keeps exact command/raw-stream receipts, restrictive filesystem/network policy and no inherited model credentials. No Claude Code, model provider, second scheduler, source repair or statistical rule was added.",
-    "verification": "On macOS, five checks pass: scoped file/symlink/credential isolation and raw feedback; local Python venv plus synthetic wheel installation across commands; timeout; output cap; proxy allow/deny versus direct socket denial. The local proxy fixture uses explicit numeric-loopback proxy configuration; default Python localhost resolution under the restrictive read profile remains unqualified. A strict xfail demonstrates detached-child workspace mutation after receipt and reset, then cleans up its synthetic process. Focused native/core suite: 15 passed, 1 xfailed. Full suite: 1498 passed, 1 xfailed in 355.25 seconds; compileall and git diff checks passed. No Linux, native R, paid model or research evaluation ran.",
-    "capability_effect": "Negative native-adoption finding, not a new product capability. The test-only candidate must not execute researcher commands or freeze its mutable workspace as replication/proof evidence. A separately qualified established process-lifetime environment is needed; do not add a custom process monitor or another orchestrator. Existing acquisition/WASM/configured replication paths and every consumed evaluation remain unchanged."
+    "code_commit": "f7647a5964dbb9410dae4fcdec4b8410f5309de9",
+    "summary": "Preserve complete model-facing tool observations as content-addressed files in the existing session store, with compact per-window references and one parent link. Three source-owning workspaces advertise the same read_workspace_history tool. Hash selectors remain valid after context-window changes; history reads are not recursively archived and do not replay tool execution. Mathematical/source files and independent acceptance remain authoritative.",
+    "verification": "Final shared-loop/core/three-workspace checks: 73 passed. Separate blinded scientific-feedback check passed, including absence of withheld outcomes from the new archive. Tests cover long scalar, structured and Unicode observations across two context transitions; current catalogs; stable old omission references; storage corruption, root/owner/authorization mismatch, unlinked windows and path escape; interrupted sessions and storage failures without source replay; and exclusion of private model thinking/signatures. Initial full regression found two exact tool-list expectations missing the new tool; only those expected sets were updated, without weakening scientific checks. Fresh final full suite: 1518 passed, 1 pre-existing SRT qualification xfail in 336.06 seconds. Compileall and diff checks passed. No paid model call or research evaluation ran.",
+    "capability_effect": "Owners can recover archived observations rather than regenerate work because context was lost. This is mechanism evidence, not stronger theory, autonomous native environment preparation or independently accepted research-E2E. The native SRT candidate remains outside the product, independent reviewers remain isolated, and all consumed evaluations and qualification records are unchanged."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-bootstrap-particle-20260911-v1",
@@ -268,7 +268,7 @@
   "next_gates": [
     "Preserve all 114 numbered and four standalone consumed draws. Never rerun, resume, repair or rescore any of them. No new evaluation is activated by the redesign.",
     "The preregistered configuration pilot is consumed. Preserve all 12 invocations, original reports and initial analysis; no rerun, prompt tuning on this panel, default thinking change or E2E credit. Keep the frozen preparation files unchanged and read the dated closeout for its current outcome.",
-    "Improve recoverable long-horizon context through existing retained session/artifact reads. Keep the native SRT candidate outside the product: its macOS detached-child lifetime condition failed. Native source-owner execution needs a separately qualified established lifecycle boundary, such as an explicit Linux/OCI environment, before activation. No custom process monitor, second scheduler, operator-prepared paper answer or package/error-specific repair rule.",
+    "Use the existing retained workspace and recovered observations for model-led long-horizon research; demonstrated access is not mathematical reliability. Next develop permitted source-grounded operating context through current source/file tools, without a second memory service or compulsory recipe. Keep native SRT outside the product until an established process-lifetime environment is separately qualified. No custom process monitor, operator-prepared paper answer or package/error-specific repair rule.",
     "Startup and candidate review must reuse only independently frozen authority whose exact question context, rubric, controls, reference, model and execution contract, including resolved thinking configuration, still match. Missing or changed identity cannot trigger backfilling or automatic requalification. Earlier failed or consumed records remain untouched; this integrity check creates no new eligibility.",
     "Keep bootstrap-particle activation stopped: its consumed qualifications used a different context from the canonical CLI. Preserve the completed records and do not launch, requalify, rewrite identity hashes or add a product exception. Future preparation must reuse research_question_payload from the existing typed question loader and compare qualification/product contexts before model calls, not introduce another validator into the generic semantic judge. This does not authorize a replacement task or a new draw.",
     "Preserve all failed qualifications, including conditional-quantile and linear IV/GMM, and every consumed draw. No renamed task, reduced scope, omitted control, relabeling or requalification. Any future product draw needs independently qualified, frozen authority; no current task is activated.",
