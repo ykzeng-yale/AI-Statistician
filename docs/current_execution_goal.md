@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-09-10, with the shared-feedback audit; no new product draw.
+Updated: 2026-09-11, with complete review-contract binding; no new product draw.
 
 ## Operative Objective
 
@@ -123,6 +123,12 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
    file locations; candidate excerpts remain verbatim. Private file identities are
    rechecked with the qualification record. Protocols 18/19 bind this changed input
    contract, with the same statuses, review strategies, model and reasoning budgets.
+   Qualification now fingerprints the actual shared native request constructor,
+   including the previously unbound prompt and submission tool. It reuses the
+   retained-loop session fingerprint rather than another interface registry;
+   loop/scratch settings are frozen as well. Changed authority is rejected before
+   model calls, never automatically requalified. This closes an identity defect,
+   not the unresolved mathematical reliability or report/status disagreement.
    Tests cover source fidelity, readable full context, opaque case labels and exact
    references. No new tool name, mathematical parser, reviewer, classifier or retry
    budget was added. These are workspace mechanisms, not proof of better mathematics

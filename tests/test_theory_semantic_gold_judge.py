@@ -676,6 +676,92 @@ def test_changed_shared_tool_contract_invalidates_qualification_without_calls(mo
     assert provider.requests == []
 
 
+def test_changed_submission_schema_invalidates_qualification_without_calls(monkeypatch) -> None:
+    import ai_statistician.theory_semantic_gold_judge as judge
+
+    activation = _run(_RecordingProvider([
+        *_keyed_calibration_packets(), _keyed_candidate_packet(),
+    ]), candidate_is_reference=True)
+    frozen = deepcopy(activation)
+    original_schema = judge._theory_semantic_gold_judge_schema
+
+    def changed_schema(**kwargs):
+        schema = original_schema(**kwargs)
+        schema["description"] = "Changed submission contract."
+        return schema
+
+    monkeypatch.setattr(judge, "_theory_semantic_gold_judge_schema", changed_schema)
+    provider = _RecordingProvider([])
+    with pytest.raises(ValueError, match="review_contract_hash mismatch"):
+        _run(provider, activation_judgment=activation)
+    assert provider.requests == []
+    assert activation == frozen
+
+
+@pytest.mark.parametrize("changed", [
+    "system_prompt", "adversarial_prompt", "temperature", "tool_choice",
+    "thinking_budget_tokens", "disable_parallel_tool_use", "enable_prompt_caching",
+    "submission_description", "submission_strict", "submission_terminal",
+])
+def test_changed_native_request_invalidates_qualification_before_provider(monkeypatch, changed) -> None:
+    from dataclasses import replace
+    import ai_statistician.theory_semantic_gold_judge as judge
+
+    activation = _run(_RecordingProvider([
+        *_keyed_calibration_packets(), _keyed_candidate_packet(),
+    ]), candidate_is_reference=True)
+    frozen = deepcopy(activation)
+    original_request = judge._semantic_review_request
+
+    def changed_request(**kwargs):
+        request = original_request(**kwargs)
+        if changed == "adversarial_prompt":
+            return (replace(request, system_prompt=request.system_prompt + " Changed contract.")
+                    if kwargs["phase"].endswith("_adversarial") else request)
+        if changed.startswith("submission_"):
+            attribute = changed.removeprefix("submission_")
+            tools = tuple(
+                replace(tool, **{attribute: "Changed contract." if attribute == "description" else False})
+                if tool.name == SEMANTIC_REVIEW_SUBMIT_TOOL else tool
+                for tool in request.tools
+            )
+            return replace(request, tools=tools)
+        value = {
+            "system_prompt": request.system_prompt + " Changed contract.",
+            "temperature": 0.5, "tool_choice": "any", "thinking_budget_tokens": 1024,
+            "disable_parallel_tool_use": False, "enable_prompt_caching": False,
+        }[changed]
+        return replace(request, **{changed: value})
+
+    monkeypatch.setattr(judge, "_semantic_review_request", changed_request)
+    provider = _RecordingProvider([])
+    with pytest.raises(ValueError, match="review_contract_hash mismatch"):
+        _run(provider, activation_judgment=activation)
+    assert provider.requests == []
+    assert activation == frozen
+
+
+@pytest.mark.parametrize("changed", [
+    "SEMANTIC_REVIEW_MAX_TURNS", "SEMANTIC_REVIEW_MAX_TOOL_CALLS",
+    "SEMANTIC_REVIEW_MAX_NO_PROGRESS_TURNS", "seed", "replicates", "timeout_s",
+])
+def test_changed_execution_policy_invalidates_qualification_without_calls(monkeypatch, changed) -> None:
+    import ai_statistician.theory_semantic_gold_judge as judge
+
+    activation = _run(_RecordingProvider([
+        *_keyed_calibration_packets(), _keyed_candidate_packet(),
+    ]), candidate_is_reference=True)
+    if changed in judge.SEMANTIC_REVIEW_SCRATCH_SETTINGS:
+        monkeypatch.setitem(judge.SEMANTIC_REVIEW_SCRATCH_SETTINGS, changed,
+                            judge.SEMANTIC_REVIEW_SCRATCH_SETTINGS[changed] + 1)
+    else:
+        monkeypatch.setattr(judge, changed, getattr(judge, changed) + 1)
+    provider = _RecordingProvider([])
+    with pytest.raises(ValueError, match="review_contract_hash mismatch"):
+        _run(provider, activation_judgment=activation)
+    assert provider.requests == []
+
+
 def test_theory_role_preserves_existing_judgment_contract() -> None:
     provider = _RecordingProvider(
         [*_keyed_calibration_packets(), _keyed_candidate_packet()]
