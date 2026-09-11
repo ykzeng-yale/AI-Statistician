@@ -487,6 +487,17 @@ class PublicResearchSourceDiscovery:
         assert self._state_dir is not None
         return self._state_dir / "repositories" / stable_hash([source_handle, revision])
 
+    def acquired_repository_snapshot(self, source_handle: str, revision: str) -> ResearchSourceSnapshot:
+        """Resolve already acquired bytes without fetching or selecting a revision."""
+        row = self._observations.result(source_handle)
+        if (row is None or row.get("source_kind") != "repository"
+            or revision not in self._observations.revisions(source_handle)):
+            raise ResearchSourceDiscoveryInputError("execution requires an observed repository and revision")
+        snapshot = self._acquired_repository(row, revision)
+        if snapshot is None:
+            raise ResearchSourceDiscoveryInputError("acquire this exact repository revision before executing it")
+        return snapshot
+
     def _acquired_repository(
         self, row: Mapping[str, Any], revision: str
     ) -> ResearchSourceSnapshot | None:

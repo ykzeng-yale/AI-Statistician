@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .native_project import NATIVE_PROJECT_TOOL, configured_native_project
+
 import hashlib
 import json
 import tempfile
@@ -465,6 +467,7 @@ _THEORY_PROGRESS_ROW_FIELDS = (
     "source_read_refs",
     "source_discovery_search_refs",
     "source_discovery_read_refs",
+    "native_project_refs",
     "source_replication_manifests",
     "source_result_read_refs",
 )
@@ -921,8 +924,9 @@ def run_theory_artifact_workspace(
             workspace_dir=snapshot_dir,
         )
 
-    def source_discovery_evidence() -> dict[str, Any]:
+    def source_environment_evidence() -> dict[str, Any]:
         return {
+            "native_project_refs": deepcopy(state["native_project_refs"]),
             "research_source_discovery": (
                 dict(research_source_discovery.descriptor())
                 if research_source_discovery is not None
@@ -1242,6 +1246,14 @@ def run_theory_artifact_workspace(
     def execute_tool(call, context):
         del context
         tool_input = dict(call.input)
+        if call.name == NATIVE_PROJECT_TOOL and native_project is not None:
+            result = native_project.execute(tool_input)
+            state["native_project_refs"].append({
+                "path": result.content["receipt_path"],
+                "sha256": result.content["receipt_sha256"],
+                "environment_identity": native_project.identity_hash,
+            })
+            return result
         if call.name == "read_theory_workspace":
             if set(tool_input) - {"artifact_names", "document_paths"}:
                 raise ClientToolInputError(
@@ -2083,6 +2095,7 @@ def run_theory_artifact_workspace(
                 or state["source_result_read_refs"]
                 or state["source_discovery_search_refs"]
                 or state["source_discovery_read_refs"]
+                or state["native_project_refs"]
             ):
                 raise ClientToolInputError(
                     "report_theory_gap requires a prior workspace read, write "
@@ -2334,7 +2347,23 @@ def run_theory_artifact_workspace(
     root_authorization_fingerprint = client_tool_authorization_fingerprint(
         request_metadata
     ) or stable_hash(["theory", workspace_id, question_id])
+    native_project = configured_native_project(
+        resolved_workspace_dir, owner=f"theory:{workspace_id}:{question_id}",
+        authorization=stable_hash([root_authorization_fingerprint,
+            research_sources.descriptor() if research_sources else {},
+            research_source_discovery.descriptor() if research_source_discovery else {}]),
+        source_resolver=getattr(research_source_discovery, "acquired_repository_snapshot", None),
+    )
+    if state["native_project_refs"] and (native_project is None or any(
+        row.get("environment_identity") != native_project.identity_hash
+        for row in state["native_project_refs"]
+    )):
+        raise ValueError("continued native theory project requires its exact environment")
+    if native_project is not None:
+        tools = (*tools, native_project.tool())
     source_environment_identity = {}
+    if native_project is not None:
+        source_environment_identity["native_project"] = native_project.descriptor()
     if research_sources is not None:
         source_environment_identity["research_source_snapshot"] = (
             research_sources.descriptor()
@@ -2584,7 +2613,7 @@ def run_theory_artifact_workspace(
             "source_result_read_refs": deepcopy(
                 state["source_result_read_refs"]
             ),
-            **source_discovery_evidence(),
+            **source_environment_evidence(),
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(
                 state["source_replication_manifests"]
@@ -2776,7 +2805,7 @@ def run_theory_artifact_workspace(
             "source_result_read_refs": deepcopy(
                 state["source_result_read_refs"]
             ),
-            **source_discovery_evidence(),
+            **source_environment_evidence(),
             "turns": loop.turns,
             "tool_calls": loop.tool_calls,
             "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -2964,7 +2993,7 @@ def run_theory_artifact_workspace(
             "source_result_read_refs": deepcopy(
                 state["source_result_read_refs"]
             ),
-            **source_discovery_evidence(),
+            **source_environment_evidence(),
             "source_replication_runs": state["source_replication_runs"],
             "source_replication_manifests": deepcopy(
                 state["source_replication_manifests"]
@@ -3113,7 +3142,7 @@ def run_theory_artifact_workspace(
         "source_result_read_refs": deepcopy(
             state["source_result_read_refs"]
         ),
-        **source_discovery_evidence(),
+        **source_environment_evidence(),
         "source_replication_runs": state["source_replication_runs"],
         "source_replication_manifests": deepcopy(
             state["source_replication_manifests"]

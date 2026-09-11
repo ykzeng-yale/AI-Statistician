@@ -103,6 +103,11 @@ runs in bounded subprocesses without inherited secrets or network access. If a
 required runtime is absent, the system records a capability blocker instead of
 silently executing in the host process.
 
+An explicit [offline native project tool](docs/research_harness_reuse_strategy.md#offline-native-project-tool)
+also lets Theory and Scientific owners run their own commands in a persistent
+Linux project. It requires a configured Apple container service and pinned images;
+it does not replace reviewed source execution or confirmatory evaluation.
+
 Lean proving defaults only to the source-controlled
 `external/EmpericalProcessLEAN-main` gitlink. That project pins Lean, Mathlib, and
 Statlib and must be built locally before a live formal evaluation. Alternate Lake

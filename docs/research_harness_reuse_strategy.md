@@ -146,7 +146,7 @@ The payload was expanded under the existing external-resource directory and
 started using official `--install-root`/`--app-root` options, without a system
 installation. No Docker/Podman runtime was already installed on this host.[^apple-container]
 
-The [explicit qualification fixture](../tests/test_oci_project_execution.py)
+The [original qualification fixture](https://github.com/ykzeng-yale/AI-Statistician/blob/66da48fbb05ad5e3050d7547145b0c688b4f24c5/tests/test_oci_project_execution.py)
 uses pinned official Python 3.12.13 and R 4.6.1 OCI digests, no network attachment,
 read-only guest root, dropped Linux capabilities, an unprivileged guest UID,
 one writable synthetic project, bounded CPU/memory/time/output, and no inherited
@@ -168,13 +168,76 @@ The live tests are opt-in through `AI_STATISTICIAN_TEST_APPLE_CONTAINER`, requir
 an already started exact-version service and locally acquired digest-addressed
 images, and never install software or start services during default pytest runs.
 
-This is a **test-only execution candidate**, not an enabled product backend.
-Networked dependency acquisition, total disk quotas, controller-crash recovery,
-image/environment freezing and retained-model integration still need qualification.
-Do not mount live author/evaluator stores into a future writable guest: pass only
-the selected project and externalize evidence after shutdown. The macOS SRT
-non-adoption result remains unchanged. No model call or scientific evaluation was
-used; command/environment plumbing is not autonomous reproduction.
+That initial qualification was test-only. The following integration replaces its
+duplicate runner with tests against the product adapter. The macOS SRT
+non-adoption result remains unchanged; native plumbing is not autonomous reproduction.
+
+### Offline Native Project Tool
+
+The concrete [native adapter](../ai_statistician/native_project.py) now exposes
+`run_project_command` to the existing Theory and Scientific source owners only
+when explicitly configured. There is no new scheduler, agent or error-repair
+policy. The model supplies the exact shell command and environment key. It can
+create files, install local Python/R dependencies and run tests in `/work` across
+commands and session reconstruction. Ordinary command errors return unchanged.
+
+Each command uses a new upstream VM around the same named project volume. The
+guest has no network, no host credentials, no control socket, a read-only root,
+and no capabilities. Only a trusted empty-volume ownership initializer gets
+CHOWN; model commands are non-root. A model-selected, previously acquired exact
+repository revision can mount read-only at `/source`; unlisted files or changed
+source identity prevent the mount. No author/evaluator/session store is mounted.
+
+Receipts bind command, exact runtime/image/owner policy, optional source identity,
+parent receipt, raw stream hashes and the volume's before/after hashes. Upstream
+VM deletion precedes sealing. On the next valid invocation, interrupted commands
+are cleaned up and reported, not replayed. If the receipt was sealed before state persistence failed, recovery
+adopts those exact bytes rather than regenerating the result. The newly requested
+command is not run during recovery. This is interruption recovery for exploratory
+tools, never permission to reopen a consumed scientific evaluation.
+
+The [adapter tests](../tests/test_native_project.py) exercise actual Python/R,
+dependency reuse, denied network/host access, source selection, retained owner
+feedback, volume exhaustion, mutation detection and both receipt interruption
+points. They exposed a real configuration mismatch: requesting 64 MiB produced a
+128 MiB ext4 image. The adapter checks actual allocation against the configured
+limit before executing anything, not just the upstream metadata field. No custom
+filesystem formatter or process-tree monitor was introduced.
+
+To enable prospectively, set `AI_STATISTICIAN_NATIVE_PROJECT_CONFIG` to an explicit
+local JSON policy with exactly these fields:
+
+```json
+{
+  "container_executable": "/absolute/path/to/container",
+  "environments": {
+    "python": "docker.io/library/python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+    "r": "docker.io/library/r-base@sha256:41d5564375009abf74a63987fd7fb9b44c90b1580b310be10ef973abe92496c3"
+  },
+  "cpus": 1,
+  "memory_bytes": 536870912,
+  "volume_bytes": 134217728,
+  "timeout_seconds": 30,
+  "max_output_bytes": 1000000
+}
+```
+
+These are example explicit limits, not automatic product defaults. The operator
+must start qualified container 1.4.1 and preload the chosen digest-addressed images.
+The adapter never starts services, fetches images or switches execution backends.
+Volumes persist for continuation; their owned names and receipts are recorded under
+the source workspace's `.native_project` directory. Remove an owned volume with
+the upstream volume command only when abandoning that exploratory workspace.
+
+Native success cannot accept scientific source, certify reproduction, confirm a
+metric or prove a theorem. Existing release/review/confirmation paths are unchanged.
+Independent reviewers do not receive this tool. Networked package acquisition,
+environment reconstruction from an arbitrary paper, portable Linux-host support,
+and fresh model-driven scientific capability still need evidence. Abrupt host
+controller death can leave its VM running until the next invocation or explicit
+operator cleanup; this adapter is not an unattended VM lease service. The wall
+timeout depends on the controller remaining alive. No model API
+call, benchmark activation or research credit came from this integration.
 
 ### Long-Horizon Theory: Native Files, Uncertainty, and Recoverable Context
 
@@ -449,7 +512,7 @@ uncertainty, not a claim that no permission can exist elsewhere.
 | mini-SWE-agent `04d809ce` | `src/minisweagent/environments/docker.py`, default-agent entrypoints | Small environment reference; MIT; remove submission coupling if reused |
 | OpenHands SDK `9bc73b48` | Docker workspace and terminal/conversation layout | Defer full stack; MIT; not a standalone executor |
 | Anthropic sandbox runtime `c392e6cf` | `sandbox-manager.ts`, configuration and security documentation | Test-only; detached macOS process lifetime failed qualification; Apache-2.0 |
-| Apple container `9a8917ca` / 1.4.1 | Startup paths, forced deletion, Linux runtime shutdown; six native checks | Prefer established OCI/VM lifetime over a custom monitor; test-only pending product integration; Apache-2.0 |
+| Apple container `9a8917ca` / 1.4.1 | Startup, forced VM deletion, volume allocation and native adapter checks | Explicit offline Theory/Scientific command tool; no second scheduler or custom process monitor; Apache-2.0 |
 | AREX-Skill `ac3fe1af` | Architecture, statsmodels skill and provenance | Select portable operating context; inspect per-file terms; no DisCo runtime |
 | PaperQA `57e89f72` | `src/paperqa/readers.py`, `docs.py` boundaries | Reuse parsing/chunk provenance below agent layer; Apache-2.0 |
 | ERA `440711e3` | `implementation/futs.py` | Direct search-component candidate only with a trustworthy exploratory score; Apache-2.0 |
@@ -515,8 +578,9 @@ All model tests remain direct API calls to exactly
 `claude-haiku-4-5-20251001`. No Opus, automatic escalation, external service agent,
 or default third-party model is introduced. This report has made no model calls
 and had not executed or installed the proposed components at the initial review.
-The later SRT and OCI/VM qualifications above record their setup, test coverage,
-and product non-adoption; they do not retroactively expand the literature audit.
+The later SRT qualification and explicit OCI/VM integration above record their
+setup, test coverage and adoption boundaries; they do not retroactively expand
+the literature audit.
 
 ## Sources
 

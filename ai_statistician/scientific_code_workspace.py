@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .native_project import NATIVE_PROJECT_TOOL, configured_native_project
+
 import hashlib
 import json
 import tempfile
@@ -2196,6 +2198,14 @@ def run_scientific_code_workspace(
 
     def execute_tool(call, context):
         tool_input = dict(call.input)
+        if call.name == NATIVE_PROJECT_TOOL and native_project is not None:
+            result = native_project.execute(tool_input)
+            research_source_refs.append({
+                "tool": NATIVE_PROJECT_TOOL, "path": result.content["receipt_path"],
+                "sha256": result.content["receipt_sha256"],
+                "environment_identity": native_project.identity_hash,
+            })
+            return result
         if call.name in {
             RESEARCH_SOURCE_LIST_TOOL,
             RESEARCH_SOURCE_SEARCH_TOOL,
@@ -2952,6 +2962,21 @@ def run_scientific_code_workspace(
     root_authorization_fingerprint = client_tool_authorization_fingerprint(request_metadata) or stable_hash(
         ["scientific", artifact_id, research_sources.descriptor() if research_sources else {},
          research_source_discovery.descriptor() if research_source_discovery else {}])
+    native_project = configured_native_project(
+        resolved_session_dir, owner=f"scientific:{artifact_id}",
+        authorization=stable_hash([root_authorization_fingerprint,
+            research_sources.descriptor() if research_sources else {},
+            research_source_discovery.descriptor() if research_source_discovery else {}]),
+        source_resolver=getattr(research_source_discovery, "acquired_repository_snapshot", None),
+    )
+    if any(row.get("tool") == NATIVE_PROJECT_TOOL and (
+        native_project is None or row.get("environment_identity") != native_project.identity_hash
+    ) for row in research_source_refs):
+        raise ValueError("continued native scientific project requires its exact environment")
+    if native_project is not None:
+        tools = (*tools, native_project.tool())
+        root_authorization_fingerprint = stable_hash(
+            [root_authorization_fingerprint, native_project.descriptor()])
     request = ClientToolTurnRequest(
         system_prompt=system_prompt,
         messages=(

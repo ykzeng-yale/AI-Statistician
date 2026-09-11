@@ -15,6 +15,7 @@ venv/
 node_modules/
 .ipynb_checkpoints/
 runs/
+.native_project/
 .tmp_frontier/
 .tmp_publish/
 
