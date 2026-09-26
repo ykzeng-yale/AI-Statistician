@@ -147,6 +147,11 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 6. Use ERA-style candidate search only inside an existing exploratory workspace
    with a trustworthy executable score. No automatic search tree, model ensemble,
    extra reviewer, repair taxonomy, or fixed iteration ritual is required.
+   The [Dream-RSI adoption review](../skills/dream-rsi-scientific-search/references/adoption.md)
+   extends this principle to history-informed candidate allocation. Its Codex skill
+   is available as operating guidance, not a product replay controller. Do not turn
+   consumed evaluations into policy-training histories or prioritize replay
+   infrastructure before a scientific workflow demonstrates the need.
 7. Verify each shared change with content-neutral mechanism tests, then fresh,
    prospectively defined cross-task evidence. Measure research outcomes and
    preparation/downstream costs separately. Preserve all consumed evaluations;

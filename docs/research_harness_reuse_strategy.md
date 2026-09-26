@@ -320,6 +320,12 @@ reuse when an exploratory score already exists. It should replace a candidate
 selection routine inside an existing workspace, not schedule the whole research
 lab. It cannot supply a valid statistical objective.[^era]
 
+The [Dream-RSI review and Codex skill](../skills/dream-rsi-scientific-search/references/adoption.md)
+adds a September 26 assessment of history-based exploration-policy improvement.
+Its inspected upstream has not released the executable harness. Adopt selective
+operating guidance, not another scheduler, mandatory replay, or a new acceptance
+score. The skill is operator context, not an integrated product capability.
+
 ShinkaEvolve provides a larger program database and evolutionary search machinery,
 including parent selection, islands, and model selection. These are optional
 optimization methods, not requirements for theory development. A single fixed
