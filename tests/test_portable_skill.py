@@ -132,7 +132,7 @@ def test_native_kimi_discovers_portable_skill_without_a_model_turn(tmp_path):
     thread.start()
     (data / "config.toml").write_text(
         'default_model = "local-qwen"\ntelemetry = false\n'
-        'auto_session_title = false\nbuiltin_product_skills = false\n'
+        'autoSessionTitle = false\nbuiltin_product_skills = false\n'
         '[providers.local]\ntype = "openai"\n'
         f'base_url = "http://127.0.0.1:{server.server_port}/v1"\n'
         'api_key = "local-conformance-placeholder"\n'
