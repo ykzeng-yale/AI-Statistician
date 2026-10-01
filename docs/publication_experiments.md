@@ -112,21 +112,37 @@ cache reuse rather than assume it despite changing prompts/tool schemas. The
 paper's transcript-equivalence conditions do not prove equivalence after exposing
 private author history that our reviewer normally cannot see.
 
-Theory/scientific/Lean preparation functions now expose the actual owner-bound
+Theory/scientific/Lean preparation functions expose the actual owner-bound
 request, executable actions and result/checkpoint handlers without calling a
-model. Default roles use these same bindings through the existing retained loop;
-their contexts, source checks and authority are unchanged. Synthetic tests cover
-Python/R, theory and Lean parity, exhaustion and one session executing actions
-from all three workspaces. This is not a scientific draw or a complete control.
-The bindings still have artifact-specific state: a valid general-agent arm must
-compose their scopes, duplicate tool names, dependencies and final artifacts
-explicitly. Owner result handlers remain bound to their own requests; a shared
-control must record its actual combined request/history instead of forging
-isolated-owner receipts. A transport history merger cannot establish these
-boundaries or preserve isolated review.
-Both single-agent controls remain unimplemented; no study is activated by this
-refactor. External gold, complete tool parity and shared resources still need
-prospective verification before draws.
+model. Default roles still use these bindings through the existing retained loop;
+their contexts, source checks and authority are unchanged.
+`prepare_shared_client_tool_workspace` can bind every configured action into one
+conversation, using `scope__tool` names to disambiguate duplicates. Inputs and
+raw observations retain their existing contracts. Component checkpoints do not
+end the conversation or reset its global budget; a caller-provided final action
+does. No component model driver or isolated-owner result handler is invoked.
+The exact shared request/tool contract and history are persisted together, with
+independent-role review explicitly false. The shared history tool reads only
+this conversation's authorized observations, not private reviewer sessions.
+
+Synthetic tests cover Python/R, Theory and Lean parity, complete action exposure
+for configured bindings, arbitrary interleaving, checkpoints, exhaustion, raw
+error feedback and native local wire translation through a mocked completion.
+They are not live model, scientific, or complete baseline evidence. Namespaced
+aliases and component-terminal descriptions are observable adaptations: freeze
+consistent aliases for comparative arms or disclose this interface difference;
+do not silently claim byte-identical model tool surfaces.
+
+Artifact-specific state remains. Before either study control is runnable on a
+real research task, bind theory/code/simulation dependencies and immutable
+component snapshots, final artifacts and external gold. The caller must do this
+without manufacturing isolated-owner receipts or accepting stale premises.
+The free-planning control must receive the common objective and available tools,
+not specialist prompts that silently impose the full workflow. The same-workflow
+single-context control separately needs explicit stage instructions in its real
+shared context. Neither complete comparator is implemented by this action binding;
+official studies remain unactivated. Freeze actual tool parity, context, authority
+and resources prospectively before any scientific draws.
 
 The full system can have separate role contexts while executing serially; this
 does not demonstrate parallel speedup. A concurrency experiment requires actual

@@ -366,6 +366,125 @@ def run_client_tool_workspace(
     return workspace.on_success(loop)
 
 
+def prepare_shared_client_tool_workspace(
+    *,
+    request: ClientToolTurnRequest,
+    workspaces: Mapping[str, PreparedClientToolWorkspace[Any]],
+    terminal_tools: Sequence[ClientToolDefinition],
+    execute_terminal_tool: ClientToolExecutor,
+    observe_checkpoint: Callable[[str, ClientToolExecutionResult], None],
+    max_turns: int,
+    max_tool_calls: int,
+    max_no_progress_turns: int,
+    session_dir: Path,
+    session_id: str,
+) -> PreparedClientToolWorkspace[ClientToolLoopResult]:
+    """Bind actual component actions to one shared, non-independent conversation.
+
+    The caller supplies the research objective, final action and artifact binding.
+    Component checkpoints are observations, not outer-session stop decisions.
+    No component model driver or isolated-owner result handler is invoked.
+    """
+
+    if not workspaces or not session_id.strip():
+        raise ValueError("shared workspace requires components and a session identity")
+    if request.tools or CLIENT_TOOL_PARENT_SESSION_METADATA_KEY in request.metadata:
+        raise ValueError("shared request must not contain tools or an unrelated parent session")
+    if not terminal_tools or any(not tool.terminal for tool in terminal_tools):
+        raise ValueError("shared workspace requires explicit terminal actions")
+    tools: list[ClientToolDefinition] = []
+    routes: dict[str, tuple[str, PreparedClientToolWorkspace[Any], ClientToolDefinition]] = {}
+    scopes = {}
+    for scope, workspace in workspaces.items():
+        if (not isinstance(scope, str) or not scope or not scope.isascii()
+            or any(not (char.isalnum() or char == "_") for char in scope)
+            or "__" in scope):
+            raise ValueError("shared component scope must be a simple ASCII identifier")
+        for field_name in ("model", "temperature", "thinking_budget_tokens"):
+            if getattr(workspace.request, field_name) != getattr(request, field_name):
+                raise ValueError("shared components must use the same model and sampling")
+        original_names = [tool.name for tool in workspace.request.tools]
+        if not original_names or len(set(original_names)) != len(original_names):
+            raise ValueError("shared component tools must have unique nonempty names")
+        for tool in workspace.request.tools:
+            if tool.name == WORKSPACE_HISTORY_TOOL_NAME:
+                continue
+            qualified_name = scope + "__" + tool.name
+            if not tool.name or len(qualified_name) > 64:
+                raise ValueError("shared qualified tool name is empty or too long")
+            routes[qualified_name] = (scope, workspace, tool)
+            description = tool.description
+            if tool.terminal:
+                description += " This records a component checkpoint; the shared session remains open."
+            tools.append(replace(tool, name=qualified_name, description=description, terminal=False))
+        scopes[scope] = {
+            "session_id": workspace.session_id,
+            "component_request_contract": client_tool_session_contract_fingerprint(workspace.request),
+            "tools": original_names,
+        }
+    final_names = [tool.name for tool in terminal_tools]
+    if (len(set(final_names)) != len(final_names)
+        or any(not name or name in routes or name == WORKSPACE_HISTORY_TOOL_NAME
+               for name in final_names)):
+        raise ValueError("shared terminal tool names collide with component actions")
+    tools.extend(terminal_tools)
+    tools.append(workspace_history_tool())
+    shared_request = replace(
+        request,
+        tools=tuple(tools),
+        metadata={
+            **deepcopy(dict(request.metadata)),
+            "workspace_context_mode": "shared_conversation",
+            "independent_role_review": False,
+            "shared_component_scopes": scopes,
+            CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY: stable_hash({
+                "root_authorization": client_tool_authorization_fingerprint(request.metadata),
+                "session_id": session_id,
+                "scopes": scopes,
+                "terminal_tools": [asdict(tool) for tool in terminal_tools],
+            }),
+        },
+    )
+
+    def execute(call: ClientToolCall, context: ClientToolExecutionContext) -> ClientToolExecutionResult:
+        if call.name in final_names:
+            return execute_terminal_tool(call, context)
+        if call.name not in routes:
+            raise ClientToolInputError("unknown shared workspace action")
+        scope, workspace, original_tool = routes[call.name]
+        result = workspace.execute_tool(replace(call, name=original_tool.name), context)
+        if not original_tool.terminal:
+            return replace(result, observation_key=scope + ":" + result.observation_key
+                           if result.observation_key else "")
+        if result.terminal and not result.is_error:
+            if not isinstance(result.terminal_payload, Mapping):
+                raise ValueError("component checkpoint returned no payload")
+            observe_checkpoint(scope, deepcopy(result))
+        return replace(result, terminal=False, terminal_payload=None,
+                       observation_key=scope + ":" + result.observation_key
+                       if result.observation_key else "")
+
+    def record(result: ClientToolLoopResult | ClientToolLoopError) -> None:
+        persist_client_tool_session(
+            session_dir=session_dir, session_id=session_id, request=shared_request,
+            messages=result.messages, observation_refs=result.observation_refs,
+        )
+
+    def on_success(loop: ClientToolLoopResult) -> ClientToolLoopResult:
+        record(loop)
+        return loop
+
+    def on_error(exc: ClientToolLoopError) -> ClientToolLoopResult:
+        record(exc)
+        raise exc
+
+    return PreparedClientToolWorkspace(
+        request=shared_request, execute_tool=execute, on_success=on_success, on_error=on_error,
+        max_turns=max_turns, max_tool_calls=max_tool_calls,
+        max_no_progress_turns=max_no_progress_turns, session_dir=session_dir, session_id=session_id,
+    )
+
+
 CLIENT_TOOL_SESSION_KIND = "ClientToolWorkspaceSession"
 CLIENT_TOOL_SESSION_DIRECTORY = ".client_tool_sessions"
 CLIENT_TOOL_CHECKPOINT_WINDOW_POLICY = "fresh_context_from_hash_bound_checkpoint_v1"

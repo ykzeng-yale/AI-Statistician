@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from dataclasses import replace
 
 import pytest
 
 from ai_statistician.client_tool_loop import (
+    CLIENT_TOOL_PARENT_SESSION_METADATA_KEY,
+    WORKSPACE_HISTORY_TOOL_NAME,
     ClientToolExecutionResult,
     ClientToolExecutionContext,
+    ClientToolLoopError,
     ClientToolLoopResult,
+    client_tool_session_contract_fingerprint,
+    load_client_tool_session,
+    persist_client_tool_session,
+    prepare_shared_client_tool_workspace,
     run_bounded_client_tool_loop,
     run_client_tool_workspace,
 )
@@ -24,13 +32,16 @@ from ai_statistician.lean_candidate_revision_tool_loop import (
 from ai_statistician.model_backend import (
     ClientToolCall,
     ClientToolDefinition,
+    ClientToolTurnRequest,
     ClientToolTurnResponse,
 )
+from ai_statistician.local_model_backend import LocalChatGeneratorBackend
 from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.research_source_discovery import RESEARCH_SOURCE_DISCOVERY_SEARCH_TOOL
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_COMMIT_TOOL,
     SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+    SCIENTIFIC_SOURCE_READ_TOOL,
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     prepare_scientific_code_workspace,
     run_scientific_code_workspace,
@@ -255,3 +266,236 @@ def test_scientific_result_is_a_snapshot_of_live_prepared_state(tmp_path, monkey
     )
     assert observation.is_error is False
     assert result.evidence == original
+
+
+def _shared_case(tmp_path, monkeypatch, **overrides):
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    workspaces = {}
+    checkpoints = []
+    checks = {}
+
+    def forbidden_role_result(*args):
+        raise AssertionError("a shared conversation must not use an isolated-owner result handler")
+
+    for kind in ("theory", "python", "r", "lean"):
+        prepare, _, options, _, checked = _case(kind, tmp_path / kind)
+        workspaces[kind] = replace(prepare(**options), on_success=forbidden_role_result,
+                                   on_error=forbidden_role_result)
+        checks[kind] = checked
+    finish = ClientToolDefinition(
+        name="finish_control", description="Return the explicitly selected synthetic study result.",
+        input_schema={"type": "object", "properties": {"report": {"type": "string"}},
+                      "required": ["report"], "additionalProperties": False}, terminal=True,
+    )
+
+    def execute_finish(call, context):
+        return ClientToolExecutionResult(content=dict(call.input), terminal=True,
+                                         terminal_payload=dict(call.input))
+
+    options = dict(
+        request=ClientToolTurnRequest(system_prompt="Use any available action for this synthetic task.",
+                                      messages=({"role": "user", "content": "Opaque general task."},),
+                                      tools=(), model=MODEL, max_tokens=1024),
+        workspaces=workspaces, terminal_tools=(finish,), execute_terminal_tool=execute_finish,
+        observe_checkpoint=lambda scope, result: checkpoints.append((scope, result)),
+        max_turns=15, max_tool_calls=15, max_no_progress_turns=15,
+        session_dir=tmp_path / "shared", session_id="opaque-shared-control",
+    )
+    options.update(overrides)
+    return prepare_shared_client_tool_workspace(**options), workspaces, checkpoints, checks
+
+
+def test_shared_binding_exposes_all_actual_actions_without_role_drivers(tmp_path, monkeypatch):
+    workspace, owners, checkpoints, checks = _shared_case(tmp_path, monkeypatch)
+    exposed = {tool.name: tool for tool in workspace.request.tools}
+    assert list(exposed).count(WORKSPACE_HISTORY_TOOL_NAME) == 1
+    assert {tool.name for tool in exposed.values() if tool.terminal} == {"finish_control"}
+    assert len(exposed) == 2 + sum(
+        sum(tool.name != WORKSPACE_HISTORY_TOOL_NAME for tool in owner.request.tools)
+        for owner in owners.values()
+    )
+    for scope, owner in owners.items():
+        for tool in owner.request.tools:
+            if tool.name == WORKSPACE_HISTORY_TOOL_NAME:
+                continue
+            qualified = exposed[scope + "__" + tool.name]
+            assert qualified.input_schema == tool.input_schema
+            assert qualified.strict == tool.strict
+            assert qualified.terminal is False
+        assert workspace.request.metadata["shared_component_scopes"][scope][
+            "component_request_contract"
+        ] == client_tool_session_contract_fingerprint(owner.request)
+    assert not checkpoints
+    assert all(not value for value in checks.values())
+    assert workspace.request.metadata["workspace_context_mode"] == "shared_conversation"
+    assert workspace.request.metadata["independent_role_review"] is False
+
+
+def test_shared_session_keeps_raw_feedback_and_component_checkpoints_without_promotion(tmp_path, monkeypatch):
+    workspace, owners, checkpoints, checks = _shared_case(tmp_path, monkeypatch)
+    python_calls = _case("python", tmp_path / "unused-python")[3]
+    r_calls = _case("r", tmp_path / "unused-r")[3]
+    lean_call = _case("lean", tmp_path / "unused-lean")[3][0]
+
+    def qualified(scope, call):
+        return replace(call, call_id=scope + "-" + call.call_id, name=scope + "__" + call.name)
+
+    calls = [
+        qualified("r", r_calls[0]),
+        ClientToolCall("write", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                       {"path": "claim.md", "content": "# Shared opaque claim\n"}),
+        qualified("lean", lean_call),
+        qualified("python", python_calls[0]),
+        ClientToolCall("theory-checkpoint", "theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
+                       {"readiness_rationale": "Checkpoint these exact files, not a research acceptance."}),
+        qualified("r", r_calls[1]), qualified("r", r_calls[2]),
+        qualified("python", python_calls[1]), qualified("python", python_calls[2]),
+        ClientToolCall("read-python", "python__" + SCIENTIFIC_SOURCE_READ_TOOL, {"line_start": 1, "line_end": 2}),
+        # An actual owner input error is observed by this same conversation.
+        replace(qualified("python", python_calls[0]), call_id="duplicate-source"),
+        ClientToolCall("read-shared-catalog", WORKSPACE_HISTORY_TOOL_NAME, {}),
+        ClientToolCall("finish", "finish_control", {"report": "Opaque component observations only."}),
+    ]
+    backend = ScriptedLocalBackend(calls)
+    loop = run_client_tool_workspace(backend=backend, workspace=workspace)
+    assert loop.turns == len(calls)
+    assert loop.terminal_payload == {"report": "Opaque component observations only."}
+    assert {scope for scope, _ in checkpoints} == {"theory", "python", "r", "lean"}
+    assert all(result.terminal for _, result in checkpoints)
+    assert [row["tool_calls"][0]["terminal"] for row in loop.history] == [False] * (len(calls) - 1) + [True]
+    assert len(checks["python"]) == len(checks["r"]) == len(checks["lean"]) == 1
+    assert "client_tool_input_rejected" in str(backend.requests[-1].messages)
+    assert "byte-identical scientific source is already current" in str(backend.requests[-1].messages)
+    assert "opaque model bytes" in str(backend.requests[-1].messages)
+    assert (tmp_path / "theory" / "claim.md").read_text() == calls[1].input["content"]
+    sessions = list((tmp_path / "shared" / ".client_tool_sessions").glob("*.json"))
+    assert len(sessions) == 1
+    stored = json.loads(sessions[0].read_text())
+    assert stored["session_id"] == workspace.session_id
+    assert stored["session_contract_fingerprint"] == client_tool_session_contract_fingerprint(workspace.request)
+    assert stored["transcript_fingerprint"] == loop.transcript_fingerprint
+    assert stored["messages"] == list(loop.messages)
+    assert len(stored["observation_refs"]) == len(calls) - 1
+    assert "python__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL in str(backend.requests[-1].messages)
+    assert "observation_sha256" in str(backend.requests[-1].messages)
+    for owner in owners.values():
+        assert not list((owner.session_dir or tmp_path / "absent").glob(".client_tool_sessions/*.json"))
+    before = deepcopy(checkpoints)
+    workspace.execute_tool(ClientToolCall("later-read", "python__" + SCIENTIFIC_SOURCE_READ_TOOL,
+                                         {"line_start": 1, "line_end": 2}),
+                           ClientToolExecutionContext(13, 0, 1, 12))
+    assert checkpoints == before
+
+
+def test_shared_exhaustion_records_actual_joint_session_not_owner_receipt(tmp_path, monkeypatch):
+    workspace, owners, checkpoints, _ = _shared_case(tmp_path, monkeypatch, max_turns=1)
+    call = ClientToolCall("write", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                          {"path": "claim.md", "content": "# Partial opaque claim\n"})
+    with pytest.raises(ClientToolLoopError) as error:
+        run_client_tool_workspace(backend=ScriptedLocalBackend([call]), workspace=workspace)
+    assert not checkpoints
+    assert error.value.turns == 1
+    sessions = list((tmp_path / "shared" / ".client_tool_sessions").glob("*.json"))
+    assert len(sessions) == 1
+    stored = json.loads(sessions[0].read_text())
+    assert stored["messages"] == error.value.messages
+    assert stored["session_contract_fingerprint"] == client_tool_session_contract_fingerprint(workspace.request)
+    assert (tmp_path / "theory" / "claim.md").read_text() == call.input["content"]
+    # A shared transcript does not meet a private owner session's authorization.
+    reference = persist_client_tool_session(
+        session_dir=workspace.session_dir, session_id=workspace.session_id, request=workspace.request,
+        messages=error.value.messages, observation_refs=error.value.observation_refs,
+    )
+    assert load_client_tool_session(reference, session_dir=workspace.session_dir,
+                                    session_id=workspace.session_id, request=workspace.request) == tuple(error.value.messages)
+    with pytest.raises(ValueError, match="reference identity mismatch"):
+        load_client_tool_session(reference, session_dir=workspace.session_dir,
+                                 session_id=workspace.session_id, request=owners["theory"].request)
+
+
+@pytest.mark.parametrize("change", ["model", "temperature", "scope", "parent", "terminal_collision", "no_terminal"])
+def test_shared_preparation_rejects_ambiguous_bindings_before_calls(change, tmp_path, monkeypatch):
+    workspace, owners, _, _ = _shared_case(tmp_path, monkeypatch)
+    base_request = replace(workspace.request, tools=(), metadata={})
+    overrides = {}
+    if change in {"model", "temperature"}:
+        overrides["request"] = replace(base_request, **{change: "different-model" if change == "model" else 0.7})
+    elif change == "scope":
+        overrides["workspaces"] = {"theory__python": owners["theory"]}
+    elif change == "parent":
+        overrides["request"] = replace(base_request, metadata={CLIENT_TOOL_PARENT_SESSION_METADATA_KEY: {"sha256": "other"}})
+    elif change == "terminal_collision":
+        overrides["terminal_tools"] = (ClientToolDefinition("theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
+                                                             "Opaque final action.", {}, terminal=True),)
+    else:
+        overrides["terminal_tools"] = ()
+    with pytest.raises(ValueError):
+        _shared_case(tmp_path / "invalid", monkeypatch, **overrides)
+
+
+def test_shared_tools_use_existing_local_wire_transport_with_raw_diagnostics(tmp_path, monkeypatch):
+    diagnostic = "opaque native diagnostic\nlocal context: arbitrary alpha / beta\n" * 7
+    prepare, _, options, _, _ = _case("lean", tmp_path / "lean")
+    options["check_candidate"] = lambda source, declaration: {
+        "source_hash": stable_hash(source), "compiled": False, "stderr": diagnostic,
+    }
+    workspace, _, checkpoints, _ = _shared_case(
+        tmp_path, monkeypatch, workspaces={"lean": prepare(**options)},
+    )
+    calls = [ClientToolCall("scratch", "lean__" + LEAN_SCRATCH_TOOL, {"lean_source": "opaque source"}),
+             ClientToolCall("finish", "finish_control", {"report": "Partial result; no proof."})]
+    wire = []
+
+    def complete(_self, payload):
+        wire.append(deepcopy(payload))
+        call = calls.pop(0)
+        return {"model": MODEL, "choices": [{"message": {"content": "", "tool_calls": [
+            {"id": call.call_id, "type": "function", "function": {
+                "name": call.name, "arguments": json.dumps(dict(call.input)),
+            }}]}}]}, {"tools_executed_by_backend": False}
+
+    monkeypatch.setattr(LocalChatGeneratorBackend, "_complete", complete)
+    loop = run_client_tool_workspace(backend=LocalChatGeneratorBackend(), workspace=workspace)
+    assert loop.provider == "local"
+    assert loop.turns == len(wire) == 2
+    assert not checkpoints
+    assert {tool["function"]["name"] for tool in wire[0]["tools"]} == {
+        tool.name for tool in workspace.request.tools
+    }
+    assert all(payload["model"] == MODEL and payload["max_tokens"] == 1024 for payload in wire)
+    result = next(message for message in wire[1]["messages"] if message["role"] == "tool")
+    assert result["tool_call_id"] == "scratch"
+    decoded = json.loads(result["content"])
+    assert decoded["is_error"] is True
+    assert json.loads(decoded["content"])["observation"]["stderr"] == diagnostic
+    assert loop.terminal_payload == {"report": "Partial result; no proof."}
+
+
+def test_shared_binding_preserves_nonterminal_result_rejection(tmp_path, monkeypatch):
+    _, owners, _, _ = _shared_case(tmp_path, monkeypatch)
+    broken = replace(owners["python"], execute_tool=lambda call, context: ClientToolExecutionResult(
+        content={"opaque": "not a declared checkpoint"}, terminal=True, terminal_payload={"wrong": True},
+    ))
+    workspace, _, checkpoints, _ = _shared_case(tmp_path / "control", monkeypatch,
+                                               workspaces={"python": broken})
+    calls = [ClientToolCall("submit", "python__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, {}),
+             ClientToolCall("finish", "finish_control", {"report": "No checkpoint accepted."})]
+    loop = run_client_tool_workspace(backend=ScriptedLocalBackend(calls), workspace=workspace)
+    assert not checkpoints
+    assert loop.history[0]["tool_calls"][0]["is_error"] is True
+    assert "terminal_result_from_nonterminal_tool" in str(loop.messages)
+
+
+def test_component_checkpoint_does_not_reset_global_turn_budget(tmp_path, monkeypatch):
+    workspace, _, checkpoints, _ = _shared_case(tmp_path, monkeypatch, max_turns=2)
+    lean_call = _case("lean", tmp_path / "unused")[3][0]
+    calls = [replace(lean_call, name="lean__" + lean_call.name),
+             ClientToolCall("write", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                            {"path": "claim.md", "content": "# Partial task\n"}),
+             ClientToolCall("finish", "finish_control", {"report": "Should not execute."})]
+    backend = ScriptedLocalBackend(calls)
+    with pytest.raises(ClientToolLoopError, match="turn budget exhausted") as error:
+        run_client_tool_workspace(backend=backend, workspace=workspace)
+    assert len(backend.requests) == error.value.turns == 2
+    assert [scope for scope, _ in checkpoints] == ["lean"]
+    assert len(backend.calls) == 1
