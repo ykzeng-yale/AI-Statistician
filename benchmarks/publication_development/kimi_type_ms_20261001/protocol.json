@@ -43,7 +43,7 @@
     "base_url": "http://127.0.0.1:8081/v1",
     "model_alias": "local-qwen",
     "telemetry": false,
-    "autoSessionTitle": false,
+    "title_generation": "native default; include any auxiliary calls in observed cost",
     "builtin_product_skills": false,
     "max_attempts_per_step": 1,
     "reserved_context_size": 4096,
