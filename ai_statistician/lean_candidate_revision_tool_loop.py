@@ -14,12 +14,14 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    ClientToolLoopResult,
+    PreparedClientToolWorkspace,
     apply_model_exact_text_edits,
     client_tool_authorization_fingerprint,
     model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
-    run_bounded_client_tool_loop,
+    run_client_tool_workspace,
     workspace_history_tool,
 )
 from .fingerprint import stable_hash
@@ -586,7 +588,69 @@ def run_lean_candidate_revision_tool_loop(
     session_dir: Path | None = None,
     authoritative_theory_document_rows: Sequence[Mapping[str, Any]] = (),
 ) -> LeanCandidateRevisionToolLoopResult:
-    """Let the model author or revise one immutable-bound Lean target."""
+    """Run the existing owner-bound tools through the shared retained loop."""
+
+    workspace = prepare_lean_candidate_workspace(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        model=model,
+        model_tier=model_tier,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        max_turns=max_turns,
+        max_no_progress_turns=max_no_progress_turns,
+        candidate_id=candidate_id,
+        candidate_lean_declaration=candidate_lean_declaration,
+        initial_source=initial_source,
+        check_candidate=check_candidate,
+        search_formal_environment=search_formal_environment,
+        check_candidate_project=check_candidate_project,
+        check_support_file=check_support_file,
+        initial_lean_project=initial_lean_project,
+        search_proof_candidates=search_proof_candidates,
+        inspect_lean_state=inspect_lean_state,
+        inspect_lean_declaration=inspect_lean_declaration,
+        rejected_source_hash=rejected_source_hash,
+        rejected_lean_project_hash=rejected_lean_project_hash,
+        allow_formal_gap=allow_formal_gap,
+        request_metadata=request_metadata,
+        recovery_checkpoint=recovery_checkpoint,
+        session_dir=session_dir,
+        authoritative_theory_document_rows=authoritative_theory_document_rows,
+    )
+    return run_client_tool_workspace(backend=provider, workspace=workspace)
+
+
+def prepare_lean_candidate_workspace(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    model_tier: str,
+    temperature: float,
+    max_tokens: int,
+    max_turns: int,
+    max_no_progress_turns: int,
+    candidate_id: str,
+    candidate_lean_declaration: str,
+    initial_source: str,
+    check_candidate: LeanCandidateCheck,
+    search_formal_environment: FormalEnvironmentSearch,
+    check_candidate_project: LeanCandidateProjectCheck | None = None,
+    check_support_file: LeanSupportFileCheck | None = None,
+    initial_lean_project: Mapping[str, Any] | None = None,
+    search_proof_candidates: ProofCandidateSearch | None = None,
+    inspect_lean_state: LeanStateInspection | None = None,
+    inspect_lean_declaration: LeanDeclarationInspection | None = None,
+    rejected_source_hash: str = "",
+    rejected_lean_project_hash: str = "",
+    allow_formal_gap: bool = False,
+    request_metadata: Mapping[str, Any] | None = None,
+    recovery_checkpoint: Mapping[str, Any] | None = None,
+    session_dir: Path | None = None,
+    authoritative_theory_document_rows: Sequence[Mapping[str, Any]] = (),
+) -> PreparedClientToolWorkspace[LeanCandidateRevisionToolLoopResult]:
+    """Prepare executable owner-bound tools without making a model call."""
 
     if not candidate_id.strip():
         raise ValueError("Lean candidate tool loop requires a bound semantic target id")
@@ -1955,18 +2019,8 @@ def run_lean_candidate_revision_tool_loop(
 
     # Permit one observation plus a final source action inside the same loop.
     max_tool_calls = max_turns + 1
-    try:
-        loop = run_bounded_client_tool_loop(
-            backend=provider,
-            request=request,
-            execute_tool=execute_tool,
-            max_turns=max_turns,
-            max_tool_calls=max_tool_calls,
-            max_no_progress_turns=max_no_progress_turns,
-            session_dir=resolved_session_dir,
-            session_id=f"lean:{candidate_id}",
-        )
-    except ClientToolLoopError as exc:
+
+    def on_error(exc: ClientToolLoopError) -> LeanCandidateRevisionToolLoopResult:
         client_tool_session_ref = persist_client_tool_session(
             session_dir=resolved_session_dir,
             session_id=f"lean:{candidate_id}",
@@ -2082,39 +2136,138 @@ def run_lean_candidate_revision_tool_loop(
             ),
         ) from exc
 
-    client_tool_session_ref = persist_client_tool_session(
-        session_dir=resolved_session_dir,
-        session_id=f"lean:{candidate_id}",
-        request=request,
-        messages=loop.messages,
-        observation_refs=loop.observation_refs,
-    )
-    terminal = dict(loop.terminal_payload)
-    disposition = str(terminal.get("disposition", "AUTHOR_LEAN") or "AUTHOR_LEAN")
-    if disposition == "FORMAL_GAP":
-        formal_gap = terminal.get("formal_gap", {})
-        if not isinstance(formal_gap, Mapping) or not str(
-            formal_gap.get("summary", "") or ""
-        ).strip():
+    def on_success(loop: ClientToolLoopResult) -> LeanCandidateRevisionToolLoopResult:
+        client_tool_session_ref = persist_client_tool_session(
+            session_dir=resolved_session_dir,
+            session_id=f"lean:{candidate_id}",
+            request=request,
+            messages=loop.messages,
+            observation_refs=loop.observation_refs,
+        )
+        terminal = dict(loop.terminal_payload)
+        disposition = str(terminal.get("disposition", "AUTHOR_LEAN") or "AUTHOR_LEAN")
+        if disposition == "FORMAL_GAP":
+            formal_gap = terminal.get("formal_gap", {})
+            if not isinstance(formal_gap, Mapping) or not str(
+                formal_gap.get("summary", "") or ""
+            ).strip():
+                raise PacketValidationError(
+                    validation_label="LLM Formalizer Lean candidate client-tool workspace",
+                    attempts=loop.turns,
+                    errors=["terminal formal-gap payload is incomplete"],
+                    history=theory_documents.workspace_evidence_history(
+                        loop.history
+                    ),
+                )
+            return _lean_candidate_revision_success_result(
+                source=str(state["source"]),
+                check_result=deepcopy(dict(state["last_check"])),
+                state=state,
+                candidate_id=candidate_id,
+                candidate_lean_declaration=str(
+                    state["candidate_lean_declaration"]
+                ),
+                disposition=disposition,
+                terminal_source_action="formal_gap",
+                formal_gap=formal_gap,
+                parent_source_hash=parent_source_hash,
+                tools=tools,
+                max_turns=max_turns,
+                max_tool_calls=max_tool_calls,
+                max_no_progress_turns=max_no_progress_turns,
+                rejected_source_hash=rejected_source_hash,
+                rejected_lean_project_hash=rejected_lean_project_hash,
+                lean_project_persistence_root=resolved_session_dir,
+                turns=loop.turns,
+                tool_calls=loop.tool_calls,
+                runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
+                provider=loop.provider,
+                model=loop.model,
+                model_tier=model_tier,
+                provider_usage=loop.provider_usage,
+                response_metadata=loop.final_response_metadata,
+                history=loop.history,
+                transcript_fingerprint=loop.transcript_fingerprint,
+                workspace_phase=workspace_phase,
+                resumed_from_checkpoint_id=resume_metadata[
+                    "resume_checkpoint_id"
+                ],
+                segment_start_counters=segment_start_counters,
+                segment_start_observation_count=(
+                    segment_start_observation_count
+                ),
+                client_tool_session_ref=client_tool_session_ref,
+                resumed_client_tool_session_ref=(
+                    resumed_client_tool_session_ref
+                ),
+                client_tool_context_window=(
+                    resumed_client_tool_context_window
+                ),
+            )
+        source = str(terminal.get("lean_source", "") or "")
+        source_hash = str(terminal.get("source_hash", "") or "")
+        submitted_declaration = str(
+            terminal.get("candidate_lean_declaration", "") or ""
+        ).strip()
+        check_result = terminal.get("check_result", {})
+        terminal_project = terminal.get("lean_project", {})
+        try:
+            terminal_project_files, terminal_build_order = (
+                load_model_authored_lean_project(
+                    terminal_project,
+                    target_source=source,
+                )
+            )
+            terminal_project_hash = lean_project_hash(
+                target_source=source,
+                project_files=terminal_project_files,
+                support_build_order=terminal_build_order,
+            )
+        except ValueError:
+            terminal_project_hash = ""
+        if (
+            not source.strip()
+            or source_hash != stable_hash(source)
+            or not submitted_declaration
+            or not isinstance(check_result, Mapping)
+            or str(check_result.get("source_hash", "") or "") != source_hash
+            or str(
+                check_result.get("lean_project_hash", "")
+                or terminal_project_hash
+            )
+            != terminal_project_hash
+            or not terminal_project_hash
+            or not bool(check_result.get("compiled", False))
+            or bool(
+                rejected_source_hash
+                and source_hash == rejected_source_hash
+                and (
+                    not rejected_lean_project_hash
+                    or terminal_project_hash == rejected_lean_project_hash
+                )
+            )
+        ):
             raise PacketValidationError(
                 validation_label="LLM Formalizer Lean candidate client-tool workspace",
                 attempts=loop.turns,
-                errors=["terminal formal-gap payload is incomplete"],
+                errors=["terminal payload was not bound to a compiled current source"],
                 history=theory_documents.workspace_evidence_history(
                     loop.history
                 ),
             )
+
         return _lean_candidate_revision_success_result(
-            source=str(state["source"]),
-            check_result=deepcopy(dict(state["last_check"])),
+            source=source,
+            check_result=check_result,
             state=state,
             candidate_id=candidate_id,
-            candidate_lean_declaration=str(
-                state["candidate_lean_declaration"]
+            candidate_lean_declaration=submitted_declaration,
+            disposition="AUTHOR_LEAN",
+            terminal_source_action=str(
+                terminal.get("source_action", "complete_source_submission")
+                or "complete_source_submission"
             ),
-            disposition=disposition,
-            terminal_source_action="formal_gap",
-            formal_gap=formal_gap,
+            formal_gap={},
             parent_source_hash=parent_source_hash,
             tools=tools,
             max_turns=max_turns,
@@ -2134,110 +2287,24 @@ def run_lean_candidate_revision_tool_loop(
             history=loop.history,
             transcript_fingerprint=loop.transcript_fingerprint,
             workspace_phase=workspace_phase,
-            resumed_from_checkpoint_id=resume_metadata[
-                "resume_checkpoint_id"
-            ],
+            resumed_from_checkpoint_id=resume_metadata["resume_checkpoint_id"],
             segment_start_counters=segment_start_counters,
-            segment_start_observation_count=(
-                segment_start_observation_count
-            ),
+            segment_start_observation_count=segment_start_observation_count,
             client_tool_session_ref=client_tool_session_ref,
-            resumed_client_tool_session_ref=(
-                resumed_client_tool_session_ref
-            ),
-            client_tool_context_window=(
-                resumed_client_tool_context_window
-            ),
-        )
-    source = str(terminal.get("lean_source", "") or "")
-    source_hash = str(terminal.get("source_hash", "") or "")
-    submitted_declaration = str(
-        terminal.get("candidate_lean_declaration", "") or ""
-    ).strip()
-    check_result = terminal.get("check_result", {})
-    terminal_project = terminal.get("lean_project", {})
-    try:
-        terminal_project_files, terminal_build_order = (
-            load_model_authored_lean_project(
-                terminal_project,
-                target_source=source,
-            )
-        )
-        terminal_project_hash = lean_project_hash(
-            target_source=source,
-            project_files=terminal_project_files,
-            support_build_order=terminal_build_order,
-        )
-    except ValueError:
-        terminal_project_hash = ""
-    if (
-        not source.strip()
-        or source_hash != stable_hash(source)
-        or not submitted_declaration
-        or not isinstance(check_result, Mapping)
-        or str(check_result.get("source_hash", "") or "") != source_hash
-        or str(
-            check_result.get("lean_project_hash", "")
-            or terminal_project_hash
-        )
-        != terminal_project_hash
-        or not terminal_project_hash
-        or not bool(check_result.get("compiled", False))
-        or bool(
-            rejected_source_hash
-            and source_hash == rejected_source_hash
-            and (
-                not rejected_lean_project_hash
-                or terminal_project_hash == rejected_lean_project_hash
-            )
-        )
-    ):
-        raise PacketValidationError(
-            validation_label="LLM Formalizer Lean candidate client-tool workspace",
-            attempts=loop.turns,
-            errors=["terminal payload was not bound to a compiled current source"],
-            history=theory_documents.workspace_evidence_history(
-                loop.history
-            ),
+            resumed_client_tool_session_ref=resumed_client_tool_session_ref,
+            client_tool_context_window=resumed_client_tool_context_window,
         )
 
-    return _lean_candidate_revision_success_result(
-        source=source,
-        check_result=check_result,
-        state=state,
-        candidate_id=candidate_id,
-        candidate_lean_declaration=submitted_declaration,
-        disposition="AUTHOR_LEAN",
-        terminal_source_action=str(
-            terminal.get("source_action", "complete_source_submission")
-            or "complete_source_submission"
-        ),
-        formal_gap={},
-        parent_source_hash=parent_source_hash,
-        tools=tools,
+    return PreparedClientToolWorkspace(
+        request=request,
+        execute_tool=execute_tool,
         max_turns=max_turns,
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
-        rejected_source_hash=rejected_source_hash,
-        rejected_lean_project_hash=rejected_lean_project_hash,
-        lean_project_persistence_root=resolved_session_dir,
-        turns=loop.turns,
-        tool_calls=loop.tool_calls,
-        runtime_executed_tool_calls=loop.runtime_executed_tool_calls,
-        provider=loop.provider,
-        model=loop.model,
-        model_tier=model_tier,
-        provider_usage=loop.provider_usage,
-        response_metadata=loop.final_response_metadata,
-        history=loop.history,
-        transcript_fingerprint=loop.transcript_fingerprint,
-        workspace_phase=workspace_phase,
-        resumed_from_checkpoint_id=resume_metadata["resume_checkpoint_id"],
-        segment_start_counters=segment_start_counters,
-        segment_start_observation_count=segment_start_observation_count,
-        client_tool_session_ref=client_tool_session_ref,
-        resumed_client_tool_session_ref=resumed_client_tool_session_ref,
-        client_tool_context_window=resumed_client_tool_context_window,
+        session_dir=resolved_session_dir,
+        session_id=f"lean:{candidate_id}",
+        on_success=on_success,
+        on_error=on_error,
     )
 
 

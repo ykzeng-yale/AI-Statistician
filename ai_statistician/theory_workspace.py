@@ -17,12 +17,14 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    ClientToolLoopResult,
+    PreparedClientToolWorkspace,
     apply_model_exact_text_edits,
     client_tool_authorization_fingerprint,
     model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
-    run_bounded_client_tool_loop,
+    run_client_tool_workspace,
     workspace_history_tool,
 )
 from .estimator_interface_contract import normalize_theory_estimator_interface_contracts
@@ -588,7 +590,87 @@ def run_theory_artifact_workspace(
     prior_workspace_checkpoint: Mapping[str, Any] | None = None,
     prior_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
 ) -> TheoryWorkspaceResult:
-    """Let one model author text mathematics and a structured handoff in place."""
+    """Run the existing owner-bound tools through the shared retained loop."""
+
+    workspace = prepare_theory_artifact_workspace(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        model=model,
+        model_tier=model_tier,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        max_turns=max_turns,
+        max_tool_calls=max_tool_calls,
+        max_no_progress_turns=max_no_progress_turns,
+        workspace_id=workspace_id,
+        question_id=question_id,
+        authoring_binding_id=authoring_binding_id,
+        workspace_operation=workspace_operation,
+        initial_artifacts=initial_artifacts,
+        initial_documents=initial_documents,
+        read_only_artifacts=read_only_artifacts,
+        read_only_documents=read_only_documents,
+        build_candidate=build_candidate,
+        validate_candidate=validate_candidate,
+        request_metadata=request_metadata,
+        scratchpad=scratchpad,
+        research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
+        research_source_execution=research_source_execution,
+        allow_source_replication_checkpoint=allow_source_replication_checkpoint,
+        task_intent=task_intent,
+        workspace_dir=workspace_dir,
+        require_document_authority=require_document_authority,
+        writable_artifact_names=writable_artifact_names,
+        prior_changed_artifact_names=prior_changed_artifact_names,
+        prior_changed_document_paths=prior_changed_document_paths,
+        prior_removed_document_paths=prior_removed_document_paths,
+        prior_client_tool_session_ref=prior_client_tool_session_ref,
+        prior_workspace_checkpoint=prior_workspace_checkpoint,
+        prior_scratch_execution_refs=prior_scratch_execution_refs,
+    )
+    return run_client_tool_workspace(backend=provider, workspace=workspace)
+
+
+def prepare_theory_artifact_workspace(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    model_tier: str,
+    temperature: float,
+    max_tokens: int,
+    max_turns: int,
+    max_tool_calls: int,
+    max_no_progress_turns: int,
+    workspace_id: str,
+    question_id: str,
+    authoring_binding_id: str,
+    workspace_operation: str,
+    initial_artifacts: Mapping[str, Any],
+    initial_documents: Mapping[str, str] | None = None,
+    read_only_artifacts: Mapping[str, Any] | None = None,
+    read_only_documents: Mapping[str, str] | None = None,
+    build_candidate: TheoryWorkspaceCandidateBuilder,
+    validate_candidate: TheoryWorkspaceCandidateValidator,
+    request_metadata: Mapping[str, Any] | None = None,
+    scratchpad: TheoryScratchpadConfig | None = None,
+    research_sources: ResearchSourceSnapshot | None = None,
+    research_source_discovery: ResearchSourceDiscovery | None = None,
+    research_source_execution: ResearchSourceExecutionSpec | None = None,
+    allow_source_replication_checkpoint: bool = False,
+    task_intent: Mapping[str, str] | None = None,
+    workspace_dir: Path | None = None,
+    require_document_authority: bool = False,
+    writable_artifact_names: Sequence[str] | None = None,
+    prior_changed_artifact_names: Sequence[str] = (),
+    prior_changed_document_paths: Sequence[str] = (),
+    prior_removed_document_paths: Sequence[str] = (),
+    prior_client_tool_session_ref: Mapping[str, Any] | None = None,
+    prior_workspace_checkpoint: Mapping[str, Any] | None = None,
+    prior_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
+) -> PreparedClientToolWorkspace[TheoryWorkspaceResult]:
+    """Prepare executable owner-bound tools without making a model call."""
 
     if not all(
         str(value).strip()
@@ -2636,18 +2718,8 @@ def run_theory_artifact_workspace(
         if allow_source_replication_checkpoint
         else max_turns
     )
-    try:
-        loop = run_bounded_client_tool_loop(
-            backend=provider,
-            request=request,
-            execute_tool=execute_tool,
-            max_turns=effective_max_turns,
-            max_tool_calls=max_tool_calls,
-            max_no_progress_turns=max_no_progress_turns,
-            session_dir=resolved_workspace_dir,
-            session_id=workspace_id,
-        )
-    except ClientToolLoopError as exc:
+
+    def on_error(exc: ClientToolLoopError) -> TheoryWorkspaceResult:
         checkpoint = recovery_checkpoint()
         client_tool_session_ref = persist_client_tool_session(
             session_dir=resolved_workspace_dir,
@@ -2676,105 +2748,427 @@ def run_theory_artifact_workspace(
             recovery_checkpoint=checkpoint,
         ) from exc
 
-    client_tool_session_ref = persist_client_tool_session(
-        session_dir=resolved_workspace_dir,
-        session_id=workspace_id,
-        request=request,
-        messages=loop.messages,
-        observation_refs=loop.observation_refs,
-        durable_state_identity=recovery_checkpoint()["current_workspace_hash"],
-    )
-    client_tool_session_evidence = {
-        "client_tool_session_ref": deepcopy(client_tool_session_ref),
-        "resumed_from_client_tool_session_ref": deepcopy(
-            resumed_client_tool_session_ref
-        ),
-        "client_tool_session_lineage_continued": bool(
-            resumed_client_tool_session_ref
-        ),
-        "client_tool_checkpoint_window": deepcopy(
-            resumed_client_tool_context_window
-        ),
-        "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
-    }
-    terminal = dict(loop.terminal_payload)
-    if terminal.get("disposition") == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED":
-        core_packet = terminal.get("core_packet", {})
-        packet = deepcopy(dict(core_packet)) if isinstance(core_packet, Mapping) else {}
-        packet_hash = stable_hash(packet) if packet else ""
-        report = packet.get("report_document", {})
-        source_ref = packet.get("source_replication_manifest_ref", {})
-        source_manifests = state["source_replication_manifests"]
-        terminal_errors: list[str] = []
-        selected_source_run = packet.get("selected_source_run", 1)
-        selected_source_manifest = (
-            source_manifests[selected_source_run - 1]
-            if (
-                not isinstance(selected_source_run, bool)
-                and isinstance(selected_source_run, int)
-                and 1 <= selected_source_run <= len(source_manifests)
+    def on_success(loop: ClientToolLoopResult) -> TheoryWorkspaceResult:
+        client_tool_session_ref = persist_client_tool_session(
+            session_dir=resolved_workspace_dir,
+            session_id=workspace_id,
+            request=request,
+            messages=loop.messages,
+            observation_refs=loop.observation_refs,
+            durable_state_identity=recovery_checkpoint()["current_workspace_hash"],
+        )
+        client_tool_session_evidence = {
+            "client_tool_session_ref": deepcopy(client_tool_session_ref),
+            "resumed_from_client_tool_session_ref": deepcopy(
+                resumed_client_tool_session_ref
+            ),
+            "client_tool_session_lineage_continued": bool(
+                resumed_client_tool_session_ref
+            ),
+            "client_tool_checkpoint_window": deepcopy(
+                resumed_client_tool_context_window
+            ),
+            "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
+        }
+        terminal = dict(loop.terminal_payload)
+        if terminal.get("disposition") == "SOURCE_REPLICATION_CHECKPOINT_COMMITTED":
+            core_packet = terminal.get("core_packet", {})
+            packet = deepcopy(dict(core_packet)) if isinstance(core_packet, Mapping) else {}
+            packet_hash = stable_hash(packet) if packet else ""
+            report = packet.get("report_document", {})
+            source_ref = packet.get("source_replication_manifest_ref", {})
+            source_manifests = state["source_replication_manifests"]
+            terminal_errors: list[str] = []
+            selected_source_run = packet.get("selected_source_run", 1)
+            selected_source_manifest = (
+                source_manifests[selected_source_run - 1]
+                if (
+                    not isinstance(selected_source_run, bool)
+                    and isinstance(selected_source_run, int)
+                    and 1 <= selected_source_run <= len(source_manifests)
+                )
+                else {}
             )
+            model_selected_terminal = bool(
+                packet.get("source_execution_attempt_refs")
+            )
+            if not (
+                packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND
+                and packet.get("question_id") == question_id
+                and packet.get("workspace_id") == workspace_id
+                and terminal.get("core_packet_hash") == packet_hash
+                and isinstance(report, Mapping)
+                and str(report.get("relative_path", "") or "")
+                and isinstance(source_ref, Mapping)
+                and bool(source_manifests)
+                and (
+                    model_selected_terminal
+                    or (
+                        len(source_manifests) == 1
+                        and "selected_source_run" not in packet
+                    )
+                )
+                and bool(selected_source_manifest)
+                and source_ref.get("artifact_id")
+                == selected_source_manifest.get("artifact_id")
+                and source_ref.get("manifest_hash")
+                == selected_source_manifest.get("manifest_hash")
+            ):
+                terminal_errors.append(
+                    "terminal source replication checkpoint identity is invalid"
+                )
+            if terminal_errors:
+                raise PacketValidationError(
+                    validation_label="source replication workspace checkpoint",
+                    attempts=loop.turns,
+                    errors=terminal_errors,
+                    history=workspace_evidence_history(loop.history),
+                    last_invalid_packet=packet or None,
+                    recovery_checkpoint=recovery_checkpoint(),
+                )
+            evidence = {
+                "schema_version": 1,
+                "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+                "artifact_id": "source_replication_workspace:"
+                + stable_hash(
+                    [
+                        workspace_id,
+                        packet_hash,
+                        loop.transcript_fingerprint,
+                    ]
+                )[:20],
+                "workspace_id": workspace_id,
+                "question_id": question_id,
+                "authoring_binding_id": authoring_binding_id,
+                "workspace_operation": workspace_operation,
+                "transport": "native_client_tools",
+                "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+                "parent_workspace_hash": parent_hash,
+                "submitted_workspace_hash": str(
+                    terminal.get("workspace_hash", "") or ""
+                ),
+                "submitted_core_packet_hash": packet_hash,
+                "changed_artifact_names": list(
+                    terminal.get("changed_artifact_names", []) or []
+                ),
+                "changed_document_paths": list(
+                    terminal.get("changed_document_paths", []) or []
+                ),
+                "removed_document_paths": list(
+                    terminal.get("removed_document_paths", []) or []
+                ),
+                "theory_workspace_manifest": deepcopy(
+                    dict(terminal.get("theory_workspace_manifest", {}) or {})
+                ),
+                "reads": state["reads"],
+                "submissions": state["submissions"],
+                "source_replication_runs": state["source_replication_runs"],
+                "source_replication_manifests": deepcopy(source_manifests),
+                "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
+                "document_inspection_refs": deepcopy(
+                    state["document_inspection_refs"]
+                ),
+                "research_source_snapshot": (
+                    research_sources.descriptor()
+                    if research_sources is not None
+                    else {"configured": False}
+                ),
+                "source_search_refs": deepcopy(state["source_search_refs"]),
+                "source_read_refs": deepcopy(state["source_read_refs"]),
+                "source_result_read_refs": deepcopy(
+                    state["source_result_read_refs"]
+                ),
+                **source_environment_evidence(),
+                "turns": loop.turns,
+                "tool_calls": loop.tool_calls,
+                "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+                "provider": loop.provider,
+                "model": loop.model,
+                "model_tier": model_tier,
+                "provider_usage": dict(loop.provider_usage),
+                "history": workspace_evidence_history(loop.history),
+                "transcript_fingerprint": loop.transcript_fingerprint,
+                **client_tool_session_evidence,
+                "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
+                "checkpoint_committed": True,
+                "model_owned_theory": False,
+                "model_owned_source_report": True,
+                "runtime_edited_theory": False,
+                "runtime_edited_source": False,
+                "accepted": True,
+                "proof_evidence_status": (
+                    "SOURCE_REPLICATION_WORKSPACE_NOT_PROOF_EVIDENCE"
+                ),
+                "kernel_verified": False,
+            }
+            return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
+        if terminal.get("disposition") == "THEORY_PROGRESS_CHECKPOINT":
+            raw_progress = terminal.get("progress", {})
+            if not isinstance(raw_progress, Mapping) or not str(
+                raw_progress.get("summary", "") or ""
+            ).strip():
+                raise PacketValidationError(
+                    validation_label="LLM TheoryDeveloper progress checkpoint",
+                    attempts=loop.turns,
+                    errors=["terminal theory progress payload is invalid"],
+                    history=workspace_evidence_history(loop.history),
+                    recovery_checkpoint=recovery_checkpoint(),
+                )
+            progress = deepcopy(dict(raw_progress))
+            checkpoint_body = {
+                **recovery_checkpoint(),
+                "artifact_kind": THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
+                "progress": progress,
+                "client_tool_session_ref": deepcopy(
+                    client_tool_session_ref
+                ),
+                "resumable": True,
+                "accepted": False,
+                "proof_evidence_status": (
+                    "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": (
+                    "This is exact model-authored partial theory state requesting "
+                    "same-owner continuation. It is not independent review acceptance, "
+                    "empirical evidence, formal proof, or kernel evidence."
+                ),
+            }
+            checkpoint_id = "theory_progress_checkpoint:" + stable_hash(
+                checkpoint_body
+            )[:20]
+            checkpoint = {
+                **checkpoint_body,
+                "checkpoint_id": checkpoint_id,
+            }
+            evidence = {
+                "schema_version": 1,
+                "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+                "artifact_id": "theory_workspace_progress:"
+                + stable_hash(
+                    [
+                        workspace_id,
+                        checkpoint_id,
+                        loop.transcript_fingerprint,
+                    ]
+                )[:20],
+                "workspace_id": workspace_id,
+                "question_id": question_id,
+                "authoring_binding_id": authoring_binding_id,
+                "workspace_operation": workspace_operation,
+                "transport": "native_client_tools",
+                "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+                "parent_workspace_hash": parent_hash,
+                "current_workspace_hash": checkpoint["current_workspace_hash"],
+                "changed_artifact_names": list(
+                    checkpoint.get("changed_artifact_names", []) or []
+                ),
+                "changed_document_paths": list(
+                    checkpoint.get("changed_document_paths", []) or []
+                ),
+                "removed_document_paths": list(
+                    checkpoint.get("removed_document_paths", []) or []
+                ),
+                "theory_workspace_manifest": deepcopy(
+                    dict(checkpoint["theory_workspace_manifest"])
+                ),
+                "progress": progress,
+                "reads": state["reads"],
+                "submissions": state["submissions"],
+                "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
+                "turns": loop.turns,
+                "tool_calls": loop.tool_calls,
+                "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+                "provider": loop.provider,
+                "model": loop.model,
+                "model_tier": model_tier,
+                "provider_usage": dict(loop.provider_usage),
+                "history": workspace_evidence_history(loop.history),
+                "transcript_fingerprint": loop.transcript_fingerprint,
+                **client_tool_session_evidence,
+                "disposition": "THEORY_PROGRESS_CHECKPOINT",
+                "checkpoint_id": checkpoint_id,
+                "checkpoint_committed": True,
+                "resumable": True,
+                "model_owned_theory": True,
+                "runtime_edited_theory": False,
+                "accepted": False,
+                "proof_evidence_status": (
+                    "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
+                ),
+                "kernel_verified": False,
+            }
+            raise TheoryWorkspaceProgressError(
+                progress_checkpoint=checkpoint,
+                evidence=evidence,
+            )
+        if terminal.get("disposition") == "THEORY_GAP":
+            theory_gap = terminal.get("theory_gap", {})
+            if not isinstance(theory_gap, Mapping) or not str(
+                theory_gap.get("summary", "") or ""
+            ).strip():
+                raise PacketValidationError(
+                    validation_label="LLM TheoryDeveloper artifact workspace",
+                    attempts=loop.turns,
+                    errors=["terminal theory-gap payload is invalid"],
+                    history=workspace_evidence_history(loop.history),
+                    recovery_checkpoint=recovery_checkpoint(),
+                )
+            gap = deepcopy(dict(theory_gap))
+            evidence = {
+                "schema_version": 1,
+                "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
+                "artifact_id": "theory_workspace_gap:"
+                + stable_hash(
+                    [workspace_id, workspace_operation, gap, loop.transcript_fingerprint]
+                )[:20],
+                "workspace_id": workspace_id,
+                "question_id": question_id,
+                "authoring_binding_id": authoring_binding_id,
+                "workspace_operation": workspace_operation,
+                "transport": "native_client_tools",
+                "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
+                "parent_workspace_hash": parent_hash,
+                "current_workspace_hash": stable_hash(
+                    {
+                        "artifacts": state["artifacts"],
+                        "documents": state["documents"],
+                    }
+                ),
+                "changed_artifact_names": list(
+                    changed_artifact_names(state["artifacts"])
+                ),
+                "changed_document_paths": list(
+                    changed_document_paths(state["documents"])
+                ),
+                "removed_document_paths": list(
+                    removed_document_paths(state["documents"])
+                ),
+                "theory_workspace_manifest": document_manifest(
+                    state["documents"]
+                ),
+                "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
+                "document_inspection_refs": deepcopy(
+                    state["document_inspection_refs"]
+                ),
+                "reads": state["reads"],
+                "submissions": state["submissions"],
+                "scratch_runs": state["scratch_runs"],
+                "scratch_inspection_refs": deepcopy(
+                    state["scratch_inspection_refs"]
+                ),
+                "research_source_snapshot": (
+                    research_sources.descriptor()
+                    if research_sources is not None
+                    else {"configured": False}
+                ),
+                "source_search_refs": deepcopy(state["source_search_refs"]),
+                "source_read_refs": deepcopy(state["source_read_refs"]),
+                "source_result_read_refs": deepcopy(
+                    state["source_result_read_refs"]
+                ),
+                **source_environment_evidence(),
+                "source_replication_runs": state["source_replication_runs"],
+                "source_replication_manifests": deepcopy(
+                    state["source_replication_manifests"]
+                ),
+                "turns": loop.turns,
+                "tool_calls": loop.tool_calls,
+                "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+                "provider": loop.provider,
+                "model": loop.model,
+                "model_tier": model_tier,
+                "provider_usage": dict(loop.provider_usage),
+                "history": workspace_evidence_history(loop.history),
+                "transcript_fingerprint": loop.transcript_fingerprint,
+                **client_tool_session_evidence,
+                "disposition": "THEORY_GAP",
+                "theory_gap": gap,
+                "model_owned_theory": True,
+                "runtime_edited_theory": False,
+                "accepted": False,
+                "proof_evidence_status": (
+                    "MODEL_REPORTED_THEORY_GAP_NOT_PROOF_EVIDENCE"
+                ),
+                "kernel_verified": False,
+            }
+            raise TheoryWorkspaceGapError(theory_gap=gap, evidence=evidence)
+        core_packet = terminal.get("core_packet", {})
+        if not isinstance(core_packet, Mapping):
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper artifact workspace",
+                attempts=loop.turns,
+                errors=["terminal theory workspace packet is not an object"],
+                history=workspace_evidence_history(loop.history),
+            )
+        packet = deepcopy(dict(core_packet))
+        packet_hash = stable_hash(packet)
+        terminal_errors = [
+            str(error)
+            for error in validate_candidate(packet)
+            if str(error).strip()
+        ]
+        raw_source_checkpoint = terminal.get("source_replication_checkpoint", {})
+        integrated_source_checkpoint = (
+            deepcopy(dict(raw_source_checkpoint))
+            if isinstance(raw_source_checkpoint, Mapping)
             else {}
         )
-        model_selected_terminal = bool(
-            packet.get("source_execution_attempt_refs")
+        if integrated_source_replication_required and not integrated_source_checkpoint:
+            terminal_errors.append("integrated source replication checkpoint is missing")
+        terminal_errors = list(
+            dict.fromkeys(
+                [
+                    *[
+                        str(error)
+                        for error in terminal.get("validation_errors", []) or []
+                        if str(error).strip()
+                    ],
+                    *terminal_errors,
+                ]
+            )
         )
-        if not (
-            packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND
-            and packet.get("question_id") == question_id
-            and packet.get("workspace_id") == workspace_id
-            and terminal.get("core_packet_hash") == packet_hash
-            and isinstance(report, Mapping)
-            and str(report.get("relative_path", "") or "")
-            and isinstance(source_ref, Mapping)
-            and bool(source_manifests)
-            and (
-                model_selected_terminal
-                or (
-                    len(source_manifests) == 1
-                    and "selected_source_run" not in packet
-                )
-            )
-            and bool(selected_source_manifest)
-            and source_ref.get("artifact_id")
-            == selected_source_manifest.get("artifact_id")
-            and source_ref.get("manifest_hash")
-            == selected_source_manifest.get("manifest_hash")
-        ):
-            terminal_errors.append(
-                "terminal source replication checkpoint identity is invalid"
-            )
-        if terminal_errors:
+        if terminal.get("core_packet_hash") != packet_hash or terminal_errors:
             raise PacketValidationError(
-                validation_label="source replication workspace checkpoint",
+                validation_label="LLM TheoryDeveloper artifact workspace",
                 attempts=loop.turns,
-                errors=terminal_errors,
+                errors=(
+                    terminal_errors
+                    or ["terminal theory workspace packet hash does not match"]
+                ),
                 history=workspace_evidence_history(loop.history),
-                last_invalid_packet=packet or None,
+                last_invalid_packet=packet,
                 recovery_checkpoint=recovery_checkpoint(),
             )
+
+        evidence_id = "theory_workspace:" + stable_hash(
+            [
+                workspace_id,
+                workspace_operation,
+                parent_hash,
+                packet_hash,
+                loop.transcript_fingerprint,
+            ]
+        )[:20]
         evidence = {
-            "schema_version": 1,
+            "schema_version": 2,
             "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
-            "artifact_id": "source_replication_workspace:"
-            + stable_hash(
-                [
-                    workspace_id,
-                    packet_hash,
-                    loop.transcript_fingerprint,
-                ]
-            )[:20],
+            "artifact_id": evidence_id,
             "workspace_id": workspace_id,
             "question_id": question_id,
             "authoring_binding_id": authoring_binding_id,
             "workspace_operation": workspace_operation,
+            "resumed_from_progress_checkpoint_id": str(
+                (prior_workspace_checkpoint or {}).get("checkpoint_id", "") or ""
+            ),
+            "cumulative_tool_state_restored": bool(prior_workspace_checkpoint),
             "transport": "native_client_tools",
             "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
             "parent_workspace_hash": parent_hash,
-            "submitted_workspace_hash": str(
-                terminal.get("workspace_hash", "") or ""
-            ),
+            "submitted_workspace_hash": str(terminal.get("workspace_hash", "") or ""),
             "submitted_core_packet_hash": packet_hash,
+            "read_only_artifact_hashes": {
+                name: stable_hash(value) for name, value in sorted(read_only.items())
+            },
             "changed_artifact_names": list(
                 terminal.get("changed_artifact_names", []) or []
             ),
@@ -2789,200 +3183,28 @@ def run_theory_artifact_workspace(
             ),
             "reads": state["reads"],
             "submissions": state["submissions"],
-            "source_replication_runs": state["source_replication_runs"],
-            "source_replication_manifests": deepcopy(source_manifests),
-            "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
-            "document_inspection_refs": deepcopy(
-                state["document_inspection_refs"]
+            "n_model_artifact_writes": len(state["model_artifact_writes"]),
+            "model_artifact_writes": deepcopy(
+                state["model_artifact_writes"]
             ),
-            "research_source_snapshot": (
-                research_sources.descriptor()
-                if research_sources is not None
-                else {"configured": False}
-            ),
-            "source_search_refs": deepcopy(state["source_search_refs"]),
-            "source_read_refs": deepcopy(state["source_read_refs"]),
-            "source_result_read_refs": deepcopy(
-                state["source_result_read_refs"]
-            ),
-            **source_environment_evidence(),
-            "turns": loop.turns,
-            "tool_calls": loop.tool_calls,
-            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
-            "provider": loop.provider,
-            "model": loop.model,
-            "model_tier": model_tier,
-            "provider_usage": dict(loop.provider_usage),
-            "history": workspace_evidence_history(loop.history),
-            "transcript_fingerprint": loop.transcript_fingerprint,
-            **client_tool_session_evidence,
-            "disposition": "SOURCE_REPLICATION_CHECKPOINT_COMMITTED",
-            "checkpoint_committed": True,
-            "model_owned_theory": False,
-            "model_owned_source_report": True,
-            "runtime_edited_theory": False,
-            "runtime_edited_source": False,
-            "accepted": True,
-            "proof_evidence_status": (
-                "SOURCE_REPLICATION_WORKSPACE_NOT_PROOF_EVIDENCE"
-            ),
-            "kernel_verified": False,
-        }
-        return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
-    if terminal.get("disposition") == "THEORY_PROGRESS_CHECKPOINT":
-        raw_progress = terminal.get("progress", {})
-        if not isinstance(raw_progress, Mapping) or not str(
-            raw_progress.get("summary", "") or ""
-        ).strip():
-            raise PacketValidationError(
-                validation_label="LLM TheoryDeveloper progress checkpoint",
-                attempts=loop.turns,
-                errors=["terminal theory progress payload is invalid"],
-                history=workspace_evidence_history(loop.history),
-                recovery_checkpoint=recovery_checkpoint(),
-            )
-        progress = deepcopy(dict(raw_progress))
-        checkpoint_body = {
-            **recovery_checkpoint(),
-            "artifact_kind": THEORY_WORKSPACE_PROGRESS_CHECKPOINT_KIND,
-            "progress": progress,
-            "client_tool_session_ref": deepcopy(
-                client_tool_session_ref
-            ),
-            "resumable": True,
-            "accepted": False,
-            "proof_evidence_status": (
-                "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
-            ),
-            "boundary": (
-                "This is exact model-authored partial theory state requesting "
-                "same-owner continuation. It is not independent review acceptance, "
-                "empirical evidence, formal proof, or kernel evidence."
-            ),
-        }
-        checkpoint_id = "theory_progress_checkpoint:" + stable_hash(
-            checkpoint_body
-        )[:20]
-        checkpoint = {
-            **checkpoint_body,
-            "checkpoint_id": checkpoint_id,
-        }
-        evidence = {
-            "schema_version": 1,
-            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
-            "artifact_id": "theory_workspace_progress:"
-            + stable_hash(
-                [
-                    workspace_id,
-                    checkpoint_id,
-                    loop.transcript_fingerprint,
-                ]
-            )[:20],
-            "workspace_id": workspace_id,
-            "question_id": question_id,
-            "authoring_binding_id": authoring_binding_id,
-            "workspace_operation": workspace_operation,
-            "transport": "native_client_tools",
-            "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
-            "parent_workspace_hash": parent_hash,
-            "current_workspace_hash": checkpoint["current_workspace_hash"],
-            "changed_artifact_names": list(
-                checkpoint.get("changed_artifact_names", []) or []
-            ),
-            "changed_document_paths": list(
-                checkpoint.get("changed_document_paths", []) or []
-            ),
-            "removed_document_paths": list(
-                checkpoint.get("removed_document_paths", []) or []
-            ),
-            "theory_workspace_manifest": deepcopy(
-                dict(checkpoint["theory_workspace_manifest"])
-            ),
-            "progress": progress,
-            "reads": state["reads"],
-            "submissions": state["submissions"],
-            "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
-            "turns": loop.turns,
-            "tool_calls": loop.tool_calls,
-            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
-            "provider": loop.provider,
-            "model": loop.model,
-            "model_tier": model_tier,
-            "provider_usage": dict(loop.provider_usage),
-            "history": workspace_evidence_history(loop.history),
-            "transcript_fingerprint": loop.transcript_fingerprint,
-            **client_tool_session_evidence,
-            "disposition": "THEORY_PROGRESS_CHECKPOINT",
-            "checkpoint_id": checkpoint_id,
-            "checkpoint_committed": True,
-            "resumable": True,
-            "model_owned_theory": True,
-            "runtime_edited_theory": False,
-            "accepted": False,
-            "proof_evidence_status": (
-                "THEORY_PROGRESS_CHECKPOINT_NOT_PROOF_EVIDENCE"
-            ),
-            "kernel_verified": False,
-        }
-        raise TheoryWorkspaceProgressError(
-            progress_checkpoint=checkpoint,
-            evidence=evidence,
-        )
-    if terminal.get("disposition") == "THEORY_GAP":
-        theory_gap = terminal.get("theory_gap", {})
-        if not isinstance(theory_gap, Mapping) or not str(
-            theory_gap.get("summary", "") or ""
-        ).strip():
-            raise PacketValidationError(
-                validation_label="LLM TheoryDeveloper artifact workspace",
-                attempts=loop.turns,
-                errors=["terminal theory-gap payload is invalid"],
-                history=workspace_evidence_history(loop.history),
-                recovery_checkpoint=recovery_checkpoint(),
-            )
-        gap = deepcopy(dict(theory_gap))
-        evidence = {
-            "schema_version": 1,
-            "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
-            "artifact_id": "theory_workspace_gap:"
-            + stable_hash(
-                [workspace_id, workspace_operation, gap, loop.transcript_fingerprint]
-            )[:20],
-            "workspace_id": workspace_id,
-            "question_id": question_id,
-            "authoring_binding_id": authoring_binding_id,
-            "workspace_operation": workspace_operation,
-            "transport": "native_client_tools",
-            "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
-            "parent_workspace_hash": parent_hash,
-            "current_workspace_hash": stable_hash(
-                {
-                    "artifacts": state["artifacts"],
-                    "documents": state["documents"],
-                }
-            ),
-            "changed_artifact_names": list(
-                changed_artifact_names(state["artifacts"])
-            ),
-            "changed_document_paths": list(
-                changed_document_paths(state["documents"])
-            ),
-            "removed_document_paths": list(
-                removed_document_paths(state["documents"])
-            ),
-            "theory_workspace_manifest": document_manifest(
-                state["documents"]
+            "n_model_document_writes": len(state["model_document_writes"]),
+            "model_document_writes": deepcopy(
+                state["model_document_writes"]
             ),
             "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
             "document_inspection_refs": deepcopy(
                 state["document_inspection_refs"]
             ),
-            "reads": state["reads"],
-            "submissions": state["submissions"],
+            "theory_content_authority": (
+                THEORY_WORKSPACE_CONTENT_AUTHORITY
+                if require_document_authority
+                else "legacy_structured_artifacts"
+            ),
+            "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
+            "scratchpad_enabled": scratchpad is not None,
             "scratch_runs": state["scratch_runs"],
-            "scratch_inspection_refs": deepcopy(
-                state["scratch_inspection_refs"]
-            ),
+            "scratch_execution_refs": deepcopy(state["scratch_execution_refs"]),
+            "scratch_inspection_refs": deepcopy(state["scratch_inspection_refs"]),
             "research_source_snapshot": (
                 research_sources.descriptor()
                 if research_sources is not None
@@ -2998,6 +3220,7 @@ def run_theory_artifact_workspace(
             "source_replication_manifests": deepcopy(
                 state["source_replication_manifests"]
             ),
+            "source_replication_checkpoint": integrated_source_checkpoint,
             "turns": loop.turns,
             "tool_calls": loop.tool_calls,
             "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
@@ -3008,169 +3231,31 @@ def run_theory_artifact_workspace(
             "history": workspace_evidence_history(loop.history),
             "transcript_fingerprint": loop.transcript_fingerprint,
             **client_tool_session_evidence,
-            "disposition": "THEORY_GAP",
-            "theory_gap": gap,
-            "model_owned_theory": True,
-            "runtime_edited_theory": False,
-            "accepted": False,
-            "proof_evidence_status": (
-                "MODEL_REPORTED_THEORY_GAP_NOT_PROOF_EVIDENCE"
+            "disposition": "THEORY_CHECKPOINT_COMMITTED",
+            "checkpoint_committed": True,
+            "checkpoint_readiness_rationale": str(
+                terminal.get("readiness_rationale", "") or ""
             ),
+            "model_owned_theory": True,
+            "model_owned_source_report": bool(integrated_source_checkpoint),
+            "runtime_edited_theory": False,
+            "accepted": True,
+            "proof_evidence_status": "THEORY_WORKSPACE_NOT_PROOF_EVIDENCE",
             "kernel_verified": False,
         }
-        raise TheoryWorkspaceGapError(theory_gap=gap, evidence=evidence)
-    core_packet = terminal.get("core_packet", {})
-    if not isinstance(core_packet, Mapping):
-        raise PacketValidationError(
-            validation_label="LLM TheoryDeveloper artifact workspace",
-            attempts=loop.turns,
-            errors=["terminal theory workspace packet is not an object"],
-            history=workspace_evidence_history(loop.history),
-        )
-    packet = deepcopy(dict(core_packet))
-    packet_hash = stable_hash(packet)
-    terminal_errors = [
-        str(error)
-        for error in validate_candidate(packet)
-        if str(error).strip()
-    ]
-    raw_source_checkpoint = terminal.get("source_replication_checkpoint", {})
-    integrated_source_checkpoint = (
-        deepcopy(dict(raw_source_checkpoint))
-        if isinstance(raw_source_checkpoint, Mapping)
-        else {}
-    )
-    if integrated_source_replication_required and not integrated_source_checkpoint:
-        terminal_errors.append("integrated source replication checkpoint is missing")
-    terminal_errors = list(
-        dict.fromkeys(
-            [
-                *[
-                    str(error)
-                    for error in terminal.get("validation_errors", []) or []
-                    if str(error).strip()
-                ],
-                *terminal_errors,
-            ]
-        )
-    )
-    if terminal.get("core_packet_hash") != packet_hash or terminal_errors:
-        raise PacketValidationError(
-            validation_label="LLM TheoryDeveloper artifact workspace",
-            attempts=loop.turns,
-            errors=(
-                terminal_errors
-                or ["terminal theory workspace packet hash does not match"]
-            ),
-            history=workspace_evidence_history(loop.history),
-            last_invalid_packet=packet,
-            recovery_checkpoint=recovery_checkpoint(),
-        )
+        return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
 
-    evidence_id = "theory_workspace:" + stable_hash(
-        [
-            workspace_id,
-            workspace_operation,
-            parent_hash,
-            packet_hash,
-            loop.transcript_fingerprint,
-        ]
-    )[:20]
-    evidence = {
-        "schema_version": 2,
-        "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
-        "artifact_id": evidence_id,
-        "workspace_id": workspace_id,
-        "question_id": question_id,
-        "authoring_binding_id": authoring_binding_id,
-        "workspace_operation": workspace_operation,
-        "resumed_from_progress_checkpoint_id": str(
-            (prior_workspace_checkpoint or {}).get("checkpoint_id", "") or ""
-        ),
-        "cumulative_tool_state_restored": bool(prior_workspace_checkpoint),
-        "transport": "native_client_tools",
-        "write_transport": THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT,
-        "parent_workspace_hash": parent_hash,
-        "submitted_workspace_hash": str(terminal.get("workspace_hash", "") or ""),
-        "submitted_core_packet_hash": packet_hash,
-        "read_only_artifact_hashes": {
-            name: stable_hash(value) for name, value in sorted(read_only.items())
-        },
-        "changed_artifact_names": list(
-            terminal.get("changed_artifact_names", []) or []
-        ),
-        "changed_document_paths": list(
-            terminal.get("changed_document_paths", []) or []
-        ),
-        "removed_document_paths": list(
-            terminal.get("removed_document_paths", []) or []
-        ),
-        "theory_workspace_manifest": deepcopy(
-            dict(terminal.get("theory_workspace_manifest", {}) or {})
-        ),
-        "reads": state["reads"],
-        "submissions": state["submissions"],
-        "n_model_artifact_writes": len(state["model_artifact_writes"]),
-        "model_artifact_writes": deepcopy(
-            state["model_artifact_writes"]
-        ),
-        "n_model_document_writes": len(state["model_document_writes"]),
-        "model_document_writes": deepcopy(
-            state["model_document_writes"]
-        ),
-        "workspace_read_refs": deepcopy(state["workspace_read_refs"]),
-        "document_inspection_refs": deepcopy(
-            state["document_inspection_refs"]
-        ),
-        "theory_content_authority": (
-            THEORY_WORKSPACE_CONTENT_AUTHORITY
-            if require_document_authority
-            else "legacy_structured_artifacts"
-        ),
-        "structured_handoff_role": THEORY_WORKSPACE_HANDOFF_ROLE,
-        "scratchpad_enabled": scratchpad is not None,
-        "scratch_runs": state["scratch_runs"],
-        "scratch_execution_refs": deepcopy(state["scratch_execution_refs"]),
-        "scratch_inspection_refs": deepcopy(state["scratch_inspection_refs"]),
-        "research_source_snapshot": (
-            research_sources.descriptor()
-            if research_sources is not None
-            else {"configured": False}
-        ),
-        "source_search_refs": deepcopy(state["source_search_refs"]),
-        "source_read_refs": deepcopy(state["source_read_refs"]),
-        "source_result_read_refs": deepcopy(
-            state["source_result_read_refs"]
-        ),
-        **source_environment_evidence(),
-        "source_replication_runs": state["source_replication_runs"],
-        "source_replication_manifests": deepcopy(
-            state["source_replication_manifests"]
-        ),
-        "source_replication_checkpoint": integrated_source_checkpoint,
-        "turns": loop.turns,
-        "tool_calls": loop.tool_calls,
-        "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
-        "provider": loop.provider,
-        "model": loop.model,
-        "model_tier": model_tier,
-        "provider_usage": dict(loop.provider_usage),
-        "history": workspace_evidence_history(loop.history),
-        "transcript_fingerprint": loop.transcript_fingerprint,
-        **client_tool_session_evidence,
-        "disposition": "THEORY_CHECKPOINT_COMMITTED",
-        "checkpoint_committed": True,
-        "checkpoint_readiness_rationale": str(
-            terminal.get("readiness_rationale", "") or ""
-        ),
-        "model_owned_theory": True,
-        "model_owned_source_report": bool(integrated_source_checkpoint),
-        "runtime_edited_theory": False,
-        "accepted": True,
-        "proof_evidence_status": "THEORY_WORKSPACE_NOT_PROOF_EVIDENCE",
-        "kernel_verified": False,
-    }
-    return TheoryWorkspaceResult(core_packet=packet, evidence=evidence)
+    return PreparedClientToolWorkspace(
+        request=request,
+        execute_tool=execute_tool,
+        max_turns=effective_max_turns,
+        max_tool_calls=max_tool_calls,
+        max_no_progress_turns=max_no_progress_turns,
+        session_dir=resolved_workspace_dir,
+        session_id=workspace_id,
+        on_success=on_success,
+        on_error=on_error,
+    )
 
 
 def workspace_evidence_history(

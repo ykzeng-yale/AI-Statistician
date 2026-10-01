@@ -112,12 +112,21 @@ cache reuse rather than assume it despite changing prompts/tool schemas. The
 paper's transcript-equivalence conditions do not prove equivalence after exposing
 private author history that our reviewer normally cannot see.
 
-Current theory/scientific/Lean action handlers close over artifact-specific state;
-their tool definitions alone are not executable standalone tools. A transport
-history merger would neither give a general agent the union of these actions nor
-preserve reviewer isolation and actual request identities. Do not implement that
-shortcut or silently alter canonical sessions. Both single-agent controls remain
-unimplemented, and all arms/authority need prospective verification before draws.
+Theory/scientific/Lean preparation functions now expose the actual owner-bound
+request, executable actions and result/checkpoint handlers without calling a
+model. Default roles use these same bindings through the existing retained loop;
+their contexts, source checks and authority are unchanged. Synthetic tests cover
+Python/R, theory and Lean parity, exhaustion and one session executing actions
+from all three workspaces. This is not a scientific draw or a complete control.
+The bindings still have artifact-specific state: a valid general-agent arm must
+compose their scopes, duplicate tool names, dependencies and final artifacts
+explicitly. Owner result handlers remain bound to their own requests; a shared
+control must record its actual combined request/history instead of forging
+isolated-owner receipts. A transport history merger cannot establish these
+boundaries or preserve isolated review.
+Both single-agent controls remain unimplemented; no study is activated by this
+refactor. External gold, complete tool parity and shared resources still need
+prospective verification before draws.
 
 The full system can have separate role contexts while executing serially; this
 does not demonstrate parallel speedup. A concurrency experiment requires actual

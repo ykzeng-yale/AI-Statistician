@@ -5,7 +5,7 @@ import json
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Generic, Mapping, Sequence, TypeVar
 
 from .agent_runtime import LocalModelCallBudgetExceeded, agent_runtime_substage
 from .fingerprint import stable_hash
@@ -322,6 +322,48 @@ ClientToolExecutor = Callable[
     [ClientToolCall, ClientToolExecutionContext],
     ClientToolExecutionResult,
 ]
+
+WorkspaceResultT = TypeVar("WorkspaceResultT")
+
+
+@dataclass(frozen=True)
+class PreparedClientToolWorkspace(Generic[WorkspaceResultT]):
+    """Executable single-owner binding, without a model driver.
+
+    Composing actions grants no additional authority. Result handlers remain
+    bound to this request; unrelated histories cannot become owner receipts.
+    """
+
+    request: ClientToolTurnRequest
+    execute_tool: ClientToolExecutor
+    on_success: Callable[[ClientToolLoopResult], WorkspaceResultT]
+    on_error: Callable[[ClientToolLoopError], WorkspaceResultT]
+    max_turns: int
+    max_tool_calls: int
+    max_no_progress_turns: int
+    session_dir: Path | None
+    session_id: str
+
+
+def run_client_tool_workspace(
+    *, backend: Any, workspace: PreparedClientToolWorkspace[WorkspaceResultT],
+) -> WorkspaceResultT:
+    """Use the sole retained loop; the source owner still validates its result."""
+
+    try:
+        loop = run_bounded_client_tool_loop(
+            backend=backend,
+            request=workspace.request,
+            execute_tool=workspace.execute_tool,
+            max_turns=workspace.max_turns,
+            max_tool_calls=workspace.max_tool_calls,
+            max_no_progress_turns=workspace.max_no_progress_turns,
+            session_dir=workspace.session_dir,
+            session_id=workspace.session_id,
+        )
+    except ClientToolLoopError as exc:
+        return workspace.on_error(exc)
+    return workspace.on_success(loop)
 
 
 CLIENT_TOOL_SESSION_KIND = "ClientToolWorkspaceSession"

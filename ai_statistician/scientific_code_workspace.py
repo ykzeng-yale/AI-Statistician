@@ -27,6 +27,8 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    ClientToolLoopResult,
+    PreparedClientToolWorkspace,
     apply_model_exact_text_edits,
     client_tool_authorization_fingerprint,
     externalize_client_tool_text_documents,
@@ -34,7 +36,7 @@ from .client_tool_loop import (
     persist_client_tool_session,
     read_hash_bound_utf8_file,
     resume_client_tool_session_from_checkpoint,
-    run_bounded_client_tool_loop,
+    run_client_tool_workspace,
     workspace_history_tool,
 )
 from .fingerprint import stable_hash
@@ -1886,7 +1888,59 @@ def run_scientific_code_workspace(
     research_sources: ResearchSourceSnapshot | None = None,
     research_source_discovery: ResearchSourceDiscovery | None = None,
 ) -> ScientificCodeWorkspaceResult:
-    """Let one model own complete scientific source across raw sandbox feedback."""
+    """Run the existing owner-bound tools through the shared retained loop."""
+
+    workspace = prepare_scientific_code_workspace(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        model=model,
+        model_tier=model_tier,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        max_turns=max_turns,
+        max_no_progress_turns=max_no_progress_turns,
+        artifact_id=artifact_id,
+        initial_code_draft=initial_code_draft,
+        initial_check_result=initial_check_result,
+        check_candidate=check_candidate,
+        workspace_operation=workspace_operation,
+        allow_current_source_run=allow_current_source_run,
+        allow_dependency_handoff=allow_dependency_handoff,
+        request_metadata=request_metadata,
+        recovery_checkpoint=recovery_checkpoint,
+        session_dir=session_dir,
+        context_documents=context_documents,
+        research_sources=research_sources,
+        research_source_discovery=research_source_discovery,
+    )
+    return run_client_tool_workspace(backend=provider, workspace=workspace)
+
+
+def prepare_scientific_code_workspace(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    model_tier: str,
+    temperature: float,
+    max_tokens: int,
+    max_turns: int,
+    max_no_progress_turns: int,
+    artifact_id: str,
+    initial_code_draft: Mapping[str, Any] | None,
+    initial_check_result: Mapping[str, Any],
+    check_candidate: ScientificCodeCheck,
+    workspace_operation: str = "targeted_revision",
+    allow_current_source_run: bool = False,
+    allow_dependency_handoff: bool = False,
+    request_metadata: Mapping[str, Any] | None = None,
+    recovery_checkpoint: Mapping[str, Any] | None = None,
+    session_dir: Path | None = None,
+    context_documents: Mapping[str, str] | None = None,
+    research_sources: ResearchSourceSnapshot | None = None,
+    research_source_discovery: ResearchSourceDiscovery | None = None,
+) -> PreparedClientToolWorkspace[ScientificCodeWorkspaceResult]:
+    """Prepare executable owner-bound tools without making a model call."""
 
     if not str(artifact_id).strip():
         raise ValueError("scientific code workspace requires a bound artifact id")
@@ -3108,18 +3162,7 @@ def run_scientific_code_workspace(
             dict(prior_client_tool_session_ref)
         )
 
-    try:
-        loop = run_bounded_client_tool_loop(
-            backend=provider,
-            request=request,
-            execute_tool=execute_tool,
-            max_turns=max_turns,
-            max_tool_calls=max_turns,
-            max_no_progress_turns=max_no_progress_turns,
-            session_dir=resolved_session_dir,
-            session_id=f"scientific:{artifact_id}",
-        )
-    except ClientToolLoopError as exc:
+    def on_error(exc: ClientToolLoopError) -> ScientificCodeWorkspaceResult:
         client_tool_session_ref = persist_client_tool_session(
             session_dir=resolved_session_dir,
             session_id=f"scientific:{artifact_id}",
@@ -3199,109 +3242,122 @@ def run_scientific_code_workspace(
             recovery_checkpoint=checkpoint,
         ) from exc
 
-    client_tool_session_ref = persist_client_tool_session(
-        session_dir=resolved_session_dir,
-        session_id=f"scientific:{artifact_id}",
-        request=request,
-        messages=loop.messages,
-        observation_refs=loop.observation_refs,
-    )
-    terminal = dict(loop.terminal_payload)
-    draft = _complete_code_draft(terminal.get("code_draft", {}))
-    check = dict(terminal.get("check_result", {}))
-    draft_hash = stable_hash(draft)
-    disposition = str(
-        check.get("source_iteration_disposition", "") or ""
-    ).strip()
-    if (
-        terminal.get("code_draft_hash") != draft_hash
-        or check.get("code_draft_hash") != draft_hash
-        or disposition
-        not in {"accepted", SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER}
-        or (check.get("accepted") is True) != (disposition == "accepted")
-    ):
-        raise PacketValidationError(
-            validation_label="LLM scientific code workspace",
-            attempts=loop.turns,
-            errors=[
-                "terminal payload is not bound to an accepted candidate or exact "
-                "dependency source owner"
+    def on_success(loop: ClientToolLoopResult) -> ScientificCodeWorkspaceResult:
+        client_tool_session_ref = persist_client_tool_session(
+            session_dir=resolved_session_dir,
+            session_id=f"scientific:{artifact_id}",
+            request=request,
+            messages=loop.messages,
+            observation_refs=loop.observation_refs,
+        )
+        terminal = dict(loop.terminal_payload)
+        draft = _complete_code_draft(terminal.get("code_draft", {}))
+        check = dict(terminal.get("check_result", {}))
+        draft_hash = stable_hash(draft)
+        disposition = str(
+            check.get("source_iteration_disposition", "") or ""
+        ).strip()
+        if (
+            terminal.get("code_draft_hash") != draft_hash
+            or check.get("code_draft_hash") != draft_hash
+            or disposition
+            not in {"accepted", SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER}
+            or (check.get("accepted") is True) != (disposition == "accepted")
+        ):
+            raise PacketValidationError(
+                validation_label="LLM scientific code workspace",
+                attempts=loop.turns,
+                errors=[
+                    "terminal payload is not bound to an accepted candidate or exact "
+                    "dependency source owner"
+                ],
+                history=theory_documents.workspace_evidence_history(
+                    loop.history
+                ),
+            )
+
+        evidence = {
+            "schema_version": 1,
+            "artifact_kind": "ScientificCodeWorkspaceResult",
+            "artifact_id": artifact_id,
+            "transport": "native_client_tools",
+            "workspace_operation": workspace_operation,
+            "resumed_from_checkpoint_id": resumed_checkpoint_id,
+            "client_tool_session_ref": deepcopy(client_tool_session_ref),
+            "resumed_from_client_tool_session_ref": deepcopy(
+                resumed_client_tool_session_ref
+            ),
+            "client_tool_session_lineage_continued": bool(
+                resumed_client_tool_session_ref
+            ),
+            "client_tool_checkpoint_window": deepcopy(
+                resumed_client_tool_context_window
+            ),
+            "parent_code_draft_hash": parent_hash,
+            "initial_check_result_hash": stable_hash(dict(initial_check_result)),
+            "initial_check_accepted": initial_check_result.get("accepted") is True,
+            "submitted_code_draft_hash": draft_hash,
+            "terminal_check_result_hash": stable_hash(check),
+            "observation_document_refs": deepcopy(observation_document_refs),
+            "source_changed": draft_hash != parent_hash,
+            "current_source_run_requested": bool(
+                state["current_source_run_requests"]
+            ),
+            "current_source_run_requests": state[
+                "current_source_run_requests"
             ],
-            history=theory_documents.workspace_evidence_history(
+            "source_updates": state["source_updates"],
+            "sandbox_checks": state["checks"],
+            "submit_and_execute_atomic": False,
+            "source_mutation_and_execution_separated": True,
+            "explicit_model_commit_required": True,
+            "model_commit_after_observation": bool(
+                state["commit_turn_index"] >= 0 and (state["last_check_turn_index"] >= 0 or initial_check_hash == parent_hash)
+            ),
+            "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
+            "turns": loop.turns,
+            "tool_calls": loop.tool_calls,
+            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+            "provider": loop.provider,
+            "model": loop.model,
+            "model_tier": model_tier,
+            "provider_usage": dict(loop.provider_usage),
+            "history": theory_documents.workspace_evidence_history(
                 loop.history
             ),
+            "research_source_snapshot": (
+                research_sources.descriptor() if research_sources is not None else {}
+            ),
+            "public_research_source_discovery": dict(research_source_discovery.descriptor())
+            if research_source_discovery is not None else {},
+            "research_source_refs": deepcopy(research_source_refs),
+            "research_source_ref_fingerprint": stable_hash(research_source_refs),
+            "transcript_fingerprint": loop.transcript_fingerprint,
+            "model_owned_source": True,
+            "runtime_edited_source": False,
+            "accepted": check.get("accepted") is True,
+            "source_iteration_disposition": disposition,
+            "source_owner": deepcopy(dict(check.get("source_owner", {})))
+            if isinstance(check.get("source_owner", {}), Mapping)
+            else {},
+            "proof_evidence_status": "SCIENTIFIC_CODE_EXECUTION_NOT_PROOF_EVIDENCE",
+        }
+        return ScientificCodeWorkspaceResult(
+            code_draft=draft,
+            check_result=check,
+            evidence=evidence,
         )
 
-    evidence = {
-        "schema_version": 1,
-        "artifact_kind": "ScientificCodeWorkspaceResult",
-        "artifact_id": artifact_id,
-        "transport": "native_client_tools",
-        "workspace_operation": workspace_operation,
-        "resumed_from_checkpoint_id": resumed_checkpoint_id,
-        "client_tool_session_ref": deepcopy(client_tool_session_ref),
-        "resumed_from_client_tool_session_ref": deepcopy(
-            resumed_client_tool_session_ref
-        ),
-        "client_tool_session_lineage_continued": bool(
-            resumed_client_tool_session_ref
-        ),
-        "client_tool_checkpoint_window": deepcopy(
-            resumed_client_tool_context_window
-        ),
-        "parent_code_draft_hash": parent_hash,
-        "initial_check_result_hash": stable_hash(dict(initial_check_result)),
-        "initial_check_accepted": initial_check_result.get("accepted") is True,
-        "submitted_code_draft_hash": draft_hash,
-        "terminal_check_result_hash": stable_hash(check),
-        "observation_document_refs": deepcopy(observation_document_refs),
-        "source_changed": draft_hash != parent_hash,
-        "current_source_run_requested": bool(
-            state["current_source_run_requests"]
-        ),
-        "current_source_run_requests": state[
-            "current_source_run_requests"
-        ],
-        "source_updates": state["source_updates"],
-        "sandbox_checks": state["checks"],
-        "submit_and_execute_atomic": False,
-        "source_mutation_and_execution_separated": True,
-        "explicit_model_commit_required": True,
-        "model_commit_after_observation": bool(
-            state["commit_turn_index"] >= 0 and (state["last_check_turn_index"] >= 0 or initial_check_hash == parent_hash)
-        ),
-        "transcript_policy": CLIENT_TOOL_TRANSCRIPT_POLICY,
-        "turns": loop.turns,
-        "tool_calls": loop.tool_calls,
-        "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
-        "provider": loop.provider,
-        "model": loop.model,
-        "model_tier": model_tier,
-        "provider_usage": dict(loop.provider_usage),
-        "history": theory_documents.workspace_evidence_history(
-            loop.history
-        ),
-        "research_source_snapshot": (
-            research_sources.descriptor() if research_sources is not None else {}
-        ),
-        "public_research_source_discovery": dict(research_source_discovery.descriptor())
-        if research_source_discovery is not None else {},
-        "research_source_refs": research_source_refs,
-        "research_source_ref_fingerprint": stable_hash(research_source_refs),
-        "transcript_fingerprint": loop.transcript_fingerprint,
-        "model_owned_source": True,
-        "runtime_edited_source": False,
-        "accepted": check.get("accepted") is True,
-        "source_iteration_disposition": disposition,
-        "source_owner": deepcopy(dict(check.get("source_owner", {})))
-        if isinstance(check.get("source_owner", {}), Mapping)
-        else {},
-        "proof_evidence_status": "SCIENTIFIC_CODE_EXECUTION_NOT_PROOF_EVIDENCE",
-    }
-    return ScientificCodeWorkspaceResult(
-        code_draft=draft,
-        check_result=check,
-        evidence=evidence,
+    return PreparedClientToolWorkspace(
+        request=request,
+        execute_tool=execute_tool,
+        max_turns=max_turns,
+        max_tool_calls=max_turns,
+        max_no_progress_turns=max_no_progress_turns,
+        session_dir=resolved_session_dir,
+        session_id=f"scientific:{artifact_id}",
+        on_success=on_success,
+        on_error=on_error,
     )
 
 
