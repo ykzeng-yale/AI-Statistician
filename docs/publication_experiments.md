@@ -19,6 +19,28 @@ reliability within a task; they do not multiply the number of independent papers
 Existing consumed tasks and their revealed gold are excluded from the new test
 pool. Public textbook proofs can be mechanism tests, not uncontaminated discovery.
 
+## Official Model Scope
+
+The operator's 2026-10-01 clarification requires fresh official publication
+experiments with open-weight models. Historical Haiku runs are excluded from
+main results, baselines, model comparisons and sample-size evidence. Do not
+requalify, resume or rescore them. Their diagnostic lessons may inform development;
+they do not require further tracking or constrain the new study's development gate.
+Past sealed protocols stay sealed rather than being repurposed as Qwen benchmarks.
+
+Qwen3-4B-Instruct-2507 Q4_K_M is the deployed inexpensive development baseline,
+not yet a scientifically qualified main-study configuration or a demonstration
+of frontier theory capability. Freeze each official model's weights, quantization,
+runtime, chat template, decoding and hardware before runs. If a stronger
+open-weight configuration is chosen, it is a separate prospective condition,
+never an automatic escalation after observing a failure. General model-capacity
+claims require more than one small quantized checkpoint.
+
+Claude Code is authorized as a local host for portable harness compatibility and
+researcher-workflow tests using the installed coding agent. Label those separately
+with the host/model version and any operator intervention; do not pool their
+outputs or subscription costs with the open-weight scientific comparisons.
+
 ## Task Ladder
 
 | Track | Agent sees | Independently held evaluation |
@@ -55,11 +77,12 @@ than declare a small convenience panel definitive.
 | Lean | Zero-shot source; compiler feedback; compiler feedback + scoped RAG | Same statements, model, project and total resources |
 | Foundation reuse | Pinned standard foundation vs standard + curated StatInference | Hold out target proof and dependent aliases; separately measure semantic fidelity |
 
-Paper H can initially establish deterministic installation/conformance under each
-host and scientific efficacy under a Qwen-compatible host. Do not run Codex or
-Claude API scientific baselines under the current local-only testing instruction.
-A broad cross-model efficacy claim requires separate operator authorization and
-prospective experiments; it cannot be inferred from package compatibility.
+Paper H can initially establish installation/conformance under each host and
+scientific efficacy under an open-weight-compatible host. The authorized local
+Claude Code user-workflow check is not a direct Anthropic API scientific baseline.
+Cross-host efficacy cannot be inferred from package compatibility or mixed-model
+demonstrations; the main scientific comparison remains paired within an exact
+open-weight host/model configuration.
 
 Independent review is a product intervention. External gold evaluation is shared
 and equally applied to every arm. Count review/planning/token usage in the

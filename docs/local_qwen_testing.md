@@ -60,15 +60,30 @@ is not a saved transcript or publication dataset. Record complete prospective
 provenance and immutable histories in actual scientific workspaces/runs.
 Transport success is not theory, simulation, Lean or research-E2E capability.
 
-## Remaining Migration
+## Forward Evaluation Binding
 
-Role factories can construct the local backend, including the independent
-Architect preflight reviewer, now selected by native-tool capability rather than
-an Anthropic-name condition. Legacy `--research-eval`, strict capability profiles
-and hidden authority still contain exact-Haiku contracts. Do not use them as Qwen
-benchmarks, call Anthropic as a workaround or relabel historical judgments.
+New `--research-eval` and capability profiles use explicit `evaluation_provider`,
+`evaluation_model` and `evaluation_model_tier` bindings. All live roles, including
+Theory, Python/R, Simulation, Lean and independent reviewers, use local Qwen;
+cloud selections fail before inference. The local server must report the requested
+model identity. A local error never falls back to Anthropic or another model.
 
-New provider-neutral authority must prospectively bind the exact Qwen deployment,
-task/rubric identity, retained observations and independent calibration. This is
-not permission to bypass review or introduce another scheduler. Qualification and
-comparative scientific experiments remain unfinished.
+Hidden-gold schema 5 binds its reviewer to the same frozen provider/model policy.
+Semantic protocols 26/27 hash the actual requested model and native tool contract,
+and validate retained turn identity. Prior Haiku authority is readable for archival
+inspection and offline fixtures, not reusable qualification. Fresh scientific
+authority still needs prospective deployment/task/rubric pins and independent
+calibration. This change does not activate or qualify a scientific benchmark.
+
+After this migration the same weights, binary and active chat-template hashes
+were rechecked. The opt-in local suite passed 24 tests in 2.09 seconds, including
+one schema call and two native tool turns. Tool-session usage was 515 input and
+52 output tokens; the in-memory transcript fingerprint was
+`350f9dca1d8cf924478ba201af413810af239f5d934b0281b318ac704173511e`.
+The owned server was stopped after testing. No Anthropic inference was performed.
+
+Official publication studies start fresh with open-weight models. Historical
+Haiku development outcomes are not comparison arms or main results. Local Claude
+Code compatibility/user-workflow testing is a separately authorized host check;
+the installed version was observed as 2.1.168, but no new Claude model turn or
+skill-discovery conformance was run in this migration.

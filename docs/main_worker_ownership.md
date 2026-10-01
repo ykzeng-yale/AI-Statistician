@@ -22,9 +22,13 @@ cross-family evaluation, verification, commits, and pushes.
 - Future tests and live evaluations use pinned local Qwen, per the operator's
   2026-10-01 revision. Preserve historical Haiku records; never use Opus or
   escalate to a cloud API when local inference is unavailable.
+- Official publication experiments start fresh with open-weight models, excluding
+  Haiku development scores. Local Claude Code host compatibility/user-workflow
+  checks are separately authorized and never pooled with main scientific results.
 - Preserve independent semantic review, frozen pre-result evaluation, artifact
   hashes, exact target identity, and Lean kernel authority.
-- Do not open held-out tasks until the frozen development gate passes.
+- Do not open archived held-out tasks; new publication studies have their own
+  prospectively frozen development/test split, not the old Haiku gate.
 
 ## Completion discipline
 

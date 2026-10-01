@@ -96,9 +96,25 @@ external paper has received expert review.
   release. Do not assume the owner's request establishes third-party rights.
 - Existing strict development closure is still 0/2. Historical scoped credits,
   unit tests and transport checks do not create a new full-system success rate.
-- The default backend is now local Qwen. The original Haiku evaluation profiles
-  and hidden authority contracts still require a prospective migration; no old
-  evaluation or qualification is rerun, relabelled or rescored.
+- The default backend is local Qwen. Forward runtime model bindings and semantic
+  protocols 26/27 separate new local evaluation from historical Haiku authority.
+  Scientific qualification is still pending; no old evaluation or qualification
+  is rerun, relabelled or rescored.
+
+### Historical Evidence Boundary
+
+The Haiku development runs are not defensible comparative publication experiments:
+the harness, tasks, review contracts and settings changed during debugging; the
+recorded credits have different scopes, and the revealed tasks are not a fresh
+test sample. Keep their original artifacts as an archive, not an active scorecard,
+main result table or baseline. Do not spend further calls following those results.
+Formal experiments for both papers start prospectively with open-weight models.
+
+Retain useful implementation and regression tests. An existing independently
+checked Lean theorem may support the curated library irrespective of its authoring
+model, after source-fidelity and rights review. That artifact is a library result,
+not evidence that the agent autonomously completed a research task. Historical
+failure traces may support a labelled development narrative, not an efficacy claim.
 
 ## Comparative Experiments
 
@@ -109,10 +125,10 @@ independent gold, budgets, repetitions and analysis must be frozen before calls.
 
 Paper H compares each host with and without the identical portable package.
 Host/model differences are recorded rather than attributed to the harness.
-Cross-host installation is a conformance result, not scientific accuracy. Under
-the current operator policy, research testing uses only local Qwen; support for
-other host models remains an installation claim until separately authorized and
-measured.
+Cross-host installation is a conformance result, not scientific accuracy. Official
+scientific experiments use open-weight models. The operator also authorizes the
+installed local Claude Code host for portable compatibility/user-workflow tests,
+reported separately; direct Anthropic API experiments remain excluded.
 
 Paper S compares a single general agent with identical tools, role-separated
 agents without cross-role feedback, and the complete collaborative system.

@@ -35,6 +35,9 @@ successful file installation.
 Use the researcher-selected host/model and its actual execution permissions for
 ordinary work. Publication efficacy tests currently use local Qwen only; no
 cloud host/model experiment is implied by these installation instructions.
+The operator separately authorizes the installed local Claude Code host for
+compatibility and user-workflow checks. These are not official open-weight
+scientific results, and direct Anthropic API experiments remain excluded.
 Record unavailable execution, search or independent-review capabilities rather
 than silently replacing them. Native Python/R compute and optional pinned Lean
 can remain on the local machine. No new VM or network proxy is required here.

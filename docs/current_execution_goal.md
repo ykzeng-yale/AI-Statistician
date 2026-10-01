@@ -52,6 +52,12 @@ a claim that an unfinished goal was renamed or marked achieved. The operator's
 subsequent instruction changes future model testing to locally deployed Qwen;
 the publication objective itself is unchanged. Prior Task114, pilot,
 qualification and standalone outcomes remain immutable historical records.
+The subsequent clarification excludes these Haiku development runs from official
+publication results and baselines: start both studies fresh with open-weight
+models. Do not keep pursuing their scores or make their old gates a prerequisite
+for the new studies. Claude Code is authorized as a local portable-harness host
+for separately labelled compatibility/user-workflow tests, not a direct API
+scientific experiment.
 
 ## Scientific Operating Model
 
@@ -113,7 +119,8 @@ historical rediscovery, near-frontier extensions and genuinely open questions.
 Historical literature cutoffs restrict accessible sources but cannot remove
 pretraining contamination; report that limitation. Open results need external
 mathematical/scientific scrutiny, not model consensus or an invented success rate.
-Existing sealed held-out and strict-formal protocols are not weakened or unlocked.
+Existing sealed held-out and strict-formal protocols are not weakened or unlocked;
+they are archived studies, not gates on the new publication programme.
 
 ## Implementation Order
 
@@ -179,45 +186,20 @@ document is a forward work contract, not a growing chronology of fixes.
   `3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597`.
   Pin runtime, native chat template, context and sampling before each new study.
   Local endpoint failure does not authorize a cloud fallback or model escalation.
-  Legacy Haiku evaluation profiles are not Qwen-compatible authority: migrate the
-  forward protocol prospectively, qualify independent gold and leave old records
-  untouched. Deterministic tests do not call any live model.
-- The following Haiku settings describe retained historical/explicit production
-  support, not the configuration for future testing:
-- Freeze any `AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS` setting before a
-  fresh product draw. It enables native thinking only for retained tool workspaces,
-  not tool-free Architect calls; existing total token bounds and
-  explicit stopping remain. Native transport worked in the live component pilot,
-  but scientific improvement and thinking-enabled research-E2E remain unproven.
-  The default budget stays zero; the pilot compared a configuration bundle, not
-  the isolated causal effect of thinking tokens.
-  Hidden-gold protocols 24/25 retain complete read-only candidate/reference files,
-  scratch tools and private Markdown referee reports. They now honor the same
-  explicit thinking setting, bound by the existing qualification/session hash;
-  past evaluations remain frozen with their original configuration.
-  Provider/model provenance comes from the existing hash-bound retained turn
-  history, not a second operator-copied call log. Protocols 22/23 and consumed
-  qualifications cannot be migrated or retroactively accepted under this change.
-  The superseded Haiku plan used thinking 16384 and
-  max_tokens 32768 for every retained author/reviewer workspace, with a 600-second
-  request timeout. Tool-free Architect behavior and existing workspace/outer
-  action budgets stay unchanged. Freeze the exact task and independent authority
-  before calls; this configuration decision does not activate a task or establish
-  efficacy, and is not permission to repeat any consumed evaluation.
-  This plan is not permission to call Anthropic under the new local-only testing
-  instruction. File-backed input is not a mathematical correction. Failed or older
-  authority cannot silently qualify, resume or rerun. Tool access and reduced
-  wasted calls are mechanism changes, not evidence of improved judgment.
+  Legacy Haiku evaluation profiles are not Qwen-compatible authority. Forward
+  evaluation uses provider/model bindings and local semantic protocols 26/27;
+  qualify independent gold prospectively and leave old records untouched.
+  Deterministic tests do not call any live model. Local Claude Code host checks
+  are the separate authorized compatibility exception, not main-study results.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision
   uses the operator-designated `.env` through the existing CLI loader; absence of
-  a process variable alone is not a blocker. The authentication check made one
-  model-metadata request; the subsequent pilot made 94 generation calls, all
-  exact Haiku. Use configured machine authentication for Git.
+  a process variable alone is not a blocker. Use configured machine authentication
+  for Git; local inference requires no cloud credential.
 - Reuse Codex's retained file/tool feedback and independent authority principles,
   not Codex Core, App Server, provider transport or a second orchestrator.
 - Reuse Numina and ReProver's environment/state access, LeanMarathon's evolving
   long-proof dependencies, and Prove2Me's stable target and blinded statement
-  read-back. No source establishes that their reported results transfer to Haiku.
+  read-back. Their published results do not establish performance of our models.
 - Keep the active Statlib/Mathlib/StatInference foundation. External SLT, OpenProver,
   CodexProver and other branches are selected source/provider resources, not an
   instruction to merge every branch. The audit records pins and compatibility.
@@ -228,51 +210,12 @@ document is a forward work contract, not a growing chronology of fixes.
 - Run focused synthetic checks while iterating and the full suite before pushing
   a shared mechanism change. Tests are mechanism evidence, not scientific success.
 
-## Immutable Evaluation Record
+## Historical Archive
 
-The 114 numbered draws and four additional standalone draws remain consumed.
-Their mixed-scope historical credits are preserved, not collapsed into E2E wins.
-The latest [trimmed-mean closeout](operator_audits/trimmed_mean_l0_v1.md) records
-102 completed product model turns over 947.444 seconds, internal acceptance, and
-independent full-task rejection: algorithm 2/5, structural theory 7/7, semantic
-theory 1 satisfied / 3 violated / 2 inconclusive, empirical 0/7. The 16 qualification
-and two candidate semantic-evaluation calls are separate. Lean was not required.
-
-Earlier [Task114](operator_audits/pareto_tail_index_l0_v1.md),
-[beta-regression reproduction](operator_audits/betareg_gasoline_precision_l1_v1.md),
-[Rademacher formal-only](operator_audits/rademacher_weighted_tail_formal_l0_v1.md)
-and [entropy](operator_audits/multinomial_entropy_l0_v1.md) outcomes remain unchanged.
-Never resume, repair, rerun, rejudge or rescore any consumed evaluation. No new
-research benchmark is activated by this update. The separate configuration pilot
-is also consumed: its 12 invocations are component diagnostics, not additional
-research draws or full-task credits. The separately recorded Firth authority
-qualification also adds zero research draws or credits; its failed source role
-prevented activation, and this diagnostic-only change does not authorize a retry.
-The later MCMC, entropic-transport, PPI, GP, GEE, conditional-quantile and linear
-IV/GMM theory qualifications are also consumed and failed.
-Their source semantic roles were not run after the required gate failed; neither
-the protocol-15 PPI report nor later execution changes add a product draw or credit.
-The bootstrap-particle theory and source qualifications completed once with
-181 and 76 exact-Haiku calls; mechanical qualification also passed once. These
-results used raw question JSON, while the product CLI uses the existing typed
-question projection. The preparation script included extra source metadata, so
-the exact-context identity check rejected activation before any product call.
-The original judgments and nominal raw-context activation remain unchanged, but
-are not valid product activation. Do not launch, requalify, change their hashes,
-or add a product exception. Future qualification preparation must reuse the
-CLI's existing question producer and compare contexts before model calls, not
-introduce another reviewer validator or expose bookkeeping metadata to agents.
-The [theory receipt](evaluation_activations/bootstrap_particle_theory_qualification.json)
-and [execution preparation](evaluation_activations/bootstrap_particle_frozen_execution.json)
-retain their original time-specific facts. No research-E2E credit was added.
-Current facts live in
-[main_worker_status.json](main_worker_status.json); historical manifests and
-qualification ledgers remain the original evidence.
-
-The later [UCB1 qualification](operator_audits/ucb1_prequalification_20260911.md)
-also failed: 22 exact-Haiku calls, unchanged complete inputs and the correct CLI
-context, but disagreement over an extra experimental condition introduced by one
-reviewer. No product draw occurred. This is an independent-authority limitation,
-not observed product TheoryDeveloper failure. Preserve the attempt; do not
-immediately substitute another task, strengthen the question after the fact,
-add an issue-specific prompt rule or append another judge to seek acceptance.
+Original Haiku judgments, activation ledgers and operator audits remain unchanged.
+Never resume, repair, rerun, rejudge or rescore consumed records. They are not
+official publication results, model baselines or gates on the new studies.
+Retain relevant implementation and regression lessons without keeping an active
+Haiku scorecard. See the historical-evidence boundary in
+[publication_programme.md](publication_programme.md) and the preserved records
+linked from [main_worker_status.json](main_worker_status.json).

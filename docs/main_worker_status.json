@@ -1,17 +1,18 @@
 {
-  "schema_version": 467,
+  "schema_version": 468,
   "updated_at": "2026-10-01",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "On 2026-10-01 the native goal API returned no current goal. The operator-requested two-publication objective was then created and remains active. This replaces the obsolete Task114/one-result working objective without claiming that old objective was achieved. The subsequent operator revision requires local Qwen for all future model testing and evaluation.",
-  "execution_status": "Publication and release work in progress. Local Qwen native JSON/tool-feedback transport passed after the interruption; the final live local-backend suite passed 11 tests. Portable skill discovery passed through native Codex skills/list without a model turn, and the application wheel installed and loaded outside the checkout. Final deterministic suite: 1552 passed, 15 opt-in skips, one pre-existing xfail. Lean/RAG tools: 68 passed; short-proof exclusion removed and canonical index refreshed. No scientific benchmark is activated, no Anthropic call was made and no new research-E2E credit is claimed. The publications, provider-neutral scientific qualification, cross-host efficacy, licenses and comparative experiments remain unfinished.",
+  "execution_status": "Forward research/capability evaluation and independent review now bind to local Qwen, rejecting cloud selections before inference and rejecting stale model authority. Hidden-gold schema 5 and semantic protocols 26/27 are prospective mechanisms, not scientifically qualified evaluators. Final deterministic suite: 1572 passed, 15 opt-in skips, one pre-existing xfail. Local-backend conformance: 24 passed, including one JSON-schema request and two retained tool turns. Weights/runtime/template hashes were rechecked and the owned server stopped. No Anthropic inference, new scientific draw or publication efficacy result. Official studies start fresh with open-weight models; local Claude Code host compatibility is separately authorized. Manuscripts, scientific qualification, comparative experiments, efficacy and licensing remain unfinished.",
+  "historical_evidence_scope": "Haiku capability_facts and latest_independent_qualification below are archived development facts only, not official publication results, model baselines or gates on the new studies. Do not continue following their scores or resume consumed draws. Keep useful regression mechanisms and source-faithful, independently verified mathematical artifacts without attributing them to autonomous research success.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Prepare AI-Statistician and EmpericalProcessLEAN for two distinct, legitimate arXiv-first publications: (1) a portable statistical-research harness usable by researchers with Codex, Claude Code and an open-source coding agent, supporting reviewable theory, Python/R simulation and intent-selected Lean; (2) a complete multi-agent AI-Statistician driven through a single LLM API. Systematically audit both repositories and current primary literature/code, establish defensible contributions and scientific baselines, consolidate reusable architecture and the Statlib-aligned Lean foundation, implement reproducible installation and evaluation protocols, run prospectively frozen independent experiments without reusing consumed evaluations, and produce evidence-backed manuscripts and public release artifacts. Completion requires working, tested releases and reproducible comparative evidence for each paper; documentation, tests, model agreement and preliminary proofs alone do not count as publication readiness.",
   "current_goal_document": "docs/current_execution_goal.md",
   "operating_principle": "Model-owned long-horizon research in retained file/tool workspaces, backed by task-intent evidence and independent authority. Restore complete product scope without mandatory Lean, benchmark-answer patches, repetitive task substitution or another framework.",
   "model_policy": {
     "tests_and_live_evaluations": "Local Qwen only, per the 2026-10-01 operator revision. Confirmed baseline: Qwen3-4B-Instruct-2507 Q4_K_M; record exact weights, runtime, chat template and sampling. No Anthropic calls or automatic cloud fallback for new tests.",
-    "legacy_evaluation_boundary": "Existing Haiku protocols, qualifications and consumed judgments keep their original identities. Their pinned model is not a Qwen qualification. Prospectively migrate and independently qualify new model-neutral authority before scientific evaluation; never requalify a consumed preparation.",
+    "legacy_evaluation_boundary": "Existing Haiku protocols, qualifications and consumed judgments remain archived and unchanged. Exclude them from official publication results and baselines; their gates do not govern the new studies. Independently qualify new open-weight authority before scientific evaluation; never requalify a consumed preparation.",
     "production_allowed_tiers": [
       "haiku",
       "sonnet"
@@ -30,7 +31,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "548ba04b60a34f837591d7c081ffd06b1f122b45",
+  "validated_code_head": "7a7ab0226fb952c8b04e178c31462602f7c38649",
   "delivery": {
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
@@ -228,22 +229,22 @@
     "audit_document": "docs/research_harness_reuse_strategy.md"
   },
   "current_structure": {
-    "research_agent_runtime_lines": 24641,
+    "research_agent_runtime_lines": 24642,
     "theory_workspace_lines": 4571,
     "scientific_code_workspace_lines": 3634,
     "client_tool_loop_lines": 1399,
     "agent_runtime_lines": 1375,
     "formalizer_llm_lines": 1841,
     "lean_candidate_revision_tool_loop_lines": 2888,
-    "cli_lines": 6960,
+    "cli_lines": 6992,
     "production_design_lines": 399,
     "codex_adoption_lines": 248
   },
   "latest_validated_change": {
-    "code_commit": "548ba04b60a34f837591d7c081ffd06b1f122b45",
-    "summary": "Use a standard loopback native Chat Completions transport for local Qwen through the existing retained tool loop. Preserve tool identity, raw content, error status and server diagnostics without retry/content repair. Replace the Architect's Anthropic-name reviewer condition with native-tool capability. Add one host-native portable skill, with no embedded model client or scheduler. Lean removes proof-spelling quality heuristics, not kernel/source-fidelity checks.",
-    "verification": "Final full suite: 1552 passed, 15 opt-in skips and one existing SRT xfail in 314.75 seconds; JUnit at runs/publication_foundation_20261001/full_suite.junit.xml. Compileall and diff checks passed. Explicit local-backend suite: 11 passed, including one schema call and two retained native tool turns returning an unchanged fixture failure, 515 input/52 output tool-session tokens. Skill validator passed; native Codex skills/list plus filesystem link tests: 3 passed without any model turn. A clean Python 3.12 venv installed the wheel and loaded its CLI/local backend outside the checkout. Lean/RAG tools: 68 passed; active index refreshed at bd6a2ba59; one existing entropic-barrier declaration passed its file/module build and focused axiom dependency scan with zero unexpected axioms. These scopes do not establish general scientific or formal capability.",
-    "capability_effect": "Makes the operator-selected local model and an initial portable host entry point usable, and corrects a shared reviewer-registration and retrieval defect. Does not qualify Qwen scientific gold, prove cross-host efficacy or add a new theorem/research-E2E result. Existing Haiku profiles and consumed records are untouched. Publication programme and experimental design remain prospective and unactivated."
+    "code_commit": "7a7ab0226fb952c8b04e178c31462602f7c38649",
+    "summary": "Replace Claude-specific evaluation fields with explicit provider/model bindings for all live roles and independent reviewers. Preserve actual-model request/session hashes, independent invocation, source lineage and exact proof authority. Local response identity and cloud preflight checks prevent substitution or escalation. New gold schema 5 and semantic protocols 26/27 cannot reuse historical Haiku qualification. Offline legacy fixtures remain explicitly static; no task-family rules, source repairs or scheduler were added.",
+    "verification": "Final full suite: 1572 passed, 15 opt-in skips and one existing SRT xfail in 331.75 seconds; JUnit at runs/qwen_evaluation_policy_20261001/full_suite.junit.xml. Compileall and diff checks passed. Live local-backend suite: 24 passed in 2.09 seconds; one schema call and two native tool turns with exact raw error feedback, 515 input/52 output tool-session tokens. Weights, binary and active template SHA-256 matched docs/local_qwen_testing.md. No Anthropic inference or Claude Code model turn; only installed host version 2.1.168 was inspected. Prior native Codex skill discovery, clean wheel install and 68 Lean/RAG tests remain separately scoped evidence, not new scientific outcomes.",
+    "capability_effect": "Makes new local-Qwen research/evaluation construction usable without forcing a Haiku identity. Synthetic qualification tests are mechanism evidence only. No new statistical task, scientific referee calibration, comparative study, cross-host efficacy, theorem or research-E2E credit. Official publication experiments remain prospective and unactivated."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
@@ -265,19 +266,17 @@
   },
   "next_gates": [
     "Complete the two-paper programme in docs/publication_programme.md: portable host-native harness and independently tested single-API collaborative system. Installation, mechanism tests and preliminary library checks are not publication readiness. Resolve original-code licensing and third-party/source-text rights before public release packaging.",
-    "Prospectively make product/evaluator model binding provider-neutral and qualify local-Qwen authority before any new scientific draw. Freeze comparable baselines, independent paper families, hidden gold, budgets and analysis; do not rename Haiku qualifications, weaken review or rerun consumed tasks. The current comparative experiment specification is a proposal, not an activated preregistration.",
-    "Preserve all 114 numbered and four standalone consumed draws and every consumed qualification. Never rerun, resume, repair or rescore them. Analytic-Gaussian semantic/mechanical qualification completed, but activation failed before any product call; no current task is activated.",
-    "The preregistered configuration pilot is consumed. Preserve all 12 invocations, original reports and initial analysis; no rerun, prompt tuning on this panel, default thinking change or E2E credit. Keep the frozen preparation files unchanged and read the dated closeout for its current outcome.",
+    "Freeze new official open-weight studies: exact deployment, comparable baselines, independent paper families, hidden gold, budgets, scheduled replicate draws and analysis. Qualify independent authority prospectively under the new model-bound protocol. The experiment specification is a proposal, not an activated preregistration; Qwen4B transport success is not main-study capability.",
+    "Archive prior Haiku draws, qualifications and pilots unchanged. Do not continue their scorecard, rerun or rescore them, use them as publication baselines, or carry their development gates into the new studies.",
     "Use the existing Theory, source, Python/R and review tools to advance scientific work. Inspect missing or unreadable observations, lost context and wrong artifact bindings before changing the harness. Defer VM/proxy/container expansion unless a required scientific workflow demonstrates the need; the optional offline tool remains non-authoritative. Do not add a scheduler, memory service, compulsory recipe, task-family instruction or package/error-specific repair rule. Further capability evidence requires a fresh prospectively authorized task, not another infrastructure scorecard.",
-    "Startup and candidate review must use only independently frozen authority whose question context, rubric, controls, references, model, retained-turn provenance and request contract match. Protocols 24/25 use the existing hash-bound session history, not copied observer metadata. Older records cannot be migrated or requalified, and the current change cannot retroactively authorize analytic-Gaussian or any other consumed preparation.",
-    "Keep bootstrap-particle activation stopped: its consumed qualifications used a different context from the canonical CLI. Preserve the completed records and do not launch, requalify, rewrite identity hashes or add a product exception. Future preparation must reuse research_question_payload from the existing typed question loader and compare qualification/product contexts before model calls, not introduce another validator into the generic semantic judge. This does not authorize a replacement task or a new draw.",
-    "Do not immediately replace the analytic-Gaussian preparation with another task to seek a pass. Its original reference judgments remain passing and its startup remains rejected. The shared provenance duplication is now removed and tested; no record backfill, activation rerun, new judge or task-specific instruction is permitted. Further scientific evidence must follow the complete research objective with prospectively frozen authority, not count preparation or mechanism tests as product success.",
+    "Startup and candidate review must use independently frozen authority whose canonical question context, rubric, controls, references, model, retained-turn provenance and request contract match. Local protocols 26/27 and schema 5 separate prospective qualification from archived Haiku authority. Model agreement alone is not mathematical correctness.",
+    "Test the portable layer with an actual independent coding host/user workflow, including authorized local Claude Code where useful. Keep this conformance/usability evidence separate from official open-weight scientific comparisons; do not embed the host's scheduler in the single-API system.",
     "Align active Lean/RAG project identity and reuse selected checked declarations; optional formal work must not block unrelated required research dimensions.",
     "Implement useful independent execution and dependency-aware joins only in the existing graph, with isolation/stale-result tests; no second scheduler.",
     "Demonstrate separately scoped multi-family research, real Python/R reproduction, exact formal/library reuse and cross-task benefit under frozen independent authority, then advance the published-result ladder without weakening held-out gates."
   ],
   "history_boundary": {
-    "policy": "This file contains current facts only, not a chronological transcript.",
+    "policy": "Current model/release facts lead this file. Explicitly labelled historical capability and qualification records are archive only, not Qwen results or an active scorecard.",
     "canonical_history": "Git history, immutable run manifests, benchmark activations, and test artifacts retain prior evaluations and mechanism changes.",
     "reason": "Repeating every old task and correction in the current status polluted agent context and obscured the active design and evidence boundary."
   },

@@ -63,13 +63,16 @@ Lean identity and axiom check can become source-theorem proof evidence.
 Local inference is now the default. Future model tests use the existing
 `Qwen3-4B-Instruct-2507` deployment through a local OpenAI-compatible endpoint;
 no Anthropic API calls or automatic cloud fallback are used for new tests.
-Historical Haiku evaluations and qualifications remain unchanged. Legacy
-`--research-eval` and hidden-gold protocols still encode their original Haiku
-authority: a new Qwen publication protocol must be qualified separately before
-scientific comparisons. Local transport conformance is not research success.
+Historical Haiku evaluations and qualifications remain archived and unchanged;
+they are not official publication results or baselines. New `--research-eval`
+and capability runs bind every live role to local Qwen. Hidden-gold schema 5 and
+semantic protocols 26/27 require fresh independent qualification; historical
+authority cannot be relabelled. Local transport conformance is not research success.
 
 The standalone system does not require Claude Code. Explicit Anthropic production
 support remains available, capped at Sonnet, but it is not the testing backend.
+The installed local Claude Code host is separately authorized for portable
+harness compatibility/user-workflow tests, not the open-weight main experiments.
 
 Relevant environment variables:
 
@@ -217,10 +220,11 @@ The largest remaining design debts are:
 - no post-simplification live two-family exact-theorem closure yet;
 - incomplete arbitrary-paper ingestion and learned research/proof policies.
 
-The next capability gate is a fresh exact-Haiku development panel using real
-scientific and Lean tools. Shared mechanism failures may improve prompts,
-workspace tools, retrieval, or evidence infrastructure; they may not introduce
-task-family answers or benchmark-specific rules.
+The next scientific evidence comes from the fresh open-weight publication
+studies, not continued Haiku score tracking or an old development-panel gate.
+Shared mechanism failures may improve context, workspace tools, retrieval or
+evidence infrastructure; they may not introduce task-family answers or
+benchmark-specific rules. Lean is required only by the frozen task intent.
 
 ## Repository Map
 

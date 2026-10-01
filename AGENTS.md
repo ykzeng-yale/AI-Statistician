@@ -42,6 +42,10 @@ the entire `docs/` directory as one prompt.
   before calls. Deterministic unit tests do not call a model.
 - Do not call Anthropic for future testing. Legacy Haiku fixtures and consumed
   evaluations remain immutable. Do not reinterpret their scores as Qwen results.
+- Official publication experiments start fresh with open-weight models. Historical
+  Haiku runs are development records, not publication baselines or gates on the new
+  studies. Claude Code is authorized only as a local coding host for portable
+  harness compatibility/user-workflow tests, separately from scientific comparisons.
 - Opus and automatic cloud/model escalation are forbidden.
 - Never commit credentials or recover them from chat, logs, Git history, or
   incidental files. The operator-designated, gitignored `.env` is an authorized
