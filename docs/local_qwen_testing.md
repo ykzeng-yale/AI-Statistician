@@ -114,7 +114,8 @@ skill-discovery conformance was run in this migration.
 
 ## Single-Context Control Probe
 
-The new research-control submission path was checked with the same deployed
+The research-control submission path at `0b83e790`, before its later
+resource-selective join refinement, was checked with the same deployed
 weights, binary and active template hashes above. The temporary server used seed
 `20261001`; native requests used temperature 0, max tokens 1024, no thinking budget
 and disabled parallel tool use. The synthetic fixture had an eight-turn/eight-action
@@ -136,3 +137,5 @@ a source/deployment protocol frozen before inference and native test JUnit.
 This is transport/submission conformance, not a scientific draw or publication
 dataset. The owned server was terminated afterwards and port 8081 was closed.
 No Anthropic or Claude Code inference occurred.
+The subsequent join refinement is covered by deterministic tests with real
+Python/R execution, not by reinterpreting or rerunning this consumed probe.

@@ -30,7 +30,7 @@ def prepare_research_control_workspace(
     question: OpenResearchQuestion,
     request: ClientToolTurnRequest,
     workspaces: Mapping[str, PreparedClientToolWorkspace[Any]],
-    checkpoint_inputs: Callable[[str, Mapping[str, Any]], Mapping[str, str]],
+    checkpoint_bindings: Callable[[str, Mapping[str, Any]], Mapping[str, Any]],
     session_dir: Path,
     session_id: str,
     max_turns: int,
@@ -40,8 +40,10 @@ def prepare_research_control_workspace(
 ) -> PreparedClientToolWorkspace[ClientToolLoopResult]:
     """Bind a public question, exact input joins and a model-authored MD report.
 
-    Component executors supply actual checkpoint-input identities through the
-    caller's extractor; the model cannot supply or change them at submission.
+    The trusted extractor returns produced ``resources`` (ID -> content hash)
+    and consumed ``inputs`` (scope -> {payload_hash, resources}). It must cover
+    actual files, interfaces and other premises used by component executors;
+    the model cannot supply or change these bindings at submission.
     A consistent selection is not scientific acceptance. External evaluation
     must still check the frozen task and exact artifacts in every study arm.
     """
@@ -53,12 +55,21 @@ def prepare_research_control_workspace(
 
     def observe(scope: str, result: ClientToolExecutionResult) -> Mapping[str, Any]:
         payload = result.terminal_payload
-        inputs = dict(checkpoint_inputs(scope, deepcopy(dict(payload))))
-        for input_scope, input_hash in inputs.items():
+        bindings = checkpoint_bindings(scope, deepcopy(dict(payload)))
+        resources = deepcopy(dict(bindings["resources"]))
+        inputs = deepcopy(dict(bindings["inputs"]))
+        for input_scope, binding in inputs.items():
+            input_hash = binding["payload_hash"]
             if input_scope == scope or input_scope not in checkpoints or input_hash not in checkpoints[input_scope]:
                 raise ValueError("component execution input is not a prior cross-workspace checkpoint")
+            available = checkpoints[input_scope][input_hash]["resources"]
+            if not binding["resources"] or any(
+                resource not in available or available[resource] != content_hash
+                for resource, content_hash in binding["resources"].items()
+            ):
+                raise ValueError("component execution inputs do not match their observed producer resources")
         payload_hash = stable_hash(payload)
-        reference = {"scope": scope, "payload_hash": payload_hash, "inputs": deepcopy(inputs)}
+        reference = {"scope": scope, "payload_hash": payload_hash, "resources": resources, "inputs": inputs}
         prior = checkpoints[scope].get(payload_hash)
         if prior is not None and prior != reference:
             raise ValueError("identical checkpoint payload has conflicting execution inputs")
@@ -69,8 +80,9 @@ def prepare_research_control_workspace(
         name=RESEARCH_CONTROL_SUBMISSION_TOOL,
         description=(
             "Submit a model-authored Markdown research report and explicitly select exact "
-            "shared_checkpoint_ref payload hashes by scope. Selected inputs must match their "
-            "recorded execution versions. You may select an earlier consistent set. This ends "
+            "shared_checkpoint_ref payload hashes by scope. Selected producer resources must "
+            "match the exact inputs consumed by each selected checkpoint. Unrelated changes "
+            "do not invalidate those inputs. You may select an earlier consistent set. This ends "
             "the conversation without independent-review or scientific-acceptance credit."
         ),
         input_schema={
@@ -99,8 +111,10 @@ def prepare_research_control_workspace(
                 raise ClientToolInputError("selection is not an observed component checkpoint")
             selected[scope] = deepcopy(checkpoints[scope][payload_hash])
         for reference in selected.values():
-            for input_scope, input_hash in reference["inputs"].items():
-                if selection.get(input_scope) != input_hash:
+            for input_scope, binding in reference["inputs"].items():
+                available = selected.get(input_scope, {}).get("resources", {})
+                if any(resource not in available or available[resource] != content_hash
+                       for resource, content_hash in binding["resources"].items()):
                     raise ClientToolInputError(
                         "selected checkpoint inputs do not match: " + reference["scope"] + " <- " + input_scope
                     )

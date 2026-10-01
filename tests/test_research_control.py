@@ -104,7 +104,9 @@ def _control(tmp_path, monkeypatch, language, *, workflow="", max_turns=12):
         )
         executions.append(execution)
         return {"code_draft_hash": stable_hash(draft), "accepted": execution.status == "EXECUTED",
-                "checkpoint_inputs": {"theory": current_theory["hash"]}, "execution": execution.to_json()}
+                "checkpoint_inputs": {"theory": {
+                    "payload_hash": current_theory["hash"], "resources": execution.input_artifact_hashes,
+                }}, "execution": execution.to_json()}
 
     scientific = prepare_scientific_code_workspace(
         system_prompt="Private source-owner prompt.", user_prompt="Private source-owner instruction.",
@@ -114,11 +116,15 @@ def _control(tmp_path, monkeypatch, language, *, workflow="", max_turns=12):
         workspace_operation="initial_authoring", session_dir=tmp_path / "code",
     )
 
-    def inputs(scope, payload):
+    def bindings(scope, payload):
         if scope == "theory":
             current_theory.update(hash=stable_hash(payload), payload=deepcopy(payload))
-            return {}
-        return payload["check_result"]["checkpoint_inputs"]
+            documents = load_theory_workspace_documents(payload)
+            return {"resources": {path: hashlib.sha256(content.encode()).hexdigest()
+                                  for path, content in documents.items()}, "inputs": {}}
+        checked = payload["check_result"]
+        return {"resources": {"executed_code": checked["execution"]["code_hash"]},
+                "inputs": checked["checkpoint_inputs"]}
 
     question = OpenResearchQuestion("opaque-q", "Opaque objective", "Opaque task, not a statistical benchmark.",
                                     task_intent={"theory": "required", "formal": "optional"})
@@ -129,7 +135,7 @@ def _control(tmp_path, monkeypatch, language, *, workflow="", max_turns=12):
                                       tools=(), model=MODEL, max_tokens=1024),
         workspaces={"theory": replace(theory, on_success=forbidden, on_error=forbidden),
                     "code": replace(scientific, on_success=forbidden, on_error=forbidden)},
-        checkpoint_inputs=inputs, session_dir=tmp_path / "control", session_id="opaque-control",
+        checkpoint_bindings=bindings, session_dir=tmp_path / "control", session_id="opaque-control",
         max_turns=max_turns, max_tool_calls=max_turns, max_no_progress_turns=max_turns,
         workflow_instructions=workflow,
     )
@@ -188,7 +194,9 @@ def test_control_runs_exact_inputs_and_rejects_a_stale_final_join(tmp_path, monk
     body, errors = read_hash_bound_utf8_file(result.terminal_payload["report_ref"])
     assert not errors and body == report
     selection = result.terminal_payload["selected_checkpoints"]
-    assert selection["code"]["inputs"] == {"theory": selection["theory"]["payload_hash"]}
+    assert selection["code"]["inputs"] == {"theory": {
+        "payload_hash": selection["theory"]["payload_hash"], "resources": executions[0].input_artifact_hashes,
+    }}
     assert "Private specialist" not in str(backend.requests[0])
     assert "Private source-owner" not in str(backend.requests[0])
     assert "mathematical_documents" in str(backend.requests[0].messages)
@@ -207,6 +215,36 @@ def test_same_workflow_control_records_explicit_instructions_without_independent
     assert workspace.request.metadata["workflow_instructions_hash"] == stable_hash("Opaque declared workflow.")
     assert "Opaque declared workflow." in str(workspace.request.messages)
     assert not executions
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+def test_unrelated_theory_edit_does_not_invalidate_executed_code(tmp_path, monkeypatch, language):
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("pinned scientific runtime is not installed")
+    workspace, _, calls, executions = _control(tmp_path, monkeypatch, language)
+    calls[5] = replace(calls[5], input={"path": "unrelated.md", "content": "# Separate opaque note\n"})
+
+    def submit(request):
+        refs = _checkpoint_refs(request.messages)
+        return ClientToolCall("consistent", RESEARCH_CONTROL_SUBMISSION_TOOL,
+                              {"report_markdown": "# Unchanged consumed inputs\n", "selected_checkpoints": {
+                                  "theory": refs["theory"][-1]["payload_hash"],
+                                  "code": refs["code"][0]["payload_hash"],
+                              }})
+
+    backend = ScriptedBackend([*calls, submit])
+    result = run_client_tool_workspace(backend=backend, workspace=workspace)
+    assert len(executions) == 1
+    assert result.turns == 8
+    assert result.terminal_payload["evidence_role"] == "submission_not_scientific_acceptance"
+    refs = _checkpoint_refs(backend.requests[-1].messages)
+    selection = result.terminal_payload["selected_checkpoints"]
+    assert selection["theory"]["payload_hash"] == refs["theory"][-1]["payload_hash"]
+    assert selection["code"]["inputs"]["theory"]["payload_hash"] == refs["theory"][0]["payload_hash"]
+    assert refs["theory"][0]["payload_hash"] != refs["theory"][-1]["payload_hash"]
+    assert selection["code"]["inputs"]["theory"]["resources"] == executions[0].input_artifact_hashes
+    assert "unrelated.md" in selection["theory"]["resources"]
 
 
 def test_control_exhaustion_preserves_refs_without_auto_submitting_a_report(tmp_path, monkeypatch):

@@ -144,12 +144,18 @@ do not silently claim byte-identical model tool surfaces.
 control entry point. It binds the common public question and frozen intent,
 exposes each component's initial file/observation catalog without importing its
 private specialist prompts, and returns exact checkpoint references to the model.
-The caller's extractor records actual cross-workspace execution inputs, not a
-model-declared lineage or whatever producer version happens to be latest. A final
+The trusted executor-side extractor records produced resource hashes and the
+exact subset consumed from observed cross-workspace checkpoints, not a
+model-declared lineage or whatever producer version happens to be latest. It must
+include consumed source, interfaces and other premises, not merely a convenient
+file. A final
 `submit_research_result` selects checkpoints and preserves the model's unchanged
 Markdown report in the existing session store. A mismatched input join returns
 to the same conversation; the model can select an earlier consistent set or
-author and execute revised artifacts. No routing agent, content patch, automatic
+author and execute revised artifacts. A later producer checkpoint is also valid
+if every consumed resource is unchanged; an unrelated note or readiness rationale
+does not force another execution. The original consumed checkpoint remains in the
+provenance and is never rewritten to the newer one. No routing agent, content patch, automatic
 retry or additional model loop is involved.
 
 An empty selection can submit an honest partial report; structural submission
@@ -161,9 +167,11 @@ same-workflow condition. Context catalogs and checkpoint-reference annotations
 are observable model inputs and must be matched or disclosed in the study.
 
 Scripted-model integration tests execute real local Python and R against an exact
-immutable theory snapshot, reject a final join with a later theory version, and
-allow a consistent earlier selection without rerunning the source. A separately
-pinned local-Qwen synthetic probe completed two model turns/four tool calls,
+immutable theory snapshot, reject a final join with changed consumed bytes, and
+allow either a consistent earlier selection or a later checkpoint with only an
+unrelated note, without rerunning the source. A separately pinned local-Qwen
+synthetic probe at `0b83e790` (before the resource-selective join refinement)
+completed two model turns/four tool calls,
 selected its actual checkpoint and wrote a Markdown report. Neither exercise is
 a statistical benchmark, independently reviewed theory or complete baseline
 efficacy evidence.
