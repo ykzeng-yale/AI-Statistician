@@ -3,15 +3,17 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from .client_tool_loop import (
     CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
+    PreparedClientToolWorkspace,
     externalize_client_tool_text_documents,
     read_hash_bound_utf8_file,
+    run_client_tool_workspace,
 )
 from .fingerprint import stable_hash
 from .estimator_interface_contract import (
@@ -63,7 +65,7 @@ from .theory_workspace import (
     TheoryScratchpadConfig,
     load_theory_progress_checkpoint_state,
     load_theory_workspace_documents,
-    run_theory_artifact_workspace,
+    prepare_theory_artifact_workspace,
     theory_workspace_manifest_errors,
 )
 
@@ -293,6 +295,27 @@ class LLMTheoryDeveloperAgent:
         theory_scratchpad: TheoryScratchpadConfig | None = None,
         theory_workspace_root: Path | None = None,
     ) -> dict[str, Any]:
+        return run_client_tool_workspace(
+            backend=self.provider,
+            workspace=self.prepare_workspace(
+                question,
+                architect_context=architect_context,
+                theory_scratchpad=theory_scratchpad,
+                theory_workspace_root=theory_workspace_root,
+            ),
+        )
+
+    def prepare_workspace(
+        self,
+        question: OpenResearchQuestion,
+        *,
+        architect_context: Mapping[str, Any] | None = None,
+        theory_scratchpad: TheoryScratchpadConfig | None = None,
+        theory_workspace_root: Path | None = None,
+    ) -> PreparedClientToolWorkspace[dict[str, Any]]:
+        """Bind production authoring tools and validation without a model call."""
+
+        question = deepcopy(question)
         context = dict(architect_context or {})
         theory_prompt_mode = _theory_developer_prompt_mode(context)
         dimension_requirements = research_dimension_requirements(
@@ -364,8 +387,7 @@ class LLMTheoryDeveloperAgent:
                     ],
                     history=[],
                 )
-            core_packet = _generate_theory_workspace_revision(
-                provider=self.provider,
+            workspace = _prepare_theory_workspace_revision(
                 provider_name=self.config.provider_name,
                 question=question,
                 revision_inputs=revision_inputs,
@@ -395,8 +417,7 @@ class LLMTheoryDeveloperAgent:
         elif callable(
             getattr(self.provider, "generate_client_tool_turn", None)
         ):
-            core_packet = _generate_initial_theory_artifact_workspace(
-                provider=self.provider,
+            workspace = _prepare_initial_theory_artifact_workspace(
                 provider_name=self.config.provider_name,
                 question=question,
                 architect_context=context,
@@ -434,24 +455,21 @@ class LLMTheoryDeveloperAgent:
                 ],
                 history=[],
             )
-        if (
-            core_packet.get("artifact_kind")
-            == SOURCE_REPLICATION_CHECKPOINT_KIND
-        ):
+        finish = workspace.on_success
+
+        def on_success(loop):
+            core_packet = finish(loop)
+            if core_packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND:
+                return core_packet
+            validation_errors = _validate_theory_packet_for_question(core_packet, question=question)
+            if validation_errors:
+                raise PacketValidationError(
+                    validation_label="LLM TheoryDeveloper document workspace",
+                    attempts=0, errors=validation_errors, history=[], last_invalid_packet=core_packet,
+                )
             return core_packet
-        validation_errors = _validate_theory_packet_for_question(
-            core_packet,
-            question=question,
-        )
-        if validation_errors:
-            raise PacketValidationError(
-                validation_label="LLM TheoryDeveloper document workspace",
-                attempts=0,
-                errors=validation_errors,
-                history=[],
-                last_invalid_packet=core_packet,
-            )
-        return core_packet
+
+        return replace(workspace, on_success=on_success)
 
 
 class ResearchArchitectAgent:
@@ -2928,9 +2946,8 @@ def _validate_theory_workspace_revision_packet(
     return list(dict.fromkeys(errors))
 
 
-def _generate_initial_theory_artifact_workspace(
+def _prepare_initial_theory_artifact_workspace(
     *,
-    provider: GeneratorBackend,
     provider_name: str,
     question: OpenResearchQuestion,
     architect_context: Mapping[str, Any],
@@ -2954,7 +2971,7 @@ def _generate_initial_theory_artifact_workspace(
     progress_checkpoint_state: (
         tuple[dict[str, Any], dict[str, Any], dict[str, str]] | None
     ) = None,
-) -> dict[str, Any]:
+) -> PreparedClientToolWorkspace[dict[str, Any]]:
     allow_source_checkpoint = source_replication_checkpoint_allowed(
         question,
         research_source_execution,
@@ -3072,8 +3089,7 @@ def _generate_initial_theory_artifact_workspace(
         _refresh_theory_packet_id(packet, question=question)
         return packet
 
-    result = run_theory_artifact_workspace(
-        provider=provider,
+    workspace = prepare_theory_artifact_workspace(
         system_prompt=(
             THEORY_DEVELOPER_SYSTEM_PROMPT
             + "\nUse the supplied client tools as the sole write path for the "
@@ -3160,55 +3176,49 @@ def _generate_initial_theory_artifact_workspace(
             "authoring_mode": "model_owned_document_workspace",
         },
     )
-    packet = deepcopy(dict(result.core_packet))
-    workspace_evidence = deepcopy(dict(result.evidence))
-    packet["llm_client_tool_loop"] = workspace_evidence
-    if packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND:
+    finish = workspace.on_success
+
+    def on_success(loop):
+        result = finish(loop)
+        packet = deepcopy(dict(result.core_packet))
+        workspace_evidence = deepcopy(dict(result.evidence))
+        packet["llm_client_tool_loop"] = workspace_evidence
+        if packet.get("artifact_kind") == SOURCE_REPLICATION_CHECKPOINT_KIND:
+            return packet
+        packet = _finalize_document_workspace_estimator_interfaces(packet, question=question)
+        errors = _validate_theory_packet_for_question(packet, question=question)
+        changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
+        required_authored_artifacts = {
+            field for field, required in theory_handoff_requirements(
+                question, formalization_authoring_required=formalization_authoring_required,
+            ).items() if required
+        }
+        if not required_authored_artifacts.issubset(changed):
+            errors.append("initial theory workspace did not author every required nonempty artifact")
+        if workspace_evidence.get("workspace_operation") != "initial_discovery":
+            errors.append("initial theory workspace operation identity mismatch")
+        if workspace_evidence.get("write_transport") != THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT:
+            errors.append("initial theory workspace write transport mismatch")
+        if int(workspace_evidence.get("n_model_artifact_writes", 0) or 0) < 1:
+            errors.append("initial theory workspace has no model-authored writes")
+        if workspace_evidence.get("runtime_edited_theory") is not False:
+            errors.append("runtime cannot edit initial theory workspace semantics")
+        if errors:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper initial artifact workspace",
+                attempts=int(workspace_evidence.get("turns", 0) or 0),
+                errors=list(dict.fromkeys(errors)), history=workspace_evidence.get("history", []),
+                last_invalid_packet=packet,
+            )
+        packet["validation_errors"] = []
+        packet["ok"] = True
         return packet
-    packet = _finalize_document_workspace_estimator_interfaces(
-        packet,
-        question=question,
-    )
-    errors = _validate_theory_packet_for_question(packet, question=question)
-    changed = set(workspace_evidence.get("changed_artifact_names", []) or [])
-    required_authored_artifacts = {
-        field
-        for field, required in theory_handoff_requirements(
-            question,
-            formalization_authoring_required=formalization_authoring_required,
-        ).items()
-        if required
-    }
-    if not required_authored_artifacts.issubset(changed):
-        errors.append(
-            "initial theory workspace did not author every required nonempty artifact"
-        )
-    if workspace_evidence.get("workspace_operation") != "initial_discovery":
-        errors.append("initial theory workspace operation identity mismatch")
-    if workspace_evidence.get("write_transport") != (
-        THEORY_WORKSPACE_DIRECT_WRITE_TRANSPORT
-    ):
-        errors.append("initial theory workspace write transport mismatch")
-    if int(workspace_evidence.get("n_model_artifact_writes", 0) or 0) < 1:
-        errors.append("initial theory workspace has no model-authored writes")
-    if workspace_evidence.get("runtime_edited_theory") is not False:
-        errors.append("runtime cannot edit initial theory workspace semantics")
-    if errors:
-        raise PacketValidationError(
-            validation_label="LLM TheoryDeveloper initial artifact workspace",
-            attempts=int(workspace_evidence.get("turns", 0) or 0),
-            errors=list(dict.fromkeys(errors)),
-            history=workspace_evidence.get("history", []),
-            last_invalid_packet=packet,
-        )
-    packet["validation_errors"] = []
-    packet["ok"] = True
-    return packet
+
+    return replace(workspace, on_success=on_success)
 
 
-def _generate_theory_workspace_revision(
+def _prepare_theory_workspace_revision(
     *,
-    provider: GeneratorBackend,
     provider_name: str,
     question: OpenResearchQuestion,
     revision_inputs: Mapping[str, Any],
@@ -3232,7 +3242,7 @@ def _generate_theory_workspace_revision(
     progress_checkpoint_state: (
         tuple[dict[str, Any], dict[str, Any], dict[str, str]] | None
     ) = None,
-) -> dict[str, Any]:
+) -> PreparedClientToolWorkspace[dict[str, Any]]:
     raw_parent_payload = revision_inputs.get("base_core_payload", {})
     if not isinstance(raw_parent_payload, Mapping):
         raise PacketValidationError(
@@ -3386,8 +3396,7 @@ def _generate_theory_workspace_revision(
         read_only_artifacts["prior_theory_progress_checkpoint"] = (
             _theory_progress_prompt_artifact(progress_checkpoint)
         )
-    result = run_theory_artifact_workspace(
-        provider=provider,
+    workspace = prepare_theory_artifact_workspace(
         system_prompt=(
             THEORY_DEVELOPER_SYSTEM_PROMPT
             + "\nUse the supplied client tools as the sole write path for the "
@@ -3484,49 +3493,37 @@ def _generate_theory_workspace_revision(
             ),
         },
     )
-    packet = deepcopy(dict(result.core_packet))
-    workspace_evidence = deepcopy(dict(result.evidence))
-    packet["llm_client_tool_loop"] = workspace_evidence
-    transport = dict(packet.get("theory_revision_transport", {}) or {})
-    transport["workspace_evidence_id"] = str(
-        workspace_evidence.get("artifact_id", "") or ""
-    )
-    transport["workspace_evidence_hash"] = stable_hash(workspace_evidence)
-    transport["model_artifact_write_count"] = int(
-        workspace_evidence.get("n_model_artifact_writes", 0) or 0
-    )
-    transport["model_artifact_writes_hash"] = stable_hash(
-        workspace_evidence.get("model_artifact_writes", [])
-    )
-    transport["model_document_write_count"] = int(
-        workspace_evidence.get("n_model_document_writes", 0) or 0
-    )
-    transport["model_document_writes_hash"] = stable_hash(
-        workspace_evidence.get("model_document_writes", [])
-    )
-    packet["theory_revision_transport"] = transport
-    packet = _finalize_document_workspace_estimator_interfaces(
-        packet,
-        question=question,
-    )
-    errors = _validate_theory_workspace_revision_packet(
-        packet,
-        revision_inputs=revision_inputs,
-        workspace_id=workspace_id,
-        question=question,
-        require_workspace_edit_evidence=True,
-    )
-    if errors:
-        raise PacketValidationError(
-            validation_label="LLM TheoryDeveloper artifact workspace",
-            attempts=int(workspace_evidence.get("turns", 0) or 0),
-            errors=errors,
-            history=workspace_evidence.get("history", []),
-            last_invalid_packet=packet,
+    finish = workspace.on_success
+
+    def on_success(loop):
+        result = finish(loop)
+        packet = deepcopy(dict(result.core_packet))
+        workspace_evidence = deepcopy(dict(result.evidence))
+        packet["llm_client_tool_loop"] = workspace_evidence
+        transport = dict(packet.get("theory_revision_transport", {}) or {})
+        transport["workspace_evidence_id"] = str(workspace_evidence.get("artifact_id", "") or "")
+        transport["workspace_evidence_hash"] = stable_hash(workspace_evidence)
+        transport["model_artifact_write_count"] = int(workspace_evidence.get("n_model_artifact_writes", 0) or 0)
+        transport["model_artifact_writes_hash"] = stable_hash(workspace_evidence.get("model_artifact_writes", []))
+        transport["model_document_write_count"] = int(workspace_evidence.get("n_model_document_writes", 0) or 0)
+        transport["model_document_writes_hash"] = stable_hash(workspace_evidence.get("model_document_writes", []))
+        packet["theory_revision_transport"] = transport
+        packet = _finalize_document_workspace_estimator_interfaces(packet, question=question)
+        errors = _validate_theory_workspace_revision_packet(
+            packet, revision_inputs=revision_inputs, workspace_id=workspace_id,
+            question=question, require_workspace_edit_evidence=True,
         )
-    packet["validation_errors"] = []
-    packet["ok"] = True
-    return packet
+        if errors:
+            raise PacketValidationError(
+                validation_label="LLM TheoryDeveloper artifact workspace",
+                attempts=int(workspace_evidence.get("turns", 0) or 0), errors=errors,
+                history=workspace_evidence.get("history", []), last_invalid_packet=packet,
+            )
+        packet["validation_errors"] = []
+        packet["ok"] = True
+        return packet
+
+    return replace(workspace, on_success=on_success)
 
 
 def _theory_core_generation_phase(core_packet: Mapping[str, Any]) -> str:

@@ -132,6 +132,23 @@ later source edits do not rewrite earlier records. Theory already has immutable
 Markdown/LaTeX document snapshots. Stored component state is working provenance,
 not an isolated-owner receipt, independent review or current acceptance.
 
+Production agents now expose these bindings directly:
+`LLMTheoryDeveloperAgent.prepare_workspace` prepares initial authoring or an exact
+parent/reviewer-bound revision using the existing normalizer and validators;
+`ScientificCodeWorkspaceAgent.prepare_code_workspace` prepares the configured
+Algorithm or Simulation source session, including its actual upstream document
+catalog and executor callback. Their normal `derive`/`iterate_code_with_tools`
+methods run those same prepared bindings in the sole retained loop. There is no
+second set of baseline prompts, candidate builders or simplified validators.
+A prepared Theory contract snapshots the public question rather than retaining
+a mutable caller object that could change validation after request construction.
+
+Production-binding tests use scripted local turns, keep an unresolved claim
+honestly `OPEN`, reject an invalid claim index, and execute unchanged Python/R
+through the actual shared runtime executor under direct, prepared and joint
+drivers. They do not constitute model inference, Theory quality, complete
+Simulation consumer validation or a matched scientific arm.
+
 Synthetic tests cover Python/R, Theory and Lean parity, complete action exposure
 for configured bindings, arbitrary interleaving, checkpoints, exhaustion, raw
 error feedback and native local wire translation through a mocked completion.
@@ -179,6 +196,13 @@ efficacy evidence.
 Application-level assembly is still unfinished: configure all actual research
 executors/context dependencies consistently across arms, provide source horizons,
 independent gold and matched resources, and run complete fresh research tasks.
+In particular, production specialist contexts are bound before their source
+session. A joint control must expose the corresponding selected Theory/ABI and
+source context as it evolves, not merely attach a producer hash to an executor
+that never received those premises. Execution-input identity does not determine
+which mathematical premises the model actually used. Raw component checkpoints
+also differ from finalized isolated-owner packets; never manufacture the latter
+or independent-review credit to fit a scoring adapter.
 Do not treat the low-level API or its tests as those experiments. Official studies
 remain unactivated; freeze tool parity, context, authority and resources before
 scientific draws.

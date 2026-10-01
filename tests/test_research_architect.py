@@ -12,6 +12,7 @@ import pytest
 
 import ai_statistician.cli as cli_module
 import ai_statistician.research_architect as research_architect_module
+from ai_statistician.client_tool_loop import PreparedClientToolWorkspace
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
@@ -447,19 +448,21 @@ def test_source_only_workspace_bypasses_full_theory_packet_contract(
 
     def fake_workspace(**kwargs):
         captured.update(kwargs)
-        return TheoryWorkspaceResult(
+        return _stub_prepared_result(TheoryWorkspaceResult(
             core_packet=checkpoint,
             evidence={
                 "artifact_kind": "TheoryDeveloperWorkspaceEvidence",
                 "artifact_id": "source_replication_workspace:test",
             },
-        )
+        ))
 
     monkeypatch.setattr(
         research_architect_module,
-        "run_theory_artifact_workspace",
+        "prepare_theory_artifact_workspace",
         fake_workspace,
     )
+    monkeypatch.setattr(research_architect_module, "run_client_tool_workspace",
+                        lambda **kwargs: kwargs["workspace"].on_success(None))
     provider = ScriptedTheoryToolBackend(
         tool_responses=[],
         generator_responses=[],
@@ -963,6 +966,16 @@ def _normalized_theory_packet(
     return packet
 
 
+def _stub_prepared_result(result):
+    return PreparedClientToolWorkspace(
+        request=ClientToolTurnRequest(system_prompt="Synthetic validator fixture.", messages=(), tools=(),
+                                      model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL),
+        execute_tool=lambda *args: pytest.fail("validator fixture does not execute tools"),
+        on_success=lambda loop: result, on_error=lambda error: pytest.fail(str(error)),
+        max_turns=1, max_tool_calls=1, max_no_progress_turns=1, session_dir=None, session_id="validator-fixture",
+    )
+
+
 def _stub_initial_theory_workspace(
     monkeypatch: pytest.MonkeyPatch,
     payload: dict[str, object],
@@ -971,19 +984,21 @@ def _stub_initial_theory_workspace(
     def generate_packet(**kwargs):
         if captured is not None:
             captured.update(kwargs)
-        return _normalized_theory_packet(
+        return _stub_prepared_result(_normalized_theory_packet(
             kwargs["question"],
             payload,
             model=kwargs["request_model"],
             model_tier=kwargs["model_tier"],
             provider_name=kwargs["provider_name"],
-        )
+        ))
 
     monkeypatch.setattr(
         research_architect_module,
-        "_generate_initial_theory_artifact_workspace",
+        "_prepare_initial_theory_artifact_workspace",
         generate_packet,
     )
+    monkeypatch.setattr(research_architect_module, "run_client_tool_workspace",
+                        lambda **kwargs: kwargs["workspace"].on_success(None))
 
 
 def _serious_sample_response() -> dict[str, object]:

@@ -177,6 +177,36 @@ class ScientificCodeWorkspaceAgent:
         research_sources: ResearchSourceSnapshot | None = None,
         research_source_discovery: ResearchSourceDiscovery | None = None,
     ) -> ScientificCodeWorkspaceResult:
+        return run_client_tool_workspace(
+            backend=self.provider,
+            workspace=self.prepare_code_workspace(
+                question=question, artifact_id=artifact_id, code_draft=code_draft,
+                initial_observation=initial_observation, workspace_context=workspace_context,
+                check_candidate=check_candidate, workspace_operation=workspace_operation,
+                allow_current_source_run=allow_current_source_run,
+                recovery_checkpoint=recovery_checkpoint, session_dir=session_dir,
+                research_sources=research_sources, research_source_discovery=research_source_discovery,
+            ),
+        )
+
+    def prepare_code_workspace(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        artifact_id: str,
+        code_draft: Mapping[str, Any] | None,
+        initial_observation: Mapping[str, Any],
+        workspace_context: Mapping[str, Any],
+        check_candidate: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        workspace_operation: str = "targeted_revision",
+        allow_current_source_run: bool = False,
+        recovery_checkpoint: Mapping[str, Any] | None = None,
+        session_dir: Path | None = None,
+        research_sources: ResearchSourceSnapshot | None = None,
+        research_source_discovery: ResearchSourceDiscovery | None = None,
+    ) -> PreparedClientToolWorkspace[ScientificCodeWorkspaceResult]:
+        """Expose the production source binding without its role model driver."""
+
         config = self.config
         if not config.use_client_tool_code_workspace:
             raise ValueError(
@@ -190,8 +220,7 @@ class ScientificCodeWorkspaceAgent:
         prompt_context, context_documents = externalize_scientific_workspace_documents(
             workspace_context
         )
-        return run_scientific_code_workspace(
-            provider=self.provider,
+        return prepare_scientific_code_workspace(
             system_prompt=self.scientific_workspace_system_prompt,
             user_prompt=(
                 self.scientific_workspace_instruction
