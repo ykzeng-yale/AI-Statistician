@@ -1,6 +1,6 @@
 # Main Worker Ownership
 
-Updated: 2026-09-06
+Updated: 2026-10-01
 
 This task is the sole active implementation stream for AI Statistician. The
 worker owns the central runtime, direct scientific and Lean workspaces,
@@ -19,7 +19,9 @@ cross-family evaluation, verification, commits, and pushes.
 - Prefer deletion and consolidation over compatibility wrappers.
 - Repair system mechanisms, prompts, context, tools, and feedback loops rather
   than hand-editing benchmark outputs.
-- Keep tests and live evaluations pinned to exact Haiku; never use Opus.
+- Future tests and live evaluations use pinned local Qwen, per the operator's
+  2026-10-01 revision. Preserve historical Haiku records; never use Opus or
+  escalate to a cloud API when local inference is unavailable.
 - Preserve independent semantic review, frozen pre-result evaluation, artifact
   hashes, exact target identity, and Lean kernel authority.
 - Do not open held-out tasks until the frozen development gate passes.

@@ -1,14 +1,24 @@
 # Current Execution Goal
 
-Updated: 2026-09-11, prioritize model-owned scientific iteration and usable feedback.
+Updated: 2026-10-01, two evidence-backed publications and local Qwen testing.
 
 ## Operative Objective
 
-Develop a general, model-led AI Statistical Theory Lab: given a statistical
-question or paper, it can investigate prior work, reproduce relevant baselines,
-progressively develop reviewable theory, implement and challenge methods in Python
-and R, independently validate stable results, optionally formalize them in Lean,
-and reuse verified research and proof artifacts across unrelated problems.
+Prepare AI-Statistician and EmpericalProcessLEAN for two distinct arXiv-first
+publications and reproducible releases: a portable statistical-research harness
+for researchers' existing coding agents, and a complete collaborative
+AI-Statistician driven through a single model API. Preserve the original
+model-led statistical research objective: prior-work investigation, baseline
+reproduction, reviewable theory, Python/R implementation and simulation,
+independent validation, intent-selected Lean and disjoint-task artifact reuse.
+
+The [publication programme](publication_programme.md) defines separate research
+questions and release requirements. The [experiment design](publication_experiments.md)
+requires comparable baselines, family-grouped tasks and independent authority;
+it is not yet an activated experiment. The [current source review](publication_sources_20261001.md)
+records inspected primary work, code pins and reuse boundaries. Publication
+readiness requires working releases and comparative scientific evidence, not
+documents, a renamed architecture, model consensus or a compiled support library.
 
 This restores the complete [original product goal](goal-ai-statistician.md).
 One accepted task is a milestone, not the goal. Repeatedly substituting another
@@ -35,18 +45,13 @@ offline native execution remains available, not a prerequisite for research.
 
 ### Native Goal Record
 
-The app's native goal is active again. The operator designated a local credential
-on 2026-09-10; it now resides only in gitignored `.env` with mode 0600. The existing
-CLI loader reads it, and Anthropic accepted a pinned-Haiku model metadata request.
-This removes the credential-configuration blocker, not the missing scientific
-evidence. The preregistered configuration pilot has now completed with 94 exact-Haiku
-generation calls; it adds no research-E2E credit. The native objective still has
-the older one-result/Task114 wording.
-The goal API cannot replace an unfinished objective, and its completion/blocking
-operations must not be misused to rename it. This user-revised document is the
-operative scope; the stale native text is recorded honestly in status. Neither
-the native milestone nor the broader objective has been achieved. Do not report
-that the native text was successfully replaced.
+The goal API returned no existing goal on 2026-10-01. A new native goal was
+successfully created for both publications, tested releases, reproducible
+comparative evidence and evidence-backed manuscripts. It is active. This is not
+a claim that an unfinished goal was renamed or marked achieved. The operator's
+subsequent instruction changes future model testing to locally deployed Qwen;
+the publication objective itself is unchanged. Prior Task114, pilot,
+qualification and standalone outcomes remain immutable historical records.
 
 ## Scientific Operating Model
 
@@ -112,6 +117,11 @@ Existing sealed held-out and strict-formal protocols are not weakened or unlocke
 
 ## Implementation Order
 
+Publication execution starts with local Qwen conformance, portable host access,
+source-faithful Lean release cleanup and comparable scientific baselines. The
+following mechanism priorities remain applicable; the publication programme
+supersedes the former one-success milestone and Haiku-only future-testing scope.
+
 1. Inspect the existing Theory -> exploratory code/simulation -> independent
    review -> same-owner revision path. Demonstrate a missing tool, unreadable
    observation, lost context, or incorrect lineage before changing the harness.
@@ -163,8 +173,17 @@ document is a forward work contract, not a growing chronology of fixes.
 
 ## Resource and Change Policy
 
-- Call Anthropic directly. All tests, qualification and live evaluations use
-  exactly `claude-haiku-4-5-20251001`; no Opus or automatic tier escalation.
+- Future model tests and qualification use local Qwen, not Anthropic. The observed
+  reusable model is Qwen3-4B-Instruct-2507 Q4_K_M at upstream conversion revision
+  `a06e946bb6b655725eafa393f4a9745d460374c9`, GGUF SHA-256
+  `3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597`.
+  Pin runtime, native chat template, context and sampling before each new study.
+  Local endpoint failure does not authorize a cloud fallback or model escalation.
+  Legacy Haiku evaluation profiles are not Qwen-compatible authority: migrate the
+  forward protocol prospectively, qualify independent gold and leave old records
+  untouched. Deterministic tests do not call any live model.
+- The following Haiku settings describe retained historical/explicit production
+  support, not the configuration for future testing:
 - Freeze any `AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS` setting before a
   fresh product draw. It enables native thinking only for retained tool workspaces,
   not tool-free Architect calls; existing total token bounds and
@@ -179,13 +198,14 @@ document is a forward work contract, not a growing chronology of fixes.
   Provider/model provenance comes from the existing hash-bound retained turn
   history, not a second operator-copied call log. Protocols 22/23 and consumed
   qualifications cannot be migrated or retroactively accepted under this change.
-  Prospectively, the next full research experiment uses thinking 16384 and
+  The superseded Haiku plan used thinking 16384 and
   max_tokens 32768 for every retained author/reviewer workspace, with a 600-second
   request timeout. Tool-free Architect behavior and existing workspace/outer
   action budgets stay unchanged. Freeze the exact task and independent authority
   before calls; this configuration decision does not activate a task or establish
   efficacy, and is not permission to repeat any consumed evaluation.
-  File-backed input is not a mathematical correction. Failed or older
+  This plan is not permission to call Anthropic under the new local-only testing
+  instruction. File-backed input is not a mathematical correction. Failed or older
   authority cannot silently qualify, resume or rerun. Tool access and reduced
   wasted calls are mechanism changes, not evidence of improved judgment.
 - Credentials stay outside source, prompts, logs and `.env.example`. This revision

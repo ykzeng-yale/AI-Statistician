@@ -16,6 +16,13 @@ The canonical architecture and current boundary are documented in
 and [current execution goal](docs/current_execution_goal.md); current worker status
 is machine-readable in [main_worker_status.json](docs/main_worker_status.json).
 
+The current delivery goal is two distinct, evidence-backed publications: a
+portable research harness for existing coding agents and a complete single-API
+multi-agent statistical research system. See the [publication programme](docs/publication_programme.md).
+The initial [portable skill installation](docs/portable_harness_installation.md)
+and [local Qwen testing](docs/local_qwen_testing.md) are available separately;
+neither is a claim of publication-ready scientific performance.
+
 ## Architecture
 
 There is one outer typed graph:
@@ -53,15 +60,23 @@ Lean identity and axiom check can become source-theorem proof evidence.
 
 ## Model Policy
 
-The live backend calls the Anthropic SDK directly; Claude Code is not required.
-Production may use Haiku or Sonnet;
-Opus is forbidden. Every test and evaluation call is pinned to exactly
-`claude-haiku-4-5-20251001`, including retries.
+Local inference is now the default. Future model tests use the existing
+`Qwen3-4B-Instruct-2507` deployment through a local OpenAI-compatible endpoint;
+no Anthropic API calls or automatic cloud fallback are used for new tests.
+Historical Haiku evaluations and qualifications remain unchanged. Legacy
+`--research-eval` and hidden-gold protocols still encode their original Haiku
+authority: a new Qwen publication protocol must be qualified separately before
+scientific comparisons. Local transport conformance is not research success.
+
+The standalone system does not require Claude Code. Explicit Anthropic production
+support remains available, capped at Sonnet, but it is not the testing backend.
 
 Relevant environment variables:
 
 ```text
 ANTHROPIC_API_KEY
+AI_STATISTICIAN_LOCAL_BASE_URL=http://127.0.0.1:8081/v1
+AI_STATISTICIAN_LOCAL_MODEL=Qwen3-4B-Instruct-2507
 AI_STATISTICIAN_CLAUDE_HAIKU_MODEL
 AI_STATISTICIAN_CLAUDE_SONNET_MODEL
 ```
@@ -80,6 +95,7 @@ Hidden-gold reviewers use the same explicit setting; qualification and candidate
 review must share its frozen value. Changing it invalidates prior qualification.
 This is supported transport, not demonstrated improvement in scientific accuracy.
 See [Anthropic's thinking documentation](https://platform.claude.com/docs/en/build-with-claude/extended-thinking).
+These thinking settings apply only to historical/explicit Anthropic use, not Qwen.
 
 ## Setup
 

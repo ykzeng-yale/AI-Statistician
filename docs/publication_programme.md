@@ -1,0 +1,159 @@
+# Publication Programme
+
+Updated: 2026-10-01. Status: design and release work in progress; no new scientific
+benchmark result. The native chat goal is active and covers both publications.
+
+## Two Research Questions
+
+**Paper H: A Portable Harness for Reviewable Statistical Research.** Can a small,
+host-independent research workspace and evidence/tool layer improve the
+correctness, reproducibility and usability of statisticians' existing coding
+agents? Researchers keep their host agent and model. Theory lives in
+Markdown/LaTeX; computation uses local Python/R; Lean is selected by task intent.
+The deliverable is an installable skill/tool package, reference workspaces and
+reproducible host conformance, followed by scientific and researcher-use studies.
+Installing a skill alone does not establish either improvement or novelty.
+
+**Paper S: AI-Statistician, a Single-API Collaborative Statistical Research
+System.** Does scoped specialist collaboration improve accepted statistical
+research outcomes over a single source-owning agent at comparable resources?
+The system supplies its own retained model/tool sessions and sole outer graph;
+it does not invoke Codex or Claude Code to do the research. Separate theory,
+scientific-code, simulation and referee sessions use the same base model API.
+The research contribution must concern effective collaboration and evidence,
+not merely a diagram with more named agents.
+
+Both papers disclose the shared implementation and cite each other. Paper H
+tests the portable layer added to a host; Paper S tests collaboration within
+the independent system. Do not publish the same experiment twice as independent
+evidence or claim two novel architectures from one renamed implementation.
+
+`EmpericalProcessLEAN` supplies a reusable, source-mapped Lean foundation for
+both papers. It is not automatically a third publication or evidence of complete
+textbook formalization. A separate library paper would require its own curated
+mathematical contribution and evaluated coverage.
+
+## Statistical Research Contract
+
+Methods research begins with a precise inferential question, estimand, model,
+assumptions and comparison, not a paper-writing template. Distinguish
+identification, estimation, computation and inference. A reviewable theoretical
+claim has definitions, a stated scope, equation-level justification, necessary
+conditions and unresolved gaps. A valid derivation can disprove the proposed
+claim or establish a conditional result.
+
+Theory and exploratory code can inform each other. Replicate a relevant pinned
+baseline when sources permit, then investigate extensions. Stable claims receive
+independent mathematical and implementation scrutiny. Confirmation uses frozen
+DGPs, estimands, competing methods, performance measures and uncertainty rules.
+Simulation assesses specified scenarios, not universal theorem correctness.
+The ADEMP/Monte Carlo reporting standard is the scientific reference, not a
+mandatory agent action sequence. [Morris, White and Crowther](https://doi.org/10.1002/sim.8086).
+
+Lean can inspect definitions or stable lemmas early, and perform deep proof after
+statement stabilization. It blocks only explicitly formal tasks. Kernel closure
+certifies the encoded statement; source fidelity also needs semantic review.
+Open research remains exploratory until externally scrutinized; model agreement
+does not establish novelty or mathematical truth.
+
+## Architecture Decisions
+
+| Layer | Reuse now | Missing release requirement |
+| --- | --- | --- |
+| Portable host | Native host file/edit/search/execution tools and Agent Skills format | Clean installation, host discovery, tool access and real researcher usability |
+| Retained research session | `client_tool_loop.py`, hash-bound files and raw observations | Local Qwen conformance for every workspace and long-session recovery |
+| Collaboration | `agent_runtime.py`, scoped roles and reference handoffs | Dependency-aware independent work, exact-input joins and evidence invalidation; current execution is serial/interleaved |
+| Scientific execution | Existing local Python/R tools and project snapshots | Native environment reconstruction and Python/R reproduction on clean machines |
+| Verification | Independent review, frozen confirmation and exact Lean checks | Qualified independent Qwen-era evaluation plus expert calibration |
+| Lean foundation | Pinned Mathlib/Statlib/StatInference and retrieval | Audited statement/proof/dependency maps and a compact curated public API |
+
+Extend the sole runtime if independent scheduling is justified; do not layer a
+second framework over it. Model authors all derivations and code revisions. The
+harness supplies tool state, execution, source identity, permissions and evidence
+authority. Do not add theorem-family logic, grammar repairs or generated-answer
+patches. A demonstration of a model error is not by itself a harness defect.
+
+## Current Audit Evidence
+
+Inspected commits: AI-Statistician `4c0a1ade`, EmpericalProcessLEAN `4cec7860c`.
+Both were clean and their remotes were fetched. This audit inspected canonical
+entry points, session/provider contracts, installation metadata, source maps,
+Lean tooling and branch ancestry; it is not a claim that every source line or
+external paper has received expert review.
+
+- The full `StatInference` root built locally on Lean 4.30.0 (9843 Lake jobs,
+  including cached replay). This is not a clean-machine or all-declaration axiom
+  audit; the root file has zero declarations to scan.
+- The library has 1361 Lean files. Its 611 source-map rows cover 173 distinct
+  `(book, source_kind, source_label)` items: 509 foundation, 73 proved-general and
+  29 proved-exact rows. These are existing author labels, not independently
+  established theorem coverage. Some items have multiple mappings.
+- 50 remote Lean refs were inspected: 37 are ancestors of main, 13 are not.
+  An unmerged ref may be superseded or duplicated; ancestry alone does not justify
+  a merge. Review mathematical deltas and source statements before integration.
+- Both repositories lack a top-level license. Source-textbook redistribution and
+  third-party attribution need a rights inventory before an installable public
+  release. Do not assume the owner's request establishes third-party rights.
+- Existing strict development closure is still 0/2. Historical scoped credits,
+  unit tests and transport checks do not create a new full-system success rate.
+- The default backend is now local Qwen. The original Haiku evaluation profiles
+  and hidden authority contracts still require a prospective migration; no old
+  evaluation or qualification is rerun, relabelled or rescored.
+
+## Comparative Experiments
+
+The publication experiment specification is in
+[publication_experiments.md](publication_experiments.md). It is a design proposal,
+not an activated or retrospectively registered experiment. Exact paper tasks,
+independent gold, budgets, repetitions and analysis must be frozen before calls.
+
+Paper H compares each host with and without the identical portable package.
+Host/model differences are recorded rather than attributed to the harness.
+Cross-host installation is a conformance result, not scientific accuracy. Under
+the current operator policy, research testing uses only local Qwen; support for
+other host models remains an installation claim until separately authorized and
+measured.
+
+Paper S compares a single general agent with identical tools, role-separated
+agents without cross-role feedback, and the complete collaborative system.
+Use the same Qwen weights, endpoint, task access and global resource envelopes.
+An additional minimal external research harness can be run where its backend and
+license permit; report adaptations. Published scores from different models/tasks
+are related work, not comparable baseline measurements.
+
+Lean component comparisons separate proof of an exact supplied Lean statement,
+natural-language formalization and source-fidelity review. Test zero-shot,
+compile-feedback and feedback-plus-retrieval with equal target information.
+Library reuse is a separate intervention; exclude target proofs and dependent
+aliases from retrieval. Compare against accessible ReProver/minimal-agent
+implementations only after environment and model compatibility are established.
+
+## Delivery Order And Manuscripts
+
+1. Establish local Qwen native tools, structured output, continuation and complete
+   cost/provenance; keep cloud APIs out of new tests. Qualify fresh evaluation
+   authority independently of the author and without modifying legacy protocols.
+2. Ship and verify the portable skill/workspace entry point. Test clean checkout
+   and package installation, native Python/R and optional pinned Lean. Resolve
+   licenses and omit unauthorized source assets from release distributions.
+3. Curate source-faithful Lean claims and compiled dependencies. Consolidate
+   genuinely redundant APIs; submit reusable modules upstream where appropriate.
+   No wholesale branch merge or cosmetic renaming campaign.
+4. Implement only the collaboration capabilities needed by the experiment.
+   Evaluate the monolithic and role-separated controls before claiming a benefit.
+5. Freeze new family-grouped development and held-out publication tasks. Collect
+   all outcomes, costs and failures, independent gold and expert review. Existing
+   consumed evaluations remain historical evidence, not a tunable test set.
+6. Write two evidence-linked manuscripts with distinct question, closest prior
+   work, design, falsifiable hypotheses, experiments, limitations and artifact
+   instructions. No invented result tables or novelty assertions. Deposit an
+   arXiv manuscript only after the corresponding release and evidence are ready.
+
+Likely venue fit is a later decision: a useful statistical software/research
+workflow contribution can fit a computational-statistics/software venue; a
+controlled agent architecture/benchmark contribution can fit an AI venue.
+Publication in a theory journal would require substantive statistical theory,
+not a software system renamed as a method. Acceptance is never assumed.
+
+See [current sources and adoption decisions](publication_sources_20261001.md)
+for dated primary papers, inspected code pins and license boundaries.
