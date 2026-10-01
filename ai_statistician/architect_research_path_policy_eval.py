@@ -14,13 +14,13 @@ from .model_backend import (
     GeneratorBackend,
     GeneratorRequest,
     GeneratorResponse,
-    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-    OpenAIResponsesGeneratorBackend,
+    LIVE_EVALUATION_MODEL_TIER,
     generator_backend_provider_name,
     is_live_generator_backend,
     resolve_live_evaluation_model,
 )
-from .research_architect import AnthropicArchitectLLMProvider, StaticArchitectLLMProvider
+from .research_architect import StaticArchitectLLMProvider
+from .local_model_backend import LocalChatGeneratorBackend
 from .research_schema import OpenResearchQuestion
 
 
@@ -43,7 +43,7 @@ class ArchitectPathPolicyCase:
 def run_architect_research_path_policy_eval(
     *,
     out_dir: Path,
-    provider_name: str = "anthropic",
+    provider_name: str = "local",
     model: str = "",
     static_response_file: Path | None = None,
     llm_timeout_seconds: float | None = None,
@@ -60,22 +60,19 @@ def run_architect_research_path_policy_eval(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     provider_name = provider_name.strip().lower()
+    resolved_model = resolve_live_evaluation_model(provider_name, model)
     provider = _architect_path_policy_eval_provider(
         provider_name=provider_name,
         static_response_file=static_response_file,
         llm_timeout_seconds=llm_timeout_seconds,
     )
     backend_provider_name = generator_backend_provider_name(provider, provider_name)
-    resolved_model = resolve_live_evaluation_model(
-        provider_name,
-        model,
-    )
     architect = LLMArchitectCoordinatorAgent(
         provider=provider,
         config=ArchitectCoordinatorConfig(
             provider_name=provider_name,
             model=resolved_model,
-            model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            model_tier=LIVE_EVALUATION_MODEL_TIER,
             max_tokens=max_tokens,
             temperature=temperature,
         ),
@@ -295,10 +292,8 @@ def _architect_path_policy_eval_provider(
     static_response_file: Path | None,
     llm_timeout_seconds: float | None,
 ) -> GeneratorBackend:
-    if provider_name == "anthropic":
-        return AnthropicArchitectLLMProvider(timeout_s=llm_timeout_seconds)
-    if provider_name == "openai":
-        return OpenAIResponsesGeneratorBackend(timeout_s=llm_timeout_seconds)
+    if provider_name == "local":
+        return LocalChatGeneratorBackend(timeout_s=llm_timeout_seconds)
     if provider_name == "static":
         if static_response_file is None:
             raise ValueError("static provider requires static_response_file")
@@ -308,7 +303,7 @@ def _architect_path_policy_eval_provider(
         return StaticArchitectLLMProvider(payload)
     raise ValueError(
         "unsupported Architect policy eval provider: "
-        f"{provider_name!r}; expected anthropic, openai, or static"
+        f"{provider_name!r}; expected local or static"
     )
 
 

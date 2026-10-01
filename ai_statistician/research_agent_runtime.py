@@ -224,10 +224,12 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     DEFAULT_LIVE_GENERATOR_PROVIDER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
-    LIVE_EVALUATION_CLAUDE_MODEL,
-    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    LIVE_EVALUATION_MODEL,
+    LIVE_EVALUATION_MODEL_TIER,
+    LIVE_EVALUATION_PROVIDER,
     SUPPORTED_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS,
     claude_tier_routing_contract,
     claude_model_tier_mismatch,
     is_live_generator_backend,
@@ -376,8 +378,9 @@ class ResearchAgentRuntimeConfig:
     formal_verification_policy: str = "optional"
     recommended_research_path: str = ""
     evaluation_mode: str = "debug"
-    evaluation_claude_model_tier: str = ""
-    evaluation_claude_model: str = ""
+    evaluation_provider: str = ""
+    evaluation_model_tier: str = ""
+    evaluation_model: str = ""
     formalizer_candidate_local_lean: bool = False
     formalizer_candidate_lean_project: str = ""
     formalizer_candidate_lean_timeout: int = DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS
@@ -396,27 +399,22 @@ def _normalized_runtime_evaluation_model_config(
 ) -> ResearchAgentRuntimeConfig:
     if not _is_runtime_research_evaluation_mode(config.evaluation_mode):
         return config
-    configured_tier = str(
-        config.evaluation_claude_model_tier or ""
-    ).strip().lower()
-    configured_model = str(config.evaluation_claude_model or "").strip()
     errors: list[str] = []
-    if configured_tier and configured_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER:
-        errors.append(
-            "research evaluation requires evaluation_claude_model_tier="
-            f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER}; configured {configured_tier}"
-        )
-    if configured_model and configured_model != LIVE_EVALUATION_CLAUDE_MODEL:
-        errors.append(
-            "research evaluation requires evaluation_claude_model="
-            f"{LIVE_EVALUATION_CLAUDE_MODEL}; configured {configured_model}"
-        )
+    for field_name, expected in (
+        ("evaluation_provider", LIVE_EVALUATION_PROVIDER),
+        ("evaluation_model_tier", LIVE_EVALUATION_MODEL_TIER),
+        ("evaluation_model", LIVE_EVALUATION_MODEL),
+    ):
+        configured = str(getattr(config, field_name) or "").strip()
+        if configured and configured != expected:
+            errors.append(f"research evaluation requires {field_name}={expected}; configured {configured}")
     if errors:
         raise ValueError("; ".join(errors))
     return replace(
         config,
-        evaluation_claude_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-        evaluation_claude_model=LIVE_EVALUATION_CLAUDE_MODEL,
+        evaluation_provider=LIVE_EVALUATION_PROVIDER,
+        evaluation_model_tier=LIVE_EVALUATION_MODEL_TIER,
+        evaluation_model=LIVE_EVALUATION_MODEL,
     )
 
 
@@ -8246,20 +8244,20 @@ class GeneratedCodeSemanticReviewerRuntimeSubsystem:
                 )
             if (
                 research_evaluation
-                and packet_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER
+                and packet_tier != self.reviewer.config.model_tier
             ):
                 errors.append(
                     "research-evaluation semantic reviewer must use the "
                     "configured evaluation tier "
-                    f"{LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
+                    f"{self.reviewer.config.model_tier}"
                 )
             if (
                 research_evaluation
-                and packet_model != LIVE_EVALUATION_CLAUDE_MODEL
+                and packet_model != self.reviewer.config.model
             ):
                 errors.append(
                     "research-evaluation semantic reviewer must use the exact "
-                    f"evaluation model {LIVE_EVALUATION_CLAUDE_MODEL}"
+                    f"evaluation model {self.reviewer.config.model}"
                 )
             return errors
 
@@ -19992,8 +19990,9 @@ def run_research_agent_runtime(
         generated_code_semantic_reviewer=generated_code_semantic_reviewer,
         formal_target_semantic_reviewer=formal_target_semantic_reviewer,
         proof_state_provider=proof_state_provider,
-        evaluation_claude_model_tier=config.evaluation_claude_model_tier,
-        evaluation_claude_model=config.evaluation_claude_model,
+        evaluation_provider=config.evaluation_provider,
+        evaluation_model_tier=config.evaluation_model_tier,
+        evaluation_model=config.evaluation_model,
     )
     if llm_topology["policy_status"] != "OK":
         raise ValueError(
@@ -20597,6 +20596,7 @@ def run_research_agent_runtime(
         results,
         evaluation_mode=config.evaluation_mode,
         schema_version=RUNTIME_SCHEMA_VERSION,
+        required_reviewer_model_tier=config.evaluation_model_tier or LIVE_EVALUATION_MODEL_TIER,
     )
     n_runtime_workspace_continuations = sum(
         int(
@@ -20618,10 +20618,9 @@ def run_research_agent_runtime(
         "runtime_evaluation_mode": config.evaluation_mode,
         "runtime_trace_task_payload_policy": "content_addressed_refs_and_bounded_tool_summaries",
         "runtime_blackboard_artifact_payload_policy": "content_addressed_refs",
-        "runtime_evaluation_claude_model_tier": (
-            config.evaluation_claude_model_tier
-        ),
-        "runtime_evaluation_claude_model": config.evaluation_claude_model,
+        "runtime_evaluation_provider": config.evaluation_provider,
+        "runtime_evaluation_model_tier": config.evaluation_model_tier,
+        "runtime_evaluation_model": config.evaluation_model,
         "n_questions": len(questions),
         "question_ids": [question.id for question in questions],
         "question_titles": [question.title for question in questions],
@@ -20777,8 +20776,9 @@ def _runtime_llm_topology(
         LLMFormalTargetSemanticReviewerAgent | None
     ) = None,
     proof_state_provider: ProofStateFeedbackProvider | None,
-    evaluation_claude_model_tier: str = "",
-    evaluation_claude_model: str = "",
+    evaluation_provider: str = "",
+    evaluation_model_tier: str = "",
+    evaluation_model: str = "",
 ) -> dict[str, Any]:
     agents = [
         _llm_agent_topology_row(
@@ -20842,22 +20842,25 @@ def _runtime_llm_topology(
         ),
     ]
     enabled = [row for row in agents if row["enabled"]]
-    evaluation_claude_model_tier = str(
-        evaluation_claude_model_tier or ""
-    ).strip().lower()
-    evaluation_claude_model = str(evaluation_claude_model or "").strip()
-    if evaluation_claude_model_tier:
+    evaluation_model_tier = str(evaluation_model_tier or "").strip().lower()
+    evaluation_model = str(evaluation_model or "").strip()
+    if evaluation_model_tier:
         for row in agents:
+            if row.get("backend_provider_name") in SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS:
+                row["expected_model_tier"] = row["model_tier"]
+                if "serious_model_tier" in row:
+                    row["expected_serious_model_tier"] = row["serious_model_tier"]
+                continue
             row["production_expected_model_tier"] = str(
                 row.get("expected_model_tier", "") or ""
             )
-            row["expected_model_tier"] = evaluation_claude_model_tier
+            row["expected_model_tier"] = evaluation_model_tier
             if "serious_model_tier" in row:
                 row["production_expected_serious_model_tier"] = str(
                     row.get("expected_serious_model_tier", "") or ""
                 )
                 row["expected_serious_model_tier"] = (
-                    evaluation_claude_model_tier
+                    evaluation_model_tier
                 )
     by_tier: dict[str, int] = {}
     by_provider: dict[str, int] = {}
@@ -20879,8 +20882,9 @@ def _runtime_llm_topology(
     violations = _llm_topology_policy_violations(agents) + [
         "resolved Claude model tier policy violation: " + violation
         for violation in resolved_claude_model_tier_policy_violations
+        if any(row.get("provider_name") == "anthropic" for row in enabled)
     ]
-    if evaluation_claude_model:
+    if evaluation_model:
         for row in enabled:
             providers = {
                 str(row.get("provider_name", "") or "").strip().lower(),
@@ -20889,29 +20893,25 @@ def _runtime_llm_topology(
             backend_provider = str(
                 row.get("backend_provider_name", "") or ""
             ).strip().lower()
-            if (
-                backend_provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS
-                and backend_provider != "anthropic"
-            ):
+            if backend_provider in SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS:
+                continue
+            if providers != {evaluation_provider}:
                 violations.append(
                     f"{row.get('subsystem')} research evaluation requires the "
-                    "Anthropic Haiku backend but resolved "
-                    f"{backend_provider}"
+                    f"{evaluation_provider} backend but resolved {sorted(providers)}"
                 )
                 continue
-            if "anthropic" not in providers:
-                continue
-            if str(row.get("model", "") or "") != evaluation_claude_model:
+            if str(row.get("model", "") or "") != evaluation_model:
                 violations.append(
                     f"{row.get('subsystem')} live evaluation requires model "
-                    f"{evaluation_claude_model} but resolved "
+                    f"{evaluation_model} but resolved "
                     f"{str(row.get('model', '') or 'missing')}"
                 )
             serious_model = str(row.get("serious_model", "") or "")
-            if serious_model and serious_model != evaluation_claude_model:
+            if serious_model and serious_model != evaluation_model:
                 violations.append(
                     f"{row.get('subsystem')} serious live evaluation requires "
-                    f"model {evaluation_claude_model} but resolved {serious_model}"
+                    f"model {evaluation_model} but resolved {serious_model}"
                 )
     agents_by_subsystem = {str(row.get("subsystem", "")): row for row in agents}
 
@@ -20956,8 +20956,9 @@ def _runtime_llm_topology(
             "model_tier_assignment_policy": (
                 "centralized_subsystem_policy_from_model_backend"
             ),
-            "evaluation_claude_model_tier": evaluation_claude_model_tier,
-            "evaluation_claude_model": evaluation_claude_model,
+            "evaluation_provider": evaluation_provider,
+            "evaluation_model_tier": evaluation_model_tier,
+            "evaluation_model": evaluation_model,
             "backend_boundary": (
                 "LLM backends generate structured proposals only. AgentRuntime owns "
                 "tool use, filesystem changes, execution, tests, Lean checks, and evidence promotion."

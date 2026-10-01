@@ -15,7 +15,7 @@ from .lean_kernel_promotion import lean_kernel_promotion_evidence_errors
 from .metric_protocol_stage import (
     METRIC_PROTOCOL_PHASE_PREEXECUTION_REVIEW_ACCEPTED,
 )
-from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
+from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER, SUPPORTED_LIVE_GENERATOR_PROVIDERS
 from .research_schema import (
     RESEARCH_EVIDENCE_DIMENSIONS,
     OpenResearchQuestion,
@@ -357,6 +357,7 @@ def _semantic_review_accepted(
     source_manifest_id: str,
     source_manifest: Mapping[str, Any],
     require_confirmatory_empirical_evidence: bool,
+    required_reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 ) -> bool:
     if not source_manifest_id or not source_manifest:
         return False
@@ -371,7 +372,7 @@ def _semantic_review_accepted(
         and row.get("independent_agent") is True
         and row.get("independent_invocation") is True
         and str(row.get("reviewer_model_tier", "") or "").lower()
-        == LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        == required_reviewer_model_tier
         and (
             not require_confirmatory_empirical_evidence
             or row.get("confirmatory_empirical_evidence_eligible") is True
@@ -386,6 +387,7 @@ def _latest_independently_reviewed_manifest(
     artifact_kind: str,
     source_subsystem: str,
     require_confirmatory_empirical_evidence: bool,
+    required_reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 ) -> tuple[str, Mapping[str, Any]]:
     for artifact_id, artifact in reversed(list(artifacts.items())):
         if artifact.get("artifact_kind") != artifact_kind:
@@ -395,6 +397,7 @@ def _latest_independently_reviewed_manifest(
             source_subsystem=source_subsystem,
             source_manifest_id=str(artifact_id),
             source_manifest=artifact,
+            required_reviewer_model_tier=required_reviewer_model_tier,
             require_confirmatory_empirical_evidence=(
                 require_confirmatory_empirical_evidence
             ),
@@ -405,6 +408,7 @@ def _latest_independently_reviewed_manifest(
 
 def _latest_executable_evaluator_confirmation_manifest(
     artifacts: Mapping[str, Mapping[str, Any]],
+    *, required_reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 ) -> tuple[str, Mapping[str, Any]]:
     for artifact_id, artifact in reversed(list(artifacts.items())):
         if artifact.get("artifact_kind") != "RuntimeSimulationManifest":
@@ -413,7 +417,7 @@ def _latest_executable_evaluator_confirmation_manifest(
             artifacts,
             confirmation_manifest_id=str(artifact_id),
             confirmation_manifest=artifact,
-            required_reviewer_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            required_reviewer_model_tier=required_reviewer_model_tier,
         )
         if binding["valid"] is True:
             return str(artifact_id), artifact
@@ -427,7 +431,7 @@ def _latest_serious_theory_packet(
         if (
             artifact.get("artifact_kind") == "TheoryDerivationPacket"
             and artifact.get("serious_theory_mode") is True
-            and str(artifact.get("provider", "") or "") in {"anthropic", "openai"}
+            and str(artifact.get("provider", "") or "") in SUPPORTED_LIVE_GENERATOR_PROVIDERS
             and artifact.get("packet_id") == artifact_id
         ):
             return str(artifact_id), artifact
@@ -521,12 +525,13 @@ def _simulation_has_bound_nonvacuous_metric_evidence(
     artifacts: Mapping[str, Mapping[str, Any]],
     simulation_manifest_id: str,
     requirement_set_id: str,
+    required_reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 ) -> bool:
     evaluator_binding = executable_evaluator_review_binding(
         artifacts,
         confirmation_manifest_id=simulation_manifest_id,
         confirmation_manifest=simulation_manifest,
-        required_reviewer_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        required_reviewer_model_tier=required_reviewer_model_tier,
     )
     if evaluator_binding["valid"] is True:
         prototypes = simulation_manifest.get(
@@ -689,6 +694,7 @@ def build_research_evaluation_summary(
     *,
     evaluation_mode: str,
     schema_version: str,
+    required_reviewer_model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
 ) -> dict[str, Any]:
     applies = str(evaluation_mode or "").strip() == "research_eval"
     rows: list[dict[str, Any]] = []
@@ -732,10 +738,13 @@ def build_research_evaluation_summary(
                     artifact_kind="RuntimeAlgorithmSandboxManifest",
                     source_subsystem="AlgorithmEngineer",
                     require_confirmatory_empirical_evidence=False,
+                    required_reviewer_model_tier=required_reviewer_model_tier,
                 )
             )
             simulation_manifest_id, simulation_manifest = (
-                _latest_executable_evaluator_confirmation_manifest(artifacts)
+                _latest_executable_evaluator_confirmation_manifest(
+                    artifacts, required_reviewer_model_tier=required_reviewer_model_tier,
+                )
             )
             if not simulation_manifest_id:
                 simulation_manifest_id, simulation_manifest = (
@@ -744,6 +753,7 @@ def build_research_evaluation_summary(
                         artifact_kind="RuntimeSimulationManifest",
                         source_subsystem="SimulationEvaluator",
                         require_confirmatory_empirical_evidence=True,
+                        required_reviewer_model_tier=required_reviewer_model_tier,
                     )
                 )
             theory_packet_id = str(
@@ -787,7 +797,7 @@ def build_research_evaluation_summary(
             artifacts,
             confirmation_manifest_id=simulation_manifest_id,
             confirmation_manifest=simulation_manifest,
-            required_reviewer_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+            required_reviewer_model_tier=required_reviewer_model_tier,
         )
         traces = result.get("traces", [])
         executed = {
@@ -831,7 +841,7 @@ def build_research_evaluation_summary(
                 and theory_packet.get("packet_id") == theory_packet_id
                 and theory_packet.get("serious_theory_mode") is True
                 and str(theory_packet.get("provider", "") or "")
-                in {"anthropic", "openai"}
+                in SUPPORTED_LIVE_GENERATOR_PROVIDERS
             ),
             "theory_preexecution_review_accepted": bool(
                 theory_preexecution_review_accepted(
@@ -874,6 +884,7 @@ def build_research_evaluation_summary(
                 source_manifest_id=algorithm_manifest_id,
                 source_manifest=algorithm_manifest,
                 require_confirmatory_empirical_evidence=False,
+                required_reviewer_model_tier=required_reviewer_model_tier,
             ),
             "generated_simulation_executed_and_passed": bool(
                 simulation_manifest.get("artifact_kind")
@@ -896,6 +907,7 @@ def build_research_evaluation_summary(
                     artifacts=artifacts,
                     simulation_manifest_id=simulation_manifest_id,
                     requirement_set_id=final_requirement_set_id,
+                    required_reviewer_model_tier=required_reviewer_model_tier,
                 )
             ),
             "simulation_semantic_review_accepted": bool(
@@ -906,6 +918,7 @@ def build_research_evaluation_summary(
                     source_manifest_id=simulation_manifest_id,
                     source_manifest=simulation_manifest,
                     require_confirmatory_empirical_evidence=True,
+                    required_reviewer_model_tier=required_reviewer_model_tier,
                 )
             ),
             "exact_formal_target_kernel_closed": (

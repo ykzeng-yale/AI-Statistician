@@ -194,12 +194,16 @@ def _run(
     max_tokens: int = 6000,
     reference_content: str = "reference",
     visible_question: dict[str, object] | None = None,
+    model: str = LIVE_EVALUATION_CLAUDE_MODEL,
+    model_tier: str = "haiku",
 ) -> dict[str, object]:
     reference_documents = [
         {"path": "reference.md", "sha256": "reference", "content": reference_content}
     ]
     return run_theory_semantic_gold_judge(
         provider=provider,
+        model=model,
+        model_tier=model_tier,
         workspace_root=provider.workspace_root,
         task_id="known-result",
         visible_question=(visible_question if visible_question is not None else
@@ -1254,6 +1258,43 @@ def test_review_sampling_contract_cannot_change_after_activation() -> None:
     with pytest.raises(ValueError, match="review_contract_hash mismatch"):
         _run(provider, activation_judgment=activation, max_tokens=7000)
 
+    assert provider.requests == []
+
+
+@pytest.mark.parametrize("strategy, protocol", [
+    ("integrated_single", 26), ("integrated_plus_adversarial", 27),
+])
+def test_local_review_has_fresh_model_bound_qualification(strategy, protocol) -> None:
+    packets = [*_keyed_calibration_packets(), _keyed_candidate_packet()]
+    if strategy == "integrated_plus_adversarial":
+        packets = [packet for packet in packets for _ in range(2)]
+    provider = _RecordingProvider(packets)
+    provider.provider_name = "local"  # Deterministic backend, no network or model call.
+    activation = _run(provider, model="Qwen3-4B-Instruct-2507", model_tier="local",
+                      candidate_is_reference=True, candidate_adjudication_strategy=strategy)
+    assert activation["protocol_version"] == protocol
+    assert activation["provider"] == "local"
+    assert activation["model"] == "Qwen3-4B-Instruct-2507"
+    assert activation["passed"] is True  # Mechanism evidence only.
+    unused = _RecordingProvider([])
+    unused.provider_name = "local"
+    original = deepcopy(activation)
+    legacy = _run(_RecordingProvider(packets), candidate_is_reference=True,
+                  candidate_adjudication_strategy=strategy)
+    with pytest.raises(ValueError, match="activation judgment (protocol_version|review_contract_hash|provider|model).*mismatch"):
+        _run(unused, model="Qwen3-4B-Instruct-2507", model_tier="local",
+             activation_judgment=legacy, candidate_adjudication_strategy=strategy)
+    assert unused.requests == []
+    assert activation == original
+    assert activation["review_contract_hash"] != legacy["review_contract_hash"]
+
+
+@pytest.mark.parametrize("cloud", ["anthropic", "openai"])
+def test_semantic_review_cannot_make_cloud_calls(cloud) -> None:
+    provider = _RecordingProvider([])
+    provider.provider_name = cloud
+    with pytest.raises(ValueError, match="local Qwen"):
+        _run(provider)
     assert provider.requests == []
 
 

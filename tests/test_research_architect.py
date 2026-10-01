@@ -4242,7 +4242,7 @@ def test_live_llm_cli_defaults_to_local_qwen(monkeypatch: pytest.MonkeyPatch) ->
     assert not hasattr(formal_target_reviewer.config, "max_validation_retries")
 
 
-def test_live_evaluation_builders_are_pinned_to_current_haiku(
+def test_live_evaluation_builders_are_pinned_to_local_qwen(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     for key in (
@@ -4267,14 +4267,15 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
 
     _apply_research_agent_runtime_evaluation_model_policy(args)
 
-    expected_model = "claude-haiku-4-5-20251001"
-    assert args.evaluation_claude_model_tier == "haiku"
-    assert args.evaluation_claude_model == expected_model
-    assert args.theory_model_tier == "haiku"
-    assert args.serious_theory_model_tier == "haiku"
+    expected_model = "Qwen3-4B-Instruct-2507"
+    assert args.evaluation_provider == "local"
+    assert args.evaluation_model_tier == "local"
+    assert args.evaluation_model == expected_model
+    assert args.theory_model_tier == "local"
+    assert args.serious_theory_model_tier == "local"
     default_model = default_generator_model(
         args.provider,
-        model_tier=args.evaluation_claude_model_tier,
+        model_tier=args.evaluation_model_tier,
     )
     agents = (
         _build_architect_coordinator_agent_from_args(
@@ -4307,7 +4308,8 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
         ),
     )
     assert all(agent is not None for agent in agents)
-    assert all(agent.config.model_tier == "haiku" for agent in agents)
+    assert all(agent.config.model_tier == "local" for agent in agents)
+    assert all(agent.provider.provider_name == "local" for agent in agents)
     assert all(agent.config.model == expected_model for agent in agents)
     assert not hasattr(agents[1].config, "max_validation_retries")
     assert not hasattr(agents[2].config, "max_validation_retries")
@@ -4315,7 +4317,7 @@ def test_live_evaluation_builders_are_pinned_to_current_haiku(
     assert not hasattr(agents[6].config, "max_validation_retries")
     assert not hasattr(agents[5].config, "max_validation_retries")
     architect = agents[0]
-    assert architect.metric_semantic_reviewer.config.model_tier == "haiku"
+    assert architect.metric_semantic_reviewer.config.model_tier == "local"
 
 
 def test_cli_never_offers_opus_as_a_live_model_tier() -> None:

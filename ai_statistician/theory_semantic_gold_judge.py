@@ -24,6 +24,9 @@ from .fingerprint import stable_hash
 from .model_backend import (
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    LIVE_EVALUATION_MODEL,
+    LIVE_EVALUATION_MODEL_TIER,
+    resolve_live_evaluation_model,
     ClientToolDefinition,
     ClientToolCall,
     ClientToolTurnBackend,
@@ -52,8 +55,8 @@ THEORY_SEMANTIC_ERROR_ASSESSMENTS = {
     "NO_MATERIAL_ERROR_FOUND": "PASS",
     "UNRESOLVED": "INCONCLUSIVE",
 }
-THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 24
-THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 25
+THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION = 26
+THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION = 27
 THEORY_SEMANTIC_CANDIDATE_STRATEGIES = frozenset({"integrated_single", "integrated_plus_adversarial"})
 SEMANTIC_REVIEW_SUBMIT_TOOL = "submit_semantic_review"
 SEMANTIC_REVIEW_MAX_TURNS = 32
@@ -62,9 +65,11 @@ SEMANTIC_REVIEW_MAX_NO_PROGRESS_TURNS = 3
 SEMANTIC_REVIEW_SCRATCH_SETTINGS = {"seed": 0, "replicates": 1, "timeout_s": 20}
 
 
-def _review_contract_hash(*, max_tokens: int) -> str:
+def _review_contract_hash(*, max_tokens: int, model: str = LIVE_EVALUATION_MODEL) -> str:
     return stable_hash({
-        "transport": "retained_evaluator_complete_request_contract_v3",
+        "transport": ("retained_evaluator_complete_request_contract_v3"
+                      if model == LIVE_EVALUATION_CLAUDE_MODEL
+                      else "retained_evaluator_complete_request_contract_v4"),
         "max_turns": SEMANTIC_REVIEW_MAX_TURNS,
         "max_tool_calls": SEMANTIC_REVIEW_MAX_TOOL_CALLS,
         "max_no_progress_turns": SEMANTIC_REVIEW_MAX_NO_PROGRESS_TURNS,
@@ -73,7 +78,7 @@ def _review_contract_hash(*, max_tokens: int) -> str:
         "request_contracts": [
             client_tool_session_contract_fingerprint(_semantic_review_request(
                 required_case_ids=("case",), claim_ids=claim_ids, evidence_refs=("evidence",),
-                documents_available=documents_available, phase=phase, max_tokens=max_tokens,
+                documents_available=documents_available, phase=phase, max_tokens=max_tokens, model=model,
             ))
             for phase in ("candidate_integrated", "candidate_integrated_adversarial")
             for claim_ids in ((), ("claim",))
@@ -94,11 +99,13 @@ def _response_calls(responses: Sequence[GeneratorResponse]) -> int:
     return sum(response.metadata["model_calls"] for response in responses)
 
 
-def _semantic_protocol_version(candidate_adjudication_strategy: str) -> int:
+def _semantic_protocol_version(candidate_adjudication_strategy: str, *, model: str = LIVE_EVALUATION_MODEL) -> int:
+    # Historical qualification is readable, never reusable by the local evaluator.
+    legacy = model == LIVE_EVALUATION_CLAUDE_MODEL
     if candidate_adjudication_strategy == "integrated_single":
-        return THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION
+        return 24 if legacy else THEORY_SEMANTIC_GOLD_JUDGE_PROTOCOL_VERSION
     if candidate_adjudication_strategy == "integrated_plus_adversarial":
-        return THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION
+        return 25 if legacy else THEORY_SEMANTIC_ADVERSARIAL_GOLD_JUDGE_PROTOCOL_VERSION
     raise ValueError(
         "candidate adjudication strategy must be integrated_single or "
         "integrated_plus_adversarial"
@@ -185,7 +192,7 @@ def _semantic_review_request(
     documents_available: bool,
     phase: str,
     max_tokens: int,
-    model: str = LIVE_EVALUATION_CLAUDE_MODEL,
+    model: str = LIVE_EVALUATION_MODEL,
     messages: Sequence[Mapping[str, Any]] = (),
     metadata: Mapping[str, Any] | None = None,
 ) -> ClientToolTurnRequest:
@@ -411,7 +418,7 @@ def _generate_semantic_assessment_batch(
             "provider_name": str(getattr(provider, "provider_name", "") or ""),
             "model_tier": model_tier,
             "review_input_fingerprint": stable_hash(payload),
-            "review_contract_hash": _review_contract_hash(max_tokens=max_tokens),
+            "review_contract_hash": _review_contract_hash(max_tokens=max_tokens, model=model),
         },
     )
     scratch_refs: list[dict[str, Any]] = []
@@ -483,7 +490,7 @@ def _generate_semantic_assessment_batch(
     report_ref = _private_document_ref(workspace / "review.md", loop.terminal_payload["submission"]["review_markdown"])
     audit_ref = _private_document_ref(workspace / "review.json", json.dumps({
         "phase": phase, "model_calls": loop.turns, "provider": loop.provider, "model": loop.model,
-        "input_hash": stable_hash(payload), "contract_hash": _review_contract_hash(max_tokens=max_tokens),
+        "input_hash": stable_hash(payload), "contract_hash": _review_contract_hash(max_tokens=max_tokens, model=model),
         "report_ref": report_ref, "session_ref": session_ref, "history": loop.history,
         "scratch_execution_refs": scratch_refs, "provider_usage": loop.provider_usage,
         "document_refs": document_refs,
@@ -588,10 +595,10 @@ def theory_semantic_activation_judgment_errors(
     """Validate a frozen evaluator qualification without rerunning the model."""
 
     errors: list[str] = []
-    protocol_version = _semantic_protocol_version(candidate_adjudication_strategy)
+    protocol_version = _semantic_protocol_version(candidate_adjudication_strategy, model=model)
     expected_values = {
         "protocol_version": protocol_version,
-        "review_contract_hash": _review_contract_hash(max_tokens=max_tokens),
+        "review_contract_hash": _review_contract_hash(max_tokens=max_tokens, model=model),
         "task_id_hash": stable_hash(task_id),
         "visible_question_hash": stable_hash(visible_question),
         "semantic_artifact_role": semantic_artifact_role,
@@ -673,7 +680,7 @@ def theory_semantic_activation_judgment_errors(
                 or audit["provider"] != provider_name or audit["model"] != model
                 or type(audit["model_calls"]) is not int
                 or audit["model_calls"] < 1 or len(history) != audit["model_calls"]
-                or audit["contract_hash"] != _review_contract_hash(max_tokens=max_tokens)):
+                or audit["contract_hash"] != _review_contract_hash(max_tokens=max_tokens, model=model)):
                 raise ValueError("review workspace authority mismatch")
             audits.append(audit)
         except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -701,8 +708,8 @@ def run_theory_semantic_gold_judge(
     rubric: Mapping[str, Any],
     calibration_cases: Sequence[Mapping[str, Any]],
     candidate_mode_negative_cases: Sequence[Mapping[str, Any]] = (),
-    model: str = LIVE_EVALUATION_CLAUDE_MODEL,
-    model_tier: str = LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    model: str = LIVE_EVALUATION_MODEL,
+    model_tier: str = LIVE_EVALUATION_MODEL_TIER,
     max_tokens: int = 6000,
     semantic_artifact_role: str = "theory",
     activation_judgment: Mapping[str, Any] | None = None,
@@ -710,8 +717,16 @@ def run_theory_semantic_gold_judge(
 ) -> dict[str, Any]:
     """Review immutable documents in independent evaluator-only tool sessions."""
 
-    if model != LIVE_EVALUATION_CLAUDE_MODEL or model_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER:
-        raise ValueError("semantic judge requires exact Haiku without escalation")
+    provider_name = str(getattr(provider, "provider_name", "") or "")
+    if provider_name != "static":
+        expected_model = resolve_live_evaluation_model(provider_name)
+        if model != expected_model or model_tier != LIVE_EVALUATION_MODEL_TIER:
+            raise ValueError("semantic judge requires the exact local Qwen configuration without escalation")
+    elif (model, model_tier) not in {
+        (LIVE_EVALUATION_MODEL, LIVE_EVALUATION_MODEL_TIER),
+        (LIVE_EVALUATION_CLAUDE_MODEL, LIVE_EVALUATION_CLAUDE_MODEL_TIER),
+    }:
+        raise ValueError("static semantic fixture requires an explicit recorded model configuration")
     if not callable(getattr(provider, "generate_client_tool_turn", None)):
         raise ValueError("semantic judge provider requires native client-tool turns")
     workspace_root = Path(workspace_root).expanduser().resolve()
@@ -722,7 +737,7 @@ def run_theory_semantic_gold_judge(
     artifact_role = str(semantic_artifact_role).strip()
     if not artifact_role:
         raise ValueError("semantic artifact role must be nonempty")
-    protocol_version = _semantic_protocol_version(candidate_adjudication_strategy)
+    protocol_version = _semantic_protocol_version(candidate_adjudication_strategy, model=model)
     claim_ids = _rubric_claim_ids(rubric)
     case_ids = _calibration_case_ids(calibration_cases)
     calibration_responses: list[Any] = []
@@ -863,7 +878,7 @@ def run_theory_semantic_gold_judge(
         ),
         "model_tier": model_tier,
         "n_model_calls": _response_calls(candidate_responses + calibration_responses + candidate_mode_negative_responses),
-        "review_contract_hash": _review_contract_hash(max_tokens=max_tokens),
+        "review_contract_hash": _review_contract_hash(max_tokens=max_tokens, model=model),
         "review_workspace_refs": [response.metadata["review_workspace_ref"] for response in
                                   calibration_responses + candidate_mode_negative_responses + candidate_responses],
         "calibration_candidate_context_isolated": True,

@@ -17,7 +17,11 @@ from .estimator_interface_contract import (
     frozen_estimator_execution_contract_errors,
     frozen_estimator_execution_contract_id,
 )
-from .model_backend import AnthropicGeneratorBackend, GeneratorBackend
+from .model_backend import (
+    GeneratorBackend, LIVE_EVALUATION_MODEL, LIVE_EVALUATION_MODEL_TIER,
+    LIVE_EVALUATION_PROVIDER, resolve_live_evaluation_model,
+)
+from .local_model_backend import LocalChatGeneratorBackend
 from .research_schema import frozen_formal_target_contract_errors
 from .research_evaluation import research_evaluation_evidence_hash
 from .research_source_library import source_replication_execution_integrity_ok
@@ -101,6 +105,7 @@ def validate_research_gold_benchmark_activation(
     run_theory_semantic_judge: GoldTheorySemanticJudgeRunner | None = None,
     theory_semantic_judge_provider: GeneratorBackend | None = None,
     require_prequalified_activation: bool = False,
+    evaluation_model_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Execute or verify future-task calibration through frozen validators."""
 
@@ -114,9 +119,13 @@ def validate_research_gold_benchmark_activation(
                 + ", ".join(missing_task_ids)
             )
     benchmark = _load_benchmark_manifest(path.resolve())
+    if evaluation_model_policy is not None:
+        model_policy = benchmark.get("model_policy", {})
+        if any(model_policy.get(key) != value for key, value in evaluation_model_policy.items()):
+            raise ValueError("gold benchmark model policy differs from the current runtime; historical qualifications cannot be reused")
     schema_version = int(benchmark.get("schema_version", 0) or 0)
-    if schema_version not in {3, 4}:
-        raise ValueError("live gold activation requires schema_version 3 or 4")
+    if schema_version not in {3, 4, 5}:
+        raise ValueError("live gold activation requires schema_version 3, 4, or 5")
     semantic_rows: list[dict[str, Any]] = []
     if schema_version >= 4:
         visible_by_id = dict(visible_questions or {})
@@ -1874,7 +1883,8 @@ def _run_hidden_document_semantic_evaluation(
         }
         if run_semantic_judge is not None:
             return dict(run_semantic_judge(**kwargs)), ""
-        provider = semantic_judge_provider or AnthropicGeneratorBackend(
+        resolve_live_evaluation_model(str(evaluator["provider"]))
+        provider = semantic_judge_provider or LocalChatGeneratorBackend(
             timeout_s=float(evaluator.get("timeout_seconds", 120) or 120)
         )
         return dict(
@@ -2564,9 +2574,9 @@ def _validate_benchmark_manifest(
     if (
         isinstance(schema_version, bool)
         or not isinstance(schema_version, int)
-        or schema_version not in {1, 2, 3, 4}
+        or schema_version not in {1, 2, 3, 4, 5}
     ):
-        errors.append("schema_version must be 1, 2, 3, or 4")
+        errors.append("schema_version must be 1, 2, 3, 4, or 5")
         schema_version = 0
     if benchmark.get("artifact_kind") != "ResearchCapabilityGoldBenchmark":
         errors.append("artifact_kind must be ResearchCapabilityGoldBenchmark")
@@ -2582,13 +2592,17 @@ def _validate_benchmark_manifest(
         if benchmark.get(field) is not False:
             errors.append(f"{field} must be false")
     model_policy = benchmark.get("model_policy", {})
-    if not (
-        isinstance(model_policy, Mapping)
-        and model_policy.get("model_tier") == "haiku"
-        and model_policy.get("model") == "claude-haiku-4-5-20251001"
-        and model_policy.get("automatic_tier_escalation_allowed") is False
+    expected_policy = {
+        "model_tier": LIVE_EVALUATION_MODEL_TIER if schema_version >= 5 else "haiku",
+        "model": LIVE_EVALUATION_MODEL if schema_version >= 5 else "claude-haiku-4-5-20251001",
+        "automatic_tier_escalation_allowed": False,
+    }
+    if schema_version >= 5:
+        expected_policy["provider"] = LIVE_EVALUATION_PROVIDER
+    if not isinstance(model_policy, Mapping) or any(
+        model_policy.get(key) != value for key, value in expected_policy.items()
     ):
-        errors.append("gold benchmark model policy must be exact Haiku without escalation")
+        errors.append("gold benchmark model policy must match its exact recorded model without escalation")
     visible_path = _project_path(
         str(benchmark.get("model_visible_questions_path", "") or ""),
         project_root=project_root,
@@ -2885,6 +2899,7 @@ def _validate_benchmark_manifest(
                         task_index=index,
                         project_root=project_root,
                         artifact_label=semantic_label,
+                        model_policy=expected_policy if schema_version >= 5 else None,
                         require_candidate_mode_negative_cases=(
                             schema_version >= 4
                         ),
@@ -2934,18 +2949,18 @@ def _hidden_theory_semantic_evaluator_validation_errors(
     project_root: Path,
     artifact_label: str = "theory",
     require_candidate_mode_negative_cases: bool = False,
+    model_policy: Mapping[str, Any] | None = None,
 ) -> list[str]:
     label = (
         f"active task {task_index} hidden {artifact_label} semantic evaluator"
     )
     errors: list[str] = []
-    if not (
-        evaluator.get("provider") == "anthropic"
-        and evaluator.get("model_tier") == "haiku"
-        and evaluator.get("model") == "claude-haiku-4-5-20251001"
-        and evaluator.get("automatic_tier_escalation_allowed") is False
-    ):
-        errors.append(f"{label} must use exact Haiku without escalation")
+    expected_policy = model_policy if model_policy is not None else {
+        "provider": "anthropic", "model_tier": "haiku",
+        "model": "claude-haiku-4-5-20251001", "automatic_tier_escalation_allowed": False,
+    }
+    if any(evaluator.get(key) != value for key, value in expected_policy.items()):
+        errors.append(f"{label} must use the benchmark's exact model without escalation")
     candidate_strategy = str(
         evaluator.get(
             "candidate_adjudication_strategy",

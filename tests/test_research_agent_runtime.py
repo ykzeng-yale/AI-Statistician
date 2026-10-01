@@ -197,21 +197,20 @@ def test_architect_runtime_forwards_bound_theory_scratch_refs(monkeypatch) -> No
     assert "theory_workspace_evidence_ref" in captured["architect_context"]
 
 
-def test_research_evaluation_is_pinned_to_exact_haiku_snapshot() -> None:
+def test_research_evaluation_is_pinned_to_local_qwen() -> None:
     normalized = _normalized_runtime_evaluation_model_config(
         ResearchAgentRuntimeConfig(evaluation_mode="capability_eval")
     )
 
-    assert normalized.evaluation_claude_model_tier == (
-        LIVE_EVALUATION_CLAUDE_MODEL_TIER
-    )
-    assert normalized.evaluation_claude_model == LIVE_EVALUATION_CLAUDE_MODEL
+    assert normalized.evaluation_provider == "local"
+    assert normalized.evaluation_model_tier == "local"
+    assert normalized.evaluation_model == "Qwen3-4B-Instruct-2507"
 
-    with pytest.raises(ValueError, match="requires evaluation_claude_model"):
+    with pytest.raises(ValueError, match="requires evaluation_model"):
         _normalized_runtime_evaluation_model_config(
             ResearchAgentRuntimeConfig(
                 evaluation_mode="research_eval",
-                evaluation_claude_model="claude-sonnet-4-5-20250929",
+                evaluation_model="claude-sonnet-4-5-20250929",
             )
         )
 
@@ -2883,22 +2882,22 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
             "unresolved_gaps": "required",
         },
     )
-    exact_haiku_config = SimpleNamespace(
-        provider_name="anthropic",
-        model=LIVE_EVALUATION_CLAUDE_MODEL,
-        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-        serious_model=LIVE_EVALUATION_CLAUDE_MODEL,
-        serious_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    local_config = SimpleNamespace(
+        provider_name="local",
+        model="Qwen3-4B-Instruct-2507",
+        model_tier="local",
+        serious_model="Qwen3-4B-Instruct-2507",
+        serious_model_tier="local",
         max_tokens=1_000,
         serious_max_tokens=1_000,
         temperature=0.0,
     )
 
     class Provider:
-        provider_name = "anthropic"
+        provider_name = "local"
 
     class UnusedArchitect:
-        config = exact_haiku_config
+        config = local_config
         provider = Provider()
         metric_semantic_reviewer = None
 
@@ -2908,7 +2907,7 @@ def test_full_runtime_honors_required_source_replication_before_model_route(
             raise AssertionError("frozen source-only intent must bypass Architect")
 
     class SourceOnlyTheoryDeveloper:
-        config = exact_haiku_config
+        config = local_config
         provider = Provider()
         research_sources = None
         research_source_execution = object()
@@ -2972,12 +2971,12 @@ def test_full_runtime_gives_architect_exact_configured_workspace_inventory(
         title="Runtime workspace inventory",
         description="Plan one theory-only investigation from configured capabilities.",
     )
-    exact_haiku_config = SimpleNamespace(
-        provider_name="anthropic",
-        model=LIVE_EVALUATION_CLAUDE_MODEL,
-        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-        serious_model=LIVE_EVALUATION_CLAUDE_MODEL,
-        serious_model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    local_config = SimpleNamespace(
+        provider_name="local",
+        model="Qwen3-4B-Instruct-2507",
+        model_tier="local",
+        serious_model="Qwen3-4B-Instruct-2507",
+        serious_model_tier="local",
         max_tokens=1_000,
         serious_max_tokens=1_000,
         temperature=0.0,
@@ -3021,10 +3020,10 @@ def test_full_runtime_gives_architect_exact_configured_workspace_inventory(
     }
 
     class Provider:
-        provider_name = "anthropic"
+        provider_name = "local"
 
     class CapturingArchitect:
-        config = exact_haiku_config
+        config = local_config
         provider = Provider()
         metric_semantic_reviewer = None
 
@@ -3034,16 +3033,16 @@ def test_full_runtime_gives_architect_exact_configured_workspace_inventory(
             return architect_module._normalize_architect_packet(
                 decision,
                 question=question,
-                model=LIVE_EVALUATION_CLAUDE_MODEL,
-                model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-                provider_name="anthropic",
+                model="Qwen3-4B-Instruct-2507",
+                model_tier="local",
+                provider_name="local",
                 raw_response=json.dumps(decision),
                 runtime_config=runtime_config,
                 architect_context=architect_context,
             )
 
     class UnusedTheoryDeveloper:
-        config = exact_haiku_config
+        config = local_config
         provider = Provider()
         research_sources = None
         research_source_execution = None

@@ -126,8 +126,9 @@ from .architect_research_path_policy_eval import (
 )
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from .model_backend import (
-    LIVE_EVALUATION_CLAUDE_MODEL,
-    LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+    LIVE_EVALUATION_MODEL,
+    LIVE_EVALUATION_MODEL_TIER,
+    LIVE_EVALUATION_PROVIDER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     LIVE_CLAUDE_MODEL_TIERS,
     SUPPORTED_GENERATOR_PROVIDERS,
@@ -719,6 +720,7 @@ SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
 CLIENT_TOOL_WORKSPACE_PROVIDER_CHOICES = (
     "same",
     "anthropic",
+    "local",
     "none",
 )
 
@@ -733,7 +735,7 @@ def _runtime_evaluation_model_tier(args: argparse.Namespace) -> str:
         getattr(args, "capability_eval", False)
     )
     if evaluation_mode:
-        return LIVE_EVALUATION_CLAUDE_MODEL_TIER
+        return LIVE_EVALUATION_MODEL_TIER
     return ""
 
 
@@ -764,25 +766,29 @@ def _runtime_evaluation_model_name(
 ) -> str:
     if (
         _runtime_evaluation_model_tier(args)
-        and _runtime_resolved_provider_choice(args, provider_choice) == "anthropic"
+        and _runtime_resolved_provider_choice(args, provider_choice) == LIVE_EVALUATION_PROVIDER
     ):
-        return LIVE_EVALUATION_CLAUDE_MODEL
+        return LIVE_EVALUATION_MODEL
     return str(configured_model or "")
 
 
 def _apply_research_agent_runtime_evaluation_model_policy(
     args: argparse.Namespace,
 ) -> None:
-    """Pin live research evaluations to the current source-checked Haiku."""
+    """Pin new live research evaluations before constructing any backend."""
 
     evaluation_tier = _runtime_evaluation_model_tier(args)
     if not evaluation_tier:
         return
-    args.evaluation_claude_model_tier = evaluation_tier
-    args.evaluation_claude_model = LIVE_EVALUATION_CLAUDE_MODEL
+    args.evaluation_provider = LIVE_EVALUATION_PROVIDER
+    args.evaluation_model_tier = evaluation_tier
+    args.evaluation_model = LIVE_EVALUATION_MODEL
     for field_name in _RUNTIME_EVALUATION_MODEL_TIER_FIELDS:
         if hasattr(args, field_name):
             setattr(args, field_name, evaluation_tier)
+    errors = _research_agent_runtime_evaluation_model_policy_errors(args)
+    if errors:
+        raise ValueError("; ".join(errors))
 
 
 def _research_agent_runtime_evaluation_model_policy_errors(
@@ -793,19 +799,32 @@ def _research_agent_runtime_evaluation_model_policy_errors(
         return []
     errors: list[str] = []
     if str(
-        getattr(args, "evaluation_claude_model_tier", "") or ""
+        getattr(args, "evaluation_model_tier", "") or ""
     ) != evaluation_tier:
         errors.append(
             "live research evaluation model policy was not applied before "
             "runtime construction"
         )
-    if str(getattr(args, "evaluation_claude_model", "") or "") != (
-        LIVE_EVALUATION_CLAUDE_MODEL
+    if str(getattr(args, "evaluation_model", "") or "") != (
+        LIVE_EVALUATION_MODEL
     ):
         errors.append(
             "live research evaluation model policy did not pin the current "
-            f"Haiku model {LIVE_EVALUATION_CLAUDE_MODEL}"
+            f"local Qwen model {LIVE_EVALUATION_MODEL}"
         )
+    if getattr(args, "evaluation_provider", "") != LIVE_EVALUATION_PROVIDER:
+        errors.append("live evaluation provider policy was not applied")
+    for field_name in (
+        "provider", "architect_coordinator_provider", "simulation_engineer_provider",
+        "algorithm_engineer_provider", "formalizer_provider", "critic_evaluator_provider",
+        "generated_code_semantic_reviewer_provider", "formal_target_semantic_reviewer_provider",
+    ):
+        choice = str(getattr(args, field_name, "same") or "same")
+        if choice == "none":
+            continue
+        resolved = _runtime_resolved_provider_choice(args, choice)
+        if resolved != LIVE_EVALUATION_PROVIDER:
+            errors.append(f"live research evaluations require local Qwen for {field_name}; configured {resolved}")
     for field_name in _RUNTIME_EVALUATION_MODEL_TIER_FIELDS:
         if not hasattr(args, field_name):
             continue
@@ -3551,6 +3570,12 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         cross_family_protocol_selection,
         protocol_selection_errors,
     ) = _cross_family_eval_protocol_selection(args, questions)
+    if cross_family_protocol_selection and cross_family_protocol_selection.get(
+        "evaluation_claude_model"
+    ) != getattr(args, "evaluation_model", ""):
+        protocol_selection_errors.append(
+            "frozen cross-family protocol has a different model identity; do not relabel a historical Haiku protocol as Qwen"
+        )
     if protocol_selection_errors:
         print("\nAI Statistician Agent Runtime rejected evaluation protocol")
         print("=" * 72)
@@ -3631,6 +3656,12 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     for question in questions
                 },
                 require_prequalified_activation=True,
+                evaluation_model_policy={
+                    "provider": args.evaluation_provider,
+                    "model": args.evaluation_model,
+                    "model_tier": args.evaluation_model_tier,
+                    "automatic_tier_escalation_allowed": False,
+                },
             )
         except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
             print("\nAI Statistician Agent Runtime rejected gold evaluation scope")
@@ -3843,11 +3874,12 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 if getattr(args, "research_eval", False)
                 else "debug"
             ),
-            evaluation_claude_model_tier=str(
-                getattr(args, "evaluation_claude_model_tier", "") or ""
+            evaluation_provider=str(getattr(args, "evaluation_provider", "") or ""),
+            evaluation_model_tier=str(
+                getattr(args, "evaluation_model_tier", "") or ""
             ),
-            evaluation_claude_model=str(
-                getattr(args, "evaluation_claude_model", "") or ""
+            evaluation_model=str(
+                getattr(args, "evaluation_model", "") or ""
             ),
             formalizer_candidate_local_lean=bool(
                 getattr(args, "formalizer_candidate_local_lean", False)
@@ -4022,7 +4054,7 @@ def _apply_research_agent_runtime_research_eval_profile(
             "--research-eval cannot be combined with --capability-eval or "
             "--capability-eval-preset"
         )
-    if str(getattr(args, "provider", "") or "") not in {"anthropic", "openai"}:
+    if str(getattr(args, "provider", "") or "") not in SUPPORTED_LIVE_GENERATOR_PROVIDERS:
         args.provider = _default_live_generator_provider()
     for field_name in (
         "architect_coordinator_provider",
@@ -4056,7 +4088,7 @@ def _apply_research_agent_runtime_research_eval_profile(
         LIVE_EVALUATION_MIN_ARCHITECT_MAX_TOKENS,
         int(getattr(args, "architect_max_tokens", 0) or 0),
     )
-    args.serious_theory_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
+    args.serious_theory_model_tier = LIVE_EVALUATION_MODEL_TIER
     args.architect_metric_semantic_reviewer_max_tokens = max(
         LIVE_EVALUATION_MIN_METRIC_REVIEWER_MAX_TOKENS,
         int(
@@ -4100,7 +4132,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
     if preset not in {"minimal-live", "full-live"}:
         raise ValueError(f"unsupported capability eval preset: {preset}")
 
-    if str(getattr(args, "provider", "") or "") not in {"anthropic", "openai"}:
+    if str(getattr(args, "provider", "") or "") not in SUPPORTED_LIVE_GENERATOR_PROVIDERS:
         args.provider = _default_live_generator_provider()
     for field_name in (
         "architect_coordinator_provider",
@@ -4185,7 +4217,7 @@ def _apply_research_agent_runtime_capability_eval_preset(
         if not str(
             getattr(args, "serious_theory_model_tier", "") or ""
         ).strip():
-            args.serious_theory_model_tier = LIVE_EVALUATION_CLAUDE_MODEL_TIER
+            args.serious_theory_model_tier = LIVE_EVALUATION_MODEL_TIER
         if not hasattr(args, "serious_theory_llm_model"):
             args.serious_theory_llm_model = ""
         args.serious_theory_max_tokens = max(
@@ -4274,7 +4306,7 @@ def _research_agent_runtime_formalizer_resolves_to_live_provider(
     resolved_provider = (
         main_provider if configured_provider == "same" else configured_provider
     )
-    return resolved_provider in {"anthropic", "openai"}
+    return resolved_provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS
 
 
 def _effective_resume_through_architect(
@@ -4502,8 +4534,8 @@ def _research_agent_runtime_capability_config_errors(
     args: argparse.Namespace,
 ) -> list[str]:
     errors: list[str] = []
-    if getattr(args, "provider", "") not in {"anthropic", "openai"}:
-        errors.append("capability eval requires --provider anthropic or --provider openai")
+    if getattr(args, "provider", "") != LIVE_EVALUATION_PROVIDER:
+        errors.append("capability eval requires --provider local (Qwen)")
     subsystem_provider_fields = (
         ("architect_coordinator_provider", "ArchitectCoordinator"),
         ("simulation_engineer_provider", "SimulationEngineer"),
@@ -6705,7 +6737,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "model for independent generated-code semantic review; Anthropic "
             "production use is capped at the configured Claude Sonnet tier, while "
-            "live evaluations are pinned to the current Haiku model"
+            "live evaluations are pinned to the local Qwen model"
         ),
     )
     research_agent_runtime.add_argument(

@@ -706,7 +706,7 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
         research_eval=True,
         capability_eval=False,
         capability_eval_preset="none",
-        provider="anthropic",
+        provider="local",
         architect_coordinator_provider="same",
         simulation_engineer_provider="same",
         algorithm_engineer_provider="same",
@@ -734,9 +734,10 @@ def test_research_eval_profile_enables_live_research_agents_only() -> None:
     assert args.recommended_research_path == "simulation_first"
     assert args.architect_max_tokens == 3000
     assert args.architect_metric_semantic_reviewer_max_tokens == 16000
-    assert args.serious_theory_model_tier == "haiku"
-    assert args.evaluation_claude_model_tier == "haiku"
-    assert args.evaluation_claude_model == "claude-haiku-4-5-20251001"
+    assert args.serious_theory_model_tier == "local"
+    assert args.evaluation_provider == "local"
+    assert args.evaluation_model_tier == "local"
+    assert args.evaluation_model == "Qwen3-4B-Instruct-2507"
     assert args.serious_theory_max_tokens >= 16000
     assert args.llm_timeout_seconds == 360.0
     assert args.max_iterations == 24
@@ -934,7 +935,8 @@ def test_simulation_guard_blocks_before_proposal_or_execution() -> None:
     assert not result.evidence_entries
 
 
-def test_research_evaluation_summary_requires_every_research_artifact() -> None:
+@pytest.mark.parametrize("tier", ["haiku", "local"])
+def test_research_evaluation_summary_requires_every_research_artifact(tier: str) -> None:
     question = {"id": "generic_research_eval"}
     artifacts = {
         "theory": {
@@ -942,7 +944,7 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
             "packet_id": "theory",
             "question": question,
             "serious_theory_mode": True,
-            "provider": "anthropic",
+            "provider": "local" if tier == "local" else "anthropic",
         },
         "architect": {
             "artifact_kind": "ArchitectCoordinatorProposalPacket",
@@ -1063,7 +1065,7 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         "independent_agent": True,
         "independent_invocation": True,
         "independent_model": True,
-        "reviewer_model_tier": LIVE_EVALUATION_CLAUDE_MODEL_TIER,
+        "reviewer_model_tier": tier,
         "confirmatory_empirical_evidence_eligible": True,
     }
     artifacts["algorithm_review"] = {
@@ -1092,7 +1094,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
     }
 
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is True
     assert summary["rows"][0]["requirements"][
@@ -1101,7 +1104,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
 
     preflight_acceptance = artifacts.pop("theory_preflight_acceptance")
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is False
     assert summary["rows"][0]["requirements"][
@@ -1111,7 +1115,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
 
     artifacts["critic_proposal"]["gap_disclosure"].pop("evidence_refs")
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is False
     artifacts["critic_proposal"]["gap_disclosure"]["evidence_refs"] = [
@@ -1121,7 +1126,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         "INCONCLUSIVE"
     )
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is False
     artifacts["critic_proposal"]["research_disposition"]["status"] = "ACCEPT"
@@ -1149,7 +1155,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         artifacts["simulation"]
     )
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is True
     assert summary["rows"][0]["requirements"][
@@ -1160,7 +1167,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         "confirmatory_empirical_evidence_eligible"
     ] = False
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is False
     artifacts["simulation_review"][
@@ -1173,7 +1181,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
     }
     artifacts["algorithm"]["n_passed"] = 0
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is False
     assert summary["all_questions_mode_conformant"] is True
@@ -1188,7 +1197,8 @@ def test_research_evaluation_summary_requires_every_research_artifact() -> None:
         {"subsystem": "FormalizationEvaluator"},
     )
     summary = build_research_evaluation_summary(
-        [result], evaluation_mode="research_eval", schema_version="test"
+        [result], evaluation_mode="research_eval", schema_version="test",
+        required_reviewer_model_tier=tier,
     )
     assert summary["all_questions_research_loop_complete"] is True
     assert summary["all_questions_mode_conformant"] is False

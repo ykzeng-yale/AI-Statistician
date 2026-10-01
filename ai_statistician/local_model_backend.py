@@ -96,6 +96,8 @@ class LocalChatGeneratorBackend:
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"local model HTTP {exc.code}: {detail}") from exc
+        if raw.get("model") != payload["model"]:
+            raise ValueError(f"local server model identity mismatch: requested {payload['model']!r}, reported {raw.get('model')!r}")
         usage = raw.get("usage", {})
         metadata = {
             "generator_only": True, "retry_count": 0,

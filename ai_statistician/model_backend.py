@@ -28,6 +28,9 @@ PROHIBITED_AGENT_GENERATOR_PROVIDERS = (
 )
 DEFAULT_LIVE_GENERATOR_PROVIDER = "local"
 DEFAULT_LOCAL_GENERATOR_MODEL = "Qwen3-4B-Instruct-2507"
+LIVE_EVALUATION_PROVIDER = "local"
+LIVE_EVALUATION_MODEL = DEFAULT_LOCAL_GENERATOR_MODEL
+LIVE_EVALUATION_MODEL_TIER = "local"
 DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL = "claude-sonnet-5"
 DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
@@ -377,17 +380,14 @@ def resolve_live_evaluation_model(
     requested_model: str = "",
     env: Mapping[str, str] | None = None,
 ) -> str:
-    """Resolve live-evaluation calls without allowing Claude tier drift."""
+    """Pin new live evaluations to local Qwen; static fixtures remain offline."""
 
     provider = str(provider_name or "").strip().lower()
-    if provider == "anthropic":
-        return LIVE_EVALUATION_CLAUDE_MODEL
-    return default_generator_model(
-        provider,
-        requested_model,
-        env=env,
-        model_tier=LIVE_EVALUATION_CLAUDE_MODEL_TIER,
-    )
+    if provider in SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS:
+        return requested_model or DEFAULT_STATIC_GENERATOR_MODEL
+    if provider != LIVE_EVALUATION_PROVIDER:
+        raise ValueError("future model evaluations require local Qwen; cloud escalation is forbidden")
+    return LIVE_EVALUATION_MODEL
 
 
 def claude_model_tier_for_model(model: str) -> str:

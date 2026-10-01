@@ -8,7 +8,10 @@ from urllib.error import HTTPError
 
 import pytest
 
-from ai_statistician.cli import _build_theory_generator_backend, build_parser
+from ai_statistician.cli import (
+    _apply_research_agent_runtime_evaluation_model_policy,
+    _build_theory_generator_backend, build_parser,
+)
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend, _chat_messages
 from ai_statistician.model_backend import (
     ClientToolDefinition, ClientToolTurnRequest, GeneratorRequest,
@@ -33,6 +36,31 @@ def test_local_default_has_no_cloud_escalation(monkeypatch):
     assert isinstance(backend, LocalChatGeneratorBackend)
     assert provider == "local"
     assert build_parser().parse_args(["research-agent-runtime"]).provider == "local"
+
+
+@pytest.mark.parametrize("mode", ["--research-eval", "--capability-eval"])
+@pytest.mark.parametrize("flag", ["--provider", "--algorithm-engineer-provider", "--formalizer-provider"])
+@pytest.mark.parametrize("cloud", ["anthropic", "openai"])
+def test_evaluation_rejects_cloud_before_backend_construction(mode, flag, cloud):
+    args = build_parser().parse_args(["research-agent-runtime", mode])
+    setattr(args, flag.removeprefix("--").replace("-", "_"), cloud)
+    with pytest.raises(ValueError, match="require local Qwen"):
+        _apply_research_agent_runtime_evaluation_model_policy(args)
+
+
+def test_server_cannot_substitute_model_identity(monkeypatch):
+    requests = []
+    class Opener:
+        def open(self, request, *, timeout):
+            requests.append(request)
+            return BytesIO(json.dumps({"model": "another-model"}).encode())
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
+    with pytest.raises(ValueError, match="model identity mismatch"):
+        LocalChatGeneratorBackend().generate(GeneratorRequest(
+            system_prompt="Check identity.", user_prompt="Return text.",
+            model="Qwen3-4B-Instruct-2507",
+        ))
+    assert len(requests) == 1
 
 
 @pytest.mark.parametrize("url", ["https://api.openai.com/v1", "http://example.org/v1",

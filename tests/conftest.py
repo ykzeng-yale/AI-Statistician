@@ -41,12 +41,14 @@ _isolate_test_environment()
 
 
 @pytest.fixture(autouse=True)
-def isolate_live_credentials_and_pin_test_haiku(monkeypatch: pytest.MonkeyPatch) -> None:
+def isolate_live_credentials_and_pin_local_model(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in _LIVE_CREDENTIAL_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
     for name in _NON_HAIKU_MODEL_OVERRIDE_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AI_STATISTICIAN_ENV_FILE", os.devnull)
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "local")
+    monkeypatch.setenv("AI_STATISTICIAN_LOCAL_MODEL", "Qwen3-4B-Instruct-2507")
     monkeypatch.setenv(
         "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
         TEST_CLAUDE_HAIKU_MODEL,

@@ -33,7 +33,6 @@ from .formal_target_semantic_reviewer_llm import (
     validate_formal_target_semantic_review_packet,
 )
 from .packet_validation import PacketValidationError
-from .model_backend import LIVE_EVALUATION_CLAUDE_MODEL_TIER
 from .research_schema import (
     OpenResearchQuestion,
     frozen_formal_target_contract_errors,
@@ -1183,11 +1182,12 @@ class FormalTargetSemanticReviewerRuntimeSubsystem:
             )
         if (
             capability_eval
-            and reviewer_tier != LIVE_EVALUATION_CLAUDE_MODEL_TIER
+            and (reviewer_tier != self.reviewer.config.model_tier
+                 or reviewer_model != self.reviewer.config.model)
         ):
             runtime_review_errors.append(
                 "capability-eval formal-target reviewer must use the configured "
-                f"evaluation tier {LIVE_EVALUATION_CLAUDE_MODEL_TIER}"
+                f"evaluation model/tier {self.reviewer.config.model}/{self.reviewer.config.model_tier}"
             )
         if runtime_review_errors:
             return AgentStepResult(

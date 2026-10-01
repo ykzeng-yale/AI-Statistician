@@ -88,6 +88,40 @@ def test_gold_preflight_descriptor_exposes_no_hidden_evaluator_payload() -> None
     assert "1e-08" not in serialized
 
 
+def test_local_gold_schema_binds_both_runtime_and_private_reviewer(tmp_path: Path) -> None:
+    path = _schema_v4_gold_manifest(tmp_path)
+    manifest = json.loads(path.read_text())
+    policy = {"provider": "local", "model": "Qwen3-4B-Instruct-2507",
+              "model_tier": "local", "automatic_tier_escalation_allowed": False}
+    manifest["schema_version"] = 5
+    manifest["model_policy"] = policy
+    evaluator = manifest["active_tasks"][0]["hidden_theory_semantic_evaluator"]
+    evaluator.update(policy)
+    path.write_text(json.dumps(manifest))
+    assert validate_research_gold_benchmark_manifest(path)["active_task_ids"] == [QUESTION_ID]
+    original = path.read_bytes()
+    evaluator["provider"] = "anthropic"
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="exact model without escalation"):
+        validate_research_gold_benchmark_manifest(path)
+    path.write_bytes(original)
+    with pytest.raises(ValueError, match="model policy differs"):
+        validate_research_gold_benchmark_activation(
+            path, evaluation_model_policy={**policy, "model": "another-model"},
+        )
+    assert path.read_bytes() == original
+
+
+def test_local_runtime_cannot_reuse_a_legacy_gold_policy(tmp_path: Path) -> None:
+    path = _schema_v4_gold_manifest(tmp_path)
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="historical qualifications cannot be reused"):
+        validate_research_gold_benchmark_activation(path, evaluation_model_policy={
+            "provider": "local", "model": "Qwen3-4B-Instruct-2507", "model_tier": "local",
+        })
+    assert path.read_bytes() == original
+
+
 def test_gold_preflight_rejects_missing_selected_task_before_product_output(
     tmp_path: Path,
 ) -> None:

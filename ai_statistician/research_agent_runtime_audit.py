@@ -136,7 +136,7 @@ def _model_policy_summary(manifest: Mapping[str, Any]) -> dict[str, Any]:
     config = manifest.get("config", {})
     config = config if isinstance(config, Mapping) else {}
     evaluation_mode = str(config.get("evaluation_mode", "") or "").strip()
-    evaluation_run = bool(evaluation_mode and evaluation_mode != "production")
+    evaluation_run = evaluation_mode in {"research_eval", "capability_eval"}
     enabled = _enabled_model_rows(manifest)
     tiers = sorted(
         {
@@ -158,32 +158,44 @@ def _model_policy_summary(manifest: Mapping[str, Any]) -> dict[str, Any]:
         for model in models
         if "opus" in model.lower()
     )
-    invalid_tiers = sorted(set(tiers) - ALLOWED_LIVE_CLAUDE_TIERS)
-    exact_haiku = not enabled or all(
-        str(row.get("model", "") or "").strip() == LIVE_EVALUATION_CLAUDE_MODEL
+    required_model = str(config.get("evaluation_model") or config.get("evaluation_claude_model")
+                         or LIVE_EVALUATION_CLAUDE_MODEL)
+    required_provider = str(config.get("evaluation_provider") or "anthropic")
+    invalid_tiers = sorted({
+        str(row.get("model_tier", "") or "").strip().lower() for row in enabled
+        if row.get("backend_provider_name") == "anthropic"
+        and str(row.get("model_tier", "") or "").strip().lower() not in ALLOWED_LIVE_CLAUDE_TIERS
+    })
+    exact_model = bool(enabled) and all(
+        str(row.get("model", "") or "").strip() == required_model
         and (
             not str(row.get("serious_model", "") or "").strip()
             or str(row.get("serious_model", "") or "").strip()
-            == LIVE_EVALUATION_CLAUDE_MODEL
+            == required_model
         )
+        and (not config.get("evaluation_provider") or (
+            row.get("provider_name") == required_provider
+            and row.get("backend_provider_name") == required_provider
+        ))
         for row in enabled
     )
     topology_ok = _bool(manifest.get("llm_topology_policy_ok", False))
     return {
         "evaluation_mode": evaluation_mode,
         "evaluation_run": evaluation_run,
-        "required_evaluation_model": LIVE_EVALUATION_CLAUDE_MODEL,
+        "required_evaluation_provider": required_provider,
+        "required_evaluation_model": required_model,
         "enabled_models": models,
         "enabled_model_tiers": tiers,
         "n_enabled_agents": len(enabled),
         "prohibited_models": prohibited,
         "invalid_model_tiers": invalid_tiers,
-        "exact_haiku_for_evaluation": exact_haiku,
+        "exact_model_for_evaluation": exact_model,
         "passed": bool(
             topology_ok
             and not prohibited
             and not invalid_tiers
-            and (not evaluation_run or exact_haiku)
+            and (not evaluation_run or exact_model)
         ),
     }
 
