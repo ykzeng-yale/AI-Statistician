@@ -460,7 +460,7 @@ def prepare_shared_client_tool_workspace(
             if not isinstance(result.terminal_payload, Mapping):
                 raise ValueError("component checkpoint returned no payload")
             observe_checkpoint(scope, deepcopy(result))
-        return replace(result, terminal=False, terminal_payload=None,
+        return replace(result, terminal=False,
                        observation_key=scope + ":" + result.observation_key
                        if result.observation_key else "")
 
@@ -531,6 +531,8 @@ def _persist_workspace_observation(
         "tool_name": call.name, "call_id": call.call_id, "input": dict(call.input),
         "is_error": execution.is_error, "content": execution.content,
         "model_content_blocks": list(execution.model_content_blocks),
+        **({"terminal_payload": execution.terminal_payload}
+           if execution.terminal_payload is not None else {}),
     }, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
     encoded = text.encode("utf-8")
     sha256 = hashlib.sha256(encoded).hexdigest()

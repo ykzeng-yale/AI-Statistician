@@ -124,6 +124,12 @@ does. No component model driver or isolated-owner result handler is invoked.
 The exact shared request/tool contract and history are persisted together, with
 independent-role review explicitly false. The shared history tool reads only
 this conversation's authorized observations, not private reviewer sessions.
+Component checkpoint payloads are retained in that same hash-bound observation
+store, separately from the unchanged model-visible feedback. The existing
+history reader can recover them after a normal finish or budget exhaustion;
+later source edits do not rewrite earlier records. Theory already has immutable
+Markdown/LaTeX document snapshots. Stored component state is working provenance,
+not an isolated-owner receipt, independent review or current acceptance.
 
 Synthetic tests cover Python/R, Theory and Lean parity, complete action exposure
 for configured bindings, arbitrary interleaving, checkpoints, exhaustion, raw
@@ -133,9 +139,9 @@ aliases and component-terminal descriptions are observable adaptations: freeze
 consistent aliases for comparative arms or disclose this interface difference;
 do not silently claim byte-identical model tool surfaces.
 
-Artifact-specific state remains. Before either study control is runnable on a
-real research task, bind theory/code/simulation dependencies and immutable
-component snapshots, final artifacts and external gold. The caller must do this
+Artifact-specific dependency binding remains. Before either study control is
+runnable on a real research task, bind the selected theory/code/simulation versions,
+final artifacts and external gold. The caller must do this
 without manufacturing isolated-owner receipts or accepting stale premises.
 The free-planning control must receive the common objective and available tools,
 not specialist prompts that silently impose the full workflow. The same-workflow

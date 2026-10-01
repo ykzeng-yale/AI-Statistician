@@ -15,6 +15,7 @@ from ai_statistician.client_tool_loop import (
     ClientToolExecutionContext,
     ClientToolLoopError,
     ClientToolLoopResult,
+    _read_workspace_history,
     client_tool_session_contract_fingerprint,
     load_client_tool_session,
     persist_client_tool_session,
@@ -380,11 +381,71 @@ def test_shared_session_keeps_raw_feedback_and_component_checkpoints_without_pro
     assert "observation_sha256" in str(backend.requests[-1].messages)
     for owner in owners.values():
         assert not list((owner.session_dir or tmp_path / "absent").glob(".client_tool_sessions/*.json"))
+    checkpoint_tools = {"theory": THEORY_WORKSPACE_COMMIT_TOOL, "lean": LEAN_SOURCE_SUBMISSION_TOOL,
+                        "python": SCIENTIFIC_SOURCE_COMMIT_TOOL, "r": SCIENTIFIC_SOURCE_COMMIT_TOOL}
+    for scope, checkpoint in checkpoints:
+        ref = next(ref for ref in loop.observation_refs
+                   if ref["tool_name"] == scope + "__" + checkpoint_tools[scope])
+        raw = json.loads((workspace.session_dir / ref["relative_path"]).read_text())
+        assert raw["terminal_payload"] == checkpoint.terminal_payload
+        assert raw["content"] == checkpoint.content
     before = deepcopy(checkpoints)
     workspace.execute_tool(ClientToolCall("later-read", "python__" + SCIENTIFIC_SOURCE_READ_TOOL,
                                          {"line_start": 1, "line_end": 2}),
                            ClientToolExecutionContext(13, 0, 1, 12))
     assert checkpoints == before
+
+
+@pytest.mark.parametrize("finish", [True, False])
+def test_shared_checkpoint_history_survives_later_source_and_theory_changes(tmp_path, monkeypatch, finish):
+    workspace, _, checkpoints, checks = _shared_case(tmp_path, monkeypatch, max_turns=8)
+    code_calls = _case("python", tmp_path / "unused")[3]
+    earlier_document = "# Opaque claim v1\n"
+    later_document = "# Opaque claim v2\n"
+    later_draft = {**code_calls[0].input, "code": "def run_sandbox(seed, replicates, artifacts):\n    return {'opaque': 2}\n"}
+    calls = [
+        ClientToolCall("theory-write-v1", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                       {"path": "claim.md", "content": earlier_document}),
+        ClientToolCall("theory-commit-v1", "theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
+                       {"readiness_rationale": "First exact document checkpoint."}),
+        *[replace(call, name="python__" + call.name) for call in code_calls],
+        ClientToolCall("theory-write-v2", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                       {"path": "claim.md", "content": later_document}),
+        ClientToolCall("theory-commit-v2", "theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
+                       {"readiness_rationale": "Second exact document checkpoint."}),
+        ClientToolCall("source-v2-unexecuted", "python__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, later_draft),
+    ]
+    if finish:
+        workspace = replace(workspace, max_turns=9)
+        calls.append(ClientToolCall("finish", "finish_control", {"report": "No scientific acceptance."}))
+        result = run_client_tool_workspace(backend=ScriptedLocalBackend(calls), workspace=workspace)
+        assert result.terminal_payload == {"report": "No scientific acceptance."}
+    else:
+        with pytest.raises(ClientToolLoopError, match="turn budget exhausted") as error:
+            run_client_tool_workspace(backend=ScriptedLocalBackend(calls), workspace=workspace)
+        result = error.value
+    assert len(checks["python"]) == 1  # Later edits were not executed or accepted.
+    assert len(checkpoints) == 3
+    checkpoints.clear()  # A new reader uses only the existing hash-bound observation store.
+    saved = {}
+    for ref in result.observation_refs:
+        if ref["call_id"] not in {"theory-commit-v1", "theory-commit-v2", "commit"}:
+            continue
+        observation = _read_workspace_history(
+            {"observation_sha256": ref["sha256"]}, session_dir=workspace.session_dir,
+            session_id=workspace.session_id, request=workspace.request,
+            observation_refs=result.observation_refs,
+        )
+        assert observation.content["complete"] is True
+        assert observation.content["evidence_role"] == "historical_tool_observation_not_current_acceptance"
+        saved[ref["call_id"]] = json.loads(observation.content["text"])["terminal_payload"]
+    assert load_theory_workspace_documents(saved["theory-commit-v1"]) == {"claim.md": earlier_document}
+    assert load_theory_workspace_documents(saved["theory-commit-v2"]) == {"claim.md": later_document}
+    assert saved["theory-commit-v1"]["core_packet_hash"] != saved["theory-commit-v2"]["core_packet_hash"]
+    assert saved["commit"]["code_draft"] == checks["python"][0]
+    assert saved["commit"]["code_draft_hash"] == stable_hash(checks["python"][0])
+    assert saved["commit"]["code_draft"] != later_draft
+    assert "terminal_payload" not in json.dumps(result.messages)
 
 
 def test_shared_exhaustion_records_actual_joint_session_not_owner_receipt(tmp_path, monkeypatch):
