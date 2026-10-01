@@ -3255,6 +3255,16 @@ def prepare_theory_artifact_workspace(
         session_id=workspace_id,
         on_success=on_success,
         on_error=on_error,
+        initial_context={
+            "structured_handoff_artifacts": deepcopy(catalog),
+            "mathematical_documents": deepcopy(document_catalog),
+            "theory_scratch_executions": deepcopy(scratch_catalog),
+            "read_only_context_documents": deepcopy(context_document_catalog),
+            "research_source_snapshot": research_sources.descriptor() if research_sources else {},
+            "public_source_discovery": research_source_discovery.descriptor() if research_source_discovery else {},
+            "research_source_execution": research_source_execution.descriptor(research_sources)
+            if research_source_execution and research_sources else {},
+        },
     )
 
 

@@ -97,9 +97,10 @@ requests across roles and continuations, with an optional per-question request
 cap disabled by default. Reported tokens, cache reads, native server timings and
 unknown-usage counts remain separate. This covers the standalone local transport,
 not a coding host's private loop or external gold adjudication, and is not a
-token-equivalent resource allocator. A genuine single-general-agent arm with the
-same available tools is still unimplemented; renaming a specialist or substituting
-a different coding host would confound tools with collaboration. Neither this
+token-equivalent resource allocator. A prepared-workspace single-conversation
+entry point is implemented below, but complete real-task comparator assembly
+and matched application-level tools/data remain unfinished. Renaming a specialist
+or substituting a different coding host would confound tools with collaboration. Neither this
 accounting change nor the earlier failed development pilot activates System S or
 establishes an improvement. Freeze the actual comparator and resources first.
 
@@ -139,16 +140,40 @@ aliases and component-terminal descriptions are observable adaptations: freeze
 consistent aliases for comparative arms or disclose this interface difference;
 do not silently claim byte-identical model tool surfaces.
 
-Artifact-specific dependency binding remains. Before either study control is
-runnable on a real research task, bind the selected theory/code/simulation versions,
-final artifacts and external gold. The caller must do this
-without manufacturing isolated-owner receipts or accepting stale premises.
-The free-planning control must receive the common objective and available tools,
-not specialist prompts that silently impose the full workflow. The same-workflow
-single-context control separately needs explicit stage instructions in its real
-shared context. Neither complete comparator is implemented by this action binding;
-official studies remain unactivated. Freeze actual tool parity, context, authority
-and resources prospectively before any scientific draws.
+`prepare_research_control_workspace` now supplies a runnable prepared-workspace
+control entry point. It binds the common public question and frozen intent,
+exposes each component's initial file/observation catalog without importing its
+private specialist prompts, and returns exact checkpoint references to the model.
+The caller's extractor records actual cross-workspace execution inputs, not a
+model-declared lineage or whatever producer version happens to be latest. A final
+`submit_research_result` selects checkpoints and preserves the model's unchanged
+Markdown report in the existing session store. A mismatched input join returns
+to the same conversation; the model can select an earlier consistent set or
+author and execute revised artifacts. No routing agent, content patch, automatic
+retry or additional model loop is involved.
+
+An empty selection can submit an honest partial report; structural submission
+never means the task passed. Frozen task intent is retained, independent-role
+review is false, and external gold must still assess all required dimensions.
+Lean results receive no automatic proof promotion. The default control is
+free-planning; explicit caller-supplied workflow instructions form the distinct
+same-workflow condition. Context catalogs and checkpoint-reference annotations
+are observable model inputs and must be matched or disclosed in the study.
+
+Scripted-model integration tests execute real local Python and R against an exact
+immutable theory snapshot, reject a final join with a later theory version, and
+allow a consistent earlier selection without rerunning the source. A separately
+pinned local-Qwen synthetic probe completed two model turns/four tool calls,
+selected its actual checkpoint and wrote a Markdown report. Neither exercise is
+a statistical benchmark, independently reviewed theory or complete baseline
+efficacy evidence.
+
+Application-level assembly is still unfinished: configure all actual research
+executors/context dependencies consistently across arms, provide source horizons,
+independent gold and matched resources, and run complete fresh research tasks.
+Do not treat the low-level API or its tests as those experiments. Official studies
+remain unactivated; freeze tool parity, context, authority and resources before
+scientific draws.
 
 The full system can have separate role contexts while executing serially; this
 does not demonstrate parallel speedup. A concurrency experiment requires actual

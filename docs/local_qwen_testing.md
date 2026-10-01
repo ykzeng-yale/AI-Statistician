@@ -111,3 +111,28 @@ Haiku development outcomes are not comparison arms or main results. Local Claude
 Code compatibility/user-workflow testing is a separately authorized host check;
 the installed version was observed as 2.1.168, but no new Claude model turn or
 skill-discovery conformance was run in this migration.
+
+## Single-Context Control Probe
+
+The new research-control submission path was checked with the same deployed
+weights, binary and active template hashes above. The temporary server used seed
+`20261001`; native requests used temperature 0, max tokens 1024, no thinking budget
+and disabled parallel tool use. The synthetic fixture had an eight-turn/eight-action
+envelope and no statistical question or hidden gold.
+
+```sh
+AI_STATISTICIAN_LOCAL_MODEL_CONFORMANCE=1 .venv/bin/pytest -q -s \
+  tests/test_research_control.py::test_live_local_control_selects_its_actual_checkpoint_and_writes_a_report
+```
+
+One probe passed in 17.90 seconds: two model turns, four tool calls, 9315 input
+and 392 output tokens, including 4350 cached-input tokens (not additional tokens).
+The in-memory transcript fingerprint was
+`6dc7e46c1a2f6caa6acd9e242f9fcf70f5377a742a12ea5aff46d2993f2aef04`.
+Unlike the earlier bare-loop fixture, this control persisted its joint session,
+exact observations/checkpoint payloads and unchanged model-authored Markdown
+report. Local records are in `runs/publication_research_control_20261001`, including
+a source/deployment protocol frozen before inference and native test JUnit.
+This is transport/submission conformance, not a scientific draw or publication
+dataset. The owned server was terminated afterwards and port 8081 was closed.
+No Anthropic or Claude Code inference occurred.

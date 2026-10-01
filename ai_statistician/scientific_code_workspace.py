@@ -3358,6 +3358,17 @@ def prepare_scientific_code_workspace(
         session_id=f"scientific:{artifact_id}",
         on_success=on_success,
         on_error=on_error,
+        initial_context={
+            "artifact_id": artifact_id,
+            "workspace_operation": workspace_operation,
+            "current_project_files": _scientific_project_manifest(parent_draft) if parent_draft else [],
+            "initial_observation": deepcopy(initial_model_observation),
+            "read_only_documents": [{"path": path, "sha256": hashlib.sha256(content.encode()).hexdigest(),
+                                     "byte_size": len(content.encode())}
+                                    for path, content in sorted(context_documents.items())],
+            "research_source_snapshot": research_sources.descriptor() if research_sources else {},
+            "public_source_discovery": research_source_discovery.descriptor() if research_source_discovery else {},
+        },
     )
 
 

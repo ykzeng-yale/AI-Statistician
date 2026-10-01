@@ -343,6 +343,7 @@ class PreparedClientToolWorkspace(Generic[WorkspaceResultT]):
     max_no_progress_turns: int
     session_dir: Path | None
     session_id: str
+    initial_context: Mapping[str, Any] = field(default_factory=dict)
 
 
 def run_client_tool_workspace(
@@ -372,7 +373,7 @@ def prepare_shared_client_tool_workspace(
     workspaces: Mapping[str, PreparedClientToolWorkspace[Any]],
     terminal_tools: Sequence[ClientToolDefinition],
     execute_terminal_tool: ClientToolExecutor,
-    observe_checkpoint: Callable[[str, ClientToolExecutionResult], None],
+    observe_checkpoint: Callable[[str, ClientToolExecutionResult], Mapping[str, Any] | None],
     max_turns: int,
     max_tool_calls: int,
     max_no_progress_turns: int,
@@ -420,6 +421,7 @@ def prepare_shared_client_tool_workspace(
         scopes[scope] = {
             "session_id": workspace.session_id,
             "component_request_contract": client_tool_session_contract_fingerprint(workspace.request),
+            "initial_context_hash": stable_hash(workspace.initial_context),
             "tools": original_names,
         }
     final_names = [tool.name for tool in terminal_tools]
@@ -432,6 +434,10 @@ def prepare_shared_client_tool_workspace(
     shared_request = replace(
         request,
         tools=tuple(tools),
+        messages=(*request.messages, {"role": "user", "content": json.dumps({
+            "initial_workspace_contexts": {scope: deepcopy(dict(workspace.initial_context))
+                                           for scope, workspace in workspaces.items()},
+        }, sort_keys=True, ensure_ascii=False, default=str)}),
         metadata={
             **deepcopy(dict(request.metadata)),
             "workspace_context_mode": "shared_conversation",
@@ -459,7 +465,12 @@ def prepare_shared_client_tool_workspace(
         if result.terminal and not result.is_error:
             if not isinstance(result.terminal_payload, Mapping):
                 raise ValueError("component checkpoint returned no payload")
-            observe_checkpoint(scope, deepcopy(result))
+            checkpoint_ref = observe_checkpoint(scope, deepcopy(result))
+            if checkpoint_ref is not None:
+                result = replace(result, model_content_blocks=(*result.model_content_blocks, {
+                    "type": "text", "text": json.dumps({"shared_checkpoint_ref": dict(checkpoint_ref)},
+                                                        sort_keys=True, ensure_ascii=False),
+                }))
         return replace(result, terminal=False,
                        observation_key=scope + ":" + result.observation_key
                        if result.observation_key else "")

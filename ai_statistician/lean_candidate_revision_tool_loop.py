@@ -2305,6 +2305,7 @@ def prepare_lean_candidate_workspace(
         session_id=f"lean:{candidate_id}",
         on_success=on_success,
         on_error=on_error,
+        initial_context=deepcopy(initial_workspace),
     )
 
 
