@@ -72,7 +72,7 @@ than declare a small convenience panel definitive.
 | Study | Arms | Attribution |
 | --- | --- | --- |
 | Portable H | Same host bare vs same host + package | Paired within host/model; separate installations across Codex, Claude Code and Kimi |
-| System S | Single general agent; isolated roles without cross-role feedback; full collaboration | Same Qwen and native tools; account for reviewer/planner calls in total resources |
+| System S | Free-planning general agent; single-context workflow control; isolated roles without feedback; full collaboration | Same Qwen, tools and resource accounting; distinguish workflow support from context separation |
 | External scaffold | Minimal ResearchHarness or compatible open implementation | Pin code and report every provider/tool adaptation; no comparison with published scores |
 | Lean | Zero-shot source; compiler feedback; compiler feedback + scoped RAG | Same statements, model, project and total resources |
 | Foundation reuse | Pinned standard foundation vs standard + curated StatInference | Hold out target proof and dependent aliases; separately measure semantic fidelity |
@@ -102,6 +102,22 @@ same available tools is still unimplemented; renaming a specialist or substituti
 a different coding host would confound tools with collaboration. Neither this
 accounting change nor the earlier failed development pilot activates System S or
 establishes an improvement. Freeze the actual comparator and resources first.
+
+[OneFlow](https://arxiv.org/html/2601.12307v1) motivates a separate strong control:
+one conversation executes the same workflow and tools with role instructions as
+stage inputs. It is not the free-planning general agent. For our comparison,
+this deliberately removes reviewer isolation; self-review cannot be labelled
+independent, and external gold remains equally isolated in every arm. Measure
+cache reuse rather than assume it despite changing prompts/tool schemas. The
+paper's transcript-equivalence conditions do not prove equivalence after exposing
+private author history that our reviewer normally cannot see.
+
+Current theory/scientific/Lean action handlers close over artifact-specific state;
+their tool definitions alone are not executable standalone tools. A transport
+history merger would neither give a general agent the union of these actions nor
+preserve reviewer isolation and actual request identities. Do not implement that
+shortcut or silently alter canonical sessions. Both single-agent controls remain
+unimplemented, and all arms/authority need prospective verification before draws.
 
 The full system can have separate role contexts while executing serially; this
 does not demonstrate parallel speedup. A concurrency experiment requires actual

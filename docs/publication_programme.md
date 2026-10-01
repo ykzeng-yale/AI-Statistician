@@ -110,6 +110,13 @@ test sample. Keep their original artifacts as an archive, not an active scorecar
 main result table or baseline. Do not spend further calls following those results.
 Formal experiments for both papers start prospectively with open-weight models.
 
+The preserved [trimmed-mean audit](operator_audits/trimmed_mean_l0_v1.md)
+records internal acceptance but independent full-task rejection; the
+[betareg audit](operator_audits/betareg_gasoline_precision_l1_v1.md) records
+automated acceptance that missed an explicit task restriction. These are useful
+failure analyses, not validated successes or a controlled estimate of efficacy.
+The archived seven mixed-scope credits must not become a research-E2E numerator.
+
 Retain useful implementation and regression tests. An existing independently
 checked Lean theorem may support the curated library irrespective of its authoring
 model, after source-fidelity and rights review. That artifact is a library result,
@@ -130,8 +137,10 @@ scientific experiments use open-weight models. The operator also authorizes the
 installed local Claude Code host for portable compatibility/user-workflow tests,
 reported separately; direct Anthropic API experiments remain excluded.
 
-Paper S compares a single general agent with identical tools, role-separated
-agents without cross-role feedback, and the complete collaborative system.
+Paper S compares a free-planning general agent with identical tools, a
+single-context same-workflow control, role-separated agents without cross-role
+feedback, and the complete collaborative system. The single-context arm exposes
+shared history and does not receive independent-review credit for self-review.
 Use the same Qwen weights, endpoint, task access and global resource envelopes.
 An additional minimal external research harness can be run where its backend and
 license permit; report adaptations. Published scores from different models/tasks
