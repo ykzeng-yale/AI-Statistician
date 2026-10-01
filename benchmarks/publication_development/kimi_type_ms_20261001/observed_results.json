@@ -1,0 +1,205 @@
+{
+  "study_id": "kimi_type_ms_20261001",
+  "scope": "development source-replication integration pilot; not an official main-study result or CORE-Bench score",
+  "frozen_commit": "50b91d62adbcf0152c51a859936a054cba9c2fc3",
+  "protocol_sha256": "e8d4aebaed4f771abd522665a5c53a493ac97e570b5531636e5671f5fc38ebc4",
+  "reference_csv_sha256": "903c88077218a1ac3e54120f735bd4af412c808f1ba0d17304cba924db0f13e3",
+  "evaluation_started_unix": 1790882539.177941,
+  "operator_output_edits": 0,
+  "model_resumes": 0,
+  "draws": [
+    {
+      "draw_id": "bare_1",
+      "process": {
+        "elapsed_seconds": 302.55288554199797,
+        "returncode": 0,
+        "timed_out": false,
+        "ended_unix": 1790881633.066862
+      },
+      "checks": {
+        "source_unchanged": false,
+        "final_csv": {
+          "status": "MISSING"
+        },
+        "fresh_candidate_execution": {
+          "returncode": 1,
+          "timed_out": false,
+          "elapsed_seconds": 0.09288229199592024,
+          "stderr": "Error in retro_r(rho = scenario$rho, n = scenario$n, alternative = scenario$alternative,  : \n  could not find function \"retro_r\"\nExecution halted\n",
+          "csv": {
+            "status": "MISSING"
+          }
+        }
+      },
+      "numerical_replication_pass": false,
+      "mathematical_review": "NOT_PERFORMED",
+      "theory_accepted": false,
+      "formal_status": "NOT_REQUESTED",
+      "native_model_calls": 21,
+      "native_request_kinds": {
+        "loop": 21
+      },
+      "native_model_identities": [
+        "Qwen3-4B-Instruct-2507"
+      ],
+      "native_provider_identities": [
+        "openai"
+      ],
+      "native_usage_records": 21,
+      "native_usage": {
+        "inputOther": 24470,
+        "inputCacheRead": 377600,
+        "inputCacheCreation": 0,
+        "output": 4331
+      },
+      "total_input_tokens_including_cache": 402070,
+      "tool_calls": {
+        "Read": 5,
+        "Glob": 1,
+        "Write": 2,
+        "Bash": 4,
+        "Grep": 5,
+        "Edit": 3
+      },
+      "actual_model_tool_names": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Read",
+        "Skill",
+        "TaskList",
+        "TaskOutput",
+        "TaskStop",
+        "WaitFor",
+        "Write"
+      ],
+      "native_tools_hashes": [
+        "eccf073fa4b36a8a422848d60b2539b89787be2838928c048c7d194a512bee1a"
+      ],
+      "parent_agents_md_paths": [],
+      "skill_advertised": false,
+      "skill_tool_invocations": 0,
+      "skill_file_read_invocations": 0,
+      "skill_body_consumption_evidence": false,
+      "final_artifacts_sha256": {
+        "TASK.md": "30f543911a9550a80d3aea32edae80aabd6108ea95445713f0177f953a0910c9",
+        "reproduce.R": "15a0685de464ad4c12c1f20c2412290fa41871638ea7187fd8b781ef2c31b6f3",
+        "research.md": "01ac58237e5f32447f228564f3b1c0014c588ac1670bde30619203928b4d2823",
+        "scenarios.csv": "78a5896562bed3c773b49584d5e88adb66746dd13aab08e09ed618dbb647e587",
+        "source/Design_analysis_r.R": "bce26071606377e6264dbae94380fcc149d1d191283de2d2fe1ffc1990bd381b",
+        "source/LICENSE": "c4695211c169d3cc7e71595b51bffb47c7504d92ab69ae6e2434d4b887e90fbd",
+        "source/README.md": "cbeaa647aefb390b0ad61eb6cb7cbea6fedda11bfcd71b235dcc0f5ec29ec4ce"
+      },
+      "retained_records_sha256": {
+        "draw.json": "02600e6bbf0ad8c31356a140b9872d460c1bb4074d6bf4db3122a2fa3558e43c",
+        "process_result.json": "85898f995170dd51bccc4da5f54e0aa3abec499eaf8d8dd3e24dedf6128e2f31",
+        "stdout.jsonl": "4afc8b15601a698993b8b634ba5b4d981ce9c2dc22ca837e4564307fe698dd06",
+        "stderr.log": "34fee2f9ad1f2f2e584e41ba8a2ed772e1d3c7e282aa9e5151ef20b8109dc0c2",
+        "wire.jsonl": "b00ac74d72b08525dad5cd0dd8c37a968796f76d8f57b390067b4e257d98a64c",
+        "verification/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "verification/stderr.log": "aa0817e1707e944f1567f68d8f466fec884ba71dd582b00ff0031c6c1593ff98"
+      },
+      "wire_path": "bare_1/home/kimi-code/sessions/wd_project_6dff68820616/session_5f5c216c-a7d1-4543-8026-3f3f63c5a197/agents/main/wire.jsonl"
+    },
+    {
+      "draw_id": "skill_1",
+      "process": {
+        "elapsed_seconds": 446.9330399590108,
+        "returncode": 0,
+        "timed_out": false,
+        "ended_unix": 1790882207.446303
+      },
+      "checks": {
+        "source_unchanged": true,
+        "final_csv": {
+          "status": "MISSING"
+        },
+        "fresh_candidate_execution": {
+          "returncode": 1,
+          "timed_out": false,
+          "elapsed_seconds": 0.2001480829931097,
+          "stderr": "\nAttaching package: \u2018docstring\u2019\n\nThe following object is masked from \u2018package:utils\u2019:\n\n    ?\n\nError in retro_r(rho = scenario$rho, n = scenario$n, alternative = scenario$alternative,  : \n  could not find function \"retro_r\"\nExecution halted\n",
+          "csv": {
+            "status": "MISSING"
+          }
+        }
+      },
+      "numerical_replication_pass": false,
+      "mathematical_review": "NOT_PERFORMED",
+      "theory_accepted": false,
+      "formal_status": "NOT_REQUESTED",
+      "native_model_calls": 38,
+      "native_request_kinds": {
+        "loop": 37,
+        "compaction": 1
+      },
+      "native_model_identities": [
+        "Qwen3-4B-Instruct-2507"
+      ],
+      "native_provider_identities": [
+        "openai"
+      ],
+      "native_usage_records": 38,
+      "native_usage": {
+        "inputOther": 53371,
+        "inputCacheRead": 667267,
+        "inputCacheCreation": 0,
+        "output": 4341
+      },
+      "total_input_tokens_including_cache": 720638,
+      "tool_calls": {
+        "Read": 13,
+        "Glob": 2,
+        "Grep": 15,
+        "Write": 4,
+        "Bash": 2
+      },
+      "actual_model_tool_names": [
+        "Bash",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Read",
+        "Skill",
+        "TaskList",
+        "TaskOutput",
+        "TaskStop",
+        "WaitFor",
+        "Write"
+      ],
+      "native_tools_hashes": [
+        "eccf073fa4b36a8a422848d60b2539b89787be2838928c048c7d194a512bee1a"
+      ],
+      "parent_agents_md_paths": [],
+      "skill_advertised": true,
+      "skill_tool_invocations": 0,
+      "skill_file_read_invocations": 0,
+      "skill_body_consumption_evidence": false,
+      "final_artifacts_sha256": {
+        "TASK.md": "30f543911a9550a80d3aea32edae80aabd6108ea95445713f0177f953a0910c9",
+        "reproduce.R": "93dad3d73583c7422ec565e406a26105327893c6f9a712204503ee8bd544dd74",
+        "research.md": "cd2848b362c4abc407f780e71bf3f61a02f2d1f447b9efadd70717b6eb189735",
+        "scenarios.csv": "78a5896562bed3c773b49584d5e88adb66746dd13aab08e09ed618dbb647e587",
+        "source/Design_analysis_r.R": "df3f1e450786530dbb7ed0129ad947aefd1cb84889dead65bfa597564086e744",
+        "source/LICENSE": "c4695211c169d3cc7e71595b51bffb47c7504d92ab69ae6e2434d4b887e90fbd",
+        "source/README.md": "cbeaa647aefb390b0ad61eb6cb7cbea6fedda11bfcd71b235dcc0f5ec29ec4ce",
+        "source/reproduce.R": "c2d52316340506fd343520ee1c6618ea3bce21cc7c6c7c5c8244c5d200f3a60f"
+      },
+      "retained_records_sha256": {
+        "draw.json": "db5ef245c4a1097483d103841288e98ec537cb28493eac8c4a0ad2c35dbd1da1",
+        "process_result.json": "1d58b1250318b30569a81a0559d14581dc920b5afcf51db49466aa9dcc1739d4",
+        "stdout.jsonl": "d2850274917531e076038e0ae6e8f2d7d431d74faad23863cc5b4bcbd47fcce2",
+        "stderr.log": "a67a12ad98d4ce9eb6c0480ebbc924c6fcf847ea74ea3fe916cfa73155229032",
+        "wire.jsonl": "c4398ed555970a54182bd800bf492acf7e08ca5011aa36009d548dd195f980af",
+        "verification/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "verification/stderr.log": "9897da3dc37cb2896592ddfd8938cb36b65df5189524be0cf6bc15c4af0b93bb"
+      },
+      "wire_path": "skill_1/home/kimi-code/sessions/wd_project_92d32fab19ca/session_88eb2f9f-9dcb-4d56-82e0-4d8683f28c5d/agents/main/wire.jsonl"
+    }
+  ],
+  "evaluation_completed_unix": 1790882539.480017,
+  "publication_claim": false,
+  "causal_harness_comparison_usable": false,
+  "intervention_issue": "Installed skill advertised, but non-interactive --prompt retained literal slash text; no Skill invocation or SKILL.md read in native trace. No demonstrated treatment-body uptake."
+}

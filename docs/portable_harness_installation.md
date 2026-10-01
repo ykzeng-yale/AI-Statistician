@@ -27,7 +27,7 @@ These commands are alternatives for the host in use. Current official skill
 discovery and symlink behavior are documented by
 [Codex](https://learn.chatgpt.com/docs/build-skills),
 [Claude Code](https://code.claude.com/docs/en/skills), and
-[Kimi](https://moonshotai.github.io/kimi-cli/en/customization/skills.html).
+[Kimi Code](https://moonshotai.github.io/kimi-code/en/customization/skills).
 Confirm the skill is visible in the chosen host before a research run; changes
 may require starting a new host session. Do not infer live host conformance from
 successful file installation.
@@ -54,9 +54,37 @@ This tests host discovery without embedding app-server in the research product.
 AI_STATISTICIAN_CODEX_SKILL_CONFORMANCE=1 .venv/bin/pytest -q tests/test_portable_skill.py
 ```
 
-That command passed all three checks. Claude Code and Kimi discovery/runtime
-have not been tested; their instructions above follow official documented paths.
+The Codex check and two filesystem checks passed. The current native Kimi Code 2.1.1 also
+discovered the project-linked skill through ACP `initialize` / `session/new`,
+advertised its slash command, and closed the session. The loopback inference
+sentinel received zero requests. This uses the upstream CLI, not a Kimi adapter
+inside our product. The old Python `kimi-cli` is archived; pin the current
+[`@moonshot-ai/kimi-code`](https://github.com/MoonshotAI/kimi-code) instead.
+
+```sh
+AI_STATISTICIAN_KIMI_SKILL_CONFORMANCE=1 \
+AI_STATISTICIAN_KIMI_EXECUTABLE="$KIMI_BIN" \
+  .venv/bin/pytest -q tests/test_portable_skill.py
+```
+
+`KIMI_BIN` selects an operator-installed CLI; the tests never download a host.
+They isolate `HOME` and `KIMI_CODE_HOME`, configure only a fake loopback model
+endpoint, and send no scientific task. A separate parameterized ACP
+`session/prompt` check explicitly invokes `/skill:statistical-research` and
+asserts that the entire skill body reaches the captured model request. The
+endpoint returns a fixed mock response, not live inference. Combined Codex/Kimi
+opt-in conformance passed five checks. Ordinary tests skip these native checks.
+Claude Code discovery/runtime has not yet been tested.
 Scientific efficacy and researcher usability are not established by discovery.
 The application wheel also built and installed into a clean Python 3.12 venv;
 its CLI and native local-backend factory loaded outside the source checkout.
 That does not establish complete Python/R/Lean research on a clean machine.
+
+The fresh local-Qwen [development replication pilot](../benchmarks/publication_development/kimi_type_ms_20261001/README.md)
+ended with two failed R reproductions and no demonstrated skill-body uptake.
+In this installed Kimi version, a literal slash command supplied through
+non-interactive `--prompt` remained plain user text; discovery alone did not
+activate the skill. Use the host's actual skill activation surface and verify
+body consumption before freezing a scientific comparison. The ACP mock check
+establishes that surface, not research efficacy. The pilot remains consumed and
+separate from the unactivated official studies and historical Haiku records.

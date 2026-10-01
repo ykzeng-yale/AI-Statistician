@@ -6,10 +6,11 @@ scientific Python/R implementation and simulation, plus Lean formalization and
 exact kernel-checked theorem closure when task intent requests it, inside one
 evidence-preserving agent runtime.
 
-This repository is not yet the finished system. The latest authoritative
-cross-family development panel remains at 0/2 exact source-theorem closures, and
-the held-out panel is sealed. Passing unit tests or compiling support lemmas does
-not change that claim.
+This repository is not yet the finished system. Official open-weight scientific
+comparisons have not started. Older development runs and sealed panels are
+archived, not publication baselines or gates on the new studies. Passing unit
+tests or compiling support lemmas does not establish scientific correctness or
+a benefit from the harness or multi-agent collaboration.
 
 The canonical architecture and current boundary are documented in
 [Production Design](docs/production_design.md). Read the [original product goal](docs/goal-ai-statistician.md)
@@ -87,18 +88,14 @@ AI_STATISTICIAN_CLAUDE_SONNET_MODEL
 Never commit credentials. The runtime records the resolved provider, model,
 tier, token use, latency, and tool-turn count in evidence artifacts.
 
-Pinned Haiku tool workspaces can opt into native extended thinking with
-`AI_STATISTICIAN_HAIKU_TOOL_THINKING_BUDGET_TOKENS`. It defaults to `0` (off);
-an enabled value must be at least 1024 and below each affected request's
-`max_tokens`, which remains the total output ceiling. Enable it before freezing a
-fresh run. The resolved request uses automatic tool selection, preserves signed
-thinking blocks and binds the budget into session identity. It does not enable
-interleaved thinking, escalate models or change tool-free Architect calls.
-Hidden-gold reviewers use the same explicit setting; qualification and candidate
-review must share its frozen value. Changing it invalidates prior qualification.
-This is supported transport, not demonstrated improvement in scientific accuracy.
-See [Anthropic's thinking documentation](https://platform.claude.com/docs/en/build-with-claude/extended-thinking).
-These thinking settings apply only to historical/explicit Anthropic use, not Qwen.
+Anthropic-specific thinking support is legacy/explicit production configuration,
+not the Qwen protocol or an active publication experiment. Preserve archived
+records without continuing their tuning or scorecard.
+
+The first [native Qwen host pilot](benchmarks/publication_development/kimi_type_ms_20261001/README.md)
+recorded two failed source reproductions and a missing skill-activation boundary.
+Native discovery and mock activation checks now pass, but neither establishes
+scientific efficacy. The official open-weight studies remain prospective.
 
 ## Setup
 

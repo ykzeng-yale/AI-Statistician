@@ -103,9 +103,10 @@ def test_native_codex_discovers_portable_skill_without_a_model_turn(tmp_path):
 
 @pytest.mark.skipif(
     os.environ.get("AI_STATISTICIAN_KIMI_SKILL_CONFORMANCE") != "1",
-    reason="opt-in native Kimi Code skill discovery; no model turn",
+    reason="opt-in native Kimi Code discovery/activation; no live inference",
 )
-def test_native_kimi_discovers_portable_skill_without_a_model_turn(tmp_path):
+@pytest.mark.parametrize("activate_skill", [False, True], ids=["discovery", "activation"])
+def test_native_kimi_skill_discovery_and_activation_without_live_inference(tmp_path, activate_skill):
     executable = os.environ.get("AI_STATISTICIAN_KIMI_EXECUTABLE") or shutil.which("kimi")
     assert executable is not None
     project = tmp_path / "project"
@@ -119,15 +120,37 @@ def test_native_kimi_discovers_portable_skill_without_a_model_turn(tmp_path):
     data.mkdir()
     requests = []
 
-    class NoInference(BaseHTTPRequestHandler):
+    class NoLiveInference(BaseHTTPRequestHandler):
         def do_POST(self):
-            requests.append(self.path)
-            self.send_error(500, "skill discovery must not call a model")
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            requests.append({"path": self.path, "body": body})
+            if not activate_skill:
+                self.send_error(500, "skill discovery must not call a model")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream" if body.get("stream")
+                             else "application/json")
+            self.end_headers()
+            response = {"id": "transport-conformance", "created": 0,
+                        "model": "Qwen3-4B-Instruct-2507"}
+            if body.get("stream"):
+                response["object"] = "chat.completion.chunk"
+                for delta, finish in (({"role": "assistant", "content": "conformance"}, None),
+                                      ({}, "stop")):
+                    response["choices"] = [{"index": 0, "delta": delta, "finish_reason": finish}]
+                    self.wfile.write(("data: " + json.dumps(response) + "\n\n").encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+            else:
+                response["object"] = "chat.completion"
+                response["choices"] = [{"index": 0, "finish_reason": "stop",
+                                        "message": {"role": "assistant", "content": "conformance"}}]
+                self.wfile.write(json.dumps(response).encode())
+            self.wfile.flush()
 
         def log_message(self, *args):
             pass
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), NoInference)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), NoLiveInference)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     (data / "config.toml").write_text(
@@ -186,9 +209,26 @@ def test_native_kimi_discovers_portable_skill_without_a_model_turn(tmp_path):
                            if command["name"] == "skill:" + SKILL.name]
                 assert len(matches) == 1
                 assert "statistical methods research" in matches[0]["description"]
+                assert requests == []
+                if activate_skill:
+                    send("session/prompt", {"sessionId": session_id, "prompt": [{
+                        "type": "text", "text": "/skill:" + SKILL.name + " transport conformance",
+                    }]}, 4)
+                    prompted = receive(lambda row: row.get("id") == 4)["result"]
+                    assert prompted["stopReason"] == "end_turn"
+                    assert len(requests) == 1
+                    assert requests[0]["path"] == "/v1/chat/completions"
+                    assert requests[0]["body"]["model"] == "Qwen3-4B-Instruct-2507"
+                    contents = []
+                    for message in requests[0]["body"]["messages"]:
+                        content = message.get("content", "")
+                        contents.extend([content] if isinstance(content, str) else
+                                        [part.get("text", "") for part in content or []])
+                    skill_body = (SKILL / "SKILL.md").read_text().split("---", 2)[2].strip()
+                    assert any(skill_body in content for content in contents)
+                    assert any("transport conformance" in content for content in contents)
                 send("session/close", {"sessionId": session_id}, 3)
                 receive(lambda row: row.get("id") == 3)
-                assert requests == []
             finally:
                 process.terminate()
                 try:

@@ -51,6 +51,31 @@ historical; new HEADs do not automatically update our runtime.
 | anthropics/fermats-last-theorem | `6e837e75355538c7f80bab5b956861e86c4eacc2` | Apache-2.0; map/comparator paths, `formalization.yaml` and comparator launcher inspected |
 | MoonshotAI/kimi-cli | `9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82` | Apache-2.0; skill discovery documentation and tree inspected |
 
+The earlier Kimi pin is historical: the Python repository is now archived and
+points to [`MoonshotAI/kimi-code`](https://github.com/MoonshotAI/kimi-code).
+The current repository was inspected at
+`21406fb4c805cc8c715e6d1f16ad3fb5f25f4fe3` (MIT); native ACP skill lifecycle,
+provider and scoped-tool interfaces were checked against the installed npm
+`@moonshot-ai/kimi-code@2.1.1`. No upstream controller is added as a production
+dependency. The CLI is a separate portable-host test subject.
+The installed ACP adapter's `prompt` / `driveSkillActivation` uses the native
+agent skill service. Discovery, headless prompt text and actual skill activation
+are different surfaces. A deterministic captured-request check now verifies
+the ACP path; no adapter or scheduler is copied into the product.
+
+CORE-Bench was inspected at `e32a2980e72fe6eb04ee04eb749458f570625663`.
+Its README marks the old runner as unmaintained and recommends HAL. Its public
+`core_train` metadata is a development resource, not hidden publication test
+gold. Capsule `7935517` includes generated paper outputs, precomputed data and
+knitr caches inside `code/`; merely hiding `results/` is not enough to measure
+fresh reproduction. The development pilot stages only licensed unchanged R
+source/README/license and compares new seeded outputs with an independent
+execution of the author function. It does not claim an original CORE-Bench score.
+Both native Qwen draws failed to produce the requested CSV. The installed skill
+was advertised but its body was not loaded in the headless arm, so this pilot
+cannot estimate a causal harness effect. See the immutable
+[first assessment](../benchmarks/publication_development/kimi_type_ms_20261001/observed_results.json).
+
 Numina's current README now states MIT; the earlier audit found no root license
 at its old pin. Recheck the exact code revision/license before redistribution.
 HAL and PaperBench are external evaluation candidates, not production agent
@@ -62,7 +87,7 @@ exploration guidance; it is not a new scientific scheduler or proof authority.
 Native skill loading is the first portable integration boundary:
 [Codex](https://learn.chatgpt.com/docs/build-skills),
 [Claude Code](https://code.claude.com/docs/en/skills), and
-[Kimi](https://moonshotai.github.io/kimi-cli/en/customization/skills.html).
+[Kimi Code](https://moonshotai.github.io/kimi-code/en/customization/skills).
 Use one source skill and each host's supported discovery path. Do not translate
 an entire coding-agent CLI into a pure model generator or bypass its ownership.
 Installation conformance, tool execution and scientific efficacy are separate.

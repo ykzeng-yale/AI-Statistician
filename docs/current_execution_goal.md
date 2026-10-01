@@ -128,6 +128,12 @@ Publication execution starts with local Qwen conformance, portable host access,
 source-faithful Lean release cleanup and comparable scientific baselines. The
 following mechanism priorities remain applicable; the publication programme
 supersedes the former one-success milestone and Haiku-only future-testing scope.
+Verify actual skill activation and complete request context through native host
+interfaces, not merely installed files or a discovery listing. Use mock transport
+conformance before scientific draws. Replication can use an independently run
+reference implementation as numerical authority; do not add a model referee or
+repeat model qualification where an executable reference answers the evaluation
+question. Mathematical acceptance remains a separate expert-review obligation.
 
 1. Inspect the existing Theory -> exploratory code/simulation -> independent
    review -> same-owner revision path. Demonstrate a missing tool, unreadable

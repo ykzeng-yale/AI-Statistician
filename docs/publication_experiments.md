@@ -146,7 +146,12 @@ effort and blinded correctness. User satisfaction cannot replace correctness.
 
 Before activation, freeze commits, model weights/runtime/template, prompts/tools,
 task and source hashes, gold version, budgets, seeds, stopping, exclusions and
-analysis. After consumption, release permitted raw trajectories, exact artifacts,
+analysis. Verify the host's actual activation surface and retain evidence that
+the intervention body reaches the model. Skill installation/discovery is not
+skill consumption; predeclare handling of uptake failures rather than silently
+exclude them after outcomes. The first native Qwen development pilot exposed this
+distinction and remains separate from the main study.
+After consumption, release permitted raw trajectories, exact artifacts,
 execution logs and all outcomes. Keep sealed authority outside the author's
 workspace until adjudication; do not leak held gold into the published RAG index
 or development skills. Use existing artifact/session infrastructure rather than
