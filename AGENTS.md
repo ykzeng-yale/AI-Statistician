@@ -36,8 +36,13 @@ the entire `docs/` directory as one prompt.
 
 ## Model Policy
 
-- Tests and evaluations use exactly `claude-haiku-4-5-20251001`.
-- Opus is forbidden. Never add automatic model escalation.
+- Future model tests and evaluations use the existing local Qwen deployment,
+  with exact weights, runtime, chat template and sampling configuration recorded.
+  The observed baseline is `Qwen3-4B-Instruct-2507` Q4_K_M; confirm availability
+  before calls. Deterministic unit tests do not call a model.
+- Do not call Anthropic for future testing. Legacy Haiku fixtures and consumed
+  evaluations remain immutable. Do not reinterpret their scores as Qwen results.
+- Opus and automatic cloud/model escalation are forbidden.
 - Never commit credentials or recover them from chat, logs, Git history, or
   incidental files. The operator-designated, gitignored `.env` is an authorized
   current credential source: use the existing CLI loader and never print values.

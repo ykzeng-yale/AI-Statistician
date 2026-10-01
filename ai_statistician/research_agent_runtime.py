@@ -222,6 +222,7 @@ from .model_backend import (
     AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY,
     AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    DEFAULT_LIVE_GENERATOR_PROVIDER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     LIVE_EVALUATION_CLAUDE_MODEL,
     LIVE_EVALUATION_CLAUDE_MODEL_TIER,
@@ -20922,7 +20923,7 @@ def _runtime_llm_topology(
         "artifact_kind": "RuntimeLLMTopologyManifest",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "policy": {
-            "default_live_provider": "anthropic",
+            "default_live_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
             "supported_live_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
             "supported_generator_providers": list(SUPPORTED_GENERATOR_PROVIDERS),
             "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
@@ -20971,7 +20972,7 @@ def _runtime_llm_topology(
         "generator_only_all_enabled": all(
             bool(row.get("generator_only", False)) for row in enabled
         ),
-        "default_provider": "anthropic",
+        "default_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
         "architect_provider": _subsystem_field("ArchitectCoordinator", "provider_name"),
         "architect_metric_semantic_reviewer_provider": _subsystem_field(
             "ArchitectMetricSemanticReviewer", "provider_name"

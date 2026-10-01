@@ -339,7 +339,7 @@ class LLMArchitectCoordinatorAgent:
         self.metric_semantic_reviewer = metric_semantic_reviewer
         if (
             self.metric_semantic_reviewer is None
-            and str(config.provider_name or "").strip().lower() == "anthropic"
+            and callable(getattr(provider, "generate_client_tool_turn", None))
         ):
             self.metric_semantic_reviewer = (
                 LLMArchitectMetricSemanticReviewerAgent(

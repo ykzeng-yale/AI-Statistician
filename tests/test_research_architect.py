@@ -42,6 +42,7 @@ from ai_statistician.model_backend import (
     ClientToolTurnResponse,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+    DEFAULT_LOCAL_GENERATOR_MODEL,
     GeneratorRequest,
     GeneratorResponse,
     default_generator_model,
@@ -4113,7 +4114,7 @@ def test_same_client_tool_workspace_provider_fails_closed_for_generator_only_mai
         )
 
 
-def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_live_llm_cli_defaults_to_local_qwen(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "AI_STATISTICIAN_LLM_PROVIDER",
         "AI_STATISTICIAN_LLM_MODEL",
@@ -4125,6 +4126,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         "AI_STATISTICIAN_CLAUDE_OPUS_MODEL",
         "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
         "AI_STATISTICIAN_THEORY_MODEL",
+        "AI_STATISTICIAN_LOCAL_MODEL",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -4133,14 +4135,14 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     runtime_args = parser.parse_args(["research-agent-runtime"])
     intake_args = parser.parse_args(["theory-intake", "--question-file", "examples/questions.json"])
 
-    assert architect_args.provider == "anthropic"
+    assert architect_args.provider == "local"
     assert architect_args.llm_model == ""
     assert default_generator_model(
         architect_args.provider,
         architect_args.llm_model,
         model_tier="sonnet",
-    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert runtime_args.provider == "anthropic"
+    ) == DEFAULT_LOCAL_GENERATOR_MODEL
+    assert runtime_args.provider == "local"
     assert runtime_args.architect_coordinator_provider == "same"
     assert runtime_args.generated_code_semantic_reviewer_provider == "none"
     assert runtime_args.formal_target_semantic_reviewer_provider == "none"
@@ -4153,19 +4155,19 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         runtime_args.provider,
         runtime_args.llm_model,
         model_tier="sonnet",
-    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    ) == DEFAULT_LOCAL_GENERATOR_MODEL
     assert default_generator_model(
         runtime_args.provider,
         runtime_args.serious_theory_llm_model,
         model_tier=runtime_args.serious_theory_model_tier,
-    ) == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
-    assert intake_args.llm_provider == "anthropic"
+    ) == DEFAULT_LOCAL_GENERATOR_MODEL
+    assert intake_args.llm_provider == "local"
     assert intake_args.llm_model == ""
     assert default_generator_model(
         intake_args.llm_provider,
         intake_args.llm_model,
         model_tier="haiku",
-    ) == "claude-haiku-4-5-20251001"
+    ) == DEFAULT_LOCAL_GENERATOR_MODEL
     runtime_default_model = default_generator_model(runtime_args.provider, model_tier="sonnet")
     preflight_source_retriever = object()
     preflight_research_sources = object()
@@ -4177,7 +4179,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         research_sources=preflight_research_sources,
         research_source_discovery=preflight_research_source_discovery,
     )
-    assert architect.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert architect.config.model == DEFAULT_LOCAL_GENERATOR_MODEL
     assert not hasattr(architect.config, "max_validation_retries")
     assert not hasattr(
         architect.metric_semantic_reviewer.config,
@@ -4196,26 +4198,26 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         runtime_args,
         default_model=runtime_default_model,
     )
-    assert algorithm_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert algorithm_engineer.config.model == DEFAULT_LOCAL_GENERATOR_MODEL
     assert not hasattr(algorithm_engineer.config, "max_validation_retries")
     assert (
         _build_formalizer_agent_from_args(
             runtime_args,
             default_model=runtime_default_model,
         ).config.model
-        == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+        == DEFAULT_LOCAL_GENERATOR_MODEL
     )
     simulation_engineer = _build_simulation_engineer_agent_from_args(
         runtime_args,
         default_model=runtime_default_model,
     )
-    assert simulation_engineer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert simulation_engineer.config.model == DEFAULT_LOCAL_GENERATOR_MODEL
     assert not hasattr(simulation_engineer.config, "max_validation_retries")
     critic = _build_critic_evaluator_agent_from_args(
         runtime_args,
         default_model=runtime_default_model,
     )
-    assert critic.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert critic.config.model == DEFAULT_LOCAL_GENERATOR_MODEL
     assert critic.config.model_tier == "sonnet"
     assert not hasattr(critic.config, "max_validation_retries")
     runtime_args.generated_code_semantic_reviewer_provider = "same"
@@ -4224,7 +4226,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         default_model=runtime_default_model,
     )
     assert semantic_reviewer is not None
-    assert semantic_reviewer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert semantic_reviewer.config.model == DEFAULT_LOCAL_GENERATOR_MODEL
     assert semantic_reviewer.config.model_tier == "sonnet"
     assert not hasattr(semantic_reviewer.config, "max_validation_retries")
     runtime_args.formal_target_semantic_reviewer_provider = "same"
@@ -4235,7 +4237,7 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
         )
     )
     assert formal_target_reviewer is not None
-    assert formal_target_reviewer.config.model == DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
+    assert formal_target_reviewer.config.model == DEFAULT_LOCAL_GENERATOR_MODEL
     assert formal_target_reviewer.config.model_tier == "sonnet"
     assert not hasattr(formal_target_reviewer.config, "max_validation_retries")
 

@@ -137,6 +137,7 @@ from .model_backend import (
     default_generator_model,
     default_generator_provider,
 )
+from .local_model_backend import LocalChatGeneratorBackend
 from .proof_state_feedback import (
     DEFAULT_LEAN_TOOL_TIMEOUT_SECONDS,
     LeanLspMcpProofStateFeedbackProvider,
@@ -819,7 +820,7 @@ def _research_agent_runtime_evaluation_model_policy_errors(
 
 def _default_live_generator_provider() -> str:
     provider = default_generator_provider()
-    return provider if provider in LIVE_GENERATOR_PROVIDER_CHOICES else "anthropic"
+    return provider if provider in LIVE_GENERATOR_PROVIDER_CHOICES else "local"
 
 
 def _default_model_for_provider(
@@ -872,6 +873,8 @@ def _build_theory_generator_backend(
         return AnthropicArchitectLLMProvider(timeout_s=llm_timeout_seconds), "anthropic"
     if provider_name == "openai":
         return OpenAIResponsesGeneratorBackend(timeout_s=llm_timeout_seconds), "openai"
+    if provider_name == "local":
+        return LocalChatGeneratorBackend(timeout_s=llm_timeout_seconds), "local"
     raise ValueError(f"unknown theory provider: {provider_name}")
 
 

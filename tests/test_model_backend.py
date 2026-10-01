@@ -1247,7 +1247,7 @@ def test_anthropic_generator_backend_does_not_retry_non_transport_error(
     assert calls["count"] == 1
 
 
-def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_local_default_preserves_explicit_anthropic_cost_aware_tiers(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "AI_STATISTICIAN_LLM_PROVIDER",
         "AI_STATISTICIAN_LLM_MODEL",
@@ -1264,7 +1264,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     ):
         monkeypatch.delenv(key, raising=False)
 
-    assert default_generator_provider() == "anthropic"
+    assert default_generator_provider() == "local"
     assert default_generator_model("anthropic") == "claude-sonnet-5"
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
     assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-5"
@@ -1334,30 +1334,32 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
 
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "codex_exec")
     monkeypatch.setenv("AI_STATISTICIAN_LLM_MODEL", "gpt-codex-test")
-    assert default_generator_provider() == "anthropic"
+    assert default_generator_provider() == "local"
     assert default_generator_model("anthropic") == "claude-sonnet-5"
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
     assert default_generator_model("codex") == ""
     assert default_generator_model("codex_exec") == ""
 
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "static")
-    assert default_generator_provider() == "anthropic"
+    assert default_generator_provider() == "local"
     assert default_generator_model("static") == "static"
     static_warning_contract = claude_tier_routing_contract()
-    assert static_warning_contract["effective_live_generator_provider"] == "anthropic"
+    assert static_warning_contract["effective_live_generator_provider"] == "local"
     assert static_warning_contract["supported_live_generator_providers"] == (
         "anthropic",
         "openai",
+        "local",
     )
     assert static_warning_contract["supported_generator_providers"] == (
         "anthropic",
         "openai",
+        "local",
         "static",
     )
     assert static_warning_contract["static_replay_generator_providers"] == ("static",)
-    assert set(SUPPORTED_LIVE_GENERATOR_PROVIDERS) == {"anthropic", "openai"}
+    assert set(SUPPORTED_LIVE_GENERATOR_PROVIDERS) == {"anthropic", "openai", "local"}
     assert set(SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS) == {"static"}
-    assert set(SUPPORTED_GENERATOR_PROVIDERS) == {"anthropic", "openai", "static"}
+    assert set(SUPPORTED_GENERATOR_PROVIDERS) == {"anthropic", "openai", "local", "static"}
     assert static_warning_contract["environment_override_status"] == "WARN"
     assert any(
         "static is supported only as an explicit fixture/replay backend" in warning
@@ -1431,7 +1433,7 @@ def test_claude_tier_routing_contract_reports_subsystem_policy_and_warnings(
 
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "codex_exec")
     warning_contract = claude_tier_routing_contract()
-    assert warning_contract["effective_live_generator_provider"] == "anthropic"
+    assert warning_contract["effective_live_generator_provider"] == "local"
     assert warning_contract["environment_override_status"] == "WARN"
     assert any(
         "agent-style provider" in warning

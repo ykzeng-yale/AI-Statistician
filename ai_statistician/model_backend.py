@@ -13,7 +13,7 @@ from typing import Any, Callable, Mapping, Protocol
 from .fingerprint import stable_hash
 
 
-SUPPORTED_LIVE_GENERATOR_PROVIDERS = ("anthropic", "openai")
+SUPPORTED_LIVE_GENERATOR_PROVIDERS = ("anthropic", "openai", "local")
 SUPPORTED_STATIC_REPLAY_GENERATOR_PROVIDERS = ("static",)
 SUPPORTED_GENERATOR_PROVIDERS = (
     SUPPORTED_LIVE_GENERATOR_PROVIDERS
@@ -26,7 +26,8 @@ PROHIBITED_AGENT_GENERATOR_PROVIDERS = (
     "cursor",
     "gemini_cli",
 )
-DEFAULT_LIVE_GENERATOR_PROVIDER = "anthropic"
+DEFAULT_LIVE_GENERATOR_PROVIDER = "local"
+DEFAULT_LOCAL_GENERATOR_MODEL = "Qwen3-4B-Instruct-2507"
 DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL = "claude-sonnet-5"
 DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
@@ -203,9 +204,8 @@ def llm_subsystem_expected_model_tier(subsystem: str) -> str:
 def default_generator_provider(env: Mapping[str, str] | None = None) -> str:
     """Default live generator provider for AI Statistician LLM use.
 
-    Anthropic is the default live provider. OpenAI remains overrideable for live
-    calls; static replay must be selected explicitly by the command or subsystem
-    that owns the replay fixture.
+    Local inference is the default. Cloud providers and static replay require
+    explicit selection; unavailable local inference never escalates to a cloud.
     """
 
     env = env or os.environ
@@ -335,6 +335,8 @@ def default_generator_model(
             or env.get("OPENAI_MODEL")
             or ""
         ).strip()
+    if provider == "local":
+        return (env.get("AI_STATISTICIAN_LOCAL_MODEL") or DEFAULT_LOCAL_GENERATOR_MODEL).strip()
     if provider == "static":
         return DEFAULT_STATIC_GENERATOR_MODEL
     return ""
@@ -589,7 +591,7 @@ def claude_tier_routing_contract(
             AI_STATISTICIAN_LLM_CONTEXTUAL_MODEL_TIER_POLICY
         ),
         "all_ok": (
-            DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
+            DEFAULT_LIVE_GENERATOR_PROVIDER in SUPPORTED_LIVE_GENERATOR_PROVIDERS
             and not set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).intersection(
                 SUPPORTED_GENERATOR_PROVIDERS
             )
