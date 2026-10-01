@@ -1,0 +1,7 @@
+scenario_id,rho,n,alternative,sig_level,B,seed
+positive_small,0.2,20,two.sided,0.05,10000,20261011
+positive_medium,0.2,40,two.sided,0.05,10000,20261012
+positive_large,0.2,80,two.sided,0.05,10000,20261013
+negative_small,-0.2,20,two.sided,0.05,10000,20261014
+negative_medium,-0.2,40,two.sided,0.05,10000,20261015
+negative_large,-0.2,80,two.sided,0.05,10000,20261016
