@@ -92,6 +92,17 @@ arm more hidden attempts. Equal calls alone is not equal cost; record tokens,
 wall time, model load/prefill time and scientific computation. Hardware and
 decoding pins accompany all local results.
 
+Implementation boundary: the existing outer runtime now accounts for local
+requests across roles and continuations, with an optional per-question request
+cap disabled by default. Reported tokens, cache reads, native server timings and
+unknown-usage counts remain separate. This covers the standalone local transport,
+not a coding host's private loop or external gold adjudication, and is not a
+token-equivalent resource allocator. A genuine single-general-agent arm with the
+same available tools is still unimplemented; renaming a specialist or substituting
+a different coding host would confound tools with collaboration. Neither this
+accounting change nor the earlier failed development pilot activates System S or
+establishes an improvement. Freeze the actual comparator and resources first.
+
 The full system can have separate role contexts while executing serially; this
 does not demonstrate parallel speedup. A concurrency experiment requires actual
 independent tasks and exact-input joins, with separately measured hardware load.

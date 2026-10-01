@@ -33,6 +33,10 @@ RUNTIME_WORKSPACE_BUDGET_SCOPE = "workspace_continuation"
 RUNTIME_CONTINUATION_BUDGET_MARKER_KEY = "runtime_workspace_continuation"
 
 
+class LocalModelCallBudgetExceeded(RuntimeError):
+    """The caller-selected, per-research-graph local request limit was reached."""
+
+
 @dataclass(frozen=True)
 class AgentTask:
     task_id: str
@@ -844,6 +848,7 @@ class AgentRuntimeResult:
     pending_task_checkpoint_reason: str = ""
     outer_graph_iterations_consumed: int = 0
     workspace_continuations_consumed: int = 0
+    local_model_usage: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self, *, include_task_payloads: bool = False) -> dict[str, Any]:
         return {
@@ -861,6 +866,8 @@ class AgentRuntimeResult:
             "runtime_steps_executed": len(self.traces),
             "outer_graph_iterations_consumed": self.outer_graph_iterations_consumed,
             "workspace_continuations_consumed": self.workspace_continuations_consumed,
+            **({"local_model_usage": deepcopy(self.local_model_usage)}
+               if self.local_model_usage else {}),
             # Compatibility alias for immutable schema-v1 consumers.
             "same_owner_workspace_continuations_consumed": self.workspace_continuations_consumed,
             "blackboard": self.blackboard.to_json(),
@@ -891,7 +898,22 @@ class AgentRuntime:
         *,
         max_iterations: int = 4,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
+        local_model_call_limit: int | None = None,
     ) -> AgentRuntimeResult:
+        if local_model_call_limit is not None and (
+            type(local_model_call_limit) is not int or local_model_call_limit < 1
+        ):
+            raise ValueError("local model call limit must be a positive integer or None")
+        local_model_resources: dict[str, Any] = {
+            "scope": "one_research_graph_all_local_backends",
+            "call_limit": local_model_call_limit,
+            "attempted_requests": 0,
+            "denied_requests": 0,
+            "requests_with_complete_token_usage": 0,
+            "requests_with_reported_cache_usage": 0,
+            "reported_usage_totals": {},
+            "transport_elapsed_seconds": 0.0,
+        }
         task = deepcopy(initial_task)
         traces: list[RuntimeIterationTrace] = []
         final_status: RuntimeStatus = "MAX_ITERATIONS_REACHED"
@@ -951,6 +973,7 @@ class AgentRuntime:
                     "iteration": iteration,
                     "task": task,
                     "subsystem": getattr(subsystem, "name", task.owner_subsystem),
+                    "local_model_resources": local_model_resources,
                 }
             )
             try:
@@ -1006,9 +1029,18 @@ class AgentRuntime:
                 _ACTIVE_PROGRESS_CONTEXT.reset(progress_token)
 
             subsystem_name = getattr(subsystem, "name", task.owner_subsystem)
+            local_model_budget_denied = local_model_resources["denied_requests"] > 0
+            if local_model_budget_denied:
+                result = replace(
+                    result,
+                    status="BLOCKED",
+                    rationale="The shared local model-call budget is exhausted; source state is preserved.",
+                    failure_classification="local_model_call_budget_exhausted",
+                )
             boundary_result: AgentStepResult | None = None
             if (
                 self.handoff_policy is not None
+                and not local_model_budget_denied
                 and _runtime_iteration_budget_scope(task, result)
                 == RUNTIME_WORKSPACE_BUDGET_SCOPE
                 and active_workspace_continuations_consumed + 1 >= max_iterations
@@ -1023,7 +1055,7 @@ class AgentRuntime:
                     next_task=None,
                     failure_classification="workspace_continuation_budget_exhausted",
                 )
-            if self.handoff_policy is not None:
+            if self.handoff_policy is not None and not local_model_budget_denied:
                 routed_result = self.handoff_policy(
                     iteration=iteration,
                     task=execution_task,
@@ -1150,6 +1182,11 @@ class AgentRuntime:
                 },
             )
 
+            if local_model_budget_denied:
+                final_status = "BLOCKED"
+                budget_exhaustion_reason = "local_model_call_budget_exhausted"
+                task = deepcopy(result.next_task or task)
+                break
             if result.status == "ACCEPTED":
                 final_status = "ACCEPTED"
                 break
@@ -1181,7 +1218,9 @@ class AgentRuntime:
             traces[-1].failure_classification if traces else ""
         )
         pending_task_checkpoint_reason = ""
-        if final_status == "MAX_ITERATIONS_REACHED":
+        if budget_exhaustion_reason == "local_model_call_budget_exhausted":
+            pending_task_checkpoint_reason = budget_exhaustion_reason
+        elif final_status == "MAX_ITERATIONS_REACHED":
             pending_task_checkpoint_reason = (
                 budget_exhaustion_reason or "outer_iteration_budget_exhausted"
             )
@@ -1213,7 +1252,52 @@ class AgentRuntime:
             pending_task_checkpoint_reason=pending_task_checkpoint_reason,
             outer_graph_iterations_consumed=outer_graph_iterations_consumed,
             workspace_continuations_consumed=workspace_continuations_consumed,
+            local_model_usage=(
+                local_model_resources if local_model_resources["attempted_requests"]
+                or local_model_call_limit is not None else {}
+            ),
         )
+
+
+@contextmanager
+def agent_runtime_local_model_request(
+    *, model: str, max_tokens: int, client_tool_transport: bool,
+) -> Iterator[dict[str, Any]]:
+    """Account for actual local transport calls in the existing research scope."""
+
+    context = _ACTIVE_PROGRESS_CONTEXT.get() or {}
+    resources = context.get("local_model_resources")
+    details: dict[str, Any] = {
+        "provider": "local", "model": model, "max_tokens": max_tokens,
+        "client_tool_transport": client_tool_transport,
+    }
+    if resources is not None:
+        limit = resources["call_limit"]
+        if limit is not None and resources["attempted_requests"] >= limit:
+            resources["denied_requests"] += 1
+            raise LocalModelCallBudgetExceeded(
+                f"shared local model-call limit {limit} reached before another request"
+            )
+        resources["attempted_requests"] += 1
+        details["request_index"] = resources["attempted_requests"]
+        details["call_limit"] = limit
+    started = perf_counter()
+    with agent_runtime_substage("local_model_request", metadata=details) as observation:
+        try:
+            yield observation
+        finally:
+            if resources is not None:
+                resources["transport_elapsed_seconds"] += perf_counter() - started
+                usage = observation.get("provider_usage", {})
+                resources["requests_with_complete_token_usage"] += int(
+                    observation.get("provider_usage_complete") is True
+                )
+                resources["requests_with_reported_cache_usage"] += int(
+                    "cache_read_input_tokens" in usage
+                )
+                totals = resources["reported_usage_totals"]
+                for key, value in usage.items():
+                    totals[key] = totals.get(key, 0) + value
 
 
 @contextmanager

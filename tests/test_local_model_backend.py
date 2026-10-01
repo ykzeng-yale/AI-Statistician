@@ -12,6 +12,14 @@ from ai_statistician.cli import (
     _apply_research_agent_runtime_evaluation_model_policy,
     _build_theory_generator_backend, build_parser,
 )
+from ai_statistician.agent_runtime import (
+    AgentRuntime, AgentStepResult, AgentTask, BlackboardState,
+    mark_workspace_continuation,
+)
+from ai_statistician.client_tool_loop import (
+    ClientToolExecutionResult, ClientToolLoopError, load_client_tool_session,
+    persist_client_tool_session, run_bounded_client_tool_loop,
+)
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend, _chat_messages
 from ai_statistician.model_backend import (
     ClientToolDefinition, ClientToolTurnRequest, GeneratorRequest,
@@ -140,6 +148,228 @@ def test_unsupported_history_is_not_silently_dropped():
         {"type": "image", "source": {"data": "opaque"}}]},))
     with pytest.raises(ValueError, match="does not support"):
         _chat_messages(request)
+
+
+def _mock_local_completion(monkeypatch, *, usage=None, tool_calls=None, error=False):
+    requests = []
+    raw = {"model": "Qwen3-4B-Instruct-2507", "choices": [{
+        "message": {"content": "transport fixture", "tool_calls": tool_calls or []},
+        "finish_reason": "stop",
+    }], "timings": {"prompt_n": 10, "cache_n": 20, "prompt_ms": 12.5,
+                     "predicted_ms": 8.0, "not_a_timing": "omitted"}}
+    if usage is not None:
+        raw["usage"] = usage
+
+    class Opener:
+        def open(self, request, *, timeout):
+            requests.append(json.loads(request.data))
+            if error:
+                raise HTTPError(request.full_url, 400, "Bad Request", {},
+                                BytesIO(b'{"error":"opaque transport failure"}'))
+            return BytesIO(json.dumps(raw).encode())
+
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: Opener())
+    return requests
+
+
+@pytest.mark.parametrize("limit", [None, 4, 3])
+def test_local_request_scope_spans_roles_and_workspace_continuations(monkeypatch, limit):
+    requests = _mock_local_completion(monkeypatch, usage={
+        "prompt_tokens": 30, "completion_tokens": 4, "total_tokens": 34,
+        "prompt_tokens_details": {"cached_tokens": 20},
+    })
+    progress, routed = [], []
+
+    class Subsystem:
+        def __init__(self, name):
+            self.name = name
+            self.backend = LocalChatGeneratorBackend()
+
+        def run(self, task, blackboard):
+            if self.name == "Author":
+                self.backend.generate_client_tool_turn(_request())
+            else:
+                self.backend.generate(GeneratorRequest(
+                    system_prompt="fixture", user_prompt="opaque input",
+                    model="Qwen3-4B-Instruct-2507",
+                ))
+            index = int(task.task_id)
+            next_owner = ("Author", "Author", "Reviewer")[index] if index < 3 else ""
+            next_task = AgentTask(str(index + 1), next_owner, "opaque objective") if next_owner else None
+            if next_owner == task.owner_subsystem:
+                next_task = mark_workspace_continuation(parent_task=task, next_task=next_task)
+            return AgentStepResult(
+                status="REROUTE" if next_task else "ACCEPTED", rationale="fixture observed",
+                next_task=next_task,
+                produced_artifacts={f"observed:{index}": {"opaque": index}},
+            )
+
+    def policy(**kwargs):
+        routed.append(kwargs["subsystem_name"])
+        return kwargs["result"]
+
+    runtime = AgentRuntime(
+        subsystems={name: Subsystem(name) for name in ("Planner", "Author", "Reviewer")},
+        blackboard=BlackboardState(project_id="fixture"), handoff_policy=policy,
+    )
+    result = runtime.run(AgentTask("0", "Planner", "opaque objective"),
+                         max_iterations=6, progress_callback=progress.append,
+                         local_model_call_limit=limit)
+    n = 4 if limit is None else limit
+    denied = limit == 3
+    assert len(requests) == n
+    assert result.status == ("BLOCKED" if denied else "ACCEPTED")
+    assert result.workspace_continuations_consumed == 1
+    usage = result.local_model_usage
+    assert usage["attempted_requests"] == n
+    assert usage["denied_requests"] == int(denied)
+    assert usage["requests_with_complete_token_usage"] == n
+    assert usage["requests_with_reported_cache_usage"] == n
+    assert usage["reported_usage_totals"] == {
+        "input_tokens": 30 * n, "output_tokens": 4 * n, "total_tokens": 34 * n,
+        "cache_read_input_tokens": 20 * n,
+    }
+    assert len(routed) == n
+    finishes = [row for row in progress if row.get("substage") == "local_model_request"
+                and row["event_type"] == "substage_finish"]
+    assert len(finishes) == n
+    assert [row["metadata"]["request_index"] for row in finishes] == list(range(1, n + 1))
+    assert finishes[0]["metadata"]["server_timings"]["prompt_ms"] == 12.5
+    assert "not_a_timing" not in finishes[0]["metadata"]["server_timings"]
+    if denied:
+        assert result.pending_task_checkpoint_reason == "local_model_call_budget_exhausted"
+        assert result.pending_task.owner_subsystem == "Reviewer"
+        assert "observed:2" in result.blackboard.artifacts
+    before = dict(usage)
+    LocalChatGeneratorBackend().generate(GeneratorRequest(
+        system_prompt="external evaluation fixture", user_prompt="not product work",
+        model="Qwen3-4B-Instruct-2507",
+    ))
+    assert result.local_model_usage == before
+    assert len(requests) == n + 1
+
+
+def test_shared_call_limit_keeps_source_and_retained_raw_observation(monkeypatch, tmp_path):
+    requests = _mock_local_completion(monkeypatch, usage={
+        "prompt_tokens": 30, "completion_tokens": 4, "total_tokens": 34,
+    }, tool_calls=[{"id": "opaque-call", "function": {
+        "name": "observe", "arguments": "{}",
+    }}])
+    source = tmp_path / "candidate.txt"
+    model_source = "opaque model-owned source\n"
+    raw_feedback = "unmodified environment failure\nline 12: opaque observation"
+    request = _request()
+    errors = []
+
+    class SourceOwner:
+        name = "SourceOwner"
+
+        def run(self, task, blackboard):
+            def execute(call, context):
+                assert call.name == "observe"
+                source.write_text(model_source)
+                return ClientToolExecutionResult(
+                    content=raw_feedback, is_error=True, state_changed=True,
+                )
+
+            try:
+                run_bounded_client_tool_loop(
+                    backend=LocalChatGeneratorBackend(), request=request,
+                    execute_tool=execute, max_turns=3, max_tool_calls=3,
+                    max_no_progress_turns=2,
+                )
+            except ClientToolLoopError as error:
+                errors.append(error)
+                ref = persist_client_tool_session(
+                    session_dir=tmp_path, session_id="owner:fixture",
+                    request=request, messages=error.messages,
+                )
+                return AgentStepResult(
+                    status="BLOCKED", rationale="retained pending input",
+                    produced_artifacts={"owner:session": ref},
+                )
+            pytest.fail("an extra model request must not be sent")
+
+    result = AgentRuntime(subsystems={"SourceOwner": SourceOwner()},
+                          blackboard=BlackboardState(project_id="fixture")).run(
+        AgentTask("source", "SourceOwner", "opaque objective"), local_model_call_limit=1,
+    )
+    assert len(requests) == len(errors) == 1
+    assert result.status == "BLOCKED"
+    assert result.pending_task.owner_subsystem == "SourceOwner"
+    assert result.pending_task_checkpoint_reason == "local_model_call_budget_exhausted"
+    assert source.read_text() == model_source
+    error = errors[0]
+    assert error.provider_usage == {"input_tokens": 30, "output_tokens": 4, "total_tokens": 34}
+    assert error.history[-1]["stop_reason"] == "provider_terminal_error"
+    metadata = error.history[-1]["response_metadata"]
+    assert metadata["exception_type"] == "LocalModelCallBudgetExceeded"
+    assert metadata["automatic_turn_restart"] is False
+    assert error.messages[-1]["content"] == [{
+        "type": "tool_result", "tool_use_id": "opaque-call",
+        "content": raw_feedback, "is_error": True,
+    }]
+    assert load_client_tool_session(
+        result.blackboard.artifacts["owner:session"], session_dir=tmp_path,
+        session_id="owner:fixture", request=request,
+    ) == tuple(error.messages)
+
+
+def test_unknown_token_usage_and_failed_transport_are_not_free_calls(monkeypatch):
+    requests = _mock_local_completion(monkeypatch, error=True)
+
+    class SourceOwner:
+        name = "SourceOwner"
+
+        def run(self, task, blackboard):
+            backend = LocalChatGeneratorBackend()
+            request = GeneratorRequest(system_prompt="fixture", user_prompt="opaque",
+                                       model="Qwen3-4B-Instruct-2507")
+            with pytest.raises(RuntimeError, match="opaque transport failure"):
+                backend.generate(request)
+            backend.generate(request)
+
+    result = AgentRuntime(subsystems={"SourceOwner": SourceOwner()},
+                          blackboard=BlackboardState(project_id="fixture")).run(
+        AgentTask("source", "SourceOwner", "opaque objective"), local_model_call_limit=1,
+    )
+    assert result.status == "BLOCKED"
+    assert len(requests) == 1
+    assert result.local_model_usage["attempted_requests"] == 1
+    assert result.local_model_usage["denied_requests"] == 1
+    assert result.local_model_usage["requests_with_complete_token_usage"] == 0
+    assert result.local_model_usage["reported_usage_totals"] == {}
+    assert result.pending_task.task_id == "source"
+
+
+def test_missing_usage_is_unknown_not_zero(monkeypatch):
+    _mock_local_completion(monkeypatch)
+    response = LocalChatGeneratorBackend().generate(GeneratorRequest(
+        system_prompt="fixture", user_prompt="opaque", model="Qwen3-4B-Instruct-2507",
+    ))
+    assert response.metadata["provider_usage"] == {}
+    assert response.metadata["provider_usage_complete"] is False
+
+
+def test_partial_usage_preserves_only_reported_counts(monkeypatch):
+    _mock_local_completion(monkeypatch, usage={
+        "prompt_tokens": 10, "completion_tokens": -1,
+        "prompt_tokens_details": {"cached_tokens": False},
+    })
+    response = LocalChatGeneratorBackend().generate(GeneratorRequest(
+        system_prompt="fixture", user_prompt="opaque", model="Qwen3-4B-Instruct-2507",
+    ))
+    assert response.metadata["provider_usage"] == {"input_tokens": 10}
+    assert response.metadata["provider_usage_complete"] is False
+
+
+@pytest.mark.parametrize("limit", [0, -1, True, 1.5, "3"])
+def test_local_call_limit_is_explicit_and_validated_before_work(limit):
+    runtime = AgentRuntime(subsystems={}, blackboard=BlackboardState(project_id="fixture"))
+    with pytest.raises(ValueError, match="positive integer"):
+        runtime.run(AgentTask("source", "SourceOwner", "opaque"), local_model_call_limit=limit)
+    args = build_parser().parse_args(["research-agent-runtime"])
+    assert args.local_model_call_limit is None
 
 
 @pytest.mark.skipif(

@@ -370,6 +370,7 @@ class ResearchAgentRuntimeConfig:
     theory_scratch_timeout_seconds: int = 20
     theory_scratch_enabled: bool = True
     max_iterations: int = 12
+    local_model_call_limit: int | None = None
     max_critic_revision_rounds: int = 1
     scientific_consumer_revision_max_revisions: int = 1
     formal_target_semantic_review_required: bool = False
@@ -20324,6 +20325,7 @@ def run_research_agent_runtime(
             initial_task,
             max_iterations=config.max_iterations,
             progress_callback=record_progress,
+            local_model_call_limit=config.local_model_call_limit,
         )
         result_json = result.to_json(include_task_payloads=True)
         persisted_result_json = result.to_json(include_task_payloads=False)

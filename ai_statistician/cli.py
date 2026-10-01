@@ -3840,6 +3840,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 or 60
             ),
             max_iterations=args.max_iterations,
+            local_model_call_limit=getattr(args, "local_model_call_limit", None),
             max_critic_revision_rounds=args.max_critic_revision_rounds,
             scientific_consumer_revision_max_revisions=int(
                 getattr(
@@ -6456,6 +6457,16 @@ def build_parser() -> argparse.ArgumentParser:
             "wall-clock timeout for each live LLM generator request; provider-local "
             "transport retries preserve the exact request, while a terminal error "
             "ends the workspace turn without an implicit subsystem restart"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--local-model-call-limit",
+        type=int,
+        default=None,
+        help=(
+            "optional per-question local model request limit shared by all roles and "
+            "workspace continuations; default adds no limit. Actual token/cache usage "
+            "is reported separately, so equal call counts are not claimed as equal cost"
         ),
     )
     research_agent_runtime.add_argument(

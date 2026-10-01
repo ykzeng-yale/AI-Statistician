@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Sequence
 
-from .agent_runtime import agent_runtime_substage
+from .agent_runtime import LocalModelCallBudgetExceeded, agent_runtime_substage
 from .fingerprint import stable_hash
 from .model_backend import (
     ClientToolCall,
@@ -1349,6 +1349,9 @@ def _compact_tool_response_metadata(
         "n_client_tool_calls",
         "provider_stop_reason",
         "provider_usage",
+        "provider_usage_complete",
+        "server_timings",
+        "local_model_request_index",
         "prompt_caching_requested",
         "prompt_caching_applied",
         "retry_count",
@@ -1366,7 +1369,7 @@ def _compact_tool_response_metadata(
 
 
 def _is_terminal_provider_turn_error(exc: Exception) -> bool:
-    if isinstance(exc, LiveGeneratorTimeoutError):
+    if isinstance(exc, (LiveGeneratorTimeoutError, LocalModelCallBudgetExceeded)):
         return True
     provider_module = type(exc).__module__.split(".", 1)[0].lower()
     return provider_module in {"anthropic", "httpcore", "httpx", "openai"}

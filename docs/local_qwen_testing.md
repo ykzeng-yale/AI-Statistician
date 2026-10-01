@@ -82,6 +82,30 @@ one schema call and two native tool turns. Tool-session usage was 515 input and
 `350f9dca1d8cf924478ba201af413810af239f5d934b0281b318ac704173511e`.
 The owned server was stopped after testing. No Anthropic inference was performed.
 
+## Whole-Task Resource Accounting
+
+The existing `AgentRuntime` records local transport requests across its planner,
+source owners, reviewers and workspace continuations in `local_model_usage`.
+Each question has its own scope; an explicit new runtime invocation starts a new
+scope. Calls outside that graph, such as independent gold evaluation or a native
+coding host's private transport, are not included. The current graph is serial;
+this is not a concurrent resource allocator.
+
+`research-agent-runtime --local-model-call-limit N` optionally stops before an
+additional local request after N attempts. The default is no additional limit.
+HTTP failures consume attempts, and Architect routing cannot reset the counter.
+Exhaustion preserves source, retained observations and the exact pending task;
+it does not restart or repair a consumed evaluation. Completion on the last
+allowed call remains valid. This is a request cap, not a token or wall-time cap.
+
+Usage records retain reported input/output/total tokens and cached-input tokens,
+numeric server timings and transport elapsed time. Missing usage remains unknown,
+not zero. Cache reads are a subset of input, not extra tokens to add to the total.
+See the pinned [llama.cpp server API](https://github.com/ggml-org/llama.cpp/blob/4fea119/tools/server/README.md)
+for the response fields. Equal request counts alone do not establish equal cost.
+Mocked mechanism tests verify scope, failures and retained state; they are not
+model inference or scientific capability evidence.
+
 Official publication studies start fresh with open-weight models. Historical
 Haiku development outcomes are not comparison arms or main results. Local Claude
 Code compatibility/user-workflow testing is a separately authorized host check;
