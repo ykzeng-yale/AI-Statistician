@@ -18,6 +18,8 @@ experimental results. Pins below are observed upstream HEADs, not dependencies.
 | [CORE-Bench](https://arxiv.org/abs/2409.11363) and [June 2026 follow-up](https://arxiv.org/abs/2606.26158) | Reproducibility, model/scaffold separation, shortcuts, reliability and human collaboration | Measure execution rather than copied output files, failures and effort; pin benchmark version |
 | [AstaBench](https://arxiv.org/abs/2510.21652), [code](https://github.com/allenai/asta-bench) | Scientific task categories and reproducible evaluation environments | Candidate external component benchmark, not a statistical derivation gold set |
 | [AI Agents That Matter](https://arxiv.org/abs/2407.01502) | Agent quality must be interpreted together with cost and evaluation validity | Matched resources, complete failure reporting and explicit model/scaffold attribution |
+| [Identical Runs, Different Results, September 2026](https://arxiv.org/html/2609.33812v1) | Repeated open-weight host/model draws, final-source scoring and inspectable compliance records | Use artifact-level reporting; its single ML task and hosted endpoints do not establish statistical-research effects or our sample size |
+| [Fisher-R1 / P-Bench, August 2026](https://arxiv.org/html/2608.07437v1) | Executable R hypothesis-testing tasks and source-grounded references | Candidate component comparison, not theory-development gold; agreement with a reference p-value/decision does not by itself establish method validity |
 | [OneFlow / strong single-agent workflow baseline, v1](https://arxiv.org/html/2601.12307v1) | Shared-conversation role-playing is a distinct strong control for homogeneous workflows | Preserve a separate free-planning general-agent arm; do not import MCTS or assume cache/semantic equivalence |
 | [Towards a Science of Scaling Agent Systems, v2](https://arxiv.org/html/2512.08296v2) | Controlled tools, prompt structures and resources expose task-dependent coordination benefits and costs | Test whether collaboration helps statistical tasks; neither agent count nor published cross-domain results establishes our benefit |
 | [AI Scientist v2](https://arxiv.org/abs/2504.08066) | Executable candidate search and full research artifacts | Conditional baseline where compatible; do not port its controller or infer theoretical correctness from paper review scores |
@@ -79,6 +81,18 @@ GitHub API metadata/tree and selected source files were checked. No missing
 license is interpreted as permission to copy. Existing earlier pin audits remain
 historical; new HEADs do not automatically update our runtime.
 
+The September repeated-run repository's `harness/bench/evaluate.py` and
+`analysis/ledger.py` were inspected, not executed. Borrow its final-artifact and
+count-reconciliation reporting pattern, not provider-error keyword reruns,
+mutable rescoring or its controller. Our consumed draws remain immutable.
+The Fisher-R1 `evaluation/evaluate.py` grades reported decision and p-value;
+`verify_pbench.py` checks snapshot consistency, not inference or derivation.
+No scorer, training policy or model was imported. P-Bench metadata at
+`402205db5904b45b3f1f0aca895980f712fd61d3` lists 425 answer-key paths and
+CC-BY-4.0; no task data or answer-key contents were opened, no original analysis
+was rerun, and neither code/data rights nor task-level authority were fully
+qualified for our study. Keep candidate source families and variants grouped.
+
 | Repository | Observed SHA | License/inspection |
 | --- | --- | --- |
 | gtrhythm/PARNESS | `100b4f7d67d23fae3db58619dbc077dde451d2aa` | No top-level license observed; graph-runner contract inspected |
@@ -89,6 +103,8 @@ historical; new HEADs do not automatically update our runtime.
 | prove2me/prove2me_workspace | `4bb28221f86306b70b58f8119c4413025d09b302` | No top-level license observed; statement/proof and environment references inspected |
 | anthropics/fermats-last-theorem | `6e837e75355538c7f80bab5b956861e86c4eacc2` | Apache-2.0; map/comparator paths, `formalization.yaml` and comparator launcher inspected |
 | MoonshotAI/kimi-cli | `9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82` | Apache-2.0; skill discovery documentation and tree inspected |
+| earino/identical-runs-different-results | `d98dd8821fd8871e2a07591bb0093d02767f1f46` | MIT; primary methods/limitations, verification map, final scorer and count ledger inspected; no reproduction or runtime adoption |
+| jmu27/FisherR1 | `968dd38bea50102a313d7d36843aba564eabc33f` | No top-level license observed; primary paper, final metric scorer and snapshot verifier inspected; component candidate only |
 
 The earlier Kimi pin is historical: the Python repository is now archived and
 points to [`MoonshotAI/kimi-code`](https://github.com/MoonshotAI/kimi-code).

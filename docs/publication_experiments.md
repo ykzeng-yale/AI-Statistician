@@ -466,7 +466,9 @@ remains in the denominator under its predeclared handling.
 Report task-by-arm outcomes and paired family-level differences with uncertainty.
 For clustered repeated runs, use a family-level paired resampling or a
 prespecified hierarchical analysis; do not treat individual criteria/calls as
-independent observations. A success-rate test or effect interval should account
+independent observations. Within-artifact simulation repetitions are not independent
+research-agent draws and cannot increase the agent-comparison sample size.
+A success-rate test or effect interval should account
 for the paired design. Declare multiplicity handling and separate exploratory
 ablations from the primary comparison. Report time-limit censoring for duration,
 and quality-cost curves, not only average cost among successful attempts.
@@ -503,5 +505,6 @@ create another benchmark scheduler.
 References informing this design: [PaperBench](https://arxiv.org/abs/2504.01848),
 [ResearchClawBench](https://arxiv.org/abs/2606.07591),
 [CORE-Bench follow-up](https://arxiv.org/abs/2606.26158),
-[AI Agents That Matter](https://arxiv.org/abs/2407.01502), and
+[AI Agents That Matter](https://arxiv.org/abs/2407.01502),
+[repeated open-weight agent/model comparisons](https://arxiv.org/html/2609.33812v1), and
 [ADEMP simulation guidance](https://doi.org/10.1002/sim.8086).

@@ -1,10 +1,10 @@
 {
-  "schema_version": 501,
+  "schema_version": 502,
   "updated_at": "2026-10-02",
   "goal_status": "active",
   "goal_blocker": "",
   "execution_goal_revision": "On 2026-10-01 the native goal API returned no current goal. The operator-requested two-publication objective was then created and remains active. This replaces the obsolete Task114/one-result working objective without claiming that old objective was achieved. The subsequent operator revision requires local Qwen for all future model testing and evaluation.",
-  "execution_status": "Corrected the Lean foundation's false new-name diagnosis: the Git-baseline walker missed inline attributes that the current-file reader handled. Deleted the duplicate walker and reused the existing source reader for both inputs; no new grammar, name exception, proof edit or relaxed policy. Full Lean/RAG tools: 86 passed, one opt-in skip. Default incremental policy over unchanged StatInference: zero new declarations/violations; explicit whole-file naming audit of InteriorPoint still has 746 violations among 1466 source declarations. Default guarded file/module and three existing ledger declarations passed with zero unexpected axioms; Lean source and source ledger unchanged. EmpericalProcessLEAN main db6c7718 is now the canonical submodule pin. No new agent outcome, source-fidelity/coverage credit or model call. Current shared-index refresh and primary regression verify this integration separately from archived evidence. Frozen native-Qwen FDA pair remains two failures at its original protocol, not a rerun. Haiku stays archival only; both official studies unactivated and full two-publication goal active.",
+  "execution_status": "Deleted selective diagnostic-outcome masking from the scientific source-owner loop. Permitted exploratory errors, measurements and gate diagnostics now reach the same model without a partial acceptance-field mask; explicitly outcome-blind observations remain blind and interface failures stay actionable. Source-authoring acceptance remains separate from scientific acceptance. Private confirmation is not returned to that authoring session, although later collaborative frozen-outcome feedback can occur. Full primary regression at 02471283: 1963 passed, 18 skipped, one existing SRT xfail; no model call or consumed evaluation edit. Reviewed two new primary publication/code sources for reporting and component-benchmark reuse, not runtime adoption. Total multi-arm resources, cohorts and complete observations still need matching or prospective disclosure. Haiku stays archival only, all future scientific model tests use pinned local Qwen, both official studies remain unactivated and the complete two-publication goal active.",
   "historical_evidence_scope": "Haiku capability_facts and latest_independent_qualification below are archived development facts only, not official publication results, model baselines or gates on the new studies. Do not continue following their scores or resume consumed draws. Keep useful regression mechanisms and source-faithful, independently verified mathematical artifacts without attributing them to autonomous research success.",
   "role": "sole main responsible worker",
   "registered_chat_goal": "Prepare AI-Statistician and EmpericalProcessLEAN for two distinct, legitimate arXiv-first publications: (1) a portable statistical-research harness usable by researchers with Codex, Claude Code and an open-source coding agent, supporting reviewable theory, Python/R simulation and intent-selected Lean; (2) a complete multi-agent AI-Statistician driven through a single LLM API. Systematically audit both repositories and current primary literature/code, establish defensible contributions and scientific baselines, consolidate reusable architecture and the Statlib-aligned Lean foundation, implement reproducible installation and evaluation protocols, run prospectively frozen independent experiments without reusing consumed evaluations, and produce evidence-backed manuscripts and public release artifacts. Completion requires working, tested releases and reproducible comparative evidence for each paper; documentation, tests, model agreement and preliminary proofs alone do not count as publication readiness.",
@@ -31,7 +31,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "c480917f7427c2ebbe2ddff1bb0c1c0c02d3b7e9",
+  "validated_code_head": "024712837bffd11c33ea1b5a515ad0062eced8e5",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -47,8 +47,8 @@
     "canonical_branch": "codex/runtime-eval-alignment-20260625",
     "direct_main_delivery": true,
     "pull_request_required": false,
-    "remote_before_current_change": "afe62fb8197d9b36e5f4ce6ab401e802ef64e8db",
-    "working_tree_before_current_change": "Began clean at afe62fb8; AI main/canonical refs matched, Lean main clean at ae4c46e0. Reproduced the unchanged-file baseline mismatch, consolidated the reader, added neutral namespace/attribute regressions, and ran all Lean/RAG tool tests plus the existing guarded native verifier. No mathematics, proof, name, source-map role or consumed evaluation edit. Advance the canonical submodule to reviewed Lean main db6c7718 and verify integration before direct atomic AI main/canonical delivery; no PR or force push."
+    "remote_before_current_change": "249b78d7eb8fe7cc409a9eb118af9e7f78e206a9",
+    "working_tree_before_current_change": "Began clean at 249b78d7; AI main/canonical refs matched, canonical Lean main/pin clean at db6c7718. Demonstrated missing exploratory diagnostic feedback, removed the partial mask, preserved actionable interface errors under both visibility modes and ran the full primary suite. No generated source, statistical answer, Lean proof, consumed evaluation or model invocation changed. Deliver reviewed mechanism and publication-record changes directly and atomically to AI main/canonical; no PR or force push."
   },
   "publication_development": {
     "study_id": "kimi_type_ms_20261001",
@@ -258,7 +258,7 @@
   "current_structure": {
     "research_agent_runtime_lines": 24527,
     "theory_workspace_lines": 4584,
-    "scientific_code_workspace_lines": 3695,
+    "scientific_code_workspace_lines": 3658,
     "research_architect_lines": 3719,
     "client_tool_loop_lines": 1573,
     "research_control_lines": 729,
@@ -270,11 +270,11 @@
     "codex_adoption_lines": 246
   },
   "latest_validated_change": {
-    "code_commit": "c480917f7427c2ebbe2ddff1bb0c1c0c02d3b7e9",
+    "code_commit": "024712837bffd11c33ea1b5a515ad0062eced8e5",
     "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
-    "summary": "Consolidate the Lean incremental API gate's Git-baseline/current inventories through the existing source reader, deleting a duplicate walker that falsely treated attributed legacy declarations as new. Pin the reviewed submodule in AI-Statistician and refresh its current shared index. No new grammar, mathematical source, proof/name edit, policy exception, scheduler, generated-answer patch or consumed reevaluation. AI research-owner tools/context and source code remain unchanged.",
-    "verification": "Full primary suite at c480917f: 1961 passed, 18 skipped, one existing SRT xfail in 711.59 seconds; runs/publication_lean_api_inventory_20261002/primary_suite.junit.xml (1980 cases, zero failures/errors; SHA-256 a19fe2b524f3c59515d018bc0a17f39731f8a5c843bf8e161f1e31653eb822f3). Full Lean/RAG tools: 86 passed, one opt-in skip; tool_tests.junit.xml (87 cases, zero failures/errors; SHA-256 ba118c575b789b511fb06fc9d68892732df66e5886b93c44e2d99e0f2800f139). Default guarded InteriorPoint file/module and three selected existing ledger declarations passed with zero unexpected axioms in 190.95 seconds. Entire unchanged library incremental policy reports zero new names; explicit InteriorPoint all-declaration audit still has 746 violations among 1466 declarations. Current index schema 6 contains 52485 declarations and binds clean db6c7718/Lean 4.30.0/Mathlib 81343555; the checked barrier declaration is accessible. Lean/source-ledger bytes and protected historical hash e7162814977a51579850fcc3418017d7b638d23ce1550a0f523d2b7f55903da3 unchanged. Compile/diff checks passed; no model invocation.",
-    "capability_effect": "Corrects a demonstrated incremental-gate defect and binds retrieval to the reviewed active checkout. Zero incremental violations do not establish whole-library API conformance; three native checks do not establish textbook fidelity, coverage, a clean-machine build or new agent success. Public licensing/source-asset rights, curated API, independent research gold and matched multi-family experiments remain unfinished. Haiku and consumed Qwen outcomes remain archived/unchanged; no retries or model escalation. Both official studies remain unactivated and the complete two-publication goal active."
+    "summary": "Remove the partial diagnostic acceptance-outcome mask rather than add content-key redaction, special error rules or another controller. Return permitted raw exploratory failures and measurements to the source-owning model; preserve explicit outcome blinding and actionable execution-interface feedback. Diagnostic scientific failures do not determine source-authoring acceptance. Correct the publication comparison boundary and distinguish simulation repetitions from independent agent draws. No model-authored code/proof patch, scheduler, retry or consumed reevaluation.",
+    "verification": "Full primary suite at committed 02471283: 1963 passed, 18 skipped, one existing SRT xfail in 734.22 seconds; runs/publication_diagnostic_feedback_20261002/primary_suite.junit.xml (1982 cases, zero failures/errors; SHA-256 6bb4e48461f89acba905bdad7664dae211e02ee3930508639430d424cb27bbb5). Four final focused cases passed, covering source-owner diagnostic feedback, deferred private confirmation and interface failures under both visibility modes. Compile/diff checks passed. Canonical Lean pin remains db6c7718; protected historical hash e7162814977a51579850fcc3418017d7b638d23ce1550a0f523d2b7f55903da3 unchanged. No model invocation, old result rescore, artifact repair or source-ledger edit.",
+    "capability_effect": "Repairs a demonstrated owner-feedback defect and removes one comparison asymmetry; it does not establish matched total resources/cohorts/observations, independent scientific correctness, multi-family efficacy or publication readiness. Inspected primary repeated-run and hypothesis-testing code only informs reporting and candidate component selection; no external scorer/controller/training policy was imported. Public rights, curated Lean API, fresh mathematical authority and prospective comparative experiments remain unfinished. Haiku and consumed Qwen outcomes remain archived/unchanged; no retries or model escalation. Both official studies remain unactivated and the complete two-publication goal active."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
