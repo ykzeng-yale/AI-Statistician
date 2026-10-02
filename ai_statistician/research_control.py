@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import asdict, replace
 from pathlib import Path, PurePosixPath
 from subprocess import CompletedProcess
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from .client_tool_loop import (
     CLIENT_TOOL_SESSION_DIRECTORY,
@@ -404,7 +404,7 @@ def prepare_single_context_research_workspace(
     theory_agent: Any,
     algorithm_agent: Any,
     simulation_agent: Any,
-    estimator_id: str,
+    estimator_ids: Sequence[str],
     session_dir: Path,
     session_id: str,
     n_runs: int,
@@ -418,7 +418,8 @@ def prepare_single_context_research_workspace(
 ) -> PreparedClientToolWorkspace[ClientToolLoopResult]:
     """Assemble actual Theory/estimator/exploratory-simulation actions.
 
-    This single-estimator exploratory comparison arm is not another product scheduler.
+    The ordered estimator IDs fix the configured source workspaces, not the method.
+    This exploratory comparison arm is not another product scheduler.
     Source checkpoints and their supplied contexts are not isolated-role receipts
     or independent acceptance. Confirmation and optional/required Lean evaluation
     must be configured separately; this entry point supplies no formal capability.
@@ -438,66 +439,78 @@ def prepare_single_context_research_workspace(
     question = deepcopy(question)
     if question.task_intent.get("formal") == "required":
         raise ValueError("this comparison arm has no required-formal executor")
-    if not estimator_id.strip() or min(n_runs, timeout_s) < 1:
-        raise ValueError("research control requires an estimator identity and positive execution limits")
+    if (not isinstance(estimator_ids, Sequence) or isinstance(estimator_ids, str) or not estimator_ids
+        or any(not isinstance(value, str) or not value.strip() for value in estimator_ids)
+        or len(estimator_ids) != len(set(estimator_ids)) or min(n_runs, timeout_s) < 1):
+        raise ValueError("research control requires unique estimator identities and positive execution limits")
+    estimator_ids = tuple(estimator_ids)
+    algorithm_scopes = {"algorithm" if index == 0 else f"algorithm_{index + 1}": value
+                        for index, value in enumerate(estimator_ids)}
     frozen_estimator_id = question.estimator_execution_contract.get("estimator_id")
-    if frozen_estimator_id and estimator_id != frozen_estimator_id:
+    if frozen_estimator_id and frozen_estimator_id not in estimator_ids:
         raise ValueError("comparison estimator identity differs from the frozen question ABI")
     sources = theory_agent.research_sources
     discovery = theory_agent.research_source_discovery
     theory = theory_agent.prepare_workspace(question, theory_workspace_root=session_dir / "theory")
 
     def prepare_source(scope, selected, previous):
-        allowed = {"theory"} if scope == "algorithm" else {"theory", "algorithm"}
+        estimator_id = algorithm_scopes.get(scope)
+        allowed = {"theory"} if estimator_id is not None else {"theory", *algorithm_scopes}
         if set(selected) - allowed:
             raise ClientToolInputError("selected inputs are not dependencies of this source workspace")
         core = selected.get("theory", {}).get("payload", {}).get("core_packet", {})
         theory_context = document_authoritative_theory_context(core)
-        spec = _estimator_spec(core, estimator_id)
+        specs = {value: _estimator_spec(core, value) for value in estimator_ids}
+        spec = specs.get(estimator_id, {})
         provided = {parent: {"payload_hash": row["reference"]["payload_hash"],
                              "resources": deepcopy(row["reference"]["resources"])}
                     for parent, row in selected.items()}
         inputs = {}
-        if scope == "algorithm" and "theory" in selected:
+        if estimator_id is not None and "theory" in selected:
             inputs["theory"] = {"payload_hash": provided["theory"]["payload_hash"],
                                 "resources": {"estimator:" + estimator_id: stable_hash(spec)}}
         context = {"theory_context": theory_context, "execution_phase": "exploratory_diagnostic",
-                   "estimator_spec": project_executable_estimator_spec(spec),
+                   "estimator_specs": [project_executable_estimator_spec(value) for value in specs.values()],
                    "independent_role_review": False}
-        handoff = {}
-        if "algorithm" in selected:
-            algorithm_payload = selected["algorithm"]["payload"]
+        if estimator_id is not None:
+            context["estimator_id"] = estimator_id
+            context["estimator_spec"] = project_executable_estimator_spec(spec)
+        handoff = {"independent_role_review": False, "exact_algorithm_artifacts": []}
+        context["upstream_estimators"] = []
+        for parent, selected_id in algorithm_scopes.items():
+            if parent not in selected:
+                continue
+            algorithm_payload = selected[parent]["payload"]
             draft = algorithm_payload["code_draft"]
             project_hash = scientific_project_hash(language=draft["language"], code=draft["code"],
                                                    project_files=draft.get("project_files", []))
             exact, errors = read_scientific_execution_review_artifact(
-                artifact_id=estimator_id, row=algorithm_payload["check_result"]["prototype"],
+                artifact_id=selected_id, row=algorithm_payload["check_result"]["prototype"],
             )
             if errors or exact is None:
                 raise ClientToolInputError("\n".join(errors))
             if exact["exact_source_hash"] != stable_hash(draft["code"]) or exact["exact_project_hash"] != project_hash:
                 raise ClientToolInputError("selected estimator draft differs from its executed source")
-            handoff = {"independent_role_review": False, "exact_algorithm_artifacts": [{
-                "estimator_id": estimator_id, "language": draft["language"],
+            handoff["exact_algorithm_artifacts"].append({
+                "estimator_id": selected_id, "language": draft["language"],
                 "dependencies": draft["dependencies"], "exact_source_code": draft["code"],
                 "exact_source_hash": stable_hash(draft["code"]), "exact_project_hash": project_hash,
                 "exact_project_files": deepcopy(draft.get("project_files", [])),
-            }]}
-            inputs["algorithm"] = {"payload_hash": provided["algorithm"]["payload_hash"],
-                                   "resources": {"project": project_hash}}
-            context["upstream_estimator"] = {"id": estimator_id, "language": draft["language"],
+            })
+            inputs[parent] = {"payload_hash": provided[parent]["payload_hash"], "resources": {"project": project_hash}}
+            context["upstream_estimators"].append({"id": selected_id, "language": draft["language"],
                                              "project_hash": project_hash,
-                                             "estimator_interface_contract": context["estimator_spec"].get("estimator_interface_contract", {})}
+                                             "estimator_interface_contract": project_executable_estimator_spec(specs[selected_id]).get("estimator_interface_contract", {})})
         context["run_sandbox_contract"] = (
             "run_sandbox(seed, replicates, estimators) returns named JSON-finite exploratory measurements. "
             "The estimators mapping binds estimator IDs to callables accepting one request object."
-            if handoff else "run_sandbox(seed, replicates) returns named JSON-finite developer diagnostics."
+            if handoff["exact_algorithm_artifacts"] else "run_sandbox(seed, replicates) returns named JSON-finite developer diagnostics."
         )
-        context["required_callable_exports"] = ["run_estimator", "run_sandbox"] if scope == "algorithm" else ["run_sandbox"]
+        context["required_callable_exports"] = ["run_estimator", "run_sandbox"] if estimator_id is not None else ["run_sandbox"]
         execution_dir = session_dir / "execution" / scope / stable_hash(provided)
 
         def check(candidate):
-            if scope == "algorithm":
+            if estimator_id is not None:
                 row, tool = _run_generated_code_sandbox(
                     sandbox_dir=execution_dir, estimator_id=estimator_id, spec=spec, code_draft=candidate,
                     required_callable_exports=("run_estimator",), n_runs=n_runs, seed=seed, timeout_s=timeout_s,
@@ -509,11 +522,13 @@ def prepare_single_context_research_workspace(
                 )
             row["execution_phase"] = "exploratory_diagnostic"
             return {"code_draft_hash": stable_hash(candidate), "accepted": row["smoke_passed"],
-                    "prototype": row, "checkpoint_inputs": deepcopy(inputs),
+                    "prototype": row, "checkpoint_inputs": {
+                        parent: deepcopy(binding) for parent, binding in inputs.items()
+                        if estimator_id is not None or algorithm_scopes[parent] in row.get("bound_estimator_project_hashes", {})},
                     "tool_call": asdict(tool), "independent_role_review": False,
                     "empirical_evidence_status": "EXPLORATORY_NOT_CONFIRMATORY"}
 
-        agent = algorithm_agent if scope == "algorithm" else simulation_agent
+        agent = algorithm_agent if estimator_id is not None else simulation_agent
         return agent.prepare_code_workspace(
             question=question, artifact_id=session_id + ":" + scope,
             code_draft=previous["code_draft"] if previous else None, initial_observation={},
@@ -532,7 +547,7 @@ def prepare_single_context_research_workspace(
                          for path, body in load_theory_workspace_documents(core).items()}
             resources.update({name: stable_hash(core.get(name, {}))
                               for name in ("problem_card", "theory_derivation_packet", "estimator_specs", "simulation_ademp_spec")})
-            resources["estimator:" + estimator_id] = stable_hash(_estimator_spec(core, estimator_id))
+            resources.update({"estimator:" + value: stable_hash(_estimator_spec(core, value)) for value in estimator_ids})
             return {"resources": resources, "inputs": {}}
         if scope == "theory_review":
             return {"resources": {"report": hashlib.sha256(payload["review_payload"]["review_report_markdown"].encode()).hexdigest()},
@@ -540,10 +555,9 @@ def prepare_single_context_research_workspace(
         return {"resources": {"project": payload["check_result"]["prototype"]["project_hash"]},
                 "inputs": payload["check_result"]["checkpoint_inputs"]}
 
-    workspaces = {"theory": theory, "algorithm": prepare_source("algorithm", {}, None),
-                  "simulation": prepare_source("simulation", {}, None)}
+    workspaces = {"theory": theory, **{scope: prepare_source(scope, {}, None) for scope in (*algorithm_scopes, "simulation")}}
     preparers = {scope: lambda selected, previous, scope=scope: prepare_source(scope, selected, previous)
-                 for scope in ("algorithm", "simulation")}
+                 for scope in (*algorithm_scopes, "simulation")}
     if theory_reviewer is not None:
         def prepare_review(selected, previous):
             if selected is not None and set(selected) != {"theory"}:

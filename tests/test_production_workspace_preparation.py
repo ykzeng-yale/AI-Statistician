@@ -334,7 +334,8 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
 @pytest.mark.parametrize("language", ["python", "r"])
 @pytest.mark.parametrize("offset", [0, 1])
 @pytest.mark.parametrize("include_review", [False, True])
-def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language, offset, include_review):
+@pytest.mark.parametrize("extra_estimator", [False, True, "available_not_executed"])
+def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language, offset, include_review, extra_estimator):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
     runtime = discover_scientific_sandbox_runtime()
     if not (runtime.python_available if language == "python" else runtime.r_available):
@@ -349,7 +350,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
 
     def record_execution(**kwargs):
         row, tool = execute_algorithm(**kwargs)
-        executed["row"] = row
+        executed[kwargs["estimator_id"]] = row
         return row, tool
 
     monkeypatch.setattr(runtime_module, "_run_generated_code_sandbox", record_execution)
@@ -366,7 +367,8 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     workspace = prepare_single_context_research_workspace(
         question=question, request=ClientToolTurnRequest(system_prompt="Common research objective.", messages=(), tools=(),
                                                        model=MODEL, max_tokens=1024),
-        theory_agent=theory, algorithm_agent=algorithm, simulation_agent=simulation, estimator_id="opaque",
+        theory_agent=theory, algorithm_agent=algorithm, simulation_agent=simulation,
+        estimator_ids=("opaque", "opaque_alt") if extra_estimator else ("opaque",),
         session_dir=tmp_path, session_id="opaque-app", n_runs=3, seed=7, timeout_s=30,
         max_turns=32, max_tool_calls=32, max_no_progress_turns=32,
         theory_reviewer=LLMArchitectMetricSemanticReviewerAgent(provider=backend, config=ArchitectMetricSemanticReviewerConfig(
@@ -376,6 +378,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert not backend.requests
     refs = {}
     first_theory = {}
+    simulation_parents = ["theory", "algorithm", *(["algorithm_2"] if extra_estimator is True else [])]
 
     def references(request):
         for message in request.messages:
@@ -407,6 +410,14 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                        if language == "python" else
                        "run_sandbox <- function(seed, replicates, estimators) "
                        "estimators[['opaque']](list(value=seed+replicates))\n")
+    if extra_estimator is True:
+        simulation_code = ("def run_sandbox(seed, replicates, estimators):\n"
+                           "    return {'echo': estimators['opaque']({'value': seed + replicates})['echo'],\n"
+                           "            'extra_echo': estimators['opaque_alt']({'value': seed + replicates})['echo']}\n"
+                           if language == "python" else
+                           "run_sandbox <- function(seed, replicates, estimators) list(\n"
+                           "  echo=estimators[['opaque']](list(value=seed+replicates))$echo,\n"
+                           "  extra_echo=estimators[['opaque_alt']](list(value=seed+replicates))$echo)\n")
     draft = {"language": language, "execution_profile": "scientific_wasm", "dependencies": [],
              "entrypoint": "run_sandbox", "code": code}
     handoffs = {"problem_card": {"claim_ids": ["opaque_claim"]},
@@ -423,7 +434,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         ClientToolCall("algorithm-source", "algorithm__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, draft),
         ClientToolCall("algorithm-run", "algorithm__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Inspect exact source."}),
         ClientToolCall("algorithm-checkpoint", "algorithm__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
-        lambda request: select(request, "simulation", ["theory", "algorithm"]),
+        lambda request: select(request, "simulation", simulation_parents),
         ClientToolCall("simulation-source", "simulation__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, {**draft, "code": simulation_code}),
         ClientToolCall("simulation-run", "simulation__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Invoke exact selected estimator."}),
         ClientToolCall("simulation-checkpoint", "simulation__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
@@ -431,21 +442,31 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
             "report_markdown": "# Execution only\n\nTheory remains unresolved.\n", "selected_checkpoints": references(request),
         }),
     ]
+    extra_draft = {**draft, "code": code.replace(f"+ {offset}", f"+ {offset + 13}") if language == "python"
+                   else code.replace(f"+{offset}", f"+{offset + 13}")}
+    if extra_estimator:
+        backend.calls[7:7] = [
+            lambda request: select(request, "algorithm_2", ["theory"]),
+            ClientToolCall("extra-source", "algorithm_2__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, extra_draft),
+            ClientToolCall("extra-run", "algorithm_2__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Inspect second estimator."}),
+            ClientToolCall("extra-checkpoint", "algorithm_2__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+        ]
     report = "# Opaque review\n\nclaim.md leaves opaque_claim unresolved. No statistical result is established.\n"
     if include_review:
         altered = {}
 
         def select_changed_execution(request):
-            path = Path(executed["row"]["script_path" if offset == 0 else "result_path"])
+            path = Path(executed["opaque_alt" if extra_estimator is True else "opaque"]["script_path" if offset == 0 else "result_path"])
             altered.update(path=path, original=path.read_bytes())
             path.write_bytes(b"opaque integrity-test mutation\n")
-            return select(request, "simulation", ["theory", "algorithm"])
+            return select(request, "simulation", simulation_parents)
 
         def select_original_execution(request):
             altered["path"].write_bytes(altered["original"])
-            return select(request, "simulation", ["theory", "algorithm"])
+            return select(request, "simulation", simulation_parents)
 
-        backend.calls[7:8] = [select_changed_execution, select_original_execution]
+        simulation_index = 11 if extra_estimator else 7
+        backend.calls[simulation_index:simulation_index + 1] = [select_changed_execution, select_original_execution]
         review_submission = {"review_report_sha256": hashlib.sha256(report.encode()).hexdigest(),
             "report_evidence_refs": ["theory.document:claim.md", "question"], "overall_verdict": "REVISE",
             "execution_handoff_status": PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED,
@@ -491,14 +512,23 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert algorithm_result["prototype"]["source_code"] == code
     assert algorithm_result["prototype"]["metrics"] == {"echo": 7 + offset}
     assert simulation_result["prototype"]["source_code"] == simulation_code
-    assert simulation_result["prototype"]["metrics"] == {"echo": 10 + offset}
-    assert simulation_result["prototype"]["bound_estimator_code_hashes"] == {"opaque": stable_hash(code)}
-    assert simulation_result["prototype"]["estimator_invocation_counts"] == {"opaque": 1}
+    assert simulation_result["prototype"]["metrics"] == {"echo": 10 + offset, **({"extra_echo": 23 + offset} if extra_estimator is True else {})}
+    assert simulation_result["prototype"]["bound_estimator_code_hashes"] == {
+        "opaque": stable_hash(code), **({"opaque_alt": stable_hash(extra_draft["code"])} if extra_estimator is True else {}),
+    }
+    assert simulation_result["prototype"]["estimator_invocation_counts"] == {"opaque": 1, **({"opaque_alt": 1} if extra_estimator is True else {})}
     assert simulation_result["prototype"]["mechanical_estimator_invocation_verified"] is True
-    assert set(selected["simulation"]["inputs"]) == {"algorithm"}
-    assert set(selected["simulation"]["provided_inputs"]) == {"theory", "algorithm"}
+    assert set(selected["simulation"]["inputs"]) == set(simulation_parents) - {"theory"}
+    assert set(selected["simulation"]["provided_inputs"]) == set(simulation_parents)
     assert set(selected["algorithm"]["inputs"]["theory"]["resources"]) == {"estimator:opaque"}
     assert selected["simulation"]["inputs"]["algorithm"]["resources"] == selected["algorithm"]["resources"]
+    if extra_estimator:
+        assert payloads["algorithm_2"]["check_result"]["prototype"]["source_code"] == extra_draft["code"]
+        assert set(selected["algorithm_2"]["inputs"]["theory"]["resources"]) == {"estimator:opaque_alt"}
+        if extra_estimator is True:
+            assert selected["simulation"]["inputs"]["algorithm_2"]["resources"] == selected["algorithm_2"]["resources"]
+        assert simulation_result["prototype"]["available_upstream_estimator_ids"] == ["opaque", *(("opaque_alt",) if extra_estimator is True else ())]
+        assert '"estimator_id": "opaque_alt"' in str(backend.requests)
     assert "estimator_interface_contract" in str(backend.requests)
     assert all(row["independent_role_review"] is False and row["empirical_evidence_status"] == "EXPLORATORY_NOT_CONFIRMATORY"
                for row in (algorithm_result, simulation_result))
@@ -536,7 +566,8 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         "selected-theory": deepcopy(payloads["theory"]["core_packet"]),
         "selected-code": {"artifact_kind": "RuntimeAlgorithmSandboxManifest", "manifest_id": "selected-code",
                           "question": public_question, "theory_packet_id": "selected-theory",
-                          "prototypes": [deepcopy(algorithm_result["prototype"])]},
+                          "prototypes": [deepcopy(payloads[scope]["check_result"]["prototype"])
+                                         for scope in ("algorithm", *(("algorithm_2",) if extra_estimator else ()))]},
         "selected-simulation": {"artifact_kind": "RuntimeSimulationManifest", "manifest_id": "selected-simulation",
                                 "question": public_question, "theory_packet_id": "selected-theory",
                                 "generated_simulation_rows": [deepcopy(simulation_result["prototype"])]},
@@ -597,13 +628,39 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         assert raw["estimator_project_hashes"] == {"opaque": binding.project_hash}
         results.append(raw["metrics"])
     assert results[0] == results[1] == {"echo": 99178 + offset}
-    assert len(backend.requests) == (24 if include_review else 12) and not backend.calls
+    assert len(backend.requests) == (24 if include_review else 12) + (4 if extra_estimator else 0) and not backend.calls
     assert backend.requests[-1].messages == messages_before
     assert result.terminal_payload == submission_before
     assert len(critic.calls) == 1 and critic.calls[0]["canonical_evidence_view"]["view_hash"] == (
         product_submission["selected_artifacts"]["assessment"]["canonical_evidence_view_hash"])
     assert all(row["accepted"] is True for row in (algorithm_result, simulation_result))
     assert "99173" not in str(result.messages) and "99178" not in str(result.messages)
+
+
+@pytest.mark.parametrize("estimator_ids", [None, "opaque", (), ("",), ("opaque", "opaque"), ("opaque", 4)])
+def test_application_control_rejects_invalid_estimator_configuration_before_preparation(tmp_path, estimator_ids):
+    question = OpenResearchQuestion("configuration", "Configuration", "No research execution.")
+    with pytest.raises(ValueError, match="unique estimator identities"):
+        prepare_single_context_research_workspace(
+            question=question, request=ClientToolTurnRequest(system_prompt="No calls.", messages=(), tools=(), model=MODEL, max_tokens=1024),
+            theory_agent=None, algorithm_agent=None, simulation_agent=None, estimator_ids=estimator_ids,
+            session_dir=tmp_path, session_id="invalid", n_runs=3, seed=7, timeout_s=30,
+            max_turns=8, max_tool_calls=8, max_no_progress_turns=8,
+        )
+    assert not list(tmp_path.iterdir())
+
+
+def test_application_control_keeps_frozen_estimator_identity(tmp_path):
+    question = OpenResearchQuestion("configuration", "Configuration", "No research execution.",
+                                    estimator_execution_contract={"estimator_id": "required-opaque"})
+    with pytest.raises(ValueError, match="frozen question ABI"):
+        prepare_single_context_research_workspace(
+            question=question, request=ClientToolTurnRequest(system_prompt="No calls.", messages=(), tools=(), model=MODEL, max_tokens=1024),
+            theory_agent=None, algorithm_agent=None, simulation_agent=None, estimator_ids=("other-opaque", "another-opaque"),
+            session_dir=tmp_path, session_id="invalid", n_runs=3, seed=7, timeout_s=30,
+            max_turns=8, max_tool_calls=8, max_no_progress_turns=8,
+        )
+    assert not list(tmp_path.iterdir())
 
 
 def test_prepared_theory_referee_keeps_frozen_question_material_and_disposition(tmp_path):
@@ -675,7 +732,7 @@ def test_application_control_preserves_an_honest_gap_without_fabricating_a_theor
             provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0)),
         simulation_agent=LLMSimulationEngineerAgent(provider=backend, config=SimulationEngineerConfig(
             provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0)),
-        estimator_id="opaque", session_dir=tmp_path, session_id="gap-app", n_runs=3, seed=7, timeout_s=30,
+        estimator_ids=("opaque",), session_dir=tmp_path, session_id="gap-app", n_runs=3, seed=7, timeout_s=30,
         max_turns=8, max_tool_calls=8, max_no_progress_turns=8,
     )
     result = run_client_tool_workspace(backend=backend, workspace=workspace)

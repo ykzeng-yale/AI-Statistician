@@ -228,16 +228,16 @@ recorded separately as `provided_inputs`; executor-consumed dependencies remain
 field establishes which mathematical premises the model actually reasoned from.
 
 `prepare_single_context_research_workspace` assembles real Theory, Algorithm and
-exploratory Simulation actions for a caller-specified single-estimator task, with
+exploratory Simulation actions for a caller-specified ordered estimator-ID set, with
 the source horizon supplied by the configured Theory agent. It uses production
 normalization, validators and Python/R executors. Simulation invokes the exact
-selected estimator project, with source hashes and invocation counts, without
+selected estimator projects, with source hashes and invocation counts, without
 manufacturing an independent semantic review. Public Theory/ABI context reaches
 the source owner before authoring, not just the execution receipt afterward.
 Gap/progress observations remain in shared history but are not promoted into
 usable Theory checkpoints. Final Markdown submission is not scientific acceptance.
 This callable entry is not yet a complete matched System S arm: independent review,
-confirmation, optional Lean, multi-estimator tasks and the study CLI still require
+confirmation, optional Lean and the study CLI still require
 prospectively matched configuration. Do not compare it to an unrestricted full
 product or label arbitrary workflow text as matching that product's workflow.
 Actual integrated Python/R tests here use scripted turns, not live reasoning or
@@ -254,6 +254,19 @@ identity check is not a semantic verdict, confirmation or independent review.
 Python/R regressions exercise actual execution and injected record corruption;
 opaque reader tests cover missing/changed files, malformed results, inventories
 and metadata. No consumed scientific result is modified or rescored.
+
+Each configured estimator has its own production source workspace (`algorithm`,
+then `algorithm_2`, etc.), exact source/project checkpoint and upstream Theory
+binding. The frozen ordered IDs and public workspace contexts are part of the
+study contract, not statistic-specific methods. Simulation may select one or
+several observed estimator checkpoints through the existing input-selection
+action; the existing production executor binds those exact callables. All remain
+in one conversation and one global budget. Hashes and invocation counts are
+reported separately per estimator; a corrupted secondary source is rejected
+before consumption, rather than silently replaced by the primary source.
+Scripted Python/R cases exercise multiple methods and selected subsets, without
+model inference, independent review or confirmation. No second runner, routing
+agent or comparison-method recipe is added.
 
 The optional `theory_reviewer` configuration now binds the actual production
 referee's file/source reads, report writes/edits, compact finding submission and
@@ -343,7 +356,7 @@ a statistical benchmark, independently reviewed theory or complete baseline
 efficacy evidence.
 
 Complete application-level study assembly is still unfinished: the real
-single-estimator exploratory path above does not establish parity with all
+multi-estimator exploratory path above does not establish parity with all
 research executors and interventions. Configure context dependencies, source
 horizons, independent gold and matched resources across arms, then run fresh
 research tasks. Dynamic Theory/ABI input exposure is implemented, but it does not
