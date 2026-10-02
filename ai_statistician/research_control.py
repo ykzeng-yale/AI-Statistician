@@ -450,7 +450,7 @@ def prepare_single_context_research_workspace(
     question = deepcopy(question)
     if question.task_intent.get("formal") == "required":
         raise ValueError("this comparison arm has no required-formal executor")
-    if (not isinstance(estimator_ids, Sequence) or isinstance(estimator_ids, str) or not estimator_ids
+    if (not isinstance(estimator_ids, Sequence) or isinstance(estimator_ids, str)
         or any(not isinstance(value, str) or not value.strip() for value in estimator_ids)
         or len(estimator_ids) != len(set(estimator_ids)) or min(n_runs, timeout_s) < 1):
         raise ValueError("research control requires unique estimator identities and positive execution limits")
@@ -581,6 +581,10 @@ def prepare_single_context_research_workspace(
             if "core_packet" not in payload:
                 return None
             core = payload["core_packet"]
+            if core.get("artifact_kind") == "SourceReplicationCheckpoint":
+                return {"resources": {"report": core["report_document"]["sha256"],
+                                      "source_execution": core["source_replication_manifest_ref"]["manifest_hash"]},
+                        "inputs": {}}
             resources = {path: hashlib.sha256(body.encode()).hexdigest()
                          for path, body in load_theory_workspace_documents(core).items()}
             resources.update({name: stable_hash(core.get(name, {}))

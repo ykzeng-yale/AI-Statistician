@@ -3407,6 +3407,14 @@ def test_runtime_materializes_integrated_source_checkpoint_for_independent_criti
     assert next_context["source_replication_checkpoint_id"] == (
         checkpoint["checkpoint_id"]
     )
+    critic_result = CriticEvaluatorRuntimeSubsystem().run(
+        result.next_task,
+        BlackboardState(project_id=question.id, artifacts=deepcopy(result.produced_artifacts)),
+    )
+    assert critic_result.status == "BLOCKED"
+    assert critic_result.failure_classification == "required_independent_theory_review_missing"
+    assert not any(artifact.get("artifact_kind") == "RuntimeCriticEvaluatorManifest"
+                   for artifact in critic_result.produced_artifacts.values())
 
 
 def test_optional_theory_compiles_existing_plan_without_architect_replan() -> None:

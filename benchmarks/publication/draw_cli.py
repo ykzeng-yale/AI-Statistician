@@ -18,7 +18,7 @@ from ai_statistician.research_architect import LLMTheoryDeveloperAgent, Research
 from ai_statistician.research_agent_runtime import ResearchAgentRuntimeConfig
 from ai_statistician.research_schema import load_open_research_questions
 from ai_statistician.research_source_discovery import PublicResearchSourceDiscovery, PublicResearchSourceDiscoveryConfig
-from ai_statistician.research_source_library import load_research_source_snapshot
+from ai_statistician.research_source_library import load_research_source_execution_spec, load_research_source_snapshot
 from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
 from benchmarks.publication.run_control_draw import run_single_context_research_draw
@@ -36,7 +36,7 @@ def main(argv=None):
     if not isinstance(config, dict) or config.get("mode") not in {"free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"}:
         raise ValueError("unsupported study draw mode")
     collaborative = config["mode"] in {"full_collaboration", "no_cross_role_revision"}
-    allowed = {"question_ref", "question_id", "mode", "backend", "roles", "deployment_ref", "source_snapshot_ref", "source_discovery"}
+    allowed = {"question_ref", "question_id", "mode", "backend", "roles", "deployment_ref", "source_snapshot_ref", "source_execution_ref", "source_discovery"}
     allowed |= {"runtime", "architect_context"} if collaborative else {"request", "workflow_instructions", "estimator_ids", "execution", "limits"}
     if not isinstance(config, dict) or set(config) - allowed:
         raise ValueError("unsupported study draw configuration fields")
@@ -74,6 +74,15 @@ def main(argv=None):
         sources = load_research_source_snapshot(Path(source_ref["path"]))
         if sources.manifest_sha256 != source_ref["sha256"]:
             raise ValueError("source snapshot changed during loading")
+    execution = None
+    execution_ref = None
+    if "source_execution_ref" in config:
+        if sources is None:
+            raise ValueError("source execution requires its frozen source snapshot")
+        execution_ref, _ = reference("source_execution_ref")
+        execution = load_research_source_execution_spec(Path(execution_ref["path"]), research_sources=sources)
+        if execution.manifest_sha256 != execution_ref["sha256"]:
+            raise ValueError("source execution changed during loading")
     backend = LocalChatGeneratorBackend(**config["backend"])
     role_types = {"theory": (LLMTheoryDeveloperAgent, ResearchArchitectConfig),
                   "algorithm": (LLMAlgorithmEngineerAgent, AlgorithmEngineerConfig),
@@ -113,7 +122,8 @@ def main(argv=None):
         cls = role_types[role][0]
         agents[role] = cls(provider=backend, config=settings, **(
             {"research_sources": sources, "research_source_discovery": discovery}
-            if role in {"theory", "theory_reviewer"} else {}))
+            if role in {"theory", "theory_reviewer"} else {}), **(
+                {"research_source_execution": execution} if role == "theory" else {}))
     if collaborative:
         agents["architect"] = LLMArchitectCoordinatorAgent(provider=backend, config=settings_by_role["architect"],
                                                            metric_semantic_reviewer=agents["theory_reviewer"])
@@ -121,6 +131,7 @@ def main(argv=None):
                   "question_ref": question_ref, "deployment_ref": deployment_ref, "declared_deployment": deployment,
                   "deployment_authority": "caller_declaration_not_live_attestation_or_scientific_qualification",
                   "source_snapshot": sources.descriptor() if sources else None,
+                  **({"source_execution_ref": execution_ref, "source_execution": execution.descriptor(sources)} if execution else {}),
                   "source_discovery": {**discovery.descriptor(), "state_dir": str(state_dir)} if discovery else None}
     if collaborative:
         result, submission = run_collaborative_research_draw(question=matches[0], backend=backend, agents=agents,
@@ -143,7 +154,8 @@ def main(argv=None):
         fields = ("question_id", "question_hash", "task_intent") + (
             ("internal_status", "selected_artifact_refs") if collaborative else ("selected_checkpoints", "report_ref"))
         body = {"source_kind": source_kind, "submission_identity": {key: submission[key] for key in fields},
-            **({"assessment": submission["selected_artifacts"]["assessment"]} if collaborative
+            **({"assessment": submission["selected_artifacts"]["assessment"]} if collaborative and "assessment" in submission["selected_artifacts"]
+               else {} if collaborative
                else {"report_markdown": submission["report_markdown"]}),
             "material": {**material, "estimator_bindings": [asdict(row) for row in material["estimator_bindings"]]},
             "authority": "selected_final_material_not_scientific_acceptance"}

@@ -107,6 +107,78 @@ def test_earlier_unselected_artifacts_and_verdicts_do_not_replace_a_partial_fina
     assert submission["internal_status"] == "BLOCKED"
 
 
+def source_submission_fixture():
+    question = OpenResearchQuestion("source-only", "Source-only", "Opaque replication observation.", task_intent={
+        "source_replication": "required", "theory": "not_applicable", "scientific_code": "not_applicable",
+        "empirical": "not_applicable", "formal": "not_applicable"})
+    checkpoint = {"artifact_kind": "SourceReplicationCheckpoint", "checkpoint_id": "exact-source",
+                  "question_id": question.id, "task_intent": question.task_intent, "opaque": "unresolved"}
+    result = {"status": "BLOCKED", "final_task_id": "final", "blackboard": {"artifacts": {"exact-source": checkpoint}},
+              "traces": [{"task": {"task_id": "final"}, "subsystem": "TheoryDeveloper", "status": "BLOCKED",
+                          "produced_artifact_ids": ["exact-source"]}]}
+    return question, result
+
+
+def test_source_only_terminal_keeps_failed_selection_without_inventing_theory_or_review():
+    question, result = source_submission_fixture()
+    earlier = {**result["blackboard"]["artifacts"]["exact-source"], "checkpoint_id": "earlier-source", "opaque": "earlier"}
+    result["blackboard"]["artifacts"]["earlier-source"] = earlier
+    result["traces"].insert(0, {"subsystem": "TheoryDeveloper", "status": "ACCEPTED", "produced_artifact_ids": ["earlier-source"]})
+    submission = load_runtime_research_submission(result, question=question)
+    assert set(submission["selected_artifacts"]) == {"source_replication"}
+    assert submission["selected_artifacts"]["source_replication"]["opaque"] == "unresolved"
+    assert submission["internal_status"] == "BLOCKED"
+    assert submission["selected_artifact_refs"]["source_replication"]["artifact_id"] == "exact-source"
+
+
+@pytest.mark.parametrize("dimension", ["theory", "scientific_code", "empirical", "formal"])
+def test_source_checkpoint_is_not_a_final_selection_for_required_research(dimension):
+    question, result = source_submission_fixture()
+    question = replace(question, task_intent={**question.task_intent, dimension: "required"})
+    result["blackboard"]["artifacts"]["exact-source"]["task_intent"] = question.task_intent
+    assert load_runtime_research_submission(result, question=question) == {}
+
+
+@pytest.mark.parametrize("defect", ["pending", "next_task", "budget", "absent", "ambiguous", "wrong_id", "wrong_intent"])
+def test_source_terminal_requires_the_exact_final_checkpoint(defect):
+    question, result = source_submission_fixture()
+    checkpoint = result["blackboard"]["artifacts"]["exact-source"]
+    if defect == "pending":
+        result["pending_task"] = {"task_id": "continue"}
+    elif defect == "next_task":
+        result["traces"][-1]["next_task_id"] = "continue"
+    elif defect == "budget":
+        result["status"] = "MAX_ITERATIONS_REACHED"
+    elif defect == "absent":
+        result["traces"][-1]["produced_artifact_ids"] = []
+    elif defect == "ambiguous":
+        result["blackboard"]["artifacts"]["second"] = {**checkpoint, "checkpoint_id": "second"}
+        result["traces"][-1]["produced_artifact_ids"].append("second")
+    elif defect == "wrong_id":
+        checkpoint["checkpoint_id"] = "absent"
+    else:
+        checkpoint["task_intent"] = {"theory": "required"}
+    if defect in {"ambiguous", "wrong_id", "wrong_intent"}:
+        with pytest.raises(ValueError):
+            load_runtime_research_submission(result, question=question)
+    else:
+        assert load_runtime_research_submission(result, question=question) == {}
+
+
+def test_integrated_critic_selects_source_checkpoint_by_exact_reference():
+    question, result = submission_fixture()
+    artifacts = result["blackboard"]["artifacts"]
+    checkpoint = {"artifact_kind": "SourceReplicationCheckpoint", "opaque": "exact source observation"}
+    artifacts["source"] = checkpoint
+    artifacts["critic"].update(source_replication_checkpoint_id="source")
+    artifacts["critic"]["submission_artifact_refs"]["source_replication"] = runtime_artifact_reference("source", checkpoint)
+    submission = load_runtime_research_submission(result, question=question)
+    assert submission["selected_artifacts"]["source_replication"] == checkpoint
+    artifacts["source"]["opaque"] = "changed"
+    with pytest.raises(ValueError):
+        load_runtime_research_submission(result, question=question)
+
+
 def test_legacy_semantic_projection_preserves_field_types_and_copies_assessments():
     judgment = {"passed": True, "judgment_hash": "opaque", "semantic_judge_calibrated": 1,
                 "n_claims": "2", "n_calibration_cases": None, "candidate_status": None,

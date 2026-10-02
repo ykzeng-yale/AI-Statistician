@@ -7,6 +7,7 @@ import json
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
+import re
 
 import pytest
 
@@ -688,7 +689,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                    "estimators[['opaque']](list(value=seed+replicates))\n")
     evaluator = {"acceptance_checks": [{"check_id": "opaque-held-value", "path": ["echo"],
                                         "operator": "eq", "expected": 99178}]}
-    assert "99173" not in str(backend.requests) and "99178" not in str(backend.requests)
+    assert not re.search(r"\b(?:99173|99178)\b", str(backend.requests))
     results = []
     product_binding = replace(binding, code=exact_product_row["source_code"], code_hash=exact_product_row["script_hash"],
                               project_hash=exact_product_row["project_hash"])
@@ -723,10 +724,10 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert shared_material["empirical_artifact"]["generated_simulation_rows"][0]["execution_phase"] == "exploratory_diagnostic"
     assert "formal_artifacts" not in shared_material
     assert all(row["accepted"] is True for row in (algorithm_result, simulation_result))
-    assert "99173" not in str(result.messages) and "99178" not in str(result.messages)
+    assert not re.search(r"\b(?:99173|99178)\b", str(result.messages))
 
 
-@pytest.mark.parametrize("estimator_ids", [None, "opaque", (), ("",), ("opaque", "opaque"), ("opaque", 4)])
+@pytest.mark.parametrize("estimator_ids", [None, "opaque", ("",), ("opaque", "opaque"), ("opaque", 4)])
 def test_application_control_rejects_invalid_estimator_configuration_before_preparation(tmp_path, estimator_ids):
     question = OpenResearchQuestion("configuration", "Configuration", "No research execution.")
     with pytest.raises(ValueError, match="unique estimator identities"):

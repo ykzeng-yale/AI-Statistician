@@ -170,8 +170,12 @@ control Theory documents, exact estimator projects and common
 the caller before inference; unknown selected source scopes or mismatched drafts
 are rejected. The projection does not require successful smoke tests or internal
 acceptance and does not turn exploratory records into confirmation. It never scans
-unselected history. Formal/source-replication closures and native file decoding
-remain explicit study obligations, not implicit fallbacks. Outcomes retain the
+unselected history. Selected source-replication checkpoints supply their exact
+Markdown report, native execution manifest and selected-command attempt chain.
+A source-only terminal Theory checkpoint needs no invented theory or Critic
+receipt; a task requiring another research dimension cannot finish through this
+shortcut. Formal closure and native result-file decoding remain explicit study
+obligations, not implicit fallbacks. Outcomes retain the
 input submission identity hash as well as the material hash.
 
 Artifact evaluators take an explicitly frozen JSON view; binary snapshots remain preserved
@@ -283,6 +287,20 @@ criticism. The same-source accepted phase return prevents mandatory review alone
 from mechanically excluding confirmation in this arm.
 
 Optional `source_snapshot_ref` uses the existing hash-bound source loader;
+optional `source_execution_ref` binds the existing execution specification to that
+exact snapshot, environment and source commit. It is supplied to the same Theory
+owner in all four draw modes and recorded before inference. Both operator-fixed
+and model-selected commands use the existing execution and feedback tools; no
+new replication controller or automatic dependency repair is introduced. Controls
+may declare an empty `estimator_ids` inventory for tasks not requiring an estimator.
+Selection preserves failed executions, report references and all model-selected
+attempts, without manufacturing theory, numerical agreement or independent review.
+The common external view validates the selected report/manifest bytes, not a later
+working directory. Result-table extraction and scientific comparison still require
+prospectively specified, qualified evaluator code; JSON manifests alone are not
+evidence of successful paper replication. Mocked model transport checks cover all
+four modes, command ownership, success/failure records, source-only termination
+and changed-file rejection. These are mechanism tests, not publication results.
 optional `source_discovery` declares the existing public discovery configuration
 and a fresh `state_dir` outside the exclusive draw directory. The command does
 not inherit another draw's discovery cache or supply a GitHub credential. Live

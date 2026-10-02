@@ -841,6 +841,7 @@ def test_same_theory_model_runs_operator_bound_source_and_receives_raw_feedback(
         "proof_evidence_status": "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE",
     }
     manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
+    Path(manifest["manifest_path"]).write_text(json.dumps(manifest))
     calls = []
 
     def fake_execute_research_source(**kwargs):
@@ -1108,6 +1109,7 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
                 "reason": selected.selected_command_reason,
             }),
             "execution_attempt_id": kwargs["execution_attempt_id"],
+            "manifest_path": str(kwargs["output_dir"] / "source_replication_manifest.json"),
             "runtime_generated": True,
             "model_authored": False,
             "runtime_edited_source": False,
@@ -1115,7 +1117,10 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
                 "SOURCE_REPLICATION_EXECUTION_NOT_PROOF_EVIDENCE"
             ),
         }
-        return {**body, "manifest_hash": stable_hash(body)}
+        manifest = {**body, "manifest_hash": stable_hash(body)}
+        kwargs["output_dir"].mkdir(parents=True, exist_ok=True)
+        Path(manifest["manifest_path"]).write_text(json.dumps(manifest))
+        return manifest
 
     monkeypatch.setattr(
         "ai_statistician.theory_workspace.execute_research_source",
@@ -1273,6 +1278,18 @@ def test_same_theory_owner_iterates_model_selected_source_commands(
     assert result.core_packet["source_replication_manifest_ref"][
         "artifact_id"
     ].endswith("-2")
+    from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
+    submission = {"question_id": "q1", "task_intent": task_intent,
+                  "checkpoint_payloads": {"theory": {"core_packet": result.core_packet}}}
+    material = publication_material_from_submission(submission, source_kind="control", control_estimator_scopes={})
+    selected = material["source_replication_artifact"]
+    assert selected["source_execution"]["artifact_id"].endswith("-2")
+    assert [row["execution_status"] for row in selected["source_execution_attempts"]] == ["FAILED", "EXECUTED", "FAILED"]
+    assert selected["source_execution_attempts"] == result.evidence["source_replication_manifests"]
+    assert material["theory_documents"] == []
+    Path(result.core_packet["report_document"]["path"]).write_text("changed selected report")
+    with pytest.raises(ValueError, match="source report identity mismatch"):
+        publication_material_from_submission(submission, source_kind="control", control_estimator_scopes={})
     run_tool = next(
         tool for tool in backend.requests[0].tools
         if tool.name == RESEARCH_SOURCE_RUN_TOOL
@@ -1324,6 +1341,7 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
         "schema_version": 1,
         "artifact_kind": "SourceReplicationManifest",
         "artifact_id": "source_replication:q1",
+        "manifest_path": str(tmp_path / "source_replication_manifest.json"),
         "question_id": "q1",
         "execution_status": "EXECUTED",
         "raw_stdout": "coef=0.5\n",
@@ -1339,6 +1357,7 @@ def test_source_only_intent_commits_markdown_report_without_theory_packet(
         ),
     }
     manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
+    Path(manifest["manifest_path"]).write_text(json.dumps(manifest))
     monkeypatch.setattr(
         "ai_statistician.theory_workspace.execute_research_source",
         lambda **_: manifest,
@@ -1483,6 +1502,7 @@ def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
         "schema_version": 4 if model_selected else 1,
         "artifact_kind": "SourceReplicationManifest",
         "artifact_id": "source_replication:q1-integrated",
+        "manifest_path": str(tmp_path / "source_replication_manifest.json"),
         "question_id": "q1",
         "execution_status": "EXECUTED",
         "raw_stdout": "coef=0.5\n",
@@ -1508,6 +1528,7 @@ def test_integrated_theory_checkpoint_separates_report_from_theory_authority(
             }
         )
     manifest = {**manifest_body, "manifest_hash": stable_hash(manifest_body)}
+    Path(manifest["manifest_path"]).write_text(json.dumps(manifest))
     monkeypatch.setattr(
         "ai_statistician.theory_workspace.execute_research_source",
         lambda **_: manifest,

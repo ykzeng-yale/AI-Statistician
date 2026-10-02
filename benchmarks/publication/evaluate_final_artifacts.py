@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.client_tool_loop import read_hash_bound_utf8_file
 from ai_statistician.research_gold_evaluation import (
     _exact_formal_kernel_authority,
     _hidden_evaluator_validation_errors,
@@ -42,15 +43,19 @@ def publication_material_from_submission(
     arms, not a native-file decoder or a substitute for either final reader.
     The study fixes control scope/estimator identities before inference. Missing
     selections stay missing; exploration is never relabelled as confirmation.
-    Formal and source-replication closures require their own prospective selection.
+    Source replication uses the selected checkpoint's exact report and execution
+    files. It does not require a Critic or theory receipt for a source-only task.
+    Formal closures require their own prospective selection.
     """
 
     submission = deepcopy(dict(submission))
     empirical_metadata = {}
+    source_checkpoint = {}
     if source_kind == "runtime":
         if control_estimator_scopes is not None:
             raise ValueError("runtime projection does not take control scope identities")
         payloads = submission["selected_artifacts"]
+        source_checkpoint = payloads.get("source_replication", {})
         core = payloads.get("theory", {})
         source_rows = payloads.get("scientific_code", {}).get("prototypes", [])
         experiment = payloads.get("empirical", {})
@@ -65,7 +70,12 @@ def publication_material_from_submission(
             or len(set(control_estimator_scopes.values())) != len(control_estimator_scopes)):
             raise ValueError("control projection requires unique estimator identities")
         payloads = submission["checkpoint_payloads"]
-        core = payloads.get("theory", {}).get("core_packet", {})
+        theory_payload = payloads.get("theory", {})
+        core = theory_payload.get("core_packet", {})
+        if core.get("artifact_kind") == "SourceReplicationCheckpoint":
+            source_checkpoint, core = core, {}
+        else:
+            source_checkpoint = theory_payload.get("source_replication_checkpoint", {})
         source_rows = []
         for scope, payload in payloads.items():
             if scope in {"simulation", "confirmation"} or "code_draft" not in payload:
@@ -98,7 +108,52 @@ def publication_material_from_submission(
     documents = [{"path": path, "content": content, "sha256": hashlib.sha256(content.encode()).hexdigest()}
                  for path, content in load_theory_workspace_documents(core).items()]
     return {"theory_documents": documents, "estimator_bindings": tuple(bindings),
-            "empirical_artifact": {"generated_simulation_rows": deepcopy(empirical_rows), **empirical_metadata} if empirical_rows else None}
+            "empirical_artifact": {"generated_simulation_rows": deepcopy(empirical_rows), **empirical_metadata} if empirical_rows else None,
+            **({"source_replication_artifact": _selected_source_replication_material(source_checkpoint, submission)}
+               if source_checkpoint else {})}
+
+
+def _selected_source_replication_material(checkpoint, submission):
+    """Read the actual selection's immutable files; never search for another run."""
+
+    body = deepcopy(dict(checkpoint))
+    for field in ("workspace_evidence_id", "workspace_evidence_hash", "runtime_completion_status", "boundary"):
+        body.pop(field, None)
+    checkpoint_id = body.pop("checkpoint_id", None)
+    if (checkpoint_id != "source_replication_checkpoint:" + stable_hash(body)[:20]
+        or body.get("artifact_kind") != "SourceReplicationCheckpoint"
+        or body.get("question_id") != submission["question_id"] or body.get("task_intent") != submission["task_intent"]):
+        raise ValueError("selected source checkpoint identity mismatch")
+    report_ref = body["report_document"]
+    report, errors = read_hash_bound_utf8_file(report_ref)
+    if errors:
+        raise ValueError("selected source report identity mismatch: " + ",".join(errors))
+
+    def read_execution(ref):
+        text, errors = read_hash_bound_utf8_file(ref)
+        if errors:
+            raise ValueError("selected source execution file identity mismatch: " + ",".join(errors))
+        manifest = json.loads(text)
+        unsigned = dict(manifest)
+        manifest_hash = unsigned.pop("manifest_hash", None)
+        if (manifest_hash != stable_hash(unsigned) or manifest.get("question_id") != submission["question_id"]
+            or manifest.get("artifact_kind") != "SourceReplicationManifest"
+            or any(manifest.get(key) != ref.get(key) for key in ("artifact_id", "manifest_hash", "execution_status"))):
+            raise ValueError("selected source execution manifest identity mismatch")
+        return manifest
+
+    selected = read_execution(body["source_replication_manifest_ref"])
+    attempts = [read_execution(ref) for ref in body.get("source_execution_attempt_refs", [])]
+    if attempts:
+        selected_run = body["selected_source_run"]
+        if (type(selected_run) is not int or not 1 <= selected_run <= len(attempts)
+            or attempts[selected_run - 1] != selected
+            or any(ref.get("source_run") != index for index, ref in enumerate(body["source_execution_attempt_refs"], 1))):
+            raise ValueError("selected source attempt lineage mismatch")
+    return {"checkpoint_id": checkpoint_id,
+            "report_document": {"path": report_ref["relative_path"], "content": report, "sha256": report_ref["sha256"]},
+            "source_execution": selected, "source_execution_attempts": attempts,
+            "unresolved_gaps": deepcopy(body["unresolved_gaps"])}
 
 
 def evaluate_final_research_artifacts(

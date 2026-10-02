@@ -5,6 +5,8 @@ import hashlib
 from io import BytesIO
 import json
 from pathlib import Path
+import re
+import sys
 from urllib.error import HTTPError
 
 import pytest
@@ -66,7 +68,7 @@ def wire(monkeypatch, tmp_path, actions, *, failure="", mutate=None):
                 assert hashlib.sha256(Path(config_ref["path"]).read_bytes()).hexdigest() == config_ref["sha256"]
             freezes.append(frozen)
             payload = json.loads(request.data)
-            assert "918007" not in json.dumps(payload) and "918011" not in json.dumps(payload)
+            assert not re.search(r"\b(?:918007|918011)\b", json.dumps(payload))
             requests.append(payload)
             if mutate:
                 mutate()
@@ -304,6 +306,153 @@ def collaborative_configuration(tmp_path, monkeypatch):
         "local_model_call_limit": 1, "n_runs": 3, "seed": 7, "theory_scratch_enabled": False}
     config["architect_context"] = {"opaque_declared_context": "not a scientific answer"}
     return config
+
+
+def replication_configuration(tmp_path, monkeypatch, mode, *, model_selected=False):
+    from ai_statistician.research_source_library import load_research_source_snapshot
+
+    collaborative = mode in {"full_collaboration", "no_cross_role_revision"}
+    config = (collaborative_configuration(tmp_path, monkeypatch) if collaborative
+              else configuration(tmp_path, monkeypatch, workflow="Declared workflow." if mode == "same_workflow" else ""))
+    config["mode"] = mode
+    question = json.loads((tmp_path / "questions.json").read_text())[0]
+    question["task_intent"] = {"source_replication": "required", "theory": "not_applicable",
+        "scientific_code": "not_applicable", "empirical": "not_applicable", "formal": "not_applicable",
+        "novelty": "not_applicable", "unresolved_gaps": "required"}
+    config["question_ref"] = write_reference(tmp_path / "questions.json", [question])
+    if collaborative:
+        config["runtime"]["local_model_call_limit"] = 8
+    else:
+        config["estimator_ids"] = []
+        config["execution"]["confirmatory_seeds"] = []
+    root = tmp_path / "sources"
+    root.mkdir()
+    documents = []
+    for identifier, path, content in (("source", "example.py", "print('opaque observed bytes')\n"),
+                                      ("environment", "environment.txt", "python=fixture\n")):
+        (root / path).write_text(content)
+        documents.append({"document_id": identifier, "title": identifier, "source_kind": "replication_provenance",
+            "relative_path": path, "sha256": hashlib.sha256(content.encode()).hexdigest(), "model_visible": True,
+            "git_commit": "opaque-fixture-commit"})
+    config["source_snapshot_ref"] = write_reference(tmp_path / "sources.json", {
+        "schema_version": 1, "snapshot_id": "opaque-source", "source_horizon": "2025-12-31",
+        "source_root": "sources", "documents": documents})
+    sources = load_research_source_snapshot(tmp_path / "sources.json")
+    environment = tmp_path / "environment"
+    environment.mkdir()
+    (environment / "python").symlink_to(sys.executable)
+    config["source_execution_ref"] = write_reference(tmp_path / "source-execution.json", {
+        "schema_version": 4 if model_selected else 3, "artifact_kind": "ResearchSourceExecutionSpec", "execution_id": "opaque-execution",
+        "benchmark_id": "opaque-fixture", "source_snapshot_id": sources.snapshot_id,
+        "source_snapshot_hash": sources.snapshot_hash, "source_manifest_sha256": sources.manifest_sha256,
+        "source_commit": "opaque-fixture-commit", "entrypoint_document_id": "source",
+        "environment_lock_document_id": "environment", "environment_root": str(environment),
+        "runtime_language": "python", "interpreter_executable_relative_path": "python",
+        "interpreter_executable_sha256": hashlib.sha256(Path(sys.executable).resolve().read_bytes()).hexdigest(),
+        "runtime_read_roots": [], "working_directory_relative": ".", "arguments": [],
+        "package_distributions": {"Opaque": "opaque"}, "timeout_seconds": 30, "max_output_bytes": 8192,
+        **({"command_selection_mode": "model_selected"} if model_selected else {})})
+    return config
+
+
+@pytest.mark.parametrize("mode", ["free_planning", "same_workflow", "full_collaboration", "no_cross_role_revision"])
+@pytest.mark.parametrize("failed", [False, True])
+@pytest.mark.parametrize("model_selected", [False, True])
+def test_source_only_draw_uses_existing_execution_and_exact_selected_report(tmp_path, monkeypatch, capsys, mode, failed, model_selected):
+    from benchmarks.publication import draw_cli
+    from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
+
+    config = replication_configuration(tmp_path, monkeypatch, mode, model_selected=model_selected)
+    execution_calls = []
+
+    def execute(**kwargs):
+        execution_calls.append(kwargs)
+        probe = Path(kwargs["command"][-1]).name == "environment_probe.py"
+        return {"execution_attempted": True, "returncode": 0 if probe or not failed else 1,
+                "stdout": json.dumps({"runtime_version": "fixture", "runtime_language": "python", "package_versions": {"Opaque": "fixture"}})
+                          if probe else "opaque observed bytes\n",
+                "stderr": "" if probe or not failed else "opaque native failure\n", "errors": []}
+
+    monkeypatch.setattr("ai_statistician.research_source_library._execute_pinned_process", execute)
+    collaborative = mode in {"full_collaboration", "no_cross_role_revision"}
+    entry_name = "run_collaborative_research_draw" if collaborative else "run_single_context_research_draw"
+    entry = getattr(draw_cli, entry_name)
+    submissions = []
+
+    def capture_submission(**kwargs):
+        result, submission = entry(**kwargs)
+        submissions.append(submission)
+        return result, submission
+
+    monkeypatch.setattr(draw_cli, entry_name, capture_submission)
+    prefix = "" if collaborative else "theory__"
+    report = "# Source report\n\nAn observed run; no theory or proof is claimed.\n"
+    command = {"reason": "Inspect the declared source.", "entrypoint_document_id": "source",
+               "working_directory_relative": ".", "arguments": [], "result_artifact_paths": []} if model_selected else {}
+    actions = [(prefix + "run_research_source", command),
+               (prefix + "write_theory_document", {"path": "replication/report.md", "content": report}),
+               (prefix + "commit_source_replication_checkpoint", {"report_document_path": "replication/report.md",
+                "readiness_rationale": "Preserve the exact observation for independent evaluation.",
+                "unresolved_gaps": ["Scientific correctness is not evaluated by this fixture."],
+                **({"selected_source_run": 1} if model_selected else {})})]
+    if not collaborative:
+        actions.append(select_observed("theory", "# Final selected source report\n"))
+    requests, freezes = wire(monkeypatch, tmp_path, actions)
+    assert invoke(tmp_path, config) == 0
+    summary = json.loads(capsys.readouterr().out)
+    final = json.loads(Path(summary["final_material_ref"]["path"]).read_text())
+    material = final["material"]
+    source = material["source_replication_artifact"]
+    assert source["report_document"]["content"] == report
+    assert source["report_document"]["path"] == "replication/report.md"
+    assert source["source_execution"]["execution_status"] == ("FAILED" if failed else "EXECUTED")
+    assert source["source_execution"]["raw_stderr"] == ("opaque native failure\n" if failed else "")
+    assert source["source_execution"]["raw_stdout"] == "opaque observed bytes\n"
+    assert source["source_execution"]["runtime_edited_source"] is False
+    assert source["source_execution"]["command_owned_by_model"] is model_selected
+    assert len(source["source_execution_attempts"]) == (1 if model_selected else 0)
+    assert material["theory_documents"] == material["estimator_bindings"] == []
+    assert material["empirical_artifact"] is None and "assessment" not in final
+    assert summary["scientific_evaluation_performed"] is False
+    assert summary["status"] == (("BLOCKED" if failed else "ACCEPTED") if collaborative else "REROUTE")
+    assert len(requests) == (3 if collaborative else 4) and len(execution_calls) == 2
+    assert freezes[0]["study_provenance"]["source_execution_ref"]["sha256"] == config["source_execution_ref"]["sha256"]
+    assert "run_research_source" in {row["function"]["name"].removeprefix(prefix) for row in requests[0]["tools"]}
+    if collaborative:
+        from ai_statistician.agent_runtime import load_persisted_runtime_result
+        from ai_statistician.research_evaluation import load_runtime_research_submission
+        from ai_statistician.research_schema import load_open_research_questions
+        result = load_persisted_runtime_result(next((tmp_path / "draw" / "author").glob("*_runtime_result.json")))
+        submission = load_runtime_research_submission(result, question=load_open_research_questions(tmp_path / "questions.json")[0])
+        assert [row["subsystem"] for row in result["traces"]] == ["TheoryDeveloper"]
+    else:
+        submission = submissions[0]
+    checkpoint = (submission["selected_artifacts"]["source_replication"] if collaborative
+                  else submission["checkpoint_payloads"]["theory"]["core_packet"])
+    Path(checkpoint["source_replication_manifest_ref"]["path"]).write_text("changed selected execution")
+    with pytest.raises(ValueError, match="execution file identity mismatch"):
+        publication_material_from_submission(submission, source_kind="runtime" if collaborative else "control",
+                                             control_estimator_scopes=None if collaborative else {})
+
+
+@pytest.mark.parametrize("defect", ["missing_snapshot", "execution_hash", "execution_size", "foreign_snapshot"])
+def test_invalid_replication_execution_is_rejected_before_any_model_call(tmp_path, monkeypatch, defect):
+    config = replication_configuration(tmp_path, monkeypatch, "free_planning")
+    calls = []
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: calls.append(args))
+    if defect == "missing_snapshot":
+        config.pop("source_snapshot_ref")
+    elif defect in {"execution_hash", "execution_size"}:
+        key = "sha256" if defect == "execution_hash" else "byte_size"
+        config["source_execution_ref"][key] = "changed" if key == "sha256" else config["source_execution_ref"][key] + 1
+    else:
+        path = tmp_path / "source-execution.json"
+        value = json.loads(path.read_text())
+        value["source_snapshot_hash"] = "0" * 64
+        config["source_execution_ref"] = write_reference(path, value)
+    with pytest.raises(ValueError):
+        invoke(tmp_path, config)
+    assert calls == [] and not (tmp_path / "draw").exists()
 
 
 @pytest.mark.parametrize("mode", ["full_collaboration", "no_cross_role_revision"])

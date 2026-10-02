@@ -19263,6 +19263,8 @@ class CriticEvaluatorRuntimeSubsystem:
                 formalization_counts,
             ]
         )[:20]
+        source_checkpoint_id = str(canonical_evidence_view["source_replication"].get("checkpoint_id", ""))
+        source_checkpoint = blackboard.artifacts.get(source_checkpoint_id, {})
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeCriticEvaluatorManifest",
@@ -19273,6 +19275,7 @@ class CriticEvaluatorRuntimeSubsystem:
             "simulation_manifest_id": simulation_manifest_id,
             "algorithm_sandbox_manifest_id": algorithm_manifest_id,
             "formalization_manifest_id": formalization_manifest_id,
+            "source_replication_checkpoint_id": source_checkpoint_id,
             "runtime_architect_control": critic_control,
             "llm_critic_evaluator_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
@@ -19284,6 +19287,7 @@ class CriticEvaluatorRuntimeSubsystem:
                     ("scientific_code", algorithm_manifest_id, algorithm_manifest),
                     ("empirical", simulation_manifest_id, simulation_manifest),
                     ("formal", formalization_manifest_id, formalization_manifest),
+                    ("source_replication", source_checkpoint_id, source_checkpoint),
                     ("assessment", str(proposal_packet.get("packet_id", "")), proposal_packet)
                     if proposal_packet else ("assessment", "", {}),
                 ) if artifact_id and artifact

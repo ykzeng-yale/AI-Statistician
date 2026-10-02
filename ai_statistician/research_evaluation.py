@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from .agent_runtime import resolve_runtime_artifact_references
+from .agent_runtime import resolve_runtime_artifact_references, runtime_artifact_reference
 from .fingerprint import stable_hash
 from .generated_code_semantic_review_scope import (
     executable_evaluator_review_binding,
@@ -228,7 +228,7 @@ def research_evaluation_evidence_hash(result: Mapping[str, Any]) -> str:
 def load_runtime_research_submission(
     result: Mapping[str, Any], *, question: OpenResearchQuestion,
 ) -> dict[str, Any]:
-    """Read a terminal Critic's exact selection, not its scientific correctness.
+    """Read the terminal owner's exact selection, not its scientific correctness.
 
     Supply a trusted terminated result (hydrate stored refs with the runtime loader)
     and frozen public question. No earlier candidate, missing artifact or acceptance
@@ -239,7 +239,7 @@ def load_runtime_research_submission(
     if not isinstance(traces, (list, tuple)) or not traces:
         return {}
     trace = traces[-1]
-    if (not isinstance(trace, Mapping) or trace.get("subsystem") != "CriticEvaluator"
+    if (not isinstance(trace, Mapping)
         or trace.get("status") not in {"ACCEPTED", "BLOCKED", "FAILED"}
         or result.get("status") != trace.get("status")
         or not isinstance(trace.get("task"), Mapping)
@@ -250,6 +250,28 @@ def load_runtime_research_submission(
     produced = trace.get("produced_artifact_ids", [])
     if not isinstance(produced, (list, tuple)):
         raise ValueError("terminal research submission has an invalid artifact inventory")
+    public_question = research_question_payload(question, include_task_intent=True)
+    if trace.get("subsystem") == "TheoryDeveloper":
+        if (question.task_intent.get("source_replication") != "required"
+            or "required" in research_dimension_requirements(question.task_intent).values()):
+            return {}
+        checkpoints = [artifacts[artifact_id] for artifact_id in produced if artifact_id in artifacts
+                       and artifacts[artifact_id].get("artifact_kind") == "SourceReplicationCheckpoint"]
+        if not checkpoints:
+            return {}
+        if len(checkpoints) != 1:
+            raise ValueError("terminal source submission has ambiguous checkpoints")
+        checkpoint = checkpoints[0]
+        checkpoint_id = checkpoint.get("checkpoint_id")
+        if (checkpoint_id not in produced or artifacts.get(checkpoint_id) != checkpoint
+            or checkpoint.get("question_id") != question.id or checkpoint.get("task_intent") != question.task_intent):
+            raise ValueError("terminal source submission differs from the frozen question")
+        return {"question_id": question.id, "question_hash": stable_hash(public_question),
+                "task_intent": dict(public_question.get("task_intent", {})), "internal_status": result["status"],
+                "selected_artifact_refs": {"source_replication": runtime_artifact_reference(checkpoint_id, checkpoint)},
+                "selected_artifacts": {"source_replication": deepcopy(checkpoint)}}
+    if trace.get("subsystem") != "CriticEvaluator":
+        return {}
     manifests = [artifacts[artifact_id] for artifact_id in produced if artifact_id in artifacts
                  and artifacts[artifact_id].get("artifact_kind") == "RuntimeCriticEvaluatorManifest"]
     if not manifests:
@@ -257,14 +279,13 @@ def load_runtime_research_submission(
     if len(manifests) != 1:
         raise ValueError("terminal research submission has ambiguous Critic manifests")
     manifest = manifests[0]
-    public_question = research_question_payload(question, include_task_intent=True)
     if (manifest.get("question") != public_question or manifest.get("manifest_id") not in produced
         or artifacts.get(manifest.get("manifest_id")) != manifest):
         raise ValueError("terminal research submission differs from the frozen question")
     selection = manifest.get("submission_artifact_refs", {})
     fields = {"theory": "theory_packet_id", "scientific_code": "algorithm_sandbox_manifest_id",
               "empirical": "simulation_manifest_id", "formal": "formalization_manifest_id",
-              "assessment": "llm_critic_evaluator_proposal_id"}
+              "assessment": "llm_critic_evaluator_proposal_id", "source_replication": "source_replication_checkpoint_id"}
     if (not isinstance(selection, Mapping) or "assessment" not in selection
         or set(selection) != {scope for scope, field in fields.items() if manifest.get(field)}):
         raise ValueError("terminal research submission has incomplete or unexpected references")

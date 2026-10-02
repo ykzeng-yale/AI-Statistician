@@ -1186,13 +1186,22 @@ def prepare_theory_artifact_workspace(
         ]
         if len(report_rows) != 1:
             raise ClientToolInputError("source replication report identity is ambiguous")
+
+        def manifest_file_reference(manifest):
+            path = Path(manifest["manifest_path"])
+            raw = path.read_bytes()
+            if json.loads(raw) != manifest:
+                raise ClientToolInputError("source execution manifest changed before checkpoint")
+            return {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
+
         checkpoint_body = {
             "schema_version": 1, "artifact_kind": SOURCE_REPLICATION_CHECKPOINT_KIND,
             "question_id": question_id, "workspace_id": workspace_id,
             "task_intent": dict(task_intent or {}),
             "source_replication_manifest_ref": {
-                key: str(source_manifest.get(key, "") or "")
-                for key in ("artifact_id", "manifest_hash", "execution_status", "stdout_sha256")
+                **manifest_file_reference(source_manifest),
+                **{key: str(source_manifest.get(key, "") or "")
+                   for key in ("artifact_id", "manifest_hash", "execution_status", "stdout_sha256")},
             },
             "report_document": deepcopy(report_rows[0]),
             "unresolved_gaps": [value.strip() for value in unresolved_gaps],
@@ -1206,6 +1215,7 @@ def prepare_theory_artifact_workspace(
                 "source_execution_attempt_refs": [
                     {
                         "source_run": index,
+                        **manifest_file_reference(manifest),
                         "artifact_id": str(manifest.get("artifact_id", "") or ""),
                         "manifest_hash": str(manifest.get("manifest_hash", "") or ""),
                         "execution_status": str(
