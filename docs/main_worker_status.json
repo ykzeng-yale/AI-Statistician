@@ -1,5 +1,5 @@
 {
-  "schema_version": 500,
+  "schema_version": 501,
   "updated_at": "2026-10-02",
   "goal_status": "active",
   "goal_blocker": "",
@@ -31,7 +31,7 @@
       "live_efficacy": "Initial six-case paired component pilot completed: A 49 calls, B 45 calls; 6/6 candidate verdicts in each arm, but report derivation errors remain. Every B session retained one signed thinking block; A retained none. Native transport is live-verified, but scientific improvement is inconclusive, not a research-E2E result. B bundles thinking, tool choice and temperature behavior. Default remains zero."
     }
   },
-  "validated_code_head": "445312e4006e0ad9c5753010cfa58414e32cfca8",
+  "validated_code_head": "c480917f7427c2ebbe2ddff1bb0c1c0c02d3b7e9",
   "open_weight_system_development": {
     "study_id": "fixed_k_l2_20261002",
     "record": "benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json",
@@ -270,11 +270,11 @@
     "codex_adoption_lines": 246
   },
   "latest_validated_change": {
-    "code_commit": "445312e4006e0ad9c5753010cfa58414e32cfca8",
-    "lean_commit": "ae4c46e09367120dfb20311a2db43b101ed8a387",
-    "summary": "Delete six obsolete Theory canonicalization helpers that invented content or empty legacy fields during document writes. Preserve exact owner data and source isolation; structural/semantic errors remain same-owner observations. Defer dependent control context until the existing exact selection action, preserving complete selected inputs, unchanged tool schemas/execution and public estimator/workspace identities. No generated mathematics/source/criterion edit, new scheduler, repair layer, task-family condition, retry or consumed reevaluation.",
-    "verification": "Full suite: 1961 passed, 18 skipped and one existing SRT xfail in 758.56 seconds; runs/publication_context_binding_20261002/full_suite_final.junit.xml. JUnit: 1980 tests, zero failures/errors, 19 skipped including xfail. Focused Theory/core: 98 passed; selected-source/context Python/R and identity checks: six passed. Intermediate interrupted/failing regression records remain separate; assertions now inspect actual selected context instead of unbound serialization and verify the public method/scope map. Compileall and diff checks passed. Product: 139 modules/149817 lines; runtime 24527 lines; guards unchanged. Verified original free-planning and workflow transcripts and all 23 observation references against their hashes. Protected historical hash e7162814977a51579850fcc3418017d7b638d23ce1550a0f523d2b7f55903da3 unchanged. No new inference or Lean change.",
-    "capability_effect": "Removes demonstrated content-ownership and context defects; no fresh scientific-success effect is established. The unchanged consumed Qwen pilot still has zero final selections. Existing tool-catalog complexity, matching of observations/resources/cohorts and independent full-task authority remain unfinished. Upstream Qwen decoding/context guidance is documented prospectively, not applied to old draws. Haiku outcomes remain archived/excluded; authorized local Claude Code host checks stay separate. Both publication studies remain unactivated and the full two-publication goal active."
+    "code_commit": "c480917f7427c2ebbe2ddff1bb0c1c0c02d3b7e9",
+    "lean_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
+    "summary": "Consolidate the Lean incremental API gate's Git-baseline/current inventories through the existing source reader, deleting a duplicate walker that falsely treated attributed legacy declarations as new. Pin the reviewed submodule in AI-Statistician and refresh its current shared index. No new grammar, mathematical source, proof/name edit, policy exception, scheduler, generated-answer patch or consumed reevaluation. AI research-owner tools/context and source code remain unchanged.",
+    "verification": "Full primary suite at c480917f: 1961 passed, 18 skipped, one existing SRT xfail in 711.59 seconds; runs/publication_lean_api_inventory_20261002/primary_suite.junit.xml (1980 cases, zero failures/errors; SHA-256 a19fe2b524f3c59515d018bc0a17f39731f8a5c843bf8e161f1e31653eb822f3). Full Lean/RAG tools: 86 passed, one opt-in skip; tool_tests.junit.xml (87 cases, zero failures/errors; SHA-256 ba118c575b789b511fb06fc9d68892732df66e5886b93c44e2d99e0f2800f139). Default guarded InteriorPoint file/module and three selected existing ledger declarations passed with zero unexpected axioms in 190.95 seconds. Entire unchanged library incremental policy reports zero new names; explicit InteriorPoint all-declaration audit still has 746 violations among 1466 declarations. Current index schema 6 contains 52485 declarations and binds clean db6c7718/Lean 4.30.0/Mathlib 81343555; the checked barrier declaration is accessible. Lean/source-ledger bytes and protected historical hash e7162814977a51579850fcc3418017d7b638d23ce1550a0f523d2b7f55903da3 unchanged. Compile/diff checks passed; no model invocation.",
+    "capability_effect": "Corrects a demonstrated incremental-gate defect and binds retrieval to the reviewed active checkout. Zero incremental violations do not establish whole-library API conformance; three native checks do not establish textbook fidelity, coverage, a clean-machine build or new agent success. Public licensing/source-asset rights, curated API, independent research gold and matched multi-family experiments remain unfinished. Haiku and consumed Qwen outcomes remain archived/unchanged; no retries or model escalation. Both official studies remain unactivated and the complete two-publication goal active."
   },
   "latest_independent_qualification": {
     "benchmark_id": "research-analytic-gaussian-20260911-v1",
