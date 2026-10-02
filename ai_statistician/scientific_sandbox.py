@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -1271,6 +1272,8 @@ def execute_scientific_sandbox(
             ),
         }
     )[:16]
+    # Identical computation inputs may have distinct outcomes; never replace prior attempts.
+    sandbox_dir = Path(tempfile.mkdtemp(prefix=f"{safe_id}_{execution_key}_", dir=sandbox_dir))
     code_path = sandbox_dir / f"{safe_id}_{execution_key}_generated_draft.{extension}"
     request_path = sandbox_dir / f"{safe_id}_{execution_key}_scientific_request.json"
     result_path = sandbox_dir / f"{safe_id}_{execution_key}_scientific_result.json"
@@ -1311,10 +1314,6 @@ def execute_scientific_sandbox(
         )
         input_path.write_text(binding.content, encoding="utf-8")
         input_artifact_paths[binding.artifact_id] = input_path
-    result_path.unlink(missing_ok=True)
-    metrics_path.unlink(missing_ok=True)
-    stdout_path.unlink(missing_ok=True)
-    stderr_path.unlink(missing_ok=True)
     request = {
         "schema_version": 1,
         "artifact_kind": "ScientificSandboxExecutionRequest",

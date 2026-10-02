@@ -362,6 +362,13 @@ counts, failed/changed results and malformed source interfaces; no model is call
 Capacity and scientific computation still need matching across all arms. Both
 controls and production source owners can inspect exploratory measurements and
 their diagnostic gate results; these are not fresh confirmatory acceptance.
+Every future Python/R executor invocation now stores its request, exact source,
+result and logs in a fresh attempt directory, even for identical source/seed
+inputs. A later failure or success cannot overwrite that earlier record. Request
+hashes bind these distinct stored paths; compare source/project and declared
+execution conditions separately rather than counting equal request hashes as
+repeated computations. This grants no extra invocation, retry or scientific credit
+and does not recover overwritten historical bytes.
 The former production-only mask hid runtime gate metadata, not model-authored
 `acceptance_passed` values or stdout, and was removed on 2026-10-02. Consumed
 draws retain their original observations and are not reassessed by this change.

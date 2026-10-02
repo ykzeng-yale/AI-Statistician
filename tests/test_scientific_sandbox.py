@@ -214,6 +214,57 @@ def test_live_script_mode_is_part_of_execution_identity(tmp_path: Path) -> None:
     assert json.loads(Path(script.result_path).read_text())["stdout"] == "top-level\n"
 
 
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("script", [False, True])
+def test_repeated_execution_preserves_prior_attempt_artifacts(tmp_path, monkeypatch, language, script) -> None:
+    from subprocess import CompletedProcess
+    import ai_statistician.scientific_sandbox as sandbox_module
+
+    runtime = ScientificSandboxRuntime(
+        node_executable=str(tmp_path / "node"), runner_path=str(tmp_path / "runner.mjs"),
+        pyodide_root=str(tmp_path), webr_entry=str(tmp_path / "webr" / "dist" / "webr.mjs"),
+        isolation_provider="synthetic-process", python_available=True, r_available=True,
+    )
+    source = ("def run_sandbox(seed, replicates): return {'opaque': seed}\n"
+              if language == "python" else "run_sandbox <- function(seed, replicates) list(opaque=seed)\n")
+    observations = [
+        {"ok": True, "metrics": {"opaque": 0.2}, "stdout": "first observation"},
+        {"ok": False, "error_type": "OpaqueFailure", "error_message": "second observation"},
+        {"ok": True, "metrics": {"opaque": 0.4}, "stdout": "third observation"},
+    ]
+
+    def execute(command, **kwargs):
+        row = observations.pop(0)
+        Path(command[command.index("--out") + 1]).write_text(json.dumps(row))
+        kwargs["stdout"].write(row.get("stdout", ""))
+        kwargs["stderr"].write(row.get("error_message", ""))
+        return CompletedProcess(command, 0 if row["ok"] else 1)
+
+    monkeypatch.setattr(sandbox_module.subprocess, "run", execute)
+    common = dict(sandbox_dir=tmp_path, artifact_id="opaque-attempt", language=language,
+                  code=source, dependencies=[], seed=7, replicates=3, timeout_s=20,
+                  runtime=runtime, entrypoint=None if script else "run_sandbox",
+                  project_files=[{"path": "notes.txt", "content": "unchanged opaque input"}])
+    attempts, snapshots = [], []
+    for _ in range(3):
+        attempt = execute_scientific_sandbox(**common)
+        attempts.append(attempt)
+        snapshots.append({path: path.read_bytes() for path in Path(attempt.request_path).parent.rglob("*")
+                          if path.is_file()})
+    assert [row.status for row in attempts] == ["EXECUTED", "FAILED", "EXECUTED"]
+    assert len({row.request_path for row in attempts}) == 3
+    assert len({row.execution_envelope_path for row in attempts}) == 3
+    assert len({row.request_hash for row in attempts}) == 3
+    assert len({row.code_hash for row in attempts}) == len({row.project_hash for row in attempts}) == 1
+    assert attempts[1].metrics == {} and attempts[1].errors == ("OpaqueFailure: second observation",)
+    requests = [json.loads(Path(row.request_path).read_text()) for row in attempts]
+    assert all(row["seed"] == 7 and row["replicates"] == 3 for row in requests)
+    for snapshot in snapshots:
+        assert all(path.read_bytes() == content for path, content in snapshot.items())
+    assert [json.loads(Path(row.execution_envelope_path).read_text())["ok"] for row in attempts] == [True, False, True]
+    assert all(Path(row.code_path).read_text() == source for row in attempts)
+
+
 def test_live_script_cannot_swallow_output_limit_failure(tmp_path: Path) -> None:
     runtime = discover_scientific_sandbox_runtime()
     if not runtime.python_available:
