@@ -24,6 +24,7 @@ from .client_tool_loop import (
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
 from .research_schema import OpenResearchQuestion, research_question_payload
+from .scientific_code_workspace import SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS, scientific_simulation_execution_contract
 
 
 RESEARCH_CONTROL_SUBMISSION_TOOL = "submit_research_result"
@@ -528,6 +529,11 @@ def prepare_single_context_research_workspace(
             if handoff["exact_algorithm_artifacts"] else "run_sandbox(seed, replicates) returns named JSON-finite developer diagnostics."
         )
         context["required_callable_exports"] = ["run_estimator", "run_sandbox"] if estimator_id is not None else ["run_sandbox"]
+        if estimator_id is None:
+            context.update(executable_evaluator_source_authority=bool(confirmatory_seeds), evaluator_source_authoring=bool(confirmatory_seeds),
+                runtime_execution_contract=scientific_simulation_execution_contract(
+                    n_runs=n_runs, timeout_s=timeout_s, estimator_ids=[row["estimator_id"] for row in handoff["exact_algorithm_artifacts"]],
+                    executable_evaluator_source=bool(confirmatory_seeds)))
         return spec, context, handoff, inputs, provided
 
     def prepare_source(scope, selected, previous):
@@ -544,7 +550,11 @@ def prepare_single_context_research_workspace(
             else:
                 row, tool = _run_generated_simulation_sandbox(
                     sandbox_dir=execution_dir, simulation_id=session_id + ":simulation", code_draft=candidate,
-                    upstream_algorithm_handoff=handoff, n_runs=n_runs, seed=seed, timeout_s=timeout_s,
+                    upstream_algorithm_handoff=handoff,
+                    n_runs=min(n_runs, SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS) if confirmatory_seeds else n_runs,
+                    seed=seed, timeout_s=timeout_s,
+                    validation_context={"executable_evaluator_source_authority": bool(confirmatory_seeds),
+                                        "source_authoring_diagnostic": bool(confirmatory_seeds)},
                 )
             row["execution_phase"] = "exploratory_diagnostic"
             return {"code_draft_hash": stable_hash(candidate), "accepted": row["smoke_passed"],

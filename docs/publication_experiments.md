@@ -340,8 +340,22 @@ not promoted into usable checkpoints.
 Each frozen source/input identity executes once, including failures; rebinding
 cannot replay it. A distinct source consumes the next prospectively fixed seed,
 never an outcome-selected seed. Future seeds remain outside model context.
+Configured controls now use the production source-first evaluator ABI and the
+same existing small authoring diagnostic, `min(n_runs, 128)`, before freezing.
+They and production source-owner sessions receive one shared execution description,
+including restored-source paths. `n_runs` is the configured reference scale, not
+an enforced confirmation ceiling: exact source declares the future count within
+the existing executor limit, and confirmation executes it without silent clamping.
+The harness does not choose scientific precision, thresholds or stopping criteria.
+Unconfigured exploratory controls retain their original execution count and ABI.
+Opaque Python/R tests cover both sides of the diagnostic threshold, exact future
+counts, failed/changed results and malformed source interfaces; no model is called.
 Capacity and scientific computation still need matching across all arms. This
-source-freezing action does not grant independent protocol acceptance or product
+change does not match total execution attempts, private-cohort schedules or complete
+author observations: controls currently retain raw exploratory acceptance output,
+while the production confirmation-authoring driver withholds acceptance outcomes.
+Fix or prospectively declare these differences before a scientific comparison.
+The source-freezing action does not grant independent protocol acceptance or product
 confirmatory eligibility. Only external authority can assess scientific validity.
 Shared reviewer observations, including ACCEPT, remain self-review, not proof or
 independent acceptance. The full product's review guards are unchanged.

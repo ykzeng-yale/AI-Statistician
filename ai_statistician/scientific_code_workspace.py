@@ -40,6 +40,7 @@ from .client_tool_loop import (
     workspace_history_tool,
 )
 from .fingerprint import stable_hash
+from .generated_metric_contract import GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES, generated_sandbox_runtime_replicates
 from .model_backend import (
     ClientToolDefinition,
     ClientToolTurnRequest,
@@ -107,10 +108,30 @@ SCIENTIFIC_SOURCE_REVISE_CURRENT = "revise_current_source"
 SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER = "return_to_bound_dependency_owner"
 SCIENTIFIC_CODE_WORKSPACE_CHECKPOINT_KIND = "ScientificCodeWorkspaceCheckpoint"
 SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY = "scientific_consumer_revision"
+SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS = 128
 _SCIENTIFIC_PACKAGES = PYTHON_SCIENTIFIC_DEPENDENCIES + R_SCIENTIFIC_DEPENDENCIES
 _OUTCOME_DERIVED_SHAPE_FIELDS = frozenset(
     {"length", "dimensions", "field_count", "truncated_field_count"}
 )
+
+
+def scientific_simulation_execution_contract(*, n_runs: int, timeout_s: int,
+                                           estimator_ids: Sequence[str], executable_evaluator_source: bool) -> dict[str, Any]:
+    """Describe actual execution interfaces without choosing scientific criteria."""
+    return {
+        "timeout_seconds": timeout_s, "runtime_replicates": generated_sandbox_runtime_replicates(n_runs),
+        "authoring_diagnostic_max_replicates": min(n_runs, SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS),
+        "confirmatory_replicates_limit": GENERATED_SANDBOX_MAX_RUNTIME_REPLICATES,
+        "available_upstream_estimator_ids": list(dict.fromkeys(estimator_ids)),
+        "resource_policy": (
+            "During evaluator authoring, runtime_replicates is the configured reference scale, not an enforced confirmation ceiling. "
+            "The authoring diagnostic is small and non-confirmatory. Choose and justify a positive requested_runtime_replicates "
+            "before confirmation, within confirmatory_replicates_limit; confirmation executes that exact count."
+            if executable_evaluator_source else
+            "The complete workload uses the runtime-supplied count."
+        ) + " A timeout is failed execution evidence and never authorizes fewer frozen replicates or weaker scientific criteria.",
+        "evidence_boundary": "This contract controls generated simulation execution only and is not theorem proof evidence.",
+    }
 
 
 def _scientific_project_manifest(draft: Mapping[str, Any]) -> list[dict[str, Any]]:

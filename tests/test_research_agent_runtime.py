@@ -6596,6 +6596,8 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
     assert feedback["runtime_execution_contract"][
         "available_upstream_estimator_ids"
     ] == ["accepted-estimator"]
+    assert source_workspace_contexts[0]["runtime_execution_contract"] == feedback["runtime_execution_contract"]
+    assert feedback["runtime_execution_contract"]["runtime_replicates"] == 8
     assert source_workspace_contexts[0]["source_replication_context"] == (
         replication_context
     )
@@ -6617,6 +6619,13 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
     ]
     assert diagnostic["simulation_manifest_id"].startswith("simulation_manifest:")
     assert diagnostic["status"] == "PASSED_NOT_CONFIRMATORY_EVIDENCE"
+
+    blackboard.artifacts.update(exploratory.produced_artifacts)
+    subsystem.run(exploratory.next_task, blackboard)
+    authoring_contract = source_workspace_contexts[-1]["runtime_execution_contract"]
+    assert source_workspace_contexts[-1]["evaluator_source_authoring"] is True
+    assert authoring_contract == proposal_feedback[-1]["runtime_execution_contract"]
+    assert "not an enforced confirmation ceiling" in authoring_contract["resource_policy"]
 
     monkeypatch.setattr(
         runtime_module,
@@ -6644,7 +6653,7 @@ def test_exploratory_simulation_preserves_available_algorithm_handoff(
     blocked = subsystem.run(confirmatory_task, blackboard)
     assert blocked.status == "BLOCKED"
     assert blocked.failure_classification == "runtime_handoff_artifact_missing"
-    assert SimulationAgent.propose_calls == 1
+    assert SimulationAgent.propose_calls == 2
 
 
 def test_missing_metric_authority_routes_to_same_evaluator_source_owner() -> None:

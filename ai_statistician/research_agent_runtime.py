@@ -130,6 +130,7 @@ from .scientific_code_workspace import (
     SCIENTIFIC_CONSUMER_REVISION_BUDGET_KEY,
     SCIENTIFIC_SOURCE_RETURN_TO_DEPENDENCY_OWNER,
     SCIENTIFIC_SOURCE_TRANSPORT_NATIVE_CLIENT_TOOLS,
+    SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS,
     ScientificSourceWorkspaceUnavailableError,
     advance_scientific_consumer_revision_budget,
     complete_scientific_source_draft,
@@ -143,6 +144,7 @@ from .scientific_code_workspace import (
     runtime_scientific_workspace_resume_plan,
     scientific_source_candidate_accepted as _scientific_source_candidate_accepted,
     scientific_source_workspace_available,
+    scientific_simulation_execution_contract,
     scientific_source_workspace_unavailable_result,
     scientific_workspace_progress_continuation,
     scientific_workspace_progress_rejected_result,
@@ -390,7 +392,6 @@ class ResearchAgentRuntimeConfig:
 RUNTIME_RESEARCH_EVALUATION_MODES = frozenset(
     {"research_eval", "capability_eval"}
 )
-SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS = 128
 
 
 def _is_runtime_research_evaluation_mode(evaluation_mode: Any) -> bool:
@@ -9522,6 +9523,15 @@ class SimulationEvaluatorRuntimeSubsystem:
                 confirmatory_result_blind=not exploratory_diagnostic,
             )
 
+        execution_contract = scientific_simulation_execution_contract(
+            n_runs=n_runs, timeout_s=self.timeout_s,
+            estimator_ids=[
+                str(row.get("estimator_id", "") or "").strip()
+                for row in upstream_algorithm_handoff.get("exact_algorithm_artifacts", []) or []
+                if isinstance(row, Mapping) and str(row.get("estimator_id", "") or "").strip()
+            ],
+            executable_evaluator_source=executable_evaluator_source,
+        )
         scientific_progress, scientific_progress_errors = (
             runtime_scientific_workspace_resume_plan(
                 task,
@@ -9912,15 +9922,6 @@ class SimulationEvaluatorRuntimeSubsystem:
                 prior_observations=observations,
             )
         else:
-            available_upstream_estimator_ids = [
-                str(row.get("estimator_id", "") or "").strip()
-                for row in upstream_algorithm_handoff.get(
-                    "exact_algorithm_artifacts", []
-                )
-                or []
-                if isinstance(row, Mapping)
-                and str(row.get("estimator_id", "") or "").strip()
-            ]
             environment_feedback = {
                 **dict(environment_feedback),
                 "executable_evaluator_source_authority": bool(
@@ -9932,38 +9933,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                 "evaluator_source_confirmation": bool(
                     evaluator_source_confirmation
                 ),
-                "runtime_execution_contract": {
-                    "timeout_seconds": self.timeout_s,
-                    "runtime_replicates": generated_sandbox_runtime_replicates(
-                        n_runs
-                    ),
-                    "available_upstream_estimator_ids": list(
-                        dict.fromkeys(available_upstream_estimator_ids)
-                    ),
-                    "estimator_callback_policy": (
-                        "Every estimator ID selected in required_estimator_ids "
-                        "must be invoked at least once on the executed path. "
-                        "Estimator callbacks run exact accepted source inside the "
-                        "isolated scientific runtime and may dominate cost, so "
-                        "avoid redundant calls while preserving the frozen protocol."
-                    ),
-                    "resource_policy": (
-                        "During evaluator authoring, runtime_replicates is the maximum "
-                        "available capacity; the source must request and justify its "
-                        "own confirmatory count before outcomes. During confirmation, "
-                        "that reviewed count is exact. A timeout is failed execution "
-                        "evidence and never authorizes weaker scientific criteria."
-                        if executable_evaluator_source
-                        else "The complete confirmatory workload must finish within "
-                        "timeout_seconds. A timeout is failed execution evidence "
-                        "and must be repaired from exact runtime diagnostics; it "
-                        "does not authorize fewer frozen replicates or weaker gates."
-                    ),
-                    "evidence_boundary": (
-                        "This contract controls generated simulation execution "
-                        "only and is not theorem proof evidence."
-                    ),
-                },
+                "runtime_execution_contract": execution_contract,
             }
             effective_context = _runtime_context_with_environment_feedback_contract(
                 context,
@@ -10360,6 +10330,7 @@ class SimulationEvaluatorRuntimeSubsystem:
                         "evaluator_source_authoring": bool(
                             evaluator_source_authoring
                         ),
+                        "runtime_execution_contract": execution_contract,
                         "simulation_id": simulation_id,
                         "simulation_target": next(
                             (

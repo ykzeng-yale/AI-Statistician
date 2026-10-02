@@ -744,7 +744,8 @@ def test_application_control_keeps_frozen_estimator_identity(tmp_path):
 
 @pytest.mark.parametrize("language", ["python", "r"])
 @pytest.mark.parametrize("disposition", ["accept", "reject", "changed_count", "execution_failure", "missing_count", "second_source", "exhausted_schedule"])
-def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_path, monkeypatch, language, disposition):
+@pytest.mark.parametrize("n_runs", [2, 257])
+def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_path, monkeypatch, language, disposition, n_runs):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
     runtime = discover_scientific_sandbox_runtime()
     if not (runtime.python_available if language == "python" else runtime.r_available):
@@ -764,6 +765,7 @@ def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_
     from ai_statistician import research_agent_runtime as runtime_module
     execute = runtime_module._run_generated_simulation_sandbox
     confirmations = []
+    diagnostics = []
 
     def verify_frozen_before_execution(**kwargs):
         if kwargs.get("validation_context", {}).get("evaluator_source_confirmation"):
@@ -773,6 +775,10 @@ def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_
             assert frozen["runtime_replicates"] == kwargs["n_runs"] == 5
             assert frozen["upstream_algorithm_handoff"] == kwargs["upstream_algorithm_handoff"]
             confirmations.append(frozen)
+        else:
+            assert kwargs["n_runs"] == min(n_runs, runtime_module.SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS)
+            assert kwargs["validation_context"]["source_authoring_diagnostic"] is True
+            diagnostics.append(kwargs["n_runs"])
         return execute(**kwargs)
 
     monkeypatch.setattr(runtime_module, "_run_generated_simulation_sandbox", verify_frozen_before_execution)
@@ -780,7 +786,7 @@ def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_
         question=question, request=ClientToolTurnRequest(system_prompt="Common objective.", messages=(), tools=(),
                                                        model=MODEL, max_tokens=1024),
         theory_agent=agents[0], algorithm_agent=agents[1], simulation_agent=agents[2], estimator_ids=("opaque",),
-        session_dir=tmp_path, session_id="opaque-freeze", n_runs=2, seed=7, timeout_s=30,
+        session_dir=tmp_path, session_id="opaque-freeze", n_runs=n_runs, seed=7, timeout_s=30,
         max_turns=32, max_tool_calls=32, max_no_progress_turns=32, confirmatory_seeds=private_seeds)
     private_seeds[:] = [123, 456]  # The caller cannot revise a prepared schedule.
     refs = {}
@@ -802,10 +808,10 @@ def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_
 
     def select(request, scope, parents):
         observed(request)
-        if scope == "confirmation":
+        if scope == "confirmation" and "simulation" in refs:
             original_simulation.setdefault("hash", refs["simulation"])
         return ClientToolCall("select-" + scope, RESEARCH_CONTROL_INPUTS_TOOL,
-                             {"scope": scope, "selected_checkpoints": {parent: refs[parent] for parent in parents}})
+                             {"scope": scope, "selected_checkpoints": {parent: refs[parent] for parent in parents if parent in refs}})
 
     algorithm_code = ("def run_estimator(request):\n    return {'echo': request['value']}\n"
                       "def run_sandbox(seed, replicates):\n    return run_estimator({'value': seed})\n"
@@ -868,13 +874,19 @@ def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_
     assert "920003" not in str(backend.requests[:19] if disposition == "second_source" else backend.requests)
     from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
     material = publication_material_from_submission(submission, source_kind="control", control_estimator_scopes={"algorithm": "opaque"})
-    rows = material["empirical_artifact"]["generated_simulation_rows"]
-    assert rows[0]["execution_phase"] == "exploratory_diagnostic"
-    assert rows[0]["metrics"]["echo"] == 9
+    rows = (material["empirical_artifact"] or {}).get("generated_simulation_rows", [])
+    assert len(diagnostics) == (2 if disposition in {"second_source", "exhausted_schedule"} else 1)
+    simulation_request = backend.requests[5]
+    assert '"runtime_replicates": ' + str(n_runs) in str(simulation_request.messages)
+    assert '"authoring_diagnostic_max_replicates": ' + str(min(n_runs, 128)) in str(simulation_request.messages)
+    assert "not an enforced confirmation ceiling" in str(simulation_request.messages)
     if disposition == "missing_count":
-        assert not confirmations and len(rows) == 1 and "confirmation" not in submission["checkpoint_payloads"]
-        assert "selected evaluator source/ABI is invalid" in str(result.messages)
+        assert not confirmations and not rows and "simulation" not in submission["checkpoint_payloads"]
+        assert "requested_runtime_replicates" in str(result.messages)
+        assert "confirmation" not in submission["checkpoint_payloads"]
         return
+    assert rows[0]["execution_phase"] == "exploratory_diagnostic"
+    assert rows[0]["metrics"]["echo"] == 7 + min(n_runs, 128)
     assert len(confirmations) == (2 if disposition == "second_source" else 1) and len(rows) == 2
     row = rows[1]
     assert row["execution_phase"] == "confirmatory_evaluator_execution"
