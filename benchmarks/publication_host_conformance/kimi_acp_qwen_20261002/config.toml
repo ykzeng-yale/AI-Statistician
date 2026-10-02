@@ -1,0 +1,25 @@
+default_model = "local-qwen"
+telemetry = false
+builtin_product_skills = false
+auto_session_title = false
+
+[providers.local]
+type = "openai"
+base_url = "http://127.0.0.1:8081/v1"
+api_key = "local-conformance-placeholder"
+
+[models.local-qwen]
+provider = "local"
+model = "Qwen3-4B-Instruct-2507"
+max_context_size = 32768
+
+[loop_control]
+max_attempts_per_step = 1
+reserved_context_size = 4096
+
+[tools]
+enabled = ["Read", "Write", "Edit", "Grep", "Glob", "Bash", "Skill", "TaskList", "TaskOutput", "TaskStop", "WaitFor"]
+
+[[permission.rules]]
+decision = "allow"
+pattern = "Read"
