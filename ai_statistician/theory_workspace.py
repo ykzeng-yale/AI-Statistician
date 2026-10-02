@@ -24,7 +24,6 @@ from .client_tool_loop import (
     model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
-    run_client_tool_workspace,
     workspace_history_tool,
 )
 from .estimator_interface_contract import normalize_theory_estimator_interface_contracts
@@ -549,87 +548,6 @@ def _theory_progress_workspace_state(
             "repeated source execution requires model-selected command lineage"
         )
     return state
-
-
-def run_theory_artifact_workspace(
-    *,
-    provider: Any,
-    system_prompt: str,
-    user_prompt: str,
-    model: str,
-    model_tier: str,
-    temperature: float,
-    max_tokens: int,
-    max_turns: int,
-    max_tool_calls: int,
-    max_no_progress_turns: int,
-    workspace_id: str,
-    question_id: str,
-    authoring_binding_id: str,
-    workspace_operation: str,
-    initial_artifacts: Mapping[str, Any],
-    initial_documents: Mapping[str, str] | None = None,
-    read_only_artifacts: Mapping[str, Any] | None = None,
-    read_only_documents: Mapping[str, str] | None = None,
-    build_candidate: TheoryWorkspaceCandidateBuilder,
-    validate_candidate: TheoryWorkspaceCandidateValidator,
-    request_metadata: Mapping[str, Any] | None = None,
-    scratchpad: TheoryScratchpadConfig | None = None,
-    research_sources: ResearchSourceSnapshot | None = None,
-    research_source_discovery: ResearchSourceDiscovery | None = None,
-    research_source_execution: ResearchSourceExecutionSpec | None = None,
-    allow_source_replication_checkpoint: bool = False,
-    task_intent: Mapping[str, str] | None = None,
-    workspace_dir: Path | None = None,
-    require_document_authority: bool = False,
-    writable_artifact_names: Sequence[str] | None = None,
-    prior_changed_artifact_names: Sequence[str] = (),
-    prior_changed_document_paths: Sequence[str] = (),
-    prior_removed_document_paths: Sequence[str] = (),
-    prior_client_tool_session_ref: Mapping[str, Any] | None = None,
-    prior_workspace_checkpoint: Mapping[str, Any] | None = None,
-    prior_scratch_execution_refs: Sequence[Mapping[str, Any]] = (),
-) -> TheoryWorkspaceResult:
-    """Run the existing owner-bound tools through the shared retained loop."""
-
-    workspace = prepare_theory_artifact_workspace(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        model=model,
-        model_tier=model_tier,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        max_turns=max_turns,
-        max_tool_calls=max_tool_calls,
-        max_no_progress_turns=max_no_progress_turns,
-        workspace_id=workspace_id,
-        question_id=question_id,
-        authoring_binding_id=authoring_binding_id,
-        workspace_operation=workspace_operation,
-        initial_artifacts=initial_artifacts,
-        initial_documents=initial_documents,
-        read_only_artifacts=read_only_artifacts,
-        read_only_documents=read_only_documents,
-        build_candidate=build_candidate,
-        validate_candidate=validate_candidate,
-        request_metadata=request_metadata,
-        scratchpad=scratchpad,
-        research_sources=research_sources,
-        research_source_discovery=research_source_discovery,
-        research_source_execution=research_source_execution,
-        allow_source_replication_checkpoint=allow_source_replication_checkpoint,
-        task_intent=task_intent,
-        workspace_dir=workspace_dir,
-        require_document_authority=require_document_authority,
-        writable_artifact_names=writable_artifact_names,
-        prior_changed_artifact_names=prior_changed_artifact_names,
-        prior_changed_document_paths=prior_changed_document_paths,
-        prior_removed_document_paths=prior_removed_document_paths,
-        prior_client_tool_session_ref=prior_client_tool_session_ref,
-        prior_workspace_checkpoint=prior_workspace_checkpoint,
-        prior_scratch_execution_refs=prior_scratch_execution_refs,
-    )
-    return run_client_tool_workspace(backend=provider, workspace=workspace)
 
 
 def prepare_theory_artifact_workspace(

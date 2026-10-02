@@ -11,6 +11,7 @@ from ai_statistician.client_tool_loop import (
     CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
     ClientToolInputError,
+    run_client_tool_workspace,
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
@@ -74,7 +75,7 @@ from ai_statistician.theory_workspace import (
     load_theory_workspace_documents,
     load_theory_progress_checkpoint_state,
     read_theory_scratch_execution,
-    run_theory_artifact_workspace,
+    prepare_theory_artifact_workspace,
     theory_workspace_manifest_errors,
 )
 
@@ -195,7 +196,7 @@ def _run_workspace(backend, **overrides):
         ),
     }
     kwargs.update(overrides)
-    return run_theory_artifact_workspace(**kwargs)
+    return run_client_tool_workspace(backend=kwargs.pop("provider"), workspace=prepare_theory_artifact_workspace(**kwargs))
 
 
 def _research_source_snapshot(tmp_path):

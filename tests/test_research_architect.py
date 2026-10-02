@@ -65,7 +65,7 @@ from ai_statistician.research_architect import (
     build_theory_developer_revision_inputs,
     source_replication_checkpoint_allowed,
     theory_handoff_requirements,
-    validate_theory_core_packet,
+    _validate_theory_packet,
     validate_theory_packet,
 )
 from ai_statistician.research_lab import load_open_research_questions
@@ -1349,7 +1349,7 @@ def test_theory_validation_rejects_dangling_formal_target_references() -> None:
     requests[0]["target_theorem_card"] = "missing_theorem_card"
     bad["formalization_requests"] = requests
 
-    errors = validate_theory_core_packet(bad)
+    errors = _validate_theory_packet(bad, require_estimator_interfaces=False)
 
     assert "theorem_cards ids must be unique" in errors
     assert any(
@@ -1378,7 +1378,7 @@ def test_theory_validation_allows_model_selected_supporting_row_counts() -> None
     packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     packet["kernel_verified"] = False
 
-    assert validate_theory_core_packet(packet) == []
+    assert _validate_theory_packet(packet, require_estimator_interfaces=False) == []
 
 
 def test_file_theory_index_does_not_require_markdown_anchor_syntax(
@@ -1395,7 +1395,7 @@ def test_file_theory_index_does_not_require_markdown_anchor_syntax(
     packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     packet["kernel_verified"] = False
 
-    assert validate_theory_core_packet(packet) == []
+    assert _validate_theory_packet(packet, require_estimator_interfaces=False) == []
 
     historical_packet = deepcopy(packet)
     historical_derivation = deepcopy(
@@ -1410,7 +1410,7 @@ def test_file_theory_index_does_not_require_markdown_anchor_syntax(
         }
     ]
     historical_packet["theory_derivation_packet"] = historical_derivation
-    assert validate_theory_core_packet(historical_packet) == []
+    assert _validate_theory_packet(historical_packet, require_estimator_interfaces=False) == []
 
     wrong_document = deepcopy(packet)
     wrong_derivation = deepcopy(wrong_document["theory_derivation_packet"])
@@ -1418,7 +1418,7 @@ def test_file_theory_index_does_not_require_markdown_anchor_syntax(
     wrong_document["theory_derivation_packet"] = wrong_derivation
     assert any(
         "references an unknown document" in error
-        for error in validate_theory_core_packet(wrong_document)
+        for error in _validate_theory_packet(wrong_document, require_estimator_interfaces=False)
     )
 
 
@@ -1432,7 +1432,7 @@ def test_advisory_theory_can_omit_formalization_authoring_artifacts() -> None:
     packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     packet["kernel_verified"] = False
 
-    assert validate_theory_core_packet(packet) == []
+    assert _validate_theory_packet(packet, require_estimator_interfaces=False) == []
 
 
 def test_initial_theory_can_read_late_feedback_without_rewriting_it(tmp_path) -> None:
@@ -1593,7 +1593,7 @@ def test_theory_validation_preserves_an_unresolved_sanity_check_for_review() -> 
     packet["proof_evidence_status"] = THEORY_DERIVATION_NOT_PROOF_EVIDENCE
     packet["kernel_verified"] = False
 
-    assert validate_theory_core_packet(packet) == []
+    assert _validate_theory_packet(packet, require_estimator_interfaces=False) == []
 
 
 def test_theory_contract_keeps_model_authored_sanity_dispositions() -> None:
@@ -3534,7 +3534,7 @@ def test_theory_core_validator_enforces_declared_nested_item_shapes() -> None:
         "description": "shape drift that must be returned to the model"
     }
 
-    errors = validate_theory_core_packet(packet)
+    errors = _validate_theory_packet(packet, require_estimator_interfaces=False)
 
     assert "simulation_ademp_spec.dgps[0] must be a string" in errors
 
@@ -4459,7 +4459,7 @@ def test_llm_theory_developer_rejects_kernel_verified_claims() -> None:
 
     assert any(
         "forbidden proof status" in error
-        for error in validate_theory_core_packet(packet)
+        for error in _validate_theory_packet(packet, require_estimator_interfaces=False)
     )
 
 

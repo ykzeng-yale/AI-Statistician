@@ -28,7 +28,6 @@ from ai_statistician.lean_candidate_revision_tool_loop import (
     LEAN_SCRATCH_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
     prepare_lean_candidate_workspace,
-    run_lean_candidate_revision_tool_loop,
 )
 from ai_statistician.model_backend import (
     ClientToolCall,
@@ -45,13 +44,11 @@ from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_READ_TOOL,
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     prepare_scientific_code_workspace,
-    run_scientific_code_workspace,
 )
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_COMMIT_TOOL,
     THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
     prepare_theory_artifact_workspace,
-    run_theory_artifact_workspace,
     load_theory_workspace_documents,
 )
 
@@ -98,7 +95,7 @@ def _case(kind, tmp_path):
             ClientToolCall("commit", THEORY_WORKSPACE_COMMIT_TOOL,
                            {"readiness_rationale": "Checkpoint the exact document for review."}),
         ]
-        return prepare_theory_artifact_workspace, run_theory_artifact_workspace, options, calls, checked
+        return prepare_theory_artifact_workspace, options, calls, checked
     if kind == "lean":
         def check(source, declaration):
             checked.append((source, declaration))
@@ -110,7 +107,7 @@ def _case(kind, tmp_path):
         calls = [ClientToolCall("submit", LEAN_SOURCE_SUBMISSION_TOOL,
                                 {"lean_source": "opaque model bytes",
                                  "candidate_declaration_name": "opaqueTarget"})]
-        return prepare_lean_candidate_workspace, run_lean_candidate_revision_tool_loop, options, calls, checked
+        return prepare_lean_candidate_workspace, options, calls, checked
 
     def check(draft):
         checked.append(deepcopy(draft))
@@ -129,49 +126,13 @@ def _case(kind, tmp_path):
              ClientToolCall("execute", SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
                             {"reason": "Run exact candidate bytes."}),
              ClientToolCall("commit", SCIENTIFIC_SOURCE_COMMIT_TOOL, {})]
-    return prepare_scientific_code_workspace, run_scientific_code_workspace, options, calls, checked
-
-
-@pytest.mark.parametrize("kind", ["theory", "python", "r", "lean"])
-def test_prepared_actions_match_default_driver(kind, tmp_path, monkeypatch):
-    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
-    prepare, run, options, calls, checked = _case(kind, tmp_path / "prepared")
-    workspace = prepare(**options)
-    assert not checked
-    prepared_backend = ScriptedLocalBackend(calls)
-    prepared = run_client_tool_workspace(backend=prepared_backend, workspace=workspace)
-    actual_checks = deepcopy(checked)
-
-    _, _, default_options, _, default_checks = _case(kind, tmp_path / "default")
-    default_backend = ScriptedLocalBackend(calls)
-    default = run(provider=default_backend, **default_options)
-    assert actual_checks == default_checks
-    assert [request.tools for request in prepared_backend.requests] == [
-        request.tools for request in default_backend.requests
-    ]
-    assert prepared.evidence["turns"] == default.evidence["turns"]
-    assert prepared.evidence["tool_calls"] == default.evidence["tool_calls"]
-    assert prepared.evidence["provider"] == default.evidence["provider"] == "local"
-    assert prepared.evidence["model"] == default.evidence["model"] == MODEL
-    if kind != "theory":
-        assert prepared_backend.requests == default_backend.requests
-    if kind in {"python", "r"}:
-        assert prepared.code_draft == default.code_draft
-        assert prepared.check_result == default.check_result
-        assert prepared.evidence["runtime_edited_source"] is False
-    elif kind == "lean":
-        assert prepared.lean_source == default.lean_source == "opaque model bytes"
-        assert prepared.source_hash == default.source_hash
-    else:
-        assert prepared.evidence["submitted_core_packet_hash"] != ""
-        assert prepared.evidence["runtime_edited_theory"] is False
-        assert prepared.core_packet["index"] == default.core_packet["index"]
+    return prepare_scientific_code_workspace, options, calls, checked
 
 
 @pytest.mark.parametrize("kind", ["theory", "python", "r", "lean"])
 def test_prepared_exhaustion_keeps_owner_checkpoint(kind, tmp_path, monkeypatch):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
-    prepare, _, options, calls, _ = _case(kind, tmp_path)
+    prepare, options, calls, _ = _case(kind, tmp_path)
     options["max_turns"] = 1
     if kind == "theory":
         options["max_tool_calls"] = 1
@@ -200,7 +161,7 @@ def test_one_existing_loop_can_use_actual_actions_from_three_workspaces(tmp_path
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
     workspaces = {}
     for kind in ("theory", "python", "lean"):
-        prepare, _, options, _, _ = _case(kind, tmp_path / kind)
+        prepare, options, _, _ = _case(kind, tmp_path / kind)
         workspaces[kind] = prepare(**options)
     selected = {THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL: workspaces["theory"],
                 SCIENTIFIC_SOURCE_SUBMISSION_TOOL: workspaces["python"],
@@ -211,7 +172,7 @@ def test_one_existing_loop_can_use_actual_actions_from_three_workspaces(tmp_path
     done = ClientToolDefinition(name="finish_synthetic_check", description="Finish this mechanism check.",
                                 input_schema={"type": "object", "properties": {},
                                               "additionalProperties": False}, terminal=True)
-    draft = _case("python", tmp_path / "unused")[3][0].input
+    draft = _case("python", tmp_path / "unused")[2][0].input
     calls = [ClientToolCall("scratch", LEAN_SCRATCH_TOOL, {"lean_source": "opaque scratch"}),
              ClientToolCall("submit", SCIENTIFIC_SOURCE_SUBMISSION_TOOL, draft),
              ClientToolCall("write", THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
@@ -255,7 +216,7 @@ def test_scientific_result_is_a_snapshot_of_live_prepared_state(tmp_path, monkey
             return {"ok": True, "provider": "synthetic", "source_horizon": "2025-01-01",
                     "query_hash": stable_hash(query), "source_kind": source_kind, "results": []}
 
-    prepare, _, options, calls, _ = _case("python", tmp_path)
+    prepare, options, calls, _ = _case("python", tmp_path)
     options["research_source_discovery"] = Discovery()
     workspace = prepare(**options)
     result = run_client_tool_workspace(backend=ScriptedLocalBackend(calls), workspace=workspace)
@@ -279,7 +240,7 @@ def _shared_case(tmp_path, monkeypatch, **overrides):
         raise AssertionError("a shared conversation must not use an isolated-owner result handler")
 
     for kind in ("theory", "python", "r", "lean"):
-        prepare, _, options, _, checked = _case(kind, tmp_path / kind)
+        prepare, options, _, checked = _case(kind, tmp_path / kind)
         workspaces[kind] = replace(prepare(**options), on_success=forbidden_role_result,
                                    on_error=forbidden_role_result)
         checks[kind] = checked
@@ -297,7 +258,7 @@ def _shared_case(tmp_path, monkeypatch, **overrides):
         request=ClientToolTurnRequest(system_prompt="Use any available action for this synthetic task.",
                                       messages=({"role": "user", "content": "Opaque general task."},),
                                       tools=(), model=MODEL, max_tokens=1024),
-        workspaces=workspaces, terminal_tools=(finish,), execute_terminal_tool=execute_finish,
+        workspaces=workspaces, control_tools=(finish,), execute_control_tool=execute_finish,
         observe_checkpoint=lambda scope, result: checkpoints.append((scope, result)),
         max_turns=15, max_tool_calls=15, max_no_progress_turns=15,
         session_dir=tmp_path / "shared", session_id="opaque-shared-control",
@@ -334,9 +295,9 @@ def test_shared_binding_exposes_all_actual_actions_without_role_drivers(tmp_path
 
 def test_shared_session_keeps_raw_feedback_and_component_checkpoints_without_promotion(tmp_path, monkeypatch):
     workspace, owners, checkpoints, checks = _shared_case(tmp_path, monkeypatch)
-    python_calls = _case("python", tmp_path / "unused-python")[3]
-    r_calls = _case("r", tmp_path / "unused-r")[3]
-    lean_call = _case("lean", tmp_path / "unused-lean")[3][0]
+    python_calls = _case("python", tmp_path / "unused-python")[2]
+    r_calls = _case("r", tmp_path / "unused-r")[2]
+    lean_call = _case("lean", tmp_path / "unused-lean")[2][0]
 
     def qualified(scope, call):
         return replace(call, call_id=scope + "-" + call.call_id, name=scope + "__" + call.name)
@@ -399,7 +360,7 @@ def test_shared_session_keeps_raw_feedback_and_component_checkpoints_without_pro
 @pytest.mark.parametrize("finish", [True, False])
 def test_shared_checkpoint_history_survives_later_source_and_theory_changes(tmp_path, monkeypatch, finish):
     workspace, _, checkpoints, checks = _shared_case(tmp_path, monkeypatch, max_turns=8)
-    code_calls = _case("python", tmp_path / "unused")[3]
+    code_calls = _case("python", tmp_path / "unused")[2]
     earlier_document = "# Opaque claim v1\n"
     later_document = "# Opaque claim v2\n"
     later_draft = {**code_calls[0].input, "code": "def run_sandbox(seed, replicates, artifacts):\n    return {'opaque': 2}\n"}
@@ -486,17 +447,17 @@ def test_shared_preparation_rejects_ambiguous_bindings_before_calls(change, tmp_
     elif change == "parent":
         overrides["request"] = replace(base_request, metadata={CLIENT_TOOL_PARENT_SESSION_METADATA_KEY: {"sha256": "other"}})
     elif change == "terminal_collision":
-        overrides["terminal_tools"] = (ClientToolDefinition("theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
+        overrides["control_tools"] = (ClientToolDefinition("theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
                                                              "Opaque final action.", {}, terminal=True),)
     else:
-        overrides["terminal_tools"] = ()
+        overrides["control_tools"] = ()
     with pytest.raises(ValueError):
         _shared_case(tmp_path / "invalid", monkeypatch, **overrides)
 
 
 def test_shared_tools_use_existing_local_wire_transport_with_raw_diagnostics(tmp_path, monkeypatch):
     diagnostic = "opaque native diagnostic\nlocal context: arbitrary alpha / beta\n" * 7
-    prepare, _, options, _, _ = _case("lean", tmp_path / "lean")
+    prepare, options, _, _ = _case("lean", tmp_path / "lean")
     options["check_candidate"] = lambda source, declaration: {
         "source_hash": stable_hash(source), "compiled": False, "stderr": diagnostic,
     }
@@ -549,7 +510,7 @@ def test_shared_binding_preserves_nonterminal_result_rejection(tmp_path, monkeyp
 
 def test_component_checkpoint_does_not_reset_global_turn_budget(tmp_path, monkeypatch):
     workspace, _, checkpoints, _ = _shared_case(tmp_path, monkeypatch, max_turns=2)
-    lean_call = _case("lean", tmp_path / "unused")[3][0]
+    lean_call = _case("lean", tmp_path / "unused")[2][0]
     calls = [replace(lean_call, name="lean__" + lean_call.name),
              ClientToolCall("write", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
                             {"path": "claim.md", "content": "# Partial task\n"}),

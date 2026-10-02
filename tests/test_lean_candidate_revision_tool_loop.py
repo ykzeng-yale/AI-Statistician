@@ -10,6 +10,7 @@ from ai_statistician.client_tool_loop import (
     CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY,
     CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
+    run_client_tool_workspace,
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.agent_runtime import (
@@ -28,7 +29,7 @@ from ai_statistician.lean_candidate_revision_tool_loop import (
     LEAN_SOURCE_READ_TOOL,
     LEAN_SOURCE_SUBMISSION_TOOL,
     lean_candidate_workspace_continuation_errors,
-    run_lean_candidate_revision_tool_loop,
+    prepare_lean_candidate_workspace,
     seal_lean_candidate_workspace_checkpoint,
 )
 from ai_statistician.lean_project import (
@@ -69,6 +70,10 @@ from ai_statistician import (
 import ai_statistician.formalizer_llm as formalizer_module
 import ai_statistician.lean_candidate_identity as lean_identity_module
 import ai_statistician.research_agent_runtime as runtime_module
+
+
+def _run_lean_workspace(*, provider, **options):
+    return run_client_tool_workspace(backend=provider, workspace=prepare_lean_candidate_workspace(**options))
 
 
 class ScriptedLeanToolBackend:
@@ -413,7 +418,7 @@ def test_lean_candidate_tool_loop_keeps_code_model_owned_and_compiler_bound(
             ],
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Repair this target.",
@@ -544,7 +549,7 @@ def test_lean_candidate_tool_loop_accepts_model_revised_support_project(
             "local_lean_stderr": "",
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise the rejected project.",
@@ -617,7 +622,7 @@ def test_lean_support_project_checkpoint_resumes_same_model_workspace() -> None:
         ]
     )
     with pytest.raises(PacketValidationError) as exc_info:
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=first_backend,
             system_prompt="Use tools.",
             user_prompt="Build the project.",
@@ -662,7 +667,7 @@ def test_lean_support_project_checkpoint_resumes_same_model_workspace() -> None:
             ),
         ]
     )
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=resumed_backend,
         system_prompt="Use tools.",
         user_prompt="Continue the project.",
@@ -721,7 +726,7 @@ def test_lean_candidate_tool_loop_applies_exact_model_edit_and_checks_full_sourc
             ),
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise this exact current source from Lean feedback.",
@@ -789,7 +794,7 @@ def test_lean_candidate_tool_loop_reads_hash_bound_source_before_exact_edit() ->
     )
     checked_sources: list[str] = []
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Read the retained source before a localized edit.",
@@ -874,7 +879,7 @@ def test_lean_candidate_tool_loop_returns_ambiguous_edit_error_to_same_model() -
             "compiled": source == revised,
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Edit the exact current source.",
@@ -936,7 +941,7 @@ def test_lean_candidate_tool_loop_continues_checkpoint_with_exact_edit() -> None
     )
     checked_sources: list[str] = []
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Continue the same exact workspace.",
@@ -1000,7 +1005,7 @@ def test_lean_candidate_tool_loop_authors_first_source_from_empty_workspace() ->
             "compiled": source == authored,
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Author the bound target.",
@@ -1084,7 +1089,7 @@ def test_model_can_correct_declaration_identity_without_rewriting_source() -> No
             ),
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Author the exact target and identify its declaration.",
@@ -1148,7 +1153,7 @@ def test_model_can_report_unresolved_gap_without_compilation_or_tool_ritual(
             "local_lean_stderr": diagnostic,
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Formalize the exact target.",
@@ -1208,7 +1213,7 @@ def test_lean_candidate_workspace_lets_model_report_task_bound_formal_gap() -> N
         ]
     )
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Formalize the bound target or report concrete blockers.",
@@ -1276,7 +1281,7 @@ def test_formal_gap_preserves_prior_model_source_and_exact_lean_observation() ->
             "local_lean_stderr": "target depends on axioms: [sorryAx]",
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Formalize the exact target or report a concrete gap.",
@@ -1593,7 +1598,7 @@ def test_lean_workspace_rejects_changed_theory_documents_before_model_call() -> 
     backend = ScriptedLeanToolBackend([])
 
     with pytest.raises(PacketValidationError, match="Theory documents changed"):
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=backend,
             system_prompt="Use tools.",
             user_prompt="Continue the exact target.",
@@ -1665,7 +1670,7 @@ def test_search_observation_reuses_retained_source_and_raw_lean_feedback() -> No
             ),
         }
 
-    run_lean_candidate_revision_tool_loop(
+    _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Author the exact target.",
@@ -1739,7 +1744,7 @@ def test_prover_candidates_are_observations_and_only_model_replaces_source() -> 
         checked_sources.append(source)
         return {"source_hash": stable_hash(source), "compiled": source == model_source}
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Prove this target.",
@@ -1814,7 +1819,7 @@ def test_proof_search_missing_model_selected_task_returns_to_same_formalizer() -
         proof_search_calls += 1
         raise AssertionError("invalid tool input must not reach the prover")
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Prove the exact target.",
@@ -1930,7 +1935,7 @@ def test_proof_search_receives_only_current_hash_bound_lean_state() -> None:
         proof_search_contexts.append(dict(context))
         return {"source_theorem_candidate_proof_bodies": []}
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Inspect, search, and revise the exact source.",
@@ -2021,7 +2026,7 @@ def test_model_selects_lean_state_inspection_inside_same_source_loop() -> None:
             "executed_tools": ["lean_lsp_mcp.lean_goal"],
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Inspect and revise the exact source.",
@@ -2161,7 +2166,7 @@ def test_model_inspects_exact_failed_support_file_before_revising_project() -> N
             "proof_evidence_status": "LEAN_STATE_INSPECTION_NOT_PROOF_EVIDENCE",
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Compile and inspect the exact project files.",
@@ -2230,7 +2235,7 @@ def test_model_runs_lean_scratch_without_changing_candidate_source() -> None:
             else "",
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Run a scratch experiment, then author the target.",
@@ -2277,7 +2282,7 @@ def test_repeated_identical_lean_scratch_is_not_new_workspace_progress() -> None
     )
 
     with pytest.raises(PacketValidationError) as raised:
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=backend,
             system_prompt="Use tools.",
             user_prompt="Inspect the exact target environment.",
@@ -2339,7 +2344,7 @@ def test_repeated_identical_failed_support_check_is_not_new_progress() -> None:
     )
 
     with pytest.raises(PacketValidationError) as raised:
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=backend,
             system_prompt="Use tools.",
             user_prompt="Build the model-owned Lean project.",
@@ -2449,7 +2454,7 @@ def test_model_selects_exact_declaration_inspection_inside_same_source_loop() ->
             },
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Inspect declarations and revise the exact source.",
@@ -2521,7 +2526,7 @@ def test_model_can_inspect_exact_declaration_before_first_source() -> None:
             "observation": {"content": "theorem True.intro : True"},
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Inspect the active API, then author the exact source.",
@@ -2576,7 +2581,7 @@ def test_lean_candidate_tool_loop_keeps_core_actions_available_across_turns() ->
         ]
     )
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise this target from environment observations.",
@@ -2641,7 +2646,7 @@ def test_lean_candidate_workspace_keeps_stable_tools_and_linear_history() -> Non
         ]
     )
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Retain observations and author the exact source.",
@@ -2723,7 +2728,7 @@ def test_lean_candidate_workspace_reads_final_compile_error_in_recovery_turn(raw
         ]
     )
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise the complete source from raw Lean observations.",
@@ -2807,7 +2812,7 @@ def test_lean_candidate_workspace_revises_after_context_stall_compile_error() ->
         ]
     )
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Author the exact target or report a grounded gap.",
@@ -2880,7 +2885,7 @@ def test_global_budget_does_not_revoke_lean_edit_after_multiple_failures() -> No
         ]
     )
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Keep revising from each exact compiler observation.",
@@ -2933,7 +2938,7 @@ def test_lean_candidate_tool_loop_hands_off_on_successful_requested_check() -> N
     def check(source: str, _declaration: str):
         return {"source_hash": stable_hash(source), "compiled": True}
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Repair this target.",
@@ -3006,7 +3011,7 @@ def test_lean_candidate_tool_loop_stops_repeated_identical_submissions() -> None
     )
 
     try:
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=backend,
             system_prompt="Use tools.",
             user_prompt="Repair this target.",
@@ -3083,7 +3088,7 @@ def test_lean_candidate_tool_loop_does_not_recheck_an_older_candidate() -> None:
             ),
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Repair this target.",
@@ -3160,7 +3165,7 @@ def test_semantic_revision_cannot_handoff_the_independently_rejected_source() ->
             ),
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Resolve the independent semantic review findings.",
@@ -3224,7 +3229,7 @@ def test_lean_candidate_tool_loop_checks_final_submission_at_turn_budget() -> No
             "local_lean_stderr": "" if source == repaired else "initial failure",
         }
 
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise this target.",
@@ -3284,7 +3289,7 @@ def test_lean_candidate_tool_loop_preserves_uncompiled_latest_edit_checkpoint() 
     )
 
     try:
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=backend,
             system_prompt="Use tools.",
             user_prompt="Repair this target.",
@@ -3401,7 +3406,7 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
         ]
     )
     with pytest.raises(PacketValidationError) as raised:
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=first_backend,
             system_prompt="Use tools.",
             user_prompt="Prove the exact target.",
@@ -3455,7 +3460,7 @@ def test_lean_candidate_workspace_resumes_exact_state_without_parent_drift(
             )
         ]
     )
-    result = run_lean_candidate_revision_tool_loop(
+    result = _run_lean_workspace(
         provider=second_backend,
         system_prompt="Use tools.",
         user_prompt="Continue the exact target.",
@@ -3521,7 +3526,7 @@ def test_lean_candidate_workspace_rejects_tampered_checkpoint_before_model_call(
     backend = ScriptedLeanToolBackend([])
 
     with pytest.raises(PacketValidationError) as raised:
-        run_lean_candidate_revision_tool_loop(
+        _run_lean_workspace(
             provider=backend,
             system_prompt="Use tools.",
             user_prompt="Continue the exact target.",

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from .client_tool_loop import CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY
+from .client_tool_loop import CLIENT_TOOL_AUTHORIZATION_FINGERPRINT_METADATA_KEY, run_client_tool_workspace
 from .fingerprint import stable_hash
 from .formal_source_prompt_context import (
     compact_formal_source_grounding_hits_for_prompt,
@@ -21,7 +21,7 @@ from .lean_candidate_revision_tool_loop import (
     LeanStateInspection,
     FormalEnvironmentSearch,
     ProofCandidateSearch,
-    run_lean_candidate_revision_tool_loop,
+    prepare_lean_candidate_workspace,
 )
 from .model_backend import (
     GeneratorBackend,
@@ -224,8 +224,7 @@ class LLMFormalizerProofEngineerAgent:
             "theory_document_set_hash": theory_document_set_hash,
             "tool_environment_fingerprint": tool_environment_fingerprint,
         }
-        loop = run_lean_candidate_revision_tool_loop(
-            provider=self.provider,
+        workspace = prepare_lean_candidate_workspace(
             system_prompt=(
                 FORMALIZER_SYSTEM_PROMPT
                 + "\nOwn the complete Lean target, support modules, and every search query for this "
@@ -314,6 +313,7 @@ class LLMFormalizerProofEngineerAgent:
                 "proof_evidence_status": FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
             },
         )
+        loop = run_client_tool_workspace(backend=self.provider, workspace=workspace)
         if str(parent_packet.get("artifact_kind", "") or "") == (
             "FormalizerWorkspaceTarget"
         ):

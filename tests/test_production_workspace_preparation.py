@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from copy import deepcopy
 from dataclasses import replace
 
@@ -14,15 +15,19 @@ from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnRequest, ClientToolTurnResponse
 from ai_statistician.research_agent_runtime import _run_generated_code_sandbox
 from ai_statistician.research_architect import LLMTheoryDeveloperAgent, ResearchArchitectConfig, validate_theory_packet
-from ai_statistician.research_control import prepare_research_control_workspace
+from ai_statistician.research_control import (
+    RESEARCH_CONTROL_INPUTS_TOOL, prepare_research_control_workspace, prepare_single_context_research_workspace,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_COMMIT_TOOL, SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
 )
 from ai_statistician.scientific_sandbox import discover_scientific_sandbox_runtime
 from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
+from ai_statistician.theory_derivation_trace import document_authoritative_theory_context
 from ai_statistician.theory_workspace import (
-    THEORY_WORKSPACE_COMMIT_TOOL, THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, THEORY_WORKSPACE_WRITE_TOOL,
+    THEORY_WORKSPACE_COMMIT_TOOL, THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_GAP_TOOL, THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, THEORY_WORKSPACE_WRITE_TOOL,
     load_theory_workspace_documents,
 )
 
@@ -186,3 +191,275 @@ def test_actual_scientific_agent_uses_the_production_executor_unchanged(tmp_path
     assert row["metrics"] == {"opaque": 10}
     assert row["execution_smoke_passed"] is True and row["promotion_ready"] is False
     assert record.exit_status == "0"
+
+
+@pytest.mark.parametrize("role", ["algorithm", "simulation"])
+@pytest.mark.parametrize("language", ["python", "r"])
+def test_selected_upstream_context_reaches_the_actual_owner_before_source_authoring(tmp_path, monkeypatch, role, language):
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("scientific runtime is not prepared")
+    question = OpenResearchQuestion("opaque-inputs", "Opaque contexts", "Unresolved transport task.",
+                                    task_intent={"theory": "required", "scientific_code": "not_applicable",
+                                                 "empirical": "not_applicable", "formal": "not_applicable"})
+    backend = Scripted([])
+    theory = LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
+        provider_name="local", model=MODEL, model_tier="local", serious_model=MODEL, serious_model_tier="local",
+        max_tokens=1024, temperature=0,
+    )).prepare_workspace(question, theory_workspace_root=tmp_path / "theory")
+    agent_class, config_class = ((LLMAlgorithmEngineerAgent, AlgorithmEngineerConfig) if role == "algorithm"
+                                 else (LLMSimulationEngineerAgent, SimulationEngineerConfig))
+    agent = agent_class(provider=backend, config=config_class(provider_name="local", model=MODEL, model_tier="local",
+                                                            max_tokens=1024, temperature=0))
+    checkpoints, executions, prepared_contexts = {}, [], []
+
+    def prepare_source(selected, previous):
+        inputs = {scope: {"payload_hash": row["reference"]["payload_hash"],
+                          "resources": deepcopy(row["reference"]["resources"])}
+                  for scope, row in selected.items()}
+        core = selected["theory"]["payload"]["core_packet"] if selected else {}
+        context = {"theory_context": document_authoritative_theory_context(core),
+                   "estimator_spec": {"id": "opaque", "request_key": "opaque-input"}}
+
+        def execute(candidate):
+            row, record = _run_generated_code_sandbox(
+                sandbox_dir=tmp_path / "execution", estimator_id="opaque", spec=context["estimator_spec"],
+                code_draft=candidate, validation_context={"bound_workspace_context": context},
+                n_runs=3, seed=7, timeout_s=30,
+            )
+            executions.append((row, record, deepcopy(inputs)))
+            return {"code_draft_hash": stable_hash(candidate), "accepted": row["smoke_passed"],
+                    "prototype": row, "checkpoint_inputs": deepcopy(inputs)}
+
+        prepared = agent.prepare_code_workspace(
+            question=question, artifact_id="opaque", code_draft=previous["code_draft"] if previous else None,
+            initial_observation={}, workspace_context=context, check_candidate=execute,
+            workspace_operation="targeted_revision" if previous else "initial_authoring",
+            allow_current_source_run=True, session_dir=tmp_path / "source",
+        )
+        prepared_contexts.append(prepared.initial_context)
+        return prepared
+
+    def bindings(scope, payload):
+        checkpoints.setdefault(scope, []).append(stable_hash(payload))
+        if scope == "theory":
+            docs = load_theory_workspace_documents(payload)
+            return {"resources": {path: hashlib.sha256(body.encode()).hexdigest() for path, body in docs.items()},
+                    "inputs": {}}
+        return {"resources": {"project": payload["check_result"]["prototype"]["project_hash"]},
+                "inputs": payload["check_result"]["checkpoint_inputs"]}
+
+    joint = prepare_research_control_workspace(
+        question=question, request=ClientToolTurnRequest(system_prompt="Common objective.", messages=(), tools=(),
+                                                       model=MODEL, max_tokens=1024),
+        workspaces={"theory": theory, "source": prepare_source({}, None)},
+        input_workspace_preparers={"source": prepare_source}, checkpoint_bindings=bindings,
+        session_dir=tmp_path / "joint", session_id="selected-inputs", max_turns=30, max_tool_calls=30,
+        max_no_progress_turns=30,
+    )
+    handoffs = {"problem_card": {"claim_ids": ["opaque_claim"]},
+                "theory_derivation_packet": {"claim_index": [{"id": "opaque_claim", "kind": "definition",
+                    "document_path": "claim.md", "anchor": "opaque_claim", "depends_on": [], "status": "OPEN"}]}}
+    first = "# Opaque record\n\n## opaque_claim\n\nFirst unresolved input.\n"
+    second = "# Opaque record\n\n## opaque_claim\n\nDifferent unresolved input.\n"
+    draft = {"language": language, "execution_profile": "scientific_wasm", "dependencies": [],
+             "entrypoint": "run_sandbox", "code": ("def run_sandbox(seed, replicates):\n    return {'opaque': 10}\n"
+                if language == "python" else "run_sandbox <- function(seed, replicates) list(opaque=10)\n")}
+
+    def select(index):
+        return ClientToolCall("select-" + str(index), RESEARCH_CONTROL_INPUTS_TOOL,
+                             {"scope": "source", "selected_checkpoints": {"theory": checkpoints["theory"][index]}})
+
+    def submit(source_index):
+        return ClientToolCall("report-" + str(source_index), "submit_research_result", {
+            "report_markdown": "# Transport only, not scientific acceptance\n",
+            "selected_checkpoints": {"theory": checkpoints["theory"][1], "source": checkpoints["source"][source_index]},
+        })
+
+    read = {"path": "claim.md", "line_start": 1, "line_end": 5}
+    backend.calls = [
+        ClientToolCall("unbound", "source__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, draft),
+        ClientToolCall("first", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, {"path": "claim.md", "content": first}),
+        ClientToolCall("index", "theory__" + THEORY_WORKSPACE_WRITE_TOOL,
+                       {"writes": [{"artifact_name": name, "value": value} for name, value in handoffs.items()]}),
+        ClientToolCall("checkpoint-one", "theory__" + THEORY_WORKSPACE_COMMIT_TOOL, {"readiness_rationale": "Unresolved first checkpoint."}),
+        ClientToolCall("second", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, {"path": "claim.md", "content": second}),
+        ClientToolCall("checkpoint-two", "theory__" + THEORY_WORKSPACE_COMMIT_TOOL, {"readiness_rationale": "Unresolved second checkpoint."}),
+        lambda request: select(0),
+        ClientToolCall("read-one", "source__" + THEORY_WORKSPACE_READ_DOCUMENT_TOOL, read),
+        ClientToolCall("source", "source__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, draft),
+        ClientToolCall("execute-one", "source__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Check exact source."}),
+        ClientToolCall("commit-one", "source__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+        lambda request: replace(select(0), call_id="select-same"),  # No new preparer or erased execution state.
+        lambda request: submit(0),  # Later Theory is not the context supplied to this source checkpoint.
+        lambda request: select(1),
+        ClientToolCall("read-two", "source__" + THEORY_WORKSPACE_READ_DOCUMENT_TOOL, read),
+        ClientToolCall("execute-two", "source__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Check retained source under the selected new context."}),
+        ClientToolCall("commit-two", "source__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+        lambda request: submit(1),
+    ]
+    result = run_client_tool_workspace(backend=backend, workspace=joint)
+    assert len(executions) == 2 and len(prepared_contexts) == 3
+    assert executions[0][0]["source_code"] == executions[1][0]["source_code"] == draft["code"]
+    assert all(row["metrics"] == {"opaque": 10} and record.exit_status == "0" for row, record, _ in executions)
+    assert "exact inputs before using its actions" in str(backend.requests[1].messages)
+    assert "First unresolved input." in str(backend.requests[8].messages[-1])
+    assert "Different unresolved input." in str(backend.requests[15].messages[-1])
+    assert "selected checkpoint inputs do not match" in str(backend.requests[13].messages[-1])
+    assert prepared_contexts[1]["workspace_context"]["estimator_spec"]["request_key"] == "opaque-input"
+    assert prepared_contexts[1]["read_only_documents"][0]["sha256"] == hashlib.sha256(first.encode()).hexdigest()
+    assert prepared_contexts[2]["read_only_documents"][0]["sha256"] == hashlib.sha256(second.encode()).hexdigest()
+    selection = result.terminal_payload["selected_checkpoints"]
+    assert selection["source"]["provided_inputs"]["theory"]["payload_hash"] == checkpoints["theory"][1]
+    assert selection["source"]["inputs"] == executions[1][2]
+    assert result.terminal_payload["independent_role_review"] is False
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language):
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("scientific runtime is not prepared")
+    question = OpenResearchQuestion("opaque-application", "Opaque application", "Mechanism test, not scientific acceptance.",
+                                    task_intent={"theory": "required", "scientific_code": "not_applicable",
+                                                 "empirical": "not_applicable", "formal": "not_applicable"})
+    backend = Scripted([])
+    theory = LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
+        provider_name="local", model=MODEL, model_tier="local", serious_model=MODEL, serious_model_tier="local",
+        max_tokens=1024, temperature=0,
+    ))
+    algorithm = LLMAlgorithmEngineerAgent(provider=backend, config=AlgorithmEngineerConfig(
+        provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0,
+    ))
+    simulation = LLMSimulationEngineerAgent(provider=backend, config=SimulationEngineerConfig(
+        provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0,
+    ))
+    workspace = prepare_single_context_research_workspace(
+        question=question, request=ClientToolTurnRequest(system_prompt="Common research objective.", messages=(), tools=(),
+                                                       model=MODEL, max_tokens=1024),
+        theory_agent=theory, algorithm_agent=algorithm, simulation_agent=simulation, estimator_id="opaque",
+        session_dir=tmp_path, session_id="opaque-app", n_runs=3, seed=7, timeout_s=30,
+        max_turns=24, max_tool_calls=24, max_no_progress_turns=24,
+    )
+    assert not backend.requests
+    refs = {}
+
+    def references(request):
+        for message in request.messages:
+            if message.get("role") != "user" or not isinstance(message.get("content"), list):
+                continue
+            for block in message["content"]:
+                if block.get("type") != "tool_result" or not isinstance(block.get("content"), list):
+                    continue
+                for part in block["content"]:
+                    item = json.loads(part["text"])
+                    if "shared_checkpoint_ref" in item:
+                        ref = item["shared_checkpoint_ref"]
+                        refs[ref["scope"]] = ref["payload_hash"]
+        return refs
+
+    def select(request, scope, parents):
+        observed = references(request)
+        return ClientToolCall("select-" + scope, RESEARCH_CONTROL_INPUTS_TOOL,
+                             {"scope": scope, "selected_checkpoints": {parent: observed[parent] for parent in parents}})
+
+    code = ("def run_estimator(request):\n    return {'echo': request['value']}\n"
+            "def run_sandbox(seed, replicates):\n    return run_estimator({'value': seed})\n"
+            if language == "python" else
+            "run_estimator <- function(request) list(echo=request$value)\n"
+            "run_sandbox <- function(seed, replicates) run_estimator(list(value=seed))\n")
+    simulation_code = ("def run_sandbox(seed, replicates, estimators):\n"
+                       "    return estimators['opaque']({'value': seed + replicates})\n"
+                       if language == "python" else
+                       "run_sandbox <- function(seed, replicates, estimators) "
+                       "estimators[['opaque']](list(value=seed+replicates))\n")
+    draft = {"language": language, "execution_profile": "scientific_wasm", "dependencies": [],
+             "entrypoint": "run_sandbox", "code": code}
+    handoffs = {"problem_card": {"claim_ids": ["opaque_claim"]},
+                "theory_derivation_packet": {"claim_index": [{"id": "opaque_claim", "kind": "definition",
+                    "document_path": "claim.md", "anchor": "opaque_claim", "depends_on": [], "status": "OPEN"}]}}
+    backend.calls = [
+        ClientToolCall("document", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                       {"path": "claim.md", "content": "# Opaque record\n\n## opaque_claim\n\nUnresolved, not a scientific result.\n"}),
+        ClientToolCall("index", "theory__" + THEORY_WORKSPACE_WRITE_TOOL,
+                       {"writes": [{"artifact_name": name, "value": value} for name, value in handoffs.items()]}),
+        ClientToolCall("theory-checkpoint", "theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
+                       {"readiness_rationale": "Save unresolved work for inspection."}),
+        lambda request: select(request, "algorithm", ["theory"]),
+        ClientToolCall("algorithm-source", "algorithm__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, draft),
+        ClientToolCall("algorithm-run", "algorithm__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Inspect exact source."}),
+        ClientToolCall("algorithm-checkpoint", "algorithm__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+        lambda request: select(request, "simulation", ["theory", "algorithm"]),
+        ClientToolCall("simulation-source", "simulation__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, {**draft, "code": simulation_code}),
+        ClientToolCall("simulation-run", "simulation__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Invoke exact selected estimator."}),
+        ClientToolCall("simulation-checkpoint", "simulation__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+        lambda request: ClientToolCall("report", "submit_research_result", {
+            "report_markdown": "# Execution only\n\nTheory remains unresolved.\n", "selected_checkpoints": references(request),
+        }),
+    ]
+    result = run_client_tool_workspace(backend=backend, workspace=workspace)
+    payloads = {}
+    for ref in result.observation_refs:
+        stored = json.loads((tmp_path / ref["relative_path"]).read_text())
+        payload = stored.get("terminal_payload", {})
+        if payload and "check_result" in payload:
+            payloads[stable_hash(payload)] = payload
+    selected = result.terminal_payload["selected_checkpoints"]
+    algorithm_result = payloads[selected["algorithm"]["payload_hash"]]["check_result"]
+    simulation_result = payloads[selected["simulation"]["payload_hash"]]["check_result"]
+    assert algorithm_result["prototype"]["source_code"] == code
+    assert algorithm_result["prototype"]["metrics"] == {"echo": 7}
+    assert simulation_result["prototype"]["source_code"] == simulation_code
+    assert simulation_result["prototype"]["metrics"] == {"echo": 10}
+    assert simulation_result["prototype"]["bound_estimator_code_hashes"] == {"opaque": stable_hash(code)}
+    assert simulation_result["prototype"]["estimator_invocation_counts"] == {"opaque": 1}
+    assert simulation_result["prototype"]["mechanical_estimator_invocation_verified"] is True
+    assert set(selected["simulation"]["inputs"]) == {"algorithm"}
+    assert set(selected["simulation"]["provided_inputs"]) == {"theory", "algorithm"}
+    assert set(selected["algorithm"]["inputs"]["theory"]["resources"]) == {"estimator:opaque"}
+    assert selected["simulation"]["inputs"]["algorithm"]["resources"] == selected["algorithm"]["resources"]
+    assert "estimator_interface_contract" in str(backend.requests[8].messages[-1])
+    assert all(row["independent_role_review"] is False and row["empirical_evidence_status"] == "EXPLORATORY_NOT_CONFIRMATORY"
+               for row in (algorithm_result, simulation_result))
+    assert result.terminal_payload["evidence_role"] == "submission_not_scientific_acceptance"
+
+
+def test_application_control_preserves_an_honest_gap_without_fabricating_a_theory_checkpoint(tmp_path, monkeypatch):
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    question = OpenResearchQuestion("opaque-gap", "Opaque gap", "An unresolved task.",
+                                    task_intent={"theory": "required", "scientific_code": "not_applicable",
+                                                 "empirical": "not_applicable", "formal": "not_applicable"})
+    backend = Scripted([
+        ClientToolCall("document", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                       {"path": "gap.md", "content": "# Unresolved opaque record\n"}),
+        ClientToolCall("read", "theory__" + THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                       {"path": "gap.md", "line_start": 1, "line_end": 1}),
+        ClientToolCall("gap", "theory__" + THEORY_WORKSPACE_GAP_TOOL,
+                       {"summary": "Unresolved, not established.", "blocking_claims": [],
+                        "evidence_refs": ["gap.md"], "next_step": "Further investigation needed."}),
+        ClientToolCall("report", "submit_research_result",
+                       {"report_markdown": "# Honest gap\n", "selected_checkpoints": {}}),
+    ])
+    workspace = prepare_single_context_research_workspace(
+        question=question, request=ClientToolTurnRequest(system_prompt="Common task.", messages=(), tools=(),
+                                                       model=MODEL, max_tokens=1024),
+        theory_agent=LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
+            provider_name="local", model=MODEL, model_tier="local", serious_model=MODEL, serious_model_tier="local",
+            max_tokens=1024, temperature=0)),
+        algorithm_agent=LLMAlgorithmEngineerAgent(provider=backend, config=AlgorithmEngineerConfig(
+            provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0)),
+        simulation_agent=LLMSimulationEngineerAgent(provider=backend, config=SimulationEngineerConfig(
+            provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0)),
+        estimator_id="opaque", session_dir=tmp_path, session_id="gap-app", n_runs=3, seed=7, timeout_s=30,
+        max_turns=8, max_tool_calls=8, max_no_progress_turns=8,
+    )
+    result = run_client_tool_workspace(backend=backend, workspace=workspace)
+    raw = json.loads((tmp_path / result.observation_refs[2]["relative_path"]).read_text())
+    assert raw["terminal_payload"]["disposition"] == "THEORY_GAP"
+    assert raw["terminal_payload"]["theory_gap"]["summary"] == "Unresolved, not established."
+    assert not raw["model_content_blocks"]
+    assert result.terminal_payload["selected_checkpoints"] == {}
+    assert result.terminal_payload["task_intent"]["theory"] == "required"
+    assert not (tmp_path / "execution").exists()

@@ -371,8 +371,8 @@ def prepare_shared_client_tool_workspace(
     *,
     request: ClientToolTurnRequest,
     workspaces: Mapping[str, PreparedClientToolWorkspace[Any]],
-    terminal_tools: Sequence[ClientToolDefinition],
-    execute_terminal_tool: ClientToolExecutor,
+    control_tools: Sequence[ClientToolDefinition],
+    execute_control_tool: ClientToolExecutor,
     observe_checkpoint: Callable[[str, ClientToolExecutionResult], Mapping[str, Any] | None],
     max_turns: int,
     max_tool_calls: int,
@@ -391,7 +391,7 @@ def prepare_shared_client_tool_workspace(
         raise ValueError("shared workspace requires components and a session identity")
     if request.tools or CLIENT_TOOL_PARENT_SESSION_METADATA_KEY in request.metadata:
         raise ValueError("shared request must not contain tools or an unrelated parent session")
-    if not terminal_tools or any(not tool.terminal for tool in terminal_tools):
+    if not control_tools or not any(tool.terminal for tool in control_tools):
         raise ValueError("shared workspace requires explicit terminal actions")
     tools: list[ClientToolDefinition] = []
     routes: dict[str, tuple[str, PreparedClientToolWorkspace[Any], ClientToolDefinition]] = {}
@@ -424,12 +424,12 @@ def prepare_shared_client_tool_workspace(
             "initial_context_hash": stable_hash(workspace.initial_context),
             "tools": original_names,
         }
-    final_names = [tool.name for tool in terminal_tools]
-    if (len(set(final_names)) != len(final_names)
+    control_names = [tool.name for tool in control_tools]
+    if (len(set(control_names)) != len(control_names)
         or any(not name or name in routes or name == WORKSPACE_HISTORY_TOOL_NAME
-               for name in final_names)):
-        raise ValueError("shared terminal tool names collide with component actions")
-    tools.extend(terminal_tools)
+               for name in control_names)):
+        raise ValueError("shared control tool names collide with component actions")
+    tools.extend(control_tools)
     tools.append(workspace_history_tool())
     shared_request = replace(
         request,
@@ -447,14 +447,14 @@ def prepare_shared_client_tool_workspace(
                 "root_authorization": client_tool_authorization_fingerprint(request.metadata),
                 "session_id": session_id,
                 "scopes": scopes,
-                "terminal_tools": [asdict(tool) for tool in terminal_tools],
+                "control_tools": [asdict(tool) for tool in control_tools],
             }),
         },
     )
 
     def execute(call: ClientToolCall, context: ClientToolExecutionContext) -> ClientToolExecutionResult:
-        if call.name in final_names:
-            return execute_terminal_tool(call, context)
+        if call.name in control_names:
+            return execute_control_tool(call, context)
         if call.name not in routes:
             raise ClientToolInputError("unknown shared workspace action")
         scope, workspace, original_tool = routes[call.name]

@@ -149,6 +149,43 @@ through the actual shared runtime executor under direct, prepared and joint
 drivers. They do not constitute model inference, Theory quality, complete
 Simulation consumer validation or a matched scientific arm.
 
+Dependent shared workspaces now use `select_workspace_inputs` before source
+authoring. The model selects observed checkpoint hashes, including an earlier
+version if appropriate. The actual production preparer binds those immutable
+documents/interfaces and returns its public context and read-only file catalog
+to the same conversation. It never invokes a role model driver or invents an
+owner receipt. Rebinding exposes retained committed source without silently
+executing it; the model decides whether to edit or rerun. Selecting the identical
+inputs preserves current state rather than resetting the source workspace.
+Frozen tools/model settings remain unchanged. Runtime-provided context is
+recorded separately as `provided_inputs`; executor-consumed dependencies remain
+`inputs`. Both must agree with the final selected producer resources. Neither
+field establishes which mathematical premises the model actually reasoned from.
+
+`prepare_single_context_research_workspace` assembles real Theory, Algorithm and
+exploratory Simulation actions for a caller-specified single-estimator task, with
+the source horizon supplied by the configured Theory agent. It uses production
+normalization, validators and Python/R executors. Simulation invokes the exact
+selected estimator project, with source hashes and invocation counts, without
+manufacturing an independent semantic review. Public Theory/ABI context reaches
+the source owner before authoring, not just the execution receipt afterward.
+Gap/progress observations remain in shared history but are not promoted into
+usable Theory checkpoints. Final Markdown submission is not scientific acceptance.
+This callable entry is not yet a complete matched System S arm: independent review,
+confirmation, optional Lean, multi-estimator tasks and the study CLI still require
+prospectively matched configuration. Do not compare it to an unrestricted full
+product or label arbitrary workflow text as matching that product's workflow.
+Actual integrated Python/R tests here use scripted turns, not live reasoning or
+publication draws.
+
+The old per-workspace `run_*` forwarding functions have been removed. Theory and
+Scientific production drivers already used prepare + the common retained runner;
+Formalizer now does the same directly. Its existing source, context, diagnostic,
+gap and kernel boundaries are unchanged. The unused pre-interface core-validator
+wrapper is also removed; production question-bound validators remain. This
+consolidation retains the existing package-size regression budget rather than
+raising it to accommodate the new comparison assembly.
+
 Synthetic tests cover Python/R, Theory and Lean parity, complete action exposure
 for configured bindings, arbitrary interleaving, checkpoints, exhaustion, raw
 error feedback and native local wire translation through a mocked completion.
@@ -193,14 +230,13 @@ selected its actual checkpoint and wrote a Markdown report. Neither exercise is
 a statistical benchmark, independently reviewed theory or complete baseline
 efficacy evidence.
 
-Application-level assembly is still unfinished: configure all actual research
-executors/context dependencies consistently across arms, provide source horizons,
-independent gold and matched resources, and run complete fresh research tasks.
-In particular, production specialist contexts are bound before their source
-session. A joint control must expose the corresponding selected Theory/ABI and
-source context as it evolves, not merely attach a producer hash to an executor
-that never received those premises. Execution-input identity does not determine
-which mathematical premises the model actually used. Raw component checkpoints
+Complete application-level study assembly is still unfinished: the real
+single-estimator exploratory path above does not establish parity with all
+research executors and interventions. Configure context dependencies, source
+horizons, independent gold and matched resources across arms, then run fresh
+research tasks. Dynamic Theory/ABI input exposure is implemented, but it does not
+establish mathematical fidelity, independent review or complete-task acceptance.
+Raw component checkpoints
 also differ from finalized isolated-owner packets; never manufacture the latter
 or independent-review credit to fit a scoring adapter.
 Do not treat the low-level API or its tests as those experiments. Official studies

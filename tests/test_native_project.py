@@ -276,8 +276,7 @@ def test_native_theory_tool_observation_is_checkpoint_progress(project_factory, 
 def test_native_scientific_tool_does_not_accept_or_release_source(project_factory, tmp_path):
     from ai_statistician.model_backend import ClientToolCall, DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL
     from ai_statistician.packet_validation import PacketValidationError
-    from ai_statistician.scientific_code_workspace import run_scientific_code_workspace
-    from test_scientific_code_workspace import ScriptedScientificBackend, _response
+    from test_scientific_code_workspace import ScriptedScientificBackend, _response, _run_source_workspace
 
     backend = ScriptedScientificBackend([
         _response(ClientToolCall(call_id="run1", name=module.NATIVE_PROJECT_TOOL,
@@ -286,7 +285,7 @@ def test_native_scientific_tool_does_not_accept_or_release_source(project_factor
             input={"environment": "python", "command": "cat result"})),
     ])
     with pytest.raises(PacketValidationError) as exc:
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=backend, system_prompt="Use your project.", user_prompt="Inspect native output.",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
             max_tokens=1200, max_turns=2, max_no_progress_turns=2, artifact_id="synthetic:project",

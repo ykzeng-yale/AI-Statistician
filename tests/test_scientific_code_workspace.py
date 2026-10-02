@@ -10,6 +10,7 @@ from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig
 from ai_statistician.client_tool_loop import (
     CLIENT_TOOL_RECENT_HISTORY_WINDOW_POLICY,
     CLIENT_TOOL_TRANSCRIPT_POLICY,
+    run_client_tool_workspace,
 )
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import (
@@ -31,7 +32,7 @@ from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
     externalize_scientific_workspace_documents,
     load_scientific_code_workspace_checkpoint,
-    run_scientific_code_workspace,
+    prepare_scientific_code_workspace,
     run_source_owner_scientific_workspace,
     scientific_source_candidate_accepted,
     scientific_workspace_prototype_observation,
@@ -60,6 +61,10 @@ from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
 )
+
+
+def _run_source_workspace(*, provider, **options):
+    return run_client_tool_workspace(backend=provider, workspace=prepare_scientific_code_workspace(**options))
 
 
 class ScriptedScientificBackend:
@@ -229,7 +234,7 @@ def test_model_imports_inspected_pinned_public_source_into_scientific_project() 
             "stderr": "" if accepted else "public source import mismatch",
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Inspect and reuse the pinned public implementation.",
         user_prompt="Build and execute a source-grounded project.",
@@ -329,7 +334,7 @@ def test_same_scientific_owner_acquires_imports_and_executes_repository(discover
             "errors": list(execution.errors),
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend, system_prompt="Use exact project sources.", user_prompt="Inspect and execute a project.",
         model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
         max_tokens=1200, max_turns=8, max_no_progress_turns=3,
@@ -415,7 +420,7 @@ def test_public_source_file_batch_is_atomic_when_one_exact_read_drifts() -> None
         _commit_response(),
     ])
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Inspect exact upstream files before deciding whether to reuse them.",
         user_prompt="Keep the current project when an atomic import fails.",
@@ -590,7 +595,7 @@ def test_model_imports_observed_frozen_project_files_and_executes_them(
             "errors": list(execution.errors),
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Inspect and reuse exact frozen source when useful.",
         user_prompt="Build and run the selected source-grounded project.",
@@ -732,7 +737,7 @@ def test_scientific_import_keeps_repository_symlinks_in_replication_lane(
         _commit_response(),
     ])
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Preserve exact repository structure and execute safe source.",
         user_prompt="Use the retained scientific workspace.",
@@ -847,7 +852,7 @@ def test_scientific_session_reads_externalized_theory_on_demand() -> None:
             _commit_response(),
         ]
     )
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Read theory, then implement.",
         user_prompt=str(prompt_context),
@@ -921,7 +926,7 @@ def test_scientific_owner_reads_current_source_on_demand() -> None:
         ]
     )
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use the exact current source.",
         user_prompt="Revise the source after inspection.",
@@ -1052,7 +1057,7 @@ def test_scientific_source_owner_reads_public_sources_in_same_session(tmp_path) 
         _commit_response(),
     ])
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Inspect public sources, then implement.",
         user_prompt="Implement the published method.",
@@ -1110,7 +1115,7 @@ def test_scientific_source_discovery_survives_same_owner_checkpoint(tmp_path) ->
         )),
     ])
     with pytest.raises(PacketValidationError) as exc_info:
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=first_backend,
             system_prompt="Find and implement published work.",
             user_prompt="Use public source discovery when useful.",
@@ -1144,7 +1149,7 @@ def test_scientific_source_discovery_survives_same_owner_checkpoint(tmp_path) ->
         )
     )
     with pytest.raises(ValueError, match="requires its public provider"):
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=ScriptedScientificBackend([]),
             system_prompt="Continue.", user_prompt="Continue.",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku",
@@ -1156,7 +1161,7 @@ def test_scientific_source_discovery_survives_same_owner_checkpoint(tmp_path) ->
             session_dir=tmp_path / "scientific-discovery-session",
         )
     with pytest.raises(ValueError, match="session reference identity mismatch"):
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=ScriptedScientificBackend([]),
             system_prompt="Find and implement published work.",
             user_prompt="Use public source discovery when useful.",
@@ -1179,7 +1184,7 @@ def test_scientific_source_discovery_survives_same_owner_checkpoint(tmp_path) ->
         _run_response(),
         _commit_response(),
     ])
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=second_backend,
         system_prompt="Find and implement published work.",
         user_prompt="Use public source discovery when useful.",
@@ -1244,7 +1249,7 @@ def test_same_model_rewrites_complete_source_from_raw_sandbox_observation() -> N
             "stderr": "",
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Implement the exact estimator.",
@@ -1385,7 +1390,7 @@ def test_same_model_exact_edits_scientific_source_from_raw_observation() -> None
             "stderr": "" if dict(candidate) == revised else "NameError",
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Fix the exact source from the traceback.",
@@ -1497,7 +1502,7 @@ def test_r_source_owner_declares_namespace_from_raw_webr_feedback(
     )
     checked = []
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Use raw execution feedback to revise the current R project.",
@@ -1551,7 +1556,7 @@ def test_same_model_authors_initial_source_before_sandbox_execution() -> None:
         ]
     )
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Author the estimator from the bound theory contract.",
@@ -1627,7 +1632,7 @@ def test_blind_confirmatory_executes_once_after_model_owned_diagnostic_loop() ->
 
         @classmethod
         def iterate_code_with_tools(cls, **kwargs):
-            return run_scientific_code_workspace(
+            return _run_source_workspace(
                 provider=cls.provider,
                 system_prompt="Use the scientific source tools.",
                 user_prompt="Implement and diagnose the current simulation source.",
@@ -1757,7 +1762,7 @@ def test_blind_authoring_can_defer_confirmation_until_source_review() -> None:
 
         @classmethod
         def iterate_code_with_tools(cls, **kwargs):
-            return run_scientific_code_workspace(
+            return _run_source_workspace(
                 provider=cls.provider,
                 system_prompt="Use the scientific source tools.",
                 user_prompt="Author the executable evaluator.",
@@ -2051,7 +2056,7 @@ def test_same_model_can_revise_after_technically_successful_execution() -> None:
             },
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Inspect execution output before accepting the source.",
@@ -2106,7 +2111,7 @@ def test_model_cannot_submit_and_commit_before_observing_execution() -> None:
         ]
     )
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Execute, inspect, then commit.",
@@ -2183,7 +2188,7 @@ def test_model_selects_dependency_handoff_after_raw_consumer_failure() -> None:
         "artifact_hashes": {"estimator-a": "sha256:source"},
     }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise only source owned by this workspace.",
@@ -2273,7 +2278,7 @@ def test_byte_identical_replacement_is_returned_to_same_model_as_noop() -> None:
         ]
     )
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise the failed source.",
@@ -2339,7 +2344,7 @@ def test_model_can_run_current_source_in_changed_dependency_environment() -> Non
             "stdout": "dependency integration passed",
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Resolve the bound consumer observation.",
@@ -2432,7 +2437,7 @@ def test_current_source_runs_at_most_once_per_dependency_environment() -> None:
             "accepted": dict(candidate) == revised,
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Resolve the bound consumer observation.",
@@ -2513,7 +2518,7 @@ def test_scientific_workspace_does_not_reexecute_an_older_source() -> None:
             "accepted": dict(candidate) == accepted_revision,
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Revise the failed source.",
@@ -2573,7 +2578,7 @@ def test_scientific_workspace_retains_complete_bounded_transcript() -> None:
         + [_run_response(), _commit_response()]
     )
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Batch coherent source revisions, then execute the final source.",
@@ -2677,7 +2682,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
         }
 
     with pytest.raises(PacketValidationError) as exc_info:
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=first_backend,
             system_prompt="Use tools.",
             user_prompt="Repair from exact execution feedback.",
@@ -2741,7 +2746,7 @@ def test_scientific_workspace_resumes_exact_progress_checkpoint(tmp_path) -> Non
         executed.append(dict(candidate))
         return check(candidate)
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=second_backend,
         system_prompt="Use tools.",
         user_prompt="Continue the exact workspace.",
@@ -2826,7 +2831,7 @@ def test_scientific_workspace_commits_resumed_accepted_observation_without_rerun
         }
 
     with pytest.raises(PacketValidationError) as exc_info:
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=first_backend,
             system_prompt="Use tools.",
             user_prompt="Author and inspect exact source.",
@@ -2854,7 +2859,7 @@ def test_scientific_workspace_commits_resumed_accepted_observation_without_rerun
     assert checkpoint_observation["accepted"] is True
     assert checkpoint["current_source_executed"] is True
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=ScriptedScientificBackend([_commit_response()]),
         system_prompt="Use tools.",
         user_prompt="Continue exact source.",
@@ -2896,7 +2901,7 @@ def test_source_owner_restores_parent_execution_before_checkpoint_commit(
             self.provider = backend
 
         def iterate_code_with_tools(self, **kwargs):
-            return run_scientific_code_workspace(
+            return _run_source_workspace(
                 provider=self.provider,
                 system_prompt="Use tools.",
                 user_prompt="Continue exact source.",
@@ -3045,7 +3050,7 @@ def test_scientific_workspace_commits_within_explicit_turn_budget() -> None:
         ]
     )
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Continue the accepted exact source.",
@@ -3106,7 +3111,7 @@ def test_scientific_workspace_does_not_reexecute_checkpoint_in_same_environment(
         }
 
     with pytest.raises(PacketValidationError) as exc_info:
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=ScriptedScientificBackend(
                 [
                     _run_response(),
@@ -3155,7 +3160,7 @@ def test_scientific_workspace_does_not_reexecute_checkpoint_in_same_environment(
             _commit_response(),
         ]
     )
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use tools.",
         user_prompt="Continue exact source.",
@@ -3284,7 +3289,7 @@ def test_source_owner_reads_complete_blinded_feedback_and_authors_its_revision(t
         provider = backend
 
         def iterate_code_with_tools(self, **kwargs):
-            return run_scientific_code_workspace(
+            return _run_source_workspace(
                 provider=self.provider, system_prompt="Own this source.", user_prompt="Inspect the observations.",
                 model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
                 max_tokens=1200, max_turns=8, max_no_progress_turns=3,
@@ -3345,7 +3350,7 @@ def test_persistent_scientific_observations_survive_resume_and_reject_tampering(
         allow_current_source_run=True, session_dir=tmp_path / "session",
     )
     with pytest.raises(PacketValidationError) as failed:
-        run_scientific_code_workspace(
+        _run_source_workspace(
             **config, provider=ScriptedScientificBackend([
                 _run_response("first-run"),
                 _response(ClientToolCall("revise", SCIENTIFIC_SOURCE_SUBMISSION_TOOL, drafts[1])),
@@ -3360,7 +3365,7 @@ def test_persistent_scientific_observations_survive_resume_and_reject_tampering(
                                 {"path": old_path, "line_start": 3000, "line_end": 3000})),
         _commit_response(),
     ])
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         **config, provider=provider, initial_code_draft=drafts[1],
         initial_check_result=checkpoint["last_check"], recovery_checkpoint=checkpoint,
     )
@@ -3373,7 +3378,7 @@ def test_persistent_scientific_observations_survive_resume_and_reject_tampering(
     Path(references[old_path]["path"]).write_text("tampered")
     untouched = ScriptedScientificBackend([])
     with pytest.raises(ValueError, match="observation document identity mismatch"):
-        run_scientific_code_workspace(
+        _run_source_workspace(
             **config, provider=untouched, initial_code_draft=drafts[1],
             initial_check_result=checkpoint["last_check"], recovery_checkpoint=checkpoint,
         )
@@ -3408,7 +3413,7 @@ def test_large_structured_observation_remains_searchable_without_payload_copy(tm
             assert '"field_5999": 5999' in json.loads(request.messages[-1]["content"][0]["content"])["content"]
             return _commit_response()
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=Reader([]), system_prompt="Own this source.", user_prompt="Inspect the observations.",
         model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
         max_tokens=1200, max_turns=4, max_no_progress_turns=3, artifact_id="structured-observation",
@@ -3429,7 +3434,7 @@ def test_scientific_observation_directory_cannot_escape_through_symlink(tmp_path
     (session_dir / "observation_documents").symlink_to(outside, target_is_directory=True)
     provider = ScriptedScientificBackend([])
     with pytest.raises(ValueError, match="observation directory escapes workspace"):
-        run_scientific_code_workspace(
+        _run_source_workspace(
             provider=provider, system_prompt="Own this source.", user_prompt="Inspect the observations.",
             model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
             max_tokens=1200, max_turns=4, max_no_progress_turns=3, artifact_id="confined-observation",
@@ -3477,7 +3482,7 @@ def test_same_source_owner_tests_project_then_revises_before_bound_check(tmp_pat
         )
         return {"code_draft_hash": stable_hash(candidate), "accepted": result.status == "EXECUTED"}
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend, system_prompt="Own this source.", user_prompt="Test and revise your project.",
         model=DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL, model_tier="haiku", temperature=0,
         max_tokens=1200, max_turns=10, max_no_progress_turns=3, artifact_id="project-testing",
@@ -3705,7 +3710,7 @@ def test_model_owns_multifile_scientific_project_lifecycle() -> None:
             "stderr": "" if accepted else "project mismatch",
         }
 
-    result = run_scientific_code_workspace(
+    result = _run_source_workspace(
         provider=backend,
         system_prompt="Use project tools.",
         user_prompt="Implement and execute the complete project.",

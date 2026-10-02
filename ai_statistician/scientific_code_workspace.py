@@ -220,7 +220,7 @@ class ScientificCodeWorkspaceAgent:
         prompt_context, context_documents = externalize_scientific_workspace_documents(
             workspace_context
         )
-        return prepare_scientific_code_workspace(
+        workspace = prepare_scientific_code_workspace(
             system_prompt=self.scientific_workspace_system_prompt,
             user_prompt=(
                 self.scientific_workspace_instruction
@@ -264,6 +264,9 @@ class ScientificCodeWorkspaceAgent:
                 "phase": "scientific_code_workspace",
             },
         )
+        return replace(workspace, initial_context={
+            **dict(workspace.initial_context), "workspace_context": prompt_context,
+        })
 
 
 def externalize_scientific_workspace_documents(
@@ -1892,59 +1895,6 @@ def advance_scientific_consumer_revision_budget(
     return budget, row, sorted(set(errors))
 
 
-def run_scientific_code_workspace(
-    *,
-    provider: Any,
-    system_prompt: str,
-    user_prompt: str,
-    model: str,
-    model_tier: str,
-    temperature: float,
-    max_tokens: int,
-    max_turns: int,
-    max_no_progress_turns: int,
-    artifact_id: str,
-    initial_code_draft: Mapping[str, Any] | None,
-    initial_check_result: Mapping[str, Any],
-    check_candidate: ScientificCodeCheck,
-    workspace_operation: str = "targeted_revision",
-    allow_current_source_run: bool = False,
-    allow_dependency_handoff: bool = False,
-    request_metadata: Mapping[str, Any] | None = None,
-    recovery_checkpoint: Mapping[str, Any] | None = None,
-    session_dir: Path | None = None,
-    context_documents: Mapping[str, str] | None = None,
-    research_sources: ResearchSourceSnapshot | None = None,
-    research_source_discovery: ResearchSourceDiscovery | None = None,
-) -> ScientificCodeWorkspaceResult:
-    """Run the existing owner-bound tools through the shared retained loop."""
-
-    workspace = prepare_scientific_code_workspace(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        model=model,
-        model_tier=model_tier,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        max_turns=max_turns,
-        max_no_progress_turns=max_no_progress_turns,
-        artifact_id=artifact_id,
-        initial_code_draft=initial_code_draft,
-        initial_check_result=initial_check_result,
-        check_candidate=check_candidate,
-        workspace_operation=workspace_operation,
-        allow_current_source_run=allow_current_source_run,
-        allow_dependency_handoff=allow_dependency_handoff,
-        request_metadata=request_metadata,
-        recovery_checkpoint=recovery_checkpoint,
-        session_dir=session_dir,
-        context_documents=context_documents,
-        research_sources=research_sources,
-        research_source_discovery=research_source_discovery,
-    )
-    return run_client_tool_workspace(backend=provider, workspace=workspace)
-
-
 def prepare_scientific_code_workspace(
     *,
     system_prompt: str,
@@ -2123,7 +2073,6 @@ def prepare_scientific_code_workspace(
         "commit_turn_index": -1,
     }
     tools = _scientific_code_tools(
-        allow_current_source_run=bool(parent_draft) and allow_current_source_run,
         allow_dependency_handoff=allow_dependency_handoff,
         context_documents_available=True,
         script_execution_available=resolved_session_dir is not None,
@@ -3390,6 +3339,7 @@ def prepare_scientific_code_workspace(
         initial_context={
             "artifact_id": artifact_id,
             "workspace_operation": workspace_operation,
+            "unchanged_parent_run_allowed": bool(parent_draft) and allow_current_source_run,
             "current_project_files": _scientific_project_manifest(parent_draft) if parent_draft else [],
             "initial_observation": deepcopy(initial_model_observation),
             "read_only_documents": [{"path": path, "sha256": hashlib.sha256(content.encode()).hexdigest(),
@@ -3446,7 +3396,6 @@ def _complete_code_draft(value: Mapping[str, Any] | Any) -> dict[str, Any]:
 
 def _scientific_code_tools(
     *,
-    allow_current_source_run: bool,
     allow_dependency_handoff: bool,
     context_documents_available: bool = False,
     script_execution_available: bool = False,
@@ -3589,13 +3538,8 @@ def _scientific_code_tools(
                 "Run the bound execution check for the exact current Python/R project "
                 "and return raw output. Source bytes are unchanged. This bound check "
                 "can run once per newly authored source hash in this workspace"
-                + (
-                    "; the unchanged parent may also run once because its bound "
-                    "dependency environment changed"
-                    if allow_current_source_run
-                    else ""
-                )
-                + "."
+                ". An unchanged parent may also run once only when the current "
+                "workspace context authorizes reexecution under its changed dependency environment."
                 + (" Alternatively, select script_path to run an exact current project file as an ordinary exploratory script, without the run_sandbox ABI. It may import/source the current main file. Globals seed (default 0), replicates (default 1), and empty artifacts are supplied. This uses an isolated fresh process and no confirmation data; its output cannot authorize source release. Omit script_path for the unchanged bound execution check."
                    if script_execution_available else "")
             ),

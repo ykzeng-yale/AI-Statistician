@@ -21,7 +21,6 @@ from .client_tool_loop import (
     model_exact_text_edits_json_schema,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
-    run_client_tool_workspace,
     workspace_history_tool,
 )
 from .fingerprint import stable_hash
@@ -556,69 +555,6 @@ def lean_candidate_workspace_checkpoint_summary(
         ),
         "runtime_selected_lean_code": False,
     }
-
-
-def run_lean_candidate_revision_tool_loop(
-    *,
-    provider: Any,
-    system_prompt: str,
-    user_prompt: str,
-    model: str,
-    model_tier: str,
-    temperature: float,
-    max_tokens: int,
-    max_turns: int,
-    max_no_progress_turns: int,
-    candidate_id: str,
-    candidate_lean_declaration: str,
-    initial_source: str,
-    check_candidate: LeanCandidateCheck,
-    search_formal_environment: FormalEnvironmentSearch,
-    check_candidate_project: LeanCandidateProjectCheck | None = None,
-    check_support_file: LeanSupportFileCheck | None = None,
-    initial_lean_project: Mapping[str, Any] | None = None,
-    search_proof_candidates: ProofCandidateSearch | None = None,
-    inspect_lean_state: LeanStateInspection | None = None,
-    inspect_lean_declaration: LeanDeclarationInspection | None = None,
-    rejected_source_hash: str = "",
-    rejected_lean_project_hash: str = "",
-    allow_formal_gap: bool = False,
-    request_metadata: Mapping[str, Any] | None = None,
-    recovery_checkpoint: Mapping[str, Any] | None = None,
-    session_dir: Path | None = None,
-    authoritative_theory_document_rows: Sequence[Mapping[str, Any]] = (),
-) -> LeanCandidateRevisionToolLoopResult:
-    """Run the existing owner-bound tools through the shared retained loop."""
-
-    workspace = prepare_lean_candidate_workspace(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        model=model,
-        model_tier=model_tier,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        max_turns=max_turns,
-        max_no_progress_turns=max_no_progress_turns,
-        candidate_id=candidate_id,
-        candidate_lean_declaration=candidate_lean_declaration,
-        initial_source=initial_source,
-        check_candidate=check_candidate,
-        search_formal_environment=search_formal_environment,
-        check_candidate_project=check_candidate_project,
-        check_support_file=check_support_file,
-        initial_lean_project=initial_lean_project,
-        search_proof_candidates=search_proof_candidates,
-        inspect_lean_state=inspect_lean_state,
-        inspect_lean_declaration=inspect_lean_declaration,
-        rejected_source_hash=rejected_source_hash,
-        rejected_lean_project_hash=rejected_lean_project_hash,
-        allow_formal_gap=allow_formal_gap,
-        request_metadata=request_metadata,
-        recovery_checkpoint=recovery_checkpoint,
-        session_dir=session_dir,
-        authoritative_theory_document_rows=authoritative_theory_document_rows,
-    )
-    return run_client_tool_workspace(backend=provider, workspace=workspace)
 
 
 def prepare_lean_candidate_workspace(

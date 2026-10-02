@@ -1363,15 +1363,6 @@ def _unexpected_executable_interface_paths(
     return paths
 
 
-def validate_theory_core_packet(packet: Mapping[str, Any]) -> list[str]:
-    """Validate mathematical content before executable interface authoring."""
-
-    return _validate_theory_packet(
-        packet,
-        require_estimator_interfaces=False,
-    )
-
-
 def _output_contract_shape_errors(
     value: Any,
     contract: Any,
