@@ -1,0 +1,35 @@
+{
+  "purpose": "Evaluator-side full unchanged JSS scikit-fda reference execution; not a product-agent evaluation or official publication experiment.",
+  "attempt": 4,
+  "prior_record": "benchmarks/publication_reference_qualification_20261002/sources.json",
+  "source_id": "jss_scikit_fda_2024",
+  "paper_doi": "10.18637/jss.v109.i02",
+  "package_version": "0.9.1",
+  "package_zip_sha256": "2061449008aaf369183848d0a007c11675ab19496f8e5b4153d32c5cfd4ab8f0",
+  "author_script_sha256": "a256cf7a4dee6195ce976fd22f34bab4a52b5b11010f507c1315c5f66467288b",
+  "author_requirements_sha256": "87ca4e3155caf237fd7a4d9a358c2da43c3c953e653b745e081b81b61e9ce803",
+  "environment_adaptation": {
+    "author_requested_python": "3.11",
+    "attempt_python": "3.12.2",
+    "reason": "All three recorded Python 3.11 pip build attempts failed. The exact fdasrsf 2.5.8 osx-arm64 Python 3.11 Conda build requires NumPy 1.23.*, incompatible with the paper's pinned 1.26.4. Its Python 3.12 build declares NumPy 1.26.*. No dependency constraint is bypassed and no author source is patched.",
+    "installer": "micromamba 2.9.0; separate fresh prefix; conda-forge osx-arm64 binaries plus exact author pip requirements and journal package ZIP",
+    "fdasrsf_build": "2.5.8-py312h88edd18_0",
+    "fdasrsf_binary_sha256": "ec56ec13da31347232309cc489325888386c6658c2d8df82b5a4053830a3d62b",
+    "raw_conda_metadata_sha256": "2972f7279c56e3d7878b5fbfc02adc224a35d4e44d2b63553c56d11c4d93a476",
+    "dry_solve_sha256": "77e75641f33dd930beeb7056b75e6c002e2db3b8e73e0aa9cdb07765065551a1",
+    "authority_limit": "An adapted environment, not the recovered historical author lock. Verify every author-listed package version after installation; a missing or changed pin prevents script launch under this attempt. Preserve additional Conda/build dependencies and installed distribution provenance separately."
+  },
+  "execution_plan": {
+    "script": "Complete unchanged v109i02.py, including every figure, dataset download and classification search; no selected section or precomputed author output.",
+    "output_root": "runs/publication_reference_scikit_fda_20261002_followup/reference_1",
+    "separate_home_and_data_cache": true,
+    "matplotlib_backend": "Agg",
+    "blas_and_openmp_threads": 1,
+    "wall_time_limit_minutes": 30,
+    "source_edits_allowed": false,
+    "model_calls": 0,
+    "outcome_policy": "Retain the first launched process result, failures, stdout/stderr, output and fetched-data hashes. Do not relaunch or silently change data URLs in this attempt. Exit zero and readable figures establish execution only; comparison with paper and mathematical authority are separate obligations."
+  },
+  "prior_outcomes_immutable": true,
+  "official_studies_activated": false
+}
