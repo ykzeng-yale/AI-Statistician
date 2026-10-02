@@ -84,6 +84,18 @@ Cross-host efficacy cannot be inferred from package compatibility or mixed-model
 demonstrations; the main scientific comparison remains paired within an exact
 open-weight host/model configuration.
 
+Task intent must actually exercise the intervention being compared. The current
+source-only replication path executes only `TheoryDeveloper`, including under
+the `full_collaboration` and `no_cross_role_revision` mode names; the production
+composition test confirms this single-role trace. Such tasks can assess numerical
+reproduction or the portable package, with independent output checks, but cannot
+establish specialist collaboration or reverse-feedback effects. System S needs
+integrated tasks that expose theory, implementation, simulation and review to the
+same scientific objective. Predeclare how unused roles and absent feedback
+opportunities are reported; do not relabel a successful source-only run as a
+full-system research success. Operator-run author references qualify numerical
+evaluation, not agent autonomy or mathematical acceptance.
+
 Independent review is a product intervention. External gold evaluation is shared
 and equally applied to every arm. Count review/planning/token usage in the
 product's budget and report external evaluation expense separately. Use resource
