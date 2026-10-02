@@ -1,0 +1,58 @@
+{
+  "scope": "evaluator_reference_preparation_not_agent_experiment",
+  "study_activated": false,
+  "model_calls": 0,
+  "source": {
+    "doi": "10.18637/jss.v114.i07",
+    "article": "https://www.jstatsoft.org/article/view/v114i07",
+    "paper_sha256": "ef38e39e3aeab082c65896ea591f32299132656e86fd51a9c8070468cd842b4e",
+    "package_url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i07/4743",
+    "package_version": "3.0.5",
+    "package_sha256": "ba3e44efb4db449f6d7b6c26897d77d442a0c96a72d36e3dc32fe0e983b65b2b",
+    "package_license": "GPL (>= 3), DESCRIPTION",
+    "replication_url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i07/4744",
+    "replication_sha256": "d3777089b2b947020e75ae185e8a47b43ca72d35770a074e2e46badb30e87113",
+    "replication_redistribution": "No asset-level license notice found. Journal general policy is not an exact attachment license. No source/attachment contents are committed.",
+    "github_discovery_only": "https://github.com/dlcarl/TSCI at bd894dc62e28ed28a8cb6b683fcd6584b8a7d733; not substituted for the journal archive"
+  },
+  "environment": {
+    "runtime": "native R 4.4.2, arm64 macOS",
+    "historical_runtime": "R 4.3.1",
+    "status": "adapted reference, not recovered historical environment",
+    "owned_library": "runs/publication_reference_qualification_20261002/tsci/reference_3_0_5/library",
+    "library_policy": "Only the owned library and native base/recommended library; no user/site library or modification to product .venv. Explicit .libPaths and R_LIBS/R_LIBS_USER inside R also propagate to PSOCK workers.",
+    "source_pins": [
+      {"package": "xgboost", "version": "1.7.7.1", "url": "https://cran.r-project.org/src/contrib/Archive/xgboost/xgboost_1.7.7.1.tar.gz", "sha256": "f7912ccf3a583a27208f74ca15c3b272cc930bae6b10ae7e5958ff2951ee9723"},
+      {"package": "fda", "version": "6.1.8", "url": "https://cran.r-project.org/src/contrib/Archive/fda/fda_6.1.8.tar.gz", "sha256": "ef8d858a2879491aa2c441d171ba14462bf27852d16e8420fa49aab83f42c407"}
+    ],
+    "dependency_policy": "Resolve remaining dependencies against the native CRAN R4.4 binary index, preserve index/download hashes and installed versions before author science. Install journal TSCI and source pins unchanged. No author-source or compiler-error patch, automatic dependency substitution or execution retry.",
+    "known_adaptations": "Current binary candidates Rfast 2.1.5.2 and ranger 0.18.0 differ from paper versions 2.1.0 and 0.16.0. The old Rfast Makevars links native R's FLIBS, whose /opt/gfortran paths do not exist here; no old Rfast build was attempted. Its and ranger's old source archives were inspected/downloaded only. Native R's recommended MASS also differs. Exact final dependency resolutions must be frozen separately before execution.",
+    "build_configuration": "MAKEFLAGS=-j2; R_MAKEVARS_USER and R_MAKEVARS_SITE=/dev/null; use upstream package configure without edits. Record compiler/OpenMP diagnostics, including serial compilation if upstream chooses it.",
+    "on_preparation_failure": "Preserve exact logs and partially populated library; no author science until explicit readiness. No claimed historical lock or numerical reference."
+  },
+  "execution": {
+    "script": "replication.R, unchanged complete journal attachment",
+    "source_editing": false,
+    "initial_output_directory": "fresh; no cached output or fitted objects copied",
+    "threads": "one BLAS/OpenMP thread per process; original five PSOCK workers retained",
+    "timeout_seconds": 5400,
+    "seed": "Unchanged script sets L'Ecuyer-CMRG and 10 before its five-split boosting example; subsequent example retains original RNG continuation.",
+    "warnings": "Capture conditions and full raw source output without suppressing them. Preserve partial environment and error after failure; do not rerun the author science to recover missing metadata.",
+    "on_failure": "Record terminal exit, raw diagnostics and partial outputs; no patch, reduction to an easier subsection, source rerun or changed acceptance threshold."
+  },
+  "inspection": [
+    "Require authoritative process termination and unchanged script/archive bytes.",
+    "Inspect all produced objects and warnings; do not equate process exit zero with scientific acceptance.",
+    "Read published summaries on pages 11-13 and 15 at their displayed precision before execution. Compare selected/per-space estimates, intervals, p-values, selection/strength counts and sample/split dimensions; report discrepancies, not a post-result fitted tolerance.",
+    "Record Card data identity, row/column shape, missingness and actual package locations. The empirical data do not reveal a known causal truth.",
+    "Do not treat source algorithms' split substitution, valid/invalid labels or their numerical agreement as an assumption audit or proof of causal validity.",
+    "Keep numerical reproduction authority separate from independent mathematics, general theory benchmark qualification and agent autonomy."
+  ],
+  "freshness": "No TSCI, curvature-identification or Card-data match found in inspected public question/development records. A consumed valid-IV linear GMM task exists, so shared IV background and future grouping require explicit review. This preparation neither certifies a fresh independent theory family nor activates or assigns a publication split.",
+  "excluded_scope": [
+    "original 2022/2024 theory paper simulations or theorem correctness",
+    "blind theory rediscovery or target-paper contamination removal",
+    "full environment recovery, archive redistribution or a new product capability claim",
+    "model calls, candidate evaluation and official publication comparisons"
+  ]
+}
