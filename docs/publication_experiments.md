@@ -362,7 +362,7 @@ counts, failed/changed results and malformed source interfaces; no model is call
 Capacity and scientific computation still need matching across all arms. Both
 controls and production source owners can inspect exploratory measurements and
 their diagnostic gate results; these are not fresh confirmatory acceptance.
-Every future Python/R executor invocation now stores its request, exact source,
+Every attempted Python/R scientific execution now stores its request, exact source,
 result and logs in a fresh attempt directory, even for identical source/seed
 inputs. A later failure or success cannot overwrite that earlier record. Request
 hashes bind these distinct stored paths; compare source/project and declared

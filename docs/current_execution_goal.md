@@ -1,6 +1,6 @@
 # Current Execution Goal
 
-Updated: 2026-10-01, two evidence-backed publications and local Qwen testing.
+Updated: 2026-10-02, two evidence-backed publications and local Qwen testing.
 
 ## Operative Objective
 
@@ -167,6 +167,13 @@ question. Mathematical acceptance remains a separate expert-review obligation.
    LeanMarathon's scoped DAG context, ReProver's accessibility contract, and
    Statlib/SLT's mathematical module conventions. Keep incompatible upstream
    libraries discovery-only until an explicit full-project migration succeeds.
+   The 2026-10-02 upstream check now finds public contiguity, e-variable/utility
+   and potential-response APIs on Statlib main, requiring Lean 4.33.1. Reassess
+   migration against these actual APIs; do not carry forward the old assumption
+   that the newer branch adds only tutorials. Preserve the current verified pin
+   while testing a separate full-project migration and semantic orientation.
+   TODO characterizations and functional causal definitions are not completed
+   inference theorems or new agent proof evidence.
 6. Use ERA-style candidate search only inside an existing exploratory workspace
    with a trustworthy executable score. No automatic search tree, model ensemble,
    extra reviewer, repair taxonomy, or fixed iteration ritual is required.

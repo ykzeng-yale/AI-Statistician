@@ -38,6 +38,22 @@ experimental results. Pins below are observed upstream HEADs, not dependencies.
 | [LeanDojo/ReProver](https://arxiv.org/abs/2306.15626), [code](https://github.com/lean-dojo/ReProver) | Accessible premises and verified state/action feedback | Environment compatibility and retrieval evaluation; cannot certify a natural-language statement by itself |
 | [LeanMarathon](https://arxiv.org/abs/2606.05400) | Durable dependencies for long formal developments | Use only for sufficiently long proof work; not a mandatory graph for every small task |
 
+Statlib's current `main` at `ca33ed483af50859be1681fc8181d97de1906c5b`
+requires Lean 4.33.1 and Mathlib `0df444a360eaa60ab8c11dca51a86af692955474`.
+Its public root now includes contiguity, e-variable/utility and potential-response
+modules, beyond our active 4.30.0 pin's Inference/QMD surface. The inspected
+[contiguity source](https://github.com/stat-lib/statlib/blob/ca33ed483af50859be1681fc8181d97de1906c5b/Statlib/Contiguity/Def.lean)
+has definitions and basic results but retains likelihood-ratio and sequence
+characterizations as TODO comments, not proof declarations. The
+[causal source](https://github.com/stat-lib/statlib/blob/ca33ed483af50859be1681fc8181d97de1906c5b/Statlib/Causal/PotentialResponse.lean)
+defines same-unit functional responses and substitution, not identification or
+inference. The [e-variable source](https://github.com/stat-lib/statlib/blob/ca33ed483af50859be1681fc8181d97de1906c5b/Statlib/EValues/EVariable.lean)
+includes finite/probability-measure expectation consequences and closure results;
+this inspection does not establish an anytime-process theorem or native proof
+check. Prioritize a tested foundation migration and reuse of these APIs over
+new duplicate definitions. The newer files are not active-project premises until
+that migration is checked; current kernel/RAG evidence remains on the old pin.
+
 ## Code Pins And Licensing
 
 New independent reference preparation uses
@@ -98,7 +114,7 @@ qualified for our study. Keep candidate source families and variants grouped.
 | gtrhythm/PARNESS | `100b4f7d67d23fae3db58619dbc077dde451d2aa` | No top-level license observed; graph-runner contract inspected |
 | InternScience/ResearchClawBench | `01bc2371f698f755892935ef2965a95a790ff0db` | MIT reported; task/evaluation tree and primary protocol inspected |
 | princeton-pli/hal-harness | `16bb03ebc11577fb5ea6dc8bb6c968387085e6aa` | No top-level license reported; `hal/agent_runner.py` inspected; the previously found princeton-nlp URL returned 404 |
-| stat-lib/statlib | `ba207125f4920a5725589da4dbe0d2dd63c2f209` | Apache-2.0; README/tutorial/roadmap and tree inspected; active dependency remains `6575d611` |
+| stat-lib/statlib | `ca33ed483af50859be1681fc8181d97de1906c5b` | Apache-2.0; pinned root, toolchain/Mathlib and contiguity/causal/e-variable sources inspected; active dependency remains `6575d611` |
 | YuanheZ/lean-stat-learning-theory | `d0f506f0a695018265dccb33bcb05e2f5ca1c876` | Apache-2.0; primary paper and library layout inspected |
 | prove2me/prove2me_workspace | `4bb28221f86306b70b58f8119c4413025d09b302` | No top-level license observed; statement/proof and environment references inspected |
 | anthropics/fermats-last-theorem | `6e837e75355538c7f80bab5b956861e86c4eacc2` | Apache-2.0; map/comparator paths, `formalization.yaml` and comparator launcher inspected |
