@@ -1,0 +1,19 @@
+{
+  "purpose": "Isolated full-library compatibility test, not scientific agent efficacy or proof-source fidelity",
+  "source_commit": "db6c7718349f3c14a7e37905f3529675f1ebaa52",
+  "current_toolchain": "leanprover/lean4:v4.30.0",
+  "candidate_toolchain": "leanprover/lean4:v4.33.1",
+  "candidate_statlib": "ca33ed483af50859be1681fc8181d97de1906c5b",
+  "candidate_mathlib": "0df444a360eaa60ab8c11dca51a86af692955474",
+  "permitted_manual_changes": ["lean-toolchain", "lakefile.lean"],
+  "generated_dependency_manifest": "lake-manifest.json",
+  "mathematical_source_edits": false,
+  "active_project_unchanged_until_verified_migration": true,
+  "model_calls": 0,
+  "full_build_target": "StatInference",
+  "build_timeout_seconds": 3600,
+  "axiom_or_source_fidelity_acceptance_from_build": false,
+  "cached_dependencies_permitted": true,
+  "clean_machine_release_claim": false,
+  "automatic_toolchain_retry_or_downgrade": false
+}
