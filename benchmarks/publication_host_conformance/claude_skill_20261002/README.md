@@ -35,4 +35,14 @@ zero-inference normal-project discovery exposed the skill and all three tools.
 The current runner uses the separately frozen `project_protocol.json` without
 changing the package or the first native record. Do not infer installed-version
 behavior from newer online bare-mode documentation.
+
+The normal project-scope invocation completed in 8.34 seconds. Its retained
+native user context contains the exact unchanged 2,994-character skill body.
+Read loaded `probe.txt` and the linked workspace reference; Write created
+`receipt.md`. The native client reported four model turns, only Sonnet 4.6 in
+model usage, and $0.0553128 cost. These are client reports, not wire-level counts.
+The receipt preserves the opaque token but omits the input line's prefix;
+its bytes remain unchanged and no complete receipt-fidelity pass is claimed.
+The [first observed record](observed_results.json) preserves the negative and
+positive scopes separately. Owned host processes exited and are absent.
 The two official open-weight scientific studies remain unactivated.

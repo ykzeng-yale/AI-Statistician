@@ -1,0 +1,59 @@
+{
+  "scope": "Native Claude Code package discovery/body uptake and file-tool conformance only; not a scientific result, comparative effect or official publication baseline.",
+  "host": "Claude Code 2.1.168",
+  "host_sha256": "377f0ecedba8246bdabdf312ce8b7cc8ae1160997b26f5edca352a4a8d61dc78",
+  "raw_record_root": "runs/publication_claude_host_conformance_20261002",
+  "bare_attempt": {
+    "frozen_code_commit": "34d32f96",
+    "protocol": "protocol.json",
+    "protocol_sha256": "7dbd46d3ccd8d6cd3eff643e6b25e1e439312f5ed8ca28cd95b94099ecac0c48",
+    "precall_sha256": "becf50ad8ffdf505c5c6b43d9f047e58dfa7806bb5d9a0449c8e133f3f48a31c",
+    "stdout_sha256": "50054778c16bb9b338acffc4304ecdf5b32180f982b2dd8222b3873e005ef070",
+    "outcome": "Synthetic Unknown command; statistical-research absent from native discovery, only Read exposed, no receipt. Exit zero is not activation success.",
+    "reported_model_turns": 0,
+    "reported_api_milliseconds": 0,
+    "reported_model_usage": {}
+  },
+  "normal_project_discovery": {
+    "method": "Separate native invocation of an unknown installation command in a fresh HOME/project with only project setting sources and a fake credential placeholder; no scientific input.",
+    "stdout_sha256": "f0cd16b25172dd16d3928e374608560aa48e3757395e61f8fc849cb565f4368e",
+    "skill_discovered": true,
+    "exposed_tools": ["Read", "Skill", "Write"],
+    "reported_model_turns": 0,
+    "reported_api_milliseconds": 0,
+    "reported_model_usage": {}
+  },
+  "project_activation": {
+    "frozen_code_commit": "7d99c8aef7756c73f2265fb7605fefd75329fb85",
+    "protocol": "project_protocol.json",
+    "protocol_sha256": "64b9f3a53aff90b545c1b414b54112433b467f808611ffb7c00098ac21ccfb48",
+    "runner_sha256": "3dab82a0ea3b9071084b5cf184205e8741bc367de48835821985a7990a82663c",
+    "precall_sha256": "b4b7bdb24459651f6707c490df374b11e2f2c2f080cd111513fc4744f4dfc803",
+    "stdout_sha256": "7b0a963a5bbdf7ef4c102d320a2e6097f7130330ca04df9816ace1156e49e85c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "session_sha256": "bd975c18c5c91a2379b4f77e02aab4eae897a889d63bfb6964cd6a863aa579a2",
+    "receipt_sha256": "2f4b8215be8e181ad05669af19be0968b7eacfad55e27c207f78897bda86fcd7",
+    "exact_skill_body_in_retained_user_context": true,
+    "skill_body_characters": 2994,
+    "skill_body_sha256": "2c99c4dd8b09d3ebb349a986d06f74446004d203795c788ba4f1ef40068436ca",
+    "native_actions": ["Read probe.txt", "Read linked references/workspaces.md", "Write receipt.md"],
+    "action_errors": 0,
+    "reported_model": "claude-sonnet-4-6",
+    "reported_model_turns": 4,
+    "reported_usage": {
+      "input_tokens": 5,
+      "cache_creation_input_tokens": 11264,
+      "cache_read_input_tokens": 21126,
+      "output_tokens": 448
+    },
+    "reported_cost_usd": 0.0553128,
+    "elapsed_seconds": 8.340022582997335,
+    "returncode": 0,
+    "opaque_token_preserved": true,
+    "exact_input_line_preserved": false,
+    "receipt_limitation": "The native writer omitted the 'Opaque native activation receipt: ' prefix. Its output is preserved, not repaired or granted complete receipt-fidelity credit.",
+    "skill_package_changed": false,
+    "owned_host_process_terminal_and_absent": true
+  },
+  "authority_boundary": "Client-reported model turns, tokens and cost are not independently wire-verified request accounting. Native retained context establishes exact skill-body uptake, not statistical validity. No Opus or fallback was requested; no product runtime, independent referee, Python/R experiment or Lean check ran. Credentials were not printed or recorded. Prior Haiku and consumed Qwen evaluations remain unchanged. Both official scientific studies remain unactivated."
+}

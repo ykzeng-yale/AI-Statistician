@@ -74,7 +74,14 @@ endpoint, and send no scientific task. A separate parameterized ACP
 asserts that the entire skill body reaches the captured model request. The
 endpoint returns a fixed mock response, not live inference. Combined Codex/Kimi
 opt-in conformance passed five checks. Ordinary tests skip these native checks.
-Claude Code discovery/runtime has not yet been tested.
+The separately authorized [native Claude Code check](../benchmarks/publication_host_conformance/claude_skill_20261002/README.md)
+now verifies project-scope discovery, exact skill-body uptake, relative-reference
+Read and file Write on CLI 2.1.168 with Sonnet 4.6. Its bare-mode preparation
+returned Unknown command and zero reported model turns despite exit zero;
+the negative record is preserved. On this tested version use normal project
+discovery, not the newer documentation's bare-mode behavior. The written receipt
+omitted a prefix, so exact input-line fidelity is not credited. This is native
+host compatibility, not scientific accuracy, usability or an open-weight result.
 On 2026-10-02 a [separate real-Qwen ACP probe](../benchmarks/publication_host_conformance/kimi_acp_qwen_20261002/README.md)
 verified the same native activation surface with the exact skill body in persisted
 model context, one actual file read and a correct receipt. It used two local
