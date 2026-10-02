@@ -1,6 +1,6 @@
 # Publication Experiment Design
 
-2026-10-01 design proposal. NOT ACTIVATED: no task list, gold authority, sampling
+2026-10-02 design and implementation status. NOT ACTIVATED: no task list, gold authority, sampling
 schedule or resource envelope has been frozen. No result is claimed here.
 
 ## Questions And Units
@@ -188,246 +188,92 @@ calibrated full-task authority, matched confirmation/tools/resources, host activ
 and study CLI remain unfinished; neither publication study is activated. Do not
 use the new entry to reevaluate any consumed legacy task or qualification.
 
-Implementation boundary: the existing outer runtime now accounts for local
-requests across roles and continuations, with an optional per-question request
-cap disabled by default. Reported tokens, cache reads, native server timings and
-unknown-usage counts remain separate. This covers the standalone local transport,
-not a coding host's private loop or external gold adjudication, and is not a
-token-equivalent resource allocator. A prepared-workspace single-conversation
-entry point is implemented below, but complete real-task comparator assembly
-and matched application-level tools/data remain unfinished. Renaming a specialist
-or substituting a different coding host would confound tools with collaboration. Neither this
-accounting change nor the earlier failed development pilot activates System S or
-establishes an improvement. Freeze the actual comparator and resources first.
+### Current Control Implementation
 
-[OneFlow](https://arxiv.org/html/2601.12307v1) motivates a separate strong control:
-one conversation executes the same workflow and tools with role instructions as
-stage inputs. It is not the free-planning general agent. For our comparison,
-this deliberately removes reviewer isolation; self-review cannot be labelled
-independent, and external gold remains equally isolated in every arm. Measure
-cache reuse rather than assume it despite changing prompts/tool schemas. The
-paper's transcript-equivalence conditions do not prove equivalence after exposing
-private author history that our reviewer normally cannot see.
+`benchmarks/publication/run_control_draw.py:run_single_context_research_draw`
+runs the actual Theory, estimator and Simulation actions through one
+`SingleResearcher` subsystem in the existing `AgentRuntime`. Its sole retained
+conversation shares the same local transport accounting and optional global
+request cap as a multi-role graph. There is no handoff policy, second scheduler,
+independent referee invocation or automatic retry. The default cap remains None.
+Reported tokens, cache reads, timings and unknown usage stay separate; equal
+request counts are not equal token, computation or wall-time resources. Native
+hosts and external adjudication remain outside this graph's accounting.
 
-Theory/scientific/Lean preparation functions expose the actual owner-bound
-request, executable actions and result/checkpoint handlers without calling a
-model. Default roles still use these bindings through the existing retained loop;
-their contexts, source checks and authority are unchanged.
-`prepare_shared_client_tool_workspace` can bind every configured action into one
-conversation, using `scope__tool` names to disambiguate duplicates. Inputs and
-raw observations retain their existing contracts. Component checkpoints do not
-end the conversation or reset its global budget; a caller-provided final action
-does. No component model driver or isolated-owner result handler is invoked.
-The exact shared request/tool contract and history are persisted together, with
-independent-role review explicitly false. The shared history tool reads only
-this conversation's authorized observations, not private reviewer sessions.
-Component checkpoint payloads are retained in that same hash-bound observation
-store, separately from the unchanged model-visible feedback. The existing
-history reader can recover them after a normal finish or budget exhaustion;
-later source edits do not rewrite earlier records. Theory already has immutable
-Markdown/LaTeX document snapshots. Stored component state is working provenance,
-not an isolated-owner receipt, independent review or current acceptance.
+The draw requires a fresh output directory. It freezes the question, assembled
+request/tools, role configurations, execution settings and private confirmation
+schedule before inference. A final selection is reloaded through the existing
+trusted reader and terminates with `REROUTE`, without another task: external
+scientific evaluation is pending, not accepted here. Failure retains its session
+and source but does not salvage earlier checkpoints as a final submission. The
+same draw directory cannot be overwritten or resumed. Deployment weights,
+runtime, template, hardware, scientific gold and the complete other-arm
+configuration still belong to the prospective study caller.
 
-Production agents now expose these bindings directly:
-`LLMTheoryDeveloperAgent.prepare_workspace` prepares initial authoring or an exact
-parent/reviewer-bound revision using the existing normalizer and validators;
-`ScientificCodeWorkspaceAgent.prepare_code_workspace` prepares the configured
-Algorithm or Simulation source session, including its actual upstream document
-catalog and executor callback. Their normal `derive`/`iterate_code_with_tools`
-methods run those same prepared bindings in the sole retained loop. There is no
-second set of baseline prompts, candidate builders or simplified validators.
-A prepared Theory contract snapshots the public question rather than retaining
-a mutable caller object that could change validation after request construction.
+[OneFlow](https://arxiv.org/html/2601.12307v1) motivates a distinct same-workflow
+single-context control, not the free-planning general agent. Shared self-review
+cannot be labelled independent, and external gold stays isolated in every arm.
+Measure cache reuse rather than assume it; transcript-equivalence conditions do
+not establish equivalence after exposing private author history to a reviewer.
 
-Production-binding tests use scripted local turns, keep an unresolved claim
-honestly `OPEN`, reject an invalid claim index, and execute unchanged Python/R
-through the actual shared runtime executor under direct, prepared and joint
-drivers. They do not constitute model inference, Theory quality, complete
-Simulation consumer validation or a matched scientific arm.
+The underlying preparation APIs expose real owner-bound actions and validators,
+not rewritten baseline prompts or simplified executors. The shared binder uses
+`scope__tool` aliases and a caller-supplied final action; component checkpoints
+do not terminate its conversation. Public question, contexts and immutable
+Markdown/LaTeX snapshots are bound before authoring. Its history tool accesses
+only authorized shared observations, never private isolated reviewer sessions.
 
-Dependent shared workspaces now use `select_workspace_inputs` before source
-authoring. The model selects observed checkpoint hashes, including an earlier
-version if appropriate. The actual production preparer binds those immutable
-documents/interfaces and returns its public context and read-only file catalog
-to the same conversation. It never invokes a role model driver or invents an
-owner receipt. Rebinding exposes retained committed source without silently
-executing it; the model decides whether to edit or rerun. Selecting the identical
-inputs preserves current state rather than resetting the source workspace.
-Frozen tools/model settings remain unchanged. Runtime-provided context is
-recorded separately as `provided_inputs`; executor-consumed dependencies remain
-`inputs`. Both must agree with the final selected producer resources. Neither
-field establishes which mathematical premises the model actually reasoned from.
+| Capability | Implemented boundary |
+| --- | --- |
+| Theory and multiple estimators | `prepare_single_context_research_workspace` uses actual production preparation, validators and Python/R execution; each fixed estimator ID has its own source/project checkpoint |
+| Selected upstream inputs | `select_workspace_inputs` binds observed Theory/method checkpoints; supplied context and actual executor consumption remain separate provenance |
+| Exact method consumption | Simulation reloads selected source, support files and results with the production identity reader and complete executable-ABI projection, without truncated IDs/fields or raw outcomes |
+| Theory self-review | Optional `theory_reviewer` exposes actual referee actions in the same conversation; no isolated referee call or independent receipt |
+| Source freezing | Private `confirmatory_seeds` enables `confirmation__execute_frozen_simulation`; source, methods, inputs, count and seed are recorded before execution |
+| Final selection | `submit_research_result` selects exact observed checkpoints and preserves the unchanged Markdown report; partial selections stay partial |
+| Common external view | `publication_material_from_submission` keeps selected source and both exploratory/frozen rows with original phases and failures; it does not choose a passing candidate |
 
-`prepare_single_context_research_workspace` assembles real Theory, Algorithm and
-exploratory Simulation actions for a caller-specified ordered estimator-ID set, with
-the source horizon supplied by the configured Theory agent. It uses production
-normalization, validators and Python/R executors. Simulation invokes the exact
-selected estimator projects, with source hashes and invocation counts, without
-manufacturing an independent semantic review. Public Theory/ABI context reaches
-the source owner before authoring, not just the execution receipt afterward.
-Gap/progress observations remain in shared history but are not promoted into
-usable Theory checkpoints. Final Markdown submission is not scientific acceptance.
-This callable entry is not yet a complete matched System S arm: review conditions,
-confirmation envelopes, optional Lean and the study CLI still require
-prospectively matched configuration. Do not compare it to an unrestricted full
-product or label arbitrary workflow text as matching that product's workflow.
-Actual integrated Python/R tests here use scripted turns, not live reasoning or
-publication draws.
+A final join must agree with both provided and consumed resources. The model can
+select a consistent earlier set or a later producer whose relevant resources are
+unchanged; an unrelated note does not force another execution. Original consumed
+provenance is never rewritten. Missing/changed source returns an observation,
+not an automatically repaired or substituted estimator. Honest Theory gaps are
+not promoted into usable checkpoints.
 
-An explicitly supplied private `confirmatory_seeds` schedule now enables
-`confirmation__execute_frozen_simulation` in this same conversation. The model
-selects an observed Simulation source and its exact original input resources;
-the action records source, methods, inputs, requested replicate count and seed
-before executing the existing production sandbox. It cannot edit source or
-repair a failed experiment. The source/input identity is consumed even when
-execution fails; rebinding cannot replay it. A distinct source uses the next
-prospectively fixed seed, never an outcome-chosen seed. Schedule capacity and
-scientific computation must be matched across study arms; all actions still
-consume the shared loop budget. Seeds are not exposed before their execution.
+Each frozen source/input identity executes once, including failures; rebinding
+cannot replay it. A distinct source consumes the next prospectively fixed seed,
+never an outcome-selected seed. Future seeds remain outside model context.
+Capacity and scientific computation still need matching across all arms. This
+source-freezing action does not grant independent protocol acceptance or product
+confirmatory eligibility. Only external authority can assess scientific validity.
+Shared reviewer observations, including ACCEPT, remain self-review, not proof or
+independent acceptance. The full product's review guards are unchanged.
 
-This is source freezing, not independent theory/protocol acceptance. The control
-retains `independent_role_review=false` and cannot acquire product confirmatory
-eligibility or accepted-role receipts. The full product's existing independent
-review guards remain unchanged. External scientific authority, applied equally
-to every arm, must determine whether the frozen experiment is faithful and valid.
-The common final view preserves both selected exploratory and frozen-execution
-rows with their original phases and failed results; it does not choose a passing
-candidate or promote exploration. Actual scripted Python/R tests cover pre-call
-freeze, false acceptance, changed replicate requests, execution failures,
-replay rejection, fresh source identities and schedule exhaustion. These are
-mechanism tests, not scientific qualification or model draws.
+The common loop retains a failed provider call's pending context regardless
+of SDK/module or exception class, then stops without an automatic turn restart.
+It no longer has a cloud-SDK exception whitelist. Failure metadata withholds
+private transport detail; successful tool observations and source/compiler
+feedback remain unchanged. Mocked local HTTP tests cover completion on the last
+allowed call, exhaustion, transport/model-identity failures, immutable draw
+directories and caller mutation, without inference or scientific adjudication.
 
-Simulation handoff projection now uses the existing executable-ABI projector
-instead of a second truncated field schema. It preserves full identifiers,
-dependency lists, interface fields and support-file hashes while excluding
-source contents and raw outcomes. Large-interface tests verify that later caller
-mutation cannot change this prepared projection. No new repair or scheduler is
-introduced.
+Generated-code reviewers and Formalizer also expose actual prepared actions, but
+dynamic code-review and Lean bindings are not yet part of this application entry.
+It rejects required-formal tasks rather than weakening them. Complete matched
+arm configurations, the no-cross-role-feedback intervention, confirmation/resource
+envelopes, independent full-task gold and study CLI remain unfinished. Empty
+selections cannot pass missing required dimensions. Do not label arbitrary
+workflow text as matching the full product, compare this control to an
+unrestricted system, or manufacture finalized role packets to fit a score adapter.
 
-Before Simulation consumes a selected estimator, the control now reads its
-persisted source, support files and result through the same exact-identity
-reader used by production code review. Missing or changed bytes and disagreement
-with the selected draft return an input observation, not a repaired candidate.
-The existing scientific workspace can execute model-authored diagnostic tests
-against that immutable estimator. Do not duplicate a reviewer packet or add a
-new scheduling stage merely to enable same-conversation self-inspection. This
-identity check is not a semantic verdict, confirmation or independent review.
-Python/R regressions exercise actual execution and injected record corruption;
-opaque reader tests cover missing/changed files, malformed results, inventories
-and metadata. No consumed scientific result is modified or rescored.
-
-Each configured estimator has its own production source workspace (`algorithm`,
-then `algorithm_2`, etc.), exact source/project checkpoint and upstream Theory
-binding. The frozen ordered IDs and public workspace contexts are part of the
-study contract, not statistic-specific methods. Simulation may select one or
-several observed estimator checkpoints through the existing input-selection
-action; the existing production executor binds those exact callables. All remain
-in one conversation and one global budget. Hashes and invocation counts are
-reported separately per estimator; a corrupted secondary source is rejected
-before consumption, rather than silently replaced by the primary source.
-Scripted Python/R cases exercise multiple methods and selected subsets, without
-model inference, independent review or confirmation. No second runner, routing
-agent or comparison-method recipe is added.
-
-The optional `theory_reviewer` configuration now binds the actual production
-referee's file/source reads, report writes/edits, compact finding submission and
-Python/R scratch actions into that conversation. The model selects an observed
-Theory checkpoint before using them. It receives the exact candidate catalog,
-and the final selection must agree with the supplied Theory resource hashes.
-There is no separate referee model call or isolated result handler in this arm;
-`ACCEPT` or `REVISE` is a self-review observation, not independent authority or
-a gate forcing the final submission. The normal isolated production review uses
-the same prepared actions and retains its validation, report and recovery handling.
-Caller mutation cannot alter a prepared question/material binding. Consolidated
-cumulative-counter and checkpoint projections preserve their old field types;
-no archived review is rerun or rescored.
-
-Scripted integration tests run unchanged Python/R computations, author an honest
-unresolved review, return invalid inputs/report hashes to the same conversation,
-and reject a mixed-version final join before an explicitly selected consistent
-earlier set. They do not demonstrate mathematical acceptance, model reasoning or
-a complete matched study. Dynamic generated-source review, frozen confirmation,
-optional Lean, resource matching and common full-task authority remain unfinished.
-
-Generated-code review now exposes `LLMGeneratedCodeSemanticReviewerAgent.prepare_workspace`.
-The existing isolated `review` driver uses that same preparation and the common
-retained runner, replacing its private prepare-and-run wrapper. Question,
-review material and trusted lineage are snapshotted before request construction;
-later caller mutation cannot change the judged target or resulting fingerprint.
-Its public evidence catalog retains the existing outcome/seed blinding. Actual
-Python/R probe actions and terminal validation can also be bound to the shared
-control without invoking the isolated result handler. A component `ACCEPT` there
-is a self-review observation, not an independent receipt, empirical authority or
-proof. Scripted tests cover direct, prepared and shared execution of identical
-source, raw probe observations and rejected submissions, plus input mutation and
-hidden-value isolation. No model is called. This makes the real code-review
-actions composable; it does not add them dynamically to the application entry
-above or complete matched Theory review, confirmation, Lean or study configuration.
-
-The old per-workspace `run_*` forwarding functions have been removed. Theory and
-Scientific production drivers already used prepare + the common retained runner;
-Formalizer now does the same directly. Its existing source, context, diagnostic,
-gap and kernel boundaries are unchanged. The unused pre-interface core-validator
-wrapper is also removed; production question-bound validators remain. This
-consolidation retains the existing package-size regression budget rather than
-raising it to accommodate the new comparison assembly.
-
-Synthetic tests cover Python/R, Theory and Lean parity, complete action exposure
-for configured bindings, arbitrary interleaving, checkpoints, exhaustion, raw
-error feedback and native local wire translation through a mocked completion.
-They are not live model, scientific, or complete baseline evidence. Namespaced
-aliases and component-terminal descriptions are observable adaptations: freeze
-consistent aliases for comparative arms or disclose this interface difference;
-do not silently claim byte-identical model tool surfaces.
-
-`prepare_research_control_workspace` now supplies a runnable prepared-workspace
-control entry point. It binds the common public question and frozen intent,
-exposes each component's initial file/observation catalog without importing its
-private specialist prompts, and returns exact checkpoint references to the model.
-The trusted executor-side extractor records produced resource hashes and the
-exact subset consumed from observed cross-workspace checkpoints, not a
-model-declared lineage or whatever producer version happens to be latest. It must
-include consumed source, interfaces and other premises, not merely a convenient
-file. A final
-`submit_research_result` selects checkpoints and preserves the model's unchanged
-Markdown report in the existing session store. A mismatched input join returns
-to the same conversation; the model can select an earlier consistent set or
-author and execute revised artifacts. A later producer checkpoint is also valid
-if every consumed resource is unchanged; an unrelated note or readiness rationale
-does not force another execution. The original consumed checkpoint remains in the
-provenance and is never rewritten to the newer one. No routing agent, content patch, automatic
-retry or additional model loop is involved.
-
-An empty selection can submit an honest partial report; structural submission
-never means the task passed. Frozen task intent is retained, independent-role
-review is false, and external gold must still assess all required dimensions.
-Lean results receive no automatic proof promotion. The default control is
-free-planning; explicit caller-supplied workflow instructions form the distinct
-same-workflow condition. Context catalogs and checkpoint-reference annotations
-are observable model inputs and must be matched or disclosed in the study.
-
-Scripted-model integration tests execute real local Python and R against an exact
-immutable theory snapshot, reject a final join with changed consumed bytes, and
-allow either a consistent earlier selection or a later checkpoint with only an
-unrelated note, without rerunning the source. A separately pinned local-Qwen
-synthetic probe at `0b83e790` (before the resource-selective join refinement)
-completed two model turns/four tool calls,
-selected its actual checkpoint and wrote a Markdown report. Neither exercise is
-a statistical benchmark, independently reviewed theory or complete baseline
-efficacy evidence.
-
-Complete application-level study assembly is still unfinished: the real
-multi-estimator exploratory path above does not establish parity with all
-research executors and interventions. Configure context dependencies, source
-horizons, independent gold and matched resources across arms, then run fresh
-research tasks. Dynamic Theory/ABI input exposure is implemented, but it does not
-establish mathematical fidelity, independent review or complete-task acceptance.
-Raw component checkpoints
-also differ from finalized isolated-owner packets; never manufacture the latter
-or independent-review credit to fit a scoring adapter.
-Do not treat the low-level API or its tests as those experiments. Official studies
-remain unactivated; freeze tool parity, context, authority and resources before
-scientific draws.
+Namespaced aliases, component-terminal descriptions, context catalogs and shared
+history are observable interventions. Match or disclose them rather than claim
+byte-identical model inputs. Scripted production-binding tests execute real
+Python/R and test exact joins, failures, self-review and frozen execution; these
+are mechanism evidence. The separate local-Qwen probe in
+[local testing](local_qwen_testing.md#single-context-control-probe) is also synthetic,
+not independently accepted research or baseline efficacy. Official studies remain
+unactivated until prospective tools, contexts, authority and resources are fixed.
 
 The full system can have separate role contexts while executing serially; this
 does not demonstrate parallel speedup. A concurrency experiment requires actual

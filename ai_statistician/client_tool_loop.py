@@ -7,14 +7,13 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Generic, Mapping, Sequence, TypeVar
 
-from .agent_runtime import LocalModelCallBudgetExceeded, agent_runtime_substage
+from .agent_runtime import agent_runtime_substage
 from .fingerprint import stable_hash
 from .model_backend import (
     ClientToolCall,
     ClientToolDefinition,
     ClientToolTurnRequest,
     ClientToolTurnResponse,
-    LiveGeneratorTimeoutError,
 )
 
 
@@ -1106,8 +1105,6 @@ def run_bounded_client_tool_loop(
                     )
                 )
             except Exception as exc:
-                if not _is_terminal_provider_turn_error(exc):
-                    raise
                 provider_failure = (type(exc).__name__, type(exc).__module__)
             if provider_failure is not None:
                 exception_type, exception_module = provider_failure
@@ -1547,13 +1544,6 @@ def _compact_tool_response_metadata(
         for key in keys
         if key in metadata
     }
-
-
-def _is_terminal_provider_turn_error(exc: Exception) -> bool:
-    if isinstance(exc, (LiveGeneratorTimeoutError, LocalModelCallBudgetExceeded)):
-        return True
-    provider_module = type(exc).__module__.split(".", 1)[0].lower()
-    return provider_module in {"anthropic", "httpcore", "httpx", "openai"}
 
 
 def _provider_usage_totals(

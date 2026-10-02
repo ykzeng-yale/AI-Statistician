@@ -1870,11 +1870,15 @@ def test_bounded_client_tool_loop_returns_only_declared_input_errors_to_model() 
     assert exc.value.__context__ is None
 
 
-def test_terminal_provider_error_preserves_pending_workspace_input(tmp_path) -> None:
+@pytest.mark.parametrize("failure", [
+    LiveGeneratorTimeoutError("private provider detail"), RuntimeError("private provider detail"),
+    ValueError("private provider detail"), OSError("private provider detail"),
+])
+def test_terminal_provider_error_preserves_pending_workspace_input(tmp_path, failure) -> None:
     backend = ScriptedToolTurnBackend(
         [
             _response(ClientToolCall("call-edit", "edit", {})),
-            LiveGeneratorTimeoutError("private provider detail"),
+            failure,
         ]
     )
 
@@ -1902,6 +1906,8 @@ def test_terminal_provider_error_preserves_pending_workspace_input(tmp_path) -> 
     ]
     assert error.history[-1]["stop_reason"] == "provider_terminal_error"
     metadata = error.history[-1]["response_metadata"]
+    assert metadata["exception_type"] == type(failure).__name__
+    assert metadata["exception_module"] == type(failure).__module__
     assert metadata["pending_workspace_input_preserved"] is True
     assert metadata["automatic_turn_restart"] is False
     assert "private provider detail" not in str(error)
