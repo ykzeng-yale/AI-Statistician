@@ -1,5 +1,6 @@
 # OpenAI Codex Harness Adoption
-Updated: 2026-09-11. Latest selectively inspected upstream:
+Updated: 2026-10-02 for model policy; upstream inspection remains 2026-09-11.
+Latest selectively inspected upstream:
 [`openai/codex` at `654b0a77`](https://github.com/openai/codex/tree/654b0a77d0d2f81aa21f61caf7af4be88fe550bb),
 Apache-2.0. This review inspected tool routing and execution/concurrency lifetime,
 not every change since the earlier `8e6a44b4` audit. The step that advertises a
@@ -15,15 +16,16 @@ instruction transcript.
 
 ## Decision
 
-Reuse Codex's harness invariants inside AI Statistician's native Anthropic-backed
+Reuse Codex's harness invariants inside AI Statistician's native model/tool
 workspaces. Do not embed Codex Core, App Server, Responses transport, thread store,
 worktree manager, Guardian, or multi-agent scheduler.
 
 Codex is a general software-agent runtime. It does not supply statistical semantics,
 scientific evaluation authority, a theory-development method, or Lean theorem
 identity. Importing its product runtime would add a second conversation owner, tool
-router, provider contract, and scheduler while the frozen product and evaluation
-contract requires native Claude Haiku. Selective reuse gives us the useful behavior
+router, provider contract, and scheduler. New tests and official studies use the
+pinned local Qwen deployment; historical Haiku runs are archived, not scientific
+baselines or gates on these studies. Selective reuse gives us the useful behavior
 without duplicating the control plane.
 
 ## Adopted Invariants
@@ -81,7 +83,7 @@ without duplicating the control plane.
 | `run_turn` model/tool continuation | `client_tool_loop.run_bounded_client_tool_loop` |
 | `ToolRouter` model-visible specification plus executable registry | ordered `ClientToolDefinition` values plus the workspace execution callback |
 | turn-scoped model-visible tool plan | `ClientToolTurnRequest` plus workspace-specific `ClientToolDefinition` values |
-| function-call output returned to the model | `ClientToolExecutionResult` appended to the same Anthropic message history |
+| function-call output returned to the model | `ClientToolExecutionResult` appended to the same retained message history |
 | model-actionable versus fatal tool failure | `ClientToolInputError` versus `ClientToolRuntimeError` |
 | external file edits and `apply_patch` semantics | model-authored hash-bound whole-file writes or atomic exact-edit batches; Python/R and Lean target/support manifests open first, exact files are read on demand, and accepted Lean projects persist as content-addressed references |
 | thread persistence and context windows | root-authorized `ClientToolWorkspaceSessionRef`, durable checkpoints, exact observation files and linked parent-window reads; model context is not the durable archive |
@@ -195,17 +197,13 @@ mutable workspace. That change needs a concurrency test and a measured benefit.
   pretending it is a stateless LLM would make execution lineage ambiguous.
 
 These exclusions are not claims that the components are poor. They preserve the
-single-runtime, exact-Haiku, and verifier-owned authority contracts of this project.
+single-runtime, exact-model, and verifier-owned authority contracts of this project.
 
 ## Current Assessment
 
 The inner harness is no longer the main architecture blocker. It preserves exact files, capability-matched tools and instructions, root authorization, durable-state-bound transcript continuation, isolated review, and bounded continuation. Theory owners can create, inspect, edit, or hash-safely remove their Markdown/LaTeX files, with removal lineage surviving same-owner checkpoints instead of leaving obsolete mathematics active. Theory owners and isolated referees choose document, source, scratch, and submission work under one shared turn/tool boundary; no tool kind has a separate attempt quota. The scientific-code reviewer likewise chooses hash-bound exact source and Theory reads/searches, source retrieval, native falsification probes, and terminal submission in one retained session under general turn, tool, and no-progress bounds; invalid submissions return their complete observations, every distinct material finding is reportable, and no reviewer-local retry or finding quota selects the investigation. The final Critic now follows that same retained read/search/submit contract: one strict tool schema is its sole structured ABI, complete validator observations return in-session, coordination scope is explicit, and hypotheses or findings have no arbitrary count quota. Algorithm and Simulation now each have one runtime-owned intent followed by one retained Python/R source workspace rather than a stateless structured planner: the Algorithm model chooses implementation, diagnostics, complete project, executions, and revisions; the Simulation model chooses the DGP, diagnostics, precision, complete project, executions, and revisions; runtime binds estimator and metric authority, seed disclosure, review, and cohort identity. Formalizer likewise has one direct retained Lean workspace rather than an unused structured-proposal JSON path: target/support files use model-selected compile order and incremental `.olean` reuse, raw candidate/provider diagnostics and preceding independent-review findings return to the same source owner without a candidate-diagnostic field whitelist, and duplicate source plus runtime-authored routing are omitted. Its isolated target-semantic reviewer now reads hash-verified Theory Markdown/LaTeX and exact Lean evidence through one retained read/search/submit session; invalid submissions return to that same reviewer, every material defect is reportable, and no static replay or whole-packet regeneration path remains. The unreferenced generic packet-regeneration module is deleted; only local JSON reading and typed validation observations remain. No task-derived Lean query or declaration retrieval runs before the first model turn. The model chooses Statlib/Mathlib search and proof search; for OpenProver it also supplies the exact current context and target from its own Lean observation, so no hidden normalizer model or packet regeneration can reinterpret the action. AI4SLT state-action context is attached only to that selected proof-search action after a current hash-bound goal or diagnostic exists. The exact model query, goal observation, optional model-authored header, and explicit source scope reach the provider without runtime Lean parsing, while semantic review and kernel promotion bind and cleanly replay the same content-addressed project. Same-owner progress and author-review-author feedback stay inside independently bounded collaboration segments; execution lineage remains cumulative, and accepted evidence entering another lane and cross-artifact conflicts remain outer graph transitions.
 For file-backed Theory revisions, the isolated referee may request an exact parent-to-current unified diff from the immutable checkpoint manifest; the diff is navigation only, current candidate ranges remain mandatory review input, and neither a changed hunk nor its hash is mathematical evidence.
 Fresh unfrozen tasks now receive one Architect-authored four-dimension capability plan over only configured workspaces; frozen operator intent wins, model-owned dimensions remain revisable on genuine replans, and the provider schema is the sole structural contract.
-Earlier Task111-113 outcomes remain immutable in their evaluation records and Git history.
-They distinguish finite exploratory readiness from theory acceptance and execution
-observations from mathematical authority; they do not establish research-E2E success.
-
 For future tasks, a probe failure before target invocation cannot support a source judgment. Reviewer-authored Python or R probes now invoke exact immutable candidates
 with native request and response values in the same runtime; only final probe metrics cross the JSON boundary. A source-only finding returns to its immutable source owner
 under the sole AgentRuntime budget; only a genuine cross-artifact conflict reaches Architect, and outer exhaustion preserves the pending task. Confirmatory Simulation

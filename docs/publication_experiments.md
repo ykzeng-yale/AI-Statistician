@@ -185,7 +185,8 @@ verdicts, missing dimensions, wrong submitted results and a native final snapsho
 after author-directory mutation. Referee verdicts are scripted mechanism fixtures,
 not mathematical qualification or a live model experiment. Complete arm configuration,
 calibrated full-task authority, matched confirmation/tools/resources, host activation
-and study CLI remain unfinished; neither publication study is activated. Do not
+and complete multi-arm study orchestration remain unfinished; neither publication
+study is activated. Do not
 use the new entry to reevaluate any consumed legacy task or qualification.
 
 ### Current Control Implementation
@@ -209,6 +210,50 @@ and source but does not salvage earlier checkpoints as a final submission. The
 same draw directory cannot be overwritten or resumed. Deployment weights,
 runtime, template, hardware, scientific gold and the complete other-arm
 configuration still belong to the prospective study caller.
+
+The thin control command uses these existing preparations and the trusted final
+reader; it is not a new scheduler or an automatic scientific experiment:
+
+```bash
+.venv/bin/python -m benchmarks.publication.control_cli \
+  --config /absolute/path/to/prospective-control.json \
+  --out /absolute/path/to/fresh-draw
+```
+
+Its credential-free JSON configuration declares `question_ref`, `question_id`,
+`deployment_ref`, `mode`, `workflow_instructions`, `backend`, `request`, `roles`,
+`estimator_ids`, `execution` and `limits`. File references contain `path`,
+`sha256` and `byte_size`; relative paths resolve beside the configuration. The
+existing question loader selects exactly one ID. `mode` is `free_planning` with
+no workflow text, or `same_workflow` with the caller's prospectively fixed text;
+the command cannot establish that the latter actually matches another arm.
+`backend` uses the existing loopback local transport. `request` supplies the
+shared system prompt and model/decoding settings, without messages or tools.
+`roles` supplies the existing `theory`, `algorithm`, `simulation` configurations
+and optional `theory_reviewer`/`code_reviewer` self-review configurations, all
+explicitly local and bound to the shared model and temperature. Theory's serious
+model/tier must also be explicit and local. `execution`/`limits` pass only the
+existing draw settings; there is no automatic cap, retry or model escalation.
+
+Optional `source_snapshot_ref` uses the existing hash-bound source loader;
+optional `source_discovery` declares the existing public discovery configuration
+and a fresh `state_dir` outside the exclusive draw directory. The command does
+not inherit another draw's discovery cache or supply a GitHub credential. Live
+discovery is not a sealed historical corpus; use frozen snapshots for blinded
+tasks. The study must prospectively fix source/tool access across arms.
+
+The deployment file is a caller declaration, not attestation. Before any live
+call, confirm actual weights, quantization, runtime, template and hardware using
+the [local deployment checks](local_qwen_testing.md). Hashing a declaration and
+matching a server's model name cannot prove those pins or qualify scientific
+authority. The command freezes its input identities, declared deployment and
+actual resolved tools/configuration before inference. It saves `final_material.json`
+only for the actual final selection, projecting unchanged Markdown, exact
+estimator bindings and submitted simulation rows through the common read-only
+projector. Missing material stays missing; no earlier success is substituted.
+Exit zero means a final selection was collected, not that any required science
+passed. External evaluation is never called by this command. Failed runs retain
+the existing observations/result and cannot be overwritten or resumed here.
 
 [OneFlow](https://arxiv.org/html/2601.12307v1) motivates a distinct same-workflow
 single-context control, not the free-planning general agent. Shared self-review
@@ -270,7 +315,8 @@ and graph request budget; no review model is invoked separately.
 Formalizer exposes prepared actions, but dynamic Lean binding is not part of this entry.
 It rejects required-formal tasks rather than weakening them. Complete matched
 arm configurations, the no-cross-role-feedback intervention, confirmation/resource
-envelopes, independent full-task gold and study CLI remain unfinished. Empty
+envelopes, independent full-task gold and complete multi-arm study orchestration
+remain unfinished. Empty
 selections cannot pass missing required dimensions. Do not label arbitrary
 workflow text as matching the full product, compare this control to an
 unrestricted system, or manufacture finalized role packets to fit a score adapter.

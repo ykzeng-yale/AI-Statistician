@@ -9,7 +9,7 @@ from copy import deepcopy
 from dataclasses import asdict
 import json
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from ai_statistician.agent_runtime import (
     AgentRuntime, AgentRuntimeResult, AgentStepResult, AgentTask, BlackboardState,
@@ -30,6 +30,7 @@ def run_single_context_research_draw(
     timeout_s: int, max_turns: int, max_tool_calls: int, max_no_progress_turns: int,
     local_model_call_limit: int | None = None, workflow_instructions: str = "",
     theory_reviewer: Any = None, code_reviewer: Any = None, confirmatory_seeds: Sequence[int] = (),
+    study_provenance: Mapping[str, Any] | None = None,
 ) -> tuple[AgentRuntimeResult, dict[str, Any] | None]:
     """Run actual production actions in one model-owned conversation.
 
@@ -77,6 +78,7 @@ def run_single_context_research_draw(
         "timeout_seconds": timeout_s, "confirmatory_seeds": list(confirmatory_seeds),
         "provider": backend.provider_name, "backend_class": type(backend).__qualname__,
         "base_url": getattr(backend, "base_url", None),
+        "study_provenance": deepcopy(dict(study_provenance or {})),
         "authority": "one_control_draw_not_scientific_acceptance",
     }
     frozen_hash = stable_hash(frozen)
