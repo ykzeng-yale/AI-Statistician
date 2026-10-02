@@ -1,0 +1,6 @@
+# Failed preparation attempt 2, not a qualified installation recipe.
+# The paper pins runtime requirements but not its isolated build environment.
+# These constraints remove the compiler API error but do not resolve BLAS.
+setuptools==59.8.0
+Cython==3.0.8
+numpy==1.26.4

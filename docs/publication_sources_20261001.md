@@ -1,6 +1,6 @@
 # Publication Sources And Reuse Decisions
 
-Checked 2026-10-01. This is a focused continuation of the local collection and
+Checked 2026-10-02. This is a focused continuation of the local collection and
 [previous reuse audit](research_harness_reuse_strategy.md), not an exhaustive
 survey of all publications. Read primary methods/limitations and inspect relevant
 code before adopting a component. Website claims and published scores are not our
@@ -37,6 +37,22 @@ experimental results. Pins below are observed upstream HEADs, not dependencies.
 | [LeanMarathon](https://arxiv.org/abs/2606.05400) | Durable dependencies for long formal developments | Use only for sufficiently long proof work; not a mandatory graph for every small task |
 
 ## Code Pins And Licensing
+
+New independent reference preparation uses
+[RepliSims](https://arxiv.org/abs/2307.02052) and published JSS archives for
+[scikit-fda](https://www.jstatsoft.org/article/view/v109i02) and
+[bizicount](https://www.jstatsoft.org/article/view/v109i01). RepliSims assesses
+replicability, not correctness of the original methods; neither those reports nor
+package tests provide mathematical gold. The
+[preparation record](../benchmarks/publication_reference_qualification_20261002/README.md)
+pins six candidate sources, archive/source hashes, rights limits and actual
+terminal outcomes. No full reference has yet qualified: Austin has two failing
+branches and one runnable narrow probe; scikit-fda has three failed environment
+attempts; bizicount has a package/session version mismatch; the other three
+repositories have unresolved code rights. No author algorithm was patched, no
+model was called, and no study or test split was activated. The already consumed
+DoubleML paper family is excluded from the fresh test pool. This preparation is
+evaluator work, not product research autonomy or a new runtime dependency.
 
 GitHub API metadata/tree and selected source files were checked. No missing
 license is interpreted as permission to copy. Existing earlier pin audits remain
