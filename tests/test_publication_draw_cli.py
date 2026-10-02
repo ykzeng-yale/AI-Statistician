@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 import pytest
 
 from ai_statistician.fingerprint import stable_hash
-from benchmarks.publication.control_cli import main
+from benchmarks.publication.draw_cli import main
 
 
 MODEL = "Qwen3-4B-Instruct-2507"
@@ -286,3 +286,165 @@ def test_discovery_cannot_reuse_another_draw_or_precreate_this_one(tmp_path, mon
     with pytest.raises(ValueError, match="fresh and outside"):
         invoke(tmp_path, config)
     assert not (tmp_path / "draw").exists()
+
+
+def collaborative_configuration(tmp_path, monkeypatch):
+    config = configuration(tmp_path, monkeypatch, reviewers=True)
+    for key in ("request", "workflow_instructions", "estimator_ids", "execution", "limits"):
+        del config[key]
+    question = json.loads((tmp_path / "questions.json").read_text())[0]
+    question["task_intent"].update(source_replication="not_applicable", novelty="not_applicable")
+    config["question_ref"] = write_reference(tmp_path / "questions.json", [question])
+    config["mode"] = "full_collaboration"
+    common = dict(config["roles"]["algorithm"])
+    config["roles"].update(architect={**common, "metric_semantic_reviewer_model": MODEL,
+        "metric_semantic_reviewer_model_tier": "local"}, critic=dict(common))
+    config["runtime"] = {"evaluation_mode": "research_eval", "evaluation_provider": "local",
+        "evaluation_model_tier": "local", "evaluation_model": MODEL, "max_iterations": 4,
+        "local_model_call_limit": 1, "n_runs": 3, "seed": 7, "theory_scratch_enabled": False}
+    config["architect_context"] = {"opaque_declared_context": "not a scientific answer"}
+    return config
+
+
+@pytest.mark.parametrize("failure", ["budget", "http", "model"])
+def test_full_cli_runs_actual_production_graph_with_one_shared_local_budget(tmp_path, monkeypatch, capsys, failure):
+    config = collaborative_configuration(tmp_path, monkeypatch)
+    requests, freezes = wire(monkeypatch, tmp_path, [("write_theory_document", {
+        "path": "claim.md", "content": "# Incomplete production work\n"})], failure=failure)
+    assert invoke(tmp_path, config) == 1
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "BLOCKED"
+    assert summary["final_material_ref"] is None and summary["scientific_evaluation_performed"] is False
+    assert summary["local_model_usage"]["attempted_requests"] == len(requests) == 1
+    if failure == "budget":
+        assert summary["local_model_usage"]["denied_requests"] == 1
+    frozen = freezes[0]
+    assert frozen["mode"] == "full_collaboration"
+    assert frozen["runtime_config"]["local_model_call_limit"] == 1
+    assert frozen["architect_context"] == config["architect_context"]
+    assert set(frozen["role_configs"]) == set(config["roles"])
+    assert {row["function"]["name"] for row in requests[0]["tools"]} >= {"write_theory_document", "commit_theory_checkpoint"}
+    assert all(not row["function"]["name"].startswith("theory__") for row in requests[0]["tools"])
+    from ai_statistician.agent_runtime import load_persisted_runtime_result
+    paths = list((tmp_path / "draw" / "author").glob("*_runtime_result.json"))
+    assert len(paths) == 1
+    result = load_persisted_runtime_result(paths[0])
+    assert result["blackboard"]["evidence_ledger"]
+    assert all(row["status"] == "VALIDATION_FAILED_RECORDED_NOT_THEORY_OR_PROOF_EVIDENCE"
+               for row in result["blackboard"]["evidence_ledger"])
+    assert bool(result["pending_task"]) is (failure == "budget")
+    assert result["traces"][0]["subsystem"] == "TheoryDeveloper"
+    assert not (tmp_path / "draw" / "final_material.json").exists()
+    saved = {path: path.read_bytes() for path in (tmp_path / "draw").rglob("*") if path.is_file()}
+    with pytest.raises(FileExistsError):
+        invoke(tmp_path, config)
+    assert len(requests) == 1 and all(path.read_bytes() == raw for path, raw in saved.items())
+
+
+@pytest.mark.parametrize("defect", ["missing_reviewer", "critic_cloud", "architect_review_model", "runtime_model",
+                                  "runtime_provider", "debug", "budget_zero", "budget_bool", "required_formal", "control_request"])
+def test_full_cli_rejects_invalid_composition_before_inference(tmp_path, monkeypatch, defect):
+    config = collaborative_configuration(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr("urllib.request.build_opener", lambda *args: calls.append(args))
+    if defect == "missing_reviewer":
+        del config["roles"]["theory_reviewer"]
+    elif defect == "critic_cloud":
+        config["roles"]["critic"]["provider_name"] = "anthropic"
+    elif defect == "architect_review_model":
+        config["roles"]["architect"]["metric_semantic_reviewer_model"] = "other-model"
+    elif defect == "runtime_model":
+        config["runtime"]["evaluation_model"] = "other-model"
+    elif defect == "runtime_provider":
+        config["runtime"]["evaluation_provider"] = "anthropic"
+    elif defect == "debug":
+        config["runtime"]["evaluation_mode"] = "debug"
+    elif defect in {"budget_zero", "budget_bool"}:
+        config["runtime"]["local_model_call_limit"] = 0 if defect == "budget_zero" else True
+    elif defect == "required_formal":
+        question = json.loads((tmp_path / "questions.json").read_text())[0]
+        question["task_intent"]["formal"] = "required"
+        config["question_ref"] = write_reference(tmp_path / "questions.json", [question])
+    else:
+        config["request"] = {}
+    with pytest.raises((ValueError, TypeError)):
+        invoke(tmp_path, config)
+    assert calls == [] and not (tmp_path / "draw").exists()
+
+
+def scripted_terminal(monkeypatch, *, status, defect=""):
+    """Scripted sole-runtime/persistence fixture, never a model or acceptance claim."""
+    from ai_statistician.agent_runtime import AgentRuntime, AgentStepResult, AgentTask, BlackboardState, runtime_artifact_reference
+    from ai_statistician.research_agent_runtime import _persist_runtime_artifact_store
+    from ai_statistician.research_schema import research_question_payload
+
+    assessment = {"artifact_kind": "CriticEvaluatorProposalPacket", "packet_id": "assessment",
+                  "canonical_evidence_view_hash": "opaque-view", "opaque_referee_note": "All scientific questions unresolved."}
+
+    def run(questions, out_dir, **kwargs):
+        question = questions[0]
+        assert kwargs["architect_coordinator"].metric_semantic_reviewer.provider is kwargs["theory_developer"].provider
+        board = BlackboardState(project_id="scripted-production-selection")
+        board.artifacts["unselected"] = {"artifact_kind": "OpaqueTheory", "content": "never substitute this"}
+
+        class FinalCritic:
+            name = "CriticEvaluator"
+
+            def run(self, task, blackboard):
+                manifest = {"artifact_kind": "RuntimeCriticEvaluatorManifest", "manifest_id": "critic",
+                    "question": research_question_payload(question, include_task_intent=True),
+                    "llm_critic_evaluator_proposal_id": "assessment", "canonical_evidence_view_hash": "opaque-view",
+                    "submission_artifact_refs": {"assessment": runtime_artifact_reference("assessment", assessment)}}
+                if defect == "selection":
+                    manifest["submission_artifact_refs"]["assessment"]["content_hash"] = "different"
+                return AgentStepResult(status=status, rationale="Scripted terminal, no scientific adjudication.",
+                    produced_artifacts={"assessment": assessment, **({} if defect == "no_submission" else {"critic": manifest})})
+
+        result = AgentRuntime(subsystems={"CriticEvaluator": FinalCritic()}, blackboard=board).run(
+            AgentTask("final", "CriticEvaluator", "Collect an unresolved fixture."), max_iterations=1,
+            local_model_call_limit=kwargs["config"].local_model_call_limit)
+        persisted = result.to_json()
+        refs, index = _persist_runtime_artifact_store(artifacts=board.artifacts, out_dir=out_dir, question_id=question.id)
+        persisted["blackboard"]["artifacts"] = refs
+        persisted["blackboard_artifact_payload_policy"] = "content_addressed_refs"
+        persisted["blackboard_artifact_store_index"] = str(index)
+        path = out_dir / "scripted_runtime_result.json"
+        path.write_text(json.dumps(persisted))
+        if defect == "stored_hash":
+            Path(refs["assessment"]["path"]).write_text(json.dumps({**assessment, "opaque_referee_note": "changed"}))
+        return {"artifacts": {"per_question_results": [str(path)]}}
+
+    monkeypatch.setattr("benchmarks.publication.run_collaborative_draw.run_research_agent_runtime", run)
+    return assessment
+
+
+@pytest.mark.parametrize("status", ["ACCEPTED", "BLOCKED", "FAILED"])
+def test_full_cli_collects_only_bound_final_selection_without_promoting_internal_verdict(tmp_path, monkeypatch, capsys, status):
+    config = collaborative_configuration(tmp_path, monkeypatch)
+    assessment = scripted_terminal(monkeypatch, status=status)
+    assert invoke(tmp_path, config) == 0
+    summary = json.loads(capsys.readouterr().out)
+    ref = summary["final_material_ref"]
+    raw = Path(ref["path"]).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == ref["sha256"] and len(raw) == ref["byte_size"]
+    material = json.loads(raw)
+    assert material["assessment"] == assessment and "report_markdown" not in material
+    assert material["source_kind"] == "runtime"
+    assert material["submission_identity"]["internal_status"] == status
+    assert set(material["submission_identity"]["selected_artifact_refs"]) == {"assessment"}
+    assert material["material"] == {"theory_documents": [], "estimator_bindings": [], "empirical_artifact": None}
+    assert summary["scientific_evaluation_performed"] is False and summary["local_model_usage"]["attempted_requests"] == 0
+    assert material["authority"] == "selected_final_material_not_scientific_acceptance"
+
+
+@pytest.mark.parametrize("defect", ["no_submission", "selection", "stored_hash"])
+def test_full_cli_does_not_salvage_absent_or_changed_terminal_material(tmp_path, monkeypatch, capsys, defect):
+    config = collaborative_configuration(tmp_path, monkeypatch)
+    scripted_terminal(monkeypatch, status="BLOCKED", defect=defect)
+    if defect == "no_submission":
+        assert invoke(tmp_path, config) == 1
+        assert json.loads(capsys.readouterr().out)["final_material_ref"] is None
+    else:
+        with pytest.raises(ValueError):
+            invoke(tmp_path, config)
+    assert not (tmp_path / "draw" / "final_material.json").exists()

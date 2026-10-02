@@ -189,7 +189,7 @@ and complete multi-arm study orchestration remain unfinished; neither publicatio
 study is activated. Do not
 use the new entry to reevaluate any consumed legacy task or qualification.
 
-### Current Control Implementation
+### Current Draw Implementations
 
 `benchmarks/publication/run_control_draw.py:run_single_context_research_draw`
 runs the actual Theory, estimator and Simulation actions through one
@@ -211,22 +211,24 @@ same draw directory cannot be overwritten or resumed. Deployment weights,
 runtime, template, hardware, scientific gold and the complete other-arm
 configuration still belong to the prospective study caller.
 
-The thin control command uses these existing preparations and the trusted final
-reader; it is not a new scheduler or an automatic scientific experiment:
+The unified draw command uses these preparations or the existing complete
+production runtime, then its trusted final reader. It is not another scheduler
+or an automatic scientific experiment:
 
 ```bash
-.venv/bin/python -m benchmarks.publication.control_cli \
-  --config /absolute/path/to/prospective-control.json \
+.venv/bin/python -m benchmarks.publication.draw_cli \
+  --config /absolute/path/to/prospective-draw.json \
   --out /absolute/path/to/fresh-draw
 ```
 
 Its credential-free JSON configuration declares `question_ref`, `question_id`,
-`deployment_ref`, `mode`, `workflow_instructions`, `backend`, `request`, `roles`,
-`estimator_ids`, `execution` and `limits`. File references contain `path`,
+`deployment_ref`, `mode`, `backend` and `roles`. File references contain `path`,
 `sha256` and `byte_size`; relative paths resolve beside the configuration. The
-existing question loader selects exactly one ID. `mode` is `free_planning` with
-no workflow text, or `same_workflow` with the caller's prospectively fixed text;
-the command cannot establish that the latter actually matches another arm.
+existing question loader selects exactly one ID. For controls, `mode` is
+`free_planning` with no workflow text, or `same_workflow` with the caller's fixed
+`workflow_instructions`. These additionally declare `request`, `estimator_ids`,
+`execution` and `limits`. The command cannot establish that `same_workflow`
+instructions actually match another arm.
 `backend` uses the existing loopback local transport. `request` supplies the
 shared system prompt and model/decoding settings, without messages or tools.
 `roles` supplies the existing `theory`, `algorithm`, `simulation` configurations
@@ -234,6 +236,19 @@ and optional `theory_reviewer`/`code_reviewer` self-review configurations, all
 explicitly local and bound to the shared model and temperature. Theory's serious
 model/tier must also be explicit and local. `execution`/`limits` pass only the
 existing draw settings; there is no automatic cap, retry or model escalation.
+
+`full_collaboration` instead requires the existing `runtime` configuration and
+optionally `architect_context`, not control-only fields. Its seven role configs
+are `theory`, `algorithm`, `simulation`, `theory_reviewer`, `code_reviewer`,
+`architect` and `critic`, all explicitly bound to the same local deployment.
+Theory's serious configuration and Architect's reviewer configuration must also
+be explicit/local. Role decoding settings remain those declared for the actual
+production agents. The runtime must declare `research_eval` and its same local
+evaluation model/tier/provider. The existing isolated reviewers and complete
+handoff policy run unchanged in the sole `AgentRuntime`; no acceptance receipts
+are fabricated or bypassed. Resolved runtime, role configs and context are frozen
+before the first call. Actual prompts/tools remain in production session contracts
+and request records, not a purported byte-identical single-context prompt.
 
 Optional `source_snapshot_ref` uses the existing hash-bound source loader;
 optional `source_discovery` declares the existing public discovery configuration
@@ -247,10 +262,14 @@ call, confirm actual weights, quantization, runtime, template and hardware using
 the [local deployment checks](local_qwen_testing.md). Hashing a declaration and
 matching a server's model name cannot prove those pins or qualify scientific
 authority. The command freezes its input identities, declared deployment and
-actual resolved tools/configuration before inference. It saves `final_material.json`
+resolved configuration before inference. It saves `final_material.json`
 only for the actual final selection, projecting unchanged Markdown, exact
 estimator bindings and submitted simulation rows through the common read-only
-projector. Missing material stays missing; no earlier success is substituted.
+projector. The control Markdown report or production Critic assessment stays
+unchanged and is bound to the actual terminal selection. Production `ACCEPTED`,
+`BLOCKED` and `FAILED` submissions are collected without crediting their internal
+verdict; a pending/nonterminal graph has no final submission. Missing material
+stays missing; no earlier success is substituted.
 Exit zero means a final selection was collected, not that any required science
 passed. External evaluation is never called by this command. Failed runs retain
 the existing observations/result and cannot be overwritten or resumed here.
@@ -302,6 +321,10 @@ private transport detail; successful tool observations and source/compiler
 feedback remain unchanged. Mocked local HTTP tests cover completion on the last
 allowed call, exhaustion, transport/model-identity failures, immutable draw
 directories and caller mutation, without inference or scientific adjudication.
+Production-mode tests exercise actual runtime composition and transport failures;
+scripted sole-runtime/persistence fixtures separately test terminal collection.
+Neither is live scientific evidence. Declared confirmation/resource envelopes and
+tool access still need matching across arms; one command does not establish parity.
 
 Configured code-review file/probe tools keep a stable contract before and after
 input binding; execution still rejects unknown or unverified targets. A review
