@@ -336,7 +336,10 @@ same command once through the POSIX experiment entry:
 The child uses `fresh-process-record/draw`; the parent freezes its command,
 configuration identity, Python/entry identities and declared timing conditions
 in `launch.json` before starting it. Raw binary-safe stdout/stderr and a
-hash-bound `terminal.json` retain exit, launch failure, interruption or timeout.
+hash-bound `terminal.json` retain exit, launch failure, Python-level interruption
+or timeout. An external kill that prevents cleanup/sealing can leave a missing
+terminal record and live work; the caller must retain that failure and stop its
+owned processes, not retry or infer completion.
 It does not parse outputs, select artifacts, invoke an evaluator, retry, resume
 or change the sole research graph. No wall cap is added by default. A caller may
 prospectively supply `--wall-seconds` identically across arms; elapsed child time
@@ -348,7 +351,11 @@ those files are retained, not salvaged into a timely submission.
 
 The entry stops only its newly created POSIX process group, including remaining
 in-group children after the CLI exits. This is not sandbox isolation or proof
-that escaped processes have stopped. It does not own/stop the model server;
+that escaped processes have stopped. Existing source/scientific execution tools
+can create separate sessions; their computations may survive an outer stop and
+their output files may still change. The caller must establish their termination
+before collection or the next condition, and record that separate work/cost.
+It does not own/stop the model server;
 a cancelled client request may still be computing there. The prospective caller
 must independently own and stop that server before the next cold-start condition,
 and account for deployment preparation, cache state and any remaining computation.
