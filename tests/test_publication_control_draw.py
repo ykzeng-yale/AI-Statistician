@@ -9,6 +9,7 @@ import pytest
 
 from benchmarks.publication.run_control_draw import run_single_context_research_draw
 from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
+from ai_statistician.client_tool_loop import ClientToolLoopError
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_reviewer_llm import GeneratedCodeSemanticReviewerConfig, LLMGeneratedCodeSemanticReviewerAgent
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend
@@ -143,6 +144,30 @@ def test_control_draw_rejects_cloud_before_preparation(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="local provider"):
         run_single_context_research_draw(**options)
     assert not options["out_dir"].exists()
+
+
+def test_failed_tool_loop_preserves_raw_history_without_accepting_or_restarting(tmp_path, monkeypatch):
+    options = draw_options(tmp_path, monkeypatch)
+    error = ClientToolLoopError(
+        reason="opaque environment failure", turns=1, tool_calls=1, runtime_executed_tool_calls=1,
+        history=[{"tool_calls": [{"name": "opaque-tool", "output": {"stderr": "opaque raw observation"}}]}],
+        messages=[{"role": "user", "content": "unresolved source-owned input"}], provider="local", model=MODEL,
+        observation_refs=[{"path": "opaque-observation", "sha256": "opaque-digest"}])
+    calls = []
+
+    def failed_loop(**kwargs):
+        calls.append(kwargs)
+        raise error
+
+    monkeypatch.setattr("benchmarks.publication.run_control_draw.run_client_tool_workspace", failed_loop)
+    result, submission = run_single_context_research_draw(**options)
+    saved = json.loads((options["out_dir"] / "failed_tool_loop.json").read_text())
+    assert saved["history"] == error.history and saved["messages"] == error.messages
+    assert saved["observation_refs"] == list(error.observation_refs)
+    assert saved["transcript_fingerprint"] == stable_hash(error.messages)
+    assert saved["scientific_evidence"] is False and saved["automatic_restart"] is False
+    assert result.status == "FAILED" and submission is None and len(calls) == 1
+    assert result.blackboard.evidence_ledger == [] and not result.local_model_usage["attempted_requests"]
 
 
 @pytest.mark.parametrize("limit", [1, 2])

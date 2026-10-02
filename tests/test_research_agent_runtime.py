@@ -345,6 +345,24 @@ def test_theory_free_code_context_fails_closed_without_executable_authority() ->
         )
 
 
+@pytest.mark.parametrize("theory_id,gaps,expected", [
+    ("", [], "TheoryDeveloper"),
+    ("", [{"estimator_id": "opaque-estimator"}], "TheoryDeveloper"),
+    ("opaque-theory", [], "TheoryDeveloper"),
+    ("opaque-theory", [{"estimator_id": "opaque-estimator"}], "AlgorithmEngineer"),
+])
+def test_simulation_dependency_uses_the_existing_algorithm_prerequisites(theory_id, gaps, expected):
+    context = {"runtime_requested_evidence_contract": {"dimension_requirements": {
+        "theory": "required", "scientific_code": "required", "empirical": "required"}},
+        "theory_packet_id": theory_id, "implementation_gaps": gaps}
+    board = BlackboardState(project_id="opaque-project")
+    if theory_id:
+        board.artifacts[theory_id] = {"artifact_kind": "OpaqueTheory"}
+    assert runtime_module._architect_feasible_initial_subsystem(
+        "SimulationEvaluator", architect_context=context, blackboard=board,
+        question_id="opaque-project") == expected
+
+
 def test_theory_free_routing_starts_with_code_then_simulation() -> None:
     question = _theory_free_code_question()
     context = runtime_module._runtime_architect_context_with_requested_evidence_contract(

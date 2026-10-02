@@ -14,7 +14,7 @@ from typing import Any, Mapping, Sequence
 from ai_statistician.agent_runtime import (
     AgentRuntime, AgentRuntimeResult, AgentStepResult, AgentTask, BlackboardState,
 )
-from ai_statistician.client_tool_loop import run_client_tool_workspace
+from ai_statistician.client_tool_loop import ClientToolLoopError, run_client_tool_workspace
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import ClientToolTurnRequest
 from ai_statistician.research_control import (
@@ -91,7 +91,19 @@ def run_single_context_research_draw(
 
         def run(self, task, blackboard):
             nonlocal submission
-            loop = run_client_tool_workspace(backend=backend, workspace=workspace)
+            try:
+                loop = run_client_tool_workspace(backend=backend, workspace=workspace)
+            except ClientToolLoopError as exc:
+                with (out_dir / "failed_tool_loop.json").open("x", encoding="utf-8") as stream:
+                    json.dump({"reason": exc.reason, "provider": exc.provider, "model": exc.model,
+                               "turns": exc.turns, "tool_calls": exc.tool_calls,
+                               "runtime_executed_tool_calls": exc.runtime_executed_tool_calls,
+                               "history": exc.history, "messages": exc.messages,
+                               "observation_refs": exc.observation_refs, "provider_usage": exc.provider_usage,
+                               "transcript_fingerprint": exc.transcript_fingerprint,
+                               "final_response_metadata": exc.final_response_metadata,
+                               "scientific_evidence": False, "automatic_restart": False}, stream, indent=2)
+                raise
             submission = load_research_control_submission(loop, question=question, session_dir=session_dir)
             return AgentStepResult(
                 status="REROUTE", rationale="Final selection awaits external scientific evaluation.",

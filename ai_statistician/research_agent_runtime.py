@@ -3914,7 +3914,10 @@ def _architect_feasible_initial_subsystem(
                 blackboard, _architect_context_algorithm_sandbox_manifest_id(architect_context)
             )
         ):
-            return "AlgorithmEngineer"
+            return _architect_feasible_initial_subsystem(
+                "AlgorithmEngineer", architect_context=architect_context,
+                blackboard=blackboard, question_id=question_id,
+            )
         if (
             not theory_not_applicable
             and not _architect_context_theory_packet_id(architect_context)

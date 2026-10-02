@@ -637,7 +637,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                                          for scope in ("algorithm", *(("algorithm_2",) if extra_estimator else ()))]},
         "selected-simulation": {"artifact_kind": "RuntimeSimulationManifest", "manifest_id": "selected-simulation",
                                 "question": public_question, "theory_packet_id": "selected-theory",
-                                "generated_simulation_rows": [deepcopy(simulation_result["prototype"])]},
+                                "generated_simulation_sandbox_prototypes": [deepcopy(simulation_result["prototype"])]},
     }
     graph = AgentRuntime(subsystems={"CriticEvaluator": CriticEvaluatorRuntimeSubsystem(proposal_agent=critic)},
                          blackboard=BlackboardState(project_id=question.id, artifacts=product_artifacts))
