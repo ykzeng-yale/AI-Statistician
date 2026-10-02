@@ -178,6 +178,21 @@ product or label arbitrary workflow text as matching that product's workflow.
 Actual integrated Python/R tests here use scripted turns, not live reasoning or
 publication draws.
 
+Generated-code review now exposes `LLMGeneratedCodeSemanticReviewerAgent.prepare_workspace`.
+The existing isolated `review` driver uses that same preparation and the common
+retained runner, replacing its private prepare-and-run wrapper. Question,
+review material and trusted lineage are snapshotted before request construction;
+later caller mutation cannot change the judged target or resulting fingerprint.
+Its public evidence catalog retains the existing outcome/seed blinding. Actual
+Python/R probe actions and terminal validation can also be bound to the shared
+control without invoking the isolated result handler. A component `ACCEPT` there
+is a self-review observation, not an independent receipt, empirical authority or
+proof. Scripted tests cover direct, prepared and shared execution of identical
+source, raw probe observations and rejected submissions, plus input mutation and
+hidden-value isolation. No model is called. This makes the real code-review
+actions composable; it does not add them dynamically to the application entry
+above or complete matched Theory review, confirmation, Lean or study configuration.
+
 The old per-workspace `run_*` forwarding functions have been removed. Theory and
 Scientific production drivers already used prepare + the common retained runner;
 Formalizer now does the same directly. Its existing source, context, diagnostic,

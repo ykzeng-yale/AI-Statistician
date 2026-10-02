@@ -14,8 +14,10 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    ClientToolLoopResult,
+    PreparedClientToolWorkspace,
     externalize_client_tool_text_documents,
-    run_bounded_client_tool_loop,
+    run_client_tool_workspace,
 )
 from .cross_family_eval_protocol import withhold_confirmatory_evaluation_seed
 from .estimator_interface_contract import (
@@ -803,6 +805,35 @@ class LLMGeneratedCodeSemanticReviewerAgent:
         probe_timeout_s: int = 60,
         research_sources: ResearchSourceSnapshot | None = None,
     ) -> dict[str, Any]:
+        if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
+            raise ValueError(
+                "generated-code semantic review requires native client-tool turns; "
+                "one-shot full-packet generation is not a canonical fallback"
+            )
+        return run_client_tool_workspace(
+            backend=self.provider,
+            workspace=self.prepare_workspace(
+                question=question, review_material=review_material,
+                trusted_lineage=trusted_lineage, probe_sandbox_dir=probe_sandbox_dir,
+                probe_timeout_s=probe_timeout_s, research_sources=research_sources,
+            ),
+        )
+
+    def prepare_workspace(
+        self,
+        *,
+        question: OpenResearchQuestion,
+        review_material: Mapping[str, Any],
+        trusted_lineage: Mapping[str, Any],
+        probe_sandbox_dir: Path | None = None,
+        probe_timeout_s: int = 60,
+        research_sources: ResearchSourceSnapshot | None = None,
+    ) -> PreparedClientToolWorkspace[dict[str, Any]]:
+        """Bind exact observation-only actions without invoking a model driver."""
+
+        question = deepcopy(question)
+        review_material = deepcopy(dict(review_material))
+        trusted_lineage = deepcopy(dict(trusted_lineage))
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
             requested_model=self.config.model,
@@ -829,42 +860,6 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             getattr(self.provider, "provider_name", self.config.provider_name)
             or self.config.provider_name
         ).lower()
-
-        if not callable(getattr(self.provider, "generate_client_tool_turn", None)):
-            raise ValueError(
-                "generated-code semantic review requires native client-tool turns; "
-                "one-shot full-packet generation is not a canonical fallback"
-            )
-        return self._review_with_client_tool_submission(
-            question=question,
-            review_material=review_material,
-            trusted_lineage=trusted_lineage,
-            prompt=prompt,
-            request_model=request_model,
-            provider_name=provider_name,
-            probe_sandbox_dir=probe_sandbox_dir,
-            probe_timeout_s=probe_timeout_s,
-            research_sources=research_sources,
-            evidence_documents=evidence_documents,
-            evidence_catalog=evidence_catalog,
-        )
-
-    def _review_with_client_tool_submission(
-        self,
-        *,
-        question: OpenResearchQuestion,
-        review_material: Mapping[str, Any],
-        trusted_lineage: Mapping[str, Any],
-        prompt: str,
-        request_model: str,
-        provider_name: str,
-        probe_sandbox_dir: Path | None,
-        probe_timeout_s: int,
-        research_sources: ResearchSourceSnapshot | None,
-        evidence_documents: Mapping[str, str],
-        evidence_catalog: Sequence[Mapping[str, Any]],
-    ) -> dict[str, Any]:
-        """Keep executable falsification and verdict in one reviewer session."""
 
         submission_schema = generated_code_semantic_review_json_schema(
             review_material, question=question
@@ -1410,20 +1405,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 ),
             )
 
-        try:
-            loop = run_bounded_client_tool_loop(
-                backend=self.provider,
-                request=request,
-                execute_tool=execute_tool,
-                max_turns=max(1, int(self.config.client_tool_max_turns)),
-                max_tool_calls=max(
-                    1, int(self.config.client_tool_max_tool_calls)
-                ),
-                max_no_progress_turns=max(
-                    1, int(self.config.client_tool_max_no_progress_turns)
-                ),
-            )
-        except ClientToolLoopError as exc:
+        def on_error(exc: ClientToolLoopError) -> dict[str, Any]:
             errors = last_errors or [exc.reason]
             raise PacketValidationError(
                 validation_label="generated-code semantic review packet",
@@ -1432,46 +1414,62 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 history=list(exc.history),
                 last_invalid_packet=last_invalid_packet,
             ) from exc
-        payload = loop.terminal_payload.get("review_payload", {})
-        if not isinstance(payload, Mapping):
-            raise PacketValidationError(
-                validation_label="generated-code semantic review packet",
-                attempts=len(validation_history),
-                errors=["accepted client-tool submission payload is malformed"],
-                history=list(validation_history),
+
+        def on_success(loop: ClientToolLoopResult) -> dict[str, Any]:
+            payload = loop.terminal_payload.get("review_payload", {})
+            if not isinstance(payload, Mapping):
+                raise PacketValidationError(
+                    validation_label="generated-code semantic review packet",
+                    attempts=len(validation_history),
+                    errors=["accepted client-tool submission payload is malformed"],
+                    history=list(validation_history),
+                )
+            packet = normalize_submission(
+                payload, model=loop.model, response_provider=loop.provider
             )
-        packet = normalize_submission(
-            payload, model=loop.model, response_provider=loop.provider
+            packet["validation_errors"] = []
+            packet["ok"] = True
+            packet["client_tool_loop"] = {
+                "transport": "native_same_reviewer_session_v1",
+                "turns": loop.turns,
+                "tool_calls": loop.tool_calls,
+                "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
+                "transcript_fingerprint": loop.transcript_fingerprint,
+                "provider_usage": dict(loop.provider_usage),
+                "validation_submissions": len(validation_history),
+                "validation_feedback_observed": any(
+                    not row.get("ok") for row in validation_history
+                ),
+                "review_probe_executions": probe_executions,
+                "review_probe_execution_fingerprint": stable_hash(probe_executions),
+                "research_source_snapshot": source_descriptor,
+                "research_source_refs": research_source_refs,
+                "research_source_ref_fingerprint": stable_hash(research_source_refs),
+                "evidence_document_count": len(evidence_documents),
+                "evidence_document_catalog_hash": stable_hash(evidence_catalog),
+                "evidence_document_access_count": len(evidence_document_accesses),
+                "evidence_document_access_fingerprint": stable_hash(
+                    evidence_document_accesses
+                ),
+                "fresh_current_source_observation_required": bool(refresh_targets),
+                "refreshed_current_source_artifact_ids": sorted(refreshed_source_ids),
+                "full_packet_regeneration_used": False,
+            }
+            return packet
+
+        return PreparedClientToolWorkspace(
+            request=request, execute_tool=execute_tool,
+            on_success=on_success, on_error=on_error,
+            max_turns=max(1, int(self.config.client_tool_max_turns)),
+            max_tool_calls=max(1, int(self.config.client_tool_max_tool_calls)),
+            max_no_progress_turns=max(1, int(self.config.client_tool_max_no_progress_turns)),
+            session_dir=None, session_id="generated-code-review:" + stable_hash(review_material)[:20],
+            initial_context=deepcopy({
+                "review_evidence_document": compact_evidence_document,
+                "evidence_document_catalog": evidence_catalog,
+                "research_source_snapshot": source_descriptor,
+            }),
         )
-        packet["validation_errors"] = []
-        packet["ok"] = True
-        packet["client_tool_loop"] = {
-            "transport": "native_same_reviewer_session_v1",
-            "turns": loop.turns,
-            "tool_calls": loop.tool_calls,
-            "runtime_executed_tool_calls": loop.runtime_executed_tool_calls,
-            "transcript_fingerprint": loop.transcript_fingerprint,
-            "provider_usage": dict(loop.provider_usage),
-            "validation_submissions": len(validation_history),
-            "validation_feedback_observed": any(
-                not row.get("ok") for row in validation_history
-            ),
-            "review_probe_executions": probe_executions,
-            "review_probe_execution_fingerprint": stable_hash(probe_executions),
-            "research_source_snapshot": source_descriptor,
-            "research_source_refs": research_source_refs,
-            "research_source_ref_fingerprint": stable_hash(research_source_refs),
-            "evidence_document_count": len(evidence_documents),
-            "evidence_document_catalog_hash": stable_hash(evidence_catalog),
-            "evidence_document_access_count": len(evidence_document_accesses),
-            "evidence_document_access_fingerprint": stable_hash(
-                evidence_document_accesses
-            ),
-            "fresh_current_source_observation_required": bool(refresh_targets),
-            "refreshed_current_source_artifact_ids": sorted(refreshed_source_ids),
-            "full_packet_regeneration_used": False,
-        }
-        return packet
 
 
 def _normalize_prior_reviews(

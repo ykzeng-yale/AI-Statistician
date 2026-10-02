@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
 
 import ai_statistician.generated_code_semantic_reviewer_llm as reviewer_module
 
+from ai_statistician.client_tool_loop import run_client_tool_workspace
 from ai_statistician.agent_runtime import AgentTask
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.generated_code_semantic_review_replan import (
@@ -31,13 +33,16 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
 from ai_statistician.packet_validation import PacketValidationError
 from ai_statistician.model_backend import (
     ClientToolCall,
+    ClientToolTurnRequest,
     ClientToolTurnResponse,
 )
+from ai_statistician.research_control import prepare_research_control_workspace
 from ai_statistician.research_schema import (
     OpenResearchQuestion,
     research_question_payload,
 )
 from ai_statistician.scientific_project import scientific_project_hash
+from ai_statistician.scientific_sandbox import discover_scientific_sandbox_runtime
 from ai_statistician.research_source_library import (
     RESEARCH_SOURCE_LIST_TOOL,
     ResearchSourceDocument,
@@ -2954,3 +2959,142 @@ def test_confirmatory_revision_returns_source_and_findings_without_result_values
     assert reviewed["actual_runtime_arguments"]["replicates"] == 80
     assert source_feedback["confirmatory_result_values_withheld_from_source"] is True
     assert "0.2" not in str(reviewed["exact_result_schema"])
+
+
+class PreparedReviewBackend:
+    """Scripted local turns: tool/authority evidence, never model inference."""
+
+    provider_name = "local"
+
+    def __init__(self, probe=None, *, shared=False):
+        self.probe = probe
+        self.shared = shared
+        self.requests = []
+        self.observations = []
+
+    def generate_client_tool_turn(self, request):
+        self.requests.append(request)
+        if isinstance(request.messages[-1].get("content"), list):
+            for block in request.messages[-1]["content"]:
+                if block.get("type") == "tool_result":
+                    content = block["content"]
+                    self.observations.append(json.loads(content if isinstance(content, str) else content[0]["text"]))
+        index = len(self.requests)
+        prefix = "review__" if self.shared else ""
+        if self.probe and index == 1:
+            name, payload = prefix + "run_exact_estimator_review_probe", self.probe
+        elif self.shared and self.observations[-1].get("submitted"):
+            name, payload = "submit_research_result", {
+                "report_markdown": "# Partial report\nA self-review is not independent acceptance.",
+                "selected_checkpoints": {},
+            }
+        else:
+            name = prefix + "submit_generated_code_semantic_review"
+            hashes = [row["result_hash"] for row in self.observations if row.get("successful_exact_invocation")]
+            # First submission deliberately omits the committed probe observation.
+            document = "# Review\nOnly the supplied source is assessed."
+            if any(row.get("error") == "generated_code_semantic_review_submission_rejected" for row in self.observations):
+                document += "\nObserved probe result: " + ", ".join(hashes)
+            payload = {
+                "overall_verdict": "ACCEPT", "review_document": document,
+                "prior_finding_reviews": [], "findings": [],
+                "source_revision_assessment": {
+                    "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT",
+                    "rationale": "No cross-artifact finding is submitted.",
+                },
+            }
+        call = ClientToolCall(call_id="prepared-review:" + str(index), name=name, input=payload)
+        return ClientToolTurnResponse(
+            content_blocks=({"type": "tool_use", "id": call.call_id, "name": name, "input": payload},),
+            tool_calls=(call,), text="", provider="local", model=request.model,
+            metadata={"tools_executed_by_backend": False},
+        )
+
+
+@pytest.mark.parametrize("mode", ["direct", "prepared", "shared"])
+@pytest.mark.parametrize("language,source,probe", [
+    ("python", "def run_estimator(request): return {'value': request['value']}\n",
+     "def run_sandbox(seed, replicates, estimators): return {'observed': estimators['candidate']({'value': 41})['value']}\n"),
+    ("r", "run_estimator <- function(request) list(value=request$value)\n",
+     "run_sandbox <- function(seed, replicates, estimators) list(observed=estimators[['candidate']](list(value=41))$value)\n"),
+])
+def test_actual_reviewer_tools_share_production_validation_without_independent_credit(tmp_path, monkeypatch, mode, language, source, probe):
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("configured scientific language runtime unavailable")
+    material = _algorithm_review_material(language=language, source=source, dependencies=[])
+    lineage = {**_algorithm_lineage(), "source_model": "Qwen3-4B-Instruct-2507", "source_model_tier": "local"}
+    backend = PreparedReviewBackend({"artifact_id": "candidate", "dependencies": [], "code": probe,
+                                    "seed": 17, "replicates": 1}, shared=mode == "shared")
+    agent = LLMGeneratedCodeSemanticReviewerAgent(
+        provider=backend, config=GeneratedCodeSemanticReviewerConfig(
+            model="Qwen3-4B-Instruct-2507", model_tier="local", provider_name="local", temperature=0,
+        ),
+    )
+    arguments = dict(question=_question(), review_material=material, trusted_lineage=lineage,
+                     probe_sandbox_dir=tmp_path / "probe", probe_timeout_s=30)
+    if mode == "direct":
+        packet = agent.review(**arguments)
+    else:
+        prepared = agent.prepare_workspace(**arguments)
+        assert backend.requests == []
+        assert prepared.request.metadata["review_input_fingerprint"] == stable_hash(material)
+        if mode == "prepared":
+            packet = run_client_tool_workspace(backend=backend, workspace=prepared)
+        else:
+            payloads = []
+
+            def forbidden(*args):
+                raise AssertionError("shared actions cannot manufacture independent reviewer receipts")
+
+            def observe(scope, payload):
+                payloads.append(payload)
+                return None
+
+            shared = prepare_research_control_workspace(
+                question=_question(), request=ClientToolTurnRequest(
+                    system_prompt="Common public objective.", messages=(), tools=(),
+                    model=prepared.request.model, temperature=0, max_tokens=5000,
+                ), workspaces={"review": replace(prepared, on_success=forbidden, on_error=forbidden)},
+                checkpoint_bindings=observe, session_dir=tmp_path / "shared", session_id="shared-review",
+                max_turns=8, max_tool_calls=8, max_no_progress_turns=2,
+            )
+            assert shared.request.system_prompt == "Common public objective."
+            result = run_client_tool_workspace(backend=backend, workspace=shared)
+            assert result.terminal_payload["independent_role_review"] is False
+            assert result.terminal_payload["evidence_role"] == "submission_not_scientific_acceptance"
+            assert len(payloads) == 1 and payloads[0]["review_payload"]["overall_verdict"] == "ACCEPT"
+            packet = None
+    executed = next(row for row in backend.observations if row.get("successful_exact_invocation"))
+    assert executed["metrics"] == {"observed": 41}
+    assert executed["estimator_invocation_counts"] == {"candidate": 1}
+    assert executed["target_source_hash"] == stable_hash(source)
+    assert executed["authority"] == "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF"
+    assert any(row.get("error") == "generated_code_semantic_review_submission_rejected" for row in backend.observations)
+    assert len(backend.requests) == (4 if mode == "shared" else 3)
+    if packet:
+        assert packet["overall_verdict"] == "ACCEPT"
+        assert packet["client_tool_loop"]["validation_submissions"] == 2
+        assert packet["client_tool_loop"]["review_probe_executions"][0]["result_hash"] in packet["_review_document_artifact"]["content"]
+
+
+def test_prepared_reviewer_freezes_external_inputs_and_withholds_confirmatory_values():
+    material, lineage = _review_material(), _trusted_lineage()
+    material["exact_executed_artifacts"][0]["exact_result"] = {"hidden": "hidden-cohort-sentinel"}
+    frozen_material, frozen_lineage = deepcopy(material), deepcopy(lineage)
+    backend = PreparedReviewBackend()
+    agent = LLMGeneratedCodeSemanticReviewerAgent(provider=backend, config=GeneratedCodeSemanticReviewerConfig(
+        model="Qwen3-4B-Instruct-2507", model_tier="local", provider_name="local",
+    ))
+    workspace = agent.prepare_workspace(question=_question(), review_material=material, trusted_lineage=lineage)
+    assert backend.requests == []
+    public = workspace.initial_context["review_evidence_document"]["current_target_artifacts"][0]
+    assert "exact_result" not in public and public["exact_result_schema"]["realized_values_withheld"] is True
+    assert public["actual_runtime_arguments"]["seed"] == "EVALUATOR_WITHHELD"
+    assert "hidden-cohort-sentinel" not in str(workspace.initial_context) + str(workspace.request.messages)
+    material.clear()
+    lineage["source_manifest_hash"] = "externally-mutated-lineage"
+    packet = run_client_tool_workspace(backend=backend, workspace=workspace)
+    assert packet["review_input_fingerprint"] == stable_hash(frozen_material)
+    assert packet["source_manifest_hash"] == frozen_lineage["source_manifest_hash"]
