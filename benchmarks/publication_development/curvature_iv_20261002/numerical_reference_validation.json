@@ -1,0 +1,9 @@
+{
+  "numerical_cases": 35,
+  "zero_moment_cases": 4,
+  "oracle_sha256": "e9b802930f948b3aa156d875d20e1e169e32784f383252f23e17affd7d08b31a",
+  "validator_sha256": "cdc1a8ea66d2bb2df4551e6d83925c78e94d566bfe602c374760f1b79edd1281",
+  "numpy_version": "2.4.6",
+  "mathematical_authority_qualified": false,
+  "scope": "independent_numerical_implementation_check_not_general_theory_acceptance"
+}
