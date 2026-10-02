@@ -1,0 +1,26 @@
+{
+  "plan_commit": "52becbeb",
+  "attempt": 4,
+  "reference_environment_ready": true,
+  "author_runtime_requirements_checked": 36,
+  "author_runtime_requirements_changed": 0,
+  "scikit_fda_version": "0.9.1",
+  "python_version": "3.12.2",
+  "python_differs_from_author_readme": true,
+  "pip_check_exit_code": 0,
+  "additional_build_tool_adaptation": "Conda initially installed Wheel 0.48.0, whose packaging>=24.0 requirement conflicts with the author pin 23.2. Installed Wheel 0.42.0 instead, without changing any author runtime requirement. Original failed pip-check and both install reports retained.",
+  "fdasrsf_conda_recipe": {
+    "source_url": "https://pypi.io/packages/source/f/fdasrsf/fdasrsf-2.5.8.tar.gz",
+    "source_sha256_in_recipe": "f210a944a25119368e42edfc428b617ab333a8b57c30ff4e2fef9f33982de60d",
+    "recipe_sha256": "913a097672f25d29e2a3fab23a2419f0c2b82eb31ff1969e1431386fa774a316",
+    "recipe_source_patches": "None declared; binary build/environment differs from the paper's pip instructions."
+  },
+  "raw_record_root": "runs/publication_reference_scikit_fda_20261002_followup",
+  "raw_records": {
+    "version_check.json": "7750b43b44562913053df917ae6bc723d0e1d66b7d16ec166b2c8e5bea899597",
+    "pip_check_ready.txt": "9261363b733079a641c2e4cc9bc46ffa1d8336945a87f807b6cf68847dbc9b09",
+    "pip_inspect_ready.json": "116006abb5df86dd348ca8c581ddd29a56b6eae35f31f9a6c4e692b27371d0cc"
+  },
+  "script_execution_started": false,
+  "publication_or_agent_credit": false
+}
