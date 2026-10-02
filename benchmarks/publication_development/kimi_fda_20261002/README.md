@@ -36,3 +36,23 @@ observations and retain this limitation. No model judge, copied reference output
 manual candidate repair, new inference proxy or task-specific product rule is
 introduced. One paired draw estimates neither efficacy nor a population success
 rate. A numerical-component pass is not independent theory or research-E2E credit.
+
+## First Observed Outcomes
+
+Both scheduled draws are terminal and unsuccessful. [Results](observed_results.json)
+bind their native records and the first external executions, not a repaired rerun.
+Skill body uptake was verified, but reading the full paper led the native host to
+send a 45,809-token compaction request to the frozen 32,768-token server. Compaction
+itself failed; no final artifact exists. Bare wrote source/report without reading
+the paper or running code, observed missing outputs, and still reported completion.
+Its unchanged final source exited 1 for an invalid SVC parameter in both declared
+split checks. No predictions/metrics were produced. Both reports and mathematical
+claims remain unaccepted; no efficacy inference follows from one pair.
+
+`evaluate_final.py` resolves the exact final snapshots through the existing trusted
+reader, then executes available source once per declared seed in fresh directories.
+Its logs never return to the author. Supplied inputs stayed unchanged. The frozen
+native runner incorrectly supplied a normalized mixed ACP transcript as process
+stdout to the collector; the results contain an explicit metadata correction.
+Original records and source are retained, not silently rewritten. Future native
+capture must distinguish raw stdout bytes from normalized messages.

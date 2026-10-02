@@ -96,6 +96,10 @@ The first [native Qwen host pilot](benchmarks/publication_development/kimi_type_
 recorded two failed source reproductions and a missing skill-activation boundary.
 Native discovery and mock activation checks now pass, but neither establishes
 scientific efficacy. The official open-weight studies remain prospective.
+The later [FDA paper-to-code pair](benchmarks/publication_development/kimi_fda_20261002/README.md)
+verified actual skill uptake but both draws failed: native compaction exceeded
+the frozen context in one arm; the other delivered unexecuted, invalid code and
+missing outputs. These are immutable development failures, not publication results.
 
 ## Setup
 

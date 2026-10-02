@@ -1,0 +1,114 @@
+{
+  "study_id": "kimi_fda_paper_to_code_20261002",
+  "scope": "One paired native-host development draw, not an official publication comparison, full-task mathematical qualification or model-capacity estimate.",
+  "frozen_commit": "cd25b19232c9ed866d23b2bce9d000a3ed6ddbc7",
+  "protocol_sha256": "cc24e1d13124ca827dc0654a6125f53f38f7b912dbe29b6404cfbbe3982d2445",
+  "native_runner_sha256": "257243132e08b850101c2aaf680cebfe8d416c699fcdf9634003ae2183885e10",
+  "model": "Pinned local Qwen3-4B-Instruct-2507 Q4_K_M; exact runtime, template, hardware and sampling in the frozen protocol. Cold server per arm; no Anthropic, cloud fallback, model/resource escalation or outcome-driven retry.",
+  "raw_root": "runs/publication_fda_native_20261002",
+  "actual_native_request_contract": {
+    "provider": "openai",
+    "model": "Qwen3-4B-Instruct-2507",
+    "thinking_effort": "off",
+    "max_tokens_all_requests": 32768,
+    "tool_snapshot_sha256_both_arms": "eccf073fa4b36a8a422848d60b2539b89787be2838928c048c7d194a512bee1a",
+    "tools": ["Bash", "Edit", "Glob", "Grep", "Read", "Skill", "TaskList", "TaskOutput", "TaskStop", "WaitFor", "Write"],
+    "server_props_sha256": {"skill": "3c8185316d604e05518f73f8e6ca5e24a4e18d752bdbd6a827c296963c971c61", "bare": "e4ff37496fe21ecd6ebe435101ce14f273b7d3561a82413fd5849594a76f7580"},
+    "server_models_sha256": {"skill": "d0d8ed62f6bc5837fbb46c63ad9171d7d66defe4af096942b89a892101874551", "bare": "df0854b312118ad983b84d5bbec18bc36f8fd87962d0658558a3407534d7e276"},
+    "boundary": "Server props/model aliases/template/sampling were verified before both calls; complete native request metadata/tools are persisted. Bash was available in both arms, not removed from the bare control. Native max_tokens is a request value, not an assurance that full-context generation fits. No claim of raw HTTP byte capture."
+  },
+  "draw_order": ["skill", "bare"],
+  "arms": {
+    "skill": {
+      "session_id": "session_a9262419-cde3-42c6-a69d-2482f253ca33",
+      "host_returncode": 0,
+      "acp_stop_reason": "end_turn",
+      "elapsed_seconds": 30.48478102684021,
+      "requests": {"loop": 2, "compaction": 1},
+      "usage_records": 2,
+      "reported_usage": {"input_other": 11740, "input_cache_read": 10988, "input_cache_creation": 0, "output": 123},
+      "usage_boundary": "22728 reported input tokens include 10988 cached tokens; failed compaction usage is unknown, not zero.",
+      "tools": ["Read TASK.md", "Read paper/paper.txt"],
+      "supplied_inputs_unchanged": true,
+      "native_skill_discovered": true,
+      "full_skill_body_consumed": true,
+      "skill_body_chars": 2994,
+      "skill_body_sha256": "2c99c4dd8b09d3ebb349a986d06f74446004d203795c788ba4f1ef40068436ca",
+      "missing_final_artifacts": ["experiment.py", "research.md", "results/predictions.npy", "results/metrics.json"],
+      "failure": "The host started automatic full compaction after the full-paper Read. Its compaction request contained 45809 tokens and was rejected by the frozen 32768-token server; full_compaction.cancel and turn.step.interrupted record the error. It is not an absence of compaction or a demonstrated mathematical reasoning failure.",
+      "numeric_variants": {"0": "not_executed_missing_final_source", "17": "not_executed_missing_final_source"},
+      "numerical_component_complete": false,
+      "record_hashes": {
+        "wire.jsonl": "748042ddad2bc13dac7aebcedbce7e7e8e1b8f618e9ecde319f985963fd595da",
+        "acp.jsonl": "0a81eb95fbdd09689ddb22cb290aa9559be8171916bd044dac0cc030c9a834bb",
+        "precall.json": "322c209722817f2530c222845c41ca64f7c4fa7089995ce19733f05e184c8127",
+        "terminal.json": "d3247e40c8df088f033da3988e17680117238b9c92f5f7b82071d6d43292b456",
+        "submission_ref.json": "63358b82080c284415765c887d1f5efb6a3ae4154228df92aac5d53db694c988",
+        "submission/submission.json": "4ffe62814a7a1cb5deb7a7c6dd813c79e1d95ae1c1e2bf00dea30e2085369771"
+      }
+    },
+    "bare": {
+      "session_id": "session_18025e8b-38d5-4ea5-a751-d32ee2b2af41",
+      "host_returncode": 0,
+      "acp_stop_reason": "end_turn",
+      "elapsed_seconds": 156.41650795936584,
+      "requests": {"loop": 7},
+      "usage_records": 7,
+      "reported_usage": {"input_other": 13379, "input_cache_read": 74212, "input_cache_creation": 0, "output": 3453},
+      "usage_boundary": "87591 reported input tokens include 74212 cached tokens. No compaction request recorded.",
+      "tools": ["Read TASK.md", "Write experiment.py", "Write research.md", "Glob results/*.npy", "Glob results/*", "Read data/phoneme.npz"],
+      "supplied_inputs_unchanged": true,
+      "native_skill_discovered": false,
+      "full_skill_body_consumed": false,
+      "paper_read_recorded": false,
+      "source_execution_recorded": false,
+      "source_sha256": "f7a1fbaf29cd08bcb6c658192ec4bd91feda079f74e4d3184828e45c6a6519d6",
+      "report_sha256": "f1a09509bb7966da0b5ee7a41b54a470d0b5c646a6e06aec59eb80dc174d885d",
+      "missing_final_artifacts": ["results/predictions.npy", "results/metrics.json"],
+      "failure": "The owner did not read the paper or execute the script in its recorded tools. Both Glob observations reported missing outputs; Read rejected the binary NPZ as text. The final response/report nevertheless claim a completed implementation. First external executions of the exact final source both exited 1: invalid pca_components parameter for SVC(probability=True). No prediction vector or metric output exists.",
+      "source_fidelity_findings": [
+        "Source lines 36, 50 and 55 fit preprocessing/PCA before the split, exposing held-out observations to fitted transformations.",
+        "Source uses interpolation, vector PCA and a 20% stratified split rather than the published KNeighborsSmoother/FPCA joint pipeline and original split defaults.",
+        "Source lines 67-83 pass smoothing and pca_components directly to SVC; the first external failure occurs before prediction or output writing. No operator fix or alternative source was evaluated."
+      ],
+      "numeric_variants": {
+        "0": {"returncode": 1, "timed_out": false, "elapsed_seconds": 2.892523765563965, "predictions_missing": true, "metrics_missing": true, "numeric_check_passed": false},
+        "17": {"returncode": 1, "timed_out": false, "elapsed_seconds": 2.1997628211975098, "predictions_missing": true, "metrics_missing": true, "numeric_check_passed": false}
+      },
+      "numerical_component_complete": false,
+      "report_authority": "Unreviewed owner document. Operator source/trace findings are not an independent mathematical acceptance or full-task gold judgment.",
+      "record_hashes": {
+        "wire.jsonl": "e9bf8a3302f3ef0a4994db8b95770bee95c3270ec5ec93f9666e779a38419781",
+        "acp.jsonl": "70a630e59ddf5e7c7d38e498ca921a835addc925be31fde56a4c784002e47058",
+        "precall.json": "1f5915640f27d7954fd25ddf6576c32ad97a2f456c0f7db74a95dbdf5ca0e5ec",
+        "terminal.json": "feca7dbbef1d98abfdca9ed2c3791944010607caf221fe2eceeaf60ad4f6c318",
+        "submission_ref.json": "cf41a5189ab0084320a8b45dd64739e543682ba2206925b6850edf87ce826fa6",
+        "submission/submission.json": "799aab812d84ac6741d3946d6d4ce3f8d9250fdea7fd28576ad31a9e56ddca26"
+      }
+    }
+  },
+  "external_execution_record": {
+    "path": "runs/publication_fda_native_20261002/evaluation/executions.json",
+    "sha256": "5ca7f782c5be3bf77b5669bb1f604d7f217a02c9527f613af1e9b82721472f94",
+    "evaluator_sha256": "6c6911cc54e1ec5d1cb2eaeeeabdfe1c8cf95bb27a823e85952a82136db11db0",
+    "boundary": "First scheduled external checks, once per declared variant, from the trusted final snapshot. No owner continuation, source patch, partial-draft salvage, replacement or repeat. Hidden observations never returned to the author."
+  },
+  "capture_correction": {
+    "affected_field": "Both submission.json host_process.stdout_sha256 fields",
+    "actual_binding": "SHA-256 of normalized acp.jsonl containing both client and host messages, not verbatim process stdout bytes.",
+    "cause": "The study runner supplied acp.jsonl as CompletedProcess.stdout to the unchanged trusted collector. ACP messages and native wire are preserved, but a raw stdout byte stream was not captured. stderr.log is actual process stderr.",
+    "action": "Original runner, transcript, snapshots and recorded hashes stay unchanged. This is a separate correction of metadata meaning, not reevaluation. Future callers must capture actual stdout or leave its hash null and reference normalized ACP separately. No raw-byte-capture claim for these draws."
+  },
+  "interpretation": "Both draws failed the full final-artifact and numerical-reproduction contract. One family and one draw per arm do not identify a causal harness benefit, an efficacy rate or a model-capacity ceiling. No research-E2E, theory, Lean, autonomous installation or adversarial-blinding credit. Whole family excluded from future official test samples. Article/reference data are local only, not redistributed by this record.",
+  "official_publication_studies_activated": false,
+  "haiku_boundary": "All historical Haiku evaluations remain immutable archives; not pursued, rescored, pooled, used as publication baselines or gates on either fresh study.",
+  "verification": {
+    "focused_mechanism_tests": "29 passed: tests/test_core.py and tests/test_publication_submission.py, 0.51 seconds. No inference in these tests.",
+    "compile_and_diff": "Compileall for product and study operator scripts and git diff --check passed.",
+    "record_checks": "Frozen protocol/runner and precall inputs, native request counts/usage, wire/ACP/terminal snapshots, exact selected source and external execution/evaluator hashes verified. Normalized-ACP stdout binding confirmed, not reinterpreted as raw bytes.",
+    "historical_protected_hash": "e7162814977a51579850fcc3418017d7b638d23ce1550a0f523d2b7f55903da3",
+    "shared_product_source": "Unchanged from validated 445312e4; full 1961-pass suite not rerun for benchmark/docs-only edits. No new scientific credit follows from regression tests.",
+    "processes": "Both owned servers/native hosts and final-source evaluator terminated; recorded PIDs absent and port 8081 not listening."
+  },
+  "next_action": "Inspect native-host generic file-observation and compaction bounds, and reliable final-source execution/receipt behavior. Do not add FDA-specific prompts, estimator repair recipes, a wrapper controller, extra model draws or higher resources to make this consumed pair succeed. Preserve separate host conformance, numerical reproduction and independent mathematical authority."
+}

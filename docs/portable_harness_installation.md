@@ -94,3 +94,9 @@ body consumption before freezing a scientific comparison. The ACP mock check
 and the new independent live conformance check establish that surface, not
 research efficacy. The pilot remains consumed and
 separate from the unactivated official studies and historical Haiku records.
+
+The [subsequent FDA development pair](../benchmarks/publication_development/kimi_fda_20261002/README.md)
+verified real skill-body uptake but neither draw completed numerical reproduction.
+Native context compaction and owner execution/claim reliability remain real
+limitations. Host exit zero, installed skills and written reports do not establish
+scientific completion; the records also disclose normalized versus raw output capture.
