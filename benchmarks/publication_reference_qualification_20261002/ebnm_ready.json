@@ -1,0 +1,33 @@
+{
+  "scope": "environment_readiness_before_reference_execution",
+  "plan_commit": "aa3981fb",
+  "scientific_executions": 0,
+  "model_calls": 0,
+  "study_activated": false,
+  "ready": true,
+  "environment": {
+    "runtime": "R 4.4.2 (2024-10-31)",
+    "platform": "aarch64-apple-darwin20",
+    "os": "macOS 26.5.2",
+    "hardware": "Apple M5, 32 GiB unified memory",
+    "threads": 1,
+    "package_count_in_owned_library": 131,
+    "installed_packages_file": "ebnm_installed_packages.csv",
+    "installed_packages_sha256": "aa03df7f40e36ae28a5d3103a46a2b6f359e60dee4b3ce4a07624d1a7ebbcb70",
+    "binary_resolution_file": "ebnm_binary_resolution.csv",
+    "binary_resolution_sha256": "8182be8f759eb2d6ab1ebca28253f355a9d011df1bb1603a4d9c4ef8a49056ab",
+    "binary_download_hashes_file": "ebnm_dependency_sha256.txt",
+    "binary_download_hashes_sha256": "27a2f4d4c7c41d3e52528b263c8996bb38c4329023907f735f13a5f47835ca92",
+    "library_scope": "Owned reference library first, native R library for base packages; no site library. All resolved non-base dependencies are installed in the owned library.",
+    "author_environment_recovered": false,
+    "warnings": "Eight attached packages report builds under R 4.4.3; all inspected imports loaded under 4.4.2. This is an adapted environment, not a version-equivalent historical session."
+  },
+  "preparation_failure": {
+    "log": "runs/publication_reference_qualification_20261002/ebnm/preparation.log",
+    "log_sha256": "7167bf7969e6e5e0f2b0e5e76123237e8befd7e65960d380d37350df1d03788a",
+    "cause": "The preparation script installed all packages but compared R's normalized version string 1.1.38 with DESCRIPTION's 1.1-38 as text.",
+    "follow_up": "Corrected only the evaluator metadata comparison to package_version equality; separately verified all 131 owned package locations, exact DESCRIPTION identity and imports without reinstalling or executing author science.",
+    "author_source_changes": 0
+  },
+  "execution_contract": "Run the unchanged journal code.R in a fresh output directory with no arguments, after prepending the owned library. Capture the complete source() output and terminal process resources. Save the R workspace only after successful script completion for read-only numerical inspection. No cached author output is supplied to execution."
+}

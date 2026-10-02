@@ -32,7 +32,7 @@ install.packages(file.path(root, "sources", "package.tar.gz"),
 required <- c(packages, "horseshoe", "ebnm")
 locations <- vapply(required, find.package, character(1), lib.loc = lib)
 stopifnot(all(startsWith(normalizePath(locations), paste0(lib, "/"))))
-stopifnot(as.character(packageVersion("ebnm", lib.loc = lib)) == "1.1-38")
+stopifnot(packageVersion("ebnm", lib.loc = lib) == package_version("1.1-38"))
 write.csv(installed.packages(lib.loc = lib)[, c("Package", "Version", "Built")],
           file.path(root, "installed_packages.csv"), row.names = FALSE)
 writeLines(capture.output(sessionInfo()), file.path(root, "preparation_session.txt"))
