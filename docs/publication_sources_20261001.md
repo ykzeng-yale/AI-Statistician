@@ -54,6 +54,12 @@ check. Prioritize a tested foundation migration and reuse of these APIs over
 new duplicate definitions. The newer files are not active-project premises until
 that migration is checked; current kernel/RAG evidence remains on the old pin.
 
+The [2026-10-02 isolated migration record](../benchmarks/publication_foundation_migration_20261002/README.md)
+now records successful dependency resolution but a failed full `StatInference`
+build: 41 targets and 165 native error diagnostic lines. No mathematical source
+changed, no model ran and no newer premise was promoted. This is compatibility
+evidence, not a conclusion about the underlying statistical statements.
+
 ## Code Pins And Licensing
 
 New independent reference preparation uses

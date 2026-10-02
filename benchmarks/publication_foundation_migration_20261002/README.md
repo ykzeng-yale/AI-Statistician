@@ -19,4 +19,19 @@ its verified index on the old pin. There is no model call, candidate repair,
 rerun of a consumed research evaluation or automatic migration/fallback here.
 
 Local preparation and logs: `runs/publication_foundation_migration_20261002/`.
-The results remain pending until the owned dependency/build process terminates.
+
+## Observed Outcome
+
+The [terminal record](observed_results.json) reports successful dependency update
+and cache retrieval, followed by `lake build StatInference` exit 1 after 205.41
+seconds, without timeout. Lake lists 41 failed targets; 165 native error lines
+are diagnostics, not independent mathematical defects or theorem counts. For
+example, the existing `ENNRealSeries` proof refers to a constant no longer found
+in the candidate environment. No mathematical source was edited or regenerated.
+
+Only the separate clone's toolchain, Lake configuration and generated manifest
+changed. All owned commands ended and released the existing verifier guard.
+The active library and RAG remain on the verified Lean 4.30.0 foundation. This
+is a failed compatibility check, not a new proof or scientific result. It does
+not prevent non-formal research comparisons from proceeding when their own
+task, resource and evaluation requirements are ready.

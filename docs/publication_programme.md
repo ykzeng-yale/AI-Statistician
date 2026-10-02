@@ -1,6 +1,6 @@
 # Publication Programme
 
-Updated: 2026-10-01. Status: design and release work in progress; no new scientific
+Updated: 2026-10-02. Status: design and release work in progress; no new scientific
 benchmark result. The native chat goal is active and covers both publications.
 
 ## Two Research Questions
@@ -156,6 +156,18 @@ aliases from retrieval. Compare against accessible ReProver/minimal-agent
 implementations only after environment and model compatibility are established.
 
 ## Delivery Order And Manuscripts
+
+The first methods drafts are [portable harness](../manuscripts/portable_harness.md)
+and [collaborative system](../manuscripts/collaborative_system.md). They distinguish
+implemented mechanisms from proposed studies and report no comparative efficacy
+or usability result. They are not submission-ready manuscripts; qualified fresh
+scientific tasks, common external authority, matched conditions and release rights
+remain unfinished. Historical Haiku results are not inserted as result tables.
+
+The [isolated foundation check](../benchmarks/publication_foundation_migration_20261002/README.md)
+failed the full library build against the proposed Lean 4.33.1 dependencies.
+The active Lean/RAG pin is unchanged. Compatibility failure does not invalidate
+the old compiled foundation or block optional-Lean research tasks.
 
 1. Establish local Qwen native tools, structured output, continuation and complete
    cost/provenance; keep cloud APIs out of new tests. Qualify fresh evaluation

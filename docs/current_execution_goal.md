@@ -172,6 +172,11 @@ question. Mathematical acceptance remains a separate expert-review obligation.
    migration against these actual APIs; do not carry forward the old assumption
    that the newer branch adds only tutorials. Preserve the current verified pin
    while testing a separate full-project migration and semantic orientation.
+   The [isolated full-library check](../benchmarks/publication_foundation_migration_20261002/README.md)
+   resolved dependencies but failed the root build on 41 targets without source
+   edits or model calls. Keep the active 4.30.0 pin; do not silently adopt newer
+   premises or patch the failed record. This optional release work is not a gate
+   on non-formal scientific experiments.
    TODO characterizations and functional causal definitions are not completed
    inference theorems or new agent proof evidence.
 6. Use ERA-style candidate search only inside an existing exploratory workspace
