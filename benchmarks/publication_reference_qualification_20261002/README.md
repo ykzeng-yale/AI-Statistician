@@ -9,6 +9,7 @@ outputs. A public repository, package test, or copied result table does not
 establish that the original scientific claim is true. Keep source/environment
 failures visible; do not repair author code and call it exact replication.
 These sources do not replace the full matched-arm and independent-theory work.
+All qualification work below is separate from archived Haiku evaluations.
 
 ## Source Selection
 
@@ -145,6 +146,41 @@ Three additional RepliSims
 repositories remain discovery-only: no clear code license was found in the
 inspected root metadata, and their code was not executed or copied into this
 repository. References alone do not qualify those candidates.
+
+## Fixed-K Segmentation Reference
+
+The [ruptures inspection](ruptures_reference_notes.md) adds one published
+methods/library source with independent exact finite numerical checks. Both
+author implementations are post-publication pins, not a recovered historical
+release. Unchanged 1.0.6 passed its 484 upstream tests but failed the independent
+inspection; it remains unqualified. Separately pinned 1.1.10 passed 585 upstream
+tests and the inspected admissible optimization cases. No author source was
+patched and no source or paper was vendored. Environment adaptations and
+failures remain explicit in the inventory.
+
+The evaluator script is not a product tool, prompt recipe or hidden test set.
+It enumerates finite partitions with rational arithmetic, not a second DP or
+model referee. This is a narrow numerical reference, not an asymptotic result,
+full-paper replication, independent full-task gold or agent success.
+
+Use a separate CPython 3.11.15 environment and the adjacent version-pinned
+requirements. Install the exact source checkout with `uv pip install --python
+"$REFERENCE_ENV/bin/python" --no-build-isolation "$SOURCE"`. The 1.1.10 build
+additionally uses `ruptures_v1_1_10_build_requirements.txt`. These are adapted
+package/build pins, not wheel-hash locks or cross-platform qualification.
+
+```sh
+"$REFERENCE_ENV/bin/python" qualify_ruptures.py \
+  --source-root "$SOURCE" --package-directory src/ruptures \
+  --expected-commit a3f8c437edf7d54c1a8f90aaa72638363a011765 \
+  --expected-version 1.1.10 --cost-min-size 1 \
+  --infeasible-errors BadSegmentationParameters --output-dir "$FRESH_OUTPUT"
+```
+
+For the retained 1.0.6 source, explicitly use package-directory `ruptures`,
+commit `f0399cfab733a319397f5fb3df9dd64edea5c40d`, version `1.0.6`, cost minimum
+2 and errors `AssertionError NotEnoughPoints`. That reference inspection exits
+nonzero; do not silently omit failing configurations or repair the optimizer.
 
 ## Forward Evidence
 
