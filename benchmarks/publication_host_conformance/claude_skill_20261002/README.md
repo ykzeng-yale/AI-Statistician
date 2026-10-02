@@ -9,7 +9,7 @@ It requests no statistical derivation, independent review or Lean proof.
 The operator runner invokes the native host with only Read, Write and Skill;
 it does not run the AI-Statistician graph or embed a host agent in the product.
 It copies the package into a fresh project, installs the documented relative
-link, disables user/project setting sources, and retains exact native stdout,
+link, isolates HOME and uses only project settings, and retains exact native stdout,
 stderr and terminal records. Credentials enter only the host environment via
 the existing loader and the operator-designated, gitignored `.env`.
 
@@ -28,4 +28,11 @@ requests are not independently wire-observed, so reported model usage is not a
 verified account of all requests. Verify actual loaded-body and reference/tool
 evidence before claiming uptake. A receipt, model agreement or host exit zero
 does not establish research capability, tool breadth, usability or security.
+The original `protocol.json` remains the frozen bare-mode attempt at `34d32f96`.
+It returned a synthetic Unknown command result with zero reported API time,
+zero model turns, no model usage and no receipt despite exit zero. A separate
+zero-inference normal-project discovery exposed the skill and all three tools.
+The current runner uses the separately frozen `project_protocol.json` without
+changing the package or the first native record. Do not infer installed-version
+behavior from newer online bare-mode documentation.
 The two official open-weight scientific studies remain unactivated.

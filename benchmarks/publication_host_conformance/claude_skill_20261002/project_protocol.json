@@ -1,0 +1,22 @@
+{
+  "probe_id": "claude-project-skill-conformance-20261002",
+  "scope": "Separately frozen normal project-scope native coding-host conformance, after a zero-inference discovery check. No scientific task or efficacy comparison.",
+  "prior_observation": "The original bare-mode probe returned Unknown command with zero API time/turns and no receipt. It remains unchanged. A separate zero-inference normal project-scope discovery exposed statistical-research plus Read, Skill and Write.",
+  "host_version": "2.1.168 (Claude Code)",
+  "host_sha256": "377f0ecedba8246bdabdf312ce8b7cc8ae1160997b26f5edca352a4a8d61dc78",
+  "requested_model": "claude-sonnet-4-6",
+  "skill_sha256": {
+    "SKILL.md": "d714fdbfc0eafca079924e8d40d0219e19fabaf66baa79b99d8f737fb623ab33",
+    "references/workspaces.md": "c4020bf8c6d0de53ded42281ebf97c897929e8bdb89e58ce6abdaa30f46441c7",
+    "references/tooling.md": "5b44304bba245d187dd5ecc6f577138e6d072b5e52b627b6296856b1af8cc7fe"
+  },
+  "receipt": "Opaque native activation receipt: violet-8137-cobalt-2641\n",
+  "prompt": "/statistical-research This is a host installation and tool conformance check, not a scientific research task. Use the native Read tool to read probe.txt and the installed skill's references/workspaces.md. Then use Write to create receipt.md containing the exact opaque receipt from probe.txt and a short statement that no statistical claim, independent scientific review or Lean proof was tested. Do not access files outside this project, run commands, search the web or start subagents. End with the relative path to the receipt.",
+  "tools": ["Read", "Write", "Skill"],
+  "permission_mode": "dontAsk",
+  "max_budget_usd": 1.0,
+  "wall_seconds": 180,
+  "automatic_model_fallback": false,
+  "credential_source": "Operator-designated gitignored .env through the existing CLI loader; the native host receives it only in its process environment. No credential value is recorded.",
+  "limitations": "Native CLI observations are not a wire-level account of every server request. A receipt does not establish scientific efficacy, full tool breadth, researcher usability or adversarial isolation. Neither official publication study is activated."
+}

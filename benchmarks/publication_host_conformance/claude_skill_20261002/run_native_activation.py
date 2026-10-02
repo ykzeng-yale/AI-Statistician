@@ -25,7 +25,8 @@ def main():
     for name in ("host", "skill", "env-file", "out"):
         parser.add_argument("--" + name, type=Path, required=True)
     args = parser.parse_args()
-    protocol = json.loads((HERE / "protocol.json").read_text())
+    protocol_path = HERE / "project_protocol.json"
+    protocol = json.loads(protocol_path.read_text())
     host, skill, root = (path.resolve() for path in (args.host, args.skill, args.out))
     if sha256(host) != protocol["host_sha256"]:
         raise ValueError("native host executable differs from the frozen pin")
@@ -48,13 +49,13 @@ def main():
     (project / "probe.txt").write_text(protocol["receipt"])
     home = root / "home"
     home.mkdir()
-    command = [str(host), "--bare", "--add-dir", str(project), "--setting-sources", "",
+    command = [str(host), "--setting-sources", "project",
                "--model", protocol["requested_model"], "--permission-mode", protocol["permission_mode"],
                "--tools", ",".join(protocol["tools"]), "--allowedTools", ",".join(protocol["tools"]),
                "--max-budget-usd", str(protocol["max_budget_usd"]), "--output-format", "stream-json",
                "--verbose", "--print", protocol["prompt"]]
     precall = {"command": command, "version": version, "host_sha256": sha256(host),
-               "runner_sha256": sha256(Path(__file__)), "protocol_sha256": sha256(HERE / "protocol.json"),
+               "runner_sha256": sha256(Path(__file__)), "protocol_sha256": sha256(protocol_path),
                "skill_sha256": {name: sha256(copied / name) for name in protocol["skill_sha256"]},
                "probe_sha256": sha256(project / "probe.txt"), "started_unix": time.time(),
                "credential_value_recorded": False, "scientific_evaluation": False}
