@@ -45,14 +45,29 @@ New independent reference preparation uses
 replicability, not correctness of the original methods; neither those reports nor
 package tests provide mathematical gold. The
 [preparation record](../benchmarks/publication_reference_qualification_20261002/README.md)
-pins six candidate sources, archive/source hashes, rights limits and actual
-terminal outcomes. No full reference has yet qualified: Austin has two failing
-branches and one runnable narrow probe; scikit-fda has three failed environment
-attempts; bizicount has a package/session version mismatch; the other three
-repositories have unresolved code rights. No author algorithm was patched, no
-model was called, and no study or test split was activated. The already consumed
+pins seven candidate sources, archive/source hashes, rights limits and actual
+terminal outcomes. No full-task reference has yet qualified: Austin has two
+failing branches and one runnable narrow probe; scikit-fda has three failed
+environment attempts; bizicount completed its full script in an adapted version
+but has unresolved numerical differences, failures and a source-level BIC issue;
+three RepliSims repositories have unresolved code rights. The later ruptures
+implementation qualifies only for its independently inspected finite objective.
+No author algorithm was patched, no model was called in this reference preparation,
+and no study or test split was activated. The already consumed
 DoubleML paper family is excluded from the fresh test pool. This preparation is
 evaluator work, not product research autonomy or a new runtime dependency.
+
+The seventh source is Truong, Oudre and Vayatis,
+[Selective review of offline change point detection methods](https://doi.org/10.1016/j.sigpro.2019.107299),
+Signal Processing 167:107299 (2020). Its pinned arXiv v3 objective, quadratic-cost
+and dynamic-programming sections support the fixed-K additive-L2 scope. Both
+inspected author implementations are post-publication, not historical locks.
+Version 1.0.6 fails independent exhaustive checks despite its passing tests;
+separately pinned 1.1.10 passes the finite checks with its different minimum
+segment convention. Neither result establishes statistical consistency,
+full-paper reproduction or autonomous agent efficacy. Source pins, failures,
+and mathematical boundaries are in the
+[reference notes](../benchmarks/publication_reference_qualification_20261002/ruptures_reference_notes.md).
 
 GitHub API metadata/tree and selected source files were checked. No missing
 license is interpreted as permission to copy. Existing earlier pin audits remain

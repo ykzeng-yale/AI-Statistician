@@ -163,8 +163,18 @@ source cannot manufacture an absent or incorrect submitted experiment.
 
 Its trusted study caller must first use the final readers above, project only
 that exact selection into prospectively fixed evaluator inputs, and qualify the
-frozen scientific checks and mathematical authority before any draw. Artifact
-evaluators take an explicitly frozen JSON view; binary snapshots remain preserved
+frozen scientific checks and mathematical authority before any draw.
+`publication_material_from_submission` now projects the selected production and
+control Theory documents, exact estimator projects and common
+`generated_simulation_rows` view. Control scope/estimator identities are fixed by
+the caller before inference; unknown selected source scopes or mismatched drafts
+are rejected. The projection does not require successful smoke tests or internal
+acceptance and does not turn exploratory records into confirmation. It never scans
+unselected history. Formal/source-replication closures and native file decoding
+remain explicit study obligations, not implicit fallbacks. Outcomes retain the
+input submission identity hash as well as the material hash.
+
+Artifact evaluators take an explicitly frozen JSON view; binary snapshots remain preserved
 at collection, with no generic decoding or silent omission here. Formal input must
 contain only the selected final proof evidence, not an earlier blackboard success.
 Fresh outcome directories cannot be overwritten. Independent results and referee
@@ -173,7 +183,7 @@ records stay evaluator-side; no research agent receives this hidden feedback.
 Actual Python/R tests cover source correctness against contradictory internal
 verdicts, missing dimensions, wrong submitted results and a native final snapshot
 after author-directory mutation. Referee verdicts are scripted mechanism fixtures,
-not mathematical qualification or a live model experiment. Collection/projection,
+not mathematical qualification or a live model experiment. Complete arm configuration,
 calibrated full-task authority, confirmation, matched tools/resources, host activation
 and study CLI remain unfinished; neither publication study is activated. Do not
 use the new entry to reevaluate any consumed legacy task or qualification.

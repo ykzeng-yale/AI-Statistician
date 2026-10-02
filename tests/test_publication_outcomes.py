@@ -14,6 +14,7 @@ from ai_statistician.research_gold_evaluation import _visible_question_hash_payl
 from ai_statistician.research_schema import OpenResearchQuestion, research_question_payload
 from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, discover_scientific_sandbox_runtime
+from ai_statistician.theory_workspace import theory_workspace_document_manifest
 
 
 def outcome_fixture(tmp_path, *, language="python", offset=0, intent=None):
@@ -93,6 +94,7 @@ def test_same_external_criteria_ignore_internal_disposition_but_keep_theory_sepa
     assert rows["formal"]["status"] == "not_requested"
     assert result["task_passed"] is (theory_passed and offset == 0)
     assert result["internal_acceptance_required"] is False and result["runtime_feedback_generated"] is False
+    assert result["submission_identity_hash"] == stable_hash(kwargs["submission_identity"])
     assert len(calls) == 1 and calls[0]["candidate_documents"] == kwargs["theory_documents"]
     assert json.loads((kwargs["out_dir"] / "outcome.json").read_text()) == result
     saved = json.loads((kwargs["out_dir"] / "theory" / "semantic_judgment.json").read_text())
@@ -234,3 +236,83 @@ def test_missing_required_method_does_not_substitute_an_available_estimator(tmp_
     result = outcomes.evaluate_final_research_artifacts(**kwargs)
     assert result["dimension_status"]["scientific_code"]["status"] == "missing"
     assert result["task_passed"] is False and not calls
+
+
+def projection_fixture(tmp_path):
+    kwargs = outcome_fixture(tmp_path)
+    binding = kwargs["estimator_bindings"][0]
+    docs = {row["path"]: row["content"] for row in kwargs["theory_documents"]}
+    root = tmp_path / "theory-snapshot"
+    root.mkdir()
+    for path, content in docs.items():
+        (root / path).write_text(content)
+    core = {"theory_workspace_manifest": theory_workspace_document_manifest(docs, workspace_dir=root)}
+    row = {"estimator_id": binding.artifact_id, "language": binding.language, "source_code": binding.code,
+           "script_hash": binding.code_hash, "project_hash": binding.project_hash,
+           "project_files": list(binding.project_files), "dependencies": list(binding.dependencies),
+           "smoke_passed": False, "execution_attempted": False}
+    empirical = {"source_code": "opaque experiment", "metrics": {"measurement": 99178},
+                 "execution_phase": "exploratory_diagnostic", "smoke_passed": False}
+    runtime = {"internal_status": "BLOCKED", "selected_artifacts": {
+        "theory": core, "scientific_code": {"prototypes": [row]}, "empirical": {"generated_simulation_rows": [empirical]}},
+        "earlier_accepted_artifacts": {"opaque": "not selected"}}
+    control = {"checkpoint_payloads": {"theory": {"core_packet": core}, "algorithm": {
+        "code_draft": {"language": binding.language, "code": binding.code,
+                       "dependencies": list(binding.dependencies), "project_files": list(binding.project_files)},
+        "check_result": {"prototype": row, "accepted": False}}, "simulation": {"check_result": {"prototype": empirical}}}}
+    return kwargs, runtime, control
+
+
+def test_projection_keeps_exact_unaccepted_material_and_its_exploratory_status(tmp_path):
+    kwargs, runtime, control = projection_fixture(tmp_path)
+    original = deepcopy((runtime, control))
+    product = outcomes.publication_material_from_submission(runtime, source_kind="runtime")
+    shared = outcomes.publication_material_from_submission(control, source_kind="control", control_estimator_scopes={"algorithm": "opaque"})
+    assert product == shared
+    assert product["theory_documents"] == kwargs["theory_documents"]
+    assert product["estimator_bindings"] == kwargs["estimator_bindings"]
+    assert product["empirical_artifact"]["generated_simulation_rows"][0]["execution_phase"] == "exploratory_diagnostic"
+    assert (runtime, control) == original
+    product["empirical_artifact"]["generated_simulation_rows"][0]["metrics"]["measurement"] = -1
+    assert (runtime, control) == original
+
+
+@pytest.mark.parametrize("dimension", ["theory", "scientific_code", "empirical"])
+def test_projection_keeps_missing_final_selections_missing(tmp_path, dimension):
+    _, runtime, control = projection_fixture(tmp_path)
+    runtime["selected_artifacts"].pop(dimension)
+    control["checkpoint_payloads"].pop({"scientific_code": "algorithm", "empirical": "simulation"}.get(dimension, dimension))
+    product = outcomes.publication_material_from_submission(runtime, source_kind="runtime")
+    shared = outcomes.publication_material_from_submission(control, source_kind="control", control_estimator_scopes={"algorithm": "opaque"})
+    assert product == shared
+    key = {"theory": "theory_documents", "scientific_code": "estimator_bindings", "empirical": "empirical_artifact"}[dimension]
+    assert not product[key]
+
+
+@pytest.mark.parametrize("change", ["document", "source_hash", "support", "draft", "dependencies", "estimator", "unknown_scope", "missing_contract", "runtime_contract", "native_kind"])
+def test_invalid_projection_identity_or_contract_is_not_repaired(tmp_path, change):
+    _, runtime, control = projection_fixture(tmp_path)
+    source = runtime["selected_artifacts"]["scientific_code"]["prototypes"][0]
+    kind, submission, scopes = "control", control, {"algorithm": "opaque"}
+    if change == "document":
+        (tmp_path / "theory-snapshot" / "claim.md").write_text("later mutation")
+    elif change == "source_hash":
+        source["script_hash"] = "different"
+    elif change == "support":
+        source["project_files"] = [{"path": "helper.py", "content": "different support"}]
+    elif change == "draft":
+        control["checkpoint_payloads"]["algorithm"]["code_draft"]["code"] = "different source"
+    elif change == "dependencies":
+        control["checkpoint_payloads"]["algorithm"]["code_draft"]["dependencies"] = ["numpy"]
+    elif change == "estimator":
+        scopes = {"algorithm": "different"}
+    elif change == "unknown_scope":
+        control["checkpoint_payloads"]["unknown"] = deepcopy(control["checkpoint_payloads"]["algorithm"])
+    elif change == "missing_contract":
+        scopes = None
+    elif change == "runtime_contract":
+        kind, submission = "runtime", runtime
+    else:
+        kind = "native"
+    with pytest.raises(ValueError):
+        outcomes.publication_material_from_submission(submission, source_kind=kind, control_estimator_scopes=scopes)

@@ -633,6 +633,18 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert result.terminal_payload == submission_before
     assert len(critic.calls) == 1 and critic.calls[0]["canonical_evidence_view"]["view_hash"] == (
         product_submission["selected_artifacts"]["assessment"]["canonical_evidence_view_hash"])
+
+    # Project only these trusted final readers, without synthesizing accepted role packets.
+    from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
+    scopes = {"algorithm": "opaque", **({"algorithm_2": "opaque_alt"} if extra_estimator else {})}
+    shared_material = publication_material_from_submission(resolved, source_kind="control", control_estimator_scopes=scopes)
+    product_material = publication_material_from_submission(product_submission, source_kind="runtime")
+    assert shared_material == product_material
+    assert shared_material["estimator_bindings"][0] == binding
+    assert shared_material["theory_documents"][0]["content"].endswith("Unresolved, not a scientific result.\n")
+    assert shared_material["empirical_artifact"]["generated_simulation_rows"] == [simulation_result["prototype"]]
+    assert shared_material["empirical_artifact"]["generated_simulation_rows"][0]["execution_phase"] == "exploratory_diagnostic"
+    assert "formal_artifacts" not in shared_material
     assert all(row["accepted"] is True for row in (algorithm_result, simulation_result))
     assert "99173" not in str(result.messages) and "99178" not in str(result.messages)
 

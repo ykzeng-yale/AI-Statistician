@@ -29,6 +29,71 @@ from ai_statistician.research_schema import (
 )
 from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, execute_scientific_sandbox
+from ai_statistician.theory_workspace import load_theory_workspace_documents
+
+
+def publication_material_from_submission(
+    submission: Mapping[str, Any], *, source_kind: str,
+    control_estimator_scopes: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Project a trusted final reader's selected product/control material.
+
+    This is the fixed evaluator view for the current production-backed comparison
+    arms, not a native-file decoder or a substitute for either final reader.
+    The study fixes control scope/estimator identities before inference. Missing
+    selections stay missing; exploration is never relabelled as confirmation.
+    Formal and source-replication closures require their own prospective selection.
+    """
+
+    submission = deepcopy(dict(submission))
+    if source_kind == "runtime":
+        if control_estimator_scopes is not None:
+            raise ValueError("runtime projection does not take control scope identities")
+        payloads = submission["selected_artifacts"]
+        core = payloads.get("theory", {})
+        source_rows = payloads.get("scientific_code", {}).get("prototypes", [])
+        empirical_rows = payloads.get("empirical", {}).get("generated_simulation_rows", [])
+    elif source_kind == "control":
+        if control_estimator_scopes is None:
+            raise ValueError("control projection requires its frozen estimator scopes")
+        if (any(not scope or not estimator for scope, estimator in control_estimator_scopes.items())
+            or len(set(control_estimator_scopes.values())) != len(control_estimator_scopes)):
+            raise ValueError("control projection requires unique estimator identities")
+        payloads = submission["checkpoint_payloads"]
+        core = payloads.get("theory", {}).get("core_packet", {})
+        source_rows = []
+        for scope, payload in payloads.items():
+            if scope == "simulation" or "code_draft" not in payload:
+                continue
+            if scope not in control_estimator_scopes:
+                raise ValueError("selected control source is outside the frozen scope contract")
+            draft, row = payload["code_draft"], payload["check_result"]["prototype"]
+            expected_id = control_estimator_scopes[scope]
+            if (row.get("estimator_id") != expected_id or row.get("source_code") != draft["code"]
+                or row.get("language") != draft["language"] or row.get("dependencies", []) != draft["dependencies"]
+                or row.get("project_hash") != scientific_project_hash(
+                    language=draft["language"], code=draft["code"], project_files=draft.get("project_files", []))):
+                raise ValueError("selected control draft differs from its source record")
+            source_rows.append(row)
+        empirical_rows = ([payloads["simulation"]["check_result"]["prototype"]]
+                          if "simulation" in payloads else [])
+    else:
+        raise ValueError("publication projection requires an explicit supported source kind")
+    bindings = []
+    for row in source_rows:
+        binding = ScientificEstimatorBinding(
+            artifact_id=row["estimator_id"], language=row["language"], code=row["source_code"],
+            code_hash=row["script_hash"], dependencies=tuple(row.get("dependencies", [])),
+            project_files=tuple(row.get("project_files", [])), project_hash=row["project_hash"],
+        )
+        if (binding.code_hash != stable_hash(binding.code) or binding.project_hash != scientific_project_hash(
+            language=binding.language, code=binding.code, project_files=binding.project_files)):
+            raise ValueError("selected source record has invalid immutable identity")
+        bindings.append(binding)
+    documents = [{"path": path, "content": content, "sha256": hashlib.sha256(content.encode()).hexdigest()}
+                 for path, content in load_theory_workspace_documents(core).items()]
+    return {"theory_documents": documents, "estimator_bindings": tuple(bindings),
+            "empirical_artifact": {"generated_simulation_rows": deepcopy(empirical_rows)} if empirical_rows else None}
 
 
 def evaluate_final_research_artifacts(
@@ -56,6 +121,7 @@ def evaluate_final_research_artifacts(
 
     public = deepcopy(research_question_payload(question, include_task_intent=True))
     task = deepcopy(dict(task))
+    submission_identity_hash = stable_hash(deepcopy(dict(submission_identity)))
     intent = public.get("task_intent", {})
     if (task.get("task_id") != question.id or task.get("task_intent") != intent
         or task.get("visible_question_hash") != stable_hash(_visible_question_hash_payload(public))
@@ -180,6 +246,7 @@ def evaluate_final_research_artifacts(
         row["status"] = "passed" if passed else "failed"
     required = [row for row in dimensions.values() if row["requirement"] == "required"]
     result = {"question_id": question.id, "question_hash": stable_hash(public), "task_hash": stable_hash(task),
+              "submission_identity_hash": submission_identity_hash,
               "submitted_material_hash": stable_hash(material), "dimension_status": dimensions,
               "task_passed": bool(required) and all(row["status"] == "passed" for row in required),
               "internal_acceptance_required": False, "runtime_feedback_generated": False,
