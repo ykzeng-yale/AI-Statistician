@@ -224,9 +224,50 @@ The [underlying theory record](https://arxiv.org/abs/2203.12808v4) changed title
 and authors between versions. Match exact statement/assumption editions before
 creating theory gold; invalid instruments do not mean identification without
 restrictions. In particular, this is not just ordinary valid-IV GMM under a new
-name. No TSCI environment, independent theory rubric, numerical reference or
-study split has been qualified. Both sources remain preparation, not a new
-sampling frame selected on observed agent outcomes.
+name. At that discovery checkpoint, no TSCI environment, independent theory rubric,
+numerical reference or study split had been qualified. Both sources remain
+preparation, not a new sampling frame selected on observed agent outcomes.
+
+### TSCI Adapted Follow-up
+
+The separate [plan](tsci_plan.json) was committed at `3f46fcd1`; adapted native
+R 4.4.2 [readiness](tsci_ready.json) and the
+[published displays](tsci_published_displays.json) were committed at `0dc3bc43`
+before author science. The journal TSCI 3.0.5 source, XGBoost 1.7.7.1 and
+fda 6.1.8 match the paper's computational versions. Rfast, ranger, MASS and
+other recorded dependencies differ; this is not the historical R 4.3.1 environment.
+All 65 prepared packages are in an owned library, and five fresh PSOCK workers
+verified the six checked package locations/versions. Native-library contents are
+also recorded; no user/site library or product environment was modified.
+
+Preparation first stopped on one SSL download failure, then on relocated R's
+absent system framework link path. The same frozen index and archive versions
+were retained. Explicitly adding the existing local framework search path made
+the unchanged sources install; failed logs remain available. This is operator
+environment preparation, not autonomous product capability or a new repair layer.
+
+The complete unchanged journal attachment ran once in a fresh directory and
+exited zero in 39.41 seconds. Both printed estimation examples, selection/strength
+statistics and B-spline head match paper pages 11--13 and 15 at displayed
+precision. All 40 stored per-split coefficient/standard-error values are finite.
+The four aggregate FWER standard-error NAs and the secondstage MSE NA remain
+visible. All three parent warnings, including weak-IV non-testability, have their
+messages and calls retained. Worker-local condition histories are not completely
+exposed by the original code, so retained finite rows do not prove no internal
+failed attempts. The [result record](tsci_results.json) binds source, environment,
+logs, original data and stored-object inspection without rerunning the science.
+
+One operator metadata mistake is preserved: the frozen display record inferred
+secondstage `n_splits=1`, whereas the paper says no sample splitting and the
+stored source uses 0. That file was not retrospectively fixed or labelled as
+all-fields passing. No numerical tolerance was fitted after execution.
+
+This qualifies a runnable numerical reference for the supplied attachment, not
+full-paper replication, independent theory gold, a fresh independent family or
+an official agent result. Card data do not supply a known causal truth, and
+weak-IV non-testability is not evidence of instrument validity. Future family
+grouping and external task checks remain unfrozen; attachment redistribution
+rights remain unresolved. No model was called or historical evaluation revisited.
 
 ## RepliSims Probes
 

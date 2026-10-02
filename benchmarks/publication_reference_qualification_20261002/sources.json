@@ -253,7 +253,21 @@
         "asset_level_license_verified": false
       },
       "code_executed": false,
-      "qualification": "Discovery and method/source inspection only. The underlying theory has multiple versions; independent statement fidelity, execution environment, numerical gold, rights and family grouping remain unqualified."
+      "qualification": "Initial discovery and method/source inspection only. The underlying theory has multiple versions; independent statement fidelity, execution environment, numerical gold, rights and family grouping were unqualified at that checkpoint.",
+      "adapted_followup_20261002": {
+        "plan": "tsci_plan.json",
+        "environment": "tsci_ready.json",
+        "results": "tsci_results.json",
+        "code_executed": true,
+        "unchanged_complete_attachment_invocations": 1,
+        "exit_code": 0,
+        "numerical_reference_qualified": true,
+        "independent_full_task_gold_qualified": false,
+        "fresh_family_assignment_qualified": false,
+        "model_calls": 0,
+        "study_activated": false,
+        "qualification": "Adapted runnable numerical reference with published-display agreement and disclosed operator metadata error. Not full-paper replication, underlying theory validity, autonomous agent success or a publication comparison. The initial discovery fields above remain historical."
+      }
     },
     {
       "id": "replisims_peters_2006",

@@ -1,0 +1,67 @@
+{
+  "scope": "operator_numerical_reference_not_agent_experiment",
+  "study_activated": false,
+  "model_calls": 0,
+  "initial_plan_commit": "3f46fcd1",
+  "readiness_commit": "0dc3bc43",
+  "environment": "tsci_ready.json; adapted R 4.4.2, not the historical R 4.3.1 session",
+  "source": {
+    "journal_package": "TSCI 3.0.5",
+    "source_sha256_after_execution": "d3777089b2b947020e75ae185e8a47b43ca72d35770a074e2e46badb30e87113",
+    "source_changes": 0,
+    "science_invocations": 1,
+    "cached_results_supplied": false
+  },
+  "execution": {
+    "root": "runs/publication_reference_qualification_20261002/tsci/reference_3_0_5",
+    "directory": "execution_1",
+    "disposition": "EXITED",
+    "exit_code": 0,
+    "elapsed_process_seconds": 39.407431875006296,
+    "elapsed_source_seconds": 36.368,
+    "timeout_seconds": 5400,
+    "process_record_sha256": "e54dd0a0acbdde05ac501b28a2da855408e37a7b20241ad88c0158ea3ac21d83",
+    "stdout": {"bytes": 6164, "sha256": "143618e7ba80619e2b1b11ffa48403300e9112906403fcb94aa05f98912cf892"},
+    "stderr": {"bytes": 273, "sha256": "9f76ec35864ee8c2033a432619c868974a1aa1318a174943d83a27eeb5e2704c"},
+    "author_workspace_sha256": "ad523d3004dc7ac1a5ab2f5b3ab7407b36746e47963a030358568950d244dd25",
+    "conditions_sha256": "17b10a6db48d501c558f17de7da2acab76f11a827c1256372fcfc4ce5ef39911",
+    "session_before_sha256": "7f3e98177595bc99ede9efedc88f981b828b6da2b0ca2f8d97919ca77599c0f5",
+    "session_after_sha256": "cbbf9e8e3f64b7d0d7241fdc6f844b473b548fb5785a7f2970a8ff3065f0527b",
+    "process_group_after_exit": "No remaining process in the owned R process group; author PSOCK workers terminated. No inference server was started."
+  },
+  "inspection": {
+    "method": "Read the same saved author objects with inspect_tsci.R; no refit, source execution, candidate score or model referee.",
+    "script_sha256": "5026b8bac99bb6210c030f520502606858e00550c9a6f986f05fd8ab9be2dff7",
+    "record_sha256": "2165623bc81963a5e9a7c979ae41443187b9a3217bd4524980444403da2e52a9",
+    "log_sha256": "65fa6e6411dcc390b57c1283a5a16c1a483667cb4d11ed893b4f8d2242c2e939",
+    "display_comparison": {"log": "display_comparison_1.log", "sha256": "c621e796e29f796df2cad77462983581f15d1e11a2e2ceb0ea74b4222c6347a2", "exit_code": 0, "method": "Same stored fits, native R signif(..., 4) and exact numeric/count equality against the pre-execution published values. B-spline cells use native per-column format(..., digits=7). The nonliteral secondstage n_splits encoding discrepancy is separately printed, not silently counted as a passing expected field."},
+    "printed_numerical_agreement": "The raw source output matches all inspected printed selected/per-space estimates, confidence intervals, p-values, validity/selection/strength counts and B-spline head values on paper pages 11-13 and 15 at their displayed precision. This is display agreement, not full-precision agreement with unavailable author objects.",
+    "frozen_metadata_error": "The prospectively committed tsci_published_displays.json incorrectly inferred secondstage n_splits=1. The paper states no sample splitting but does not display that numeric field. The stored source object has nsplits=0. The frozen file remains unchanged; this is an operator encoding error, not a new tolerance, a source failure or an all-fields-pass claim.",
+    "split_raw_outputs": "Five rows for each of three candidate estimates/standard errors and five selected estimates/standard errors, all 40 values finite. Internal worker condition histories are not fully exposed by the unchanged author parallel code; finite retained rows alone cannot prove zero internal failed attempts.",
+    "nonfinite_outputs": "Four aggregate boosting standard-error NAs are reported as '-' by the source's FWER summary. The user-hat secondstage MSE is NA. No additional NA, NaN or infinity occurs in inspected numeric fit fields. The 3010-by-3010 supplied hat matrix is finite.",
+    "parent_warnings": [
+      "RCurl and deSolve report builds under R 4.4.3.",
+      "The secondstage run warns that invalidity cannot be tested under weak instruments. Its printed non_testable count is 1; do not interpret it as established instrument validity."
+    ],
+    "parent_warning_count": 3,
+    "warnings_preserved_with_calls": true,
+    "error": null
+  },
+  "data": {
+    "package": "ivmodel 1.9.1",
+    "original_card_shape": [3010, 35],
+    "original_card_rds_sha256": "0bf97edd412ba8a7b91ec6d2a7beb6fe2cd48481d385300e6623436b4ebd992a",
+    "processed_card_shape": [3010, 39],
+    "missingness": "Original missing counts: fatheduc 690, motheduc 353, KWW 47, IQ 949, married 7, libcrd14 13. Author mean-imputes the first two and adds indicators; unused remaining missing columns persist. No row deletion is hidden by the inspector.",
+    "known_causal_truth": false
+  },
+  "qualification": {
+    "runnable_numerical_reference_for_complete_attachment": true,
+    "full_paper_or_underlying_theory_simulations_reproduced": false,
+    "independent_math_or_full_task_gold": false,
+    "fresh_family_assignment": false,
+    "agent_autonomy_or_efficacy": false,
+    "rights": "Journal package license verified; separate attachment redistribution remains unresolved. Source, package, data and output artifacts remain local and are not vendored.",
+    "use_boundary": "A prospective replication task may use independently executed reference outputs. Freeze exact task, allowable sources, fresh computation checks, tolerance, family grouping and model/arm resources first. No theory acceptance or official publication result is granted here."
+  }
+}
