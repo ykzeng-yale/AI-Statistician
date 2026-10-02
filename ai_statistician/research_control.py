@@ -17,6 +17,8 @@ from .client_tool_loop import (
     PreparedClientToolWorkspace,
     client_tool_session_contract_fingerprint,
     prepare_shared_client_tool_workspace,
+    read_client_tool_observation,
+    read_hash_bound_utf8_file,
 )
 from .fingerprint import stable_hash
 from .model_backend import ClientToolDefinition, ClientToolTurnRequest
@@ -25,6 +27,50 @@ from .research_schema import OpenResearchQuestion, research_question_payload
 
 RESEARCH_CONTROL_SUBMISSION_TOOL = "submit_research_result"
 RESEARCH_CONTROL_INPUTS_TOOL = "select_workspace_inputs"
+
+
+def load_research_control_submission(
+    result: ClientToolLoopResult, *, question: OpenResearchQuestion, session_dir: Path,
+) -> dict[str, Any]:
+    """Resolve only a final submission's exact observed artifacts, without judging them.
+
+    The caller supplies the trusted terminated loop and frozen public question.
+    Partial submissions remain partial; this never executes or resumes an evaluation.
+    """
+
+    submission = deepcopy(dict(result.terminal_payload))
+    public_question = research_question_payload(question, include_task_intent=True)
+    if (submission.get("question_id") != public_question["id"]
+        or submission.get("question_hash") != stable_hash(public_question)
+        or submission.get("task_intent") != public_question.get("task_intent", {})
+        or not isinstance(submission.get("selected_checkpoints"), Mapping)):
+        raise ValueError("research submission differs from the frozen question")
+    observations = [json.loads(read_client_tool_observation(ref, session_dir=session_dir))
+                    for ref in result.observation_refs]
+    if (not observations or observations[-1].get("tool_name") != RESEARCH_CONTROL_SUBMISSION_TOOL
+        or observations[-1].get("is_error") is not False
+        or observations[-1].get("terminal_payload") != submission):
+        raise ValueError("research submission is not the final observed action")
+    report_ref = submission["report_ref"]
+    report_path = Path(report_ref["path"]).resolve()
+    report_root = session_dir.resolve() / CLIENT_TOOL_SESSION_DIRECTORY / "reports"
+    if report_path.parent != report_root or report_path.name != report_ref["sha256"] + ".md":
+        raise ValueError("research report reference escapes its store")
+    report, errors = read_hash_bound_utf8_file(report_ref)
+    if errors:
+        raise ValueError("research report identity mismatch: " + ",".join(errors))
+    payloads = {}
+    for scope, reference in submission["selected_checkpoints"].items():
+        matches = [row for row in observations[:-1]
+                   if row.get("is_error") is False and row.get("tool_name", "").startswith(scope + "__")
+                   and isinstance(row.get("terminal_payload"), Mapping)
+                   and stable_hash(row["terminal_payload"]) == reference["payload_hash"]
+                   and row.get("model_content_blocks")
+                   and json.loads(row["model_content_blocks"][-1]["text"]).get("shared_checkpoint_ref") == reference]
+        if not matches:
+            raise ValueError("selected research checkpoint was not observed: " + scope)
+        payloads[scope] = deepcopy(matches[-1]["terminal_payload"])
+    return {**submission, "report_markdown": report, "checkpoint_payloads": payloads}
 
 
 def prepare_research_control_workspace(

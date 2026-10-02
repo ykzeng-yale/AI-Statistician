@@ -16,7 +16,8 @@ from ai_statistician.model_backend import ClientToolCall, ClientToolTurnRequest,
 from ai_statistician.research_agent_runtime import _run_generated_code_sandbox
 from ai_statistician.research_architect import LLMTheoryDeveloperAgent, ResearchArchitectConfig, validate_theory_packet
 from ai_statistician.research_control import (
-    RESEARCH_CONTROL_INPUTS_TOOL, prepare_research_control_workspace, prepare_single_context_research_workspace,
+    RESEARCH_CONTROL_INPUTS_TOOL, load_research_control_submission,
+    prepare_research_control_workspace, prepare_single_context_research_workspace,
 )
 from ai_statistician.research_gold_evaluation import _hidden_execution_summary, _run_hidden_scientific_harness
 from ai_statistician.research_schema import OpenResearchQuestion
@@ -402,18 +403,14 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         }),
     ]
     result = run_client_tool_workspace(backend=backend, workspace=workspace)
-    payloads = {}
-    for ref in result.observation_refs:
-        encoded = (tmp_path / ref["relative_path"]).read_bytes()
-        assert hashlib.sha256(encoded).hexdigest() == ref["sha256"]
-        assert len(encoded) == ref["byte_size"]
-        stored = json.loads(encoded)
-        payload = stored.get("terminal_payload", {})
-        if payload and "check_result" in payload:
-            payloads[stable_hash(payload)] = payload
+    resolved = load_research_control_submission(result, question=question, session_dir=tmp_path)
+    payloads = resolved["checkpoint_payloads"]
     selected = result.terminal_payload["selected_checkpoints"]
-    algorithm_result = payloads[selected["algorithm"]["payload_hash"]]["check_result"]
-    simulation_result = payloads[selected["simulation"]["payload_hash"]]["check_result"]
+    algorithm_result = payloads["algorithm"]["check_result"]
+    simulation_result = payloads["simulation"]["check_result"]
+    assert load_theory_workspace_documents(payloads["theory"]["core_packet"])["claim.md"].endswith(
+        "Unresolved, not a scientific result.\n")
+    assert resolved["report_markdown"] == "# Execution only\n\nTheory remains unresolved.\n"
     assert algorithm_result["prototype"]["source_code"] == code
     assert algorithm_result["prototype"]["metrics"] == {"echo": 7 + offset}
     assert simulation_result["prototype"]["source_code"] == simulation_code
@@ -433,7 +430,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     # External correctness is separate from the source owner's smoke pass or self-review.
     submission_before = deepcopy(result.terminal_payload)
     messages_before = deepcopy(backend.requests[-1].messages)
-    frozen_draft = payloads[selected["algorithm"]["payload_hash"]]["code_draft"]
+    frozen_draft = payloads["algorithm"]["code_draft"]
     binding = ScientificEstimatorBinding(
         artifact_id="opaque", language=language, code=frozen_draft["code"], code_hash=stable_hash(code),
         dependencies=tuple(frozen_draft["dependencies"]), project_files=tuple(frozen_draft.get("project_files", [])),

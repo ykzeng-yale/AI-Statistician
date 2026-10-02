@@ -565,6 +565,22 @@ def _persist_workspace_observation(
     }
 
 
+def read_client_tool_observation(reference: Mapping[str, Any], *, session_dir: Path) -> str:
+    """Read exact stored text; the caller owns catalog authorization."""
+
+    relative = PurePosixPath(str(reference.get("relative_path", "")))
+    root = session_dir.resolve()
+    path = (root / Path(relative)).resolve()
+    if (relative.is_absolute() or ".." in relative.parts
+        or relative.parts[:2] != (CLIENT_TOOL_SESSION_DIRECTORY, "observations")
+        or not path.is_relative_to(root)):
+        raise ValueError("workspace observation reference escapes its store")
+    text, errors = read_hash_bound_utf8_file({**reference, "path": str(path)})
+    if errors:
+        raise ValueError("workspace observation identity mismatch: " + ",".join(errors))
+    return text
+
+
 def _read_workspace_history(
     tool_input: Mapping[str, Any], *, session_dir: Path, session_id: str,
     request: ClientToolTurnRequest, observation_refs: Sequence[Mapping[str, Any]],
@@ -605,16 +621,7 @@ def _read_workspace_history(
         ref = next((ref for ref in refs if ref["sha256"] == observation_sha), None)
         if ref is None:
             raise ClientToolInputError("observation_sha256 is outside this window's catalog")
-        relative = PurePosixPath(str(ref.get("relative_path", "")))
-        root = session_dir.resolve()
-        path = (root / Path(relative)).resolve()
-        if (relative.is_absolute() or ".." in relative.parts
-            or relative.parts[:2] != (CLIENT_TOOL_SESSION_DIRECTORY, "observations")
-            or not path.is_relative_to(root)):
-            raise ValueError("workspace observation reference escapes its store")
-        text, errors = read_hash_bound_utf8_file({**ref, "path": str(path)})
-        if errors:
-            raise ValueError("workspace observation identity mismatch: " + ",".join(errors))
+        text = read_client_tool_observation(ref, session_dir=session_dir)
         sha = ref["sha256"]
     start = tool_input.get("character_start", 0)
     end = tool_input.get("character_end", min(len(text), start + 20000) if type(start) is int else 0)

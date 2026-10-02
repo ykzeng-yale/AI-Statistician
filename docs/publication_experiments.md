@@ -120,6 +120,27 @@ draws. This verifies reuse of the execution primitive, not a complete external
 submission loader, independent mathematical authority, confirmatory protocol or
 matched scientific experiment.
 
+`load_research_control_submission` now resolves the terminated shared control's
+final report and explicitly selected checkpoint payloads for an external caller.
+It binds the frozen public question/intent, the final observed submission,
+stored observation hashes/lengths, checkpoint scope and reference, and the report's
+hash and authorized store. The observation reader is the same primitive used by
+the retained history tool. It does not select the latest or best intermediate
+candidate, fill a missing dimension, invoke a model, execute source, or modify the
+submission. Empty or theory-only selections remain partial rather than successes.
+Theory documents still pass their existing file-identity loader, and scientific
+projects still pass the existing executor's source/project checks before use.
+
+The caller must supply the trusted terminated loop, its session root and frozen
+task, not an author-declared replacement transcript. This entry is a shared-control
+artifact resolver, not yet a complete common endpoint for native host and full
+product submissions, offline run reconstruction, mathematical adjudication or
+study activation. Deterministic tests include a selected earlier Theory snapshot,
+empty final selection, changed task/report/observation, escaping references,
+missing checkpoints and actual Python/R hidden execution from the resolved source.
+Old gold failure returns are consolidated without changing their conditions,
+messages or dimension verdicts; no old evaluation is rerun or rescored.
+
 Implementation boundary: the existing outer runtime now accounts for local
 requests across roles and continuations, with an optional per-question request
 cap disabled by default. Reported tokens, cache reads, native server timings and

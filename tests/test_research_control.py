@@ -19,7 +19,9 @@ from ai_statistician.client_tool_loop import (
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnRequest, ClientToolTurnResponse
-from ai_statistician.research_control import RESEARCH_CONTROL_SUBMISSION_TOOL, prepare_research_control_workspace
+from ai_statistician.research_control import (
+    RESEARCH_CONTROL_SUBMISSION_TOOL, load_research_control_submission, prepare_research_control_workspace,
+)
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_COMMIT_TOOL, SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
@@ -166,6 +168,7 @@ def test_control_runs_exact_inputs_and_rejects_a_stale_final_join(tmp_path, monk
     if not (runtime.python_available if language == "python" else runtime.r_available):
         pytest.skip("pinned scientific runtime is not installed")
     workspace, question, calls, executions = _control(tmp_path, monkeypatch, language)
+    frozen_question = deepcopy(question)
     frozen_intent = deepcopy(question.task_intent)
     question.task_intent["formal"] = "not_applicable"  # Cannot change the frozen submission intent.
     report = "# Opaque submission\n\nThese are working artifacts, not a certified research result.\n"
@@ -202,10 +205,18 @@ def test_control_runs_exact_inputs_and_rejects_a_stale_final_join(tmp_path, monk
     assert "mathematical_documents" in str(backend.requests[0].messages)
     assert "Opaque task" in str(backend.requests[0].messages)
     assert not list((tmp_path / "theory" / ".client_tool_sessions").glob("*.json"))
+    resolved = load_research_control_submission(result, question=frozen_question, session_dir=workspace.session_dir)
+    assert resolved["report_markdown"] == report
+    assert resolved["selected_checkpoints"] == selection
+    assert resolved["checkpoint_payloads"]["code"]["code_draft"]["code"] == calls[2].input["code"]
+    assert load_theory_workspace_documents(resolved["checkpoint_payloads"]["theory"]) == {
+        "claim.md": calls[0].input["content"],
+    }
+    assert len(executions) == 1 and len(backend.requests) == 9
 
 
 def test_same_workflow_control_records_explicit_instructions_without_independent_review(tmp_path, monkeypatch):
-    workspace, _, _, executions = _control(tmp_path, monkeypatch, "python", workflow="Opaque declared workflow.")
+    workspace, question, _, executions = _control(tmp_path, monkeypatch, "python", workflow="Opaque declared workflow.")
     call = ClientToolCall("submit", RESEARCH_CONTROL_SUBMISSION_TOOL,
                           {"selected_checkpoints": {}, "report_markdown": "# Honest partial submission\n"})
     result = run_client_tool_workspace(backend=ScriptedBackend([call]), workspace=workspace)
@@ -215,6 +226,52 @@ def test_same_workflow_control_records_explicit_instructions_without_independent
     assert workspace.request.metadata["workflow_instructions_hash"] == stable_hash("Opaque declared workflow.")
     assert "Opaque declared workflow." in str(workspace.request.messages)
     assert not executions
+    resolved = load_research_control_submission(result, question=question, session_dir=workspace.session_dir)
+    assert resolved["checkpoint_payloads"] == {} and resolved["selected_checkpoints"] == {}
+    assert resolved["evidence_role"] == "submission_not_scientific_acceptance"
+    assert resolved["report_markdown"] == "# Honest partial submission\n"
+
+
+@pytest.mark.parametrize("tamper", ["observation_bytes", "observation_path", "report_bytes", "report_link",
+                                    "question", "selection", "missing_checkpoint"])
+def test_submission_loader_rejects_changed_identity_without_research_execution(tmp_path, monkeypatch, tamper):
+    workspace, question, calls, executions = _control(tmp_path, monkeypatch, "python")
+
+    def submit(request):
+        return ClientToolCall("final", RESEARCH_CONTROL_SUBMISSION_TOOL, {
+            "report_markdown": "# Unresolved submission\n",
+            "selected_checkpoints": {"theory": _checkpoint_refs(request.messages)["theory"][0]["payload_hash"]},
+        })
+
+    backend = ScriptedBackend([*calls[:2], submit])
+    result = run_client_tool_workspace(backend=backend, workspace=workspace)
+    report_path = Path(result.terminal_payload["report_ref"]["path"])
+    if tamper == "observation_bytes":
+        path = workspace.session_dir / result.observation_refs[1]["relative_path"]
+        path.write_bytes(path.read_bytes() + b" ")
+    elif tamper == "observation_path":
+        refs = deepcopy(list(result.observation_refs))
+        refs[1]["relative_path"] = "../outside.json"
+        result = replace(result, observation_refs=tuple(refs))
+    elif tamper == "report_bytes":
+        report_path.write_bytes(report_path.read_bytes() + b" ")
+    elif tamper == "report_link":
+        outside = tmp_path / "outside.md"
+        outside.write_bytes(report_path.read_bytes())
+        report_path.unlink()
+        report_path.symlink_to(outside)
+    elif tamper == "question":
+        question = replace(question, description=question.description + " Different task.")
+    elif tamper == "selection":
+        changed = deepcopy(result.terminal_payload)
+        changed["selected_checkpoints"]["theory"]["payload_hash"] = "unobserved"
+        result = replace(result, terminal_payload=changed)
+    else:
+        result = replace(result, observation_refs=(result.observation_refs[0], result.observation_refs[-1]))
+    with pytest.raises(ValueError):
+        load_research_control_submission(result, question=question, session_dir=workspace.session_dir)
+    assert len(backend.requests) == 3 and not backend.calls and not executions
+    assert not (tmp_path / "executions").exists()
 
 
 @pytest.mark.parametrize("language", ["python", "r"])

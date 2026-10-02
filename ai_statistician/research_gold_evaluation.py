@@ -1117,11 +1117,7 @@ def _evaluate_gold_task(
         )
         return base
 
-    accepted_id, accepted_handoff, errors = _latest_accepted_algorithm_handoff(
-        runtime_result,
-        artifacts,
-    )
-    if errors:
+    def reject_algorithm_source(errors: Sequence[str]) -> dict[str, Any]:
         base["failure_reasons"].extend(errors)
         base["dimension_status"] = _dimension_status(
             task,
@@ -1137,6 +1133,13 @@ def _evaluate_gold_task(
             ),
         )
         return base
+
+    accepted_id, accepted_handoff, errors = _latest_accepted_algorithm_handoff(
+        runtime_result,
+        artifacts,
+    )
+    if errors:
+        return reject_algorithm_source(errors)
     base["accepted_algorithm_handoff_id"] = accepted_id
     base["accepted_algorithm_handoff_hash"] = stable_hash(accepted_handoff)
 
@@ -1149,45 +1152,17 @@ def _evaluate_gold_task(
         and str(row.get("estimator_id", "") or "") == estimator_id
     ]
     if len(source_rows) != 1:
-        base["failure_reasons"].append(
+        return reject_algorithm_source([
             "accepted algorithm handoff does not contain exactly one required "
             f"estimator source: {estimator_id}"
-        )
-        base["dimension_status"] = _dimension_status(
-            task,
-            runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=base["runtime_research_eval_complete"],
-            hidden_theory_passed=hidden_theory_passed,
-            hidden_algorithm_passed=False,
-            hidden_empirical_passed=False,
-            formal_gold_passed=formal_gold_passed,
-            runtime_result_observed=True,
-            source_replication_gap_disclosure_present=(
-                source_replication_gap_disclosure_present
-            ),
-        )
-        return base
+        ])
     source = source_rows[0]
     source_code = str(source.get("exact_source_code", "") or "")
     source_hash = str(source.get("exact_source_hash", "") or "")
     if not source_code or source_hash != stable_hash(source_code):
-        base["failure_reasons"].append(
+        return reject_algorithm_source([
             "accepted estimator source is missing or its immutable hash is invalid"
-        )
-        base["dimension_status"] = _dimension_status(
-            task,
-            runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=base["runtime_research_eval_complete"],
-            hidden_theory_passed=hidden_theory_passed,
-            hidden_algorithm_passed=False,
-            hidden_empirical_passed=False,
-            formal_gold_passed=formal_gold_passed,
-            runtime_result_observed=True,
-            source_replication_gap_disclosure_present=(
-                source_replication_gap_disclosure_present
-            ),
-        )
-        return base
+        ])
     try:
         source_project_files = normalized_scientific_project_files(
             source.get("exact_project_files", []),
@@ -1199,42 +1174,14 @@ def _evaluate_gold_task(
             project_files=source_project_files,
         )
     except ValueError as exc:
-        base["failure_reasons"].append(
+        return reject_algorithm_source([
             "accepted estimator project is invalid: " + str(exc)
-        )
-        base["dimension_status"] = _dimension_status(
-            task,
-            runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=base["runtime_research_eval_complete"],
-            hidden_theory_passed=hidden_theory_passed,
-            hidden_algorithm_passed=False,
-            hidden_empirical_passed=False,
-            formal_gold_passed=formal_gold_passed,
-            runtime_result_observed=True,
-            source_replication_gap_disclosure_present=(
-                source_replication_gap_disclosure_present
-            ),
-        )
-        return base
+        ])
     persisted_project_hash = str(source.get("exact_project_hash", "") or "")
     if persisted_project_hash != source_project_hash:
-        base["failure_reasons"].append(
+        return reject_algorithm_source([
             "accepted estimator project hash is invalid"
-        )
-        base["dimension_status"] = _dimension_status(
-            task,
-            runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=base["runtime_research_eval_complete"],
-            hidden_theory_passed=hidden_theory_passed,
-            hidden_algorithm_passed=False,
-            hidden_empirical_passed=False,
-            formal_gold_passed=formal_gold_passed,
-            runtime_result_observed=True,
-            source_replication_gap_disclosure_present=(
-                source_replication_gap_disclosure_present
-            ),
-        )
-        return base
+        ])
     base["evaluated_source_hash"] = source_hash
     base["evaluated_project_hash"] = source_project_hash
 
