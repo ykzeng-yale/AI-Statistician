@@ -15,8 +15,8 @@ reproducible host conformance, followed by scientific and researcher-use studies
 Installing a skill alone does not establish either improvement or novelty.
 
 **Paper S: AI-Statistician, a Single-API Collaborative Statistical Research
-System.** Does scoped specialist collaboration improve accepted statistical
-research outcomes over a single source-owning agent at comparable resources?
+System.** Does scoped specialist collaboration improve externally verified
+statistical research outcomes over a single source-owning agent at comparable resources?
 The system supplies its own retained model/tool sessions and sole outer graph;
 it does not invoke Codex or Claude Code to do the research. Separate theory,
 scientific-code, simulation and referee sessions use the same base model API.

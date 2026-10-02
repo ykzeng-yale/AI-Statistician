@@ -18,11 +18,12 @@ from ai_statistician.research_architect import LLMTheoryDeveloperAgent, Research
 from ai_statistician.research_control import (
     RESEARCH_CONTROL_INPUTS_TOOL, prepare_research_control_workspace, prepare_single_context_research_workspace,
 )
+from ai_statistician.research_gold_evaluation import _hidden_execution_summary, _run_hidden_scientific_harness
 from ai_statistician.research_schema import OpenResearchQuestion
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_COMMIT_TOOL, SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
 )
-from ai_statistician.scientific_sandbox import discover_scientific_sandbox_runtime
+from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, discover_scientific_sandbox_runtime
 from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from ai_statistician.theory_derivation_trace import document_authoritative_theory_context
 from ai_statistician.theory_workspace import (
@@ -317,7 +318,8 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
 
 
 @pytest.mark.parametrize("language", ["python", "r"])
-def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language):
+@pytest.mark.parametrize("offset", [0, 1])
+def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language, offset):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
     runtime = discover_scientific_sandbox_runtime()
     if not (runtime.python_available if language == "python" else runtime.r_available):
@@ -365,10 +367,10 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         return ClientToolCall("select-" + scope, RESEARCH_CONTROL_INPUTS_TOOL,
                              {"scope": scope, "selected_checkpoints": {parent: observed[parent] for parent in parents}})
 
-    code = ("def run_estimator(request):\n    return {'echo': request['value']}\n"
+    code = (f"def run_estimator(request):\n    return {{'echo': request['value'] + {offset}}}\n"
             "def run_sandbox(seed, replicates):\n    return run_estimator({'value': seed})\n"
             if language == "python" else
-            "run_estimator <- function(request) list(echo=request$value)\n"
+            f"run_estimator <- function(request) list(echo=request$value+{offset})\n"
             "run_sandbox <- function(seed, replicates) run_estimator(list(value=seed))\n")
     simulation_code = ("def run_sandbox(seed, replicates, estimators):\n"
                        "    return estimators['opaque']({'value': seed + replicates})\n"
@@ -402,7 +404,10 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     result = run_client_tool_workspace(backend=backend, workspace=workspace)
     payloads = {}
     for ref in result.observation_refs:
-        stored = json.loads((tmp_path / ref["relative_path"]).read_text())
+        encoded = (tmp_path / ref["relative_path"]).read_bytes()
+        assert hashlib.sha256(encoded).hexdigest() == ref["sha256"]
+        assert len(encoded) == ref["byte_size"]
+        stored = json.loads(encoded)
         payload = stored.get("terminal_payload", {})
         if payload and "check_result" in payload:
             payloads[stable_hash(payload)] = payload
@@ -410,9 +415,9 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     algorithm_result = payloads[selected["algorithm"]["payload_hash"]]["check_result"]
     simulation_result = payloads[selected["simulation"]["payload_hash"]]["check_result"]
     assert algorithm_result["prototype"]["source_code"] == code
-    assert algorithm_result["prototype"]["metrics"] == {"echo": 7}
+    assert algorithm_result["prototype"]["metrics"] == {"echo": 7 + offset}
     assert simulation_result["prototype"]["source_code"] == simulation_code
-    assert simulation_result["prototype"]["metrics"] == {"echo": 10}
+    assert simulation_result["prototype"]["metrics"] == {"echo": 10 + offset}
     assert simulation_result["prototype"]["bound_estimator_code_hashes"] == {"opaque": stable_hash(code)}
     assert simulation_result["prototype"]["estimator_invocation_counts"] == {"opaque": 1}
     assert simulation_result["prototype"]["mechanical_estimator_invocation_verified"] is True
@@ -424,6 +429,43 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert all(row["independent_role_review"] is False and row["empirical_evidence_status"] == "EXPLORATORY_NOT_CONFIRMATORY"
                for row in (algorithm_result, simulation_result))
     assert result.terminal_payload["evidence_role"] == "submission_not_scientific_acceptance"
+
+    # External correctness is separate from the source owner's smoke pass or self-review.
+    submission_before = deepcopy(result.terminal_payload)
+    messages_before = deepcopy(backend.requests[-1].messages)
+    frozen_draft = payloads[selected["algorithm"]["payload_hash"]]["code_draft"]
+    binding = ScientificEstimatorBinding(
+        artifact_id="opaque", language=language, code=frozen_draft["code"], code_hash=stable_hash(code),
+        dependencies=tuple(frozen_draft["dependencies"]), project_files=tuple(frozen_draft.get("project_files", [])),
+        project_hash=selected["algorithm"]["resources"]["project"],
+    )
+    held_source = ("def run_sandbox(seed, replicates, estimators):\n"
+                   "    return estimators['opaque']({'value': seed + replicates})\n"
+                   if language == "python" else
+                   "run_sandbox <- function(seed, replicates, estimators) "
+                   "estimators[['opaque']](list(value=seed+replicates))\n")
+    evaluator = {"acceptance_checks": [{"check_id": "opaque-held-value", "path": ["echo"],
+                                        "operator": "eq", "expected": 99178}]}
+    assert "99173" not in str(backend.requests) and "99178" not in str(backend.requests)
+    results = []
+    for label in ("selected-shared-source", "source-only-no-review-receipt"):
+        raw = _run_hidden_scientific_harness(
+            sandbox_dir=tmp_path / "evaluator-only" / label, artifact_id=label,
+            harness_language=language, harness_code=held_source, harness_dependencies=(),
+            estimator_binding=binding, seed=99173, replicates=5, timeout_s=30,
+        )
+        summary = _hidden_execution_summary(raw, evaluator=evaluator, required_estimator_id="opaque")
+        assert summary["execution_passed"] and summary["estimator_invocation_count"] == 1
+        assert summary["passed"] is (offset == 0)
+        assert raw["estimator_code_hashes"] == {"opaque": stable_hash(code)}
+        assert raw["estimator_project_hashes"] == {"opaque": binding.project_hash}
+        results.append(raw["metrics"])
+    assert results[0] == results[1] == {"echo": 99178 + offset}
+    assert len(backend.requests) == 12 and not backend.calls
+    assert backend.requests[-1].messages == messages_before
+    assert result.terminal_payload == submission_before
+    assert all(row["accepted"] is True for row in (algorithm_result, simulation_result))
+    assert "99173" not in str(result.messages) and "99178" not in str(result.messages)
 
 
 def test_application_control_preserves_an_honest_gap_without_fabricating_a_theory_checkpoint(tmp_path, monkeypatch):

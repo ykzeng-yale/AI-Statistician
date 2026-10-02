@@ -92,6 +92,34 @@ arm more hidden attempts. Equal calls alone is not equal cost; record tokens,
 wall time, model load/prefill time and scientific computation. Hardware and
 decoding pins accompany all local results.
 
+The legacy `evaluate_research_gold_benchmark` full-task endpoint is not the
+common outcome measure for System S: it requires internal runtime acceptance
+and accepted role handoffs. Applying those prerequisites to a control without
+independent product review would conflate the intervention with correctness.
+Keep that archived qualification path unchanged. The prospective common evaluator
+must inspect every arm's frozen submitted artifacts with the same hidden
+theory rubric and executable numerical checks, regardless of internal verdict.
+Report internal acceptance and external correctness separately, including false
+acceptances, incomplete submissions and unresolved claims. Do not manufacture
+review receipts or label an exploratory checkpoint confirmatory to satisfy the
+old evaluator. Source selection and identity validation are required in every arm;
+product-role acceptance is not an external scientific truth criterion.
+Missing required artifacts in the final submission still fail common task
+completion. Inspecting partial work is diagnostic, not permission to salvage an
+unselected intermediate candidate into a successful result.
+
+Deterministic application tests now resolve the shared submission from exact
+hash-checked stored observations and execute its unchanged Python/R estimator
+through the existing evaluator-only sandbox, after the conversation terminates.
+The same hidden source/seed/checks also execute a source-only binding with no
+review receipt. Both paths agree, and an incorrect offset fails the held check
+despite a successful authoring smoke test. Hidden execution neither calls the
+author nor changes its transcript, report or checkpoint; no outcome is returned
+for repair. These are opaque mechanism fixtures, not statistical tasks or model
+draws. This verifies reuse of the execution primitive, not a complete external
+submission loader, independent mathematical authority, confirmatory protocol or
+matched scientific experiment.
+
 Implementation boundary: the existing outer runtime now accounts for local
 requests across roles and continuations, with an optional per-question request
 cap disabled by default. Reported tokens, cache reads, native server timings and
