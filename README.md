@@ -159,9 +159,11 @@ attempt its report advances; every attempted command remains immutable lineage
 that the terminal Critic independently reloads. Model-selected runs remain
 exploratory and cannot satisfy the operator-fixed preregistered replication gold.
 
-The frozen development/held-out protocol is
+The archived strict-formal development/held-out protocol is
 [`benchmarks/autonomous_cross_family_e2e_protocol_20260713.json`](benchmarks/autonomous_cross_family_e2e_protocol_20260713.json).
-Do not run or inspect held-out outcomes until the development gate passes.
+Leave its held-out tasks sealed and consumed outcomes unchanged. Its development
+gate is not a prerequisite for the new open-weight publication studies; use the
+prospective [publication experiment design](docs/publication_experiments.md).
 
 ## Formal Retrieval
 

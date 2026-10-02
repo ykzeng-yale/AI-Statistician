@@ -1,6 +1,16 @@
-# Evaluation Benchmark Strategy
+# Historical Evaluation Benchmark Strategy
 
 Updated: 2026-08-21
+
+Archived development strategy. Its exact-Haiku policy, task ladder, activation
+rules and recorded outcomes describe the earlier studies, not future publication
+experiments. The [publication programme](publication_programme.md) and
+[prospective experiment design](publication_experiments.md) supersede its working
+instructions. Official studies start fresh with pinned open-weight models; no old
+score, calibration or development gate is transferred. Retain original consumed
+records without another model call, resumption or reassessment. The general
+evidence principles below remain useful; their historical implementations are
+not qualified authority for the new studies.
 
 ## What evaluation must separate
 
@@ -310,7 +320,7 @@ answers must never enter runtime prompts, general RAG, policy packs, or source c
 
 ## Leakage and independence
 
-Every scored run records:
+The historical protocol required each scored run to record:
 
 - exact model `claude-haiku-4-5-20251001` for all live evaluation calls;
 - task release, source-horizon, paper/code/data visibility, and snapshot hashes;
@@ -354,7 +364,7 @@ copies recursive payloads into manifests.
 Deterministic replay is appropriate for harness regression tests. It is never live
 model capability, fresh scientific execution, novelty, or proof evidence.
 
-## Current evidence
+## Historical Development Evidence
 
 The latest immutable exact-Haiku v436 development run remains diagnostic: both
 tasks ended `BLOCKED`, integrated capability was 5/16, and exact theorem closure
