@@ -1,6 +1,7 @@
 {
   "scope": "One fresh native-host skill activation/read conformance check, not a statistical task or publication efficacy draw.",
   "host": "@moonshot-ai/kimi-code@2.1.1",
+  "auxiliary_requests": "Native title/default behavior is unchanged; count any actual auxiliary requests. This version ignores the newer auto_session_title configuration key, removed before inference.",
   "host_main_sha256": "2563a338c94868a34e1bfd2e5579067d5a472acf4cb0bf350a3bfe1092bbe59d",
   "model": "Qwen3-4B-Instruct-2507",
   "weights_sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",

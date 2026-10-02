@@ -1,7 +1,6 @@
 default_model = "local-qwen"
 telemetry = false
 builtin_product_skills = false
-auto_session_title = false
 
 [providers.local]
 type = "openai"
