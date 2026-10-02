@@ -94,6 +94,7 @@ from .generated_code_semantic_reviewer_llm import (
     SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE,
     SOURCE_REVISION_SCOPE_PARENT_CHANGE,
     normalize_generated_code_semantic_review_findings,
+    read_scientific_execution_review_artifact,
     validate_generated_code_semantic_review_packet,
 )
 from .generated_code_semantic_review_replan import (
@@ -7599,109 +7600,12 @@ def _runtime_generated_code_semantic_review_material(
         if str(row.get("semantic_review_artifact_id", "") or "") != artifact_id:
             errors.append(f"reviewed artifact identity mismatch: {artifact_id}")
             continue
-        script_path = Path(str(row.get("script_path", "") or ""))
-        result_path = Path(str(row.get("result_path", "") or ""))
-        if not script_path.is_file():
-            errors.append(f"reviewed source file missing: {artifact_id}")
-            continue
-        source_code = script_path.read_text(encoding="utf-8")
-        script_hash = stable_hash(source_code)
-        if script_hash != str(row.get("script_hash", "") or ""):
-            errors.append(f"reviewed source hash mismatch: {artifact_id}")
-        result_payload: dict[str, Any] = {}
-        if not result_path.is_file():
-            errors.append(f"reviewed result file missing: {artifact_id}")
-        else:
-            try:
-                raw_result = json.loads(result_path.read_text(encoding="utf-8"))
-                if isinstance(raw_result, Mapping):
-                    result_payload = dict(raw_result)
-                else:
-                    errors.append(f"reviewed result is not an object: {artifact_id}")
-            except Exception as exc:
-                errors.append(
-                    f"reviewed result JSON invalid for {artifact_id}: {exc!r}"
-                )
-        result_hash = stable_hash(result_payload) if result_payload else ""
-        if result_hash != str(row.get("result_hash", "") or ""):
-            errors.append(f"reviewed result hash mismatch: {artifact_id}")
-        if stable_hash(result_payload) != stable_hash(row.get("metrics", {})):
-            errors.append(f"reviewed result does not match manifest metrics: {artifact_id}")
-        raw_project_paths = row.get("project_file_paths", {})
-        raw_project_hashes = row.get("project_file_hashes", {})
-        project_paths = (
-            dict(raw_project_paths) if isinstance(raw_project_paths, Mapping) else {}
+        artifact, artifact_errors = read_scientific_execution_review_artifact(
+            artifact_id=artifact_id, row=row,
         )
-        project_hashes = (
-            dict(raw_project_hashes)
-            if isinstance(raw_project_hashes, Mapping)
-            else {}
-        )
-        exact_project_files: list[dict[str, str]] = []
-        if set(project_paths) != set(project_hashes):
-            errors.append(f"reviewed project file inventory mismatch: {artifact_id}")
-        for project_path in sorted(set(project_paths).intersection(project_hashes)):
-            materialized_path = Path(str(project_paths[project_path] or ""))
-            if not materialized_path.is_file():
-                errors.append(
-                    f"reviewed project file missing: {artifact_id}:{project_path}"
-                )
-                continue
-            exact_project_files.append(
-                {
-                    "path": str(project_path),
-                    "content": materialized_path.read_text(encoding="utf-8"),
-                    "content_sha256": str(project_hashes[project_path] or ""),
-                }
-            )
-        try:
-            normalized_project_files = normalized_scientific_project_files(
-                exact_project_files,
-                language=normalized_generated_code_language(row.get("language")),
-            )
-            exact_project_files = [
-                project_file.to_json()
-                for project_file in normalized_project_files
-            ]
-            exact_project_hash = scientific_project_hash(
-                language=normalized_generated_code_language(row.get("language")),
-                code=source_code,
-                project_files=normalized_project_files,
-            )
-        except ValueError as exc:
-            errors.append(f"reviewed project invalid: {artifact_id}: {exc}")
-            exact_project_files = []
-            exact_project_hash = ""
-        persisted_project_hash = str(row.get("project_hash", "") or "")
-        if (
-            not persisted_project_hash
-            or exact_project_hash != persisted_project_hash
-        ):
-            errors.append(f"reviewed project hash mismatch: {artifact_id}")
-        exact_artifacts.append(
-            {
-                "artifact_id": artifact_id,
-                "source_row": {
-                    **{
-                        key: value
-                        for key, value in row.items()
-                        if key != "code_excerpt"
-                    },
-                    "project_hash": exact_project_hash,
-                },
-                "exact_source_code": source_code,
-                "exact_source_hash": script_hash,
-                "exact_project_files": exact_project_files,
-                "exact_project_hash": exact_project_hash,
-                "exact_project_files_complete": True,
-                "exact_result": result_payload,
-                "exact_result_hash": result_hash,
-                "actual_runtime_arguments": {
-                    "seed": row.get("runtime_seed"),
-                    "replicates": row.get("runtime_replicates"),
-                },
-            }
-        )
+        errors.extend(artifact_errors)
+        if artifact is not None:
+            exact_artifacts.append(artifact)
     architect_evidence_contract = dict(
         work_order.get("architect_evidence_contract", {}) or {}
     )

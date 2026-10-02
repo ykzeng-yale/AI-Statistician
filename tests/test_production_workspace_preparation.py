@@ -6,6 +6,7 @@ import hashlib
 import json
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -342,6 +343,16 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                                     task_intent={"theory": "optional", "scientific_code": "not_applicable",
                                                  "empirical": "not_applicable", "formal": "not_applicable"})
     backend = Scripted([])
+    executed = {}
+    from ai_statistician import research_agent_runtime as runtime_module
+    execute_algorithm = runtime_module._run_generated_code_sandbox
+
+    def record_execution(**kwargs):
+        row, tool = execute_algorithm(**kwargs)
+        executed["row"] = row
+        return row, tool
+
+    monkeypatch.setattr(runtime_module, "_run_generated_code_sandbox", record_execution)
     theory = LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
         provider_name="local", model=MODEL, model_tier="local", serious_model=MODEL, serious_model_tier="local",
         max_tokens=1024, temperature=0,
@@ -357,7 +368,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                                                        model=MODEL, max_tokens=1024),
         theory_agent=theory, algorithm_agent=algorithm, simulation_agent=simulation, estimator_id="opaque",
         session_dir=tmp_path, session_id="opaque-app", n_runs=3, seed=7, timeout_s=30,
-        max_turns=24, max_tool_calls=24, max_no_progress_turns=24,
+        max_turns=32, max_tool_calls=32, max_no_progress_turns=32,
         theory_reviewer=LLMArchitectMetricSemanticReviewerAgent(provider=backend, config=ArchitectMetricSemanticReviewerConfig(
             provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0,
         )) if include_review else None,
@@ -422,6 +433,19 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     ]
     report = "# Opaque review\n\nclaim.md leaves opaque_claim unresolved. No statistical result is established.\n"
     if include_review:
+        altered = {}
+
+        def select_changed_execution(request):
+            path = Path(executed["row"]["script_path" if offset == 0 else "result_path"])
+            altered.update(path=path, original=path.read_bytes())
+            path.write_bytes(b"opaque integrity-test mutation\n")
+            return select(request, "simulation", ["theory", "algorithm"])
+
+        def select_original_execution(request):
+            altered["path"].write_bytes(altered["original"])
+            return select(request, "simulation", ["theory", "algorithm"])
+
+        backend.calls[7:8] = [select_changed_execution, select_original_execution]
         review_submission = {"review_report_sha256": hashlib.sha256(report.encode()).hexdigest(),
             "report_evidence_refs": ["theory.document:claim.md", "question"], "overall_verdict": "REVISE",
             "execution_handoff_status": PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED,
@@ -492,6 +516,8 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         assert "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE" in str(backend.requests[8].messages[-1])
         assert "theory.document:claim.md" in str(backend.requests[6].messages[-1])
         assert "selected checkpoint inputs do not match" in str(backend.requests[-1].messages[-1])
+        failure = "reviewed source hash mismatch" if offset == 0 else "reviewed result JSON invalid"
+        assert any(failure in str(request.messages[-1]) for request in backend.requests)
 
     # Exercise the real terminal Critic and persisted graph; this is not a full product/model draw.
     class ScriptedCritic:
@@ -571,7 +597,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         assert raw["estimator_project_hashes"] == {"opaque": binding.project_hash}
         results.append(raw["metrics"])
     assert results[0] == results[1] == {"echo": 99178 + offset}
-    assert len(backend.requests) == (23 if include_review else 12) and not backend.calls
+    assert len(backend.requests) == (24 if include_review else 12) and not backend.calls
     assert backend.requests[-1].messages == messages_before
     assert result.terminal_payload == submission_before
     assert len(critic.calls) == 1 and critic.calls[0]["canonical_evidence_view"]["view_hash"] == (

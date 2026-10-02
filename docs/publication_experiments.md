@@ -243,6 +243,18 @@ product or label arbitrary workflow text as matching that product's workflow.
 Actual integrated Python/R tests here use scripted turns, not live reasoning or
 publication draws.
 
+Before Simulation consumes a selected estimator, the control now reads its
+persisted source, support files and result through the same exact-identity
+reader used by production code review. Missing or changed bytes and disagreement
+with the selected draft return an input observation, not a repaired candidate.
+The existing scientific workspace can execute model-authored diagnostic tests
+against that immutable estimator. Do not duplicate a reviewer packet or add a
+new scheduling stage merely to enable same-conversation self-inspection. This
+identity check is not a semantic verdict, confirmation or independent review.
+Python/R regressions exercise actual execution and injected record corruption;
+opaque reader tests cover missing/changed files, malformed results, inventories
+and metadata. No consumed scientific result is modified or rescored.
+
 The optional `theory_reviewer` configuration now binds the actual production
 referee's file/source reads, report writes/edits, compact finding submission and
 Python/R scratch actions into that conversation. The model selects an observed

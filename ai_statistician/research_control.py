@@ -427,6 +427,7 @@ def prepare_single_context_research_workspace(
     """
 
     from .estimator_interface_contract import project_executable_estimator_spec
+    from .generated_code_semantic_reviewer_llm import read_scientific_execution_review_artifact
     from .architect_theory_execution_preflight import prepare_architect_theory_execution_preflight_workspace
     from .metric_protocol_stage import build_theory_informed_metric_protocol_material
     from .research_agent_runtime import _estimator_spec, _run_generated_code_sandbox, _run_generated_simulation_sandbox
@@ -465,9 +466,17 @@ def prepare_single_context_research_workspace(
                    "independent_role_review": False}
         handoff = {}
         if "algorithm" in selected:
-            draft = selected["algorithm"]["payload"]["code_draft"]
+            algorithm_payload = selected["algorithm"]["payload"]
+            draft = algorithm_payload["code_draft"]
             project_hash = scientific_project_hash(language=draft["language"], code=draft["code"],
                                                    project_files=draft.get("project_files", []))
+            exact, errors = read_scientific_execution_review_artifact(
+                artifact_id=estimator_id, row=algorithm_payload["check_result"]["prototype"],
+            )
+            if errors or exact is None:
+                raise ClientToolInputError("\n".join(errors))
+            if exact["exact_source_hash"] != stable_hash(draft["code"]) or exact["exact_project_hash"] != project_hash:
+                raise ClientToolInputError("selected estimator draft differs from its executed source")
             handoff = {"independent_role_review": False, "exact_algorithm_artifacts": [{
                 "estimator_id": estimator_id, "language": draft["language"],
                 "dependencies": draft["dependencies"], "exact_source_code": draft["code"],

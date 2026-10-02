@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from copy import deepcopy
 from dataclasses import replace
 from types import SimpleNamespace
@@ -28,6 +29,7 @@ from ai_statistician.generated_code_semantic_reviewer_llm import (
     build_generated_code_semantic_review_prompt,
     generated_code_semantic_review_json_schema,
     generated_code_semantic_review_prompt_projection,
+    read_scientific_execution_review_artifact,
     validate_generated_code_semantic_review_packet,
 )
 from ai_statistician.packet_validation import PacketValidationError
@@ -51,6 +53,67 @@ from ai_statistician.research_source_library import (
 from ai_statistician.theory_workspace import (
     THEORY_WORKSPACE_SEARCH_DOCUMENTS_TOOL,
 )
+
+
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("mutation", [
+    "none", "missing_source", "changed_source", "missing_result", "changed_result",
+    "invalid_result", "nonobject_result", "changed_support", "missing_support",
+    "inventory", "changed_metrics", "changed_project_hash", "missing_project_hash",
+])
+def test_execution_identity_reader_is_shared_by_product_review(tmp_path, language, mutation):
+    from ai_statistician.research_agent_runtime import _runtime_generated_code_semantic_review_material
+
+    source, support = "opaque source bytes\n", "opaque support bytes\n"
+    support_name = "helper.py" if language == "python" else "helper.R"
+    main, result, helper = tmp_path / "main", tmp_path / "result.json", tmp_path / support_name
+    main.write_text(source, encoding="utf-8")
+    helper.write_text(support, encoding="utf-8")
+    result.write_text(json.dumps({"opaque": 29}), encoding="utf-8")
+    project = [{"path": support_name, "content": support,
+                "content_sha256": hashlib.sha256(support.encode()).hexdigest()}]
+    row = {"estimator_id": "opaque", "semantic_review_artifact_id": "opaque", "language": language,
+           "script_path": str(main), "script_hash": stable_hash(source), "code_excerpt": "not authoritative",
+           "result_path": str(result), "result_hash": stable_hash({"opaque": 29}), "metrics": {"opaque": 29},
+           "project_file_paths": {support_name: str(helper)},
+           "project_file_hashes": {support_name: project[0]["content_sha256"]},
+           "project_hash": scientific_project_hash(language=language, code=source, project_files=project),
+           "runtime_seed": 13, "runtime_replicates": 7, "smoke_passed": True}
+    if mutation == "missing_source":
+        main.unlink()
+    elif mutation == "changed_source":
+        main.write_text("changed source\n", encoding="utf-8")
+    elif mutation == "missing_result":
+        result.unlink()
+    elif mutation in {"changed_result", "invalid_result", "nonobject_result"}:
+        result.write_text({"changed_result": '{"opaque":31}', "invalid_result": "invalid JSON",
+                           "nonobject_result": "[29]"}[mutation], encoding="utf-8")
+    elif mutation == "changed_support":
+        helper.write_text("changed support\n", encoding="utf-8")
+    elif mutation == "missing_support":
+        helper.unlink()
+    elif mutation == "inventory":
+        row["project_file_hashes"] = {}
+    elif mutation == "changed_metrics":
+        row["metrics"] = {"opaque": 31}
+    elif mutation in {"changed_project_hash", "missing_project_hash"}:
+        row["project_hash"] = "0" * 64 if mutation == "changed_project_hash" else ""
+    before = deepcopy(row)
+    artifact, errors = read_scientific_execution_review_artifact(artifact_id="opaque", row=row)
+    material, product_errors = _runtime_generated_code_semantic_review_material(
+        work_order={"source_subsystem": "AlgorithmEngineer",
+                    "reviewed_artifacts": [{"artifact_id": "opaque", "row_hash": stable_hash(row)}]},
+        source_task={}, source_manifest={"prototypes": [row]}, theory_packet={}, proposal_packet={},
+    )
+    assert row == before
+    assert material["exact_executed_artifacts"] == ([] if artifact is None else [artifact])
+    assert product_errors == sorted(set(errors))
+    assert bool(errors) is (mutation != "none")
+    if mutation == "none":
+        assert artifact["exact_source_code"] == source and artifact["exact_project_files"] == project
+        assert artifact["exact_result"] == {"opaque": 29}
+        assert artifact["actual_runtime_arguments"] == {"seed": 13, "replicates": 7}
+        assert "code_excerpt" not in artifact["source_row"]
 
 
 def _question() -> OpenResearchQuestion:

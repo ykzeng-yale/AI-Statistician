@@ -114,6 +114,79 @@ SOURCE_REVISION_SCOPE_PARENT_CHANGE = "CROSS_ARTIFACT_RESOLUTION_REQUIRED"
 SOURCE_REVISION_SCOPES = (SOURCE_REVISION_SCOPE_NO_PARENT_CHANGE, SOURCE_REVISION_SCOPE_PARENT_CHANGE)
 
 
+def read_scientific_execution_review_artifact(
+    *, artifact_id: str, row: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Read one executor record without trusting stale source or result bytes.
+
+    Product review and comparison controls use this same identity check. It
+    neither edits files nor grants scientific acceptance to an executed source.
+    """
+
+    errors: list[str] = []
+    script_path = Path(str(row.get("script_path", "") or ""))
+    result_path = Path(str(row.get("result_path", "") or ""))
+    if not script_path.is_file():
+        return None, [f"reviewed source file missing: {artifact_id}"]
+    source_code = script_path.read_text(encoding="utf-8")
+    script_hash = stable_hash(source_code)
+    if script_hash != str(row.get("script_hash", "") or ""):
+        errors.append(f"reviewed source hash mismatch: {artifact_id}")
+    result_payload: dict[str, Any] = {}
+    if not result_path.is_file():
+        errors.append(f"reviewed result file missing: {artifact_id}")
+    else:
+        try:
+            raw_result = json.loads(result_path.read_text(encoding="utf-8"))
+            if isinstance(raw_result, Mapping):
+                result_payload = dict(raw_result)
+            else:
+                errors.append(f"reviewed result is not an object: {artifact_id}")
+        except Exception as exc:
+            errors.append(f"reviewed result JSON invalid for {artifact_id}: {exc!r}")
+    result_hash = stable_hash(result_payload) if result_payload else ""
+    if result_hash != str(row.get("result_hash", "") or ""):
+        errors.append(f"reviewed result hash mismatch: {artifact_id}")
+    if stable_hash(result_payload) != stable_hash(row.get("metrics", {})):
+        errors.append(f"reviewed result does not match manifest metrics: {artifact_id}")
+    project_paths = row.get("project_file_paths", {})
+    project_hashes = row.get("project_file_hashes", {})
+    project_paths = dict(project_paths) if isinstance(project_paths, Mapping) else {}
+    project_hashes = dict(project_hashes) if isinstance(project_hashes, Mapping) else {}
+    exact_project_files: list[dict[str, str]] = []
+    if set(project_paths) != set(project_hashes):
+        errors.append(f"reviewed project file inventory mismatch: {artifact_id}")
+    for project_path in sorted(set(project_paths).intersection(project_hashes)):
+        materialized_path = Path(str(project_paths[project_path] or ""))
+        if not materialized_path.is_file():
+            errors.append(f"reviewed project file missing: {artifact_id}:{project_path}")
+            continue
+        exact_project_files.append({
+            "path": str(project_path), "content": materialized_path.read_text(encoding="utf-8"),
+            "content_sha256": str(project_hashes[project_path] or ""),
+        })
+    language = normalized_generated_code_language(row.get("language"))
+    try:
+        project_files = normalized_scientific_project_files(exact_project_files, language=language)
+        exact_project_files = [project_file.to_json() for project_file in project_files]
+        project_hash = scientific_project_hash(language=language, code=source_code, project_files=project_files)
+    except ValueError as exc:
+        errors.append(f"reviewed project invalid: {artifact_id}: {exc}")
+        exact_project_files, project_hash = [], ""
+    if not row.get("project_hash") or project_hash != str(row["project_hash"]):
+        errors.append(f"reviewed project hash mismatch: {artifact_id}")
+    return {
+        "artifact_id": artifact_id,
+        "source_row": {**{key: value for key, value in row.items() if key != "code_excerpt"},
+                       "project_hash": project_hash},
+        "exact_source_code": source_code, "exact_source_hash": script_hash,
+        "exact_project_files": exact_project_files, "exact_project_hash": project_hash,
+        "exact_project_files_complete": True,
+        "exact_result": result_payload, "exact_result_hash": result_hash,
+        "actual_runtime_arguments": {"seed": row.get("runtime_seed"), "replicates": row.get("runtime_replicates")},
+    }, errors
+
+
 def _exact_estimator_probe_targets(
     review_material: Mapping[str, Any],
 ) -> dict[str, dict[str, Any]]:
