@@ -54,14 +54,21 @@ GoldArtifactHarnessRunner = Callable[..., Mapping[str, Any]]
 GoldTheorySemanticJudgeRunner = Callable[..., Mapping[str, Any]]
 
 
-def _semantic_judgment_metrics(judgment: Mapping[str, Any], *, prefix: str) -> dict[str, Any]:
+def _semantic_judgment_metrics(
+    judgment: Mapping[str, Any], *, prefix: str, executed: bool = True,
+    evaluator: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Serialize the same frozen semantic-judge fields for theory and source reports."""
 
     values = {
-        "execution_attempted": True,
-        "result_hash": str(judgment.get("judgment_hash", "") or ""),
+        "execution_attempted": executed,
         "claim_assessments": deepcopy(judgment.get("candidate_claim_assessments", [])),
     }
+    if executed:
+        values["result_hash"] = str(judgment.get("judgment_hash", "") or "")
+    else:
+        values["evaluation_configured"] = bool(evaluator)
+        values["evaluator_hash"] = stable_hash(evaluator) if evaluator else ""
     for target, source in {
         "judge_calibrated": "semantic_judge_calibrated",
         "candidate_mode_negative_controls_passed": "candidate_mode_negative_controls_passed",
@@ -519,42 +526,13 @@ def _evaluate_gold_task(
         "hidden_theory_evaluator_source_hash": str(
             theory_evaluator.get("harness_sha256", "") or ""
         ),
-        "hidden_theory_execution_attempted": False,
-        "hidden_theory_execution_passed": False,
-        "hidden_theory_checks_passed": False,
-        "hidden_theory_check_results": [],
-        "hidden_theory_semantic_evaluation_configured": bool(
-            theory_semantic_evaluator
-        ),
-        "hidden_theory_semantic_evaluator_hash": (
-            stable_hash(theory_semantic_evaluator)
-            if theory_semantic_evaluator
-            else ""
-        ),
-        "hidden_theory_semantic_execution_attempted": False,
-        "hidden_theory_semantic_judge_calibrated": False,
-        "hidden_theory_semantic_calibration_case_count": 0,
-        "hidden_theory_semantic_calibration_cases_correct": 0,
-        "hidden_theory_semantic_candidate_mode_negative_case_count": 0,
-        "hidden_theory_semantic_candidate_mode_negative_cases_correct": 0,
-        "hidden_theory_semantic_candidate_mode_negative_model_calls": 0,
-        "hidden_theory_semantic_candidate_mode_negative_controls_passed": False,
-        "hidden_theory_semantic_claim_count": 0,
-        "hidden_theory_semantic_candidate_status": "",
-        "hidden_theory_semantic_candidate_document_status": "",
-        "hidden_theory_semantic_candidate_integrated_context": False,
-        "hidden_theory_semantic_candidate_model_calls": 0,
-        "hidden_theory_semantic_claim_assessments": [],
-        "hidden_theory_semantic_passed": False,
+        **_semantic_judgment_metrics({}, prefix="hidden_theory_semantic_", executed=False,
+                                   evaluator=theory_semantic_evaluator),
         "hidden_theory_combined_passed": False,
         "hidden_empirical_evaluation_configured": bool(empirical_evaluator),
         "hidden_empirical_evaluator_source_hash": str(
             empirical_evaluator.get("harness_sha256", "") or ""
         ),
-        "hidden_empirical_execution_attempted": False,
-        "hidden_empirical_execution_passed": False,
-        "hidden_empirical_checks_passed": False,
-        "hidden_empirical_check_results": [],
         "source_replication_manifest_id": "",
         "source_replication_manifest_hash": "",
         "hidden_source_replication_evaluation_configured": bool(
@@ -563,34 +541,13 @@ def _evaluate_gold_task(
         "hidden_source_replication_evaluator_source_hash": str(
             source_replication_evaluator.get("harness_sha256", "") or ""
         ),
-        "hidden_source_replication_execution_attempted": False,
-        "hidden_source_replication_execution_passed": False,
-        "hidden_source_replication_checks_passed": False,
-        "hidden_source_replication_check_results": [],
+        **{f"hidden_{scope}_{field}": deepcopy(value)
+           for scope in ("theory", "empirical", "source_replication")
+           for field, value in (("execution_attempted", False), ("execution_passed", False),
+                                ("checks_passed", False), ("check_results", []))},
         "hidden_source_replication_identity_passed": False,
-        "hidden_source_report_semantic_evaluation_configured": bool(
-            source_report_semantic_evaluator
-        ),
-        "hidden_source_report_semantic_evaluator_hash": (
-            stable_hash(source_report_semantic_evaluator)
-            if source_report_semantic_evaluator
-            else ""
-        ),
-        "hidden_source_report_semantic_execution_attempted": False,
-        "hidden_source_report_semantic_judge_calibrated": False,
-        "hidden_source_report_semantic_calibration_case_count": 0,
-        "hidden_source_report_semantic_calibration_cases_correct": 0,
-        "hidden_source_report_semantic_candidate_mode_negative_case_count": 0,
-        "hidden_source_report_semantic_candidate_mode_negative_cases_correct": 0,
-        "hidden_source_report_semantic_candidate_mode_negative_model_calls": 0,
-        "hidden_source_report_semantic_candidate_mode_negative_controls_passed": False,
-        "hidden_source_report_semantic_claim_count": 0,
-        "hidden_source_report_semantic_candidate_status": "",
-        "hidden_source_report_semantic_candidate_document_status": "",
-        "hidden_source_report_semantic_candidate_integrated_context": False,
-        "hidden_source_report_semantic_candidate_model_calls": 0,
-        "hidden_source_report_semantic_claim_assessments": [],
-        "hidden_source_report_semantic_passed": False,
+        **_semantic_judgment_metrics({}, prefix="hidden_source_report_semantic_", executed=False,
+                                   evaluator=source_report_semantic_evaluator),
         "hidden_source_replication_combined_passed": False,
         "source_replication_report_document_hash": "",
         "source_replication_checkpoint_valid": False,
@@ -603,19 +560,22 @@ def _evaluate_gold_task(
         "proof_evidence_status": "GOLD_EVALUATION_NOT_PROOF_EVIDENCE",
         "boundary": GOLD_EVALUATION_BOUNDARY,
     }
-    if runtime_result is None:
-        base["failure_reasons"] = ["runtime result is missing"]
+    def reject_runtime_identity(reason: str, *, requirements=runtime_requirements) -> dict[str, Any]:
+        base["failure_reasons"] = [reason]
         base["dimension_status"] = _dimension_status(
             task,
-            runtime_requirements=runtime_requirements,
+            runtime_requirements=requirements,
             runtime_research_eval_complete=False,
             hidden_theory_passed=False,
             hidden_algorithm_passed=False,
             hidden_empirical_passed=False,
             formal_gold_passed=False,
-            runtime_result_observed=False,
+            runtime_result_observed=runtime_result is not None,
         )
         return base
+
+    if runtime_result is None:
+        return reject_runtime_identity("runtime result is missing")
 
     runtime_question = _runtime_result_question(runtime_result)
     runtime_visible_question_hash = stable_hash(
@@ -623,20 +583,9 @@ def _evaluate_gold_task(
     )
     base["runtime_visible_question_hash"] = runtime_visible_question_hash
     if runtime_visible_question_hash != str(task["visible_question_hash"]):
-        base["failure_reasons"] = [
+        return reject_runtime_identity(
             "runtime-visible question hash does not match the frozen gold task"
-        ]
-        base["dimension_status"] = _dimension_status(
-            task,
-            runtime_requirements=runtime_requirements,
-            runtime_research_eval_complete=False,
-            hidden_theory_passed=False,
-            hidden_algorithm_passed=False,
-            hidden_empirical_passed=False,
-            formal_gold_passed=False,
-            runtime_result_observed=True,
         )
-        return base
 
     if research_summary_row:
         observed_evidence_hash = research_evaluation_evidence_hash(runtime_result)
@@ -659,20 +608,9 @@ def _evaluate_gold_task(
             and base["runtime_summary_row_hash_valid"]
         ):
             base["runtime_research_eval_complete"] = False
-            base["failure_reasons"] = [
-                "research summary is not bound to this runtime evidence graph"
-            ]
-            base["dimension_status"] = _dimension_status(
-                task,
-                runtime_requirements={},
-                runtime_research_eval_complete=False,
-                hidden_theory_passed=False,
-                hidden_algorithm_passed=False,
-                hidden_empirical_passed=False,
-                formal_gold_passed=False,
-                runtime_result_observed=True,
+            return reject_runtime_identity(
+                "research summary is not bound to this runtime evidence graph", requirements={},
             )
-            return base
 
     artifacts = _runtime_artifacts(runtime_result)
     formal_requirement = str(

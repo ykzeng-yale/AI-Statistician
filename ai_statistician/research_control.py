@@ -1,4 +1,4 @@
-"""Single-conversation study control using existing prepared research actions."""
+"""Publication controls and final-artifact readers, not a second research runtime."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import hashlib
 import json
 from copy import deepcopy
 from dataclasses import asdict, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from subprocess import CompletedProcess
 from typing import Any, Callable, Mapping
 
 from .client_tool_loop import (
@@ -27,6 +28,101 @@ from .research_schema import OpenResearchQuestion, research_question_payload
 
 RESEARCH_CONTROL_SUBMISSION_TOOL = "submit_research_result"
 RESEARCH_CONTROL_INPUTS_TOOL = "select_workspace_inputs"
+
+
+def collect_native_research_submission(
+    *, question: OpenResearchQuestion, workspace_root: Path,
+    artifact_paths: Mapping[str, list[str] | tuple[str, ...]],
+    host_result: CompletedProcess, snapshot_dir: Path,
+) -> dict[str, Any]:
+    """Snapshot frozen final paths after the caller's native host has terminated.
+
+    The trusted study runner supplies the completed process and predeclared paths.
+    This neither runs a host nor infers its model/tools, isolation or scientific success.
+    A fresh evaluator-owned directory outside the author workspace prevents overwrites.
+    """
+
+    if not isinstance(host_result, CompletedProcess) or type(host_result.returncode) is not int:
+        raise ValueError("native submission requires a completed host process")
+    root, store = workspace_root.resolve(), snapshot_dir.resolve()
+    if not root.is_dir() or store.is_relative_to(root) or root.is_relative_to(store):
+        raise ValueError("native submission store must be separate from the author workspace")
+    if any(not isinstance(paths, (list, tuple)) or any(not isinstance(path, str) for path in paths)
+           or len(paths) != len(set(paths)) for paths in artifact_paths.values()):
+        raise ValueError("native submission requires explicit, non-duplicate final path lists")
+    requested = {scope: list(paths) for scope, paths in artifact_paths.items()}
+    for paths in requested.values():
+        for path in paths:
+            pure = PurePosixPath(path)
+            if (not path or "\\" in path or "\x00" in path or pure.is_absolute()
+                or path != pure.as_posix() or any(part in {".", ".."} for part in pure.parts)):
+                raise ValueError("native submission paths must be canonical and relative")
+    store.mkdir(parents=True, exist_ok=False)
+    blobs = store / "files"
+    blobs.mkdir()
+    refs, missing = {}, {}
+    for scope, paths in requested.items():
+        refs[scope], missing[scope] = {}, []
+        for relative in paths:
+            path = (root / relative).resolve()
+            if not path.is_relative_to(root):
+                raise ValueError("native submission file escapes its workspace")
+            if not path.is_file():
+                missing[scope].append(relative)
+                continue
+            raw = path.read_bytes()
+            sha = hashlib.sha256(raw).hexdigest()
+            target = blobs / sha
+            if not target.exists():
+                target.write_bytes(raw)
+            refs[scope][relative] = {"path": str(target), "sha256": sha, "byte_size": len(raw)}
+    public = research_question_payload(question, include_task_intent=True)
+    body = {"question_id": question.id, "question_hash": stable_hash(public),
+            "task_intent": deepcopy(public.get("task_intent", {})), "requested_artifacts": requested,
+            "artifact_refs": refs, "missing_artifacts": missing, "evidence_role": "submission_not_scientific_acceptance",
+            "host_process": {"args_hash": stable_hash(host_result.args), "returncode": host_result.returncode,
+                             **{field + "_sha256": None if value is None else hashlib.sha256(
+                                 value if isinstance(value, bytes) else value.encode("utf-8")).hexdigest()
+                                for field, value in (("stdout", host_result.stdout), ("stderr", host_result.stderr))}}}
+    raw = json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    record = store / "submission.json"
+    record.write_bytes(raw)
+    return {"path": str(record), "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
+
+
+def load_native_research_submission(
+    reference: Mapping[str, Any], *, question: OpenResearchQuestion,
+    artifact_paths: Mapping[str, list[str] | tuple[str, ...]], snapshot_dir: Path,
+) -> dict[str, Any]:
+    """Resolve a trusted native snapshot; absent final artifacts remain absent."""
+
+    store = snapshot_dir.resolve()
+    if Path(reference["path"]).resolve() != store / "submission.json":
+        raise ValueError("native submission reference escapes its store")
+    text, errors = read_hash_bound_utf8_file(reference)
+    if errors:
+        raise ValueError("native submission identity mismatch: " + ",".join(errors))
+    body = json.loads(text)
+    public = research_question_payload(question, include_task_intent=True)
+    requested = {scope: list(paths) for scope, paths in artifact_paths.items()}
+    if (body.get("question_hash") != stable_hash(public) or body.get("question_id") != question.id
+        or body.get("task_intent") != public.get("task_intent", {}) or body.get("requested_artifacts") != requested):
+        raise ValueError("native submission differs from the frozen question or final paths")
+    contents = {}
+    for scope, paths in requested.items():
+        refs, missing = body["artifact_refs"][scope], body["missing_artifacts"][scope]
+        if set(refs) | set(missing) != set(paths) or set(refs) & set(missing):
+            raise ValueError("native submission artifact inventory mismatch")
+        contents[scope] = {}
+        for relative, ref in refs.items():
+            path = Path(ref["path"]).resolve()
+            if path != store / "files" / ref["sha256"]:
+                raise ValueError("native artifact reference escapes its store")
+            raw = path.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != ref["sha256"] or len(raw) != ref["byte_size"]:
+                raise ValueError("native artifact identity mismatch: " + relative)
+            contents[scope][relative] = raw
+    return {**body, "artifact_bytes": contents}
 
 
 def load_research_control_submission(

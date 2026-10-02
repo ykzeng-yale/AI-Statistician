@@ -6,6 +6,7 @@ from dataclasses import replace
 import pytest
 
 from ai_statistician.agent_runtime import runtime_artifact_reference
+from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_evaluation import load_runtime_research_submission
 from ai_statistician.research_gold_evaluation import _semantic_judgment_metrics
 from ai_statistician.research_schema import OpenResearchQuestion, research_question_payload
@@ -121,3 +122,16 @@ def test_legacy_semantic_projection_preserves_field_types_and_copies_assessments
     assert theory["hidden_theory_semantic_candidate_status"] == ""
     theory["hidden_theory_semantic_claim_assessments"][0]["opaque"] = "changed"
     assert judgment["candidate_claim_assessments"] == [{"opaque": "unchanged"}]
+
+
+def test_legacy_nonexecuted_semantic_defaults_do_not_invent_a_judgment_hash():
+    evaluator = {"opaque": "frozen configuration"}
+    default = _semantic_judgment_metrics({}, prefix="", executed=False, evaluator=evaluator)
+    assert default == {
+        "execution_attempted": False, "evaluation_configured": True, "evaluator_hash": stable_hash(evaluator),
+        "judge_calibrated": False, "calibration_case_count": 0, "calibration_cases_correct": 0,
+        "candidate_mode_negative_case_count": 0, "candidate_mode_negative_cases_correct": 0,
+        "candidate_mode_negative_model_calls": 0, "candidate_mode_negative_controls_passed": False,
+        "claim_count": 0, "candidate_status": "", "candidate_document_status": "",
+        "candidate_integrated_context": False, "candidate_model_calls": 0, "claim_assessments": [], "passed": False,
+    }
