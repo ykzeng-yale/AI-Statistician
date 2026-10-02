@@ -1,0 +1,57 @@
+{
+  "scope": "Independent evaluator/operator reference preparation. No model draw, agent efficacy claim, full-task gold or official publication study.",
+  "source_id": "jss_scikit_fda_2024",
+  "attempt": 4,
+  "plan_commit": "52becbeb",
+  "ready_environment_commit": "76c679d16cd8039df0d7838070c5f4b7f405f3d8",
+  "source_script_sha256_before_and_after": "a256cf7a4dee6195ce976fd22f34bab4a52b5b11010f507c1315c5f66467288b",
+  "author_source_modified": false,
+  "product_or_lean_source_modified": false,
+  "model_calls": 0,
+  "environment": "Separate Conda Python 3.12.2 environment with all 36 exact paper runtime requirements and journal scikit-fda 0.9.1. Adapted environment, not recovery of the README's Python 3.11 environment.",
+  "environment_record": "benchmarks/publication_reference_qualification_20261002/scikit_fda_followup_environment.json",
+  "environment_record_sha256": "a4e98d59e790f22be5fad89a3fc4e30320bd5c8a190a300aa387d84545863518",
+  "execution": {
+    "complete_unchanged_script_launched": true,
+    "complete_process_exit_code": 0,
+    "elapsed_seconds_from_time": 58.72,
+    "user_cpu_seconds": 45.52,
+    "system_cpu_seconds": 1.67,
+    "max_resident_bytes": 632930304,
+    "fresh_home_and_data_cache": true,
+    "copied_author_outputs_or_cache": false,
+    "figures_created": 14,
+    "pdfinfo_and_render_checks_passed": 14,
+    "visual_inspection": "All 14 rendered output pages reviewed together; nonblank curves, axes and legends. This is readability inspection, not a numerical comparison of every figure against the paper.",
+    "classification_stdout": "0.879",
+    "published_comparison": {
+      "source": "https://www.jstatsoft.org/index.php/jss/article/view/v109i02/4562",
+      "location": "Page 27, Section 3.5, print(f\"{score:.3}\") example",
+      "published_stdout": "0.879",
+      "displayed_value_matches": true,
+      "scope": "Same three-significant-digit classification result from the complete author script. No unprinted prediction vector or independently checked theory is inferred."
+    },
+    "interactive_gui_validated": false,
+    "interactive_limit": "Final interactive example constructed under Agg; mouse/slider behavior and GUI rendering were not exercised.",
+    "performance_limit": "Operator reference timing on one machine with one BLAS/OpenMP thread, not an agent or controlled speed comparison."
+  },
+  "raw_record_root": "runs/publication_reference_scikit_fda_20261002_followup",
+  "raw_records": {
+    "reference_1/inventory.json": "7980f89d6b170de12c8e35af870bb632754a0337c8692bf553e6c273e86d0be1",
+    "reference_1/stdout.log": "5e3d74be712fd533e89a7fdcbd004839860093df9cd8b5f88ea9dfb832fe6732",
+    "reference_1/stderr.log": "2808e994768c7dda80357da839bf1de98a60a496f8e72373606958fb02621d75",
+    "reference_1/inspection/contact_sheet.png": "efabd672391192015634f2d6edda623e5b33adf30f70fa990b38e4f27cdcfa64"
+  },
+  "fetched_archive_sha256": {
+    "ElemStatLearn_0.1-7.1.tar.gz": "b1e772b973b495e893f67264e09f5def1b5bdbe56a7b659c809b37dbe0992746",
+    "fda_2.4.7.tar.gz": "33dd4cee5760a7ca65cb3759e0951944e466ce15ec358a026c6ef73ec560e10c",
+    "GunPoint.zip": "d7513cfe222418fabfdb5a6434ffb21ac3de4923e637971e9388ebc857816803"
+  },
+  "prior_failed_attempts_preserved": true,
+  "mathematical_gold_qualified": false,
+  "independent_full_task_gold_qualified": false,
+  "reference_status": "Complete unchanged script executes in a recorded adapted environment; displayed classification number matches the paper. All scientific claims, figure numerical agreement and interactive behavior are not thereby qualified.",
+  "future_candidate_boundary": "Prepare a separate frozen replication task and shared external checks before candidate calls. Do not expose reference outputs where hidden, accept copied values as fresh computation, patch author code, or turn this reference procedure into task-specific product instructions.",
+  "official_studies_activated": false,
+  "goal_status": "active"
+}

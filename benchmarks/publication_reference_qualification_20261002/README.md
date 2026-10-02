@@ -45,7 +45,9 @@ paper's SciPy, then disabled build isolation for fdasrsf only, as supported by
 [uv](https://docs.astral.sh/uv/pip/compatibility/#pep-517-build-isolation).
 It failed linking `cython_blas.cpython-311-darwin`. None is a qualified
 installation recipe or recovered historical lock. The original algorithm and
-replication script remain unchanged; the full script has not been executed.
+replication script remain unchanged; none of those attempts executed the full
+script. The original source inventory preserves that preparation outcome. The
+separately planned adapted follow-up below does not replace those failures.
 
 Failed attempt 2, with paths selected by the evaluator:
 
@@ -61,6 +63,38 @@ and runs a full classification search as well as visual examples. Supply the
 directory and record fetched data identities; do not cut it down and label the
 result a full-paper reproduction. A reference execution is not complete until
 the actual process exits and outputs are inspected.
+
+### Adapted Follow-up
+
+The separate [attempt 4 plan](scikit_fda_followup_plan.json) was committed at
+`52becbeb`; [environment readiness](scikit_fda_followup_ready.json) was recorded
+at `76c679d1` before the complete unchanged script ran. The exact fdasrsf 2.5.8
+Python 3.11 Conda build requires NumPy 1.23.*, conflicting with the author's
+1.26.4 pin. Its Python 3.12 build supports 1.26.*. This attempt used Python
+3.12.2 and the latter unmodified binary, not a bypassed constraint, package
+upgrade or patched source. All 36 author-listed runtime versions matched.
+Conda initially installed Wheel 0.48.0, incompatible with packaging 23.2; only
+that additional build tool changed to 0.42.0. The original failed dependency
+check, install records and recipe remain available. The
+[environment record](scikit_fda_followup_environment.json) distinguishes the
+initial Conda transaction, later pip transactions and final distributions.
+
+The first full script invocation used fresh output/data/home directories,
+headless Agg and one BLAS/OpenMP thread. It completed in 58.72 seconds with exit
+zero, created 14 single-page PDFs, and printed `0.879`, matching the displayed
+classification value in Section 3.5 on page 27 of the
+[paper](https://www.jstatsoft.org/index.php/jss/article/view/v109i02/4562).
+All output pages were rendered/read; archive, data, source and output hashes
+are retained in the [result record](scikit_fda_followup_results.json). The last
+interactive example was constructed but GUI interaction was not tested.
+
+This establishes a runnable published reference in an adapted environment and
+one displayed numerical match. It does not qualify every figure, theoretical
+claim or independent full-task gold, demonstrate product autonomy, or activate
+a publication comparison. No model was called, no old candidate resubmitted,
+and no source/results are inserted into product prompts or runtime rules.
+Future replication tasks need prospectively fixed external checks that require
+fresh computation, not simply the presence of copied output values/files.
 
 ## bizicount Reference Execution
 

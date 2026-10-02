@@ -48,7 +48,13 @@ package tests provide mathematical gold. The
 pins seven candidate sources, archive/source hashes, rights limits and actual
 terminal outcomes. No full-task reference has yet qualified: Austin has two
 failing branches and one runnable narrow probe; scikit-fda has three failed
-environment attempts; bizicount completed its full script in an adapted version
+environment attempts. A separately frozen
+[adapted scikit-fda follow-up](../benchmarks/publication_reference_qualification_20261002/scikit_fda_followup_results.json)
+then completed the full unchanged script with all 36 runtime pins, Python
+3.12.2, 14 readable PDFs and the paper's displayed classification value `0.879`.
+The old failures remain; complete script execution and one number match do not
+qualify every claim, GUI behavior or independent full-task gold. bizicount
+completed its full script in an adapted version
 but has unresolved numerical differences, failures and a source-level BIC issue;
 three RepliSims repositories have unresolved code rights. The later ruptures
 implementation qualifies only for its independently inspected finite objective.
