@@ -229,6 +229,7 @@ only authorized shared observations, never private isolated reviewer sessions.
 | Selected upstream inputs | `select_workspace_inputs` binds observed Theory/method checkpoints; supplied context and actual executor consumption remain separate provenance |
 | Exact method consumption | Simulation reloads selected source, support files and results with the production identity reader and complete executable-ABI projection, without truncated IDs/fields or raw outcomes |
 | Theory self-review | Optional `theory_reviewer` exposes actual referee actions in the same conversation; no isolated referee call or independent receipt |
+| Generated-source self-review | Optional `code_reviewer` binds observed Algorithm or Simulation checkpoints and their exact parents to the production source reader, Markdown judgment and configured diagnostic probe tools |
 | Source freezing | Private `confirmatory_seeds` enables `confirmation__execute_frozen_simulation`; source, methods, inputs, count and seed are recorded before execution |
 | Final selection | `submit_research_result` selects exact observed checkpoints and preserves the unchanged Markdown report; partial selections stay partial |
 | Common external view | `publication_material_from_submission` keeps selected source and both exploratory/frozen rows with original phases and failures; it does not choose a passing candidate |
@@ -257,8 +258,16 @@ feedback remain unchanged. Mocked local HTTP tests cover completion on the last
 allowed call, exhaustion, transport/model-identity failures, immutable draw
 directories and caller mutation, without inference or scientific adjudication.
 
-Generated-code reviewers and Formalizer also expose actual prepared actions, but
-dynamic code-review and Lean bindings are not yet part of this application entry.
+Configured code-review file/probe tools keep a stable contract before and after
+input binding; execution still rejects unknown or unverified targets. A review
+receives actual executed source, support files, results and exact upstream
+dependencies, not source excerpts or fabricated accepted-role packets. Raw
+judgment checks remain shared; independent production receipts additionally
+require complete work-order/source-manifest identity. The shared binder never
+calls that receipt constructor. Self-review actions consume the same conversation
+and graph request budget; no review model is invoked separately.
+
+Formalizer exposes prepared actions, but dynamic Lean binding is not part of this entry.
 It rejects required-formal tasks rather than weakening them. Complete matched
 arm configurations, the no-cross-role-feedback intervention, confirmation/resource
 envelopes, independent full-task gold and study CLI remain unfinished. Empty

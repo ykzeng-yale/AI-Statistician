@@ -10,6 +10,7 @@ import pytest
 from benchmarks.publication.run_control_draw import run_single_context_research_draw
 from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.generated_code_semantic_reviewer_llm import GeneratedCodeSemanticReviewerConfig, LLMGeneratedCodeSemanticReviewerAgent
 from ai_statistician.local_model_backend import LocalChatGeneratorBackend
 from ai_statistician.model_backend import ClientToolTurnRequest
 from ai_statistician.research_architect import LLMTheoryDeveloperAgent, ResearchArchitectConfig
@@ -142,3 +143,24 @@ def test_control_draw_rejects_cloud_before_preparation(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="local provider"):
         run_single_context_research_draw(**options)
     assert not options["out_dir"].exists()
+
+
+@pytest.mark.parametrize("limit", [1, 2])
+def test_self_review_actions_share_the_draw_budget_and_frozen_configuration(tmp_path, monkeypatch, limit):
+    options = draw_options(tmp_path, monkeypatch, limit=limit)
+    config = GeneratedCodeSemanticReviewerConfig(provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0)
+    options["code_reviewer"] = LLMGeneratedCodeSemanticReviewerAgent(provider=options["backend"], config=config)
+    requests = mock_wire(monkeypatch, options, [
+        ("code_review__submit_generated_code_semantic_review", {}),
+        ("submit_research_result", {"selected_checkpoints": {}, "report_markdown": "# Unresolved final report\n"}),
+    ])
+    result, submission = run_single_context_research_draw(**options)
+    assert len(requests) == result.local_model_usage["attempted_requests"] == limit
+    assert result.local_model_usage["denied_requests"] == int(limit == 1)
+    assert result.status == ("BLOCKED" if limit == 1 else "REROUTE")
+    assert result.blackboard.evidence_ledger == []
+    assert submission is None if limit == 1 else submission["independent_role_review"] is False
+    frozen = json.loads((options["out_dir"] / "frozen_draw.json").read_text())
+    assert frozen["role_configs"]["code_reviewer"]["model"] == MODEL
+    assert frozen["role_configs"]["code_reviewer"]["provider_name"] == "local"
+    assert any(row["name"] == "code_review__run_exact_estimator_review_probe" for row in frozen["request"]["tools"])

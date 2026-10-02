@@ -415,6 +415,7 @@ def prepare_single_context_research_workspace(
     max_no_progress_turns: int,
     workflow_instructions: str = "",
     theory_reviewer: Any = None,
+    code_reviewer: Any = None,
     confirmatory_seeds: Sequence[int] = (),
 ) -> PreparedClientToolWorkspace[ClientToolLoopResult]:
     """Assemble actual Theory/estimator/simulation actions in one conversation.
@@ -432,6 +433,7 @@ def prepare_single_context_research_workspace(
 
     from .estimator_interface_contract import project_executable_estimator_spec
     from .generated_code_semantic_reviewer_llm import read_scientific_execution_review_artifact
+    from .generated_code_semantic_review_scope import generated_code_semantic_review_theory_projection
     from .architect_theory_execution_preflight import prepare_architect_theory_execution_preflight_workspace
     from .metric_protocol_stage import build_theory_informed_metric_protocol_material
     from .research_agent_runtime import (
@@ -465,6 +467,20 @@ def prepare_single_context_research_workspace(
     discovery = theory_agent.research_source_discovery
     theory = theory_agent.prepare_workspace(question, theory_workspace_root=session_dir / "theory")
 
+    def source_artifact(scope, payload):
+        draft = payload["code_draft"]
+        exact, errors = read_scientific_execution_review_artifact(
+            artifact_id=algorithm_scopes.get(scope, session_id + ":simulation"),
+            row=payload["check_result"]["prototype"])
+        if exact is not None and (
+            payload["check_result"]["code_draft_hash"] != stable_hash(draft)
+            or exact["exact_project_hash"] != scientific_project_hash(
+                language=draft["language"], code=draft["code"], project_files=draft.get("project_files", []))):
+            errors.append("selected draft differs from its executed source")
+        if errors or exact is None:
+            raise ClientToolInputError("\n".join(errors))
+        return exact
+
     def source_material(scope, selected):
         estimator_id = algorithm_scopes.get(scope)
         allowed = {"theory"} if estimator_id is not None else {"theory", *algorithm_scopes}
@@ -494,15 +510,8 @@ def prepare_single_context_research_workspace(
                 continue
             algorithm_payload = selected[parent]["payload"]
             draft = algorithm_payload["code_draft"]
-            project_hash = scientific_project_hash(language=draft["language"], code=draft["code"],
-                                                   project_files=draft.get("project_files", []))
-            exact, errors = read_scientific_execution_review_artifact(
-                artifact_id=selected_id, row=algorithm_payload["check_result"]["prototype"],
-            )
-            if errors or exact is None:
-                raise ClientToolInputError("\n".join(errors))
-            if exact["exact_source_hash"] != stable_hash(draft["code"]) or exact["exact_project_hash"] != project_hash:
-                raise ClientToolInputError("selected estimator draft differs from its executed source")
+            exact = source_artifact(parent, algorithm_payload)
+            project_hash = exact["exact_project_hash"]
             handoff["exact_algorithm_artifacts"].append({
                 "estimator_id": selected_id, "language": draft["language"],
                 "dependencies": draft["dependencies"], "exact_source_code": draft["code"],
@@ -566,8 +575,9 @@ def prepare_single_context_research_workspace(
                               for name in ("problem_card", "theory_derivation_packet", "estimator_specs", "simulation_ademp_spec")})
             resources.update({"estimator:" + value: stable_hash(_estimator_spec(core, value)) for value in estimator_ids})
             return {"resources": resources, "inputs": {}}
-        if scope == "theory_review":
-            return {"resources": {"report": hashlib.sha256(payload["review_payload"]["review_report_markdown"].encode()).hexdigest()},
+        if scope in {"theory_review", "code_review"}:
+            key = "review_report_markdown" if scope == "theory_review" else "review_document"
+            return {"resources": {"report": hashlib.sha256(payload["review_payload"][key].encode()).hexdigest()},
                     "inputs": {}}
         return {"resources": {"project": payload["check_result"]["prototype"]["project_hash"]},
                 "inputs": payload["check_result"]["checkpoint_inputs"]}
@@ -587,13 +597,9 @@ def prepare_single_context_research_workspace(
             _, _, handoff, _, provided = source_material("simulation", parents)
             candidate = deepcopy(payload.get("code_draft", {}))
             if payload:
-                exact, errors = read_scientific_execution_review_artifact(
-                    artifact_id=session_id + ":simulation", row=payload["check_result"]["prototype"])
-                errors += _executable_evaluator_interface_errors(payload["check_result"]["prototype"].get("metrics", {}))
-                if (errors or exact is None or payload["check_result"]["code_draft_hash"] != stable_hash(candidate)
-                    or exact["exact_source_hash"] != stable_hash(candidate["code"])
-                    or exact["exact_project_hash"] != scientific_project_hash(
-                        language=candidate["language"], code=candidate["code"], project_files=candidate.get("project_files", []))):
+                source_artifact("simulation", payload)
+                errors = _executable_evaluator_interface_errors(payload["check_result"]["prototype"].get("metrics", {}))
+                if errors:
                     raise ClientToolInputError("selected evaluator source/ABI is invalid: " + "; ".join(errors))
                 provided["simulation"] = {"payload_hash": reference["payload_hash"], "resources": reference["resources"]}
             identity = stable_hash([research_question_payload(question, include_task_intent=True), candidate,
@@ -666,6 +672,39 @@ def prepare_single_context_research_workspace(
             )
         workspaces["theory_review"] = prepare_review(None, None)
         preparers["theory_review"] = prepare_review
+
+    if code_reviewer is not None:
+        def prepare_code_review(selected, previous):
+            unbound = selected is None
+            selected = selected or {}
+            if set(selected) - {"theory", *algorithm_scopes, "simulation"}:
+                raise ClientToolInputError("code review inputs must be observed source checkpoints and their parents")
+            targets = {"simulation": selected["simulation"]} if "simulation" in selected else {
+                scope: row for scope, row in selected.items() if scope in algorithm_scopes}
+            if not unbound and not targets:
+                raise ClientToolInputError("code review requires an observed source checkpoint")
+            exacts = []
+            for scope, row in targets.items():
+                for parent, binding in row["reference"].get("provided_inputs", {}).items():
+                    resources = selected.get(parent, {}).get("reference", {}).get("resources", {})
+                    if any(resources.get(key) != value for key, value in binding["resources"].items()):
+                        raise ClientToolInputError("review inputs differ from the source checkpoint's premises")
+                exacts.append(source_artifact(scope, row["payload"]))
+            core = selected.get("theory", {}).get("payload", {}).get("core_packet", {})
+            subsystem = "SimulationEvaluator" if "simulation" in targets else "AlgorithmEngineer"
+            material = {"source_subsystem": subsystem, "confirmatory_empirical_evidence_eligible": False,
+                        "empirical_evaluation_phase": "exploratory_diagnostic", "exact_executed_artifacts": exacts,
+                        "theory_packet": generated_code_semantic_review_theory_projection(theory_packet=core, proposal_packet={}),
+                        "coding_agent_proposal_packet": {"estimator_specs": core.get("estimator_specs", [])},
+                        "upstream_generated_dependency": {"independent_role_review": False, "exact_dependency_artifacts": [
+                            source_artifact(scope, row["payload"]) for scope, row in selected.items()
+                            if scope in algorithm_scopes and subsystem == "SimulationEvaluator"]}}
+            return code_reviewer.prepare_workspace(
+                question=question, review_material=material, trusted_lineage={"source_subsystem": subsystem},
+                probe_sandbox_dir=session_dir / "code_review_probes" / stable_hash(material),
+                probe_timeout_s=timeout_s, research_sources=sources)
+        workspaces["code_review"] = prepare_code_review(None, None)
+        preparers["code_review"] = prepare_code_review
 
     return prepare_research_control_workspace(
         question=question, request=request,

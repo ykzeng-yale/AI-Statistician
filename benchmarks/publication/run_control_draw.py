@@ -29,7 +29,7 @@ def run_single_context_research_draw(
     estimator_ids: Sequence[str], out_dir: Path, n_runs: int, seed: int,
     timeout_s: int, max_turns: int, max_tool_calls: int, max_no_progress_turns: int,
     local_model_call_limit: int | None = None, workflow_instructions: str = "",
-    theory_reviewer: Any = None, confirmatory_seeds: Sequence[int] = (),
+    theory_reviewer: Any = None, code_reviewer: Any = None, confirmatory_seeds: Sequence[int] = (),
 ) -> tuple[AgentRuntimeResult, dict[str, Any] | None]:
     """Run actual production actions in one model-owned conversation.
 
@@ -58,7 +58,7 @@ def run_single_context_research_draw(
         estimator_ids=estimator_ids, session_dir=session_dir, session_id="research-control",
         n_runs=n_runs, seed=seed, timeout_s=timeout_s, max_turns=max_turns,
         max_tool_calls=max_tool_calls, max_no_progress_turns=max_no_progress_turns,
-        workflow_instructions=workflow_instructions, theory_reviewer=theory_reviewer,
+        workflow_instructions=workflow_instructions, theory_reviewer=theory_reviewer, code_reviewer=code_reviewer,
         confirmatory_seeds=confirmatory_seeds,
     )
     public = research_question_payload(question, include_task_intent=True)
@@ -68,6 +68,7 @@ def run_single_context_research_draw(
         "role_configs": {name: asdict(agent.config) for name, agent in (
             ("theory", theory_agent), ("algorithm", algorithm_agent),
             ("simulation", simulation_agent), ("theory_reviewer", theory_reviewer),
+            ("code_reviewer", code_reviewer),
         ) if agent is not None},
         "local_model_call_limit": local_model_call_limit,
         "max_turns": max_turns, "max_tool_calls": max_tool_calls,

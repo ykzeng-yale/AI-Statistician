@@ -21,6 +21,9 @@ from ai_statistician.architect_theory_execution_preflight import (
 )
 from ai_statistician.client_tool_loop import run_client_tool_workspace
 from ai_statistician.fingerprint import stable_hash
+from ai_statistician.generated_code_semantic_reviewer_llm import (
+    GeneratedCodeSemanticReviewerConfig, LLMGeneratedCodeSemanticReviewerAgent,
+)
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnRequest, ClientToolTurnResponse
 from ai_statistician.metric_protocol_stage import build_theory_informed_metric_protocol_material
 from ai_statistician.research_agent_runtime import (
@@ -333,7 +336,7 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
 
 @pytest.mark.parametrize("language", ["python", "r"])
 @pytest.mark.parametrize("offset", [0, 1])
-@pytest.mark.parametrize("include_review", [False, True])
+@pytest.mark.parametrize("include_review", [False, True, "code"])
 @pytest.mark.parametrize("extra_estimator", [False, True, "available_not_executed"])
 def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language, offset, include_review, extra_estimator):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
@@ -373,25 +376,32 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         max_turns=32, max_tool_calls=32, max_no_progress_turns=32,
         theory_reviewer=LLMArchitectMetricSemanticReviewerAgent(provider=backend, config=ArchitectMetricSemanticReviewerConfig(
             provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0,
-        )) if include_review else None,
+        )) if include_review is True else None,
+        code_reviewer=LLMGeneratedCodeSemanticReviewerAgent(provider=backend, config=GeneratedCodeSemanticReviewerConfig(
+            provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0,
+        )) if include_review == "code" else None,
     )
     assert not backend.requests
     refs = {}
     first_theory = {}
     simulation_parents = ["theory", "algorithm", *(["algorithm_2"] if extra_estimator is True else [])]
 
-    def references(request):
+    def feedback(request):
         for message in request.messages:
             if message.get("role") != "user" or not isinstance(message.get("content"), list):
                 continue
             for block in message["content"]:
-                if block.get("type") != "tool_result" or not isinstance(block.get("content"), list):
+                if block.get("type") != "tool_result":
                     continue
-                for part in block["content"]:
-                    item = json.loads(part["text"])
-                    if "shared_checkpoint_ref" in item:
-                        ref = item["shared_checkpoint_ref"]
-                        refs[ref["scope"]] = ref["payload_hash"]
+                content = block["content"]
+                for part in ([{"text": content}] if isinstance(content, str) else content):
+                    yield json.loads(part["text"])
+
+    def references(request):
+        for item in feedback(request):
+            if "shared_checkpoint_ref" in item:
+                ref = item["shared_checkpoint_ref"]
+                refs[ref["scope"]] = ref["payload_hash"]
         return refs
 
     def select(request, scope, parents):
@@ -452,7 +462,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
             ClientToolCall("extra-checkpoint", "algorithm_2__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
         ]
     report = "# Opaque review\n\nclaim.md leaves opaque_claim unresolved. No statistical result is established.\n"
-    if include_review:
+    if include_review is True:
         altered = {}
 
         def select_changed_execution(request):
@@ -500,6 +510,42 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
             "report_markdown": "# Execution only\n\nTheory remains unresolved.\n",
             "selected_checkpoints": {**references(request), "theory": first_theory["hash"]},
         })
+    if include_review == "code":
+        probe_code = ("def run_sandbox(seed, replicates, estimators):\n"
+                      "    return {'observed': estimators['opaque']({'value': 41})['echo']}\n"
+                      if language == "python" else
+                      "run_sandbox <- function(seed, replicates, estimators) "
+                      "list(observed=estimators[['opaque']](list(value=41))$echo)\n")
+        review_submission = {"overall_verdict": "ACCEPT", "review_document": "# Opaque self-review\nNo independent credit.",
+                             "prior_finding_reviews": [], "findings": [], "source_revision_assessment": {
+                                 "resolution_scope": "CURRENT_SOURCE_REWRITE_SUFFICIENT", "rationale": "No finding submitted."}}
+
+        def observed_probe(request):
+            for row in feedback(request):
+                if row.get("successful_exact_invocation"):
+                    return row
+            raise AssertionError("actual probe observation was not returned")
+
+        probe_input = {"artifact_id": "opaque", "dependencies": [], "code": probe_code, "seed": 17, "replicates": 1}
+        index = 11 if extra_estimator else 7
+        backend.calls[index:index] = [
+            ClientToolCall("unbound-code-review", "code_review__submit_generated_code_semantic_review", review_submission),
+            lambda request: select(request, "code_review", []),
+            lambda request: select(request, "code_review", ["algorithm"]),
+            lambda request: select(request, "code_review", ["theory", "algorithm"]),
+            ClientToolCall("unknown-probe", "code_review__run_exact_estimator_review_probe",
+                           {**probe_input, "artifact_id": "unselected-artifact"}),
+            ClientToolCall("exact-probe", "code_review__run_exact_estimator_review_probe", probe_input),
+            ClientToolCall("unmentioned-probe", "code_review__submit_generated_code_semantic_review", review_submission),
+            lambda request: ClientToolCall("observed-probe-review", "code_review__submit_generated_code_semantic_review", {
+                **review_submission, "review_document": review_submission["review_document"] + "\n" + observed_probe(request)["result_hash"]}),
+        ]
+        backend.calls[-1:-1] = [
+            lambda request: select(request, "code_review", ["theory"]),
+            lambda request: select(request, "code_review", [*simulation_parents, "simulation"]),
+            ClientToolCall("simulation-self-review", "code_review__submit_generated_code_semantic_review", review_submission),
+        ]
+    planned_calls = len(backend.calls)
     result = run_client_tool_workspace(backend=backend, workspace=workspace)
     resolved = load_research_control_submission(result, question=question, session_dir=tmp_path)
     payloads = resolved["checkpoint_payloads"]
@@ -533,7 +579,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert all(row["independent_role_review"] is False and row["empirical_evidence_status"] == "EXPLORATORY_NOT_CONFIRMATORY"
                for row in (algorithm_result, simulation_result))
     assert result.terminal_payload["evidence_role"] == "submission_not_scientific_acceptance"
-    if include_review:
+    if include_review is True:
         assert payloads["theory_review"]["review_payload"]["review_report_markdown"] == report
         assert payloads["theory_review"]["review_payload"]["overall_verdict"] == "REVISE"
         assert selected["theory_review"]["resources"] == {"report": hashlib.sha256(report.encode()).hexdigest()}
@@ -548,6 +594,27 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         assert "selected checkpoint inputs do not match" in str(backend.requests[-1].messages[-1])
         failure = "reviewed source hash mismatch" if offset == 0 else "reviewed result JSON invalid"
         assert any(failure in str(request.messages[-1]) for request in backend.requests)
+    if include_review == "code":
+        probe = observed_probe(backend.requests[-1])
+        assert probe["metrics"] == {"observed": 41 + offset}
+        assert probe["target_source_hash"] == stable_hash(code) and probe["estimator_invocation_counts"] == {"opaque": 1}
+        assert probe["authority"] == "REVIEWER_DIAGNOSTIC_NOT_EMPIRICAL_ACCEPTANCE_OR_PROOF"
+        review = payloads["code_review"]["review_payload"]
+        assert review["overall_verdict"] == "ACCEPT" and review["review_document"] == review_submission["review_document"]
+        assert selected["code_review"]["resources"] == {"report": hashlib.sha256(review["review_document"].encode()).hexdigest()}
+        assert set(selected["code_review"]["provided_inputs"]) == {*simulation_parents, "simulation"}
+        assert "llm_client_tool_loop" not in payloads["code_review"]
+        history = json.dumps(list(feedback(backend.requests[-1])))
+        for error in ("exact inputs before using its actions", "source checkpoint's premises",
+                      "unknown exact estimator probe target", "generated_code_semantic_review_submission_rejected",
+                      "requires an observed source checkpoint"):
+            assert error in history
+        rebound_contexts = [row["initial_workspace_context"] for row in feedback(backend.requests[-1])
+                            if "initial_workspace_context" in row and row.get("scope") == "code_review"]
+        assert any(row["review_evidence_document"]["current_target_artifacts"][0]["exact_source_code"] == code
+                   for row in rebound_contexts)
+        assert any(row["review_evidence_document"]["current_target_artifacts"][0]["exact_source_code"] == simulation_code
+                   for row in rebound_contexts)
 
     # Exercise the real terminal Critic and persisted graph; this is not a full product/model draw.
     class ScriptedCritic:
@@ -628,7 +695,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         assert raw["estimator_project_hashes"] == {"opaque": binding.project_hash}
         results.append(raw["metrics"])
     assert results[0] == results[1] == {"echo": 99178 + offset}
-    assert len(backend.requests) == (24 if include_review else 12) + (4 if extra_estimator else 0) and not backend.calls
+    assert len(backend.requests) == planned_calls and not backend.calls
     assert backend.requests[-1].messages == messages_before
     assert result.terminal_payload == submission_before
     assert len(critic.calls) == 1 and critic.calls[0]["canonical_evidence_view"]["view_hash"] == (

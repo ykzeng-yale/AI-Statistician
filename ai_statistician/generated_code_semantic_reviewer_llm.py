@@ -992,9 +992,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                         project_files=project_files,
                     ),
                 }
-        document_tools = (
-            theory_document_client_tools() if evidence_documents else ()
-        )
+        document_tools = theory_document_client_tools()
         required_evidence_document_paths = set(evidence_documents)
         source_tools = research_source_client_tools() if research_sources else ()
         source_descriptor = (
@@ -1031,7 +1029,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             "type": "object", "additionalProperties": False,
             "required": ["artifact_id", "dependencies", "code", "seed", "replicates"],
             "properties": {
-                "artifact_id": {"type": "string", "enum": list(probe_targets)},
+                "artifact_id": {"type": "string", "minLength": 1},
                 "dependencies": {"type": "array", "items": {"type": "string"},
                                  "uniqueItems": True},
                 "code": {"type": "string", "minLength": 1},
@@ -1062,7 +1060,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             input_schema=probe_schema,
         )
         tools = document_tools + source_tools + ((refresh_tool,) if refresh_targets else ()) + (
-            (probe_tool,) if probe_targets else ()
+            (probe_tool,) if probe_sandbox_dir is not None else ()
         ) + (
             ClientToolDefinition(
                 name=GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL,
@@ -1127,12 +1125,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            tool_choice=(
-                "any" if (
-                    document_tools or source_tools or probe_targets or refresh_targets
-                )
-                else GENERATED_CODE_SEMANTIC_REVIEW_SUBMIT_TOOL
-            ),
+            tool_choice="any",
             disable_parallel_tool_use=False,
             enable_prompt_caching=True,
             metadata={
@@ -1426,7 +1419,7 @@ class LLMGeneratedCodeSemanticReviewerAgent:
                 model=request_model,
                 response_provider=provider_name,
             )
-            errors = validate_generated_code_semantic_review_packet(
+            errors = _validate_generated_code_semantic_review_judgment(
                 packet, review_material=review_material
             )
             reviewed_text = str(payload.get("review_document", "") or "")
@@ -1500,6 +1493,10 @@ class LLMGeneratedCodeSemanticReviewerAgent:
             packet = normalize_submission(
                 payload, model=loop.model, response_provider=loop.provider
             )
+            errors = validate_generated_code_semantic_review_packet(packet, review_material=review_material)
+            if errors:
+                raise PacketValidationError(validation_label="generated-code semantic review packet",
+                    attempts=len(validation_history), errors=errors, history=list(validation_history))
             packet["validation_errors"] = []
             packet["ok"] = True
             packet["client_tool_loop"] = {
@@ -1736,6 +1733,18 @@ def validate_generated_code_semantic_review_packet(
     *,
     review_material: Mapping[str, Any] | None = None,
 ) -> list[str]:
+    errors = _validate_generated_code_semantic_review_judgment(packet, review_material=review_material)
+    for field in ("work_order_id", "work_order_hash", "source_manifest_id", "source_manifest_hash", "review_input_fingerprint"):
+        if not str(packet.get(field, "") or "").strip():
+            errors.append(f"semantic review missing trusted lineage field: {field}")
+    return sorted(set(errors))
+
+
+def _validate_generated_code_semantic_review_judgment(
+    packet: Mapping[str, Any],
+    *,
+    review_material: Mapping[str, Any] | None = None,
+) -> list[str]:
     errors: list[str] = []
     material = review_material or {}
     raw_question_context = packet.get("question_context", {})
@@ -1863,15 +1872,6 @@ def validate_generated_code_semantic_review_packet(
             errors.append(
                 "accepted review cannot assert an unresolved cross-artifact conflict"
             )
-    for field in (
-        "work_order_id",
-        "work_order_hash",
-        "source_manifest_id",
-        "source_manifest_hash",
-        "review_input_fingerprint",
-    ):
-        if not str(packet.get(field, "") or "").strip():
-            errors.append(f"semantic review missing trusted lineage field: {field}")
     if packet.get("proof_evidence_status") != GENERATED_CODE_SEMANTIC_REVIEW_NOT_PROOF_EVIDENCE:
         errors.append("generated-code semantic review proof boundary is invalid")
     if packet.get("kernel_verified") is not False:

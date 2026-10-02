@@ -1112,6 +1112,7 @@ def test_reviewer_can_search_and_read_frozen_public_sources(tmp_path) -> None:
     assert len(backend.requests) == 4
     assert backend.requests[0].tool_choice == "any"
     assert [tool.name for tool in backend.requests[0].tools] == [
+        "search_theory_documents", "read_theory_document",
         RESEARCH_SOURCE_LIST_TOOL,
         "search_research_sources",
         "read_research_source",
@@ -1236,9 +1237,7 @@ def test_native_reviewer_returns_validation_error_to_same_model_session() -> Non
         "full_packet_regeneration_used": False,
     }
     assert len(backend.requests) == 2
-    assert backend.requests[0].tool_choice == (
-        "submit_generated_code_semantic_review"
-    )
+    assert backend.requests[0].tool_choice == "any"
     feedback = backend.requests[1].messages[-1]["content"][0]
     assert feedback["type"] == "tool_result"
     assert feedback["is_error"] is True
@@ -1708,6 +1707,7 @@ def test_native_reviewer_can_probe_exact_python_or_r_estimator_in_same_session(
     assert executed["estimator_transport"] == "native"
     assert backend.requests[0].tool_choice == "any"
     expected_tools = [
+        "search_theory_documents", "read_theory_document",
         "run_exact_estimator_review_probe",
         "submit_generated_code_semantic_review",
     ]
@@ -2105,7 +2105,7 @@ def test_failed_reviewer_probe_remains_non_evidence_without_forcing_retry(
 
 
 @pytest.mark.parametrize("tamper_hash", [False, True])
-def test_reviewer_probe_tool_is_unavailable_outside_verified_algorithm_target(
+def test_reviewer_probe_rejects_unbound_or_unverified_algorithm_target(
     tmp_path,
     tamper_hash: bool,
 ) -> None:
@@ -2138,6 +2138,16 @@ def test_reviewer_probe_tool_is_unavailable_outside_verified_algorithm_target(
 
         def generate_client_tool_turn(self, request):
             self.requests.append(request)
+            if len(self.requests) == 1:
+                call = ClientToolCall("unbound-probe", "run_exact_estimator_review_probe", {
+                    "artifact_id": "candidate", "dependencies": [], "code": "opaque, never executed",
+                    "seed": 17, "replicates": 1,
+                })
+                return ClientToolTurnResponse(
+                    content_blocks=({"type": "tool_use", "id": call.call_id, "name": call.name, "input": call.input},),
+                    tool_calls=(call,), text="", provider="anthropic", model=request.model,
+                    metadata={"provider_stop_reason": "tool_use"},
+                )
             return ClientToolTurnResponse(
                 content_blocks=(
                     {
@@ -2175,10 +2185,10 @@ def test_reviewer_probe_tool_is_unavailable_outside_verified_algorithm_target(
         probe_sandbox_dir=tmp_path,
     )
 
-    assert [tool.name for tool in backend.requests[0].tools] == [
-        "submit_generated_code_semantic_review"
-    ]
-    assert backend.requests[0].tool_choice == "submit_generated_code_semantic_review"
+    assert "run_exact_estimator_review_probe" in {tool.name for tool in backend.requests[0].tools}
+    assert backend.requests[0].tool_choice == "any" and len(backend.requests) == 2
+    assert "unknown exact estimator probe target" in str(backend.requests[1].messages[-1])
+    assert not backend.requests[0].metadata["exact_estimator_probe_available"]
     assert packet["client_tool_loop"]["review_probe_executions"] == []
 
 
@@ -3161,3 +3171,33 @@ def test_prepared_reviewer_freezes_external_inputs_and_withholds_confirmatory_va
     packet = run_client_tool_workspace(backend=backend, workspace=workspace)
     assert packet["review_input_fingerprint"] == stable_hash(frozen_material)
     assert packet["source_manifest_hash"] == frozen_lineage["source_manifest_hash"]
+
+
+def test_configured_review_tools_are_stable_across_binding_and_externalization(tmp_path):
+    backend = PreparedReviewBackend()
+    agent = LLMGeneratedCodeSemanticReviewerAgent(provider=backend, config=GeneratedCodeSemanticReviewerConfig(
+        model="Qwen3-4B-Instruct-2507", model_tier="local", provider_name="local",
+    ))
+    materials = [{"source_subsystem": "AlgorithmEngineer", "exact_executed_artifacts": []},
+                 _algorithm_review_material(language="python", source="def run_estimator(request): return request\n", dependencies=[]),
+                 _algorithm_review_material(language="python", source="# Opaque retained text\n" * 1000, dependencies=[]),
+                 _review_material()]
+    prepared = [agent.prepare_workspace(question=_question(), review_material=material,
+                                       trusted_lineage={"source_subsystem": material["source_subsystem"]},
+                                       probe_sandbox_dir=tmp_path / "probes") for material in materials]
+    assert all(row.request.tools == prepared[0].request.tools for row in prepared)
+    assert not prepared[0].initial_context["evidence_document_catalog"]
+    assert prepared[2].initial_context["evidence_document_catalog"]
+    assert not backend.requests
+
+
+def test_independent_receipt_still_requires_lineage_after_valid_raw_judgment():
+    backend = PreparedReviewBackend()
+    agent = LLMGeneratedCodeSemanticReviewerAgent(provider=backend, config=GeneratedCodeSemanticReviewerConfig(
+        model="Qwen3-4B-Instruct-2507", model_tier="local", provider_name="local",
+    ))
+    with pytest.raises(PacketValidationError) as error:
+        agent.review(question=_question(), review_material=_review_material(), trusted_lineage={"source_subsystem": "SimulationEvaluator"})
+    assert len(backend.requests) == 1
+    assert set(error.value.errors) == {"semantic review missing trusted lineage field: " + field
+                                       for field in ("work_order_id", "work_order_hash", "source_manifest_id", "source_manifest_hash")}
