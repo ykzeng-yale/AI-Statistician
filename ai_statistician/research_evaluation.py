@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import math
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .agent_runtime import resolve_runtime_artifact_references
 from .fingerprint import stable_hash
 from .generated_code_semantic_review_scope import (
     executable_evaluator_review_binding,
@@ -21,6 +23,7 @@ from .research_schema import (
     OpenResearchQuestion,
     research_dimension_requirements,
     research_task_intent_requirement,
+    research_question_payload,
 )
 from .research_trace_audit import audit_research_traces
 from .verifier import AxleProofVerifier, MockProofVerifier, ProofVerifier
@@ -220,6 +223,70 @@ def research_evaluation_evidence_hash(result: Mapping[str, Any]) -> str:
             "trace_projection": trace_projection,
         }
     )
+
+
+def load_runtime_research_submission(
+    result: Mapping[str, Any], *, question: OpenResearchQuestion,
+) -> dict[str, Any]:
+    """Read a terminal Critic's exact selection, not its scientific correctness.
+
+    Supply a trusted terminated result (hydrate stored refs with the runtime loader)
+    and frozen public question. No earlier candidate, missing artifact or acceptance
+    receipt is substituted. A run without a terminal submission returns an empty map.
+    """
+
+    traces = result.get("traces", [])
+    if not isinstance(traces, (list, tuple)) or not traces:
+        return {}
+    trace = traces[-1]
+    if (not isinstance(trace, Mapping) or trace.get("subsystem") != "CriticEvaluator"
+        or trace.get("status") not in {"ACCEPTED", "BLOCKED", "FAILED"}
+        or result.get("status") != trace.get("status")
+        or not isinstance(trace.get("task"), Mapping)
+        or trace.get("task", {}).get("task_id") != result.get("final_task_id")
+        or result.get("pending_task") or trace.get("next_task_id")):
+        return {}
+    artifacts = _runtime_artifacts(result)
+    produced = trace.get("produced_artifact_ids", [])
+    if not isinstance(produced, (list, tuple)):
+        raise ValueError("terminal research submission has an invalid artifact inventory")
+    manifests = [artifacts[artifact_id] for artifact_id in produced if artifact_id in artifacts
+                 and artifacts[artifact_id].get("artifact_kind") == "RuntimeCriticEvaluatorManifest"]
+    if not manifests:
+        return {}
+    if len(manifests) != 1:
+        raise ValueError("terminal research submission has ambiguous Critic manifests")
+    manifest = manifests[0]
+    public_question = research_question_payload(question, include_task_intent=True)
+    if (manifest.get("question") != public_question or manifest.get("manifest_id") not in produced
+        or artifacts.get(manifest.get("manifest_id")) != manifest):
+        raise ValueError("terminal research submission differs from the frozen question")
+    selection = manifest.get("submission_artifact_refs", {})
+    fields = {"theory": "theory_packet_id", "scientific_code": "algorithm_sandbox_manifest_id",
+              "empirical": "simulation_manifest_id", "formal": "formalization_manifest_id",
+              "assessment": "llm_critic_evaluator_proposal_id"}
+    if (not isinstance(selection, Mapping) or "assessment" not in selection
+        or set(selection) != {scope for scope, field in fields.items() if manifest.get(field)}):
+        raise ValueError("terminal research submission has incomplete or unexpected references")
+    for scope, reference in selection.items():
+        if (not isinstance(reference, Mapping) or reference.get("artifact_kind") != "RuntimeArtifactRef"
+            or reference.get("reference_scope") != "runtime_blackboard"
+            or reference.get("artifact_id") != manifest[fields[scope]]):
+            raise ValueError("terminal research submission reference identity mismatch: " + scope)
+    payloads = resolve_runtime_artifact_references(dict(selection), artifacts)
+    for artifact in payloads.values():
+        bound_question = artifact.get("question", {}) if isinstance(artifact, Mapping) else {}
+        if isinstance(bound_question, Mapping) and bound_question.get("id", question.id) != question.id:
+            raise ValueError("terminal research artifact belongs to a different question")
+    assessment = payloads["assessment"]
+    if (not isinstance(assessment, Mapping) or manifest.get("llm_critic_evaluator_proposal_id") not in produced
+        or assessment.get("artifact_kind") != "CriticEvaluatorProposalPacket"
+        or assessment.get("packet_id") != manifest["llm_critic_evaluator_proposal_id"]
+        or assessment.get("canonical_evidence_view_hash") != manifest.get("canonical_evidence_view_hash")):
+        raise ValueError("terminal research assessment is not bound to the selected evidence")
+    return {"question_id": question.id, "question_hash": stable_hash(public_question),
+            "task_intent": dict(public_question.get("task_intent", {})), "internal_status": result["status"],
+            "selected_artifact_refs": deepcopy(dict(selection)), "selected_artifacts": payloads}
 
 
 def _final_accepted_critic_manifest(

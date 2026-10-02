@@ -19398,6 +19398,17 @@ class CriticEvaluatorRuntimeSubsystem:
             "llm_critic_evaluator_proposal_id": (
                 str(proposal_packet.get("packet_id", "")) if proposal_packet else ""
             ),
+            "submission_artifact_refs": {
+                scope: runtime_artifact_reference(artifact_id, artifact)
+                for scope, artifact_id, artifact in (
+                    ("theory", theory_packet_id, theory_packet),
+                    ("scientific_code", algorithm_manifest_id, algorithm_manifest),
+                    ("empirical", simulation_manifest_id, simulation_manifest),
+                    ("formal", formalization_manifest_id, formalization_manifest),
+                    ("assessment", str(proposal_packet.get("packet_id", "")), proposal_packet)
+                    if proposal_packet else ("assessment", "", {}),
+                ) if artifact_id and artifact
+            },
             "llm_critic_evaluator_validation_failure_id": (
                 proposal_validation_failure_id
             ),

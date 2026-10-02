@@ -10,17 +10,21 @@ from dataclasses import replace
 import pytest
 
 from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
+from ai_statistician.agent_runtime import AgentRuntime, AgentTask, BlackboardState, load_persisted_runtime_result
 from ai_statistician.client_tool_loop import run_client_tool_workspace
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnRequest, ClientToolTurnResponse
-from ai_statistician.research_agent_runtime import _run_generated_code_sandbox
+from ai_statistician.research_agent_runtime import (
+    CriticEvaluatorRuntimeSubsystem, _persist_runtime_artifact_store, _run_generated_code_sandbox,
+)
 from ai_statistician.research_architect import LLMTheoryDeveloperAgent, ResearchArchitectConfig, validate_theory_packet
 from ai_statistician.research_control import (
     RESEARCH_CONTROL_INPUTS_TOOL, load_research_control_submission,
     prepare_research_control_workspace, prepare_single_context_research_workspace,
 )
 from ai_statistician.research_gold_evaluation import _hidden_execution_summary, _run_hidden_scientific_harness
-from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.research_evaluation import load_runtime_research_submission
+from ai_statistician.research_schema import OpenResearchQuestion, research_question_payload
 from ai_statistician.scientific_code_workspace import (
     SCIENTIFIC_SOURCE_COMMIT_TOOL, SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
 )
@@ -326,7 +330,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     if not (runtime.python_available if language == "python" else runtime.r_available):
         pytest.skip("scientific runtime is not prepared")
     question = OpenResearchQuestion("opaque-application", "Opaque application", "Mechanism test, not scientific acceptance.",
-                                    task_intent={"theory": "required", "scientific_code": "not_applicable",
+                                    task_intent={"theory": "optional", "scientific_code": "not_applicable",
                                                  "empirical": "not_applicable", "formal": "not_applicable"})
     backend = Scripted([])
     theory = LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
@@ -427,7 +431,52 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                for row in (algorithm_result, simulation_result))
     assert result.terminal_payload["evidence_role"] == "submission_not_scientific_acceptance"
 
-    # External correctness is separate from the source owner's smoke pass or self-review.
+    # Exercise the real terminal Critic and persisted graph; this is not a full product/model draw.
+    class ScriptedCritic:
+        def __init__(self):
+            self.calls = []
+
+        def propose(self, **kwargs):
+            self.calls.append(kwargs)
+            return {"artifact_kind": "CriticEvaluatorProposalPacket", "packet_id": "opaque-assessment",
+                    "canonical_evidence_view_hash": kwargs["canonical_evidence_view"]["view_hash"],
+                    "research_disposition": {"status": "REJECT" if offset == 0 else "ACCEPT"}}
+
+    critic = ScriptedCritic()
+    public_question = research_question_payload(question, include_task_intent=True)
+    product_artifacts = {
+        "selected-theory": deepcopy(payloads["theory"]["core_packet"]),
+        "selected-code": {"artifact_kind": "RuntimeAlgorithmSandboxManifest", "manifest_id": "selected-code",
+                          "question": public_question, "theory_packet_id": "selected-theory",
+                          "prototypes": [deepcopy(algorithm_result["prototype"])]},
+        "selected-simulation": {"artifact_kind": "RuntimeSimulationManifest", "manifest_id": "selected-simulation",
+                                "question": public_question, "theory_packet_id": "selected-theory",
+                                "generated_simulation_rows": [deepcopy(simulation_result["prototype"])]},
+    }
+    graph = AgentRuntime(subsystems={"CriticEvaluator": CriticEvaluatorRuntimeSubsystem(proposal_agent=critic)},
+                         blackboard=BlackboardState(project_id=question.id, artifacts=product_artifacts))
+    product = graph.run(AgentTask(task_id="final-critic", owner_subsystem="CriticEvaluator", objective="Inspect selected artifacts.",
+                                 inputs={"question": public_question, "theory_packet_id": "selected-theory",
+                                         "algorithm_sandbox_manifest_id": "selected-code",
+                                         "simulation_manifest_id": "selected-simulation",
+                                         "architect_context": {"evidence_contract": {
+                                             "formal_verification_policy": "not_applicable", "formal_required_for_final": False}}}),
+                        max_iterations=1).to_json()
+    stored_refs, index_path = _persist_runtime_artifact_store(
+        artifacts=product["blackboard"]["artifacts"], out_dir=tmp_path / "product", question_id=question.id,
+    )
+    persisted = {**product, "blackboard": {**product["blackboard"], "artifacts": stored_refs},
+                 "blackboard_artifact_payload_policy": "content_addressed_refs", "blackboard_artifact_store_index": str(index_path)}
+    result_path = tmp_path / "product" / "result.json"
+    result_path.write_text(json.dumps(persisted), encoding="utf-8")
+    product_submission = load_runtime_research_submission(load_persisted_runtime_result(result_path), question=question)
+    assert len(critic.calls) == 1
+    assert product_submission["internal_status"] == ("BLOCKED" if offset == 0 else "ACCEPTED")
+    exact_product_row = product_submission["selected_artifacts"]["scientific_code"]["prototypes"][0]
+    assert exact_product_row["source_code"] == code
+    assert product_submission["selected_artifacts"]["theory"] == payloads["theory"]["core_packet"]
+
+    # The same hidden checks inspect both final sources, independent of internal dispositions.
     submission_before = deepcopy(result.terminal_payload)
     messages_before = deepcopy(backend.requests[-1].messages)
     frozen_draft = payloads["algorithm"]["code_draft"]
@@ -445,11 +494,13 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
                                         "operator": "eq", "expected": 99178}]}
     assert "99173" not in str(backend.requests) and "99178" not in str(backend.requests)
     results = []
-    for label in ("selected-shared-source", "source-only-no-review-receipt"):
+    product_binding = replace(binding, code=exact_product_row["source_code"], code_hash=exact_product_row["script_hash"],
+                              project_hash=exact_product_row["project_hash"])
+    for label, exact_binding in (("selected-shared-source", binding), ("terminal-product-source", product_binding)):
         raw = _run_hidden_scientific_harness(
             sandbox_dir=tmp_path / "evaluator-only" / label, artifact_id=label,
             harness_language=language, harness_code=held_source, harness_dependencies=(),
-            estimator_binding=binding, seed=99173, replicates=5, timeout_s=30,
+            estimator_binding=exact_binding, seed=99173, replicates=5, timeout_s=30,
         )
         summary = _hidden_execution_summary(raw, evaluator=evaluator, required_estimator_id="opaque")
         assert summary["execution_passed"] and summary["estimator_invocation_count"] == 1
@@ -461,6 +512,8 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert len(backend.requests) == 12 and not backend.calls
     assert backend.requests[-1].messages == messages_before
     assert result.terminal_payload == submission_before
+    assert len(critic.calls) == 1 and critic.calls[0]["canonical_evidence_view"]["view_hash"] == (
+        product_submission["selected_artifacts"]["assessment"]["canonical_evidence_view_hash"])
     assert all(row["accepted"] is True for row in (algorithm_result, simulation_result))
     assert "99173" not in str(result.messages) and "99178" not in str(result.messages)
 

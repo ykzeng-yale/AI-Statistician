@@ -54,6 +54,36 @@ GoldArtifactHarnessRunner = Callable[..., Mapping[str, Any]]
 GoldTheorySemanticJudgeRunner = Callable[..., Mapping[str, Any]]
 
 
+def _semantic_judgment_metrics(judgment: Mapping[str, Any], *, prefix: str) -> dict[str, Any]:
+    """Serialize the same frozen semantic-judge fields for theory and source reports."""
+
+    values = {
+        "execution_attempted": True,
+        "result_hash": str(judgment.get("judgment_hash", "") or ""),
+        "claim_assessments": deepcopy(judgment.get("candidate_claim_assessments", [])),
+    }
+    for target, source in {
+        "judge_calibrated": "semantic_judge_calibrated",
+        "candidate_mode_negative_controls_passed": "candidate_mode_negative_controls_passed",
+        "candidate_integrated_context": "candidate_integrated_context",
+        "passed": "passed",
+    }.items():
+        values[target] = judgment.get(source) is True
+    for target, source in {
+        "calibration_case_count": "n_calibration_cases",
+        "calibration_cases_correct": "n_calibration_cases_correct",
+        "candidate_mode_negative_case_count": "n_candidate_mode_negative_cases",
+        "candidate_mode_negative_cases_correct": "n_candidate_mode_negative_cases_correct",
+        "candidate_mode_negative_model_calls": "candidate_mode_negative_model_calls",
+        "claim_count": "n_claims",
+        "candidate_model_calls": "candidate_integrated_model_calls",
+    }.items():
+        values[target] = int(judgment.get(source, 0) or 0)
+    for field in ("candidate_status", "candidate_document_status"):
+        values[field] = str(judgment.get(field, "") or "")
+    return {prefix + key: value for key, value in values.items()}
+
+
 def _visible_question_hash_payload(question: Mapping[str, Any]) -> dict[str, Any]:
     base = ("id", "title", "description", "tags")
     optional = ("task_intent", "estimator_execution_contract", "formal_target_contract")
@@ -790,84 +820,9 @@ def _evaluate_gold_task(
                     hidden_source_report_semantic_passed = (
                         semantic_judgment.get("passed") is True
                     )
-                    base.update(
-                        {
-                            "hidden_source_report_semantic_execution_attempted": True,
-                            "hidden_source_report_semantic_result_hash": str(
-                                semantic_judgment.get("judgment_hash", "") or ""
-                            ),
-                            "hidden_source_report_semantic_judge_calibrated": (
-                                semantic_judgment.get(
-                                    "semantic_judge_calibrated"
-                                )
-                                is True
-                            ),
-                            "hidden_source_report_semantic_calibration_case_count": int(
-                                semantic_judgment.get(
-                                    "n_calibration_cases", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_source_report_semantic_calibration_cases_correct": int(
-                                semantic_judgment.get(
-                                    "n_calibration_cases_correct", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_source_report_semantic_candidate_mode_negative_case_count": int(
-                                semantic_judgment.get(
-                                    "n_candidate_mode_negative_cases", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_source_report_semantic_candidate_mode_negative_cases_correct": int(
-                                semantic_judgment.get(
-                                    "n_candidate_mode_negative_cases_correct", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_source_report_semantic_candidate_mode_negative_model_calls": int(
-                                semantic_judgment.get(
-                                    "candidate_mode_negative_model_calls", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_source_report_semantic_candidate_mode_negative_controls_passed": (
-                                semantic_judgment.get(
-                                    "candidate_mode_negative_controls_passed"
-                                )
-                                is True
-                            ),
-                            "hidden_source_report_semantic_claim_count": int(
-                                semantic_judgment.get("n_claims", 0) or 0
-                            ),
-                            "hidden_source_report_semantic_candidate_status": str(
-                                semantic_judgment.get("candidate_status", "") or ""
-                            ),
-                            "hidden_source_report_semantic_candidate_document_status": str(
-                                semantic_judgment.get(
-                                    "candidate_document_status", ""
-                                )
-                                or ""
-                            ),
-                            "hidden_source_report_semantic_candidate_integrated_context": (
-                                semantic_judgment.get("candidate_integrated_context")
-                                is True
-                            ),
-                            "hidden_source_report_semantic_candidate_model_calls": int(
-                                semantic_judgment.get(
-                                    "candidate_integrated_model_calls", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_source_report_semantic_claim_assessments": deepcopy(
-                                semantic_judgment.get("candidate_claim_assessments", [])
-                            ),
-                            "hidden_source_report_semantic_passed": (
-                                hidden_source_report_semantic_passed
-                            ),
-                        }
-                    )
+                    base.update(_semantic_judgment_metrics(
+                        semantic_judgment, prefix="hidden_source_report_semantic_",
+                    ))
             hidden_source_replication_passed = bool(
                 hidden_source_replication_identity_passed
                 and hidden_source_report_semantic_passed
@@ -975,85 +930,9 @@ def _evaluate_gold_task(
                     semantic_theory_passed = (
                         semantic_judgment.get("passed") is True
                     )
-                    base.update(
-                        {
-                            "hidden_theory_semantic_execution_attempted": True,
-                            "hidden_theory_semantic_result_hash": str(
-                                semantic_judgment.get("judgment_hash", "") or ""
-                            ),
-                            "hidden_theory_semantic_judge_calibrated": (
-                                semantic_judgment.get(
-                                    "semantic_judge_calibrated"
-                                )
-                                is True
-                            ),
-                            "hidden_theory_semantic_calibration_case_count": int(
-                                semantic_judgment.get(
-                                    "n_calibration_cases", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_theory_semantic_calibration_cases_correct": int(
-                                semantic_judgment.get(
-                                    "n_calibration_cases_correct", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_theory_semantic_candidate_mode_negative_case_count": int(
-                                semantic_judgment.get(
-                                    "n_candidate_mode_negative_cases", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_theory_semantic_candidate_mode_negative_cases_correct": int(
-                                semantic_judgment.get(
-                                    "n_candidate_mode_negative_cases_correct", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_theory_semantic_candidate_mode_negative_model_calls": int(
-                                semantic_judgment.get(
-                                    "candidate_mode_negative_model_calls", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_theory_semantic_candidate_mode_negative_controls_passed": (
-                                semantic_judgment.get(
-                                    "candidate_mode_negative_controls_passed"
-                                )
-                                is True
-                            ),
-                            "hidden_theory_semantic_claim_count": int(
-                                semantic_judgment.get("n_claims", 0) or 0
-                            ),
-                            "hidden_theory_semantic_candidate_status": str(
-                                semantic_judgment.get("candidate_status", "")
-                                or ""
-                            ),
-                            "hidden_theory_semantic_candidate_document_status": str(
-                                semantic_judgment.get(
-                                    "candidate_document_status", ""
-                                )
-                                or ""
-                            ),
-                            "hidden_theory_semantic_candidate_integrated_context": (
-                                semantic_judgment.get("candidate_integrated_context")
-                                is True
-                            ),
-                            "hidden_theory_semantic_candidate_model_calls": int(
-                                semantic_judgment.get(
-                                    "candidate_integrated_model_calls", 0
-                                )
-                                or 0
-                            ),
-                            "hidden_theory_semantic_claim_assessments": deepcopy(
-                                semantic_judgment.get("candidate_claim_assessments", [])
-                            ),
-                            "hidden_theory_semantic_passed": (
-                                semantic_theory_passed
-                            ),
-                        }
-                    )
+                    base.update(_semantic_judgment_metrics(
+                        semantic_judgment, prefix="hidden_theory_semantic_",
+                    ))
             hidden_theory_passed = bool(
                 theory_candidate is not None
                 and mechanical_theory_passed

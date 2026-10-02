@@ -111,8 +111,9 @@ unselected intermediate candidate into a successful result.
 Deterministic application tests now resolve the shared submission from exact
 hash-checked stored observations and execute its unchanged Python/R estimator
 through the existing evaluator-only sandbox, after the conversation terminates.
-The same hidden source/seed/checks also execute a source-only binding with no
-review receipt. Both paths agree, and an incorrect offset fails the held check
+The same hidden source/seed/checks also execute the exact code selected by a real
+terminal Critic and persisted AgentRuntime graph. Its assessment is scripted, not
+an inference draw or complete multi-role product run. Both paths agree, and an incorrect offset fails the held check
 despite a successful authoring smoke test. Hidden execution neither calls the
 author nor changes its transcript, report or checkpoint; no outcome is returned
 for repair. These are opaque mechanism fixtures, not statistical tasks or model
@@ -133,13 +134,34 @@ projects still pass the existing executor's source/project checks before use.
 
 The caller must supply the trusted terminated loop, its session root and frozen
 task, not an author-declared replacement transcript. This entry is a shared-control
-artifact resolver, not yet a complete common endpoint for native host and full
-product submissions, offline run reconstruction, mathematical adjudication or
-study activation. Deterministic tests include a selected earlier Theory snapshot,
+artifact resolver, not mathematical adjudication or study activation.
+Deterministic tests include a selected earlier Theory snapshot,
 empty final selection, changed task/report/observation, escaping references,
 missing checkpoints and actual Python/R hidden execution from the resolved source.
-Old gold failure returns are consolidated without changing their conditions,
-messages or dimension verdicts; no old evaluation is rerun or rescored.
+Old gold failure returns and repeated semantic-judgment field serialization are
+consolidated without changing conditions, fields, messages or dimension verdicts;
+no old evaluation is rerun or rescored.
+
+The product's terminal Critic now binds its selected theory/code/simulation/formal
+artifacts and model assessment with existing `RuntimeArtifactRef` hashes.
+`load_runtime_research_submission` resolves only a terminal Critic from a trusted
+terminated graph and frozen question, regardless of ACCEPTED/BLOCKED/FAILED status.
+Persisted graphs are hydrated through `load_persisted_runtime_result` first.
+The last trace, final task, manifest, exact selected references and assessment
+identity must agree. An intermediate Critic, pending replan, or exhausted run does
+not authorize a final submission. Missing dimensions remain missing; older Haiku
+records are not retrofitted. This uses the existing artifact-reference resolver,
+not a new store or scheduler. Source and Markdown/LaTeX file identity still pass
+their existing loaders/executors before scientific inspection.
+
+Python/R tests resolve both submissions and run identical hidden source, seeds
+and checks after termination. They cover internal rejection of correct source
+and internal acceptance of incorrect source, without treating either product
+verdict as external correctness. They do not execute mathematical gold, judge
+statistical derivations, upgrade exploratory results to confirmation, or give
+review credit to the shared arm. Native-host final-submission collection,
+common full-task scoring and qualified mathematical authority remain incomplete;
+neither these tests nor the readers activate either publication study.
 
 Implementation boundary: the existing outer runtime now accounts for local
 requests across roles and continuations, with an optional per-question request
