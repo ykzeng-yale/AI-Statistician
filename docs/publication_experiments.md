@@ -152,10 +152,31 @@ scripted; these are not model draws or complete live native/multi-role research.
 Hidden results never return to the author. Old gold defaults and failure rendering
 are consolidated with unchanged fields, types, conditions and authority.
 
-These readers establish artifact/execution mechanisms, not common full-task
-scoring, mathematical authority, confirmation or a matched study. Host activation,
-matched tools/resources, independent gold and actual scientific draws remain
-unfinished; neither publication study is activated.
+The prospective evaluator entry is
+`benchmarks/publication/evaluate_final_artifacts.py:evaluate_final_research_artifacts`.
+It reuses the existing external numerical executor, document referee and exact
+kernel authority, but does not require internal ACCEPTED or role-review receipts.
+It records separate required/optional outcomes and refuses full-task success when
+any required final material is missing, unevaluated or rejected. Empty requirements
+cannot pass. A structural document check alone cannot accept theory, and passing
+source cannot manufacture an absent or incorrect submitted experiment.
+
+Its trusted study caller must first use the final readers above, project only
+that exact selection into prospectively fixed evaluator inputs, and qualify the
+frozen scientific checks and mathematical authority before any draw. Artifact
+evaluators take an explicitly frozen JSON view; binary snapshots remain preserved
+at collection, with no generic decoding or silent omission here. Formal input must
+contain only the selected final proof evidence, not an earlier blackboard success.
+Fresh outcome directories cannot be overwritten. Independent results and referee
+records stay evaluator-side; no research agent receives this hidden feedback.
+
+Actual Python/R tests cover source correctness against contradictory internal
+verdicts, missing dimensions, wrong submitted results and a native final snapshot
+after author-directory mutation. Referee verdicts are scripted mechanism fixtures,
+not mathematical qualification or a live model experiment. Collection/projection,
+calibrated full-task authority, confirmation, matched tools/resources, host activation
+and study CLI remain unfinished; neither publication study is activated. Do not
+use the new entry to reevaluate any consumed legacy task or qualification.
 
 Implementation boundary: the existing outer runtime now accounts for local
 requests across roles and continuations, with an optional per-question request

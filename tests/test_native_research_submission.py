@@ -12,7 +12,7 @@ import pytest
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.research_control import collect_native_research_submission, load_native_research_submission
 from ai_statistician.research_gold_evaluation import _hidden_execution_summary, _run_hidden_scientific_harness
-from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.research_schema import OpenResearchQuestion, research_question_payload
 from ai_statistician.scientific_project import scientific_project_hash
 from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, discover_scientific_sandbox_runtime
 
@@ -164,3 +164,33 @@ def test_hidden_executor_consumes_the_frozen_native_multifile_source_not_later_w
     assert raw["metrics"] == {"echo": 99178 + offset}
     assert (store / "submission.json").read_bytes() == before
     assert "99173" not in process.args[-1] and "99178" not in process.args[-1]
+
+    # Prospective external outcomes consume this final snapshot, not the host's exit verdict.
+    # Semantic failure is scripted; no mathematical authority or live model is claimed.
+    from benchmarks.publication import evaluate_final_artifacts as outcomes
+    from ai_statistician.research_gold_evaluation import _visible_question_hash_payload
+    authority = tmp_path / "private-harness"
+    authority.write_text(held)
+    public = research_question_payload(question, include_task_intent=True)
+    task = {"task_id": question.id, "task_intent": question.task_intent,
+            "visible_question_hash": stable_hash(_visible_question_hash_payload(public)),
+            "hidden_algorithm_evaluator": {"language": language, "harness_path": str(authority),
+                "harness_sha256": hashlib.sha256(held.encode()).hexdigest(), "required_estimator_id": "opaque",
+                "seed": 99173, "replicates": 5, "timeout_seconds": 30,
+                "acceptance_checks": [{"path": ["echo"], "operator": "eq", "expected": 99178}]},
+            "hidden_theory_semantic_evaluator": {"provider": "local"}}
+    theory = [{"path": relative, "content": raw.decode(), "sha256": hashlib.sha256(raw).hexdigest()}
+              for relative, raw in result["artifact_bytes"]["theory"].items()]
+    reviews = []
+    def review(**kwargs):
+        reviews.append(kwargs["candidate_documents"])
+        judgment = {"passed": False, "mechanism_fixture_not_scientific_authority": True}
+        return {**judgment, "judgment_hash": stable_hash(judgment)}, ""
+    monkeypatch.setattr(outcomes, "_run_hidden_document_semantic_evaluation", review)
+    outcome = outcomes.evaluate_final_research_artifacts(
+        question=question, task=task, submission_identity=result, project_root=tmp_path, out_dir=tmp_path / "common-outcome",
+        theory_documents=theory, estimator_bindings=(binding,),
+    )
+    assert outcome["dimension_status"]["scientific_code"]["status"] == ("passed" if offset == 0 else "failed")
+    assert outcome["dimension_status"]["theory"]["status"] == "failed" and outcome["task_passed"] is False
+    assert reviews == [theory] and (store / "submission.json").read_bytes() == before
