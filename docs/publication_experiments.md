@@ -324,6 +324,42 @@ Exit zero means a final selection was collected, not that any required science
 passed. External evaluation is never called by this command. Failed runs retain
 the existing observations/result and cannot be overwritten or resumed here.
 
+For process-level execution records, the study caller may instead launch that
+same command once through the POSIX experiment entry:
+
+```bash
+.venv/bin/python -m benchmarks.publication.execute_draw \
+  --config /absolute/path/to/prospective-draw.json \
+  --out /absolute/path/to/fresh-process-record
+```
+
+The child uses `fresh-process-record/draw`; the parent freezes its command,
+configuration identity, Python/entry identities and declared timing conditions
+in `launch.json` before starting it. Raw binary-safe stdout/stderr and a
+hash-bound `terminal.json` retain exit, launch failure, interruption or timeout.
+It does not parse outputs, select artifacts, invoke an evaluator, retry, resume
+or change the sole research graph. No wall cap is added by default. A caller may
+prospectively supply `--wall-seconds` identically across arms; elapsed child time
+includes CLI preparation, every research role/tool, and final collection.
+Shutdown time is separately included in total elapsed time. The shutdown grace
+permits parent-process termination, not additional budgeted author work. Timeout
+remains timeout even if a signal handler subsequently saves a final artifact;
+those files are retained, not salvaged into a timely submission.
+
+The entry stops only its newly created POSIX process group, including remaining
+in-group children after the CLI exits. This is not sandbox isolation or proof
+that escaped processes have stopped. It does not own/stop the model server;
+a cancelled client request may still be computing there. The prospective caller
+must independently own and stop that server before the next cold-start condition,
+and account for deployment preparation, cache state and any remaining computation.
+Recorded wall time alone is not matched tokens or scientific compute. Config
+identity at launch/termination is not attestation of unchanged intermediate bytes,
+model weights, source visibility or cross-arm parity. A zero child exit still
+means only that the existing CLI collected a final selection, not scientific
+acceptance. Opaque native-process tests cover each mode, failures, interruption,
+descendant cleanup, unaffected peer groups, immutable records and changed config;
+they call no model and do not activate either publication study.
+
 [OneFlow](https://arxiv.org/html/2601.12307v1) motivates a distinct same-workflow
 single-context control, not the free-planning general agent. Shared self-review
 cannot be labelled independent, and external gold stays isolated in every arm.
