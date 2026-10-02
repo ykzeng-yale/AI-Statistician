@@ -330,6 +330,15 @@ only authorized shared observations, never private isolated reviewer sessions.
 | Final selection | `submit_research_result` selects exact observed checkpoints and preserves the unchanged Markdown report; partial selections stay partial |
 | Common external view | `publication_material_from_submission` keeps selected source and both exploratory/frozen rows with original phases and failures; it does not choose a passing candidate |
 
+Dependent workspaces initially expose their context identity and the existing
+input-selection action, not an unbound reviewer/consumer context. Selection returns
+the complete current production context and exact upstream inputs; the fixed
+estimator-to-workspace map remains public before inference. Tool catalogs and
+execution rules are unchanged. This reduces irrelevant initial context, not a
+demonstrated research-success improvement. Theory document writes no longer infer
+derivation IDs, assumption dependencies or formalization handoffs from aliases;
+missing owner-authored material remains an observation for that same owner.
+
 A final join must agree with both provided and consumed resources. The model can
 select a consistent earlier set or a later producer whose relevant resources are
 unchanged; an unrelated note does not force another execution. Original consumed
@@ -375,6 +384,13 @@ lineage rejection and unchanged Critic assessment collection. These invoke no
 research model and establish neither scientific efficacy nor resource parity.
 Declared confirmation/resource envelopes and
 tool access still need matching across arms; one command does not establish parity.
+
+The development pilot's original shared sessions already contained complete
+messages and exact tool observations. Its earlier public description of missing
+messages is corrected in the [separate record correction](../benchmarks/publication_development/fixed_k_l2_20261002/record_correction.json).
+Separate per-turn execution/usage histories were not saved by that old runner.
+Future failure-history capture does not backfill them or change any consumed
+outcome, selected artifact or deployment.
 
 Configured code-review file/probe tools keep a stable contract before and after
 input binding; execution still rejects unknown or unverified targets. A review

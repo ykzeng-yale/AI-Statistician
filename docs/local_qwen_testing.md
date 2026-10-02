@@ -60,6 +60,20 @@ is not a saved transcript or publication dataset. Record complete prospective
 provenance and immutable histories in actual scientific workspaces/runs.
 Transport success is not theory, simulation, Lean or research-E2E capability.
 
+## Prospective Publication Conditions
+
+The deployed small quantized checkpoint is a development condition, not the
+whole system's scientific capacity ceiling. The [official Qwen model card](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507#best-practices)
+describes a non-thinking model with a native 262,144-token context and recommends
+temperature 0.7, top-p 0.8, top-k 20, min-p 0 and 16,384 output tokens. The
+consumed development pilot instead used a 32k server context, temperature zero
+and 4,096 output tokens. These differences are not repaired retrospectively.
+Any future decoding/context/model condition must be frozen before its fresh
+draws, verified against the actual local runtime and reported separately. Upstream
+recommendations alone neither validate a deployment nor establish a fair comparison.
+Do not add Qwen-Agent's controller over the retained product loop or automatically
+increase resources, change models or retry after a consumed failure.
+
 ## Forward Evaluation Binding
 
 New `--research-eval` and capability profiles use explicit `evaluation_provider`,

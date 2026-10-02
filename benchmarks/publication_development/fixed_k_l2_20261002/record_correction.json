@@ -1,0 +1,26 @@
+{
+  "scope": "Correction to the public record description only; all four consumed draws and first outcomes are unchanged.",
+  "corrects_public_commit": "f213d503b61521421bf3277f11d62c6b7e2413fe",
+  "finding": "The old shared-workspace error handler already persisted complete conversation messages and exact tool observations in its existing session store. It did not serialize the separate per-turn execution/usage history. The earlier assertion that complete failed-loop messages were absent was incorrect.",
+  "sessions": {
+    "free_planning": {
+      "relative_path": "free_planning/author/.client_tool_sessions/aecc348736dd46a1d1699aa4719270aa71a3749015be92ab393278f9a3cec5c5.json",
+      "sha256": "aecc348736dd46a1d1699aa4719270aa71a3749015be92ab393278f9a3cec5c5",
+      "transcript_fingerprint": "b53a5251b242a32f961303e292407058e4a2a509879be4423dfed10195e9f07a",
+      "message_count": 18,
+      "observation_count": 13
+    },
+    "same_workflow": {
+      "relative_path": "same_workflow/author/.client_tool_sessions/6d1a78f64c47edc40a266a6cd80fcf5eae721079ddeb143a1e8711101f658d1f.json",
+      "sha256": "6d1a78f64c47edc40a266a6cd80fcf5eae721079ddeb143a1e8711101f658d1f",
+      "transcript_fingerprint": "15054ef87c1a0b367585ce2c55e7f29587ea5ff9a78e7e73d3fb8bef45f13385",
+      "message_count": 22,
+      "observation_count": 10
+    }
+  },
+  "raw_record_root": "runs/publication_development_fixed_k_l2_20261002",
+  "boundary": "These are original records already present when the draws terminated, not reconstructed history or a candidate selection. The server's raw context-overflow text is still absent from the client transcript. Future failed_tool_loop.json files additionally preserve per-turn records; they do not fill missing fields in old runs.",
+  "outcomes_reassessed": false,
+  "draws_resumed": false,
+  "raw_records_modified": false
+}

@@ -63,8 +63,11 @@ calibration is not agent capability. There were 21 attempted local requests,
 failed before worker generation, so the role-feedback ablation was never reached.
 The free control stopped without progress; the workflow control reached context
 overflow without a committed theory checkpoint. Markdown drafts are not accepted
-theory or final selections. Raw failed-loop histories were not persisted by the
-old control runner; subsequent logging changes cannot backfill these records.
+theory or final selections. The separate per-turn execution/usage history was
+not persisted by the old runner. Complete messages and tool observations were
+already saved in the shared session store; [the record correction](record_correction.json)
+documents their original identities and corrects the earlier description of
+missing messages. Subsequent logging cannot backfill missing per-turn records.
 
 The operator mistakenly started the reverse-role arm first. This was recorded
 immediately and no draw was restarted. The actual order and all preserved record
