@@ -61,6 +61,76 @@ directory and record fetched data identities; do not cut it down and label the
 result a full-paper reproduction. A reference execution is not complete until
 the actual process exits and outputs are inspected.
 
+## bizicount Reference Execution
+
+The journal package is 1.3.3; the author replication session used 1.3.2 and
+R 4.3.3. A fresh execution used native R 4.4.2 on arm64 macOS, package 1.3.3
+and recorded dependency versions. This is an adapted environment, not recovery
+of the historical lock. The six executed author scripts match the archive bytes.
+Only scripts and README were extracted: cached tables, figures and simulation
+output were not copied into the new execution directory. The unchanged master
+script ran all five stages, including all 4,000 simulation slots, and exited zero.
+It reported 12.29 minutes for the Monte Carlo stage, not a controlled performance
+measurement or an agent cost.
+
+Environment preparation initially failed because the R 4.4 resolver did not
+offer the needed `gsl` dependency. Its available native binary and the journal
+package were installed in a separate reference library. The first master attempt
+still failed before the empirical stage: this machine's `Rscript` wrapper resets
+`R_LIBS_USER`, overriding the environment-only choice. The author installer then
+changed the user-global R library. This side effect is retained and disclosed;
+that attempt was not isolated. The second attempt explicitly prepended the
+reference library with `.libPaths`, used a fresh output directory and completed.
+The product `.venv` and author source were not changed. This is evaluator/operator
+preparation, not evidence of product-agent dependency reconstruction.
+
+Successful invocation, with evaluator-selected paths:
+
+```sh
+Rscript --vanilla -e '
+  .libPaths(c(Sys.getenv("REFERENCE_R_LIBRARY"), .libPaths()))
+  stopifnot(as.character(packageVersion("bizicount")) == "1.3.3",
+            requireNamespace("copula", quietly = TRUE))
+  print(sessionInfo())
+  source("v109i01-replication.R", echo = TRUE)
+'
+```
+
+Output inspection found 3,628 numeric results and 372 `NULL` returns. The two
+high-zero-inflation scenarios retained only 300/500 and 354/500 rows; the other
+six retained 490--499. The source conflates missing-zero and fit-error reasons
+in `NULL`, and its plots drop those rows. Moreover, 842 numeric rows contain
+bivariate optimizer code 3 in at least one fit. A numeric return is not a
+successful-fit verdict; conditional performance cannot hide unconditional
+failure counts. The full inspection includes all scenario counts, code pairs,
+session versions and hashes. A first metadata export failed on the `sessionInfo`
+S3 object; projecting plain session fields fixed export while reading the same
+output, without rerunning the reference or scoring a candidate.
+
+Fresh Table 3 mostly matches displayed coefficients and two-decimal likelihood
+and information criteria, but several standard errors and a significance label
+differ. For example, the ZIP zero-inflation intercept SE is 0.79 versus 1.08 in
+the archive. The cause has not been isolated. Do not invent an explanation,
+change a tolerance or label this exact full-table reproduction.
+
+There is also a verified source issue in the pinned 1.3.3 package:
+`R/bizicount.R:724` uses `log(length(y))` in BIC, where `y` is a two-column
+`Formula::model.part` data frame and the observations number 312. Its length is
+2; the package separately records `nrow(y)` as `nobs`. The BIC method returns
+that stored value. Standard BIC uses `log(nobs)` in the penalty
+([R documentation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/AIC.html)).
+This was checked independently from the Formula return shape and unchanged
+package source. It is not a claim about current versions, the entire paper's
+theory, or a proven cause of the standard-error differences. No corrected value
+from rounded likelihoods is supplied as gold. Source/output hashes and precise
+boundaries are in the adjacent inventory; no author code was patched or vendored.
+
+This source remains **unqualified as independent full-task gold**. A future task
+could distinguish reproduction of specified software outputs from diagnosis of
+scientific discrepancies, but its target and authority must be frozen before any
+candidate call. A completed operator reference run is neither product autonomy
+nor an official open-weight publication result.
+
 ## Other Observations
 
 Unchanged RepliSims Austin code was probed under native R 4.4.2 with a fixed seed. Its
@@ -71,10 +141,7 @@ not the paper's complete simulation, a numerical gold comparison, or evidence
 that every branch or the underlying statistical result is invalid. No author
 source was patched.
 
-The published bizicount package is 1.3.3 whereas the replication session reports
-1.3.2. Several local dependencies are missing; no installation or execution was
-attempted. Its archive includes cached simulation output, tables and figures,
-which cannot substitute for fresh computation. Three additional RepliSims
+Three additional RepliSims
 repositories remain discovery-only: no clear code license was found in the
 inspected root metadata, and their code was not executed or copied into this
 repository. References alone do not qualify those candidates.

@@ -78,9 +78,78 @@
       "package": {"url": "https://www.jstatsoft.org/index.php/jss/article/view/v109i01/4560", "version": "1.3.3", "sha256": "bb61a86f3f44746d337a45c3393cdaf4fd40f28ddc545c157203d6809897d838", "observed_license": "GPL (>= 3), DESCRIPTION"},
       "replication": {"url": "https://www.jstatsoft.org/index.php/jss/article/view/v109i01/4561", "sha256": "ff40055cdbc34a77737cfd1b7713c8ffce6c70b2dab2674d6b5a4edb43383384", "reported_package_version": "1.3.2", "reported_r_version": "4.3.3", "redistribution_license": "Not independently qualified for the replication archive; no archive contents committed."},
       "cached_outputs_to_exclude_from_blinded_author_workspace": ["Figures/", "output_montes_small.RData", "v109i01-replication.txt"],
-      "local_dependencies_missing": ["DHARMa", "texreg", "bizicount", "copula", "doParallel", "foreach"],
-      "code_executed": false,
-      "qualification": "Inspected only. Published package and reported replication versions differ; environment and numerical comparison remain unqualified. No dependency installation attempted."
+      "preparation_attempts": [
+        {"id": "reference_dependency_install", "exit_code": 1, "failed_dependency": "copula", "error_excerpt": "dependency gsl is not available", "boundary": "Separate reference library populated with other dependencies; published bizicount not yet installed."},
+        {"id": "reference_dependency_recovery", "exit_code": 0, "method": "Install available native R 4.4 gsl binary and published bizicount 1.3.3 archive into reference library; no source patch.", "gsl_binary": {"url": "https://cloud.r-project.org/bin/macosx/big-sur-arm64/contrib/4.4/gsl_2.1-8.tgz", "version": "2.1-8", "sha256": "3ab11f4a646e8cff94624199dabd57c20efbd60479c84815ea453ddb1a5cd538"}},
+        {"id": "master_execution_1", "exit_code": 1, "error_excerpt": "there is no package called gsl", "boundary": "Local Rscript wrapper overrides environment-only R_LIBS_USER. Author installer changed the user-global R library before loading copula failed. Not a clean isolated attempt; no rollback or algorithm edit. Logs retained."},
+        {"id": "master_execution_2", "exit_code": 0, "method": "Explicit .libPaths prepends prepared reference library before source of unchanged master script in a fresh directory. Empty output directories; cached archive outputs not copied. All stages, including full 4000-slot Monte Carlo, executed.", "workspace": "runs/publication_reference_qualification_20261002/bizicount/reference_1_3_3/execution_2"},
+        {"id": "inspection_export_1", "exit_code": 1, "error_excerpt": "No method asJSON S3 class: sessionInfo", "boundary": "Operator metadata export only; subsequently project session into plain fields while reading the same output. No reference rerun, model draw or evaluation rescore."}
+      ],
+      "execution_environment": {
+        "runtime": "native R 4.4.2, aarch64-apple-darwin20, macOS 26.5.2",
+        "principal_packages": {"bizicount": "1.3.3", "copula": "1.1-7", "gsl": "2.1-8", "DHARMa": "0.4.7", "texreg": "1.39.5", "RhpcBLASctl": "0.23-42", "doParallel": "1.0.17", "doRNG": "1.8.6.3", "Formula": "1.2-5", "MASS": "7.3-61", "numDeriv": "2016.8-1.1"},
+        "full_session_record": "execution_2/sessioninfo.txt and source_inspection.json",
+        "historical_environment_recovered": false,
+        "product_venv_modified": false,
+        "reference_library_is_not_a_complete_environment_lock": true,
+        "seed": 987465,
+        "parallel_workers": 9,
+        "blas_and_omp_threads_per_worker": 1,
+        "wall_time_is_not_a_controlled_performance_measure": true
+      },
+      "executed_script_sha256": {
+        "empirical_replication.R": "46d93496cfc642c8c29809513d654415a8c0160286aa8f4f263c19daf05f8543",
+        "install_dependencies.R": "9387f6337b929433fc2f7183c6e35f2d259bd45f873f4560807672014d86a231",
+        "montes_small.R": "0845a0d703e619f601ab432cd41ef76f4b211ce9ddd97b770ffde26a19b54387",
+        "plots.R": "207ad236f637385e61b0cc169c541608d74ce5c3559edfeb4736405fb178889b",
+        "plots_small.R": "ed94b780e3b76eaad2f0f264fd85a9ebe60a00220a8b91d1e9fccaaab41cdad7",
+        "v109i01-replication.R": "9355f65138a284cd91775743928d0c93d632bdc7c328c2e461359a514da7b0dd"
+      },
+      "output_sha256": {
+        "execution_2/output_montes_small.RData": "03d55e6123285396b988095aae0b5a4ddc5cd3850a4396ff717912919ba467d3",
+        "execution_2/Figures/table_3.txt": "4df0efca4d08d3cc8cd4c97dd6de501f8bc4e7d310b40c7d596ea51e11e95782",
+        "execution_2/reference_process.stdout.log": "99cd34fb6875d36c14f5150620d96db85d458056adcd11fee477ba2201276f84",
+        "execution_2/reference_process.stderr.log": "f1143d292322f0adfcfd255bdd11a7ff52b0c1dec6435055bb024b253e82e4fd",
+        "execution_2/v109i01-replication.txt": "c344c87a325d1ea97c87780adba6402a22c8ae12efb919f26e8f469b6b0c5946",
+        "execution_2/sessioninfo.txt": "d3a04fde9134d572754749417eb3c27c92623c2d49e7c6ee713a433460b640ff",
+        "source_inspection.json": "50a9519040b5243a078a119fdcb483d1a3d1f08ae4964d9b37c560453596e26a"
+      },
+      "full_script_executed": true,
+      "author_code_modified": false,
+      "cached_outputs_used_as_executed_results": false,
+      "monte_carlo_inspection": {
+        "requested_slots": 4000,
+        "requested_repetitions_per_scenario": 500,
+        "sample_size": 500,
+        "numeric_results": 3628,
+        "null_results": 372,
+        "condition_results": 0,
+        "other_results": 0,
+        "numeric_rows_with_either_bivariate_code_3": 842,
+        "numeric_results_by_scenario": [
+          {"dependence": 0.15, "psi1": 0.1, "psi2": 0.1, "count": 494},
+          {"dependence": 0.15, "psi1": 0.6, "psi2": 0.1, "count": 498},
+          {"dependence": 0.15, "psi1": 0.1, "psi2": 0.6, "count": 490},
+          {"dependence": 0.15, "psi1": 0.6, "psi2": 0.6, "count": 300},
+          {"dependence": 0.85, "psi1": 0.1, "psi2": 0.1, "count": 497},
+          {"dependence": 0.85, "psi1": 0.6, "psi2": 0.1, "count": 499},
+          {"dependence": 0.85, "psi1": 0.1, "psi2": 0.6, "count": 496},
+          {"dependence": 0.85, "psi1": 0.6, "psi2": 0.6, "count": 354}
+        ],
+        "interpretation": "Numeric return is not convergence success. Author code returns NULL for missing zeros or any fitted-model error without distinguishing causes; author plots drop NULL. Preserve unconditional failure counts alongside conditional summaries."
+      },
+      "table_comparison": "Most displayed coefficients and two-decimal log-likelihood/AIC/BIC entries agree; several standard errors and one significance label differ materially, including ZIP zero-inflation intercept SE 1.08 versus 0.79. Cause not isolated. No frozen tolerance or full-table acceptance established.",
+      "pinned_source_bic_issue": {
+        "version_scope": "Journal package 1.3.3 only; not a claim about current releases or validity of the paper's theory.",
+        "source": "R/bizicount.R:422,591,724-725; R/bizicount-methods.R:29",
+        "source_sha256": {"R/bizicount.R": "e16638a86aba5273431701a45e428b767fbe773ffc339c03819af226f0653d62", "R/bizicount-methods.R": "e700b26c3cc3d8fe66e7afd366a926aa262edd064a6b92e3b87818eee73856e4"},
+        "observation": "BIC uses npar*log(length(y))-2*logLik while nobs is nrow(y). Formula::model.part returns a two-column data.frame, so length(y) is 2, not 312 observations. Independently checked return shape. Copying the displayed BIC is software agreement, not validation of standard BIC.",
+        "standard_definition": "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/AIC.html",
+        "corrected_numerical_gold_supplied": false,
+        "author_source_patched": false
+      },
+      "independent_full_task_gold_qualified": false,
+      "qualification": "Full unchanged author script completed in a documented adapted native environment. Source-level BIC issue, unresolved standard-error differences, missing simulation rows and convergence status prevent treating all author outputs as scientific gold. Numerical agreement and independent mathematical validity remain separate. No candidate/model call or activated publication study."
     },
     {
       "id": "replisims_peters_2006",
