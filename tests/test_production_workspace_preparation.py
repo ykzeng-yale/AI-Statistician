@@ -11,9 +11,17 @@ import pytest
 
 from ai_statistician.algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from ai_statistician.agent_runtime import AgentRuntime, AgentTask, BlackboardState, load_persisted_runtime_result
+from ai_statistician.architect_metric_semantic_reviewer_llm import (
+    ArchitectMetricSemanticReviewerConfig, LLMArchitectMetricSemanticReviewerAgent,
+)
+from ai_statistician.architect_theory_execution_preflight import (
+    ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL, PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED,
+    prepare_architect_theory_execution_preflight_workspace,
+)
 from ai_statistician.client_tool_loop import run_client_tool_workspace
 from ai_statistician.fingerprint import stable_hash
 from ai_statistician.model_backend import ClientToolCall, ClientToolTurnRequest, ClientToolTurnResponse
+from ai_statistician.metric_protocol_stage import build_theory_informed_metric_protocol_material
 from ai_statistician.research_agent_runtime import (
     CriticEvaluatorRuntimeSubsystem, _persist_runtime_artifact_store, _run_generated_code_sandbox,
 )
@@ -32,9 +40,9 @@ from ai_statistician.scientific_sandbox import ScientificEstimatorBinding, disco
 from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
 from ai_statistician.theory_derivation_trace import document_authoritative_theory_context
 from ai_statistician.theory_workspace import (
-    THEORY_WORKSPACE_COMMIT_TOOL, THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+    THEORY_WORKSPACE_COMMIT_TOOL, THEORY_WORKSPACE_READ_DOCUMENT_TOOL, THEORY_SCRATCHPAD_TOOL,
     THEORY_WORKSPACE_GAP_TOOL, THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL, THEORY_WORKSPACE_WRITE_TOOL,
-    load_theory_workspace_documents,
+    load_theory_workspace_documents, theory_workspace_document_manifest,
 )
 
 
@@ -324,7 +332,8 @@ def test_selected_upstream_context_reaches_the_actual_owner_before_source_author
 
 @pytest.mark.parametrize("language", ["python", "r"])
 @pytest.mark.parametrize("offset", [0, 1])
-def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language, offset):
+@pytest.mark.parametrize("include_review", [False, True])
+def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_path, monkeypatch, language, offset, include_review):
     monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
     runtime = discover_scientific_sandbox_runtime()
     if not (runtime.python_available if language == "python" else runtime.r_available):
@@ -349,9 +358,13 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         theory_agent=theory, algorithm_agent=algorithm, simulation_agent=simulation, estimator_id="opaque",
         session_dir=tmp_path, session_id="opaque-app", n_runs=3, seed=7, timeout_s=30,
         max_turns=24, max_tool_calls=24, max_no_progress_turns=24,
+        theory_reviewer=LLMArchitectMetricSemanticReviewerAgent(provider=backend, config=ArchitectMetricSemanticReviewerConfig(
+            provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0,
+        )) if include_review else None,
     )
     assert not backend.requests
     refs = {}
+    first_theory = {}
 
     def references(request):
         for message in request.messages:
@@ -369,6 +382,7 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
 
     def select(request, scope, parents):
         observed = references(request)
+        first_theory.setdefault("hash", observed["theory"])
         return ClientToolCall("select-" + scope, RESEARCH_CONTROL_INPUTS_TOOL,
                              {"scope": scope, "selected_checkpoints": {parent: observed[parent] for parent in parents}})
 
@@ -406,6 +420,41 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
             "report_markdown": "# Execution only\n\nTheory remains unresolved.\n", "selected_checkpoints": references(request),
         }),
     ]
+    report = "# Opaque review\n\nclaim.md leaves opaque_claim unresolved. No statistical result is established.\n"
+    if include_review:
+        review_submission = {"review_report_sha256": hashlib.sha256(report.encode()).hexdigest(),
+            "report_evidence_refs": ["theory.document:claim.md", "question"], "overall_verdict": "REVISE",
+            "execution_handoff_status": PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED,
+            "findings": [{"severity": "high", "category": "unresolved_claim", "summary": "Claim remains unresolved.",
+                          "observed_behavior": "The exact document reports an unresolved claim.",
+                          "expected_behavior": "No scientific acceptance without resolution.",
+                          "evidence_refs": ["theory.document:claim.md"]}]}
+        backend.calls[3:3] = [
+            ClientToolCall("unbound-review", "theory_review__" + ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL, {"content": report}),
+            ClientToolCall("empty-review-inputs", RESEARCH_CONTROL_INPUTS_TOOL, {"scope": "theory_review", "selected_checkpoints": {}}),
+            lambda request: select(request, "theory_review", ["theory"]),
+            ClientToolCall("review-read", "theory_review__" + THEORY_WORKSPACE_READ_DOCUMENT_TOOL,
+                           {"path": "claim.md", "line_start": 1, "line_end": 5}),
+            ClientToolCall("review-scratch", "theory_review__" + THEORY_SCRATCHPAD_TOOL,
+                           {"language": language, "dependencies": [], "code": "print(17)\n" if language == "python" else "cat(17)\n"}),
+            ClientToolCall("review-write", "theory_review__" + ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL, {"content": report}),
+            ClientToolCall("review-stale-submit", "theory_review__submit_theory_preflight_review",
+                           {**review_submission, "review_report_sha256": "0" * 64}),
+            ClientToolCall("review-submit", "theory_review__submit_theory_preflight_review", review_submission),
+        ]
+        backend.calls[-1:-1] = [
+            ClientToolCall("different-theory-document", "theory__" + THEORY_WORKSPACE_WRITE_DOCUMENT_TOOL,
+                           {"path": "claim.md", "content": "# Different opaque record\n\n## opaque_claim\n\nStill unresolved.\n"}),
+            ClientToolCall("different-theory-checkpoint", "theory__" + THEORY_WORKSPACE_COMMIT_TOOL,
+                           {"readiness_rationale": "Save changed unresolved work."}),
+            lambda request: ClientToolCall("stale-final-selection", "submit_research_result", {
+                "report_markdown": "# Invalid mixed version selection\n", "selected_checkpoints": references(request),
+            }),
+        ]
+        backend.calls[-1] = lambda request: ClientToolCall("consistent-final-selection", "submit_research_result", {
+            "report_markdown": "# Execution only\n\nTheory remains unresolved.\n",
+            "selected_checkpoints": {**references(request), "theory": first_theory["hash"]},
+        })
     result = run_client_tool_workspace(backend=backend, workspace=workspace)
     resolved = load_research_control_submission(result, question=question, session_dir=tmp_path)
     payloads = resolved["checkpoint_payloads"]
@@ -426,10 +475,23 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
     assert set(selected["simulation"]["provided_inputs"]) == {"theory", "algorithm"}
     assert set(selected["algorithm"]["inputs"]["theory"]["resources"]) == {"estimator:opaque"}
     assert selected["simulation"]["inputs"]["algorithm"]["resources"] == selected["algorithm"]["resources"]
-    assert "estimator_interface_contract" in str(backend.requests[8].messages[-1])
+    assert "estimator_interface_contract" in str(backend.requests)
     assert all(row["independent_role_review"] is False and row["empirical_evidence_status"] == "EXPLORATORY_NOT_CONFIRMATORY"
                for row in (algorithm_result, simulation_result))
     assert result.terminal_payload["evidence_role"] == "submission_not_scientific_acceptance"
+    if include_review:
+        assert payloads["theory_review"]["review_payload"]["review_report_markdown"] == report
+        assert payloads["theory_review"]["review_payload"]["overall_verdict"] == "REVISE"
+        assert selected["theory_review"]["resources"] == {"report": hashlib.sha256(report.encode()).hexdigest()}
+        assert selected["theory_review"]["provided_inputs"]["theory"]["payload_hash"] == selected["theory"]["payload_hash"]
+        assert "independent_referee_session" not in str(payloads["theory_review"])
+        assert "exact inputs before using its actions" in str(backend.requests[4].messages[-1])
+        assert "exactly one selected theory checkpoint" in str(backend.requests[5].messages[-1])
+        assert "review_report_sha256 is stale" in str(backend.requests[10].messages[-1])
+        assert "17" in str(backend.requests[8].messages[-1])
+        assert "THEORY_SCRATCHPAD_EXECUTION_NOT_PROOF_EVIDENCE" in str(backend.requests[8].messages[-1])
+        assert "theory.document:claim.md" in str(backend.requests[6].messages[-1])
+        assert "selected checkpoint inputs do not match" in str(backend.requests[-1].messages[-1])
 
     # Exercise the real terminal Critic and persisted graph; this is not a full product/model draw.
     class ScriptedCritic:
@@ -509,13 +571,56 @@ def test_application_control_runs_actual_theory_estimator_and_simulation(tmp_pat
         assert raw["estimator_project_hashes"] == {"opaque": binding.project_hash}
         results.append(raw["metrics"])
     assert results[0] == results[1] == {"echo": 99178 + offset}
-    assert len(backend.requests) == 12 and not backend.calls
+    assert len(backend.requests) == (23 if include_review else 12) and not backend.calls
     assert backend.requests[-1].messages == messages_before
     assert result.terminal_payload == submission_before
     assert len(critic.calls) == 1 and critic.calls[0]["canonical_evidence_view"]["view_hash"] == (
         product_submission["selected_artifacts"]["assessment"]["canonical_evidence_view_hash"])
     assert all(row["accepted"] is True for row in (algorithm_result, simulation_result))
     assert "99173" not in str(result.messages) and "99178" not in str(result.messages)
+
+
+def test_prepared_theory_referee_keeps_frozen_question_material_and_disposition(tmp_path):
+    question = OpenResearchQuestion("opaque-review", "Opaque target", "Inspect an unresolved claim.",
+        task_intent={"theory": "required", "scientific_code": "not_applicable", "empirical": "not_applicable", "formal": "not_applicable"})
+    root = tmp_path / "run" / "theory_workspaces" / "draft"
+    root.mkdir(parents=True)
+    body = "# Opaque target\n\n## C\n\nThe claim is unresolved.\n"
+    (root / "claim.md").write_text(body, encoding="utf-8")
+    core = {"problem_card": {"claim_ids": ["C"]},
+            "theory_derivation_packet": {"claim_index": [{"id": "C", "kind": "theorem", "status": "OPEN", "document_path": "claim.md"}]},
+            "theory_workspace_manifest": theory_workspace_document_manifest({"claim.md": body}, workspace_dir=root)}
+    material = build_theory_informed_metric_protocol_material(theory_packet=core, theory_packet_id="opaque-parent")
+    contract = {"dimension_requirements": deepcopy(question.task_intent)}
+    report = "# Review\n\nclaim.md leaves C unresolved; no scientific result is established.\n"
+    backend = Scripted([
+        ClientToolCall("read", THEORY_WORKSPACE_READ_DOCUMENT_TOOL, {"path": "claim.md", "line_start": 1, "line_end": 5}),
+        ClientToolCall("write", ARCHITECT_THEORY_EXECUTION_PREFLIGHT_WRITE_REPORT_TOOL, {"content": report}),
+        ClientToolCall("submit", "submit_theory_preflight_review", {
+            "review_report_sha256": hashlib.sha256(report.encode()).hexdigest(), "report_evidence_refs": ["theory.document:claim.md"],
+            "overall_verdict": "REVISE", "execution_handoff_status": PREFLIGHT_EXECUTION_HANDOFF_NOT_REQUIRED,
+            "findings": [{"severity": "high", "category": "unresolved_claim", "summary": "C is unresolved.",
+                          "observed_behavior": "No derivation is supplied.", "expected_behavior": "Report this gap honestly.",
+                          "evidence_refs": ["theory.document:claim.md"]}],
+        }),
+    ])
+    workspace = prepare_architect_theory_execution_preflight_workspace(
+        provider=backend, question=question, theory_protocol_material=material, upstream_research_contract=contract,
+        model=MODEL, model_tier="local", provider_name="local", max_tokens=1024, temperature=0,
+    )
+    assert not backend.requests
+    expected = workspace.initial_context["review_input_fingerprint"]
+    question.task_intent["formal"] = "required"
+    material["source_theory_packet_hash"] = "later-changed-packet"
+    contract["dimension_requirements"]["formal"] = "required"
+    packet = run_client_tool_workspace(backend=backend, workspace=workspace)
+    assert packet["question_id"] == "opaque-review"
+    assert packet["source_theory_packet_hash"] == stable_hash(core)
+    assert packet["review_input_fingerprint"] == expected
+    assert packet["overall_verdict"] == "REVISE" and packet["kernel_verified"] is False
+    assert packet["review_scope"]["formal_sources_applicable"] is False
+    assert "claim.md" in workspace.initial_context["review_instructions"]
+    assert len(backend.requests) == 3 and not backend.calls
 
 
 def test_application_control_preserves_an_honest_gap_without_fabricating_a_theory_checkpoint(tmp_path, monkeypatch):

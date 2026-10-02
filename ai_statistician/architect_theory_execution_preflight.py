@@ -16,9 +16,11 @@ from .client_tool_loop import (
     ClientToolExecutionResult,
     ClientToolInputError,
     ClientToolLoopError,
+    ClientToolLoopResult,
+    PreparedClientToolWorkspace,
     persist_client_tool_session,
     resume_client_tool_session_from_checkpoint,
-    run_bounded_client_tool_loop,
+    run_client_tool_workspace,
 )
 from .fingerprint import stable_hash
 from .packet_validation import PacketValidationError
@@ -3501,9 +3503,8 @@ def architect_theory_preflight_workspace_continuation_errors(
     return sorted(set(errors))
 
 
-def _review_architect_theory_execution_preflight_with_source_tools(
+def _prepare_architect_theory_execution_preflight_with_source_tools(
     *,
-    provider: GeneratorBackend,
     question: OpenResearchQuestion,
     material: Mapping[str, Any],
     source_retriever: Any,
@@ -3520,7 +3521,7 @@ def _review_architect_theory_execution_preflight_with_source_tools(
     max_tool_calls: int,
     max_no_progress_turns: int,
     recovery_checkpoint: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> PreparedClientToolWorkspace[dict[str, Any]]:
     submit_schema = _architect_theory_execution_preflight_submit_schema(
         material
     )
@@ -4780,25 +4781,15 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             messages=messages,
         )
 
-    try:
-        loop = run_bounded_client_tool_loop(
-            backend=provider,
-            request=request,
-            execute_tool=execute_tool,
-            max_turns=max_tool_turns,
-            max_tool_calls=max_tool_calls,
-            max_no_progress_turns=max_no_progress_turns,
-        )
-    except ClientToolLoopError as exc:
+    def cumulative_loop_counters(loop: ClientToolLoopResult | ClientToolLoopError) -> dict[str, int]:
+        return {key: int(state[key]) + getattr(loop, field) for key, field in (
+            ("client_tool_loop_turns", "turns"), ("client_tool_loop_tool_calls", "tool_calls"),
+            ("client_tool_loop_runtime_executed_tool_calls", "runtime_executed_tool_calls"),
+        )}
+
+    def on_error(exc: ClientToolLoopError) -> dict[str, Any]:
+        nonlocal client_tool_session_ref
         client_tool_session_ref = persist_review_session(exc.messages)
-        cumulative_turns = int(state["client_tool_loop_turns"]) + exc.turns
-        cumulative_tool_calls = (
-            int(state["client_tool_loop_tool_calls"]) + exc.tool_calls
-        )
-        cumulative_runtime_tool_calls = (
-            int(state["client_tool_loop_runtime_executed_tool_calls"])
-            + exc.runtime_executed_tool_calls
-        )
         fingerprints = [
             str(row["observation_fingerprint"])
             for row in state["workspace_observations"]
@@ -4831,28 +4822,16 @@ def _review_architect_theory_execution_preflight_with_source_tools(
                 "resumed_from_checkpoint_id": str(
                     resume_metadata["resumed_from_checkpoint_id"]
                 ),
-                "searches": int(state["searches"]),
-                "source_operations": int(state["source_operations"]),
-                "scratch_runs": int(state["scratch_runs"]),
-                "client_tool_loop_turns": cumulative_turns,
-                "client_tool_loop_tool_calls": cumulative_tool_calls,
-                "client_tool_loop_runtime_executed_tool_calls": (
-                    cumulative_runtime_tool_calls
-                ),
+                **{key: int(state[key]) for key in ("searches", "source_operations", "scratch_runs")},
+                **cumulative_loop_counters(exc),
                 "segment_start_counters": segment_start_counters,
-                "preflight_source_observations": deepcopy(
-                    list(state["observations"])
-                ),
+                **{target: deepcopy(list(state[key])) for target, key in (
+                    ("preflight_source_observations", "observations"),
+                    ("theory_document_inspection_refs", "document_inspection_refs"),
+                    ("preflight_scratch_execution_refs", "scratch_execution_refs"),
+                    ("workspace_observations", "workspace_observations"),
+                )},
                 "source_ref_by_hit_id": dict(state["source_ref_by_hit_id"]),
-                "theory_document_inspection_refs": deepcopy(
-                    list(state["document_inspection_refs"])
-                ),
-                "preflight_scratch_execution_refs": deepcopy(
-                    list(state["scratch_execution_refs"])
-                ),
-                "workspace_observations": deepcopy(
-                    list(state["workspace_observations"])
-                ),
                 "workspace_observation_fingerprints": fingerprints,
                 "segment_start_observation_count": (
                     segment_start_observation_count
@@ -4887,70 +4866,55 @@ def _review_architect_theory_execution_preflight_with_source_tools(
             recovery_checkpoint=checkpoint,
         ) from exc
 
-    client_tool_session_ref = persist_review_session(loop.messages)
+    def on_success(loop: ClientToolLoopResult) -> dict[str, Any]:
+        nonlocal client_tool_session_ref
+        client_tool_session_ref = persist_review_session(loop.messages)
 
-    terminal = dict(loop.terminal_payload)
-    review_payload = terminal.get("review_payload", {})
-    if not isinstance(review_payload, Mapping):
-        raise PacketValidationError(
-            validation_label=(
-                "Architect theory-to-execution source-grounded preflight review"
+        terminal = dict(loop.terminal_payload)
+        review_payload = terminal.get("review_payload", {})
+        if not isinstance(review_payload, Mapping):
+            raise PacketValidationError(
+                validation_label=(
+                    "Architect theory-to-execution source-grounded preflight review"
+                ),
+                attempts=loop.turns,
+                errors=["terminal submission did not contain a review payload"],
+                history=_preflight_tool_history(loop.history),
+            )
+        packet = normalize_submission(
+            review_payload,
+            source_grounding=source_grounding_payload(
+                **cumulative_loop_counters(loop),
+                client_tool_loop_history=_preflight_tool_history(loop.history),
+                client_tool_loop_provider_usage=dict(loop.provider_usage),
+                client_tool_loop_response_metadata=dict(loop.final_response_metadata),
             ),
-            attempts=loop.turns,
-            errors=["terminal submission did not contain a review payload"],
-            history=_preflight_tool_history(loop.history),
+            response_model=loop.model,
+            response_provider=loop.provider,
         )
-    packet = normalize_submission(
-        review_payload,
-        source_grounding=source_grounding_payload(
-            client_tool_loop_turns=(
-                int(state["client_tool_loop_turns"]) + loop.turns
-            ),
-            client_tool_loop_tool_calls=(
-                int(state["client_tool_loop_tool_calls"]) + loop.tool_calls
-            ),
-            client_tool_loop_runtime_executed_tool_calls=(
-                int(state["client_tool_loop_runtime_executed_tool_calls"])
-                + loop.runtime_executed_tool_calls
-            ),
-            client_tool_loop_history=_preflight_tool_history(loop.history),
-            client_tool_loop_provider_usage=dict(loop.provider_usage),
-            client_tool_loop_response_metadata=dict(loop.final_response_metadata),
-        ),
-        response_model=loop.model,
-        response_provider=loop.provider,
+        def validate_current_packet():
+            errors = validate_architect_theory_execution_preflight_packet(packet, material=material)
+            if errors:
+                raise PacketValidationError(
+                    validation_label="Architect theory-to-execution source-grounded preflight review",
+                    attempts=loop.turns, errors=errors, history=_preflight_tool_history(loop.history),
+                )
+
+        validate_current_packet()
+        packet = _materialize_preflight_review_report(packet, material=material)
+        validate_current_packet()
+        return packet
+
+    return PreparedClientToolWorkspace(
+        request=request, execute_tool=execute_tool, on_success=on_success, on_error=on_error,
+        max_turns=max_tool_turns, max_tool_calls=max_tool_calls,
+        max_no_progress_turns=max_no_progress_turns,
+        session_dir=None, session_id=review_session_id,
+        initial_context={"review_input_fingerprint": stable_hash(material), "review_instructions": tool_prompt},
     )
-    errors = validate_architect_theory_execution_preflight_packet(
-        packet,
-        material=material,
-    )
-    if errors:
-        raise PacketValidationError(
-            validation_label=(
-                "Architect theory-to-execution source-grounded preflight review"
-            ),
-            attempts=loop.turns,
-            errors=errors,
-            history=_preflight_tool_history(loop.history),
-        )
-    packet = _materialize_preflight_review_report(packet, material=material)
-    persisted_errors = validate_architect_theory_execution_preflight_packet(
-        packet,
-        material=material,
-    )
-    if persisted_errors:
-        raise PacketValidationError(
-            validation_label=(
-                "Architect theory-to-execution source-grounded preflight review"
-            ),
-            attempts=loop.turns,
-            errors=persisted_errors,
-            history=_preflight_tool_history(loop.history),
-        )
-    return packet
 
 
-def review_architect_theory_execution_preflight(
+def prepare_architect_theory_execution_preflight_workspace(
     *,
     provider: GeneratorBackend,
     question: OpenResearchQuestion,
@@ -4971,26 +4935,28 @@ def review_architect_theory_execution_preflight(
     research_source_discovery: ResearchSourceDiscovery | None = None,
     theory_scratchpad: TheoryScratchpadConfig | None = None,
     recovery_checkpoint: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> PreparedClientToolWorkspace[dict[str, Any]]:
+    """Prepare actual referee actions; composition supplies no independent verdict."""
+
     if not callable(getattr(provider, "generate_client_tool_turn", None)):
         raise ValueError(
             "theory execution preflight requires native client-tool turns; "
             "JSON-only mathematical review is disabled"
         )
-    material = build_architect_theory_execution_preflight_material(
+    question = deepcopy(question)
+    material = deepcopy(build_architect_theory_execution_preflight_material(
         question=question,
         theory_protocol_material=theory_protocol_material,
         upstream_research_contract=upstream_research_contract,
         prior_finding_ledger=prior_finding_ledger,
         author_scratch_execution_refs=author_scratch_execution_refs,
-    )
+    ))
     request_model = resolve_generator_model(
         provider_name=provider_name,
         requested_model=model,
         model_tier=model_tier,
     )
-    return _review_architect_theory_execution_preflight_with_source_tools(
-        provider=provider,
+    return _prepare_architect_theory_execution_preflight_with_source_tools(
         question=question,
         material=material,
         source_retriever=source_retriever,
@@ -5007,4 +4973,13 @@ def review_architect_theory_execution_preflight(
         max_tool_calls=max_tool_calls,
         max_no_progress_turns=max_no_progress_turns,
         recovery_checkpoint=recovery_checkpoint,
+    )
+
+
+def review_architect_theory_execution_preflight(
+    *, provider: GeneratorBackend, **configuration: Any,
+) -> dict[str, Any]:
+    return run_client_tool_workspace(
+        backend=provider,
+        workspace=prepare_architect_theory_execution_preflight_workspace(provider=provider, **configuration),
     )

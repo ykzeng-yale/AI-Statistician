@@ -243,6 +243,26 @@ product or label arbitrary workflow text as matching that product's workflow.
 Actual integrated Python/R tests here use scripted turns, not live reasoning or
 publication draws.
 
+The optional `theory_reviewer` configuration now binds the actual production
+referee's file/source reads, report writes/edits, compact finding submission and
+Python/R scratch actions into that conversation. The model selects an observed
+Theory checkpoint before using them. It receives the exact candidate catalog,
+and the final selection must agree with the supplied Theory resource hashes.
+There is no separate referee model call or isolated result handler in this arm;
+`ACCEPT` or `REVISE` is a self-review observation, not independent authority or
+a gate forcing the final submission. The normal isolated production review uses
+the same prepared actions and retains its validation, report and recovery handling.
+Caller mutation cannot alter a prepared question/material binding. Consolidated
+cumulative-counter and checkpoint projections preserve their old field types;
+no archived review is rerun or rescored.
+
+Scripted integration tests run unchanged Python/R computations, author an honest
+unresolved review, return invalid inputs/report hashes to the same conversation,
+and reject a mixed-version final join before an explicitly selected consistent
+earlier set. They do not demonstrate mathematical acceptance, model reasoning or
+a complete matched study. Dynamic generated-source review, frozen confirmation,
+optional Lean, resource matching and common full-task authority remain unfinished.
+
 Generated-code review now exposes `LLMGeneratedCodeSemanticReviewerAgent.prepare_workspace`.
 The existing isolated `review` driver uses that same preparation and the common
 retained runner, replacing its private prepare-and-run wrapper. Question,

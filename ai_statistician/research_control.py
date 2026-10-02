@@ -414,6 +414,7 @@ def prepare_single_context_research_workspace(
     max_tool_calls: int,
     max_no_progress_turns: int,
     workflow_instructions: str = "",
+    theory_reviewer: Any = None,
 ) -> PreparedClientToolWorkspace[ClientToolLoopResult]:
     """Assemble actual Theory/estimator/exploratory-simulation actions.
 
@@ -421,13 +422,17 @@ def prepare_single_context_research_workspace(
     Source checkpoints and their supplied contexts are not isolated-role receipts
     or independent acceptance. Confirmation and optional/required Lean evaluation
     must be configured separately; this entry point supplies no formal capability.
+    A configured referee exposes its actual tools as shared self-review, not an
+    isolated invocation or gate on what the model may finally submit.
     """
 
     from .estimator_interface_contract import project_executable_estimator_spec
+    from .architect_theory_execution_preflight import prepare_architect_theory_execution_preflight_workspace
+    from .metric_protocol_stage import build_theory_informed_metric_protocol_material
     from .research_agent_runtime import _estimator_spec, _run_generated_code_sandbox, _run_generated_simulation_sandbox
     from .scientific_sandbox import scientific_project_hash
     from .theory_derivation_trace import document_authoritative_theory_context
-    from .theory_workspace import load_theory_workspace_documents
+    from .theory_workspace import TheoryScratchpadConfig, load_theory_workspace_documents
 
     question = deepcopy(question)
     if question.task_intent.get("formal") == "required":
@@ -520,15 +525,41 @@ def prepare_single_context_research_workspace(
                               for name in ("problem_card", "theory_derivation_packet", "estimator_specs", "simulation_ademp_spec")})
             resources["estimator:" + estimator_id] = stable_hash(_estimator_spec(core, estimator_id))
             return {"resources": resources, "inputs": {}}
+        if scope == "theory_review":
+            return {"resources": {"report": hashlib.sha256(payload["review_payload"]["review_report_markdown"].encode()).hexdigest()},
+                    "inputs": {}}
         return {"resources": {"project": payload["check_result"]["prototype"]["project_hash"]},
                 "inputs": payload["check_result"]["checkpoint_inputs"]}
 
+    workspaces = {"theory": theory, "algorithm": prepare_source("algorithm", {}, None),
+                  "simulation": prepare_source("simulation", {}, None)}
+    preparers = {scope: lambda selected, previous, scope=scope: prepare_source(scope, selected, previous)
+                 for scope in ("algorithm", "simulation")}
+    if theory_reviewer is not None:
+        def prepare_review(selected, previous):
+            if selected is not None and set(selected) != {"theory"}:
+                raise ClientToolInputError("theory review requires exactly one selected theory checkpoint")
+            row = (selected or {}).get("theory", {})
+            core = row.get("payload", {}).get("core_packet", {})
+            config = theory_reviewer.config
+            return prepare_architect_theory_execution_preflight_workspace(
+                provider=theory_reviewer.provider, question=question,
+                theory_protocol_material=build_theory_informed_metric_protocol_material(
+                    theory_packet=core, theory_packet_id=row.get("reference", {}).get("payload_hash", "unbound")),
+                upstream_research_contract={"dimension_requirements": deepcopy(question.task_intent)},
+                model=config.model, model_tier=config.model_tier, provider_name=config.provider_name,
+                max_tokens=config.max_tokens, temperature=config.temperature,
+                source_retriever=theory_reviewer.source_retriever,
+                research_sources=theory_reviewer.research_sources,
+                research_source_discovery=theory_reviewer.research_source_discovery,
+                theory_scratchpad=TheoryScratchpadConfig(session_dir / "review_scratch" / stable_hash(row.get("reference", {})), seed, n_runs, timeout_s),
+            )
+        workspaces["theory_review"] = prepare_review(None, None)
+        preparers["theory_review"] = prepare_review
+
     return prepare_research_control_workspace(
         question=question, request=request,
-        workspaces={"theory": theory, "algorithm": prepare_source("algorithm", {}, None),
-                    "simulation": prepare_source("simulation", {}, None)},
-        input_workspace_preparers={scope: lambda selected, previous, scope=scope: prepare_source(scope, selected, previous)
-                                  for scope in ("algorithm", "simulation")},
+        workspaces=workspaces, input_workspace_preparers=preparers,
         checkpoint_bindings=bindings, session_dir=session_dir, session_id=session_id,
         max_turns=max_turns, max_tool_calls=max_tool_calls, max_no_progress_turns=max_no_progress_turns,
         workflow_instructions=workflow_instructions,
