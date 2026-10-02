@@ -46,13 +46,18 @@ def publication_material_from_submission(
     """
 
     submission = deepcopy(dict(submission))
+    empirical_metadata = {}
     if source_kind == "runtime":
         if control_estimator_scopes is not None:
             raise ValueError("runtime projection does not take control scope identities")
         payloads = submission["selected_artifacts"]
         core = payloads.get("theory", {})
         source_rows = payloads.get("scientific_code", {}).get("prototypes", [])
-        empirical_rows = payloads.get("empirical", {}).get("generated_simulation_rows", [])
+        experiment = payloads.get("empirical", {})
+        empirical_rows = experiment.get("generated_simulation_sandbox_prototypes", [])
+        empirical_metadata = {key: experiment[key] for key in (
+            "empirical_evaluation_phase", "evaluator_source_confirmation", "confirmatory_empirical_evidence_eligible"
+        ) if key in experiment}
     elif source_kind == "control":
         if control_estimator_scopes is None:
             raise ValueError("control projection requires its frozen estimator scopes")
@@ -93,7 +98,7 @@ def publication_material_from_submission(
     documents = [{"path": path, "content": content, "sha256": hashlib.sha256(content.encode()).hexdigest()}
                  for path, content in load_theory_workspace_documents(core).items()]
     return {"theory_documents": documents, "estimator_bindings": tuple(bindings),
-            "empirical_artifact": {"generated_simulation_rows": deepcopy(empirical_rows)} if empirical_rows else None}
+            "empirical_artifact": {"generated_simulation_rows": deepcopy(empirical_rows), **empirical_metadata} if empirical_rows else None}
 
 
 def evaluate_final_research_artifacts(

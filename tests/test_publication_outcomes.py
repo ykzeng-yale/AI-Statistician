@@ -254,7 +254,7 @@ def projection_fixture(tmp_path):
     empirical = {"source_code": "opaque experiment", "metrics": {"measurement": 99178},
                  "execution_phase": "exploratory_diagnostic", "smoke_passed": False}
     runtime = {"internal_status": "BLOCKED", "selected_artifacts": {
-        "theory": core, "scientific_code": {"prototypes": [row]}, "empirical": {"generated_simulation_rows": [empirical]}},
+        "theory": core, "scientific_code": {"prototypes": [row]}, "empirical": {"generated_simulation_sandbox_prototypes": [empirical]}},
         "earlier_accepted_artifacts": {"opaque": "not selected"}}
     control = {"checkpoint_payloads": {"theory": {"core_packet": core}, "algorithm": {
         "code_draft": {"language": binding.language, "code": binding.code,
@@ -275,6 +275,27 @@ def test_projection_keeps_exact_unaccepted_material_and_its_exploratory_status(t
     assert (runtime, control) == original
     product["empirical_artifact"]["generated_simulation_rows"][0]["metrics"]["measurement"] = -1
     assert (runtime, control) == original
+
+
+@pytest.mark.parametrize("phase,confirmed,eligible", [
+    ("exploratory_diagnostic", False, False),
+    ("confirmatory_evaluator_execution", True, True),
+])
+def test_projection_reads_selected_runtime_manifest_without_inventing_row_receipts(tmp_path, phase, confirmed, eligible):
+    _, runtime, _ = projection_fixture(tmp_path)
+    selected = runtime["selected_artifacts"]["empirical"]
+    selected.update(empirical_evaluation_phase=phase, evaluator_source_confirmation=confirmed,
+                    confirmatory_empirical_evidence_eligible=eligible)
+    row = selected["generated_simulation_sandbox_prototypes"][0]
+    row.pop("execution_phase")
+    original = deepcopy(runtime)
+    material = outcomes.publication_material_from_submission(runtime, source_kind="runtime")
+    assert material["empirical_artifact"] == {
+        "generated_simulation_rows": [row], "empirical_evaluation_phase": phase,
+        "evaluator_source_confirmation": confirmed, "confirmatory_empirical_evidence_eligible": eligible}
+    assert "execution_phase" not in material["empirical_artifact"]["generated_simulation_rows"][0]
+    assert "evaluator_source_confirmation" not in material["empirical_artifact"]["generated_simulation_rows"][0]
+    assert runtime == original
 
 
 @pytest.mark.parametrize("dimension", ["theory", "scientific_code", "empirical"])
