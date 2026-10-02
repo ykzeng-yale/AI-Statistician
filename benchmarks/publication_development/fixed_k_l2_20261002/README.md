@@ -53,3 +53,20 @@ active template before the first call. Capture all terminal failures, calls,
 reported tokens/cache/timings, wall time and operator preparation separately.
 The task permits exact finite integration or prospectively fixed Monte Carlo;
 neither the benchmark nor product harness imposes an arbitrary repetition ritual.
+
+## Observed Development Outcome
+
+[First outcomes](observed_results.json): all four draws ended without a final
+selection; no hidden candidate numerical check executed. The author-reference
+calibration is not agent capability. There were 21 attempted local requests,
+20 with complete usage; no global request was denied. Both collaborative draws
+failed before worker generation, so the role-feedback ablation was never reached.
+The free control stopped without progress; the workflow control reached context
+overflow without a committed theory checkpoint. Markdown drafts are not accepted
+theory or final selections. Raw failed-loop histories were not persisted by the
+old control runner; subsequent logging changes cannot backfill these records.
+
+The operator mistakenly started the reverse-role arm first. This was recorded
+immediately and no draw was restarted. The actual order and all preserved record
+hashes are disclosed. These results cannot support a causal collaboration effect,
+an official scientific success rate or a larger-model capability conclusion.

@@ -462,6 +462,16 @@ the intervention body reaches the model. Skill installation/discovery is not
 skill consumption; predeclare handling of uptake failures rather than silently
 exclude them after outcomes. The first native Qwen development pilot exposed this
 distinction and remains separate from the main study.
+The separate [four-mode Qwen system development pilot](../benchmarks/publication_development/fixed_k_l2_20261002/observed_results.json)
+also remains outside both main studies: one family, 21 attempted requests, zero
+final selections and no candidate numerical evaluation. It exposed missing
+prerequisite routing, inactive tool use and context overflow; this does not
+establish a collaboration effect or mathematical capability. Its numerical
+reference was cross-checked independently, but theory authority was unqualified.
+The actual startup-order deviation and incomplete old failure histories are
+disclosed. Subsequent interface/logging fixes do not repair, resume or rescore
+these consumed draws. Main-study tool/resource/cohort matching and independent
+scientific qualification remain required.
 After consumption, release permitted raw trajectories, exact artifacts,
 execution logs and all outcomes. Keep sealed authority outside the author's
 workspace until adjudication; do not leak held gold into the published RAG index
