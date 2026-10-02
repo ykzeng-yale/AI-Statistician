@@ -3514,7 +3514,7 @@ def test_same_source_owner_tests_project_then_revises_before_bound_check(tmp_pat
     assert "38 3" in observations[3]["stdout_summary"]
     assert "no accepted hash-bound" in json.dumps(observations[4])
     assert all(observations[index]["metrics"] == {} for index in (0, 2, 3))
-    requests = [json.loads(path.read_text()) for path in (tmp_path / "session").glob("project-script-*/*_scientific_request.json")]
+    requests = [json.loads(Path(observations[index]["request_path"]).read_text()) for index in (0, 2, 3)]
     assert len(requests) == 3
     assert {request["seed"] for request in requests} == {5, 11, 19}
     assert all(request["input_artifacts"] == [] and request["estimators"] == [] for request in requests)
