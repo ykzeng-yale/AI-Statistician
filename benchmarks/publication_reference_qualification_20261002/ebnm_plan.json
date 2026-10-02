@@ -1,0 +1,55 @@
+{
+  "scope": "evaluator_reference_preparation_not_agent_experiment",
+  "study_activated": false,
+  "model_calls": 0,
+  "source": {
+    "doi": "10.18637/jss.v114.i03",
+    "article": "https://www.jstatsoft.org/article/view/v114i03",
+    "package_url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i03/4734",
+    "package_version": "1.1-38",
+    "package_sha256": "21430b926c650a08456ade645ea0927f4719ef672a095cc3834e0d882a7c1830",
+    "package_license": "GPL (>= 3)",
+    "replication_url": "https://www.jstatsoft.org/index.php/jss/article/download/v114i03/4735",
+    "replication_sha256": "12651e2587f419e9798089b23f85f3a8441d1c467ca90ca9724f9ea0844e9578",
+    "replication_license": "MIT, Jason Willwerscheid 2020",
+    "license_sha256": "e972238ce9822321bd10256f1dcd334e81f48296fe449b4197d807de50bebb11",
+    "paper_sha256": "16f950e06396a072cd85e53b5f82ba3654ed857992de1a09fface0667ac7a5d3",
+    "github_discovery_only": {
+      "repository": "https://github.com/willwerscheid/ebnm-paper",
+      "observed_head": "f6f3aa0156b8145e3fe14e0a3fbfaec6a0ce5884"
+    }
+  },
+  "execution": {
+    "script": "code/code.R",
+    "script_sha256": "f5d07d90231534c62aadf996751b5a348410c7b1e03a7a3618d7bf30a02a2e7c",
+    "args": [],
+    "source_editing": false,
+    "initial_outputs": "empty; no author cached RDS, tables or figures copied",
+    "runtime": "native R 4.4.2, arm64 macOS",
+    "environment_status": "adapted, not recovery of the author's R 4.3.2 / ebnm 1.1-25 session",
+    "dependencies": "resolve CRAN native R 4.4 binaries into a separate library, preserve downloads and freeze installed identities before execution; horseshoe 0.2.0 from the CRAN source archive; journal ebnm source installed unchanged",
+    "horseshoe_archive": {
+      "url": "https://cran.r-project.org/src/contrib/Archive/horseshoe/horseshoe_0.2.0.tar.gz",
+      "sha256": "6c647314149e9862cfeb6e37408379772f88f11c2c0972847bf5c2f994e113e2",
+      "license": "GPL-3"
+    },
+    "threads": 1,
+    "timeout_seconds": 5400,
+    "on_failure": "record exit, diagnostics and exact partial outputs; no author-source patch or automatic rerun"
+  },
+  "inspection": [
+    "Require terminal process exit; zero alone is not scientific acceptance.",
+    "Inspect all produced files and session versions; verify author script hash unchanged.",
+    "The default timing grid is five sample sizes from 100 to 10000 and 20 repetitions per prior; timing is not an agent comparison.",
+    "The simulation grid is three DGPs, ten prior families and ten trials at n=1000; report every row, nonfinite value and warning.",
+    "Read author cached simstudy.rds only evaluator-side after execution; record cellwise differences without choosing a post-result tolerance or acceptance threshold.",
+    "Inspect baseball example values and the introductory shrinkage outputs against the published material; do not infer mathematical correctness from numerical agreement."
+  ],
+  "excluded_scope": [
+    "full timing grid up to one million observations (author estimates around two days)",
+    "code_appendix.R and its MOSEK-licensed comparisons",
+    "GUI interaction, external mathematical review and full-task gold qualification",
+    "product autonomy, official open-weight efficacy, task sampling and study activation"
+  ],
+  "freshness": "No ebnm or empirical-Bayes-normal-means match found in public benchmark/example/document task records on 2026-10-02; this is not an assertion about pretraining contamination or a finalized study split."
+}
