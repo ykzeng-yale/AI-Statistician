@@ -359,11 +359,17 @@ The harness does not choose scientific precision, thresholds or stopping criteri
 Unconfigured exploratory controls retain their original execution count and ABI.
 Opaque Python/R tests cover both sides of the diagnostic threshold, exact future
 counts, failed/changed results and malformed source interfaces; no model is called.
-Capacity and scientific computation still need matching across all arms. This
-change does not match total execution attempts, private-cohort schedules or complete
-author observations: controls currently retain raw exploratory acceptance output,
-while the production confirmation-authoring driver withholds acceptance outcomes.
-Fix or prospectively declare these differences before a scientific comparison.
+Capacity and scientific computation still need matching across all arms. Both
+controls and production source owners can inspect exploratory measurements and
+their diagnostic gate results; these are not fresh confirmatory acceptance.
+The former production-only mask hid runtime gate metadata, not model-authored
+`acceptance_passed` values or stdout, and was removed on 2026-10-02. Consumed
+draws retain their original observations and are not reassessed by this change.
+Total execution attempts, private-cohort schedules and complete author observations
+still differ. Fix or prospectively declare them before a scientific comparison.
+The production source-owner loop does not return the private confirmation performed
+after model commit to that authoring session. This does not promise that later
+collaborative research can never receive frozen outcome feedback.
 The source-freezing action does not grant independent protocol acceptance or product
 confirmatory eligibility. Only external authority can assess scientific validity.
 Shared reviewer observations, including ACCEPT, remain self-review, not proof or

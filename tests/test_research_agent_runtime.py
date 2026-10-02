@@ -7918,7 +7918,8 @@ def test_confirmatory_metric_failure_is_blind_to_source_and_reviewed_before_rele
     source_observation = source_checks[0]["prototype"]
     assert "empirical_outcomes_withheld" not in source_observation
     assert source_observation["metrics_preview"] == {"generic_metric": 0.95}
-    assert source_observation["acceptance_outcomes_withheld"] is True
+    assert "acceptance_outcomes_withheld" not in source_observation
+    assert source_observation["smoke_passed"] is True
     assert source_observation["runtime_replicates"] == (
         runtime_module.SCIENTIFIC_AUTHORING_DIAGNOSTIC_MAX_RUNS
     )

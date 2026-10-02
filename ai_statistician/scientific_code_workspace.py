@@ -1053,8 +1053,7 @@ def run_source_owner_scientific_workspace(
 
     def source_observation(prototype: Mapping[str, Any]) -> dict[str, Any]:
         return scientific_workspace_prototype_observation(prototype,
-            include_empirical_outcomes=not workspace_result_blind,
-            include_acceptance_outcomes=not confirmatory_result_blind)
+            include_empirical_outcomes=not workspace_result_blind)
 
     def check_candidate(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
         execution_candidate = {**dict(candidate), **bound_execution_fields}
@@ -1296,16 +1295,9 @@ def scientific_workspace_prototype_observation(
     prototype: Mapping[str, Any],
     *,
     include_empirical_outcomes: bool = True,
-    include_acceptance_outcomes: bool | None = None,
 ) -> dict[str, Any]:
     """Apply outcome visibility without summarizing the permitted diagnostics."""
 
-    if include_acceptance_outcomes is None:
-        include_acceptance_outcomes = include_empirical_outcomes
-    if include_acceptance_outcomes and not include_empirical_outcomes:
-        raise ValueError(
-            "acceptance outcomes require empirical outcomes in workspace feedback"
-        )
     contracts = {
         str(row.get("contract_id", "") or ""): row
         for row in prototype.get("metric_contracts", []) or []
@@ -1378,11 +1370,6 @@ def scientific_workspace_prototype_observation(
                 "runtime_replicates",
                 "stdout_summary",
                 "result_hash",
-            )
-        )
-    if include_acceptance_outcomes:
-        direct_field_names.extend(
-            (
                 "prototype_status",
                 "smoke_passed",
                 "metric_gate_errors",
@@ -1430,45 +1417,21 @@ def scientific_workspace_prototype_observation(
             {
                 **(
                     {"failed_metric_contracts": failed_contracts}
-                    if include_acceptance_outcomes and failed_contracts
+                    if failed_contracts
                     else {}
                 ),
                 "metrics_preview": deepcopy(
                     prototype.get("metrics", {})
-                ),
-                **(
-                    {}
-                    if include_acceptance_outcomes
-                    else {
-                        "acceptance_outcomes_withheld": True,
-                        "acceptance_outcome_authority": "EmpiricalEvaluator",
-                        **(
-                            {
-                                "measurement_interface_failures": (
-                                    measurement_interface_failures
-                                )
-                            }
-                            if measurement_interface_failures
-                            else {}
-                        ),
-                    }
                 ),
             }
             if include_empirical_outcomes
             else {
                 "empirical_outcomes_withheld": True,
                 "empirical_outcome_authority": "EmpiricalEvaluator",
-                **(
-                    {
-                        "measurement_interface_failures": (
-                            measurement_interface_failures
-                        )
-                    }
-                    if measurement_interface_failures
-                    else {}
-                ),
             }
         ),
+        **({"measurement_interface_failures": measurement_interface_failures}
+           if measurement_interface_failures else {}),
         "full_execution_artifact_persisted": True,
         "source_replayed_to_model": False,
         "empirical_evidence_status": prototype.get(

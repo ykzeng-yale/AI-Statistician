@@ -1724,9 +1724,11 @@ def test_blind_confirmatory_executes_once_after_model_owned_diagnostic_loop() ->
     assert workspace["confirmatory_execution_after_model_commit"] is True
     assert workspace["confirmatory_outcomes_returned_to_source_model"] is False
     transcript = str([request.messages for request in backend.requests])
-    assert "diagnostic score below 0.9" not in transcript
+    assert "diagnostic score below 0.9" in transcript
+    assert '"failed_metric_contracts"' in transcript
+    assert '"aggregate_value":0.2' in transcript
     assert '"score":0.95' in transcript
-    assert "acceptance_outcomes_withheld" in transcript
+    assert "acceptance_outcomes_withheld" not in transcript
     assert "confirmatory-secret" not in transcript
     assert '"accepted":true' in str(backend.requests[0].messages)
 
@@ -3240,6 +3242,20 @@ def test_allowed_execution_diagnostics_are_not_summarized_by_content_or_position
     assert "metrics_preview" not in observation
     observation["runtime_errors"][0]["detail_0"] = "changed locally"
     assert prototype["runtime_errors"][0]["detail_0"] == "diagnostic 0 field 0"
+
+
+@pytest.mark.parametrize("include_empirical_outcomes", [True, False])
+def test_interface_errors_remain_actionable_regardless_of_outcome_visibility(include_empirical_outcomes) -> None:
+    error = "Opaque execution interface mismatch; inspect the returned value."
+    prototype = {"executable_evaluator_interface_errors": [error],
+                 "metrics": {"opaque": 0.1}, "stdout_summary": "opaque result"}
+    observation = scientific_workspace_prototype_observation(
+        prototype, include_empirical_outcomes=include_empirical_outcomes)
+    assert observation["measurement_interface_failures"] == [{
+        "measurement_interface_status": "INVALID",
+        "measurement_interface_errors": [error]}]
+    assert ("metrics_preview" in observation) is include_empirical_outcomes
+    assert ("stdout_summary" in observation) is include_empirical_outcomes
 
 
 def test_source_owner_reads_complete_blinded_feedback_and_authors_its_revision(tmp_path) -> None:
