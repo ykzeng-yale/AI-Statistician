@@ -1,0 +1,40 @@
+{
+  "scope": "adapted_environment_readiness_before_reference_execution",
+  "initial_plan_commit": "3f46fcd1",
+  "scientific_executions": 0,
+  "model_calls": 0,
+  "study_activated": false,
+  "ready": true,
+  "runtime": "Native R 4.4.2, aarch64-apple-darwin20, macOS 26.5.2",
+  "historical_environment_recovered": false,
+  "environment": {
+    "owned_package_count": 65,
+    "installed_packages": {"path": "tsci_installed_packages.csv", "sha256": "eafa47be164bd7376ee219ff573beb40455fa980b08b79cb5c060d3b0568f5d4"},
+    "binary_resolution": {"path": "tsci_binary_resolution.csv", "sha256": "7d2dc9556a5df02a9cb90b5229cabd10e0c7f2c4a1495562f000caa725a1b89a"},
+    "download_hashes": {"path": "tsci_dependency_sha256.txt", "sha256": "3b03c06f227dbcb78faec4f08e743fdb421ed3141dadbd055d19111723e3964e"},
+    "binary_index_sha256": "d80cca47bbc756ec5c8e7910f519d0518a26577c4d0cd684d467ccf931dc3509",
+    "native_library_catalog": {"path": "tsci_native_packages.csv", "sha256": "a5f15d4047b2c23e52e7726743153193c64bd97bbcad5e4a1cd1d0ab5f68a935", "package_count": 117},
+    "import_check": {"path": "tsci_loaded_readiness_namespaces.csv", "sha256": "3b9ab2458f910502eca65d6f2e704c243571910da795f9bb667a3572c2a49f38", "result": "Fresh TSCI/fda namespace loading uses only owned packages and native base namespaces. The native library contains additional installed packages; its catalog is recorded, not claimed empty or base-only."},
+    "versions": {"TSCI": "3.0.5", "xgboost": "1.7.7.1", "fda": "6.1.8", "Rfast": "2.1.5.2", "ranger": "0.18.0", "MASS": "7.3-65", "ivmodel": "1.9.1"},
+    "workers": {"verified": 5, "record_sha256": "3c8aa851423e35b2ac7e6f2728ac97a313c4fe6ec5f0f2cc4beff5305b0d415d", "log_sha256": "df61b0a66e9805f5a0e6f86c6b671c101a23173c0ae87f262c068df22f20425d", "result": "All five fresh PSOCK workers locate the six checked research packages in the owned library, with exact pinned versions."},
+    "thread_policy": "One OpenMP/BLAS/Accelerate thread per process; unchanged five-worker author parallelism. Upstream xgboost configure selected serial compilation.",
+    "global_library_modified": false,
+    "product_environment_modified": false
+  },
+  "preparation_attempts": [
+    {"log": "preparation.log", "sha256": "d2d1aa7e07bb6addc416a712cb884cd39f6cb25b75bd8c90ab17f134f9720c58", "exit_code": 1, "reason": "SSL-connect failure downloading plyr 1.8.9; the completeness assertion stopped before installation."},
+    {"log": "installation.log", "sha256": "26ce6b7c93d6d4b06239af6446cd4a291b1c922dc34ad2da052c070d7dd5e73f", "exit_code": 1, "reason": "After explicit exact-plyr download and all 62 binary MD5 checks, unmodified xgboost compiled but native R's configured link path could not locate its relocated R.framework."},
+    {"log": "installation_framework_path.log", "sha256": "2132e2430471fef115e6d8bbcd3869384d610398e93a464f2b240d6d3b0bfedc", "exit_code": 0, "reason": "Explicit local framework search path only; same frozen dependency index, versions and original source archives. All 65 owned packages import successfully."}
+  ],
+  "execution": {
+    "wrapper": "run_tsci.R",
+    "wrapper_sha256": "a8bb8c94673e58b260d34fd3fc16cefd9ebed67e161e10a149ee9cb8224ca91f",
+    "source_sha256": "d3777089b2b947020e75ae185e8a47b43ca72d35770a074e2e46badb30e87113",
+    "source_changes": 0,
+    "invocations_allowed": 1,
+    "working_directory": "Fresh execution_1, created by wrapper; no cached output copied.",
+    "wall_timeout_seconds": 5400,
+    "condition_capture": "Parent-process warnings/errors and raw stdout/stderr; unchanged author worker internals may not surface every worker-local condition. Partial source environment saved on catchable source error, not guaranteed on timeout/external termination.",
+    "authority": "Operator numerical-reference preparation only. No model call, independent theory acceptance, fresh-family eligibility or study activation."
+  }
+}

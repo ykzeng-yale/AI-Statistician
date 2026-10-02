@@ -1,0 +1,2 @@
+# Relocated native R framework; does not alter upstream package source.
+LDFLAGS += -F$(REFERENCE_R_FRAMEWORK_PARENT)

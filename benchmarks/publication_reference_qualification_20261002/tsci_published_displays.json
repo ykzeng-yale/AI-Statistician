@@ -1,0 +1,46 @@
+{
+  "scope": "operator_read_published_displays_before_reference_execution",
+  "paper_doi": "10.18637/jss.v114.i07",
+  "paper_sha256": "ef38e39e3aeab082c65896ea591f32299132656e86fd51a9c8070468cd842b4e",
+  "rule": "Compare the source summary's default four-significant-digit rendering and integer counts with these displays. Differences are reported, not made acceptable by fitted tolerances. Display agreement is numerical reproduction only, not mathematical gold or known causal truth.",
+  "boosting": {
+    "pages": [11, 12, 13],
+    "sample_size_A1": 2007,
+    "sample_size_A2": 1003,
+    "n_splits": 5,
+    "mult_split_method": "FWER",
+    "invalidity": {"valid": 1, "invalid": 4, "non_testable": 0},
+    "selected": {"estimate": 0.05864, "standard_error": "-", "lower": 0.02521, "upper": 0.08595, "p_value": 0.000068},
+    "all_candidates": [
+      {"candidate": "q0", "estimate": 0.06556, "standard_error": "-", "lower": 0.0301, "upper": 0.09241, "p_value": 0.00001451},
+      {"candidate": "q1", "estimate": 0.06514, "standard_error": "-", "lower": 0.0296, "upper": 0.09202, "p_value": 0.00007968},
+      {"candidate": "q2", "estimate": 0.05864, "standard_error": "-", "lower": 0.0252, "upper": 0.08596, "p_value": 0.0001809}
+    ],
+    "viospace_selection": [[1, 0, 0], [1, 1, 0], [3, 4, 5]],
+    "iv_strength_threshold": [[186.4, 40], [186.4, 40], [161.3, 40]]
+  },
+  "bspline_head_page_13": [
+    [0.0926276, 0.4234405, 0.4839319, 0.2663262, 0.4994836, 0.23419013],
+    [0.3705104, 0.4763705, 0.1531191, 0.7172073, 0.2593473, 0.02344546],
+    [0.0926276, 0.4234405, 0.4839319, 0.2663262, 0.4994836, 0.23419013],
+    [0.3194707, 0.4914934, 0.1890359, 0.6576627, 0.3066027, 0.03573458]
+  ],
+  "secondstage": {
+    "page": 15,
+    "sample_size_A1": 3010,
+    "sample_size_A2": 0,
+    "n_splits": 1,
+    "invalidity": {"valid": 0, "invalid": 0, "non_testable": 1},
+    "selected": {"estimate": 0.1313, "standard_error": 0.03476, "lower": 0.06312, "upper": 0.1994, "p_value": 0.0001596},
+    "all_candidates": [
+      {"candidate": "q0", "estimate": 0.1313, "standard_error": 0.03476, "lower": 0.06312, "upper": 0.1994, "p_value": 0.0001596},
+      {"candidate": "q1", "estimate": 0.1251, "standard_error": 0.04347, "lower": 0.03989, "upper": 0.2103, "p_value": 0.0040070}
+    ],
+    "viospace_selection": [[1, 1, 1], [0, 0, 0]],
+    "iv_strength_threshold": [[40.21, 40], [25.24, 35.35]]
+  },
+  "not_a_candidate_test": true,
+  "study_activated": false,
+  "mathematical_gold": false,
+  "operator_preparation_not_autonomy": true
+}
