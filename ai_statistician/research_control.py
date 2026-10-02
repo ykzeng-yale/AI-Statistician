@@ -415,14 +415,17 @@ def prepare_single_context_research_workspace(
     max_no_progress_turns: int,
     workflow_instructions: str = "",
     theory_reviewer: Any = None,
+    confirmatory_seeds: Sequence[int] = (),
 ) -> PreparedClientToolWorkspace[ClientToolLoopResult]:
-    """Assemble actual Theory/estimator/exploratory-simulation actions.
+    """Assemble actual Theory/estimator/simulation actions in one conversation.
 
     The ordered estimator IDs fix the configured source workspaces, not the method.
-    This exploratory comparison arm is not another product scheduler.
+    This comparison arm is not another product scheduler.
     Source checkpoints and their supplied contexts are not isolated-role receipts
-    or independent acceptance. Confirmation and optional/required Lean evaluation
-    must be configured separately; this entry point supplies no formal capability.
+    or independent acceptance. An explicit, prospectively fixed private seed
+    schedule enables exact-source confirmation without independent review credit.
+    Each frozen source/input identity executes once, even when execution fails.
+    This entry point supplies no formal capability.
     A configured referee exposes its actual tools as shared self-review, not an
     isolated invocation or gate on what the model may finally submit.
     """
@@ -431,7 +434,10 @@ def prepare_single_context_research_workspace(
     from .generated_code_semantic_reviewer_llm import read_scientific_execution_review_artifact
     from .architect_theory_execution_preflight import prepare_architect_theory_execution_preflight_workspace
     from .metric_protocol_stage import build_theory_informed_metric_protocol_material
-    from .research_agent_runtime import _estimator_spec, _run_generated_code_sandbox, _run_generated_simulation_sandbox
+    from .research_agent_runtime import (
+        _estimator_spec, _executable_evaluator_interface_errors,
+        _run_generated_code_sandbox, _run_generated_simulation_sandbox,
+    )
     from .scientific_sandbox import scientific_project_hash
     from .theory_derivation_trace import document_authoritative_theory_context
     from .theory_workspace import TheoryScratchpadConfig, load_theory_workspace_documents
@@ -444,6 +450,12 @@ def prepare_single_context_research_workspace(
         or len(estimator_ids) != len(set(estimator_ids)) or min(n_runs, timeout_s) < 1):
         raise ValueError("research control requires unique estimator identities and positive execution limits")
     estimator_ids = tuple(estimator_ids)
+    if (not isinstance(confirmatory_seeds, (list, tuple))
+        or any(type(value) is not int or value == seed for value in confirmatory_seeds)
+        or len(confirmatory_seeds) != len(set(confirmatory_seeds))):
+        raise ValueError("confirmation requires distinct, frozen seeds separate from exploration")
+    confirmatory_seeds = tuple(confirmatory_seeds)
+    consumed_confirmations = set()
     algorithm_scopes = {"algorithm" if index == 0 else f"algorithm_{index + 1}": value
                         for index, value in enumerate(estimator_ids)}
     frozen_estimator_id = question.estimator_execution_contract.get("estimator_id")
@@ -453,7 +465,7 @@ def prepare_single_context_research_workspace(
     discovery = theory_agent.research_source_discovery
     theory = theory_agent.prepare_workspace(question, theory_workspace_root=session_dir / "theory")
 
-    def prepare_source(scope, selected, previous):
+    def source_material(scope, selected):
         estimator_id = algorithm_scopes.get(scope)
         allowed = {"theory"} if estimator_id is not None else {"theory", *algorithm_scopes}
         if set(selected) - allowed:
@@ -507,6 +519,11 @@ def prepare_single_context_research_workspace(
             if handoff["exact_algorithm_artifacts"] else "run_sandbox(seed, replicates) returns named JSON-finite developer diagnostics."
         )
         context["required_callable_exports"] = ["run_estimator", "run_sandbox"] if estimator_id is not None else ["run_sandbox"]
+        return spec, context, handoff, inputs, provided
+
+    def prepare_source(scope, selected, previous):
+        estimator_id = algorithm_scopes.get(scope)
+        spec, context, handoff, inputs, provided = source_material(scope, selected)
         execution_dir = session_dir / "execution" / scope / stable_hash(provided)
 
         def check(candidate):
@@ -558,6 +575,76 @@ def prepare_single_context_research_workspace(
     workspaces = {"theory": theory, **{scope: prepare_source(scope, {}, None) for scope in (*algorithm_scopes, "simulation")}}
     preparers = {scope: lambda selected, previous, scope=scope: prepare_source(scope, selected, previous)
                  for scope in (*algorithm_scopes, "simulation")}
+    if confirmatory_seeds:
+        def prepare_confirmation(selected, previous):
+            payload = selected.get("simulation", {}).get("payload", {})
+            reference = selected.get("simulation", {}).get("reference", {})
+            parents = {scope: row for scope, row in selected.items() if scope != "simulation"}
+            expected = reference.get("provided_inputs", {})
+            if selected and (not payload or set(parents) != set(expected) or any(
+                row["reference"]["resources"] != expected[scope]["resources"] for scope, row in parents.items())):
+                raise ClientToolInputError("confirmation inputs differ from the selected source checkpoint")
+            _, _, handoff, _, provided = source_material("simulation", parents)
+            candidate = deepcopy(payload.get("code_draft", {}))
+            if payload:
+                exact, errors = read_scientific_execution_review_artifact(
+                    artifact_id=session_id + ":simulation", row=payload["check_result"]["prototype"])
+                errors += _executable_evaluator_interface_errors(payload["check_result"]["prototype"].get("metrics", {}))
+                if (errors or exact is None or payload["check_result"]["code_draft_hash"] != stable_hash(candidate)
+                    or exact["exact_source_hash"] != stable_hash(candidate["code"])
+                    or exact["exact_project_hash"] != scientific_project_hash(
+                        language=candidate["language"], code=candidate["code"], project_files=candidate.get("project_files", []))):
+                    raise ClientToolInputError("selected evaluator source/ABI is invalid: " + "; ".join(errors))
+                provided["simulation"] = {"payload_hash": reference["payload_hash"], "resources": reference["resources"]}
+            identity = stable_hash([research_question_payload(question, include_task_intent=True), candidate,
+                                    {scope: row["resources"] for scope, row in provided.items()}])
+
+            def execute_confirmation(call, context):
+                if call.input or not payload:
+                    raise ClientToolInputError("select an observed source and its exact inputs; execution takes no edits")
+                if identity in consumed_confirmations or len(consumed_confirmations) >= len(confirmatory_seeds):
+                    raise ClientToolInputError("frozen confirmation was consumed or its prospective schedule is exhausted")
+                ordinal = len(consumed_confirmations)
+                consumed_confirmations.add(identity)
+                count = payload["check_result"]["prototype"]["metrics"]["requested_runtime_replicates"]
+                directory = session_dir / "confirmation" / identity
+                directory.mkdir(parents=True, exist_ok=False)
+                frozen = {"question_hash": stable_hash(research_question_payload(question, include_task_intent=True)),
+                          "code_draft": candidate, "upstream_algorithm_handoff": handoff,
+                          "input_resources": {scope: row["resources"] for scope, row in provided.items()},
+                          "seed": confirmatory_seeds[ordinal], "runtime_replicates": count, "ordinal": ordinal}
+                raw = json.dumps(frozen, sort_keys=True, ensure_ascii=False).encode("utf-8")
+                path = directory / "frozen_execution.json"
+                with path.open("xb") as stream:
+                    stream.write(raw)
+                row, tool = _run_generated_simulation_sandbox(
+                    sandbox_dir=directory, simulation_id=session_id + ":confirmation", code_draft=candidate,
+                    upstream_algorithm_handoff=handoff, n_runs=count, seed=confirmatory_seeds[ordinal], timeout_s=timeout_s,
+                    validation_context={"executable_evaluator_source_authority": True, "evaluator_source_confirmation": True})
+                row.update(execution_phase="confirmatory_evaluator_execution", independent_role_review=False,
+                           confirmatory_empirical_evidence_eligible=False,
+                           frozen_execution_ref={"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)})
+                check = {"code_draft_hash": stable_hash(candidate), "accepted": row["smoke_passed"], "prototype": row,
+                         "checkpoint_inputs": provided, "tool_call": asdict(tool), "independent_role_review": False,
+                         "empirical_evidence_status": "FROZEN_SOURCE_EXECUTION_WITHOUT_INDEPENDENT_REVIEW"}
+                return ClientToolExecutionResult(content=check, terminal=True, state_changed=True,
+                                                 terminal_payload={"code_draft": candidate, "check_result": check})
+
+            return PreparedClientToolWorkspace(
+                request=replace(request, tools=(ClientToolDefinition(
+                    name="execute_frozen_simulation", description=(
+                        "Freeze the selected evaluator source, methods and theory inputs before one fresh execution. "
+                        "The source must declare acceptance_passed and requested_runtime_replicates. No editing, "
+                        "replay or independent-review credit; failed results stay consumed."),
+                    input_schema={"type": "object", "additionalProperties": False, "properties": {}}, terminal=True),)),
+                execute_tool=execute_confirmation, on_success=lambda result: result, on_error=lambda error: error,
+                max_turns=max_turns, max_tool_calls=max_tool_calls, max_no_progress_turns=max_no_progress_turns,
+                session_dir=session_dir / "confirmation", session_id=session_id + ":confirmation",
+                initial_context={"independent_role_review": False, "confirmation_schedule_hash": stable_hash(confirmatory_seeds),
+                                 "confirmation_execution_capacity": len(confirmatory_seeds)})
+
+        workspaces["confirmation"] = prepare_confirmation({}, None)
+        preparers["confirmation"] = prepare_confirmation
     if theory_reviewer is not None:
         def prepare_review(selected, previous):
             if selected is not None and set(selected) != {"theory"}:

@@ -63,7 +63,7 @@ def publication_material_from_submission(
         core = payloads.get("theory", {}).get("core_packet", {})
         source_rows = []
         for scope, payload in payloads.items():
-            if scope == "simulation" or "code_draft" not in payload:
+            if scope in {"simulation", "confirmation"} or "code_draft" not in payload:
                 continue
             if scope not in control_estimator_scopes:
                 raise ValueError("selected control source is outside the frozen scope contract")
@@ -75,8 +75,8 @@ def publication_material_from_submission(
                     language=draft["language"], code=draft["code"], project_files=draft.get("project_files", []))):
                 raise ValueError("selected control draft differs from its source record")
             source_rows.append(row)
-        empirical_rows = ([payloads["simulation"]["check_result"]["prototype"]]
-                          if "simulation" in payloads else [])
+        empirical_rows = [payloads[scope]["check_result"]["prototype"]
+                          for scope in ("simulation", "confirmation") if scope in payloads]
     else:
         raise ValueError("publication projection requires an explicit supported source kind")
     bindings = []

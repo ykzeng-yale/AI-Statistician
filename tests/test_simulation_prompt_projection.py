@@ -13,6 +13,7 @@ from ai_statistician.simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
     SIMULATION_ENGINEER_CODE_WORKSPACE_SYSTEM_PROMPT,
     SimulationEngineerConfig,
+    _compact_upstream_algorithm_handoff,
 )
 
 
@@ -219,6 +220,25 @@ def test_accepted_algorithm_handoff_references_smoke_result_by_hash() -> None:
     assert projected["exact_smoke_result_hash"] == stable_hash(result)
     assert "exact_smoke_result" not in projected
     assert len(json.dumps(handoff)) < 25_000
+
+
+def test_simulation_handoff_preserves_long_identity_and_every_executable_field():
+    handoff = _large_algorithm_handoff()
+    artifact = handoff["exact_algorithm_artifacts"][0]
+    artifact["estimator_id"] = "opaque_" + "x" * 240
+    artifact["dependencies"] = ["opaque_dependency_" + str(index) for index in range(18)]
+    artifact["estimator_interface_contract_authority"] = {"opaque_" + str(index): "v" * 300 for index in range(12)}
+    fields = [{"name": "opaque_field_" + str(index), "meaning": "m" * 500,
+               "normalization": "n" * 400, "derivation_ref": "claim:opaque_" + str(index)} for index in range(20)]
+    artifact["estimator_interface_contract"]["response_fields"] = fields
+    projected = _compact_upstream_algorithm_handoff(handoff)["exact_algorithm_artifacts"][0]
+    assert projected["estimator_id"] == artifact["estimator_id"]
+    assert projected["dependencies"] == artifact["dependencies"]
+    assert projected["estimator_interface_contract_authority"] == artifact["estimator_interface_contract_authority"]
+    assert projected["estimator_interface_contract"]["response_fields"] == fields
+    assert "exact_source_code" not in projected and "exact_smoke_result" not in projected
+    fields[0]["meaning"] = "Caller mutation"
+    assert projected["estimator_interface_contract"]["response_fields"][0]["meaning"] == "m" * 500
 
 
 def test_executable_evaluator_workspace_makes_source_the_preregistration() -> None:

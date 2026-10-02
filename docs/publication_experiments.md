@@ -184,7 +184,7 @@ Actual Python/R tests cover source correctness against contradictory internal
 verdicts, missing dimensions, wrong submitted results and a native final snapshot
 after author-directory mutation. Referee verdicts are scripted mechanism fixtures,
 not mathematical qualification or a live model experiment. Complete arm configuration,
-calibrated full-task authority, confirmation, matched tools/resources, host activation
+calibrated full-task authority, matched confirmation/tools/resources, host activation
 and study CLI remain unfinished; neither publication study is activated. Do not
 use the new entry to reevaluate any consumed legacy task or qualification.
 
@@ -267,12 +267,42 @@ manufacturing an independent semantic review. Public Theory/ABI context reaches
 the source owner before authoring, not just the execution receipt afterward.
 Gap/progress observations remain in shared history but are not promoted into
 usable Theory checkpoints. Final Markdown submission is not scientific acceptance.
-This callable entry is not yet a complete matched System S arm: independent review,
-confirmation, optional Lean and the study CLI still require
+This callable entry is not yet a complete matched System S arm: review conditions,
+confirmation envelopes, optional Lean and the study CLI still require
 prospectively matched configuration. Do not compare it to an unrestricted full
 product or label arbitrary workflow text as matching that product's workflow.
 Actual integrated Python/R tests here use scripted turns, not live reasoning or
 publication draws.
+
+An explicitly supplied private `confirmatory_seeds` schedule now enables
+`confirmation__execute_frozen_simulation` in this same conversation. The model
+selects an observed Simulation source and its exact original input resources;
+the action records source, methods, inputs, requested replicate count and seed
+before executing the existing production sandbox. It cannot edit source or
+repair a failed experiment. The source/input identity is consumed even when
+execution fails; rebinding cannot replay it. A distinct source uses the next
+prospectively fixed seed, never an outcome-chosen seed. Schedule capacity and
+scientific computation must be matched across study arms; all actions still
+consume the shared loop budget. Seeds are not exposed before their execution.
+
+This is source freezing, not independent theory/protocol acceptance. The control
+retains `independent_role_review=false` and cannot acquire product confirmatory
+eligibility or accepted-role receipts. The full product's existing independent
+review guards remain unchanged. External scientific authority, applied equally
+to every arm, must determine whether the frozen experiment is faithful and valid.
+The common final view preserves both selected exploratory and frozen-execution
+rows with their original phases and failed results; it does not choose a passing
+candidate or promote exploration. Actual scripted Python/R tests cover pre-call
+freeze, false acceptance, changed replicate requests, execution failures,
+replay rejection, fresh source identities and schedule exhaustion. These are
+mechanism tests, not scientific qualification or model draws.
+
+Simulation handoff projection now uses the existing executable-ABI projector
+instead of a second truncated field schema. It preserves full identifiers,
+dependency lists, interface fields and support-file hashes while excluding
+source contents and raw outcomes. Large-interface tests verify that later caller
+mutation cannot change this prepared projection. No new repair or scheduler is
+introduced.
 
 Before Simulation consumes a selected estimator, the control now reads its
 persisted source, support files and result through the same exact-identity

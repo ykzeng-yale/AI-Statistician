@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .estimator_interface_contract import project_executable_estimator_interface_contract
 from .generated_metric_contract import (
     GENERATED_METRIC_CONTRACT_BOUNDARY,
     GENERATED_METRIC_CONTRACT_NOT_PROOF_EVIDENCE,
@@ -347,72 +348,31 @@ def _feedback_uses_executable_evaluator_source(
     )
 
 
-def _first_mapping_rows(value: Any, *, limit: int) -> list[Mapping[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [row for row in value[:limit] if isinstance(row, Mapping)]
-
-
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _compact_mapping(value: Any, *, limit: int) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    compact: dict[str, Any] = {}
-    for index, (key, row_value) in enumerate(value.items()):
-        if index >= limit:
-            break
-        compact[str(key)] = _truncate_text(row_value, limit=180)
-    return compact
-
-
 def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
+    """Exclude source/results without truncating identities or executable ABI."""
+
     if not isinstance(value, Mapping):
         return {}
     artifacts = [
         {
-            "estimator_id": _truncate_text(
-                row.get("estimator_id", ""), limit=180
-            ),
-            "language": _truncate_text(row.get("language", ""), limit=40),
-            "dependencies": _compact_string_list(
-                row.get("dependencies", []), limit=12, char_limit=80
-            ),
-            "exact_source_hash": _truncate_text(
-                row.get("exact_source_hash", ""), limit=120
-            ),
-            "exact_project_hash": _truncate_text(
-                row.get("exact_project_hash", ""), limit=120
-            ),
+            **{field: deepcopy(row.get(field, "")) for field in (
+                "estimator_id", "language", "exact_source_hash", "exact_project_hash",
+                "exact_smoke_result_hash", "estimator_interface_contract_id",
+            )},
+            "dependencies": deepcopy(row.get("dependencies", [])),
             "project_files": [
-                {
-                    "path": _truncate_text(
-                        project_file.get("path", ""), limit=240
-                    ),
-                    "content_sha256": _truncate_text(
-                        project_file.get("content_sha256", ""), limit=120
-                    ),
-                }
+                {field: deepcopy(project_file.get(field, "")) for field in ("path", "content_sha256")}
                 for project_file in row.get("exact_project_files", []) or []
                 if isinstance(project_file, Mapping)
             ],
-            "exact_smoke_result_hash": _truncate_text(
-                row.get("exact_smoke_result_hash", ""), limit=120
-            ),
-            "estimator_interface_contract_id": _truncate_text(
-                row.get("estimator_interface_contract_id", ""),
-                limit=120,
-            ),
-            "estimator_interface_contract_authority": _compact_mapping(
-                row.get("estimator_interface_contract_authority", {}), limit=8
-            ),
-            "estimator_interface_contract": (
-                _compact_estimator_interface_contract(
-                    row.get("estimator_interface_contract", {})
-                )
-            ),
+            "estimator_interface_contract_authority": deepcopy(dict(_mapping(
+                row.get("estimator_interface_contract_authority", {})))),
+            "estimator_interface_contract": project_executable_estimator_interface_contract(
+                _mapping(row.get("estimator_interface_contract", {}))),
         }
         for row in value.get("exact_algorithm_artifacts", []) or []
         if isinstance(row, Mapping)
@@ -420,67 +380,14 @@ def _compact_upstream_algorithm_handoff(value: Any) -> dict[str, Any]:
     if not artifacts:
         return {}
     return {
-        "source": _truncate_text(value.get("source", ""), limit=120),
-        "algorithm_sandbox_manifest_id": _truncate_text(
-            value.get("algorithm_sandbox_manifest_id", ""), limit=180
-        ),
-        "algorithm_sandbox_manifest_hash": _truncate_text(
-            value.get("algorithm_sandbox_manifest_hash", ""), limit=120
-        ),
-        "semantic_review_execution_id": _truncate_text(
-            value.get("semantic_review_execution_id", ""), limit=180
-        ),
-        "semantic_review_packet_id": _truncate_text(
-            value.get("semantic_review_packet_id", ""), limit=180
-        ),
-        "semantic_review_packet_hash": _truncate_text(
-            value.get("semantic_review_packet_hash", ""), limit=120
-        ),
-        "theory_packet_id": _truncate_text(
-            value.get("theory_packet_id", ""), limit=180
-        ),
+        **{field: deepcopy(value.get(field, "")) for field in (
+            "source", "algorithm_sandbox_manifest_id", "algorithm_sandbox_manifest_hash",
+            "semantic_review_execution_id", "semantic_review_packet_id", "semantic_review_packet_hash",
+            "theory_packet_id", "consumption_contract", "proof_evidence_status", "boundary",
+        )},
         "exact_algorithm_artifacts": artifacts,
         "exact_source_included": False,
         "execution_results_included": False,
-        "consumption_contract": _truncate_text(
-            value.get("consumption_contract", ""), limit=480
-        ),
-        "proof_evidence_status": _truncate_text(
-            value.get("proof_evidence_status", ""), limit=180
-        ),
-        "boundary": _truncate_text(value.get("boundary", ""), limit=360),
-    }
-
-
-def _compact_estimator_interface_contract(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    return {
-        "request_fields": [
-            {
-                key: _truncate_text(row.get(key, ""), limit=220)
-                for key in ("name", "meaning", "binding")
-            }
-            for row in _first_mapping_rows(
-                value.get("request_fields", []),
-                limit=16,
-            )
-        ],
-        "response_fields": [
-            {
-                key: _truncate_text(row.get(key, ""), limit=220)
-                for key in (
-                    "name",
-                    "meaning",
-                    "normalization",
-                    "derivation_ref",
-                )
-            }
-            for row in _first_mapping_rows(
-                value.get("response_fields", []),
-                limit=16,
-            )
-        ],
     }
 
 
@@ -495,23 +402,6 @@ def _upstream_algorithm_estimator_ids(
             and str(row.get("estimator_id", "") or "").strip()
         )
     )
-
-
-def _compact_string_list(value: Any, *, limit: int, char_limit: int = 220) -> list[str]:
-    if isinstance(value, str):
-        rows = [value]
-    elif isinstance(value, list):
-        rows = value
-    else:
-        rows = []
-    return [_truncate_text(row, limit=char_limit) for row in rows[:limit]]
-
-
-def _truncate_text(value: Any, *, limit: int = 360) -> str:
-    text = "" if value is None else str(value)
-    if len(text) <= limit:
-        return text
-    return text[: max(0, limit - 18)] + "...[truncated]"
 
 
 def validate_simulation_source_workspace_intent(

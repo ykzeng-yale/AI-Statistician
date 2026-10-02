@@ -675,6 +675,168 @@ def test_application_control_keeps_frozen_estimator_identity(tmp_path):
     assert not list(tmp_path.iterdir())
 
 
+@pytest.mark.parametrize("language", ["python", "r"])
+@pytest.mark.parametrize("disposition", ["accept", "reject", "changed_count", "execution_failure", "missing_count", "second_source", "exhausted_schedule"])
+def test_control_freezes_exact_source_before_fresh_execution_without_review(tmp_path, monkeypatch, language, disposition):
+    monkeypatch.delenv("AI_STATISTICIAN_NATIVE_PROJECT_CONFIG", raising=False)
+    runtime = discover_scientific_sandbox_runtime()
+    if not (runtime.python_available if language == "python" else runtime.r_available):
+        pytest.skip("scientific runtime is not prepared")
+    question = OpenResearchQuestion("opaque-confirmation", "Opaque confirmation", "Mechanism only, not scientific gold.",
+                                    task_intent={"theory": "not_applicable", "scientific_code": "required",
+                                                 "empirical": "required", "formal": "not_applicable"})
+    backend = Scripted([])
+    agents = [LLMTheoryDeveloperAgent(provider=backend, config=ResearchArchitectConfig(
+        provider_name="local", model=MODEL, model_tier="local", serious_model=MODEL, serious_model_tier="local",
+        max_tokens=1024, temperature=0)),
+        LLMAlgorithmEngineerAgent(provider=backend, config=AlgorithmEngineerConfig(
+            provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0)),
+        LLMSimulationEngineerAgent(provider=backend, config=SimulationEngineerConfig(
+            provider_name="local", model=MODEL, model_tier="local", max_tokens=1024, temperature=0))]
+    private_seeds = [910001] if disposition == "exhausted_schedule" else [910001, 920003]
+    from ai_statistician import research_agent_runtime as runtime_module
+    execute = runtime_module._run_generated_simulation_sandbox
+    confirmations = []
+
+    def verify_frozen_before_execution(**kwargs):
+        if kwargs.get("validation_context", {}).get("evaluator_source_confirmation"):
+            frozen = json.loads((kwargs["sandbox_dir"] / "frozen_execution.json").read_text())
+            assert frozen["code_draft"] == kwargs["code_draft"]
+            assert frozen["seed"] == kwargs["seed"] == (910001 if not confirmations else 920003)
+            assert frozen["runtime_replicates"] == kwargs["n_runs"] == 5
+            assert frozen["upstream_algorithm_handoff"] == kwargs["upstream_algorithm_handoff"]
+            confirmations.append(frozen)
+        return execute(**kwargs)
+
+    monkeypatch.setattr(runtime_module, "_run_generated_simulation_sandbox", verify_frozen_before_execution)
+    workspace = prepare_single_context_research_workspace(
+        question=question, request=ClientToolTurnRequest(system_prompt="Common objective.", messages=(), tools=(),
+                                                       model=MODEL, max_tokens=1024),
+        theory_agent=agents[0], algorithm_agent=agents[1], simulation_agent=agents[2], estimator_ids=("opaque",),
+        session_dir=tmp_path, session_id="opaque-freeze", n_runs=2, seed=7, timeout_s=30,
+        max_turns=32, max_tool_calls=32, max_no_progress_turns=32, confirmatory_seeds=private_seeds)
+    private_seeds[:] = [123, 456]  # The caller cannot revise a prepared schedule.
+    refs = {}
+    original_simulation = {}
+
+    def observed(request):
+        for message in request.messages:
+            if not isinstance(message.get("content"), list):
+                continue
+            for block in message["content"]:
+                if block.get("type") != "tool_result" or not isinstance(block.get("content"), list):
+                    continue
+                for part in block["content"]:
+                    item = json.loads(part["text"])
+                    if "shared_checkpoint_ref" in item:
+                        ref = item["shared_checkpoint_ref"]
+                        refs[ref["scope"]] = ref["payload_hash"]
+        return refs
+
+    def select(request, scope, parents):
+        observed(request)
+        if scope == "confirmation":
+            original_simulation.setdefault("hash", refs["simulation"])
+        return ClientToolCall("select-" + scope, RESEARCH_CONTROL_INPUTS_TOOL,
+                             {"scope": scope, "selected_checkpoints": {parent: refs[parent] for parent in parents}})
+
+    algorithm_code = ("def run_estimator(request):\n    return {'echo': request['value']}\n"
+                      "def run_sandbox(seed, replicates):\n    return run_estimator({'value': seed})\n"
+                      if language == "python" else
+                      "run_estimator <- function(request) list(echo=request$value)\n"
+                      "run_sandbox <- function(seed, replicates) run_estimator(list(value=seed))\n")
+    acceptance = disposition != "reject"
+    simulation_code = ("def run_sandbox(seed, replicates, estimators):\n"
+                       + ("    if seed > 900000: raise ValueError('opaque execution failure')\n" if disposition == "execution_failure" else "")
+                       + "    echo = estimators['opaque']({'value': seed + replicates})['echo']\n"
+                       + f"    return {{'echo': echo, 'acceptance_passed': {acceptance}"
+                       + (", 'requested_runtime_replicates': (6 if seed > 900000 else 5)" if disposition == "changed_count" else
+                          "" if disposition == "missing_count" else ", 'requested_runtime_replicates': 5") + "}\n"
+                       if language == "python" else
+                       "run_sandbox <- function(seed, replicates, estimators) {\n"
+                       + ("  if (seed > 900000) stop('opaque execution failure')\n" if disposition == "execution_failure" else "")
+                       + "  echo <- estimators[['opaque']](list(value=seed+replicates))$echo\n"
+                       + f"  list(echo=echo, acceptance_passed={str(acceptance).upper()}"
+                       + (", requested_runtime_replicates=if(seed>900000) 6L else 5L" if disposition == "changed_count" else
+                          "" if disposition == "missing_count" else ", requested_runtime_replicates=5L") + ")\n}\n")
+    draft = {"language": language, "execution_profile": "scientific_wasm", "dependencies": [],
+             "entrypoint": "run_sandbox", "code": algorithm_code}
+    parents = ["algorithm", "simulation"]
+    backend.calls = [
+        lambda request: select(request, "algorithm", []),
+        ClientToolCall("algorithm-source", "algorithm__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, draft),
+        ClientToolCall("algorithm-run", "algorithm__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Execute opaque source."}),
+        ClientToolCall("algorithm-checkpoint", "algorithm__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+        lambda request: select(request, "simulation", ["algorithm"]),
+        ClientToolCall("simulation-source", "simulation__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL, {**draft, "code": simulation_code}),
+        ClientToolCall("simulation-run", "simulation__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL, {"reason": "Inspect source on diagnostic seed."}),
+        ClientToolCall("simulation-checkpoint", "simulation__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+        lambda request: select(request, "confirmation", parents),
+        ClientToolCall("freeze", "confirmation__execute_frozen_simulation", {}),
+        ClientToolCall("replay", "confirmation__execute_frozen_simulation", {}),
+        lambda request: select(request, "confirmation", parents),
+        ClientToolCall("rebound-replay", "confirmation__execute_frozen_simulation", {}),
+        lambda request: ClientToolCall("report", "submit_research_result", {
+            "report_markdown": "# Execution record\n\nNo independent review or scientific acceptance claimed.\n",
+            "selected_checkpoints": {**observed(request), **({"simulation": original_simulation["hash"]}
+                                                              if disposition == "exhausted_schedule" else {})}})]
+    if disposition in {"second_source", "exhausted_schedule"}:
+        new_source = simulation_code + "\n# A distinct opaque protocol snapshot.\n"
+        if disposition == "second_source":
+            simulation_code = new_source
+        backend.calls[-1:-1] = [
+            lambda request: select(request, "simulation", ["algorithm"]),
+            ClientToolCall("new-simulation-source", "simulation__" + SCIENTIFIC_SOURCE_SUBMISSION_TOOL,
+                           {**draft, "code": new_source}),
+            ClientToolCall("new-simulation-run", "simulation__" + SCIENTIFIC_SOURCE_RUN_CURRENT_TOOL,
+                           {"reason": "Inspect a distinct source before freezing."}),
+            ClientToolCall("new-simulation-checkpoint", "simulation__" + SCIENTIFIC_SOURCE_COMMIT_TOOL, {}),
+            lambda request: select(request, "confirmation", parents),
+            ClientToolCall("new-freeze", "confirmation__execute_frozen_simulation", {}),
+        ]
+    result = run_client_tool_workspace(backend=backend, workspace=workspace)
+    submission = load_research_control_submission(result, question=question, session_dir=tmp_path)
+    assert not backend.calls and len(backend.requests) == (20 if disposition in {"second_source", "exhausted_schedule"} else 14)
+    assert "910001" not in str(backend.requests[:10])
+    assert "920003" not in str(backend.requests[:19] if disposition == "second_source" else backend.requests)
+    from benchmarks.publication.evaluate_final_artifacts import publication_material_from_submission
+    material = publication_material_from_submission(submission, source_kind="control", control_estimator_scopes={"algorithm": "opaque"})
+    rows = material["empirical_artifact"]["generated_simulation_rows"]
+    assert rows[0]["execution_phase"] == "exploratory_diagnostic"
+    assert rows[0]["metrics"]["echo"] == 9
+    if disposition == "missing_count":
+        assert not confirmations and len(rows) == 1 and "confirmation" not in submission["checkpoint_payloads"]
+        assert "selected evaluator source/ABI is invalid" in str(result.messages)
+        return
+    assert len(confirmations) == (2 if disposition == "second_source" else 1) and len(rows) == 2
+    row = rows[1]
+    assert row["execution_phase"] == "confirmatory_evaluator_execution"
+    assert row["source_code"] == simulation_code and row["script_hash"] == stable_hash(simulation_code)
+    assert row["bound_estimator_code_hashes"] == {"opaque": stable_hash(algorithm_code)}
+    assert row["independent_role_review"] is False and row["confirmatory_empirical_evidence_eligible"] is False
+    assert row["smoke_passed"] is (disposition in {"accept", "second_source", "exhausted_schedule"})
+    if disposition != "execution_failure":
+        assert row["metrics"]["echo"] == (920008 if disposition == "second_source" else 910006)
+    assert "frozen confirmation was consumed" in str(result.messages)
+    frozen_ref = row["frozen_execution_ref"]
+    assert hashlib.sha256(Path(frozen_ref["path"]).read_bytes()).hexdigest() == frozen_ref["sha256"]
+    inputs = submission["selected_checkpoints"]["confirmation"]["inputs"]
+    assert set(inputs) == {"algorithm", "simulation"}
+    assert inputs["simulation"]["resources"] == submission["selected_checkpoints"]["simulation"]["resources"]
+
+
+@pytest.mark.parametrize("schedule", [None, "seed", [True], [7], [9, 9], [9.0]])
+def test_control_rejects_invalid_confirmation_schedule_before_preparation(tmp_path, schedule):
+    with pytest.raises(ValueError, match="distinct, frozen seeds"):
+        prepare_single_context_research_workspace(
+            question=OpenResearchQuestion("configuration", "Configuration", "No execution."),
+            request=ClientToolTurnRequest(system_prompt="No calls.", messages=(), tools=(), model=MODEL, max_tokens=1024),
+            theory_agent=None, algorithm_agent=None, simulation_agent=None, estimator_ids=("opaque",),
+            session_dir=tmp_path, session_id="invalid", n_runs=2, seed=7, timeout_s=30,
+            max_turns=8, max_tool_calls=8, max_no_progress_turns=8, confirmatory_seeds=schedule)
+    assert not list(tmp_path.iterdir())
+
+
 def test_prepared_theory_referee_keeps_frozen_question_material_and_disposition(tmp_path):
     question = OpenResearchQuestion("opaque-review", "Opaque target", "Inspect an unresolved claim.",
         task_intent={"theory": "required", "scientific_code": "not_applicable", "empirical": "not_applicable", "formal": "not_applicable"})
