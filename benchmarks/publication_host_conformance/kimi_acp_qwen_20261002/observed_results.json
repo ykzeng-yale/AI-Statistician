@@ -1,0 +1,47 @@
+{
+  "scope": "Native host conformance only; no statistical task, independent scientific judgment or publication efficacy claim.",
+  "frozen_commit": "42f16f64ea3d42c56115bc8288b2ad2663ce74a4",
+  "protocol_sha256": "61e7a6faaf4caa1ed360a2799d16f91ed7f6b5195c44c78efeb06804b95bdb9c",
+  "runner_sha256": "37f44a82c1644afa00f71eba746e8fda334fc55463cd326d4ada7c9c5065784d",
+  "raw_root": "runs/publication_host_activation_20261002/probe_1",
+  "session_id": "session_68177f87-83ef-43a8-b4eb-d760ee5deb5b",
+  "host": "Kimi Code CLI 2.1.1",
+  "model": "Qwen3-4B-Instruct-2507 Q4_K_M",
+  "checks": {
+    "native_discovery": true,
+    "exact_skill_body_in_model_context": true,
+    "exact_skill_body_characters": 2994,
+    "native_model_identity": true,
+    "native_read_probe": true,
+    "exact_final_receipt": true,
+    "probe_unchanged": true,
+    "native_session_closed": true,
+    "owned_processes_stopped": true
+  },
+  "requests": {"loop": 2, "auxiliary_observed": 0, "native_tool_calls": 1},
+  "usage": {
+    "input_other": 11129,
+    "input_cache_read": 11043,
+    "total_input": 22172,
+    "output": 71,
+    "total": 22243,
+    "boundary": "Cache reads are part of input, not extra tokens. Native usage is observed; this is not a speed/cost-effect comparison."
+  },
+  "elapsed_seconds": 27.598764896392822,
+  "sampling": {
+    "server_defaults": {"seed": 20261002, "temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0},
+    "native_sampling_overrides_recorded": false,
+    "native_requested_max_tokens": 32768,
+    "thinking_effort": "off",
+    "boundary": "These are the verified server defaults and native request records, not an intercepted HTTP request or a retrospectively changed development deployment."
+  },
+  "raw_sha256": {
+    "acp.jsonl": "646e35b3784edc12208de2fa6339f114829801bc97db89138dc33f68c509a8bb",
+    "terminal.json": "7ee12f1145d5c98a9b4fabbed0013b7754e27bd861f7a8e02870d03da39a3500",
+    "native_wire.jsonl": "4d4aba325540fbc30dd1c46e2302a800d8c3b18a3091089e3a0299a98c987641",
+    "server_props.json": "9a19134d9c74ef86933cd5dbbde36447ad115f0cdb2e65aebad082ae4adadb9e"
+  },
+  "termination": "ACP end_turn and session/close succeeded. The operator then stopped the persistent ACP process group (host returncode -15) and its owned llama-server. Port 8081 and both recorded PIDs were absent afterwards.",
+  "verification": "Four native/mock/filesystem checks passed, one Codex opt-in check skipped; these add no inference. Runner compiled. No product or Lean source change; the latest complete shared regression remains 1961 passed, 18 skipped, one existing xfail at 445312e4.",
+  "boundary": "One skill-only compatibility probe with no bare comparison. Body uptake and a file read do not demonstrate statistical reasoning, full package tool/reference use, usability, independent review, Lean proof or harness efficacy. No old scientific draw was resumed or rescored, and neither official study is activated."
+}

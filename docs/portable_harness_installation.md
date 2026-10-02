@@ -75,6 +75,11 @@ asserts that the entire skill body reaches the captured model request. The
 endpoint returns a fixed mock response, not live inference. Combined Codex/Kimi
 opt-in conformance passed five checks. Ordinary tests skip these native checks.
 Claude Code discovery/runtime has not yet been tested.
+On 2026-10-02 a [separate real-Qwen ACP probe](../benchmarks/publication_host_conformance/kimi_acp_qwen_20261002/README.md)
+verified the same native activation surface with the exact skill body in persisted
+model context, one actual file read and a correct receipt. It used two local
+Qwen requests; neither the installed skill nor product source was changed.
+This is body-uptake/tool conformance, not a scientific task or an efficacy comparison.
 Scientific efficacy and researcher usability are not established by discovery.
 The application wheel also built and installed into a clean Python 3.12 venv;
 its CLI and native local-backend factory loaded outside the source checkout.
@@ -86,5 +91,6 @@ In this installed Kimi version, a literal slash command supplied through
 non-interactive `--prompt` remained plain user text; discovery alone did not
 activate the skill. Use the host's actual skill activation surface and verify
 body consumption before freezing a scientific comparison. The ACP mock check
-establishes that surface, not research efficacy. The pilot remains consumed and
+and the new independent live conformance check establish that surface, not
+research efficacy. The pilot remains consumed and
 separate from the unactivated official studies and historical Haiku records.
